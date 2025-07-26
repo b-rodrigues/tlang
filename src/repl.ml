@@ -28,39 +28,39 @@ let load_package env name =
 let load_builtin_packages env =
   List.iter (load_package env) [ "core"; "stats"; "dplyr" ]
 
-(* Main REPL loop *)
-let rec repl env =
-  print_string "T> ";
-  flush stdout;
-  match read_line () with
-  | exception End_of_file ->
-      print_endline "\nGoodbye.";
-      ()
-  | line ->
-      let trimmed = String.trim line in
-      if trimmed = "" then repl env
-      else if trimmed = ":quit" || trimmed = ":q" then (
-        print_endline "Exiting T REPL.";
-        ()
-      ) else (
-        try
-          let tokens = Lexer.lex line in
-          let expr = Parser.parse tokens in
-          let result = eval env expr in
-          print_value result;
-        with
-        | RuntimeError msg ->
-            Printf.printf "Error: %s\n" msg
-        | Failure msg | EvalError msg ->
-            Printf.printf "Parse error: %s\n" msg
-        | exn ->
-            Printf.printf "Unknown error: %s\n" (Printexc.to_string exn)
-        ;
-        repl env
-      )
-
 let () =
-  let env = Eval.Env.empty () in
+  let env = Eval.global_env in
   load_builtin_packages env;
+  register_csv_builtins ();
   Printf.printf "T language REPL — version 0.1\nType :quit or :q to exit.\n";
-  repl env 
+  let rec repl env =
+    print_string "T> ";
+    flush stdout;
+    match read_line () with
+    | exception End_of_file ->
+        print_endline "\nGoodbye.";
+        ()
+    | line ->
+        let trimmed = String.trim line in
+        if trimmed = "" then repl env
+        else if trimmed = ":quit" || trimmed = ":q" then (
+          print_endline "Exiting T REPL.";
+          ()
+        ) else (
+          try
+            let tokens = Lexer.lex line in
+            let expr = Parser.parse tokens in
+            let result = eval env expr in
+            print_value result;
+          with
+          | RuntimeError msg ->
+              Printf.printf "Error: %s\n" msg
+          | Failure msg | EvalError msg ->
+              Printf.printf "Parse error: %s\n" msg
+          | exn ->
+              Printf.printf "Unknown error: %s\n" (Printexc.to_string exn)
+          ;
+          repl env
+        )
+  in
+  repl env
