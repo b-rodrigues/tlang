@@ -17,7 +17,7 @@ let read_csv (filename : string) : value =
               let col_data =
                 List.map
                   (fun row ->
-                    try VString (List.nth row col_idx)
+                    try VString (List.nth row col_idx) (* CSV is 0-indexed internally, keep for reading *)
                     with _ -> VNull)
                   data
               in
@@ -28,3 +28,5 @@ let read_csv (filename : string) : value =
   with
   | Sys_error msg -> VError ("File error: " ^ msg)
   | e -> VError ("CSV read error: " ^ Printexc.to_string e) 
+
+(* If you add more user-facing column/row selection built-ins, ensure those are 1-indexed for user calls, even if the internal CSV logic stays 0-indexed *)
