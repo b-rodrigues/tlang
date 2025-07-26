@@ -11,6 +11,7 @@ type value =
   | String of string
   | Symbol of symbol          (** Bare names for NSE, e.g., column names *)
   | List of value list
+  | StartsWith of string
   | Dict of (string * value) list
   | Lambda of lambda
   | Table of table           (** Tabular data for data science *)
