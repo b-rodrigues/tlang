@@ -2,7 +2,19 @@
 
 open Ast
 
-(* Helper: select columns from table by symbol *)
+(* Add to value type in your AST: *)
+(* | StartsWith of string *)
+
+(* Builtin: starts_with("prefix") returns a selector *)
+let starts_with_function args =
+  match args with
+  | [VString prefix] -> StartsWith prefix
+  | _ -> VError "starts_with expects a string argument"
+
+(* Register in your init code: *)
+(* Hashtbl.replace global_env "starts_with" (VBuiltin starts_with_function) *)
+
+(* Helper: select columns from table by bare symbol name *)
 let select_column_by_symbol columns symbol =
   match List.assoc_opt symbol columns with
   | Some col_data -> Ok (symbol, col_data)
@@ -35,7 +47,6 @@ let rec expand_range v =
       aux start []
   | _ -> [v]
 
-(* Flatten selectors, expanding ranges *)
 let flatten_selectors selectors =
   List.flatten (List.map expand_range selectors)
 
@@ -51,10 +62,16 @@ let select_function args =
               match sel with
               | Symbol name -> select_column_by_symbol columns name
               | Int idx -> select_column_by_index columns idx
-              | _ -> Error "select expects bare column names (symbol), integer positions, or integer ranges for tables"
+              | StartsWith prefix ->
+                  let matched =
+                    List.filter (fun (colname, _) -> String.starts_with ~prefix colname) columns
+                  in
+                  OkList matched
+              | _ -> Error "select expects bare column names (symbol), integer positions, ranges, or starts_with() for tables"
             in
             begin match res with
             | Ok col -> gather (col :: acc) errors rest
+            | OkList cols -> gather (List.rev_append cols acc) errors rest
             | Error e -> gather acc (e :: errors) rest
             end
       in
@@ -85,3 +102,9 @@ let select_function args =
       else
         List selected
   | _ -> Error "select expects a table, array, or list as first argument"
+
+(* Helper type for returning multiple columns *)
+and result =
+  | Ok of (string * value)
+  | OkList of (string * value) list
+  | Error of string
