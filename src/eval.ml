@@ -1,4 +1,4 @@
-(* Evaluator for the T programming language *)
+(* src/eval.ml *)
 
 open Ast
 
@@ -24,6 +24,8 @@ module Env = struct
     env
 end
 
+let global_env : Env.t = Env.empty ()
+
 (* Unwrap errors, propagating exceptions *)
 let unwrap = function
   | VError msg -> raise (RuntimeError msg)
@@ -43,6 +45,52 @@ module Print_builtin = struct
     if not handled then Printf.printf "<unhandled value>\n"
 end
 
+(* Pretty-printing for tables *)
+let () =
+  Print_builtin.register ~tag:"table" (function
+    | VTable columns ->
+        let col_names = List.map fst columns in
+        let rows =
+          let col_lists = List.map snd columns in
+          let row_count =
+            match col_lists with
+            | [] -> 0
+            | vs :: _ -> List.length (match vs with VList xs -> xs | _ -> [])
+          in
+          let get_col_row cidx ridx =
+            match List.nth col_lists cidx with
+            | VList xs -> (try List.nth xs ridx with _ -> VNull)
+            | _ -> VNull
+          in
+          let rec build_rows r =
+            if r >= row_count then []
+            else
+              (List.init (List.length col_lists) (fun c -> get_col_row c r))
+              :: build_rows (r + 1)
+          in
+          build_rows 0
+        in
+        (* Print header *)
+        Printf.printf "| %s |\n" (String.concat " | " col_names);
+        Printf.printf "|%s|\n"
+          (String.concat "" (List.map (fun _ -> "------|") col_names));
+        (* Print rows *)
+        List.iter (fun row ->
+          Printf.printf "| %s |\n"
+            (String.concat " | " (List.map
+              (function
+                | VString s -> s
+                | VInt i -> string_of_int i
+                | VFloat f -> string_of_float f
+                | VNull -> ""
+                | VBool b -> string_of_bool b
+                | _ -> "<complex>"
+              ) row))
+        ) rows;
+        true
+    | _ -> false
+  )
+
 (* Apply a function value to arguments *)
 let rec apply fn_val args env =
   match fn_val with
@@ -53,6 +101,7 @@ let rec apply fn_val args env =
         let local_env = Env.copy env in
         List.iter2 (Env.set local_env) params args;
         eval local_env body
+  | VBuiltin f -> f args
   | _ -> VError "Not a function"
 
 (* Evaluate binary operators *)
@@ -135,4 +184,12 @@ and eval env (e : expr) : value =
       let pairs = List.map (fun (k, v_expr) -> (k, eval env v_expr |> unwrap)) entries in
       VDict pairs
 
-let print_value v = Print_builtin.dispatch v 
+let print_value v = Print_builtin.dispatch v
+
+(* Register CSV builtins *)
+let register_csv_builtins () =
+  Hashtbl.replace global_env "Csv.read"
+    (VBuiltin (function
+      | [VString filename] -> Builtins_csv_reader.read_csv filename
+      | _ -> VError "Csv.read expects a single filename string"
+    ))
