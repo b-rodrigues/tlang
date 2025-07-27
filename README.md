@@ -23,6 +23,20 @@ This project is **currently at the idea/prototype stage**. Everything from the p
 
 ---
 
+## Why T?
+
+T is not aiming to replace R or replicate its vast package ecosystem. R remains one of the most powerful tools for data analysis, with decades of community contributions. Instead, T is for those who prefer a **small, focused, consistent language** dedicated to data wrangling, graphics, and basic statistics — without general-purpose baggage.
+
+T’s value lies in being:
+
+- **Minimal**: a language you can learn and understand fully
+- **Self-contained**: every function and abstraction is inspectable and documented
+- **Purpose-built**: designed *only* for working with structured data
+
+It's ideal for users who want a compact environment, excellent documentation, and a predictable, REPL-first workflow — whether for teaching, scripting, or exploratory data work.
+ 
+---
+
 ## Example
 
 ```t
