@@ -50,6 +50,20 @@ Each package consists of one file per function, e.g. `colcraft.select.ml`.
 
 ---
 
+## Package Philosophy
+
+T does not use a decentralized package registry like PyPI or npm. Instead, all packages are contributed and maintained **within the main GitHub repository**. This is a deliberate design decision inspired by R’s CRAN, but with key differences.
+
+While CRAN prevents dependency hell by enforcing a single coherent view of all packages, its contribution process can lack transparency and flexibility. By keeping all T packages in a single, centralized repository on GitHub, we gain:
+
+- A consistent, minimal dependency graph across the ecosystem
+- Full visibility into how packages are reviewed and integrated
+- Simple and direct contributions via GitHub PRs
+
+This ensures long-term maintainability without the fragility and version drift issues common in Python packaging, while remaining open and collaborative.
+
+---
+
 ## Project Structure
 
 ```
