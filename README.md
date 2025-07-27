@@ -13,19 +13,20 @@ This project is **currently at the idea/prototype stage**. Everything from the p
 ## Design Goals
 
 - **Tabular-first**: Tables are first-class values. Functions like `select()`, `filter()`, and `mutate()` operate on them declaratively.
+- **1-indexed**: Humans don't start counting from 0, only clankers do. You aren't a clanker aren't you?
 - **Declarative and functional**: T is expression-oriented and avoids mutation and imperative constructs.
 - **Minimal OCaml core**: The runtime and interpreter are minimal. Most functionality is implemented as packages written in T itself.
 - **Non-Standard Evaluation (NSE)**: Column names can be passed as bare identifiers, not strings: `select(name, age)`.
 - **Extensible built-ins**: Functions like `print()` support multiple dispatch and can be extended for user-defined types.
 - **REPL-first**: T is designed to be explored interactively via a custom REPL.
-- **Package-based**: Features are grouped into internal packages (e.g. `core`, `stats`, `dplyr`) that load modularly.
+- **Package-based**: Features are grouped into internal packages (e.g. `core`, `stats`, `colcraft`) that load modularly.
 
 ---
 
 ## Example
 
 ```t
-let data = Csv.read("data.csv")
+let data = read_csv("data.csv")
 select(data, name, age)
 ```
 
@@ -43,9 +44,9 @@ The following packages are automatically loaded at REPL startup:
 
 - `core`: functional utilities (e.g. `map`, `filter`)
 - `stats`: statistical functions (e.g. `mean`, `sd`)
-- `dplyr`: tabular functions (`select`, `mutate`, `filter`, etc.)
+- `colcraft`: tabular functions (`select`, `mutate`, `filter`, etc.)
 
-Each package consists of one file per function, e.g. `dplyr.select.ml`.
+Each package consists of one file per function, e.g. `colcraft.select.ml`.
 
 ---
 
@@ -65,7 +66,7 @@ Each package consists of one file per function, e.g. `dplyr.select.ml`.
 │   │   └── map.t
 │   ├── stats/
 │   │   └── mean.t
-│   └── dplyr/
+│   └── colcraft/
 │       └── select.t
 ```
 
