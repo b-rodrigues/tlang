@@ -1,114 +1,151 @@
 (* src/eval.ml *)
+(* Revised evaluator with a functional, immutable environment and a modular, extensible design. *)
 
 open Ast
+open Eval_helpers (* Uses helpers for type errors, etc. *)
 
-exception RuntimeError of string
+(* The environment is an immutable map from symbols to values. *)
+module Env = Map.Make(String)
+type environment = value Env.t
 
-(* Environment: maps symbols to values *)
-module Env = struct
-  type t = (symbol, value) Hashtbl.t
+(* Forward declarations for mutual recursion *)
+let rec eval_expr env expr =
+  match expr with
+  | Value v -> v
+  | Var s ->
+      (match Env.find_opt s env with
+      | Some v -> v
+      | None -> Symbol s) (* Return bare words as Symbols for Non-Standard Evaluation (NSE) *)
 
-  let empty () = Hashtbl.create 32
-  let copy env = Hashtbl.copy env
+  | BinOp { op; left; right } -> eval_binop env op left right
+  | UnOp { op; operand } -> eval_unop env op operand
 
-  let get env key =
-    try Hashtbl.find env key
-    with Not_found -> VError ("Unbound variable: " ^ key)
+  | IfElse { cond; then_; else_ } ->
+      let cond_val = eval_expr env cond in
+      (match cond_val with
+       | Error _ as e -> e
+       | _ -> if Utils.is_truthy cond_val then eval_expr env then_ else eval_expr env else_)
 
-  let set env key value =
-    Hashtbl.replace env key value
+  | Call { fn; args } ->
+      let fn_val = eval_expr env fn in
+      eval_call env fn_val args
 
-  let of_bindings bindings =
-    let env = empty () in
-    List.iter (fun (k, v) -> set env k v) bindings;
-    env
-end
+  | Lambda l -> VLambda { l with env = Some env } (* Capture the current environment *)
 
-let global_env : Env.t = Env.empty ()
+  (* Structural expressions *)
+  | ListLit items -> eval_list_lit env items
+  | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env e)) pairs)
+  | DotAccess { target; field } -> eval_dot_access env target field
+  | ListComp _ -> Error "List comprehensions are not yet implemented"
 
-(* Unwrap errors, propagating exceptions *)
-let unwrap = function
-  | VError msg -> raise (RuntimeError msg)
-  | v -> v
+and eval_list_lit env items =
+    let evaluated_items = List.map (fun (name, e) ->
+        match eval_expr env e with
+        | Error _ as err -> (name, err) (* Propagate errors *)
+        | v -> (name, v)
+    ) items in
+    (* Check if any item failed to evaluate *)
+    match List.find_opt (fun (_, v) -> match v with Error _ -> true | _ -> false) evaluated_items with
+    | Some (_, err_val) -> err_val
+    | None -> VList evaluated_items
 
-(* Built-in printers registry *)
-module Print_builtin = struct
-  let printers : (string * (value -> bool)) list ref = ref []
 
-  let register ~tag f =
-    printers := (tag, f) :: !printers
+and eval_dot_access env target_expr field =
+  let target_val = eval_expr env target_expr in
+  match target_val with
+  | VDict pairs ->
+      (match List.assoc_opt field pairs with
+      | Some v -> v
+      | None -> Error (Printf.sprintf "Key Error: key '%s' not found in dict" field))
+  | VList named_items ->
+      (match List.find_opt (fun (name, _) -> name = Some field) named_items with
+      | Some (_, v) -> v
+      | None -> Error (Printf.sprintf "Attribute Error: list has no named element '%s'" field))
+  | VDataFrame { columns; _ } ->
+      (match List.assoc_opt field columns with
+       | Some col_data -> VList (List.map (fun v -> (None, v)) (Array.to_list col_data))
+       | None -> Error (Printf.sprintf "Column Error: column '%s' not found in DataFrame" field))
+  | Error _ as e -> e
+  | other -> type_error "Dict, named List, or DataFrame" other
 
-  let dispatch v =
-    let handled =
-      List.exists (fun (_, f) -> f v) !printers
-    in
-    if not handled then Printf.printf "<unhandled value>\n"
-end
-
-(* Pretty-printing for tables *)
-let () =
-  Print_builtin.register ~tag:"table" (function
-    | VTable columns ->
-        let col_names = List.map fst columns in
-        let rows =
-          let col_lists = List.map snd columns in
-          let row_count =
-            match col_lists with
-            | [] -> 0
-            | vs :: _ -> List.length (match vs with VList xs -> xs | _ -> [])
-          in
-          let get_col_row cidx ridx =
-            match List.nth col_lists cidx with
-            | VList xs -> (try List.nth xs (ridx - 1) with _ -> VNull)  (* 1-indexed *)
-            | _ -> VNull
-          in
-          let rec build_rows r =
-            if r > row_count then []
-            else
-              (List.init (List.length col_lists) (fun c -> get_col_row c r))
-              :: build_rows (r + 1)
-          in
-          build_rows 1
-        in
-        (* Print header *)
-        Printf.printf "| %s |\n" (String.concat " | " col_names);
-        Printf.printf "|%s|\n"
-          (String.concat "" (List.map (fun _ -> "------|") col_names));
-        (* Print rows *)
-        List.iter (fun row ->
-          Printf.printf "| %s |\n"
-            (String.concat " | " (List.map
-              (function
-                | VString s -> s
-                | VInt i -> string_of_int i
-                | VFloat f -> string_of_float f
-                | VNull -> ""
-                | VBool b -> string_of_bool b
-                | _ -> "<complex>"
-              ) row))
-        ) rows;
-        true
-    | _ -> false
-  )
-
-(* Apply a function value to arguments *)
-let rec apply fn_val args env =
+and eval_call env fn_val raw_args =
   match fn_val with
-  | VLambda { params; body } ->
-      if List.length params <> List.length args then
-        VError "Incorrect number of arguments"
+  | VBuiltin { arity; variadic; func } ->
+      (* For NSE, we pass some arguments as raw expressions *)
+      let args = List.map (eval_expr env) raw_args in
+      if not variadic && List.length args <> arity then
+        Error (Printf.sprintf "Arity Error: Expected %d arguments but got %d" arity (List.length args))
       else
-        let local_env = Env.copy env in
-        List.iter2 (Env.set local_env) params args;
-        eval local_env body
-  | VBuiltin f -> f args
-  | _ -> VError "Not a function"
+        func args env (* Pass current env for complex functions like 'filter' *)
 
-(* 1-indexed access for VList and VTable *)
-let get_nth lst idx =
-  if idx < 1 || idx > List.length lst then
-    VError ("Index out of bounds (1-indexed): " ^ string_of_int idx)
-  else
-    List.nth lst (idx - 1)
+  | VLambda { params; variadic; body; env = Some closure_env } ->
+      let args = List.map (eval_expr env) raw_args in
+      (* TODO: Check for arity errors *)
+      let call_env =
+        List.fold_left2
+          (fun current_env name value -> Env.add name value current_env)
+          closure_env params args
+      in
+      eval_expr call_env body
 
-(* Add similar 1-indexed access logic for any other built-in or helper function that works with user-supplied indices *)
+  | Error _ as e -> e
+  | _ -> type_error "function" fn_val
+
+and eval_binop env op left right =
+  let lval = eval_expr env left in
+  match lval with Error _ as e -> e | _ ->
+  let rval = eval_expr env right in
+  match rval with Error _ as e -> e | _ ->
+  match (op, lval, rval) with
+  (* Arithmetic *)
+  | (Plus, VInt a, VInt b) -> VInt (a + b)
+  | (Plus, VFloat a, VFloat b) -> VFloat (a +. b)
+  | (Minus, VInt a, VInt b) -> VInt (a - b)
+  | (Minus, VFloat a, VFloat b) -> VFloat (a -. b)
+  | (Mul, VInt a, VInt b) -> VInt (a * b)
+  | (Mul, VFloat a, VFloat b) -> VFloat (a *. b)
+  | (Div, VInt a, VInt b) -> if b = 0 then Error "Division by zero" else VInt (a / b)
+  | (Div, VFloat a, VFloat b) -> if b = 0.0 then Error "Division by zero" else VFloat (a /. b)
+  (* Comparison *)
+  | (Eq, a, b) -> VBool (a = b)
+  | (NEq, a, b) -> VBool (a <> b)
+  | (Lt, VInt a, VInt b) -> VBool (a < b)
+  | (Gt, VInt a, VInt b) -> VBool (a > b)
+  (* TODO: Add more type combinations for comparisons *)
+  | (_, l, r) -> Error (Printf.sprintf "Cannot apply operator to types %s and %s" (Utils.type_name l) (Utils.type_name r))
+
+and eval_unop env op operand =
+  let v = eval_expr env operand in
+  match v with Error _ as e -> e | _ ->
+  match (op, v) with
+  | (Not, v) -> VBool (not (Utils.is_truthy v))
+  | (Neg, VInt i) -> VInt (-i)
+  | (Neg, VFloat f) -> VFloat (-.f)
+  | (Neg, other) -> type_error "Int or Float" other
+
+(* --- Statement & Program Evaluation --- *)
+
+let eval_statement env stmt =
+  match stmt with
+  | Expression e ->
+      let v = eval_expr env e in
+      (v, env) (* Return value, environment is unchanged *)
+  | Assignment { name; expr; _ } ->
+      let v = eval_expr env expr in
+      let new_env = Env.add name v env in
+      (v, new_env) (* Return value, and the new environment with the binding *)
+
+let initial_env () =
+  let env = Env.empty in
+  let env = Builtins.load env in
+  let env = Colcraft.load env in
+  env
+
+let eval_program program env =
+  let last_val, _final_env =
+    List.fold_left
+      (fun (_v, current_env) stmt -> eval_statement current_env stmt)
+      (VNull, env)
+      program
+  in
+  last_val
