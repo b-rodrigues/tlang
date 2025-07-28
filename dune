@@ -1,18 +1,11 @@
-(library
- (name lib)
- (public_name t_lang.lib)
- (libraries csv)
- ;; Add menhir as a preprocessor
- (preprocess (pps menhir))
- ;; Tell Dune about the parser and lexer
- (menhir
-  (modules parser))
- (ocamllex lexer))
+; This file is at the root of the project.
 
-(executable
- (name repl)
- (public_name t_lang)
- (modes (native exe))
- (modules repl)
- ;; The REPL needs the library and Menhir's library
- (libraries lib menhirLib)) 
+; Tell Dune to look for more build rules in the 'src' subdirectory.
+(subdir src)
+
+; Create a default alias.
+; This allows you to run your REPL by simply typing:
+;   dune exec repl
+(alias
+ (name runtest)
+ (action (run %{exe:src/repl.exe})))
