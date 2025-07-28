@@ -1,312 +1,326 @@
-(** Parser for the T programming language *)
+(* parser.ml *)
 
 open Ast
 
-(** Token types for the T language *)
-type token =
-  | Int of int
-  | Float of float
-  | String of string
-  | Ident of string
-  | Symbol of string
-  | LParen | RParen
-  | LBracket | RBracket
-  | LBrace | RBrace
-  | Comma | Colon | Arrow | Lambda
-  | Op of string
-  | For | If | In
-  | Equal | EOF
-[@@deriving show, eq]
+(* A basic recursive descent parser outline *)
 
-(** Parser state with position tracking *)
+type token =
+  | INT of int
+  | FLOAT of float
+  | BOOL of bool
+  | STRING of string
+  | SYMBOL of string           (* bare names *)
+  | BACKTICK_SYMBOL of string (* backtick-quoted names *)
+  | LET
+  | FUNCTION
+  | IF
+  | ELSE
+  | FOR
+  | IN
+  | DOT
+  | COMMA
+  | LPAREN
+  | RPAREN
+  | LBRACKET
+  | RBRACKET
+  | LBRACE
+  | RBRACE
+  | EQUALS
+  | DOTDOTDOT                (* ... *)
+  | PIPE                    (* |> *)
+  | OP of string            (* +, -, *, /, ==, !=, etc. *)
+  | EOF
+
+(* Lexer is separate; assume tokens are provided *)
+
+(* Parsing context *)
+
 type parser_state = {
-  tokens : token list;
-  position : int;
-  current : token option;
+  tokens: token list;
+  mutable current: token list;
 }
 
-(** Parser result type *)
-type 'a parse_result = ('a, string) result
+exception Parse_error of string
 
-(** Parser exceptions *)
-exception Parse_error of string * int
+let next_token state =
+  match state.current with
+  | [] -> EOF
+  | hd :: tl ->
+      state.current <- tl;
+      hd
 
-(** Create initial parser state *)
-let make_state tokens =
-  { tokens; position = 0; current = List.hd_opt tokens }
+let peek_token state =
+  match state.current with
+  | [] -> EOF
+  | hd :: _ -> hd
 
-(** Advance to next token *)
-let advance state =
-  match state.tokens with
-  | [] -> { state with current = None }
-  | [_] -> { state with current = Some EOF; position = state.position + 1 }
-  | _ :: rest -> 
-      { tokens = rest; 
-        position = state.position + 1; 
-        current = List.hd_opt rest }
+(* Helpers *)
 
-(** Peek at current token *)
-let current_token state = state.current
+let expect_token state expected =
+  let tok = next_token state in
+  if tok = expected then ()
+  else raise (Parse_error ("Expected token " ^ (match expected with
+    | LET -> "let"
+    | FUNCTION -> "function"
+    | IF -> "if"
+    | ELSE -> "else"
+    | FOR -> "for"
+    | IN -> "in"
+    | DOT -> "."
+    | COMMA -> ","
+    | LPAREN -> "("
+    | RPAREN -> ")"
+    | LBRACKET -> "["
+    | RBRACKET -> "]"
+    | LBRACE -> "{"
+    | RBRACE -> "}"
+    | EQUALS -> "="
+    | DOTDOTDOT -> "..."
+    | PIPE -> "|>"
+    | EOF -> "EOF"
+    | OP s -> "operator " ^ s
+    | INT i -> string_of_int i
+    | FLOAT f -> string_of_float f
+    | BOOL b -> string_of_bool b
+    | STRING s -> "\"" ^ s ^ "\""
+    | SYMBOL s -> s
+    | BACKTICK_SYMBOL s -> "`" ^ s ^ "`"
+  )))
 
-(** Check if current token matches expected *)
-let matches state expected =
-  match current_token state with
-  | Some token -> token = expected
-  | None -> false
+(* Parsing symbols: bare names or backtick symbols *)
 
-(** Consume expected token or fail *)
-let expect state expected =
-  if matches state expected then
-    Ok (advance state)
-  else
-    Error (Printf.sprintf "Expected %s at position %d" 
-           (show_token expected) state.position)
+let parse_symbol = function
+  | SYMBOL s -> s
+  | BACKTICK_SYMBOL s -> s
+  | _ -> raise (Parse_error "Expected symbol")
 
-(** Try to consume a token, return (matched, new_state) *)
-let try_consume state expected =
-  if matches state expected then
-    (true, advance state)
-  else
-    (false, state)
+(* Forward declarations *)
 
-(** Parse functions using monadic error handling *)
-let (>>=) result f =
-  match result with
-  | Ok value -> f value
-  | Error _ as err -> err
-
-let (>>|) result f =
-  match result with
-  | Ok value -> Ok (f value)
-  | Error _ as err -> err
-
-let return x = Ok x
-
-(** Main parsing functions *)
-let rec parse_expr state =
-  parse_lambda state
-
-and parse_lambda state =
-  match current_token state with
-  | Some Lambda ->
-      let state = advance state in
-      parse_params [] state >>= fun (params, state) ->
-      expect state Arrow >>= fun state ->
-      parse_expr state >>= fun (body, state) ->
-      return (Constructors.lambda params body, state)
-  | _ -> parse_if state
-
-and parse_params acc state =
-  match current_token state with
-  | Some (Ident param) ->
-      let state = advance state in
-      let (found_comma, state) = try_consume state Comma in
-      if found_comma then
-        parse_params (param :: acc) state
-      else
-        return (List.rev (param :: acc), state)
-  | _ when acc = [] ->
-      Error "Expected parameter list"
-  | _ ->
-      return (List.rev acc, state)
+let rec parse_expr state : expr =
+  parse_if state
 
 and parse_if state =
-  match current_token state with
-  | Some If ->
-      let state = advance state in
-      parse_logical_or state >>= fun (cond, state) ->
-      parse_logical_or state >>= fun (then_, state) ->
-      (match current_token state with
-       | Some If -> (* else clause *)
-           let state = advance state in
-           parse_logical_or state >>= fun (else_, state) ->
-           return (Constructors.if_ cond then_ (Some else_), state)
-       | _ ->
-           return (Constructors.if_ cond then_ None, state))
-  | _ -> parse_logical_or state
+  match peek_token state with
+  | IF ->
+      let _ = next_token state in
+      expect_token state LPAREN;
+      let cond = parse_expr state in
+      expect_token state RPAREN;
+      let then_ = parse_expr state in
+      let else_ =
+        match peek_token state with
+        | ELSE ->
+            let _ = next_token state in
+            Some (parse_expr state)
+        | _ -> None
+      in
+      If { cond; then_; else_ }
+  | _ -> parse_pipe state
 
-and parse_logical_or state =
-  parse_binary_left parse_logical_and ["||"] state
+and parse_pipe state =
+  let left = parse_lambda_or_assign state in
+  match peek_token state with
+  | PIPE ->
+      let _ = next_token state in
+      let right = parse_expr state in
+      (* pipe: left |> right -> call right(left) *)
+      let call_expr = Call { fn = right; args = [left] } in
+      call_expr
+  | _ -> left
 
-and parse_logical_and state =
-  parse_binary_left parse_equality ["&&"] state
+and parse_lambda_or_assign state =
+  (* parse function assignment or lambda or other expr *)
+  match peek_token state with
+  | SYMBOL s ->
+      (* lookahead to see if next token is '=' *)
+      (match state.current with
+      | SYMBOL _ :: EQUALS :: FUNCTION :: _ -> parse_function_assign state
+      | SYMBOL _ :: EQUALS :: BACKTICK_SYMBOL _ :: _ -> parse_assign state
+      | SYMBOL _ :: EQUALS :: LPAREN :: _ -> parse_assign state
+      | SYMBOL _ :: EQUALS :: _ -> parse_assign state
+      | _ -> parse_simple_expr state)
+  | _ -> parse_simple_expr state
 
-and parse_equality state =
-  parse_binary_left parse_comparison ["=="; "!="] state
+and parse_function_assign state =
+  (* parse f = function(x, y, ...) expr *)
+  let name_token = next_token state in
+  let name = parse_symbol name_token in
+  expect_token state EQUALS;
+  expect_token state FUNCTION;
+  let (params, dots) = parse_params state in
+  let body = parse_expr state in
+  (* TODO: store dots (variadic) somehow? For now, add dots as param symbol "..." if present *)
+  let params = if dots then params @ ["..."] else params in
+  let lambda_val = Lambda { params; body; env = None } in
+  (* represent assignment as Let binding with one binding *)
+  Let { bindings = [(name, Value lambda_val)]; body = Value lambda_val }
 
-and parse_comparison state =
-  parse_binary_left parse_addition ["<"; "<="; ">"; ">="] state
+and parse_assign state =
+  (* parse x = expr *)
+  let name_token = next_token state in
+  let name = parse_symbol name_token in
+  expect_token state EQUALS;
+  let value = parse_expr state in
+  Let { bindings = [(name, value)]; body = value }
 
-and parse_addition state =
-  parse_binary_left parse_multiplication ["+"; "-"] state
-
-and parse_multiplication state =
-  parse_binary_left parse_unary ["*"; "/"; "%"] state
-
-and parse_binary_left parse_next ops state =
-  parse_next state >>= fun (left, state) ->
-  let rec loop left state =
-    match current_token state with
-    | Some (Op op) when List.mem op ops ->
-        let state = advance state in
-        parse_next state >>= fun (right, state) ->
-        loop (Constructors.binop op left right) state
-    | _ ->
-        return (left, state)
+and parse_params state : (symbol list * bool) =
+  (* parse function parameters, returning (params, has_dots) *)
+  expect_token state LPAREN;
+  let rec loop acc =
+    match peek_token state with
+    | RPAREN ->
+        let _ = next_token state in
+        (List.rev acc, false)
+    | DOTDOTDOT ->
+        let _ = next_token state in
+        expect_token state RPAREN;
+        (List.rev acc, true)
+    | SYMBOL s ->
+        let _ = next_token state in
+        (match peek_token state with
+        | COMMA ->
+            let _ = next_token state in
+            loop (s :: acc)
+        | RPAREN ->
+            let _ = next_token state in
+            (List.rev (s :: acc), false)
+        | _ -> raise (Parse_error "Expected , or ) after param"))
+    | BACKTICK_SYMBOL s ->
+        let _ = next_token state in
+        (match peek_token state with
+        | COMMA ->
+            let _ = next_token state in
+            loop (s :: acc)
+        | RPAREN ->
+            let _ = next_token state in
+            (List.rev (s :: acc), false)
+        | _ -> raise (Parse_error "Expected , or ) after param"))
+    | _ -> raise (Parse_error "Unexpected token in parameter list")
   in
-  loop left state
+  loop []
 
-and parse_unary state =
-  match current_token state with
-  | Some (Op op) when List.mem op ["!"; "-"; "+"] ->
-      let state = advance state in
-      parse_unary state >>= fun (operand, state) ->
-      return (Constructors.unop op operand, state)
-  | _ -> parse_call state
-
-and parse_call state =
-  parse_primary state >>= fun (expr, state) ->
-  let rec loop expr state =
-    match current_token state with
-    | Some LParen ->
-        let state = advance state in
-        parse_arg_list [] state >>= fun (args, state) ->
-        expect state RParen >>= fun state ->
-        loop (Constructors.call expr args) state
-    | _ ->
-        return (expr, state)
-  in
-  loop expr state
-
-and parse_arg_list acc state =
-  match current_token state with
-  | Some RParen -> return (List.rev acc, state)
-  | _ when acc = [] ->
-      parse_expr state >>= fun (arg, state) ->
-      parse_arg_list [arg] state
-  | _ ->
-      expect state Comma >>= fun state ->
-      parse_expr state >>= fun (arg, state) ->
-      parse_arg_list (arg :: acc) state
-
-and parse_primary state =
-  match current_token state with
-  | Some (Int n) ->
-      return (Constructors.int n, advance state)
-  | Some (Float f) ->
-      return (Constructors.float f, advance state)
-  | Some (String s) ->
-      return (Constructors.string s, advance state)
-  | Some (Ident id) ->
-      return (Constructors.var id, advance state)
-  | Some (Symbol sym) ->
-      return (Constructors.symbol sym, advance state)
-  | Some LParen ->
-      let state = advance state in
-      parse_expr state >>= fun (expr, state) ->
-      expect state RParen >>= fun state ->
-      return (expr, state)
-  | Some LBracket ->
-      parse_list_or_comprehension state
-  | Some LBrace ->
+and parse_simple_expr state =
+  (* parse simple expressions: values, variables, calls, parentheses, list comprehensions, etc. *)
+  match peek_token state with
+  | INT n -> let _ = next_token state in Value (Int n)
+  | FLOAT f -> let _ = next_token state in Value (Float f)
+  | BOOL b -> let _ = next_token state in Value (Bool b)
+  | STRING s -> let _ = next_token state in Value (String s)
+  | SYMBOL s -> 
+      let _ = next_token state in
+      parse_postfix (Var s) state
+  | BACKTICK_SYMBOL s ->
+      let _ = next_token state in
+      parse_postfix (Var s) state
+  | LPAREN ->
+      let _ = next_token state in
+      let e = parse_expr state in
+      expect_token state RPAREN;
+      parse_postfix e state
+  | LBRACKET ->
+      (* List or comprehension *)
+      parse_list_or_comp state
+  | LBRACE ->
+      (* Dict literal *)
       parse_dict state
-  | Some EOF ->
-      Error "Unexpected end of input"
-  | None ->
-      Error "Unexpected end of input"
-  | Some token ->
-      Error (Printf.sprintf "Unexpected token: %s" (show_token token))
+  | _ -> raise (Parse_error "Unexpected token in expression")
 
-and parse_list_or_comprehension state =
-  let state = advance state in (* consume [ *)
-  
-  (* Try to parse as comprehension first *)
-  match try_parse_comprehension state with
-  | Ok result -> Ok result
-  | Error _ -> parse_list_literal state
+and parse_postfix expr state =
+  (* parse postfix constructs like function call, dot access *)
+  match peek_token state with
+  | LPAREN ->
+      (* function call *)
+      let _ = next_token state in
+      let rec args acc =
+        match peek_token state with
+        | RPAREN -> let _ = next_token state in List.rev acc
+        | _ -> 
+            let arg = parse_expr state in
+            (match peek_token state with
+            | COMMA -> let _ = next_token state in args (arg :: acc)
+            | RPAREN -> let _ = next_token state in List.rev (arg :: acc)
+            | _ -> raise (Parse_error "Expected ',' or ')' in function call arguments"))
+      in
+      let arguments = args [] in
+      parse_postfix (Call { fn = expr; args = arguments }) state
+  | DOT ->
+      let _ = next_token state in
+      (match peek_token state with
+      | SYMBOL s -> 
+          let _ = next_token state in
+          parse_postfix (Call { fn = Var "."; args = [expr; Var s] }) state
+      | BACKTICK_SYMBOL s ->
+          let _ = next_token state in
+          parse_postfix (Call { fn = Var "."; args = [expr; Var s] }) state
+      | _ -> raise (Parse_error "Expected symbol after dot"))
+  | _ -> expr
 
-and try_parse_comprehension state =
-  parse_expr state >>= fun (expr, state) ->
-  expect state For >>= fun state ->
-  (match current_token state with
-   | Some (Ident var) ->
-       let state = advance state in
-       expect state In >>= fun state ->
-       parse_expr state >>= fun (iter, state) ->
-       
-       (* Optional filter clause *)
-       let (has_if, state) = try_consume state If in
-       (if has_if then
-          parse_expr state >>= fun (filter, state) ->
-          return ([Constructors.for_clause var iter; 
-                   Constructors.filter_clause filter], state)
-        else
-          return ([Constructors.for_clause var iter], state)) >>= fun (clauses, state) ->
-       
-       expect state RBracket >>= fun state ->
-       return (Constructors.list_comp expr clauses, state)
-   | _ -> Error "Expected variable in comprehension")
-
-and parse_list_literal state =
-  let rec loop acc state =
-    match current_token state with
-    | Some RBracket ->
-        return (Constructors.list (List.rev acc), advance state)
-    | _ when acc = [] ->
-        parse_expr state >>= fun (expr, state) ->
-        loop [expr] state
-    | _ ->
-        expect state Comma >>= fun state ->
-        parse_expr state >>= fun (expr, state) ->
-        loop (expr :: acc) state
-  in
-  loop [] state
+and parse_list_or_comp state =
+  (* parse list literal or list comprehension *)
+  let _ = expect_token state LBRACKET in
+  match peek_token state with
+  | _ ->
+      let expr = parse_expr state in
+      (match peek_token state with
+      | FOR ->
+          (* list comprehension *)
+          let _ = next_token state in
+          let var_token = next_token state in
+          let var = parse_symbol var_token in
+          expect_token state IN;
+          let iterable = parse_expr state in
+          expect_token state RBRACKET;
+          ListComp { expr; var; iterable }
+      | RBRACKET ->
+          let _ = next_token state in
+          ListLit [expr]
+      | COMMA ->
+          (* multiple elements *)
+          let rec collect acc =
+            match peek_token state with
+            | RBRACKET -> let _ = next_token state in ListLit (List.rev acc)
+            | _ ->
+                let e = parse_expr state in
+                (match peek_token state with
+                | COMMA -> let _ = next_token state in collect (e :: acc)
+                | RBRACKET -> let _ = next_token state in ListLit (List.rev (e :: acc))
+                | _ -> raise (Parse_error "Expected ',' or ']' in list literal"))
+          in
+          collect [expr]
+      | _ -> raise (Parse_error "Unexpected token after list element"))
+  | _ -> raise (Parse_error "Unexpected token in list or comprehension")
 
 and parse_dict state =
-  let state = advance state in (* consume { *)
-  let rec loop acc state =
-    match current_token state with
-    | Some RBrace ->
-        return (Constructors.dict (List.rev acc), advance state)
-    | Some (Ident key) ->
-        let state = advance state in
-        expect state Colon >>= fun state ->
-        parse_expr state >>= fun (value, state) ->
-        let new_acc = (key, value) :: acc in
-        (match current_token state with
-         | Some Comma ->
-             loop new_acc (advance state)
-         | Some RBrace ->
-             return (Constructors.dict (List.rev new_acc), advance state)
-         | _ ->
-             Error "Expected ',' or '}' in dictionary")
-    | _ when acc = [] ->
-        Error "Expected dictionary key or '}'"
-    | _ ->
-        Error "Expected dictionary key"
+  (* parse dict literal: { key: value, ... } *)
+  let _ = expect_token state LBRACE in
+  let rec parse_pairs acc =
+    match peek_token state with
+    | RBRACE -> let _ = next_token state in DictLit (List.rev acc)
+    | SYMBOL key ->
+        let _ = next_token state in
+        expect_token state COLON;
+        let value = parse_expr state in
+        (match peek_token state with
+        | COMMA -> let _ = next_token state in parse_pairs ((key, value) :: acc)
+        | RBRACE -> let _ = next_token state in DictLit (List.rev ((key, value) :: acc))
+        | _ -> raise (Parse_error "Expected ',' or '}' in dict literal"))
+    | BACKTICK_SYMBOL key ->
+        let _ = next_token state in
+        expect_token state COLON;
+        let value = parse_expr state in
+        (match peek_token state with
+        | COMMA -> let _ = next_token state in parse_pairs ((key, value) :: acc)
+        | RBRACE -> let _ = next_token state in DictLit (List.rev ((key, value) :: acc))
+        | _ -> raise (Parse_error "Expected ',' or '}' in dict literal"))
+    | _ -> raise (Parse_error "Expected symbol key in dict literal")
   in
-  loop [] state
+  parse_pairs []
 
-(** Main parse function *)
+(* Entry point *)
+
 let parse tokens =
-  let state = make_state tokens in
-  match parse_expr state with
-  | Ok (ast, final_state) ->
-      (match current_token final_state with
-       | Some EOF | None -> Ok ast
-       | Some token -> 
-           Error (Printf.sprintf "Unexpected token after expression: %s" 
-                  (show_token token)))
-  | Error msg -> Error msg
-
-(** Placeholder tokenizer - to be implemented *)
-let tokenize _source = 
-  failwith "Tokenizer not yet implemented"
-
-(** Parse from string *)
-let parse_string source =
-  try
-    let tokens = tokenize source in
-    parse tokens
-  with
-  | exn -> Error (Printexc.to_string exn) 
+  let state = { tokens; current = tokens } in
+  let expr = parse_expr state in
+  match peek_token state with
+  | EOF -> expr
+  | _ -> raise (Parse_error "Unexpected tokens after expression")
