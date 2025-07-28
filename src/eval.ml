@@ -137,9 +137,8 @@ let eval_statement env stmt =
 
 let initial_env () =
   let env = Env.empty in
-  let env = Builtins.load env in
-  let env = Colcraft.load env in
-  env
+  (* Load everything from our new central package loader *)
+  Packages.load env
 
 let eval_program program env =
   let last_val, _final_env =
