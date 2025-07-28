@@ -1,17 +1,36 @@
-; This file tells Dune how to build the library and executable
-; from the source files in this 'src' directory.
+; src/dune
 
 (library
- (name t_lang_lib)         ; Internal name for the library
- (public_name t_lang)      ; The name used by other projects if published
- (preprocess (pps menhir))   ; Use the Menhir preprocessor
- (menhir
-  (modules parser))          ; Specify which module is a Menhir parser
- (ocamllex lexer)            ; Specify which module is an Ocamllex lexer
- (libraries csv))            ; List dependencies
+ (name t_lang_lib)
+ (public_name t_lang)
+ (preprocess (pps menhir))
+ (menhir (modules parser))
+ (ocamllex lexer)
+ (libraries csv)
+
+ ; List all modules for the library.
+ ; The order must respect dependencies.
+ (modules
+  ast
+  eval_helpers
+
+  ; --- Individual Package Functions ---
+  packages_core_read_csv
+  ; packages_core_print (when added)
+  ; packages_colcraft_select (when added)
+
+  ; --- The main package loader ---
+  packages
+
+  ; --- Core Compiler ---
+  parser
+  lexer
+  eval
+ )
+)
 
 (executable
- (name repl)               ; The name of the output executable (repl.exe)
- (modes (native exe))      ; Build a native executable
- (modules repl)            ; The main module for the executable
- (libraries t_lang_lib menhirLib)) ; Link against our library and Menhir's 
+ (name repl)
+ (modes (native exe))
+ (modules repl)
+ (libraries t_lang_lib menhirLib))
