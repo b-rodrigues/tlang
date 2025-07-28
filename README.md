@@ -28,6 +28,8 @@ This project is **currently at the idea/prototype stage**. Everything from the p
 
 T is not aiming to replace R or replicate its vast package ecosystem. R remains one of the most powerful tools for data analysis, with decades of community contributions. Instead, T is for those who prefer a **small, focused, consistent language** dedicated to data wrangling, graphics, and basic statistics — without general-purpose baggage.
 
+T’s value lies in its philosophy: **data analysis should be treated as a reproducible pipeline**. While you can write simple scripts, idiomatic T code encourages a structured, step-by-step process that is clear, verifiable, and robust, inspired by the R package `{targets}`.
+
 T’s value lies in being:
 
 - **Minimal**: a language you can learn and understand fully
