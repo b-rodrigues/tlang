@@ -254,71 +254,68 @@ This approach provides a clear and powerful path forward for T, enabling it to h
 
 ---
 
-### 🔧 The T Pipeline Engine: A High-Level API for Dune
+#### 🔧 The T Pipeline Engine: A Two-Layer Architecture
 
-T will provide a dedicated command-line interface (CLI) to manage and execute analytical pipelines. This CLI acts as a high-level facade, translating user-friendly commands into a robust backend powered by the **Dune build system**. The user will only ever need to interact with `t`, never directly with the underlying Dune files, which are treated as an internal implementation detail.
+The T pipeline engine is composed of two distinct layers: a user-facing API of T functions and a hidden command-line runner that acts as the backend.
 
-**Core Workflow:**
-
-1.  The user defines their entire analytical process in a single `pipeline.t` file.
-2.  The user runs a high-level command, such as `t run` or `t viz`.
-3.  The **T Runner** (the `t` executable) parses the `pipeline.t` file.
-4.  It automatically generates a hidden build directory (e.g., `.t_cache/`).
-5.  Inside this directory, it generates two key components:
-    *   A `dune` file that declares each pipeline node as a `(rule)`.
-    *   A set of "node runner" scripts or commands required by the Dune rules.
-6.  The T Runner then invokes `dune build` within that directory, telling it which node (target) to build.
-7.  Dune's scheduler takes over, executing nodes in parallel, using its cache to skip work, and ensuring correctness.
+1.  **The High-Level API (REPL Functions):** This is the user's primary interface. A set of standard T functions will be provided to load, run, and inspect data pipelines directly from the REPL.
+2.  **The Internal Runner (`t` CLI):** This is the low-level engine that Dune calls. Its existence is an implementation detail, abstracted away by the REPL functions.
 
 ---
 
-### The Generated Build Plan
+#### REPL-Based Pipeline Interaction
 
-For a `pipeline.t` file, the T Runner will generate a `dune` file where each node is a build rule.
+To manage a pipeline, a user will call the following T functions within a REPL session.
 
-**Example `pipeline.t` node:**
+| T Function Signature                          | Description                                                                                                                                                             |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pipeline_load(path: String) -> Pipeline`     | Parses a `pipeline.t` file from disk and returns a `Pipeline` object—an in-memory representation of the DAG. This does not execute any nodes.                               |
+| `pipeline_run(p: Pipeline, node: String)`     | **Executes the pipeline** to build the specified `node`. This function will block until the pipeline run is complete. It returns a status (`Success` or `Error`).           |
+| `pipeline_status(p: Pipeline)`                | **Checks the status of the pipeline.** It returns a `Dict` or `DataFrame` detailing each node, its dependencies, and its current cache status (fresh, stale, or missing).   |
+| `pipeline_get(p: Pipeline, node: String)`     | **The bridge between the pipeline and the REPL.** This function ensures the specified `node` is built (running the pipeline if necessary), then **loads its result** from the cache and returns it as a standard T value into the live REPL environment. |
+| `pipeline_viz(p: Pipeline)`                   | **Visualizes the DAG.** Generates a `pipeline.dot` file and returns the path.                                                                                           |
+| `pipeline_clean(p: Pipeline, node: String)`   | **Clears the cache** for the specified node and all of its dependents, forcing them to be re-run next time.                                                              |
+
+**Example REPL Workflow:**
+
 ```t
-  filtered_data = {
-    raw_data |> filter(age > 30)
-  }
+-- 1. Load the pipeline definition from a file
+my_pipe = pipeline_load("project/pipeline.t")
+
+-- 2. Check which parts of the pipeline are already computed
+pipeline_status(my_pipe)
+-- Output: <DataFrame with columns: node, status, dependencies>
+
+-- 3. Run the pipeline up to a specific node
+pipeline_run(my_pipe, "summary_stats")
+-- Output: Success("Pipeline finished successfully")
+
+-- 4. Get the result of a node and bring it into the live REPL for further work
+summary = pipeline_get(my_pipe, "summary_stats")
+
+-- `summary` is now a normal T value (e.g., a DataFrame) that we can print or use
+print(summary)
 ```
-
-**Corresponding auto-generated `dune` rule in `.t_cache/dune`:**
-```dune
-; This rule describes how to compute 'filtered_data'
-(rule
- ; The target is the cached, serialized result of this node
- (target cache/filtered_data.bin)
-
- ; This node depends on the result of the 'raw_data' node
- (deps   cache/raw_data.bin)
-
- ; The action to perform if the target is missing or a dependency has changed
- (action
-  (run t --internal-run-node %{deps} --output %{target})))
-```
-
-The `t --internal-run-node` command is a special, hidden mode of the T executable. It knows how to:
-1.  Load dependency values from the input files (e.g., `cache/raw_data.bin`).
-2.  Create an environment where `raw_data` is bound to the loaded value.
-3.  Execute the specific expression `raw_data |> filter(age > 30)`.
-4.  Serialize the result and save it to the output file (`cache/filtered_data.bin`).
 
 ---
 
-### The High-Level CLI
+#### How the Wrappers Work (Implementation Detail)
 
-The user experience will be defined by the following commands:
+The T functions are thin, elegant wrappers that orchestrate calls to the internal CLI runner.
 
-| Command                   | Description                                                                                                     | Behind the Scenes                                                                                    |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `t run [node_name]`       | **Executes the pipeline.** If `node_name` is given, runs until that node is built. If omitted, runs all nodes.     | Generates the Dune build plan and executes `dune build .t_cache/cache/[node_name].bin`.              |
-| `t plan` or `t status`    | **Displays the pipeline plan.** Shows the list of nodes, their dependencies, and their current cache status (fresh/stale). | Parses `pipeline.t` and compares node hashes against the on-disk cache to determine status.      |
-| `t viz`                   | **Visualizes the pipeline.** Generates a `pipeline.dot` file that can be rendered into an image of the DAG.      | Parses `pipeline.t` and uses `ocamlgraph` to emit a graph definition in the DOT language.            |
-| `t clean [node_name]`     | **Clears the cache.** If `node_name` is given, cleans only that node and its dependents. If omitted, clears all. | Executes `dune clean` or selectively removes files from the `.t_cache/` directory.                   |
-| `t get <node_name>`       | **Retrieves a node's output.** Runs the pipeline if needed, then prints the value of the specified node.          | Ensures the node is built via `t run`, then deserializes and prints the result from the cache file. |
+*   When `pipeline_run(p, "node")` is called, the OCaml implementation of that function will:
+    1.  Shell out to the operating system.
+    2.  Execute the command: `dune build .t_cache/cache/node.bin`
+    3.  Wait for the process to complete and capture its success or failure code.
 
-This architecture provides the best of both worlds: a simple, domain-specific user experience for data analysts, and a powerful, industrial-grade build engine ensuring that pipelines are fast, correct, and reproducible.
+*   When `pipeline_get(p, "node")` is called, it will:
+    1.  First, call the logic for `pipeline_run` to ensure the target is built.
+    2.  If successful, it will open and deserialize the result from the file `.t_cache/cache/node.bin` using `Marshal`.
+    3.  It then returns this deserialized `Ast.value` to the REPL.
+
+This hybrid model provides the best possible user experience: it's interactive, feels fully integrated with the language, and is powered by a robust, parallel, caching engine. This is an excellent design decision. 
+
+
 ---
 
 ## 🛤 Implementation Stack
