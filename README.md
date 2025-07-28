@@ -12,7 +12,8 @@ This project is **currently at the idea/prototype stage**. Everything from the p
 
 ## Design Goals
 
-- **Tabular-first**: Tables are first-class values. Functions like `select()`, `filter()`, and `mutate()` operate on them declaratively.
+- **Data analysis as a pipeline**: While it'll be possible to write simple scripts, idiomatic T code will be written as a reproducible analytical pipeline.
+- **DataFrame-first**: DataFrames are first-class values. Functions like `select()`, `filter()`, and `mutate()` operate on them declaratively.
 - **1-indexed**: Humans don't start counting from 0, only clankers do. You aren't a clanker aren't you?
 - **Declarative and functional**: T is expression-oriented and avoids mutation and imperative constructs.
 - **Minimal OCaml core**: The runtime and interpreter are minimal. Most functionality is implemented as packages written in T itself.
