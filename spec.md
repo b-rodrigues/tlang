@@ -174,6 +174,86 @@ No exceptions — everything is a value.
 
 ---
 
+## 🚀 Long-Term Vision: The Project as a DAG
+
+While Phase 1 focuses on a REPL-driven, script-based workflow, the long-term vision for T is to treat entire projects as a **Directed Acyclic Graph (DAG)** of computational nodes. This elevates T from a scripting language to a declarative pipeline framework, inspired by tools like Dagster and Airflow, but deeply integrated into the language itself.
+
+### Core Concepts
+
+*   **Node**: A single, named computational step in the pipeline. Each node is defined by a T expression and produces a single output value (e.g., a DataFrame, a plot, a statistical model).
+*   **Edge**: A dependency between nodes. If Node `B` requires the output of Node `A` as its input, there is a directed edge from `A` to `B`.
+*   **Graph**: A project is defined by a file that describes the collection of all nodes and their dependencies. This graph must be acyclic.
+*   **Runner**: A specialized execution engine that analyzes the graph, determines the optimal execution order (via topological sort), and orchestrates the computation.
+
+### Benefits of the DAG Model
+
+1.  **Automatic Caching (Memoization)**: The runner can cache the output of every node. If a node's source code and the outputs of its dependencies have not changed, it does not need to be re-executed. This is a massive time-saver in data science workflows.
+2.  **Parallel Execution**: The runner can identify independent branches of the DAG and execute them in parallel, dramatically speeding up complex pipelines.
+3.  **Visualization and Introspection**: The project's structure can be visually rendered as a graph, making complex dependencies easy to understand. Users could inspect the output (the resulting value) of any intermediate node without running the entire pipeline.
+4.  **Reproducibility**: The DAG provides a complete, explicit "recipe" for the project, ensuring that results are reproducible from start to finish.
+
+### Proposed Syntax
+
+To support this model, we could introduce a new top-level construct, perhaps a `pipeline` block. Inside this block, nodes are defined using standard T assignment syntax. Dependencies are **implicitly discovered** when a node's expression refers to another node by name.
+
+**Example:**
+
+Instead of a linear script like this:
+
+```t
+-- script.t
+raw_data = read_csv("data.csv")
+filtered = filter(raw_data, age > 30)
+summarized = summarize(filtered, mean_age = mean(age))
+print(summarized)
+```
+
+The project would be defined in a `pipeline.t` file like this:
+
+```t
+-- pipeline.t
+
+pipeline my_project {
+  -- Node 1: Load raw data. No dependencies.
+  raw_data = {
+    read_csv("data.csv")
+  }
+
+  -- Node 2: Filter the data. Implicitly depends on `raw_data`.
+  filtered_data = {
+    raw_data |> filter(age > 30)
+  }
+
+  -- Node 3: Create a summary. Implicitly depends on `filtered_data`.
+  summary_stats = {
+    filtered_data |> summarize(mean_age = mean(age), max_age = max(age))
+  }
+
+  -- Node 4: A separate, independent branch for analysis.
+  -- This could run in parallel with `filtered_data` and `summary_stats`.
+  column_names = {
+    get_colnames(raw_data)
+  }
+}
+```
+
+### Impact on Implementation (Future Phase)
+
+*   **T Language Core (`eval.ml`)**: The core T interpreter would remain largely the same. It would be invoked by the runner to execute the T expression inside a single node.
+*   **The DAG Runner**: A new entry point (`runner.ml`) would be created. Its responsibilities would be:
+    1.  Parse the `pipeline` definition file to build an in-memory graph structure.
+    2.  Perform a topological sort on the graph to create a valid execution plan.
+    3.  For each node in the plan:
+        a. Check if a valid cache for this node exists. If so, load it.
+        b. If not, inject the outputs of its dependencies (already computed) into the evaluation environment.
+        c. Execute the node's T expression using the core evaluator.
+        d. Save the resulting value to a cache (e.g., a file on disk).
+*   **File Structure**: Projects would be organized around a central `pipeline.t` file rather than a single script.
+
+This approach provides a clear and powerful path forward for T, enabling it to handle complex, real-world data science projects in a robust and efficient manner.
+
+---
+
 ## 🛤 Implementation Stack
 
 - **Language**: OCaml
