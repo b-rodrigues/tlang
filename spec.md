@@ -254,6 +254,73 @@ This approach provides a clear and powerful path forward for T, enabling it to h
 
 ---
 
+### 🔧 The T Pipeline Engine: A High-Level API for Dune
+
+T will provide a dedicated command-line interface (CLI) to manage and execute analytical pipelines. This CLI acts as a high-level facade, translating user-friendly commands into a robust backend powered by the **Dune build system**. The user will only ever need to interact with `t`, never directly with the underlying Dune files, which are treated as an internal implementation detail.
+
+**Core Workflow:**
+
+1.  The user defines their entire analytical process in a single `pipeline.t` file.
+2.  The user runs a high-level command, such as `t run` or `t viz`.
+3.  The **T Runner** (the `t` executable) parses the `pipeline.t` file.
+4.  It automatically generates a hidden build directory (e.g., `.t_cache/`).
+5.  Inside this directory, it generates two key components:
+    *   A `dune` file that declares each pipeline node as a `(rule)`.
+    *   A set of "node runner" scripts or commands required by the Dune rules.
+6.  The T Runner then invokes `dune build` within that directory, telling it which node (target) to build.
+7.  Dune's scheduler takes over, executing nodes in parallel, using its cache to skip work, and ensuring correctness.
+
+---
+
+### The Generated Build Plan
+
+For a `pipeline.t` file, the T Runner will generate a `dune` file where each node is a build rule.
+
+**Example `pipeline.t` node:**
+```t
+  filtered_data = {
+    raw_data |> filter(age > 30)
+  }
+```
+
+**Corresponding auto-generated `dune` rule in `.t_cache/dune`:**
+```dune
+; This rule describes how to compute 'filtered_data'
+(rule
+ ; The target is the cached, serialized result of this node
+ (target cache/filtered_data.bin)
+
+ ; This node depends on the result of the 'raw_data' node
+ (deps   cache/raw_data.bin)
+
+ ; The action to perform if the target is missing or a dependency has changed
+ (action
+  (run t --internal-run-node %{deps} --output %{target})))
+```
+
+The `t --internal-run-node` command is a special, hidden mode of the T executable. It knows how to:
+1.  Load dependency values from the input files (e.g., `cache/raw_data.bin`).
+2.  Create an environment where `raw_data` is bound to the loaded value.
+3.  Execute the specific expression `raw_data |> filter(age > 30)`.
+4.  Serialize the result and save it to the output file (`cache/filtered_data.bin`).
+
+---
+
+### The High-Level CLI
+
+The user experience will be defined by the following commands:
+
+| Command                   | Description                                                                                                     | Behind the Scenes                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `t run [node_name]`       | **Executes the pipeline.** If `node_name` is given, runs until that node is built. If omitted, runs all nodes.     | Generates the Dune build plan and executes `dune build .t_cache/cache/[node_name].bin`.              |
+| `t plan` or `t status`    | **Displays the pipeline plan.** Shows the list of nodes, their dependencies, and their current cache status (fresh/stale). | Parses `pipeline.t` and compares node hashes against the on-disk cache to determine status.      |
+| `t viz`                   | **Visualizes the pipeline.** Generates a `pipeline.dot` file that can be rendered into an image of the DAG.      | Parses `pipeline.t` and uses `ocamlgraph` to emit a graph definition in the DOT language.            |
+| `t clean [node_name]`     | **Clears the cache.** If `node_name` is given, cleans only that node and its dependents. If omitted, clears all. | Executes `dune clean` or selectively removes files from the `.t_cache/` directory.                   |
+| `t get <node_name>`       | **Retrieves a node's output.** Runs the pipeline if needed, then prints the value of the specified node.          | Ensures the node is built via `t run`, then deserializes and prints the result from the cache file. |
+
+This architecture provides the best of both worlds: a simple, domain-specific user experience for data analysts, and a powerful, industrial-grade build engine ensuring that pipelines are fast, correct, and reproducible.
+---
+
 ## 🛤 Implementation Stack
 
 - **Language**: OCaml
