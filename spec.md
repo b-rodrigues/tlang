@@ -107,6 +107,52 @@ df.name
 
 ---
 
+## 🔬 Scoping and Environments
+
+T uses **lexical scoping**, also known as static scoping. This means the scope of a variable is determined by its location within the source code at the time a function is **defined**, not when it is **called**.
+
+When a function is created, it forms a **closure**, capturing the environment (the set of variables it can access) from where it was defined.
+
+**Example:**
+
+```t
+x = 10
+
+-- `f` is defined here and captures the environment where `x` is 10.
+let f = \() x
+
+let g = \() {
+   -- This `x` is a new, local variable that shadows the outer one.
+  -- It only exists inside `g`.
+   x = 20
+   -- When `f()` is called, it uses *its own* captured environment,
+   -- not the environment of `g`.
+   f()
+}
+
+result = g() -- The value of `result` will be 10.
+```
+
+### Variable Shadowing
+
+If a variable defined within an inner scope (like a function body) has the same name as a variable in an outer scope, the inner variable takes precedence for the duration of that scope. This does **not** modify the outer variable.
+
+```t
+name = "global"
+
+ let my_function = \() {
+   name = "local"
+   print(name) -- This will print "local"
+ }
+
+my_function()
+print(name) -- This will still print "global"
+```
+
+This ensures that functions cannot have unintended side effects on the environments of their callers, which is a cornerstone of functional programming.
+
+---
+
 ## 🔧 Core Built-ins (Phase 1)
 
 | Function           | Description                                |
