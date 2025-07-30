@@ -15,7 +15,21 @@
 - **Explicit error values**: Errors propagate as first-class values.
 - **Composability**: Functions, pipelines, lambdas — all composable.
 - **Interactive**: REPL-driven experience.
-- **Hackable**: Packages live inside the repo, easy to contribute.
+- **Reproducible by design**: T uses Nix as its package manager and every T project uses a Nix shell as its development environment.
+
+---
+
+## 🧩 Packages: A Nix-Native Ecosystem
+
+T fully embraces the Nix ecosystem for package management to provide unparalleled reproducibility and stability. It does not have a custom package manager; instead, **Nix is the package manager.**
+
+1.  **Packages are Flakes:** Every T package is a standard Nix Flake, living in its own Git repository. This allows package authors to manage their own development and releases.
+
+2.  **A Central Registry Flake:** T maintains an official "registry" flake. This central flake discovers and aggregates community packages, providing a stable, curated set of known-good versions. To add a package to the registry, a developer submits a Pull Request to the registry repository, enabling a transparent, public review process.
+
+3.  **Project-Level Dependencies:** Users define their project's dependencies within their own `flake.nix` file. They select which packages they need from the registry flake. Running `nix develop` provides a shell where the T compiler is automatically aware of all declared package dependencies.
+
+This Nix-native approach provides a zero-dependency-hell environment by design, leveraging the power of the Nix ecosystem for dependency resolution, caching, and providing perfectly reproducible development environments.
 
 ---
 
