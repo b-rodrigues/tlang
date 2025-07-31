@@ -77,6 +77,12 @@ This hybrid system provides the type safety of R's `NA` system with the semantic
 
 ---
 
+### Column Labels for Richer Output
+
+To bridge the gap between analysis and presentation, every column in a T `DataFrame` can have an optional, human-readable **label** in addition to its programmatic **name**. This allows for richer, more descriptive output in tables and plots automatically. The programmatic name (`gdp_per_capita`) is used for scripting, while the label (`"GDP per Capita (2023 USD)"`) is used for display. Labels can be assigned using a dedicated function, like `set_labels()`, and are automatically consumed by output-oriented functions like `summary()` and future plotting or table-generating packages.
+
+---
+
 ## 🛡️ Gradual Type System
 
 T features a **gradual type system** where safety is introduced incrementally through annotations.
