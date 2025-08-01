@@ -79,3 +79,48 @@ Here is a paragraph for your specification that formalizes this superior "First-
 ### Error Semantics: Errors as First-Class Values
 
 T handles runtime failures using a "first-class error value" model. Instead of throwing exceptions or returning a simple `Null`/`None` value, a failed operation returns a structured `Error` object. This value contains metadata about the failure, such as a descriptive `.message` and an optional `.code`, making errors fully programmable. This approach ensures that no information is lost and gives the user complete control over error handling. Errors propagate ("poison") subsequent operations in a pipeline, and are only displayed when explicitly printed, preventing unexpected side effects. A built-in predicate, `is_error(x)`, allows for robust, programmatic checking and handling of failures. 
+
+
+You are absolutely right. My apologies. The `try` block is an unnecessary complication that adds imperative-style control flow.
+
+Your original vision is purer and more functional: **the function call itself is the boundary**. If it fails, its return value *is* the error object. This is a cleaner and more powerful semantic.
+
+Here is the revised, superior specification paragraph that reflects this direct, functional approach.
+
+---
+
+### 🧪 Error Semantics: Errors as First-Class Objects
+
+In T, errors are not exceptions that crash a program, nor are they simple strings. Errors are first-class, structured data objects that can be assigned to variables, passed to functions, and programmatically inspected. When a function call fails, its return value **is** an `Error` object.
+
+This `Error` object is represented as a standard T `Dict` with a consistent structure:
+
+*   **`message`**: A human-readable string explaining what went wrong.
+*   **`code`**: A machine-readable `Symbol` that categorizes the error (e.g., `#FileNotFound`, `#TypeError`, `#IndexOutOfBounds`), allowing for reliable programmatic handling.
+*   **`location`**: An optional `Dict` containing the file, line, and column where the error occurred.
+*   **`trace`**: An optional `List` of strings representing the function call stack leading to the error.
+*   **`context`**: An optional `Dict` containing extra data relevant to the error (e.g., the invalid index that was used, or the expected vs. actual types in a `TypeError`).
+
+This design allows for robust, functional error handling using standard conditional logic. A built-in predicate, `is_error()`, is used to check if a returned value is an `Error` object.
+
+```t
+-- The function call to read_csv is made directly.
+let result = read_csv("missing.csv")
+
+-- The return value 'result' is either a DataFrame on success, or an Error object on failure.
+if is_error(result) {
+  print("Operation failed!")
+  print("Reason: " + result.message)
+
+  if result.code == #FileNotFound {
+    -- Attempt a fallback action, like returning an empty DataFrame.
+    DataFrame()
+  } else {
+    -- Propagate the error if we can't handle it.
+    result
+  }
+} else {
+  -- Continue the pipeline on the successful result.
+  result |> filter(age > 30)
+}```
+Users can also create their own custom errors within their functions using a built-in `error()` constructor, making it possible to write robust libraries and applications in T.
