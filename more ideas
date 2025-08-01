@@ -1,0 +1,19 @@
+
+
+*   **Core Language & Ergonomics**
+    *   **First-Class Pattern Matching:** Introduce a `match` expression for elegantly deconstructing complex data structures like DataFrames and `Error` objects, providing a safer and more readable alternative to nested `if/else`.
+    *   **Lenses for Immutable Updates:** Provide a "lens" library for clean, composable "get" and "set" operations on deeply nested immutable data structures.
+    *   **Transient Mutation:** A special `transient` block that allows high-performance, locally-scoped mutation on a data structure, with compiler guarantees that the mutation cannot escape, combining the speed of imperative code with the safety of a functional approach.
+
+*   **Next-Level Data Model (Inspired by Statistical Packages)**
+    *   **First-Class `Factor` Type:** A dedicated, memory-efficient `Factor` type for categorical data, with support for explicitly ordered levels, crucial for statistical modeling and visualization.
+    *   **Value Labels System:** The ability to attach human-readable string labels to specific values within a vector (e.g., `1 = "Male"`, `2 = "Female"`), a key feature for working with survey data that is automatically used by summary and plotting functions.
+    *   **First-Class Time Series & Panel Data:** Specialized `TimeSeries` or `Panel` DataFrame types that understand their own structure, enabling powerful and intuitive operations like lagging, rolling windows, and time-based indexing.
+
+*   **Advanced Modeling & Reproducibility**
+    *   **First-Class Formulas:** Elevate R-style formulas (`y ~ x1 + x2`) from simple strings to a first-class type in the language, allowing them to be programmatically constructed, manipulated, and passed to modeling functions.
+    *   **Survey Design & Weighting Support:** A dedicated library for analyzing complex survey data, with support for declaring survey designs (stratification, clustering) and applying sampling weights to all subsequent statistical computations.
+
+*   **Ecosystem & Tooling**
+    *   **Integrated Testing Framework:** A simple, built-in testing framework, activated by a `t test` command, for writing and running unit tests on T functions and pipelines.
+    *   **Quarto Extension:** A dedicated T engine for Quarto, allowing users to create dynamic, reproducible documents and reports by embedding executable T code blocks within Markdown files. 
