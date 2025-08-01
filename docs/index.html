@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>T Programming Language</title>
+</head>
+<body bgcolor="#f5f5dc" text="#000000" link="#0000ee" vlink="#551a8b" alink="#ff0000">
+
+  <center>
+    <h1><font face="Courier New">T — A Functional Language for Tabular Data</font></h1>
+    <hr width="80%">
+  </center>
+
+  <font face="Courier New" size="3">
+  <p><b>T</b> is an experimental programming language for declarative, functional manipulation of tabular data. Inspired by R’s tidyverse and OCaml’s type discipline, T aims to make data manipulation clear, expressive, and extensible.</p>
+
+  <p><b>Status:</b> Very early, exploratory phase. Entirely generated via iterative AI prompts.</p>
+
+  <hr>
+
+  <h2><font face="Courier New">Design Goals</font></h2>
+  <ul>
+    <li>Data analysis as a pipeline</li>
+    <li>DataFrame-first operations like <code>select()</code>, <code>filter()</code></li>
+    <li>1-indexed</li>
+    <li>Expression-oriented, functional style</li>
+    <li>Minimal OCaml core</li>
+    <li>Non-standard evaluation: <code>select(name, age)</code></li>
+    <li>Extensible built-ins like <code>print()</code></li>
+    <li>REPL-first exploration</li>
+    <li>Package-based modularity using Nix Flakes!</li>
+  </ul>
+
+  <hr>
+
+  <h2><font face="Courier New">Why T?</font></h2>
+  <p>T is not trying to replace R. Instead, it’s a small, focused language for data wrangling, graphics, and basic stats — without general-purpose baggage.</p>
+
+  <ul>
+    <li><b>Minimal</b>: learn the whole language</li>
+    <li><b>Self-contained</b>: all functions inspectable</li>
+    <li><b>Purpose-built</b>: just for structured data</li>
+  </ul>
+
+  <p>Perfect for teaching, scripting, or exploratory work — with a REPL-first workflow.</p>
+
+  <hr>
+
+  <h2><font face="Courier New">Example</font></h2>
+  <pre>
+data = read_csv("data.csv")
+select(data, name, age)
+  </pre>
+
+  <p><b>Also supports:</b></p>
+  <ul>
+    <li>R-style lambdas: <code>\(x) x + 1</code></li>
+    <li>Python-style comprehensions: <code>[x * x for x in numbers if x > 2]</code></li>
+    <li>Python-style dicts: <code>{name: "Alice", age: 30}</code></li>
+  </ul>
+
+  <hr>
+
+  <h2><font face="Courier New">Standard Packages</font></h2>
+  <ul>
+    <li><b>core</b>: functional tools like <code>map</code></li>
+    <li><b>stats</b>: statistical tools like <code>mean</code>, <code>sd</code></li>
+    <li><b>colcraft</b>: table ops like <code>select</code>, <code>mutate</code></li>
+  </ul>
+
+  <p>Each package is one file per function, e.g. <code>colcraft.select.ml</code></p>
+
+  <hr>
+
+  <h2><font face="Courier New">Package Philosophy</font></h2>
+  <p>Nix Flakes-powered decentralized registry. All packages live in their respective GitHub repos. A curated, centralized registry of official packages is planned. Avoids dependency hell and all contributions are transparent.</p>
+
+  <ul>
+    <li>Minimal dependency graph</li>
+    <li>Clear contribution via PRs</li>
+    <li>No version drift or registry sprawl</li>
+  </ul>
+
+  <hr>
+
+  <h2><font face="Courier New">Project Structure</font></h2>
+  <pre>
+.
+├── flake.nix            
+├── ast.ml               
+├── parser.ml            
+├── lexer.ml             
+├── eval.ml              
+├── repl.ml              
+├── csv_reader.ml        
+└── packages/
+    ├── core/
+    │   └── map.t
+    ├── stats/
+    │   └── mean.t
+    └── colcraft/
+        └── select.t
+  </pre>
+
+  <hr>
+
+  <h2><font face="Courier New">Building</font></h2>
+  <pre>
+nix develop
+dune exec ./repl.exe
+  </pre>
+
+  <hr>
+
+  <h2><font face="Courier New">Contributing</font></h2>
+  <p>User packages can be merged into the centralized package registry, or you can keep them private.</p>
+
+  <hr>
+
+  <p><b>License:</b> EUPL v1.2.</p>
+
+  <center>
+    <hr width="60%">
+    <font size="2">This site is best viewed with Netscape Navigator 3.0 or higher.<br>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a></font>
+  </center>
+  </font>
+</body>
+</html>
+ 
