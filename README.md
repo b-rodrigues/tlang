@@ -122,5 +122,5 @@ There is no external package registry. All contributions are made directly to th
 
 ## License
 
-To be determined.
+EUPL v1.2.
 
