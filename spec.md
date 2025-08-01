@@ -375,6 +375,18 @@ The T functions are thin, elegant wrappers that orchestrate calls to the interna
 
 This hybrid model provides the best possible user experience: it's interactive, feels fully integrated with the language, and is powered by a robust, parallel, caching engine. This is an excellent design decision. 
 
+---
+
+### Execution Model: A Hybrid Interpreter and Compiler (Long-Term Vision)
+
+To serve both interactive exploration and high-performance production workflows, T is designed to evolve into a hybrid execution system. In its initial phase, T will operate as a simple and responsive **AST-walking interpreter**, ideal for REPL-based development. The long-term vision is to introduce a sophisticated **optimizing compiler** and **bytecode Virtual Machine (VM)**. This mature architecture will be orchestrated through the main `t` command-line tool, which will support multiple execution modes:
+
+*   `t`: (With no arguments) Enters the interactive REPL, using the interpreter for immediate feedback.
+*   `t run <file.t>`: A convenience command that uses the interpreter to directly execute a script file.
+*   `t compile <file.t>`: Invokes the optimizing compiler to translate a source file into a highly-efficient bytecode file (e.g., `file.tbc`).
+*   `t run <file.tbc>`: Executes a pre-compiled bytecode file using the high-speed Virtual Machine.
+
+This hybrid model, inspired by successful languages like OCaml, allows for a seamless workflow: developers can interactively test and debug code with the interpreter, load compiled modules into the REPL for a speed boost, and then compile their final, stable pipelines for the performance and reliability required in production.
 
 ---
 
