@@ -1,400 +1,828 @@
 # T Programming Language — Phase 1 Specification
 
-> **Status**: Very early stage, conceptual + implementation-driven  
-> **Purpose**: Small declarative functional language for tabular data wrangling  
+> **Status**: Early conceptual and implementation-driven phase
+> **Purpose**: A concise, declarative functional language for tabular data wrangling
 > **Inspiration**: R’s tidyverse, Python’s readability, OCaml’s performance
 
 ---
 
 ## ✨ Design Goals
 
-- **Declarative**: Focus on what to compute, not how.
-- **Functional**: No mutation or side effects in user code.
-- **Data-centric**: Native support for tabular data (DataFrames).
-- **Minimal**: Small, learnable surface.
-- **Explicit error values**: Errors propagate as first-class values.
-- **Composability**: Functions, pipelines, lambdas — all composable.
-- **Interactive**: REPL-driven experience.
-- **Reproducible by design**: T uses Nix as its package manager and every T project uses a Nix shell as its development environment.
+- **Data-Centric and Opinionated**: T is purpose-built for data manipulation and
+  analysis. Its core data structures and functions are crafted to make common
+  data-wrangling tasks expressive, safe, and performant.
+- **User-Centric Indexing**: T uses 1-based indexing, aligning with conventions
+  in R and Julia and with natural human expectations, reducing cognitive load
+  and off-by-one errors.
+- **Declarative and Functional**: The language emphasizes specifying *what* to
+  compute, not *how*. It avoids side effects and mutation in user code,
+  resulting in programs that are easier to reason about, parallelize, and debug.
+- **Vectorized Operations**: Functions operate on entire vectors or columns at
+  once. For example, `sum(x)` computes the sum of all elements in `x` without
+  explicit loops.
+- **Explicit Error Values**: Functions that fail return structured `Error`
+  objects rather than crashing or throwing hidden exceptions. These can be
+  programmatically inspected and handled like any other data.
+- **Composability**: Functions and pipe operators are designed for seamless
+  composition, allowing complex analyses to be built from simple, reusable
+  components.
+- **Functional OOP**: Methods are implemented as generic functions, not object
+  members (`summary(my_model)` instead of `my_model.summary()`), fostering
+  composability and consistency.
+- **Interactive**: T is optimized for use in a Read-Eval-Print Loop (REPL),
+  facilitating rapid, iterative exploration with immediate feedback.
+- **Gradual and Pragmatic**: The language remains as simple as possible,
+  enabling a smooth transition from dynamic scripting in the REPL to robust,
+  statically-typed, high-performance data pipelines.
+- **Reproducibility by Design**: The entire toolchain, including dependencies
+  and packages, is managed by Nix to ensure full reproducibility across
+  environments.
+- **Hackable and Transparent Core**: The standard library is modular and
+  self-contained, encouraging users to read, understand, and contribute to the
+  source.
+- **Copyleft License**: T uses the EUPL, a strong copyleft license requiring
+  derivative works—including those provided as a service—to remain open source,
+  safeguarding community freedom.
 
 ---
 
-## 🧩 Packages: A Nix-Native Ecosystem
+## 🪄 Core Language & Ergonomics
 
-T fully embraces the Nix ecosystem for package management to provide unparalleled reproducibility and stability. It does not have a custom package manager; instead, **Nix is the package manager.**
-
-1.  **Packages are Flakes:** Every T package is a standard Nix Flake, living in its own Git repository. This allows package authors to manage their own development and releases.
-
-2.  **A Central Registry Flake:** T maintains an official "registry" flake. This central flake discovers and aggregates community packages, providing a stable, curated set of known-good versions. To add a package to the registry, a developer submits a Pull Request to the registry repository, enabling a transparent, public review process.
-
-3.  **Project-Level Dependencies:** Users define their project's dependencies within their own `flake.nix` file. They select which packages they need from the registry flake. Running `nix develop` provides a shell where the T compiler is automatically aware of all declared package dependencies.
-
-This Nix-native approach provides a zero-dependency-hell environment by design, leveraging the power of the Nix ecosystem for dependency resolution, caching, and providing perfectly reproducible development environments.
-
----
-
-## 🔤 Syntax Overview
-
-- **Assignment**: `x = 3 + 4` (no `let`)
-- **Identifiers**: `a`, `name`, `total_price`
-- **Strings**: `"hello world"`
-- **Numbers**: `42`, `3.14`
-- **Booleans**: `true`, `false`
-- **Lambdas**: `\(x) x + 1`
-- **Function definition**: `f = function(x, y, ...) (x + y)`
-- **Function call**: `mean(x)`, `select(people, name)`
-- **If expressions**: `if (x > 3) "big" else "small"`
-- **List literals**: `[1, 2, 3]`
-- **Named list elements**: `[a: 1, b: 2]`, accessible as `x.a`
-- **Dict literals**: `{name: "Alice", age: 30}`
-- **Dot access**: Works on named lists and DataFrames — `x.a`, `df.name`
-- **List comprehension**: `[x * x for x in [1, 2, 3]]`
-- **Pipe operator**: `x |> f` or `x |> f(a, b)`
-- **Dots (`...`)**: For variadic arguments and forwarding
+- **First-Class Pattern Matching**: T will support a `match` expression for
+  elegantly deconstructing complex data structures such as DataFrames and
+  `Error` objects. This enables concise and safe alternatives to deeply nested
+  `if/else` logic, improving code clarity and reliability.
+- **Lenses for Immutable Updates**: A dedicated lens library will provide
+  ergonomic, composable ways to "get" and "set" deeply nested values in
+  immutable data structures. Lenses allow for concise, functional updates and
+  queries without sacrificing immutability.
+- **Transient Mutation**: The `transient` block enables high-performance,
+  locally-scoped mutation on data structures, with compiler-guaranteed
+  isolation. This approach offers the speed of imperative code while preserving
+  the safety and predictability of functional style.
 
 ---
 
 ## 📦 Built-in Data Types
 
-- `Number` (int or float)
-- `String`
-- `Bool`
-- `List` of values (optionally named)
-- `Dict` (Python-style)
-- `DataFrame`
-- `Error` values (e.g., `"file not found"`)
+T distinguishes between flexible, general-purpose containers and
+high-performance structures.
+
+### General-Purpose Containers
+
+- `List`: Ordered, heterogeneous collections.
+- `Dict`: Unordered key-value maps with unique string keys.
+- `String`, `Bool`
+
+### High-Performance Containers
+
+- `Tensor`: Homogeneous, N-dimensional numerical arrays (backed by OCaml's
+  `Bigarray`).
+- `DataFrame`: 2D tables with heterogeneous column types, comprising named 1D
+  vectors. Each column supports an optional human-readable label, in addition to
+  its programmatic name, and is backed by Apache Arrow.
+- Numeric Types: `Int8`, `Int16`, `Int32`, `Int64`, `Float32`, `Float64`.
+
+### Special Values
+
+- `Formula`: R-style formulas (`y ~ x1 + x2`) as structured, first-class
+  objects.
+- `Model`: Opaque objects representing fitted statistical models.
+- `Error`: Structured objects representing failures.
+- `NA` values: Typed (`NA_int`) and user-defined tagged missing values. **No
+  `Null` type exists in T.**
+- **Factor**: A dedicated, memory-efficient type for categorical data,
+  supporting explicitly ordered levels—essential for statistical modeling and
+  visualization.
+- **TimeSeries & Panel Data**: Specialized `TimeSeries` and `Panel` DataFrame
+  types, which internally track structure to enable high-level operations like
+  lagging, rolling windows, and intuitive time-based indexing.
 
 ---
 
-## 📄 Example Programs
+## 🏷️ Next-Level Data Model (Inspired by Statistical Packages)
+
+- **First-Class `Factor` Type**: A memory-efficient, categorical data type
+  supporting ordered levels, crucial for modeling and plotting.
+- **Value Labels System**: Enables attaching human-readable string labels to
+  specific values within a vector (e.g., `1 = "Male"`, `2 = "Female"`). Value
+  labels are automatically leveraged by summary and visualization functions.
+- **First-Class Time Series & Panel Data**: `TimeSeries` and `Panel` DataFrame
+  types are aware of their temporal or panel structure, supporting operations
+  such as lag, lead, rolling windows, and time-aware joins and visualizations.
+
+---
+
+## 📄 Example Script
 
 ```t
--- Load a CSV file
+# Load a CSV file
 people = read_csv("people.csv")
 
--- Select and filter with pipes
-people
-  |> select(name, age)
-  |> filter(age > 30)
-  |> mutate(group = if (age > 50) "senior" else "adult")
+# Select and filter with pipes
+people |>
+  select(name, age) |>
+  filter(age > 30) |>
+  mutate(group = if (age > 50) "senior" else "adult")
 
--- Define and use functions
+# Define and use functions
 square = \(x) x * x
 map([1, 2, 3], square)
 
--- Using function with ...
+# Using function with ...
 plot = function(data, x, y, ...) (
   scatterplot(data, x = x, y = y, ...)
 )
 
--- Function with standard notation
+# Function with standard notation
 add = function(x, y) (x + y)
 
--- List comprehension
+# List comprehension
 [x * x for x in [1, 2, 3]]
 
--- Dictionary
+# Dictionary
 person = {name: "Alice", age: 30}
 person.name
 
--- Named list
+# Named list
 x = [a: 1, b: 2]
 print(x.a)
 
--- DataFrame column access
+# DataFrame column access
 df.name
 ```
 
 ---
 
+## 📈 Native Plotting: Grammar of Graphics Integration
+
+T will feature first-class, native plotting capabilities inspired by the Grammar
+of Graphics paradigm, as exemplified by tools like ggplot2 (R) and Vega-Lite.
+This approach treats plots as composable, declarative specifications rather than
+imperative drawing commands, enabling users to build complex,
+publication-quality visualizations from simple, readable building blocks.
+
+### Core Principles
+
+- **Declarative Specification**: Plots are constructed by declaring mappings
+  between data variables and visual properties (aesthetics) such as position,
+  color, size, and shape.
+- **Layered Composition**: Visualizations are built by adding layers (e.g.,
+  points, lines, bars) on top of a base plot, each with its own data mappings
+  and geometric representation.
+- **Separation of Concerns**: The data, visual mapping, and rendering details
+  are kept separate, allowing users to focus on the "what" rather than the "how"
+  of plotting.
+- **Native DataFrame Interoperability**: Plots are created directly from T
+  DataFrames and benefit from T's labeling, value labels, and type system for
+  axes, legends, and tooltips.
+
+### Example Syntax
+
+```t
+# Basic scatterplot
+plot = ggplot(df, aes(x = height, y = weight)) |>
+  geom_point(color = "blue") |>
+  # Labels for axis are optional, as the ones defined
+  # in the DataFrame object will be reused
+  labs(title = "Height vs Weight", x = "Height (cm)", y = "Weight (kg)")
+
+print(plot)
+
+# Layered plot with regression line
+ggplot(df, aes(x = age, y = cholesterol)) |>
+  geom_point() |>
+  geom_smooth(method = "lm", color = "red") |>
+  labs(title = "Cholesterol by Age") |> print ()
+```
+
+### Features
+
+- **Aesthetic Mapping**: The `aes()` function specifies which variables are
+  mapped to which visual properties.
+- **Geoms**: Built-in support for common geometric layers, including points,
+  lines, bars, histograms, boxplots, and smoothers.
+- **Faceting**: Native support for paneling by categorical variables (e.g.,
+  `facet_wrap()` and `facet_grid()`).
+- **Scales and Themes**: Customizable axis scales, color maps, legend placement,
+  and overall plot appearance.
+- **Labels and Value Labels**: Automatic use of column labels and value labels
+  in axes and legends for more informative plots.
+- **Interactive and Static Output**: Plots can be rendered as interactive
+  HTML/SVG or exported as static images (PNG, PDF, SVG).
+
+### Extensibility
+
+- **Composable Layers**: Users can define their own geoms and statistical
+  transformations, and contribute them as packages.
+- **Integration with REPL and Quarto**: Plots can be displayed inline in the
+  REPL and embedded directly in Quarto documents for reproducible reporting.
+
+### Design Rationale
+
+By natively integrating a grammar of graphics system, T ensures that data
+visualization is as expressive, composable, and reproducible as the rest of the
+language. This empowers users to move seamlessly from data wrangling to
+insightful, publication-ready graphics in a single, unified workflow.
+
+## 💧 Missing Data Semantics
+
+T provides a robust, first-class missing data system, blending **Typed System
+NAs** and **Tagged User NAs**.
+
+### 1. Typed System NAs
+
+Each core type has a unique `NA` variant, ensuring type safety and preventing
+implicit coercion in vectors with missing data.
+
+- **Syntax**: `NA_int`, `NA_float`, `NA_string`, `NA_bool`
+- **Behavior**: These propagate through computations (e.g., `5 + NA_int` yields
+  `NA_int`).
+
+### 2. Tagged User NAs
+
+Users may designate specific values as missing (e.g., survey codes like `-99`),
+preserving metadata on *why* a value is missing.
+
+- **Declaration**: Use `define_missing` to attach metadata.
+    ```t
+    my_data = my_data |> define_missing(age, values = {-99: "Refused"})
+    ```
+- **Behavior**: Tagged values are treated as `NA` in computations but retain
+  original values internally.
+
+### 3. Unified Behavior
+
+T provides consistent handling for both missingness types.
+
+- **Predicates**:
+    - `is_na(x)`: True for both System and User NAs.
+    - `is_system_na(x)`: True for system-level NAs.
+    - `is_user_na(x)`: True for user-tagged NAs.
+    - `na_reason(x)`: Returns the missingness reason or a default for system
+      NAs.
+- **Function Arguments**: Analytical functions accept NA-handling arguments,
+  e.g.:
+    - `mean(x, na_rm = TRUE)`
+    - `mean(x, na_rm = TRUE, include_user_na = TRUE)`
+
+This hybrid system combines R's type safety with SPSS’s semantic richness for
+practical, real-world data cleaning.
+
+---
+
+## 🔤 Syntax Overview
+
+- **Assignment**: `x = 3 + 4`
+- **Identifiers**: `a`, `name`, `` `total price` ``
+- **Strings**: `"hello world"`, `'hello world'`, `'''multi-line'''`
+- **Numbers**: `42`, `3.14` (default to Int64, Float64)
+- **Booleans**: `true`, `false`
+- **Lambdas**: `\(x) x + 1`
+- **Function Definitions**: `f = function(x, y) (x + y)`
+- **Function Calls**: Supports positional and named arguments
+- **If Expressions**: `if (x > 3) "big" else "small"`
+- **Data Structures**:
+    - Lists: `[1, "a", true]`
+    - Named lists: `[a: 1, b: 2]` (access via `x.a`)
+    - Dicts: `{name: "Alice", age: 30}`
+    - Tensors: `tensor([1, 2], [3, 4])`
+    - Dot access: `x.a`, `df.name`
+- **List Comprehensions**: `[x * x for x in [1, 2, 3]]`
+- **Pipe Operators**: `x |> f`, `x |> f(a, b)`, `x ?|> f`
+- **Variadics**: `...` for variadic arguments and forwarding
+
+---
+
+## ➡️ Pipes: `|>` and `?|>`
+
+T provides two explicit pipe operators:
+
+1. **Conditional Pipe (`|>`)**: The default operator. If the left-hand value is
+   an `Error`, the pipeline short-circuits, returning the error immediately;
+   otherwise, it passes the value to the right-hand function.
+
+    ```t
+    result = read_csv("file.csv") |>
+      clean_data() |>
+      fit_model()
+    ```
+
+2. **Unconditional Pipe (`?|>`)**: Always forwards the left-hand value, whether
+   it is an `Error` or not, to the right-hand function. Useful for explicit
+   error handling.
+
+    ```t
+    final_output = result ?|>
+      handle_error_and_return_default()
+    ```
+
+---
+
+## Functional Object-Oriented Programming
+
+T employs **Functional Object-Oriented Programming (OOP)**, inspired by R and
+detailed in *Advanced R* by Hadley Wickham. Methods are implemented as
+polymorphic generic functions rather than object members. For example,
+`summary(my_dataframe)` and `summary(my_model)` invoke different methods, but
+share a unified interface. This design promotes composability and separates data
+from operations.
+
+- **For `DataFrame`**: `summary(my_df)` returns summary statistics by column.
+- **For `Tensor` or `Vector`**: Returns a `Dict` of statistical properties.
+- **For `Model`**: The `kind` parameter selects output style:
+    - `"tidy"`: Returns a DataFrame of model components (default).
+    - `"glance"`: Single-row DataFrame of fit statistics.
+    - `"augment"`: Original data augmented with model statistics.
+
+---
+
+## 🧵 String Interpolation
+
+T supports string interpolation for concise and readable string formatting.
+Interpolated expressions are enclosed in curly braces `{}` within string
+literals prefixed with `f`. During evaluation, each expression inside `{}` is
+replaced with its value.
+
+**Syntax Example:**
+```t
+name = "Alice"
+age = 30
+print(f"Name: {name}, Age: {age}")
+```
+
+This prints:
+```
+Name: Alice, Age: 30
+```
+
+**Example with expressions:**
+```t
+x = 5
+y = 7
+print(f"Sum: {x + y}")
+```
+
+**Usage in error handling:**
+```t
+result = read_csv("missing.csv")
+if is_error(result) {
+  print("Operation failed!")
+  print(f"Reason: {result.message}")
+}
+```
+
+**Mixing Both in One Program:** You can use both types as needed:
+
+```t
+name = "Alice"
+print("Curly braces: { }")      # Output: Curly braces: { }
+print(f"Hello {name} and {{brackets}}!")  # Output: Hello Alice and {brackets}!
+```
+
+String interpolation eliminates the need for explicit concatenation or
+formatting functions like `sprintf`, enabling clear and expressive code.
+
+---
+
+## 🧩 Packages and Extensibility
+
+### Package Management via Nix
+
+T leverages Nix for package management to ensure reproducibility and stability.
+
+1. **Packages as Flakes**: Every T package is a Nix Flake in its own Git
+   repository.
+2. **Central Registry Flake**: T maintains a curated registry, discoverable via
+   PRs.
+3. **Project Dependencies**: Users define dependencies in their `flake.nix`;
+   `nix develop` brings all packages into scope.
+
+### User-Contributed Packages
+
+- **Structure**: Packages are Git repositories containing `.t` files, organized
+  by function.
+- **Distribution**: Hosted independently; installation is via Nix flake inputs.
+- **Documentation**: The `tdoc` tool parses roxygen-style comments and generates
+  Markdown docs, accessible via `help(function_name)`.
+- **Testing**: The `t test` command runs test scripts in `tests/`, using
+  `assert_equal()` for validation.
+- **Integrated Testing Framework**: T includes a simple, built-in testing
+  framework, activated by the `t test` command, for writing and running unit
+  tests on T functions and pipelines.
+- **Quarto Extension**: T provides a dedicated engine for Quarto, enabling users
+  to create dynamic, reproducible documents and reports by embedding executable
+  T code blocks within Markdown files.
+
+### Minimal Reinvention
+
+T minimizes reinvention, reusing mature technologies such as Apache Arrow for
+core data types and relying on the Arrow C GLib library via OCaml bindings.
+Memory is managed through robust finalizer logic to ensure safety and prevent
+leaks.
+
+### Foreign Function Interface (FFI)
+
+For performance and extensibility, T exposes an FFI for direct OCaml
+integration. OCaml functions operating on T `value` types can be wrapped and
+invoked as native T functions.
+
+---
+
 ## 🔬 Scoping and Environments
 
-T uses **lexical scoping**, also known as static scoping. This means the scope of a variable is determined by its location within the source code at the time a function is **defined**, not when it is **called**.
-
-When a function is created, it forms a **closure**, capturing the environment (the set of variables it can access) from where it was defined.
+T uses **lexical (static) scoping**: variable scope is determined at function
+definition, not call time. Functions form closures, capturing their defining
+environment.
 
 **Example:**
 
 ```t
 x = 10
+f = \() x
 
--- `f` is defined here and captures the environment where `x` is 10.
-let f = \() x
-
-let g = \() {
-   -- This `x` is a new, local variable that shadows the outer one.
-  -- It only exists inside `g`.
-   x = 20
-   -- When `f()` is called, it uses *its own* captured environment,
-   -- not the environment of `g`.
-   f()
+g = \() {
+  x = 20
+  f()  # Uses x = 10
 }
 
-result = g() -- The value of `result` will be 10.
+result = g()  # result == 10
 ```
 
-### Variable Shadowing
-
-If a variable defined within an inner scope (like a function body) has the same name as a variable in an outer scope, the inner variable takes precedence for the duration of that scope. This does **not** modify the outer variable.
+**Variable Shadowing**: Inner scope variables override outer ones without
+altering the outer value.
 
 ```t
 name = "global"
-
- let my_function = \() {
-   name = "local"
-   print(name) -- This will print "local"
- }
-
-my_function()
-print(name) -- This will still print "global"
+my_function = \() {
+  name = "local"
+  print(name)
+}
+my_function()  # Prints "local"
+print(name)    # Still "global"
 ```
 
-This ensures that functions cannot have unintended side effects on the environments of their callers, which is a cornerstone of functional programming.
-
----
-
-## 🔧 Core Built-ins (Phase 1)
-
-| Function           | Description                                |
-|--------------------|--------------------------------------------|
-| `read_csv(path)`   | Load CSV as DataFrame                      |
-| `select(df, ...)`  | Select columns (NSE-like)                  |
-| `filter(df, cond)` | Filter rows                                |
-| `mutate(df, ...)`  | Add or transform columns                   |
-| `mean(x)`          | Mean of list or DataFrame column           |
-| `print(x)`         | Type-dispatched print                      |
-| `map(list, f)`     | Apply function to list                     |
-| `x |> f(...)`      | Pipe operator for chaining                 |
+This ensures functions do not create unintended side effects, in line with
+functional programming best practices.
 
 ---
 
 ## 📝 Naming and Syntax Rules
 
-- **Variable names**:
-  - Can include letters, numbers, and underscores.
-  - Cannot start with a number or reserved symbol.
-  - Reserved symbols include: `=`, `+`, `-`, `*`, `/`, `|>`, `->`, etc.
-  - To use *any* name (including spaces, numbers first, or symbols), wrap it in backticks:
-    - Example: `` `hello world!` = 3 `` is legal.
+- **Variable Names**: Letters, numbers, underscores; cannot start with a number
+  or reserved symbol. Any name (including spaces or symbols) can be wrapped in
+  backticks.
+- **Type Annotations**: Optional and currently non-enforced; e.g., `x: Number =
+  3`, `f: (String, Number) -> Bool = function(...)`
+- **Strings**: Single, double, or triple quotes for multi-line.
+- **Examples**:
+    ```t
+    x = 3
+    long_name_2 = 42
+    `123number` = 1
+    `column with spaces` = 7
+    msg = '''This is
+    a long string'''
+    ```
 
-- **Type annotations (optional)**:
-  - Syntax: `x: Number = 3`
-  - Functions: `f: (String, Number) -> Bool = function(name, age) (...)`
-  - Type annotations are optional and ignored for now (parsed but not enforced).
+### Column Labels
 
-- **Strings**:
-  - Single quotes: `'hello'`
-  - Double quotes: `"world"`
-  - Triple quotes for multi-line strings (like Python):
-    - `'''This is a\nmulti-line\nstring'''`
-    - `"""Another\none"""`
+Each DataFrame column may have an optional human-readable label, used in output
+and visualization functions.
+
+---
+
+## The API Server
+
+T includes a declarative mechanism for exposing functions as high-performance
+web APIs, inspired by FastAPI and Plumber.
+
+- **Syntax**: Annotate T functions in `api.t` to define routes and methods.
+    ```t
+    --* @get /predict
+    --* @param month: Int64
+    let predict_sales = function(month) { ... }
+    ```
+- **`t serve`**: Launches a web server using OCaml’s Dream library, with
+  automatic JSON serialization and interactive documentation (Swagger/OpenAPI).
+
+---
+
+## 🛡️ Gradual Type System
+
+T employs a **gradual type system**: unannotated code is dynamic, whereas type
+annotations create statically checked contracts, verified at compile time.
+Hindley-Milner inference enables type propagation from a small number of key
+annotations.
+
+---
+
+## 📊 Advanced Modeling
+
+- **First-Class Formulas**: R-style formulas (`y ~ x1 + x2`) are elevated to a
+  first-class type, allowing them to be programmatically constructed, inspected,
+  and passed to modeling functions.
+- **Survey Design & Weighting Support**: T's ecosystem will include a dedicated
+  library for complex survey data analysis, supporting the declaration of survey
+  designs (stratification, clustering) and the application of sampling weights
+  to all statistical computations, ensuring accurate inferences.
+
+---
+
+## Tooling
+
+T provides an integrated suite of tools:
+
+- **Language Server (`tls`)**: LSP implementation for live type checking,
+  autocompletion (including DataFrame columns), documentation, and navigation.
+- **Interactive Debugger**: REPL-based, supporting post-mortem analysis, call
+  stack inspection, and stepwise execution.
+- **Opinionated Formatter (`tfmt`)**: Ensures consistent code style across the
+  ecosystem.
+
+---
+
+## 🧪 Error Semantics: Errors as First-Class Objects
+
+Errors in T are structured, assignable, and inspectable data objects—not
+exceptions. Failed functions return an `Error` object, represented as a
+standardized `Dict` with fields:
+
+- `message`: Human-readable explanation.
+- `code`: Symbolic category (e.g., `#FileNotFound`, `#TypeError`).
+- `location`: Optional file, line, and column data.
+- `trace`: Optional call stack.
+- `context`: Additional error-specific data.
+
+Detection and handling use standard logic and the `is_error()` predicate.
 
 ```t
--- Examples
-x = 3
-long_name_2 = 42
-`123number` = 1
-`column with spaces` = 7
-
-msg = '''This is
-a long string'''
+result = read_csv("missing.csv")
+if is_error(result) {
+  print("Operation failed!")
+  print(f"Reason: {result.message}")
+  if result.code == #FileNotFound {
+    DataFrame()
+  } else {
+    result
+  }
+} else {
+  result |> filter(age > 30)
+}
 ```
 
----
-
-## 🧩 Packages (autoloaded at REPL startup)
-
-- `core`: Functional primitives like `map`, `fold`, `filter`
-- `stats`: Statistical functions like `mean`, `sd`
-- `colcraft`: Data verbs like `select`, `filter`, `mutate` (renamed from `dplyr`)
-
-Other packages can be added but must be explicitly loaded.
+Custom errors can be created using the built-in `error()` constructor.
 
 ---
 
-## 🚫 What’s Out of Scope (For Now)
+## 🚀 Long-Term Vision: Projects as DAGs
 
-- No mutation or assignments after `x = ...`
-- No user-defined types yet (except via packages)
-- No package registry (everything lives in repo)
-- No macros or JIT (planned for later)
-
----
-
-## 🧪 Error Semantics
-
-All failed operations return a value of type `Error`, e.g.:
-
-```t
-x = read_csv("missing.csv")
-print(x) -- prints: Error("file not found")
-```
-
-No exceptions — everything is a value.
-
----
-
-## 🚀 Long-Term Vision: The Project as a DAG
-
-While Phase 1 focuses on a REPL-driven, script-based workflow, the long-term vision for T is to treat entire projects as a **Directed Acyclic Graph (DAG)** of computational nodes. This elevates T from a scripting language to a declarative pipeline framework, inspired by tools like Dagster and Airflow, but deeply integrated into the language itself.
+Future phases will treat T projects as **Directed Acyclic Graphs (DAGs)** of
+computational nodes, akin to Dagster or Airflow, but natively integrated.
 
 ### Core Concepts
 
-*   **Node**: A single, named computational step in the pipeline. Each node is defined by a T expression and produces a single output value (e.g., a DataFrame, a plot, a statistical model).
-*   **Edge**: A dependency between nodes. If Node `B` requires the output of Node `A` as its input, there is a directed edge from `A` to `B`.
-*   **Graph**: A project is defined by a file that describes the collection of all nodes and their dependencies. This graph must be acyclic.
-*   **Runner**: A specialized execution engine that analyzes the graph, determines the optimal execution order (via topological sort), and orchestrates the computation.
+- **Node**: A named computational step producing a single output.
+- **Edge**: A dependency between nodes; edges define evaluation order.
+- **Graph**: The set of all nodes and dependencies defined in a project file.
+- **Runner**: Executes the graph in topological order, orchestrating
+  computation.
 
-### Benefits of the DAG Model
+### Benefits
 
-1.  **Automatic Caching (Memoization)**: The runner can cache the output of every node. If a node's source code and the outputs of its dependencies have not changed, it does not need to be re-executed. This is a massive time-saver in data science workflows.
-2.  **Parallel Execution**: The runner can identify independent branches of the DAG and execute them in parallel, dramatically speeding up complex pipelines.
-3.  **Visualization and Introspection**: The project's structure can be visually rendered as a graph, making complex dependencies easy to understand. Users could inspect the output (the resulting value) of any intermediate node without running the entire pipeline.
-4.  **Reproducibility**: The DAG provides a complete, explicit "recipe" for the project, ensuring that results are reproducible from start to finish.
+- **Automatic Caching**: Nodes are cached and only recomputed if dependencies or
+  code change.
+- **Parallel Execution**: Independent branches run concurrently.
+- **Visualization**: Projects can be rendered as graphs for clarity.
+- **Reproducibility**: The DAG is an explicit recipe for reproducing results.
 
 ### Proposed Syntax
 
-To support this model, we could introduce a new top-level construct, perhaps a `pipeline` block. Inside this block, nodes are defined using standard T assignment syntax. Dependencies are **implicitly discovered** when a node's expression refers to another node by name.
-
-**Example:**
-
-Instead of a linear script like this:
+Instead of linear scripts:
 
 ```t
--- script.t
 raw_data = read_csv("data.csv")
 filtered = filter(raw_data, age > 30)
 summarized = summarize(filtered, mean_age = mean(age))
 print(summarized)
 ```
 
-The project would be defined in a `pipeline.t` file like this:
+A `pipeline.t` file defines:
 
 ```t
--- pipeline.t
-
 pipeline my_project {
-  -- Node 1: Load raw data. No dependencies.
-  raw_data = {
-    read_csv("data.csv")
-  }
-
-  -- Node 2: Filter the data. Implicitly depends on `raw_data`.
-  filtered_data = {
-    raw_data |> filter(age > 30)
-  }
-
-  -- Node 3: Create a summary. Implicitly depends on `filtered_data`.
-  summary_stats = {
-    filtered_data |> summarize(mean_age = mean(age), max_age = max(age))
-  }
-
-  -- Node 4: A separate, independent branch for analysis.
-  -- This could run in parallel with `filtered_data` and `summary_stats`.
-  column_names = {
-    get_colnames(raw_data)
-  }
+  raw_data = { read_csv("data.csv") }
+  filtered_data = { raw_data |> filter(age > 30) }
+  summary_stats = { filtered_data |> summarize(mean_age = mean(age), max_age = max(age)) }
+  column_names = { get_colnames(raw_data) }
 }
 ```
 
-### Impact on Implementation (Future Phase)
+### Implementation (Future Phase)
 
-*   **T Language Core (`eval.ml`)**: The core T interpreter would remain largely the same. It would be invoked by the runner to execute the T expression inside a single node.
-*   **The DAG Runner**: A new entry point (`runner.ml`) would be created. Its responsibilities would be:
-    1.  Parse the `pipeline` definition file to build an in-memory graph structure.
-    2.  Perform a topological sort on the graph to create a valid execution plan.
-    3.  For each node in the plan:
-        a. Check if a valid cache for this node exists. If so, load it.
-        b. If not, inject the outputs of its dependencies (already computed) into the evaluation environment.
-        c. Execute the node's T expression using the core evaluator.
-        d. Save the resulting value to a cache (e.g., a file on disk).
-*   **File Structure**: Projects would be organized around a central `pipeline.t` file rather than a single script.
-
-This approach provides a clear and powerful path forward for T, enabling it to handle complex, real-world data science projects in a robust and efficient manner.
+- **Interpreter**: The core evaluator operates per node.
+- **Runner**: Parses the pipeline, sorts nodes, checks caches, injects
+  dependencies, and executes nodes.
+- **File Structure**: Projects center around a `pipeline.t` file.
 
 ---
 
-#### 🔧 The T Pipeline Engine: A Two-Layer Architecture
+### 🔧 The T Pipeline Engine: Two-Layer Architecture
 
-The T pipeline engine is composed of two distinct layers: a user-facing API of T functions and a hidden command-line runner that acts as the backend.
-
-1.  **The High-Level API (REPL Functions):** This is the user's primary interface. A set of standard T functions will be provided to load, run, and inspect data pipelines directly from the REPL.
-2.  **The Internal Runner (`t` CLI):** This is the low-level engine that Dune calls. Its existence is an implementation detail, abstracted away by the REPL functions.
+- **High-Level API**: REPL functions for pipeline loading, execution, status
+  checking, result extraction, visualization, and cache cleaning.
+- **Internal Runner**: CLI engine, invoked by the REPL functions, manages
+  execution, caching, and result retrieval.
 
 ---
 
 #### REPL-Based Pipeline Interaction
 
-To manage a pipeline, a user will call the following T functions within a REPL session.
-
-| T Function Signature                          | Description                                                                                                                                                             |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pipeline_load(path: String) -> Pipeline`     | Parses a `pipeline.t` file from disk and returns a `Pipeline` object—an in-memory representation of the DAG. This does not execute any nodes.                               |
-| `pipeline_run(p: Pipeline, node: String)`     | **Executes the pipeline** to build the specified `node`. This function will block until the pipeline run is complete. It returns a status (`Success` or `Error`).           |
-| `pipeline_status(p: Pipeline)`                | **Checks the status of the pipeline.** It returns a `Dict` or `DataFrame` detailing each node, its dependencies, and its current cache status (fresh, stale, or missing).   |
-| `pipeline_get(p: Pipeline, node: String)`     | **The bridge between the pipeline and the REPL.** This function ensures the specified `node` is built (running the pipeline if necessary), then **loads its result** from the cache and returns it as a standard T value into the live REPL environment. |
-| `pipeline_viz(p: Pipeline)`                   | **Visualizes the DAG.** Generates a `pipeline.dot` file and returns the path.                                                                                           |
-| `pipeline_clean(p: Pipeline, node: String)`   | **Clears the cache** for the specified node and all of its dependents, forcing them to be re-run next time.                                                              |
+| T Function Signature | Description |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `pipeline_load(path: String) -> Pipeline` | Parses a `pipeline.t` file and returns a `Pipeline` object (no execution). |
+| `pipeline_run(p: Pipeline, node: String)` | Executes the pipeline up to the specified node, returning status. |
+| `pipeline_status(p: Pipeline)` | Returns the status of all nodes, including dependencies and cache status. |
+| `pipeline_get(p: Pipeline, node: String)` | Ensures the node is built, then loads and returns its result in the REPL. |
+| `pipeline_viz(p: Pipeline)` | Generates a DAG visualization (`pipeline.dot`) and returns the path. |
+| `pipeline_clean(p: Pipeline, node: String)` | Clears cache for the specified node and its dependents. |
 
 **Example REPL Workflow:**
 
 ```t
--- 1. Load the pipeline definition from a file
 my_pipe = pipeline_load("project/pipeline.t")
-
--- 2. Check which parts of the pipeline are already computed
 pipeline_status(my_pipe)
--- Output: <DataFrame with columns: node, status, dependencies>
-
--- 3. Run the pipeline up to a specific node
 pipeline_run(my_pipe, "summary_stats")
--- Output: Success("Pipeline finished successfully")
-
--- 4. Get the result of a node and bring it into the live REPL for further work
 summary = pipeline_get(my_pipe, "summary_stats")
-
--- `summary` is now a normal T value (e.g., a DataFrame) that we can print or use
 print(summary)
 ```
 
 ---
 
-#### How the Wrappers Work (Implementation Detail)
+#### Wrappers and Internal Mechanics
 
-The T functions are thin, elegant wrappers that orchestrate calls to the internal CLI runner.
+REPL functions orchestrate calls to the CLI runner. For instance:
 
-*   When `pipeline_run(p, "node")` is called, the OCaml implementation of that function will:
-    1.  Shell out to the operating system.
-    2.  Execute the command: `dune build .t_cache/cache/node.bin`
-    3.  Wait for the process to complete and capture its success or failure code.
+- `pipeline_run(p, "node")`: Executes `dune build .t_cache/cache/node.bin`
+- `pipeline_get(p, "node")`: Triggers a build, then deserializes
+  `.t_cache/cache/node.bin` and returns its value
 
-*   When `pipeline_get(p, "node")` is called, it will:
-    1.  First, call the logic for `pipeline_run` to ensure the target is built.
-    2.  If successful, it will open and deserialize the result from the file `.t_cache/cache/node.bin` using `Marshal`.
-    3.  It then returns this deserialized `Ast.value` to the REPL.
-
-This hybrid model provides the best possible user experience: it's interactive, feels fully integrated with the language, and is powered by a robust, parallel, caching engine. This is an excellent design decision. 
+This hybrid model provides an interactive, integrated experience atop a
+parallel, caching backend.
 
 ---
 
-### Execution Model: A Hybrid Interpreter and Compiler (Long-Term Vision)
+### Execution Model: Hybrid Interpreter/Compiler (Vision)
 
-To serve both interactive exploration and high-performance production workflows, T is designed to evolve into a hybrid execution system. In its initial phase, T will operate as a simple and responsive **AST-walking interpreter**, ideal for REPL-based development. The long-term vision is to introduce a sophisticated **optimizing compiler** and **bytecode Virtual Machine (VM)**. This mature architecture will be orchestrated through the main `t` command-line tool, which will support multiple execution modes:
+T will evolve from an AST-walking interpreter (ideal for REPL and development)
+to a hybrid system with an optimizing compiler and bytecode VM. The main `t`
+command will support:
 
-*   `t`: (With no arguments) Enters the interactive REPL, using the interpreter for immediate feedback.
-*   `t run <file.t>`: A convenience command that uses the interpreter to directly execute a script file.
-*   `t compile <file.t>`: Invokes the optimizing compiler to translate a source file into a highly-efficient bytecode file (e.g., `file.tbc`).
-*   `t run <file.tbc>`: Executes a pre-compiled bytecode file using the high-speed Virtual Machine.
+- `t`: Launches the REPL (interpreter mode)
+- `t run <file.t>`: Runs a script via the interpreter
+- `t compile <file.t>`: Produces bytecode (`file.tbc`)
+- `t run <file.tbc>`: Executes compiled bytecode via the VM
 
-This hybrid model, inspired by successful languages like OCaml, allows for a seamless workflow: developers can interactively test and debug code with the interpreter, load compiled modules into the REPL for a speed boost, and then compile their final, stable pipelines for the performance and reliability required in production.
+This seamless workflow enables both interactive exploration and efficient
+production execution, inspired by OCaml and similar languages.
 
 ---
 
 ## 🛤 Implementation Stack
 
 - **Language**: OCaml
-- **Lexer/Parser**: OCamllex + Menhir
+- **Lexing/Parsing**: OCamllex, Menhir
 - **Evaluation**: AST interpreter in `eval.ml`
 - **REPL**: `repl.ml`
-- **CSV I/O**: OCaml `csv` library
-- **Packaging**: Nix flake, no external build tools
+- **I/O/DataFrames**: Apache Arrow
+- **Pipeline engine**: Dune (Ocaml)
+- **API Server**: Dream (OCaml)
+- **Statistics**: Owl (OCaml)
+- **Packaging**: Nix flakes only
+
+---
+
+# High-Level Implementation Roadmap
+
+
+This roadmap outlines the phased development of T, balancing pragmatic
+milestones with a vision for long-term innovation and extensibility.
+
+---
+
+## **Phase 1: Core Interpreter and Language Primitives**
+
+- **Abstract Syntax Tree (AST):** Finalize support for advanced constructs,
+  including rich `NA` types, structured error objects, column labels, factors,
+  and R-style formulas.
+- **Evaluation Engine:** Implement the core `eval` module, supporting functional
+  semantics and both conditional and unconditional pipe operators.
+- **Essential Built-ins:** Provide foundational functions (`print`, `read_csv`,
+  `define_missing`) and a minimal standard library.
+- **REPL:** Deliver a robust, interactive Read-Eval-Print Loop for rapid
+  prototyping and exploration.
+
+---
+
+## **Phase 2: Data Manipulation and Statistical Engine**
+
+- **Columnar Data API:** Develop the `colcraft` package, offering idiomatic
+  verbs for data wrangling (`select`, `filter`, `mutate`, `set_labels`).
+- **Statistical Modeling:** Integrate the `Owl` OCaml library to deliver a
+  comprehensive `stats` package, including linear modeling (`lm()`), summary
+  statistics, and a generic `Model` type.
+- **Polymorphic Summaries:** Implement the generic `summary()` function for
+  DataFrames, tensors, and models.
+- **Factor and Value Label Support:** Provide native handling for categorical
+  data and value labeling.
+
+---
+
+## **Phase 3: Developer Experience and Ecosystem Tooling**
+
+- **Package Ecosystem:**
+    - Tooling for user-contributed packages with Nix flakes as first-class
+      citizens.
+    - `tdoc`: Extract and generate documentation from code comments.
+    - `t test`: Built-in test runner for package/unit testing.
+    - Flake scaffolding and management helpers.
+- **Productivity Tools:**
+    - `tls`: Language server with autocomplete, inline documentation, and
+      column-aware suggestions.
+    - Interactive Debugger: REPL-based, supporting breakpoints and call stack
+      inspection.
+    - `tfmt`: Opinionated code formatter for consistency across the ecosystem.
+
+---
+
+## **Phase 4: Native Visualization and Grammar of Graphics**
+
+- **Core Plotting Library:** Develop a native, grammar-of-graphics-inspired
+  plotting system, enabling declarative, composable visualizations directly from
+  T DataFrames.
+- **Feature Set:** Support for layered plots, aesthetic mapping, faceting,
+  theming, value label integration, and both static (PNG/PDF/SVG) and
+  interactive (SVG/HTML) outputs.
+- **REPL and Quarto Integration:** Inline visualization in the REPL and seamless
+  embedding in Quarto documents for reproducible reports.
+
+---
+
+## **Phase 5: Gradual Type System and Static Analysis**
+
+- **Type Annotations:** Extend syntax and parser to support optional type
+  annotations.
+- **Type Inference:** Implement Hindley-Milner-based inference in
+  `typechecker.ml`.
+- **Static Contracts:** Integrate the type checker into the build and REPL
+  workflows, enabling a gradual transition from dynamic to statically-checked
+  code.
+- **Error Reporting:** Deliver clear, actionable static analysis and type error
+  messages.
+
+---
+
+## **Phase 6: Production Pipeline Engine and API Server**
+
+- **DAG Orchestration:** Implement parsing and execution of pipeline files as
+  Directed Acyclic Graphs (DAGs), supporting caching, incremental builds, and
+  parallel execution.
+- **Build Integration:** Automate pipeline builds with Dune and manage
+  computation outputs in a cache-aware manner.
+- **API Exposure:** Develop annotation-based API exposure (`t serve`), with
+  automatic OpenAPI/Swagger documentation and JSON serialization for DataFrames
+  and models.
+
+---
+
+## **Phase 7: Performance Optimization and Compiler/VM Transition**
+
+- **Optimizing Compiler:** Transition from AST interpretation to an optimizing
+  compiler and bytecode VM for production workloads, while preserving the
+  interpreter for interactive use.
+- **JIT/Native Backends:** (Future) Explore Just-In-Time compilation and
+  possible native code generation for critical paths.
+- **Memory and Resource Management:** Refine memory management and finalization,
+  especially for large data and streaming scenarios.
+
+---
+
+## **Phase 8: Extended Data and Modeling Support (Ongoing/Future)**
+
+- **Time Series & Panel Data:** Introduce first-class support for time series
+  and panel data structures, including period-aware indexing, rolling windows,
+  and lag/lead operations.
+- **Survey & Weighting:** Provide a comprehensive library for survey design,
+  complex weighting, and stratification.
+- **Geospatial Data:** Add spatial data types and geocomputation primitives.
+- **Quarto and Reporting:** Deepen Quarto integration for literate programming
+  and dynamic report generation.
+- **Ecosystem Growth:** Support additional statistical, machine learning, and
+  visualization packages through community contributions.
+
+---
+
+This roadmap is iterative and subject to refinement as the language and its
+ecosystem evolve. Community feedback and contributions will inform
+prioritization, with a focus on delivering robust, reproducible, and ergonomic
+tools for modern data science.
