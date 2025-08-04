@@ -710,6 +710,9 @@ milestones with a vision for long-term innovation and extensibility.
 
 ---
 
+The first 3 phases will focus on providing just enough of the core 
+language, including the pipeline engine.
+
 ## **Phase 1: Core Interpreter and Language Primitives**
 
 - **Abstract Syntax Tree (AST):** Finalize support for advanced constructs,
@@ -729,8 +732,8 @@ milestones with a vision for long-term innovation and extensibility.
 - **Columnar Data API:** Develop the `colcraft` package, offering idiomatic
   verbs for data wrangling (`select`, `filter`, `mutate`, `set_labels`).
 - **Statistical Modeling:** Integrate the `Owl` OCaml library to deliver a
-  comprehensive `stats` package, including linear modeling (`lm()`), summary
-  statistics, and a generic `Model` type.
+  barebones `stats` package, including linear modeling (`lm()`), summary
+  statistics, and a generic `Model` type. This will be extended in a later phase.
 - **Polymorphic Summaries:** Implement the generic `summary()` function for
   DataFrames, tensors, and models.
 - **Factor and Value Label Support:** Provide native handling for categorical
@@ -738,7 +741,17 @@ milestones with a vision for long-term innovation and extensibility.
 
 ---
 
-## **Phase 3: Developer Experience and Ecosystem Tooling**
+## **Phase 3: Production Pipeline Engine**
+
+- **DAG Orchestration:** Implement parsing and execution of pipeline files as
+  Directed Acyclic Graphs (DAGs), supporting caching, incremental builds, and
+  parallel execution.
+- **Build Integration:** Automate pipeline builds with Dune and manage
+  computation outputs in a cache-aware manner.
+
+---
+
+## **Phase 4: Developer Experience and Ecosystem Tooling**
 
 - **Package Ecosystem:**
     - Tooling for user-contributed packages with Nix flakes as first-class
@@ -755,8 +768,13 @@ milestones with a vision for long-term innovation and extensibility.
 
 ---
 
-## **Phase 4: Native Visualization and Grammar of Graphics**
+After Phase 4, a release announcement can be made, as there will be enough
+of the language and tooling for others to easily contribute.
 
+## **Phase 5: Native Visualization and extending Stats capabilities**
+
+- **Enrich the Stats Module:** Extend the Stats module to integrate more of
+  the `Owl` library.
 - **Core Plotting Library:** Develop a native, grammar-of-graphics-inspired
   plotting system, enabling declarative, composable visualizations directly from
   T DataFrames.
@@ -768,7 +786,9 @@ milestones with a vision for long-term innovation and extensibility.
 
 ---
 
-## **Phase 5: Gradual Type System and Static Analysis**
+After Phase 5, a major version of the language should be released, perhaps version 0.5.
+
+## **Phase 6: Gradual Type System and Static Analysis**
 
 - **Type Annotations:** Extend syntax and parser to support optional type
   annotations.
@@ -782,20 +802,17 @@ milestones with a vision for long-term innovation and extensibility.
 
 ---
 
-## **Phase 6: Production Pipeline Engine and API Server**
+## **Phase 7: API Server**
 
-- **DAG Orchestration:** Implement parsing and execution of pipeline files as
-  Directed Acyclic Graphs (DAGs), supporting caching, incremental builds, and
-  parallel execution.
-- **Build Integration:** Automate pipeline builds with Dune and manage
-  computation outputs in a cache-aware manner.
 - **API Exposure:** Develop annotation-based API exposure (`t serve`), with
   automatic OpenAPI/Swagger documentation and JSON serialization for DataFrames
   and models.
 
 ---
 
-## **Phase 7: Performance Optimization and Compiler/VM Transition**
+After Phase 7, version 1.0 of T could be released.
+
+## **Phase 8: Performance Optimization and Compiler/VM Transition**
 
 - **Optimizing Compiler:** Transition from AST interpretation to an optimizing
   compiler and bytecode VM for production workloads, while preserving the
@@ -807,7 +824,7 @@ milestones with a vision for long-term innovation and extensibility.
 
 ---
 
-## **Phase 8: Extended Data and Modeling Support (Ongoing/Future)**
+## **Phase 9: Extended Data and Modeling Support (Ongoing/Future)**
 
 - **Time Series & Panel Data:** Introduce first-class support for time series
   and panel data structures, including period-aware indexing, rolling windows,
