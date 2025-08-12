@@ -1,7 +1,9 @@
 # T Programming Language
 
 > **Status**: Early conceptual and implementation-driven phase
+>
 > **Purpose**: A concise, declarative functional language for tabular data wrangling
+>
 > **Inspiration**: R’s tidyverse, Python’s readability, OCaml’s performance
 
 ---
@@ -11,6 +13,8 @@
 - **Data-Centric and Opinionated**: T is purpose-built for data manipulation and
   analysis. Its core data structures and functions are crafted to make common
   data-wrangling tasks expressive, safe, and performant.
+- **Reuse over Reinvent**: T has an explicit preference for leveraging mature tools/libraries
+  instead of implementing its own (Arrow for DataFrame, Ocaml’s Owl for linear algebra).
 - **User-Centric Indexing**: T uses 1-based indexing, aligning with conventions
   in R and Julia and with natural human expectations, reducing cognitive load
   and off-by-one errors.
