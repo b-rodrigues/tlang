@@ -1,4 +1,4 @@
-# T Programming Language — Phase 1 Specification
+# T Programming Language
 
 > **Status**: Early conceptual and implementation-driven phase
 > **Purpose**: A concise, declarative functional language for tabular data wrangling
@@ -843,3 +843,258 @@ This roadmap is iterative and subject to refinement as the language and its
 ecosystem evolve. Community feedback and contributions will inform
 prioritization, with a focus on delivering robust, reproducible, and ergonomic
 tools for modern data science.
+
+
+# T’s performance: how to reach Ocaml speeds (implementation-ready map)
+
+Below is a clear, implementable plan for making T pipelines execute with “compiled feel” 
+by pushing work into Arrow/Owl while keeping a compact VM for orchestration. 
+It’s written for engineers and LLMs who will implement the compiler, planner and runtime.
+
+---
+
+## Goal (one line)
+
+Make common T pipelines (select / filter / mutate / group\_by / summarize / join / io) 
+run as Arrow-native compute plans (zero-copy) and only call Owl (or other numeric kernels) 
+for heavy numeric kernels — so pipelines execute close to native speed without requiring a full JIT up front.
+
+---
+
+# High-level architecture (layers)
+
+1. **Parser → AST**
+   T source → AST (NSE resolved where possible).
+2. **Type/shape inference pass**
+   Determine column types (arrow schema), shape (scalar/column/df), and whether an expression is column-vectorizable.
+3. **Lowerer → IR (declarative operators)**
+   Lower AST into a small set of declarative operators (logical plan): `Read`, `Project`, `Filter`, `Mutate(expr)`, `GroupBy(keys)`, `Aggregate(aggs)`, `Join`, `Write`.
+4. **Optimizer / Planner**
+   Transform logical plan: push filters, fuse adjacent mutates, detect vectorizable expressions, decide execution targets (Arrow kernel vs Owl vs VM).
+5. **Physical plan**
+   Plan = ordered physical operators with execution backends annotated per operator (Arrow kernel, Owl ndarray, VM bytecode, or JIT candidate).
+6. **Executor**
+   Runs the physical plan:
+
+   * Arrow-backed operators call Arrow C compute kernels or C++ kernels via OCaml wrapper (zero-copy).
+   * Owl-backed operators convert a column (zero-copy view when safe) to Owl ndarray, run numeric op, and convert results back to Arrow column.
+   * VM bytecode executes orchestrating tasks, user-defined functions, or fallback ops.
+   * JIT (optional later) compiles hot fused expressions to native code.
+
+---
+
+# Logical operators (the IR) — keep it tiny
+
+Use this small set. Each maps to one or more physical implementations.
+
+* `Read(path, format)` — returns DataFrame (Arrow table).
+* `Project(df, [col...])` — select columns.
+* `Filter(df, predicate_expr)` — predicate may be vectorizable.
+* `Mutate(df, [(name, expr)...])` — add/replace columns.
+* `GroupBy(df, [keys])` — returns grouped dataframe handle.
+* `Aggregate(grouped_df, [(name, agg_expr)...])` — reduce per-group.
+* `Join(left, right, on, kind)` — join two tables.
+* `Write(df, path, format)` — write to disk.
+
+Make each IR node carry schema and column-type metadata.
+
+---
+
+# Planner heuristics (rules to follow)
+
+1. **Prefer Arrow native kernels** for:
+
+   * Column selection, projection, slicing.
+   * Vectorized arithmetic/boolean ops on fixed-width numeric columns.
+   * Filter and comparison ops on fixed-width columns.
+   * Aggregations for standard reductions (`sum`, `mean`, `min`, `max`, `count`) — use Arrow compute if available.
+
+2. **Route to Owl when**:
+
+   * Expression requires numeric libraries (linear algebra, advanced statistics).
+   * Expression is supported in Owl but not Arrow (e.g., advanced ML routines).
+   * Conversion should be zero-copy when column is fixed-width numeric; otherwise copy.
+
+3. **Fallback to VM** for:
+
+   * Arbitrary UDFs that are not vectorizable.
+   * Row-wise operations that can’t be expressed as vector ops.
+   * Small-data operations where the cost of kernel call overhead dominates.
+
+4. **Fuse adjacent transforms** when possible:
+
+   * `mutate(x = a + b); mutate(y = x * 2)` → fused single kernel computing `y` from `a,b`.
+   * Implement fusion by building an expression graph per column and compiling it to a single Arrow compute kernel invocation or to a single Owl ndarray call.
+
+5. **Group execution**:
+
+   * If group-by cardinality is small relative to column length, execute group-aggs with Arrow (if available) or slice views + Owl operations per group.
+   * Prefer Arrow group-aggregate kernels where provided.
+
+6. **Zero-copy rule**:
+
+   * If column is fixed-width primitive and memory is contiguous, create Owl view over Arrow buffer (no copy).
+   * If not possible (nested/variable-length), copy or perform kernel in Arrow.
+
+---
+
+# Example: T pipeline → plan → execution
+
+T code:
+
+```t
+let df = read_csv("data.csv")
+let df2 = df
+  |> select(name, age, salary)
+  |> filter(age > 30 && salary > 50000)
+  |> mutate(z = (salary - mean(salary)) / sd(salary))
+  |> group_by(name)
+  |> summarize(avg_z = mean(z), n = count())
+```
+
+Lowered logical plan (simplified):
+
+1. `Read("data.csv")` schema: {name\:str, age\:int64, salary\:float64}
+2. `Project([name, age, salary])`
+3. `Filter(expr: age > 30 && salary > 50000)` — vectorizable
+4. `Mutate(z = (salary - mean(salary)) / sd(salary))` — needs global mean/sd, vectorizable
+5. `GroupBy([name])`
+6. `Aggregate(avg_z = mean(z), n = count())`
+
+Planner decision:
+
+* Steps 1–4: Arrow-native kernels (CSV reader → Arrow Table; Project; Filter via Arrow compute kernels).
+* `mean(salary)` / `sd(salary)`:
+
+  * Compute global `mean` and `sd` with Arrow reduction kernels if available; otherwise use zero-copy Owl ndarray.
+* `Mutate` compute: use fused vector expression executed as one Arrow compute kernel where possible, falling back to one zero-copy Owl call if Arrow lacks sd.
+* `GroupBy` + `Aggregate`: use Arrow group-aggregate kernel for `mean` and `count` keyed by `name`. If Arrow group-agg not available for mean of derived column, compute `z` first and then group-agg with Arrow.
+
+Execution notes:
+
+* No per-row loops in VM.
+* Data stays in Arrow memory; Owl sees buffer views only for numeric ops, and returns Arrow columns when done.
+
+---
+
+# Minimal physical operator API (OCaml-implementer view)
+
+Expose these primitives in the OCaml runtime:
+
+```ocaml
+(* Arrow-backed *)
+type arrow_table
+val arrow_read_csv : string -> arrow_table
+val arrow_project : arrow_table -> string list -> arrow_table
+val arrow_filter : arrow_table -> predicate -> arrow_table
+val arrow_mutate_vectorized : arrow_table -> (string * vector_expr) list -> arrow_table
+val arrow_group_aggregate : arrow_table -> keys:string list -> aggs:(string * agg_expr) list -> arrow_table
+
+(* Owl bridge *)
+type ndarray_view  (* zero-copy view into Arrow buffer when possible *)
+val arrow_col_as_ndarray_view : arrow_table -> col_name:string -> ndarray_view option
+val owl_compute_ndarray : ndarray_view -> owl_op -> ndarray_view
+
+(* Utilities *)
+val column_is_fixed_width : arrow_table -> col_name -> bool
+val column_buffer_ptr : arrow_table -> col_name -> (ptr, length)
+```
+
+Design the OCaml wrappers so the planner can request either Arrow kernel or Owl view; the wrappers handle ownership and safety.
+
+---
+
+# Bytecode VM — role and op set
+
+The VM is small: orchestrator, control flow, UDFs, and fallback execution.
+
+Essential op-categories:
+
+* `LOAD_TABLE`, `PROJECT`, `BIND_COL` — high-level table ops that mostly call into Arrow.
+* `CALL_ARROW_KERNEL kernel_id args -> table/col` — call pre-registered Arrow kernels.
+* `CALL_OWL op args -> col` — call Owl operations on a provided view.
+* `ITER_GROUPS` / `APPLY` — iterate groups when groupwise UDF required (should be avoided for heavy loops).
+* `CALL_UDF` — run T-defined function row-wise (slow path).
+* `JIT_HINT start_label end_label` — mark hot region for future JIT.
+
+Keep bytecode compact and let planner emit `CALL_ARROW_KERNEL` rather than many small VM instructions.
+
+---
+
+# JIT strategy (phase 2, optional)
+
+* Detect hot fused expressions (e.g., repeated `mutate` expressions) via `JIT_HINT`.
+* Lower fused vector\_expr to LLVM IR or use MetaOCaml to generate OCaml that uses Arrow buffers/Owl views directly.
+* Compile to a native function and replace the `CALL_ARROW_KERNEL`/`CALL_OWL` with direct native call.
+* Keep JIT optional; initial system should perform very well without it because Arrow/Owl do the heavy work.
+
+---
+
+# LLM / implementer rules for lowering (explicit, machine-friendly)
+
+1. Always preserve schema metadata at every pass.
+2. Mark expressions as `VECTORIZABLE` only when:
+
+   * They operate solely on fixed-width primitive columns, and
+   * They use only elementwise arithmetic/boolean ops or reductions.
+3. For `Mutate`:
+
+   * Build expression DAG per new column.
+   * Attempt to fuse nodes; if fused DAG fits Arrow compute kernel patterns, emit single `CALL_ARROW_KERNEL`.
+4. For `GroupBy`:
+
+   * If `Aggregate` uses only Arrow-supported aggs → plan `arrow_group_aggregate`.
+   * Else if aggregation function is expressible as a combination of Arrow reductions → rewrite.
+   * Else slice groups as views and route to Owl per-group (fallback).
+5. For UDFs:
+
+   * Try to convert UDF to vectorized form (map UDF over Arrow column as kernel). If not possible, fall back to VM row-wise apply and warn.
+6. Always annotate physical plan nodes with `cost_estimate` (rows \* cost\_per\_row or kernel\_cost) for future planner improvements.
+
+---
+
+# Testing checklist (for correctness & speed)
+
+* Unit tests for AST → IR lowering and NSE behavior.
+* Property tests: apply pipeline to small dataset both in pure-VM and in planned Arrow/Owl execution; results must match elementwise.
+* Zero-copy tests: ensure Owl view sees underlying buffer changes correctly; ensure memory safety when Arrow frees buffers.
+* Performance benchmarks:
+
+  * Single-column numeric arithmetic (1e7 rows).
+  * Filter + project pipeline.
+  * Group-by with many groups vs few groups.
+  * Mutate involving mean/sd computed via Arrow vs via Owl view.
+* Regression tests for fused vs unfused correctness.
+
+---
+
+# Prioritized implementation roadmap (short)
+
+Phase A (MVP):
+
+1. Parser, AST, NSE.
+2. Arrow OCaml wrapper basics: read\_csv, project, filter, simple reduce (sum, mean).
+3. Lowerer → logical IR and simple planner that maps to Arrow kernels or VM fallback.
+4. REPL and pretty printing for Arrow tables.
+
+Phase B (polish & numeric):
+
+1. Owl bridge with zero-copy ndarray view.
+2. Implement `mutate` fusion for arithmetic + mean/sd using Arrow or Owl.
+3. Group-aggregate via Arrow; fallback per-group to Owl.
+
+Phase C (performance & JIT):
+
+1. Add cost-based planner improvements + more Arrow kernels.
+2. Add `JIT_HINT` and implement simple JIT for fused expressions (optional).
+3. Extensive benchmarks and native binaries.
+
+---
+
+# Quick implementation checklist for an LLM or contributor
+
+* Keep IR small and typed.
+* Always attach `schema` to nodes.
+* Planner emits `CALL_ARROW_KERNEL` wherever possible; only emit row-wise UDFs when unavoidable.
+* Implement Owl bridge as `arrow_col_as_ndarray_view` with a safe API to pin Arrow memory while Owl uses it.
+* Add fusion pass that combines adjacent `Mutate` expressions into one vector\_expr graph.
