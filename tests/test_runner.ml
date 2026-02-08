@@ -85,7 +85,7 @@ let () =
   test "pipe to function" "double = \\(x) x * 2; 5 |> double" "10";
   test "pipe with args" "add = \\(a, b) a + b; 5 |> add(3)" "8";
   test "pipe chain" "double = \\(x) x * 2; inc = \\(x) x + 1; 5 |> double |> inc" "11";
-  test "pipe to builtin" "type(42)" {|"Int"|};
+  test "pipe to builtin" "42 |> type" {|"Int"|};
   print_newline ();
 
   (* --- If/Else --- *)
