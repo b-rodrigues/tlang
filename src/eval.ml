@@ -76,6 +76,10 @@ and eval_dot_access env target_expr field =
       (match List.find_opt (fun (name, _) -> name = Some field) named_items with
       | Some (_, v) -> v
       | None -> make_error KeyError (Printf.sprintf "list has no named element '%s'" field))
+  | VDataFrame { columns; _ } ->
+      (match List.assoc_opt field columns with
+       | Some col -> VVector col
+       | None -> make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" field))
   | VError _ as e -> e
   | VNA _ -> make_error TypeError "Cannot access field on NA"
   | other -> make_error TypeError (Printf.sprintf "Cannot access field '%s' on %s" field (Utils.type_name other))
@@ -217,6 +221,104 @@ let eval_statement (env : environment) (stmt : stmt) : value * environment =
 
 let make_builtin ?(variadic=false) arity func =
   VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
+
+(* --- Phase 2: Simple CSV Parser --- *)
+
+(** Split a CSV line into fields, handling quoted fields *)
+let parse_csv_line (line : string) : string list =
+  let len = String.length line in
+  let buf = Buffer.create 64 in
+  let fields = ref [] in
+  let i = ref 0 in
+  let in_quotes = ref false in
+  while !i < len do
+    let c = line.[!i] in
+    if !in_quotes then begin
+      if c = '"' then begin
+        if !i + 1 < len && line.[!i + 1] = '"' then begin
+          Buffer.add_char buf '"';
+          i := !i + 2
+        end else begin
+          in_quotes := false;
+          i := !i + 1
+        end
+      end else begin
+        Buffer.add_char buf c;
+        i := !i + 1
+      end
+    end else begin
+      if c = '"' then begin
+        in_quotes := true;
+        i := !i + 1
+      end else if c = ',' then begin
+        fields := Buffer.contents buf :: !fields;
+        Buffer.clear buf;
+        i := !i + 1
+      end else begin
+        Buffer.add_char buf c;
+        i := !i + 1
+      end
+    end
+  done;
+  fields := Buffer.contents buf :: !fields;
+  List.rev !fields
+
+(** Try to parse a string as a typed value (Int, Float, Bool, NA, or String) *)
+let parse_csv_value (s : string) : value =
+  let trimmed = String.trim s in
+  if trimmed = "" || trimmed = "NA" || trimmed = "na" || trimmed = "N/A" then
+    VNA NAGeneric
+  else
+    match int_of_string_opt trimmed with
+    | Some n -> VInt n
+    | None ->
+      match float_of_string_opt trimmed with
+      | Some f -> VFloat f
+      | None ->
+        match String.lowercase_ascii trimmed with
+        | "true" -> VBool true
+        | "false" -> VBool false
+        | _ -> VString trimmed
+
+(** Split a string into lines, handling \r\n and \n *)
+let split_lines (s : string) : string list =
+  let lines = String.split_on_char '\n' s in
+  List.map (fun line ->
+    if String.length line > 0 && line.[String.length line - 1] = '\r' then
+      String.sub line 0 (String.length line - 1)
+    else
+      line
+  ) lines
+
+(** Parse a CSV string into a DataFrame *)
+let parse_csv_string (content : string) : value =
+  let lines = split_lines content in
+  (* Remove trailing empty lines *)
+  let lines = List.filter (fun l -> String.trim l <> "") lines in
+  match lines with
+  | [] -> VDataFrame { columns = []; nrows = 0 }
+  | header_line :: data_lines ->
+      let headers = parse_csv_line header_line in
+      let ncols = List.length headers in
+      let data_rows = List.map parse_csv_line data_lines in
+      (* Validate column count consistency *)
+      let valid_rows = List.filter (fun row -> List.length row = ncols) data_rows in
+      let nrows = List.length valid_rows in
+      if nrows = 0 && List.length data_rows > 0 then
+        make_error ValueError
+          (Printf.sprintf "CSV Error: Row column counts do not match header (expected %d columns)" ncols)
+      else
+        (* Convert rows to array for O(1) access *)
+        let rows_arr = Array.of_list valid_rows in
+        (* Build column arrays *)
+        let columns = List.mapi (fun col_idx name ->
+          let col_data = Array.init nrows (fun row_idx ->
+            let row = rows_arr.(row_idx) in
+            parse_csv_value (List.nth row col_idx)
+          ) in
+          (name, col_data)
+        ) headers in
+        VDataFrame { columns; nrows }
 
 let builtins : (string * value) list = [
   ("print", make_builtin ~variadic:true 1 (fun args _env ->
@@ -368,6 +470,48 @@ let builtins : (string * value) list = [
         VDict context
     | [_] -> make_error TypeError "error_context() expects an Error value"
     | _ -> make_error ArityError "error_context() takes exactly 1 argument"
+  ));
+
+  (* --- Phase 2: Tabular Data and Arrow Integration --- *)
+
+  ("read_csv", make_builtin 1 (fun args _env ->
+    match args with
+    | [VString path] ->
+        (try
+          let ch = open_in path in
+          let content = really_input_string ch (in_channel_length ch) in
+          close_in ch;
+          parse_csv_string content
+        with
+        | Sys_error msg -> make_error FileError ("File Error: " ^ msg))
+    | [VNA _] -> make_error TypeError "read_csv() expects a String path, got NA"
+    | [_] -> make_error TypeError "read_csv() expects a String path"
+    | _ -> make_error ArityError "read_csv() takes exactly 1 argument"
+  ));
+
+  ("colnames", make_builtin 1 (fun args _env ->
+    match args with
+    | [VDataFrame { columns; _ }] ->
+        VList (List.map (fun (name, _) -> (None, VString name)) columns)
+    | [VNA _] -> make_error TypeError "colnames() expects a DataFrame, got NA"
+    | [_] -> make_error TypeError "colnames() expects a DataFrame"
+    | _ -> make_error ArityError "colnames() takes exactly 1 argument"
+  ));
+
+  ("nrow", make_builtin 1 (fun args _env ->
+    match args with
+    | [VDataFrame { nrows; _ }] -> VInt nrows
+    | [VNA _] -> make_error TypeError "nrow() expects a DataFrame, got NA"
+    | [_] -> make_error TypeError "nrow() expects a DataFrame"
+    | _ -> make_error ArityError "nrow() takes exactly 1 argument"
+  ));
+
+  ("ncol", make_builtin 1 (fun args _env ->
+    match args with
+    | [VDataFrame { columns; _ }] -> VInt (List.length columns)
+    | [VNA _] -> make_error TypeError "ncol() expects a DataFrame, got NA"
+    | [_] -> make_error TypeError "ncol() expects a DataFrame"
+    | _ -> make_error ArityError "ncol() takes exactly 1 argument"
   ));
 ]
 

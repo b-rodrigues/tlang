@@ -40,7 +40,7 @@ let () =
        | v -> print_endline (Ast.Utils.value_to_string v))
   | _ ->
       (* Interactive REPL mode *)
-      Printf.printf "T language REPL — version 0.2 (Phase 1 Alpha)\n";
+      Printf.printf "T language REPL — version 0.3 (Phase 2 Alpha)\n";
       Printf.printf "Type :quit or :q to exit.\n\n";
       let rec repl env =
         print_string "T> ";
