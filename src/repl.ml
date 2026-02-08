@@ -37,17 +37,23 @@ let count_open_delimiters s =
   let depth = ref 0 in
   let in_string = ref false in
   let string_char = ref '"' in
-  for i = 0 to String.length s - 1 do
-    let c = s.[i] in
+  let len = String.length s in
+  let i = ref 0 in
+  while !i < len do
+    let c = s.[!i] in
     if !in_string then begin
-      if c = !string_char then in_string := false
+      if c = '\\' && !i + 1 < len then
+        i := !i + 1  (* Skip escaped character *)
+      else if c = !string_char then
+        in_string := false
     end else begin
       match c with
       | '"' | '\'' -> in_string := true; string_char := c
       | '(' | '[' | '{' -> incr depth
       | ')' | ']' | '}' -> decr depth
       | _ -> ()
-    end
+    end;
+    i := !i + 1
   done;
   !depth
 
