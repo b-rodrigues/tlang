@@ -105,14 +105,71 @@ This ensures long-term maintainability without the fragility and version drift i
 
 ## Building
 
-T is a Nix-based project. To enter a dev shell and run the REPL:
+### Quick Start with Nix
 
-```sh
+The easiest way to try T is with Nix:
+
+```bash
+# Try T directly from GitHub (no installation needed!)
+nix run github:b-rodrigues/tlang
+
+# Run a hello world example
+nix run github:b-rodrigues/tlang -- run examples/hello.t
+
+# Run a one-liner
+echo 'print("Hello, T!")' | nix run github:b-rodrigues/tlang -- run /dev/stdin
+```
+
+## Installation
+
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/b-rodrigues/tlang.git
+cd tlang
+
+# Enter the Nix development environment
 nix develop
-dune exec ./repl.exe
+
+# Build the project
+dune build
+
+# Run the REPL
+dune exec src/repl.exe
+```
+
+For detailed usage instructions, see [USAGE.md](USAGE.md).
+
+## Development
+
+To hack on T:
+
+```bash
+# Clone the repo
+git clone https://github.com/b-rodrigues/tlang.git
+cd tlang
+
+# Enter the development environment
+nix develop
+
+# You now have access to:
+# - OCaml compiler and tools
+# - Dune build system
+# - Language server (ocaml-lsp)
+# - Code formatter (ocamlformat)
+# - Interactive REPL (utop)
+
+# Build and test
+dune build
+dune test
+
+# Run the T REPL
+dune exec src/repl.exe
 ```
 
 ---
+
 
 ## Contributing
 
