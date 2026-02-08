@@ -30,6 +30,7 @@ rule token = parse
   | "for"       { FOR }
   | "in"        { IN }
   | "function"  { FUNCTION }
+  | "pipeline"  { PIPELINE }
   | "true"      { TRUE }
   | "false"     { FALSE }
   | "null"      { NULL }

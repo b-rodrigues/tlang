@@ -46,6 +46,7 @@ let rec eval_expr (env : environment) (expr : Ast.expr) : value =
   | DotAccess { target; field } -> eval_dot_access env target field
   | ListComp _ -> make_error GenericError "List comprehensions are not yet implemented"
   | Block exprs -> eval_block env exprs
+  | PipelineDef nodes -> eval_pipeline env nodes
 
 and eval_block env = function
   | [] -> VNull
@@ -53,6 +54,147 @@ and eval_block env = function
   | e :: rest ->
       let _ = eval_expr env e in
       eval_block env rest
+
+(* --- Phase 3: Pipeline Evaluation --- *)
+
+(** Extract free variable names from an expression *)
+and free_vars (expr : Ast.expr) : string list =
+  let rec collect = function
+    | Value _ -> []
+    | Var s -> [s]
+    | Call { fn; args } ->
+        collect fn @ List.concat_map (fun (_, e) -> collect e) args
+    | Lambda { body; params; _ } ->
+        let bound = params in
+        List.filter (fun v -> not (List.mem v bound)) (collect body)
+    | IfElse { cond; then_; else_ } ->
+        collect cond @ collect then_ @ collect else_
+    | ListLit items -> List.concat_map (fun (_, e) -> collect e) items
+    | ListComp _ -> []
+    | DictLit pairs -> List.concat_map (fun (_, e) -> collect e) pairs
+    | BinOp { left; right; _ } -> collect left @ collect right
+    | UnOp { operand; _ } -> collect operand
+    | DotAccess { target; _ } -> collect target
+    | Block exprs -> List.concat_map collect exprs
+    | PipelineDef _ -> []
+  in
+  let vars = collect expr in
+  List.sort_uniq String.compare vars
+
+(** Topological sort of pipeline nodes based on dependencies *)
+and topo_sort (nodes : Ast.pipeline_node list) (deps : (string * string list) list) : (string list, string) result =
+  let node_names = List.map (fun n -> n.Ast.node_name) nodes in
+  let visited = Hashtbl.create (List.length nodes) in
+  let in_progress = Hashtbl.create (List.length nodes) in
+  let order = ref [] in
+  let rec visit name =
+    if Hashtbl.mem visited name then Ok ()
+    else if Hashtbl.mem in_progress name then Error name
+    else begin
+      Hashtbl.add in_progress name true;
+      let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
+      let result = List.fold_left (fun acc dep ->
+        match acc with
+        | Error _ as e -> e
+        | Ok () ->
+          if List.mem dep node_names then visit dep
+          else Ok ()
+      ) (Ok ()) node_deps in
+      match result with
+      | Error _ as e -> e
+      | Ok () ->
+        Hashtbl.remove in_progress name;
+        Hashtbl.add visited name true;
+        order := name :: !order;
+        Ok ()
+    end
+  in
+  let result = List.fold_left (fun acc name ->
+    match acc with
+    | Error _ as e -> e
+    | Ok () -> visit name
+  ) (Ok ()) node_names in
+  match result with
+  | Error name -> Error name
+  | Ok () -> Ok (List.rev !order)
+
+(** Evaluate a pipeline definition *)
+and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
+  let node_names = List.map (fun n -> n.Ast.node_name) nodes in
+  (* Compute dependencies: only consider references to other node names *)
+  let deps = List.map (fun (n : Ast.pipeline_node) ->
+    let fv = free_vars n.node_expr in
+    let node_deps = List.filter (fun v -> List.mem v node_names) fv in
+    (n.node_name, node_deps)
+  ) nodes in
+  (* Topological sort *)
+  match topo_sort nodes deps with
+  | Error cycle_node ->
+    make_error ValueError (Printf.sprintf "Pipeline has a dependency cycle involving node '%s'" cycle_node)
+  | Ok exec_order ->
+    (* Execute nodes in topological order *)
+    let node_expr_map = List.map (fun (n : Ast.pipeline_node) -> (n.node_name, n.node_expr)) nodes in
+    let (results, _) = List.fold_left (fun (results, pipe_env) name ->
+      let expr = List.assoc name node_expr_map in
+      let v = eval_expr pipe_env expr in
+      let new_env = Env.add name v pipe_env in
+      ((name, v) :: results, new_env)
+    ) ([], env) exec_order in
+    let p_nodes = List.rev results in
+    (* Check for errors in any node *)
+    match List.find_opt (fun (_, v) -> is_error_value v) p_nodes with
+    | Some (name, err) ->
+      make_error ValueError (Printf.sprintf "Pipeline node '%s' failed: %s" name (Ast.Utils.value_to_string err))
+    | None ->
+      VPipeline {
+        p_nodes;
+        p_exprs = node_expr_map;
+        p_deps = deps;
+      }
+
+(** Re-run a pipeline, skipping nodes whose dependencies haven't changed *)
+and rerun_pipeline env (prev : Ast.pipeline_result) : value =
+  let node_names = List.map fst prev.p_exprs in
+  match topo_sort
+    (List.map (fun (name, expr) -> { Ast.node_name = name; node_expr = expr }) prev.p_exprs)
+    prev.p_deps with
+  | Error cycle_node ->
+    make_error ValueError (Printf.sprintf "Pipeline has a dependency cycle involving node '%s'" cycle_node)
+  | Ok exec_order ->
+    let (results, _, _changed_set) = List.fold_left (fun (results, pipe_env, changed) name ->
+      let expr = List.assoc name prev.p_exprs in
+      let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
+      (* A node needs re-evaluation if any of its dependencies changed *)
+      let deps_changed = List.exists (fun d -> List.mem d changed) node_deps in
+      (* Also check if any dep refers to something outside the pipeline that may have changed *)
+      let fv = free_vars expr in
+      let external_deps = List.filter (fun v -> not (List.mem v node_names)) fv in
+      let external_changed = List.exists (fun v ->
+        let old_val = Env.find_opt v env in
+        let prev_val = match List.assoc_opt v prev.p_nodes with Some x -> Some x | None -> None in
+        old_val <> prev_val
+      ) external_deps in
+      if deps_changed || external_changed then begin
+        let v = eval_expr pipe_env expr in
+        let new_env = Env.add name v pipe_env in
+        ((name, v) :: results, new_env, name :: changed)
+      end else begin
+        (* Reuse cached value *)
+        let cached = List.assoc name prev.p_nodes in
+        let new_env = Env.add name cached pipe_env in
+        ((name, cached) :: results, new_env, changed)
+      end
+    ) ([], env, []) exec_order in
+    let p_nodes = List.rev results in
+    match List.find_opt (fun (_, v) -> is_error_value v) p_nodes with
+    | Some (name, err) ->
+      make_error ValueError (Printf.sprintf "Pipeline node '%s' failed: %s" name (Ast.Utils.value_to_string err))
+    | None ->
+      VPipeline {
+        p_nodes;
+        p_exprs = prev.p_exprs;
+        p_deps = prev.p_deps;
+      }
 
 and eval_list_lit env items =
     let evaluated_items = List.map (fun (name, e) ->
@@ -80,6 +222,10 @@ and eval_dot_access env target_expr field =
       (match List.assoc_opt field columns with
        | Some col -> VVector col
        | None -> make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" field))
+  | VPipeline { p_nodes; _ } ->
+      (match List.assoc_opt field p_nodes with
+       | Some v -> v
+       | None -> make_error KeyError (Printf.sprintf "node '%s' not found in Pipeline" field))
   | VError _ as e -> e
   | VNA _ -> make_error TypeError "Cannot access field on NA"
   | other -> make_error TypeError (Printf.sprintf "Cannot access field '%s' on %s" field (Utils.type_name other))
@@ -512,6 +658,44 @@ let builtins : (string * value) list = [
     | [VNA _] -> make_error TypeError "ncol() expects a DataFrame, got NA"
     | [_] -> make_error TypeError "ncol() expects a DataFrame"
     | _ -> make_error ArityError "ncol() takes exactly 1 argument"
+  ));
+
+  (* --- Phase 3: Pipeline Introspection and Execution --- *)
+
+  ("pipeline_nodes", make_builtin 1 (fun args _env ->
+    match args with
+    | [VPipeline { p_nodes; _ }] ->
+        VList (List.map (fun (name, _) -> (None, VString name)) p_nodes)
+    | [_] -> make_error TypeError "pipeline_nodes() expects a Pipeline"
+    | _ -> make_error ArityError "pipeline_nodes() takes exactly 1 argument"
+  ));
+
+  ("pipeline_deps", make_builtin 1 (fun args _env ->
+    match args with
+    | [VPipeline { p_deps; _ }] ->
+        VDict (List.map (fun (name, deps) ->
+          (name, VList (List.map (fun d -> (None, VString d)) deps))
+        ) p_deps)
+    | [_] -> make_error TypeError "pipeline_deps() expects a Pipeline"
+    | _ -> make_error ArityError "pipeline_deps() takes exactly 1 argument"
+  ));
+
+  ("pipeline_node", make_builtin 2 (fun args _env ->
+    match args with
+    | [VPipeline { p_nodes; _ }; VString name] ->
+        (match List.assoc_opt name p_nodes with
+         | Some v -> v
+         | None -> make_error KeyError (Printf.sprintf "node '%s' not found in Pipeline" name))
+    | [VPipeline _; _] -> make_error TypeError "pipeline_node() expects a String node name as second argument"
+    | [_; _] -> make_error TypeError "pipeline_node() expects a Pipeline as first argument"
+    | _ -> make_error ArityError "pipeline_node() takes exactly 2 arguments"
+  ));
+
+  ("pipeline_run", make_builtin 1 (fun args env ->
+    match args with
+    | [VPipeline prev] -> rerun_pipeline env prev
+    | [_] -> make_error TypeError "pipeline_run() expects a Pipeline"
+    | _ -> make_error ArityError "pipeline_run() takes exactly 1 argument"
   ));
 ]
 

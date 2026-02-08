@@ -42,6 +42,19 @@ and dataframe = {
   nrows : int;
 }
 
+(** Phase 3: Pipeline node definition *)
+and pipeline_node = {
+  node_name : string;
+  node_expr : expr;
+}
+
+(** Phase 3: Pipeline result with cached values and dependency info *)
+and pipeline_result = {
+  p_nodes : (string * value) list;           (* Cached node results *)
+  p_exprs : (string * expr) list;            (* Original expressions *)
+  p_deps  : (string * string list) list;     (* Dependency graph *)
+}
+
 (** Runtime values *)
 and value =
   (* Scalar Types *)
@@ -55,6 +68,7 @@ and value =
   | VDict of (string * value) list
   | VVector of value array
   | VDataFrame of dataframe
+  | VPipeline of pipeline_result
   (* Functional Types *)
   | VLambda of lambda
   | VBuiltin of builtin
@@ -89,6 +103,7 @@ and expr =
   | UnOp of { op : unop; operand : expr }
   | DotAccess of { target : expr; field : string }
   | Block of expr list
+  | PipelineDef of pipeline_node list
 
 and binop = Plus | Minus | Mul | Div | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | Pipe
 and unop = Not | Neg
@@ -136,6 +151,7 @@ module Utils = struct
     | VBool _ -> "Bool" | VString _ -> "String"
     | VSymbol _ -> "Symbol" | VList _ -> "List" | VDict _ -> "Dict"
     | VVector _ -> "Vector" | VDataFrame _ -> "DataFrame"
+    | VPipeline _ -> "Pipeline"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
 
@@ -161,6 +177,10 @@ module Utils = struct
         let col_names = List.map fst columns in
         Printf.sprintf "DataFrame(%d rows x %d cols: [%s])"
           nrows (List.length columns) (String.concat ", " col_names)
+    | VPipeline { p_nodes; _ } ->
+        let node_names = List.map fst p_nodes in
+        Printf.sprintf "Pipeline(%d nodes: [%s])"
+          (List.length p_nodes) (String.concat ", " node_names)
     | VLambda { params; variadic; _ } ->
         let dots = if variadic then ", ..." else "" in
         "\\(" ^ String.concat ", " params ^ dots ^ ") -> <function>"
