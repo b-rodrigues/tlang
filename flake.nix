@@ -1,5 +1,5 @@
 {
-  description = "A development environment for the T programming language";
+  description = "T — A Functional Language for Tabular Data";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -17,11 +17,52 @@
         # Pin a specific version of OCaml for reproducibility.
         # OCaml 5.1 is a modern, solid choice.
         ocamlVersion = pkgs.ocaml-ng.ocamlPackages_5_1;
+
+        # Build the T language executable
+        t-lang = pkgs.stdenv.mkDerivation {
+          pname = "t-lang";
+          version = "0.1.0-alpha";
+
+          src = ./.;
+
+          nativeBuildInputs = [
+            ocamlVersion.ocaml
+            pkgs.dune_3
+            ocamlVersion.menhir
+          ];
+
+          buildPhase = ''
+            dune build src/repl.exe
+          '';
+
+          installPhase = ''
+            mkdir -p $out/bin
+            cp _build/default/src/repl.exe $out/bin/t
+            chmod +x $out/bin/t
+          '';
+
+          meta = with pkgs.lib; {
+            description = "T — A Functional Language for Tabular Data";
+            homepage = "https://tstats-project.org";
+            license = licenses.eupl12;
+            maintainers = [ ];
+            platforms = platforms.unix;
+          };
+        };
       in
       {
+        # The default package - allows `nix build` and `nix run`
+        packages.default = t-lang;
+
+        # Make it runnable with `nix run`
+        apps.default = {
+          type = "app";
+          program = "${t-lang}/bin/t";
+        };
+
         # This defines the development shell that `nix develop` will activate.
         devShells.default = pkgs.mkShell {
-          
+
           # These are the packages that will be available in your shell.
           buildInputs = [
             # 1. Core Build Toolchain (Required)
@@ -49,7 +90,22 @@
             # RPC version needed for Dune to run the formatter automatically.
             pkgs.ocamlformat-rpc
           ];
+
+          shellHook = ''
+            echo "═══════════════════════════════════════════════"
+            echo "T Language Development Environment"
+            echo "═══════════════════════════════════════════════"
+            echo ""
+            echo "Available commands:"
+            echo "  dune build           - Build the project"
+            echo "  dune exec src/repl.exe - Start the T REPL"
+            echo "  dune test            - Run tests"
+            echo "  dune clean           - Clean build artifacts"
+            echo ""
+            echo "Quick start: dune exec src/repl.exe"
+            echo ""
+          '';
         };
       }
     );
-} 
+}
