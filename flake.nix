@@ -29,6 +29,7 @@
             ocamlVersion.ocaml
             pkgs.dune_3
             ocamlVersion.menhir
+            ocamlVersion.menhirLib
           ];
 
           buildPhase = ''
@@ -75,6 +76,7 @@
 
             # The Menhir parser generator (required by your dune file)
             ocamlVersion.menhir
+            ocamlVersion.menhirLib
 
             # 2. Enhanced Development Tools (Highly Recommended)
             # ----------------------------------------------------
