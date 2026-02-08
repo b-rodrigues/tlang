@@ -1,0 +1,10 @@
+(executable
+ (name test_runner)
+ (modules test_runner)
+ (libraries t_lang menhirLib)
+)
+
+(rule
+ (alias runtest)
+ (action (run ./test_runner.exe))
+)
