@@ -49,20 +49,20 @@ jobs:
       - name: Run basic arithmetic test
         run: |
           cat > /tmp/test.t << 'EOF'
-x = 2 + 2
-print("2 + 2 =")
-print(x)
-EOF
+          x = 2 + 2
+          print("2 + 2 =")
+          print(x)
+          EOF
           ./result/bin/t run /tmp/test.t
 
       - name: Run function test
         run: |
           cat > /tmp/test_func.t << 'EOF'
-square = \(x) x * x
-result = square(5)
-print("square(5) =")
-print(result)
-EOF
+          square = \(x) x * x
+          result = square(5)
+          print("square(5) =")
+          print(result)
+          EOF
           ./result/bin/t run /tmp/test_func.t
 
       - name: Run comprehensive CI test script
