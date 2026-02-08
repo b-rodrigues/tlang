@@ -27,8 +27,13 @@
 
           nativeBuildInputs = [
             ocamlVersion.ocaml
+            ocamlVersion.findlib
             pkgs.dune_3
             ocamlVersion.menhir
+          ];
+
+          buildInputs = [
+            ocamlVersion.menhirLib
           ];
 
           buildPhase = ''
@@ -75,6 +80,10 @@
 
             # The Menhir parser generator (required by your dune file)
             ocamlVersion.menhir
+            ocamlVersion.menhirLib
+
+            # OCaml package manager - provides setup hooks for OCAMLPATH
+            ocamlVersion.findlib
 
             # 2. Enhanced Development Tools (Highly Recommended)
             # ----------------------------------------------------
