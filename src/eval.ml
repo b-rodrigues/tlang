@@ -720,7 +720,7 @@ let builtins : (string * value) list = [
              let selected = List.map (fun n -> (n, List.assoc n df.columns)) names in
              let remaining_keys = List.filter (fun k -> List.mem k names) df.group_keys in
              VDataFrame { columns = selected; nrows = df.nrows; group_keys = remaining_keys })
-    | [_] -> make_error TypeError "select() expects a DataFrame as first argument"
+    | _ :: _ -> make_error TypeError "select() expects a DataFrame as first argument"
     | _ -> make_error ArityError "select() requires a DataFrame and at least one column name"
   ));
 

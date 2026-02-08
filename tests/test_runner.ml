@@ -713,7 +713,8 @@ let () =
     {|Error(KeyError: "Column 'nonexistent' not found in DataFrame")|};
   test "arrange invalid direction"
     (Printf.sprintf {|df = read_csv("%s"); arrange(df, "age", "up")|} csv_p4)
-    {|Error(ValueError: "arrange() direction must be \"asc\" or \"desc\", got \"up\"")|};
+    {|Error(ValueError: "arrange() direction must be "asc" or "desc", got "up"")|};
+
   print_newline ();
 
   Printf.printf "Phase 4 — group_by():\n";
