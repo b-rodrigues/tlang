@@ -1,11 +1,5 @@
-; This file is at the root of the project.
+(dirs src tests)
 
-; Tell Dune to look for more build rules in the 'src' subdirectory.
-(subdir src)
-
-; Create a default alias.
-; This allows you to run your REPL by simply typing:
-;   dune exec repl
 (alias
- (name runtest)
- (action (run %{exe:src/repl.exe})))
+ (name default)
+ (deps (alias_rec all)))

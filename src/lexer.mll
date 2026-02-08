@@ -1,13 +1,13 @@
 {
 (* lexer.mll *)
-(* OCamllex lexer for the T language *)
+(* OCamllex lexer for the T language — Phase 0 Alpha *)
 open Parser (* The tokens are defined in parser.mly *)
 exception SyntaxError of string
 }
 
 let digit = ['0'-'9']
-let int = '-'? digit+
-let float = '-'? digit+ '.' digit*
+let int = digit+
+let float = digit+ '.' digit*
 
 (* Identifiers can't start with a digit *)
 let ident_start = ['a'-'z' 'A'-'Z' '_']
@@ -15,9 +15,10 @@ let ident_char = ident_start | digit
 let identifier = ident_start ident_char*
 
 rule token = parse
-  | [' ' '\t' '\r'] { token lexbuf } (* Whitespace *)
-  | '\n'            { Lexing.new_line lexbuf; token lexbuf } (* Newlines *)
-  | "--" [^ '\n']*  { token lexbuf } (* Comments *)
+  | [' ' '\t' '\r'] { token lexbuf } (* Whitespace — skip *)
+  | '\n'            { Lexing.new_line lexbuf; NEWLINE }
+  | ';'             { SEMICOLON }
+  | "--" [^ '\n']*  { token lexbuf } (* Line comments *)
 
   (* Keywords *)
   | "if"        { IF }
@@ -32,12 +33,12 @@ rule token = parse
   | "or"        { OR }
   | "not"       { NOT }
 
-  (* Literals *)
+  (* Literals — float must be tried before int *)
   | float as lxm { FLOAT (float_of_string lxm) }
   | int as lxm   { INT (int_of_string lxm) }
-  | '"' ([^'"']*) '"' as s { STRING (String.sub s 1 (String.length s - 2)) }
-  | '\'' ([^'\'']*) '\'' as s { STRING (String.sub s 1 (String.length s - 2)) }
-  | "`" ([^'`']*) "`" as s { BACKTICK_IDENT (String.sub s 1 (String.length s - 2)) }
+  | '"' ([^'"']* as s) '"' { STRING s }
+  | '\'' ([^'\'']* as s) '\'' { STRING s }
+  | "`" ([^'`']* as s) "`" { BACKTICK_IDENT s }
 
   (* Symbols and Operators *)
   | '(' { LPAREN }   | ')' { RPAREN }
@@ -59,4 +60,4 @@ rule token = parse
 
   (* End of file *)
   | eof { EOF }
-  | _ as char { raise (SyntaxError ("Unexpected character: " ^ Char.escaped char)) } 
+  | _ as char { raise (SyntaxError ("Unexpected character: " ^ Char.escaped char)) }

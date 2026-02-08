@@ -1,7 +1,10 @@
 %{
 (* parser.mly *)
-(* Menhir grammar for the T language *)
+(* Menhir grammar for the T language — Phase 0 Alpha *)
 open Ast
+
+(* Helper to build a parameter record from parsing *)
+type param_info = { names: string list; has_variadic: bool }
 %}
 
 /* TOKENS */
@@ -21,20 +24,17 @@ open Ast
 %token EQ NEQ LT GT LTE GTE
 %token AND OR NOT
 %token LAMBDA (* \ character *)
+%token NEWLINE SEMICOLON
 %token EOF
 
-/* PRECEDENCE AND ASSOCIATIVITY */
-/* Lowest */
+/* PRECEDENCE AND ASSOCIATIVITY (lowest to highest) */
 %left PIPE
 %left OR
 %left AND
 %nonassoc EQ NEQ LT GT LTE GTE
 %left PLUS MINUS
 %left STAR SLASH
-%right NOT NEG (* for unary minus *)
-%precedence DOT_ACCESS (* Dot access, higher than most operators *)
-%precedence UNARY
-/* Highest */
+%nonassoc UMINUS UNOT
 
 /* ENTRY POINT */
 %start <Ast.program> program
@@ -42,111 +42,160 @@ open Ast
 
 /* GRAMMAR RULES */
 
-/* A program is a list of statements separated by newlines or EOF */
+/* A program is a list of statements, possibly separated by newlines/semicolons */
 program:
-  | stmts = list(statement) EOF { stmts }
+  | skip_sep stmts = stmt_list EOF { stmts }
+  ;
+
+skip_sep:
+  | { () }
+  | skip_sep NEWLINE { () }
+  | skip_sep SEMICOLON { () }
+  ;
+
+stmt_list:
+  | { [] }
+  | s = statement skip_sep { [s] }
+  | s = statement sep skip_sep rest = stmt_list { s :: rest }
+  ;
+
+sep:
+  | NEWLINE { () }
+  | SEMICOLON { () }
+  | sep NEWLINE { () }
+  | sep SEMICOLON { () }
   ;
 
 statement:
-  | e = expr { Expression(e) }
-  | a = assignment { a }
-  ;
-
-assignment:
-  | name = any_ident; EQUALS; e = expr
+  | name = any_ident EQUALS e = expr
     { Assignment { name; typ = None; expr = e } }
-  | name = any_ident; COLON; t = typ; EQUALS; e = expr
+  | name = any_ident COLON t = typ EQUALS e = expr
     { Assignment { name; typ = Some t; expr = e } }
+  | e = expr { Expression e }
   ;
 
 expr:
-  | e = simple_expr { e }
-  | f = call { f }
-  | l = lambda { l }
-  | i = if_expr { i }
-  | left = expr; op = binop; right = expr
-    { BinOp { op; left; right } }
-  | op = unop; operand = expr %prec UNARY
-    { UnOp { op; operand } }
+  | e = pipe_expr { e }
   ;
 
-simple_expr:
-  | v = value_lit { Value v }
-  | v = Var(any_ident) { v }
-  | LPAREN; e = expr; RPAREN { e }
-  | list_lit { list_lit }
-  | list_comp { list_comp }
-  | dict_lit { dict_lit }
+pipe_expr:
+  | e = or_expr { e }
+  | left = pipe_expr PIPE right = or_expr
+    { BinOp { op = Pipe; left; right } }
   ;
 
-/* Literal values that can be parsed directly */
-value_lit:
-  | INT i { Int i }
-  | FLOAT f { Float f }
-  | STRING s { String s }
-  | TRUE { Bool true }
-  | FALSE { Bool false }
-  | NULL { Null }
+or_expr:
+  | e = and_expr { e }
+  | left = or_expr OR right = and_expr
+    { BinOp { op = Or; left; right } }
   ;
 
-/* Function calls and dot access have high precedence */
-call:
-  | fn = expr; LPAREN; args = separated_list(COMMA, expr); RPAREN %prec DOT_ACCESS
+and_expr:
+  | e = cmp_expr { e }
+  | left = and_expr AND right = cmp_expr
+    { BinOp { op = And; left; right } }
+  ;
+
+cmp_expr:
+  | e = add_expr { e }
+  | left = add_expr EQ right = add_expr  { BinOp { op = Eq; left; right } }
+  | left = add_expr NEQ right = add_expr { BinOp { op = NEq; left; right } }
+  | left = add_expr LT right = add_expr  { BinOp { op = Lt; left; right } }
+  | left = add_expr GT right = add_expr  { BinOp { op = Gt; left; right } }
+  | left = add_expr LTE right = add_expr { BinOp { op = LtEq; left; right } }
+  | left = add_expr GTE right = add_expr { BinOp { op = GtEq; left; right } }
+  ;
+
+add_expr:
+  | e = mul_expr { e }
+  | left = add_expr PLUS right = mul_expr  { BinOp { op = Plus; left; right } }
+  | left = add_expr MINUS right = mul_expr { BinOp { op = Minus; left; right } }
+  ;
+
+mul_expr:
+  | e = unary_expr { e }
+  | left = mul_expr STAR right = unary_expr  { BinOp { op = Mul; left; right } }
+  | left = mul_expr SLASH right = unary_expr { BinOp { op = Div; left; right } }
+  ;
+
+unary_expr:
+  | e = postfix_expr { e }
+  | MINUS e = unary_expr %prec UMINUS { UnOp { op = Neg; operand = e } }
+  | NOT e = unary_expr %prec UNOT    { UnOp { op = Not; operand = e } }
+  ;
+
+/* Function calls and dot access are postfix operations */
+postfix_expr:
+  | e = primary_expr { e }
+  | fn = postfix_expr LPAREN args = separated_list(COMMA, arg) RPAREN
     { Call { fn; args } }
-  | target = expr; DOT; field = any_ident %prec DOT_ACCESS
+  | target = postfix_expr DOT field = any_ident
     { DotAccess { target; field } }
   ;
 
-lambda:
-  | LAMBDA; LPAREN; p = params; RPAREN; body = expr
+arg:
+  | e = expr { (None, e) }
+  | name = IDENT COLON e = expr { (Some name, e) }
+  ;
+
+/* Primary (atomic) expressions */
+primary_expr:
+  | i = INT { Value (VInt i) }
+  | f = FLOAT { Value (VFloat f) }
+  | s = STRING { Value (VString s) }
+  | TRUE { Value (VBool true) }
+  | FALSE { Value (VBool false) }
+  | NULL { Value VNull }
+  | id = any_ident { Var id }
+  | LPAREN e = expr RPAREN { e }
+  | l = list_lit { l }
+  | d = dict_lit { d }
+  | l = lambda_expr { l }
+  | i = if_expr { i }
+  ;
+
+lambda_expr:
+  | LAMBDA LPAREN p = params RPAREN body = expr
     { Lambda { params = p.names; variadic = p.has_variadic; body; env = None } }
-  | FUNCTION; LPAREN; p = params; RPAREN; body = expr
+  | FUNCTION LPAREN p = params RPAREN body = expr
+    { Lambda { params = p.names; variadic = p.has_variadic; body; env = None } }
+  | LAMBDA LPAREN p = params RPAREN ARROW body = expr
     { Lambda { params = p.names; variadic = p.has_variadic; body; env = None } }
   ;
 
 /* Helper for parsing parameter lists with optional variadic `...` */
 params:
   | (* empty *) { { names = []; has_variadic = false } }
-  | ps = separated_list(COMMA, any_ident)
+  | ps = separated_nonempty_list(COMMA, any_ident)
     { { names = ps; has_variadic = false } }
-  | ps = separated_list(COMMA, any_ident); COMMA; DOTDOTDOT
+  | ps = separated_nonempty_list(COMMA, any_ident) COMMA DOTDOTDOT
     { { names = ps; has_variadic = true } }
   | DOTDOTDOT
     { { names = []; has_variadic = true } }
   ;
 
 if_expr:
-  | IF; cond = expr; then_ = expr; ELSE; else_ = expr
+  | IF LPAREN cond = expr RPAREN then_ = primary_expr ELSE else_ = primary_expr
     { IfElse { cond; then_; else_ } }
   ;
 
 list_lit:
-  | LBRACK; items = separated_list(COMMA, named_expr); RBRACK
-    { ListLit(items) }
+  | LBRACK items = separated_list(COMMA, named_item) RBRACK
+    { ListLit items }
   ;
 
-named_expr:
+named_item:
   | e = expr { (None, e) }
-  | name = any_ident; COLON; e = expr { (Some name, e) }
+  | name = IDENT COLON e = expr { (Some name, e) }
   ;
 
 dict_lit:
-  | LBRACE; pairs = separated_list(COMMA, dict_pair); RBRACE
-    { DictLit(pairs) }
+  | LBRACE pairs = separated_list(COMMA, dict_pair) RBRACE
+    { DictLit pairs }
   ;
 
 dict_pair:
-  | key = any_ident; COLON; value = expr { (key, value) }
-  ;
-
-list_comp:
-  | LBRACK; transform = expr; clauses = nonempty_list(comp_clause); RBRACK
-    { ListComp { expr = transform; clauses } }
-  ;
-
-comp_clause:
-  | FOR; var = any_ident; IN; iter = expr { For { var; iter } }
-  | IF; cond = expr { Filter cond }
+  | key = any_ident COLON value = expr { (key, value) }
   ;
 
 /* An identifier can be bare or backticked */
@@ -157,23 +206,15 @@ any_ident:
 
 /* Optional type annotations */
 typ:
-  | IDENT "Int" { TInt }
-  | IDENT "Float" { TFloat }
-  | IDENT "Bool" { TBool }
-  | IDENT "String" { TString }
-  | IDENT "List" { TList }
-  | IDENT "Dict" { TDict }
-  | IDENT "DataFrame" { TDataFrame }
-  | id = IDENT { TCustom id }
+  | id = IDENT {
+    match id with
+    | "Int" -> TInt
+    | "Float" -> TFloat
+    | "Bool" -> TBool
+    | "String" -> TString
+    | "List" -> TList
+    | "Dict" -> TDict
+    | "DataFrame" -> TDataFrame
+    | other -> TCustom other
+  }
   ;
-
-binop:
-  | PIPE { Pipe } | PLUS { Plus } | MINUS { Minus } | STAR { Mul } | SLASH { Div }
-  | EQ { Eq } | NEQ { NEq } | LT { Lt } | GT { Gt } | LTE { Lte } | GTE { Gte }
-  | AND { And } | OR { Or }
-  ;
-
-unop:
-  | NOT { Not }
-  | MINUS { Neg }
-  ; 
