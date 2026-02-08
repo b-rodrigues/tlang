@@ -356,7 +356,12 @@ and eval_binop env op left right =
   (* Logical *)
   | (And, a, b) -> VBool (Utils.is_truthy a && Utils.is_truthy b)
   | (Or, a, b) -> VBool (Utils.is_truthy a || Utils.is_truthy b)
-  | (_, l, r) -> make_error TypeError (Printf.sprintf "Cannot apply operator to %s and %s" (Utils.type_name l) (Utils.type_name r))))
+  | (op, l, r) ->
+    let op_name = match op with
+      | Plus -> "add" | Minus -> "subtract" | Mul -> "multiply" | Div -> "divide"
+      | Lt | Gt | LtEq | GtEq -> "compare" | _ -> "apply operator to"
+    in
+    make_error TypeError (Printf.sprintf "Cannot %s %s and %s" op_name (Utils.type_name l) (Utils.type_name r))))
 
 and eval_unop env op operand =
   let v = eval_expr env operand in
