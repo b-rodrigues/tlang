@@ -47,6 +47,7 @@ let rec eval_expr (env : environment) (expr : Ast.expr) : value =
   | ListComp _ -> make_error GenericError "List comprehensions are not yet implemented"
   | Block exprs -> eval_block env exprs
   | PipelineDef nodes -> eval_pipeline env nodes
+  | IntentDef pairs -> eval_intent env pairs
 
 and eval_block env = function
   | [] -> VNull
@@ -54,6 +55,23 @@ and eval_block env = function
   | e :: rest ->
       let _ = eval_expr env e in
       eval_block env rest
+
+(* --- Phase 6: Intent Block Evaluation --- *)
+
+(** Evaluate an intent block definition *)
+and eval_intent env pairs =
+  let evaluated = List.map (fun (k, e) ->
+    let v = eval_expr env e in
+    match v with
+    | VString s -> Ok (k, s)
+    | VError _ -> Error v
+    | _ -> Ok (k, Utils.value_to_string v)
+  ) pairs in
+  match List.find_opt (fun r -> match r with Error _ -> true | _ -> false) evaluated with
+  | Some (Error e) -> e
+  | _ ->
+    let fields = List.map (fun r -> match r with Ok p -> p | _ -> ("", "")) evaluated in
+    VIntent { intent_fields = fields }
 
 (* --- Phase 3: Pipeline Evaluation --- *)
 
@@ -77,6 +95,7 @@ and free_vars (expr : Ast.expr) : string list =
     | DotAccess { target; _ } -> collect target
     | Block exprs -> List.concat_map collect exprs
     | PipelineDef _ -> []
+    | IntentDef pairs -> List.concat_map (fun (_, e) -> collect e) pairs
   in
   let vars = collect expr in
   List.sort_uniq String.compare vars
@@ -1370,6 +1389,182 @@ let builtins : (string * value) list = [
                 let all_columns = key_result_cols @ summary_result_cols in
                 VDataFrame { columns = all_columns; nrows = n_groups; group_keys = [] }))
     | _ -> make_error TypeError "summarize() expects a DataFrame as first argument"
+  ));
+
+  (* --- Phase 6: Intent Blocks and Tooling Hooks --- *)
+
+  (* intent_fields(intent) — retrieve the fields of an intent block as a Dict *)
+  ("intent_fields", make_builtin 1 (fun args _env ->
+    match args with
+    | [VIntent { intent_fields }] ->
+        VDict (List.map (fun (k, v) -> (k, VString v)) intent_fields)
+    | [_] -> make_error TypeError "intent_fields() expects an Intent value"
+    | _ -> make_error ArityError "intent_fields() takes exactly 1 argument"
+  ));
+
+  (* intent_get(intent, "key") — get a specific field from an intent block *)
+  ("intent_get", make_builtin 2 (fun args _env ->
+    match args with
+    | [VIntent { intent_fields }; VString key] ->
+        (match List.assoc_opt key intent_fields with
+         | Some v -> VString v
+         | None -> make_error KeyError (Printf.sprintf "Intent field '%s' not found" key))
+    | [VIntent _; _] -> make_error TypeError "intent_get() expects a String key as second argument"
+    | [_; _] -> make_error TypeError "intent_get() expects an Intent value as first argument"
+    | _ -> make_error ArityError "intent_get() takes exactly 2 arguments"
+  ));
+
+  (* explain(value) — produce a structured explanation of a value *)
+  ("explain", make_builtin 1 (fun args _env ->
+    match args with
+    | [VInt _] | [VFloat _] | [VBool _] | [VString _] ->
+        let v = List.hd args in
+        VDict [
+          ("kind", VString "value");
+          ("type", VString (Utils.type_name v));
+          ("value", v);
+        ]
+    | [VNA na_t] ->
+        VDict [
+          ("kind", VString "value");
+          ("type", VString "NA");
+          ("na_type", VString (Utils.na_type_to_string na_t));
+        ]
+    | [VVector arr] ->
+        let len = Array.length arr in
+        (* Determine element types *)
+        let type_counts = Hashtbl.create 4 in
+        let na_count = ref 0 in
+        Array.iter (fun v ->
+          let t = Utils.type_name v in
+          if t = "NA" then incr na_count
+          else begin
+            let count = try Hashtbl.find type_counts t with Not_found -> 0 in
+            Hashtbl.replace type_counts t (count + 1)
+          end
+        ) arr;
+        let types = Hashtbl.fold (fun k _v acc -> k :: acc) type_counts [] in
+        let type_str = String.concat ", " (List.sort String.compare types) in
+        let example_n = min 5 len in
+        let examples = VList (List.init example_n (fun i -> (None, arr.(i)))) in
+        VDict [
+          ("kind", VString "value");
+          ("type", VString "Vector");
+          ("length", VInt len);
+          ("element_types", VString type_str);
+          ("na_count", VInt !na_count);
+          ("examples", examples);
+        ]
+    | [VList items] ->
+        let len = List.length items in
+        let na_count = List.fold_left (fun acc (_, v) ->
+          match v with VNA _ -> acc + 1 | _ -> acc
+        ) 0 items in
+        let example_n = min 5 len in
+        let examples = VList (List.filteri (fun i _ -> i < example_n) items) in
+        VDict [
+          ("kind", VString "value");
+          ("type", VString "List");
+          ("length", VInt len);
+          ("na_count", VInt na_count);
+          ("examples", examples);
+        ]
+    | [VDataFrame df] ->
+        (* Schema: column names and inferred types *)
+        let schema = VList (List.map (fun (name, col) ->
+          (* Infer column type from first non-NA value *)
+          let col_type = ref "Unknown" in
+          Array.iter (fun v ->
+            if !col_type = "Unknown" then
+              match v with VNA _ -> () | _ -> col_type := Utils.type_name v
+          ) col;
+          (None, VDict [("name", VString name); ("type", VString !col_type)])
+        ) df.columns) in
+        (* NA stats per column *)
+        let na_stats = VDict (List.map (fun (name, col) ->
+          let na_count = Array.fold_left (fun acc v ->
+            match v with VNA _ -> acc + 1 | _ -> acc
+          ) 0 col in
+          (name, VInt na_count)
+        ) df.columns) in
+        (* Example rows (first min(5, nrows)) *)
+        let example_n = min 5 df.nrows in
+        let example_rows = VList (List.init example_n (fun i ->
+          (None, VDict (List.map (fun (name, col) -> (name, col.(i))) df.columns))
+        )) in
+        let grouped_info =
+          if df.group_keys = [] then []
+          else [("group_keys", VList (List.map (fun k -> (None, VString k)) df.group_keys))]
+        in
+        VDict ([
+          ("kind", VString "dataframe");
+          ("nrow", VInt df.nrows);
+          ("ncol", VInt (List.length df.columns));
+          ("schema", schema);
+          ("na_stats", na_stats);
+          ("example_rows", example_rows);
+        ] @ grouped_info)
+    | [VPipeline { p_nodes; p_deps; _ }] ->
+        let nodes_info = VList (List.map (fun (name, v) ->
+          let deps = match List.assoc_opt name p_deps with
+            | Some d -> VList (List.map (fun s -> (None, VString s)) d)
+            | None -> VList []
+          in
+          (None, VDict [
+            ("name", VString name);
+            ("output_kind", VString (Utils.type_name v));
+            ("dependencies", deps);
+          ])
+        ) p_nodes) in
+        VDict [
+          ("kind", VString "pipeline");
+          ("node_count", VInt (List.length p_nodes));
+          ("nodes", nodes_info);
+        ]
+    | [VIntent { intent_fields }] ->
+        VDict [
+          ("kind", VString "intent");
+          ("fields", VDict (List.map (fun (k, v) -> (k, VString v)) intent_fields));
+        ]
+    | [VDict pairs] ->
+        VDict [
+          ("kind", VString "value");
+          ("type", VString "Dict");
+          ("length", VInt (List.length pairs));
+          ("keys", VList (List.map (fun (k, _) -> (None, VString k)) pairs));
+        ]
+    | [VNull] ->
+        VDict [
+          ("kind", VString "value");
+          ("type", VString "Null");
+        ]
+    | [VError { code; message; _ }] ->
+        VDict [
+          ("kind", VString "value");
+          ("type", VString "Error");
+          ("error_code", VString (Utils.error_code_to_string code));
+          ("error_message", VString message);
+        ]
+    | [VLambda _] | [VBuiltin _] ->
+        VDict [
+          ("kind", VString "value");
+          ("type", VString "Function");
+        ]
+    | _ -> make_error ArityError "explain() takes exactly 1 argument"
+  ));
+
+  (* explain_json(value) — produce a JSON-like string explanation *)
+  ("explain_json", make_builtin 1 (fun args env ->
+    match args with
+    | [v] ->
+        (match Env.find_opt "explain" env with
+         | Some explain_fn ->
+             let explain_result = eval_call env explain_fn [(None, Value v)] in
+             (match explain_result with
+              | VError _ -> explain_result
+              | _ -> VString (Utils.value_to_string explain_result))
+         | None -> make_error GenericError "explain_json(): explain function not found in environment")
+    | _ -> make_error ArityError "explain_json() takes exactly 1 argument"
   ));
 ]
 

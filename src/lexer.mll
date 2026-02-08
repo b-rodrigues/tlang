@@ -31,6 +31,7 @@ rule token = parse
   | "in"        { IN }
   | "function"  { FUNCTION }
   | "pipeline"  { PIPELINE }
+  | "intent"    { INTENT }
   | "true"      { TRUE }
   | "false"     { FALSE }
   | "null"      { NULL }
