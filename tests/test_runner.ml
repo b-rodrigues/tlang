@@ -1,5 +1,5 @@
 (* tests/test_runner.ml *)
-(* Simple test runner for T language Phase 0 *)
+(* Test runner for T language Phase 0 + Phase 1 *)
 
 let pass_count = ref 0
 let fail_count = ref 0
@@ -27,7 +27,7 @@ let test name input expected =
   end
 
 let () =
-  Printf.printf "\n=== T Language Phase 0 Tests ===\n\n";
+  Printf.printf "\n=== T Language Phase 0 + Phase 1 Tests ===\n\n";
 
   (* --- Arithmetic --- *)
   Printf.printf "Arithmetic:\n";
@@ -40,7 +40,7 @@ let () =
   test "operator precedence" "2 + 3 * 4" "14";
   test "parentheses" "(2 + 3) * 4" "20";
   test "unary minus" "0 - 5" "-5";
-  test "division by zero" "1 / 0" "Error(\"Division by zero\")";
+  test "division by zero" "1 / 0" {|Error(DivisionByZero: "Division by zero")|};
   test "string concatenation" {|"hello" + " world"|} {|"hello world"|};
   print_newline ();
 
@@ -77,7 +77,7 @@ let () =
   test "function keyword" "f = function(x) x * 2; f(3)" "6";
   test "two-arg function" "add = \\(a, b) a + b; add(3, 4)" "7";
   test "closure" "make_adder = \\(n) \\(x) x + n; add5 = make_adder(5); add5(10)" "15";
-  test "arity error" "f = \\(x) x; f(1, 2)" {|Error("Arity Error: Expected 1 arguments but got 2")|};
+  test "arity error" "f = \\(x) x; f(1, 2)" {|Error(ArityError: "Expected 1 arguments but got 2")|};
   print_newline ();
 
   (* --- Pipe Operator --- *)
@@ -112,7 +112,7 @@ let () =
   Printf.printf "Dicts:\n";
   test "dict literal" {|{x: 1, y: 2}|} {|{`x`: 1, `y`: 2}|};
   test "dict dot access" "{x: 42, y: 99}.x" "42";
-  test "dict missing key" "{x: 1}.z" {|Error("Key Error: key 'z' not found in dict")|};
+  test "dict missing key" "{x: 1}.z" {|Error(KeyError: "key 'z' not found in dict")|};
   print_newline ();
 
   (* --- Builtins --- *)
@@ -122,7 +122,7 @@ let () =
   test "type of bool" "type(true)" {|"Bool"|};
   test "type of list" "type([1])" {|"List"|};
   test "assert true" "assert(true)" "true";
-  test "assert false" "assert(false)" {|Error("Assertion failed")|};
+  test "assert false" "assert(false)" {|Error(AssertionError: "Assertion failed")|};
   test "is_error on error" "is_error(1 / 0)" "true";
   test "is_error on value" "is_error(42)" "false";
   test "seq" "seq(1, 3)" "[1, 2, 3]";
@@ -132,8 +132,65 @@ let () =
 
   (* --- Error Handling --- *)
   Printf.printf "Error Handling:\n";
-  test "error propagation in addition" "(1 / 0) + 1" {|Error("Division by zero")|};
-  test "error in list" "[1, 1/0, 3]" {|Error("Division by zero")|};
+  test "error propagation in addition" "(1 / 0) + 1" {|Error(DivisionByZero: "Division by zero")|};
+  test "error in list" "[1, 1/0, 3]" {|Error(DivisionByZero: "Division by zero")|};
+  print_newline ();
+
+  (* ============================================ *)
+  (* --- Phase 1: NA Values and Missingness --- *)
+  (* ============================================ *)
+  Printf.printf "Phase 1 — NA Values:\n";
+  test "NA literal" "NA" "NA";
+  test "typed NA bool" "na_bool()" "NA(Bool)";
+  test "typed NA int" "na_int()" "NA(Int)";
+  test "typed NA float" "na_float()" "NA(Float)";
+  test "typed NA string" "na_string()" "NA(String)";
+  test "generic NA" "na()" "NA";
+  test "is_na on NA" "is_na(NA)" "true";
+  test "is_na on typed NA" "is_na(na_int())" "true";
+  test "is_na on value" "is_na(42)" "false";
+  test "is_na on null" "is_na(null)" "false";
+  test "type of NA" "type(NA)" {|"NA"|};
+  test "NA is falsy" "if (NA) 1 else 2" {|Error(TypeError: "Cannot use NA as a condition")|};
+  test "NA equality is error" "NA == NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA comparison with value is error" "NA == 1" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  print_newline ();
+
+  Printf.printf "Phase 1 — No Implicit NA Propagation:\n";
+  test "NA + int is error" "NA + 1" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "int + NA is error" "1 + NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA * float is error" "NA * 2.0" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "negation of NA is error" "x = NA; 0 - x" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  print_newline ();
+
+  (* ============================================ *)
+  (* --- Phase 1: Structured Errors --- *)
+  (* ============================================ *)
+  Printf.printf "Phase 1 — Structured Errors:\n";
+  test "error() constructor" {|error("something went wrong")|} {|Error(GenericError: "something went wrong")|};
+  test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};
+  test "error_code()" "error_code(1 / 0)" {|"DivisionByZero"|};
+  test "error_message()" "error_message(1 / 0)" {|"Division by zero"|};
+  test "error_context() empty" "error_context(1 / 0)" "{}";
+  test "is_error on constructed error" {|is_error(error("oops"))|} "true";
+  test "error_code on type error" {|error_code(error("TypeError", "bad type"))|} {|"TypeError"|};
+  test "error_code on non-error" "error_code(42)" {|Error(TypeError: "error_code() expects an Error value")|};
+  test "error_message on non-error" {|error_message("hello")|} {|Error(TypeError: "error_message() expects an Error value")|};
+  print_newline ();
+
+  Printf.printf "Phase 1 — Enhanced Assert:\n";
+  test "assert with message (pass)" {|assert(true, "should pass")|} "true";
+  test "assert with message (fail)" {|assert(false, "custom message")|} {|Error(AssertionError: "Assertion failed: custom message")|};
+  test "assert on NA" "assert(NA)" {|Error(AssertionError: "Assertion received NA")|};
+  test "assert on NA with message" {|assert(NA, "value was missing")|} {|Error(AssertionError: "Assertion received NA: value was missing")|};
+  print_newline ();
+
+  Printf.printf "Phase 1 — Error Values (No Crashes):\n";
+  test "name error returns error value" "undefined_func(1)" {|Error(NameError: "'undefined_func' is not defined")|};
+  test "calling non-function returns error" "x = 42; x(1)" {|Error(TypeError: "Cannot call Int as a function")|};
+  test "sum with NA returns error" "sum([1, NA, 3])" {|Error(TypeError: "sum() encountered NA value. Handle missingness explicitly.")|};
+  test "head on NA returns error" "head(NA)" {|Error(TypeError: "Cannot call head() on NA")|};
+  test "length on NA returns error" "length(NA)" {|Error(TypeError: "Cannot get length of NA")|};
   print_newline ();
 
   (* --- Summary --- *)

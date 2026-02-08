@@ -33,6 +33,7 @@ rule token = parse
   | "true"      { TRUE }
   | "false"     { FALSE }
   | "null"      { NULL }
+  | "NA"        { NA }
   | "and"       { AND }
   | "or"        { OR }
   | "not"       { NOT }

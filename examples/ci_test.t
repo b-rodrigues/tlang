@@ -151,5 +151,59 @@ assert(type({x: 1}) == "Dict")
 print("✓ Type introspection working")
 print("")
 
+-- Phase 1 Tests: NA Values
+print("Test 17: NA Values (Phase 1)")
+assert(is_na(NA))
+assert(is_na(na()))
+assert(is_na(na_int()))
+assert(is_na(na_float()))
+assert(is_na(na_bool()))
+assert(is_na(na_string()))
+assert(not is_na(42))
+assert(not is_na(null))
+assert(type(NA) == "NA")
+print("✓ NA values working")
+print("")
+
+-- Phase 1 Tests: No Implicit NA Propagation
+print("Test 18: No Implicit NA Propagation (Phase 1)")
+na_result = NA + 1
+assert(is_error(na_result))
+assert(error_code(na_result) == "TypeError")
+print("✓ NA propagation prevented")
+print("")
+
+-- Phase 1 Tests: Structured Errors
+print("Test 19: Structured Errors (Phase 1)")
+div_err = 1 / 0
+assert(is_error(div_err))
+assert(error_code(div_err) == "DivisionByZero")
+assert(error_message(div_err) == "Division by zero")
+print("✓ Structured errors working")
+print("")
+
+-- Phase 1 Tests: Error Construction
+print("Test 20: Error Construction (Phase 1)")
+custom_err = error("something broke")
+assert(is_error(custom_err))
+assert(error_code(custom_err) == "GenericError")
+assert(error_message(custom_err) == "something broke")
+typed_err = error("ValueError", "invalid input")
+assert(error_code(typed_err) == "ValueError")
+assert(error_message(typed_err) == "invalid input")
+print("✓ Error construction working")
+print("")
+
+-- Phase 1 Tests: Enhanced Assert
+print("Test 21: Enhanced Assert (Phase 1)")
+assert(true, "this should pass")
+fail_result = assert(false, "custom fail message")
+assert(is_error(fail_result))
+assert(error_code(fail_result) == "AssertionError")
+na_assert = assert(NA)
+assert(is_error(na_assert))
+print("✓ Enhanced assert working")
+print("")
+
 print("=== All Tests Passed! ===")
 print("T language is working correctly.")

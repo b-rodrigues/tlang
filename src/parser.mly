@@ -9,7 +9,7 @@ type param_info = { names: string list; has_variadic: bool }
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE FOR IN FUNCTION TRUE FALSE NULL
+%token IF ELSE FOR IN FUNCTION TRUE FALSE NULL NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -146,6 +146,7 @@ primary_expr:
   | TRUE { Value (VBool true) }
   | FALSE { Value (VBool false) }
   | NULL { Value VNull }
+  | NA { Value (VNA NAGeneric) }
   | id = any_ident { Var id }
   | LPAREN e = expr RPAREN { e }
   | l = list_lit { l }
