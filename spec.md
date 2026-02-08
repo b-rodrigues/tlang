@@ -44,6 +44,8 @@
 - **Hackable and Transparent Core**: The standard library is modular and
   self-contained, encouraging users to read, understand, and contribute to the
   source.
+- **LLM-assisted programming as the default**: Humans design intent, assumptions, and invariants.
+  LLMs generate mechanical, local structure. T enforces semantics and correctness.
 - **Copyleft License**: T uses the EUPL, a strong copyleft license requiring
   derivative works—including those provided as a service—to remain open source,
   safeguarding community freedom.
@@ -691,6 +693,269 @@ This seamless workflow enables both interactive exploration and efficient
 production execution, inspired by OCaml and similar languages.
 
 ---
+
+## T as an LLM‑Native Language
+
+T is designed from the ground up to support **human–LLM collaborative programming** for data science and data analysis.
+
+Rather than treating large language models as external code generators or fragile copilots, T assumes that LLMs will be a *first‑class participant* in the development workflow. The language, runtime, and tooling are explicitly shaped to make LLM‑generated code:
+
+* Local rather than global
+* Constrained rather than free‑form
+* Inspectable rather than opaque
+* Correctable rather than brittle
+
+The guiding principle is simple:
+
+> **Humans design intent, assumptions, and invariants. LLMs generate mechanical, local structure. T enforces semantics and correctness.**
+
+This section describes what this means concretely for language design, tooling, and user workflows.
+
+---
+
+### Design Principles
+
+#### 1. Intent First, Code Second
+
+T prioritizes making *intent explicit* and *machine‑readable*. The role of the human analyst is to specify:
+
+* The analytical goal
+* Key assumptions
+* Validity constraints
+* Required checks and invariants
+
+The role of the LLM is to expand this intent into executable code that satisfies those constraints.
+
+This reverses the traditional model where intent is implicit, scattered across comments, or encoded only in the author’s head.
+
+---
+
+#### 2. Explicit Semantics Everywhere
+
+LLMs perform best when semantics are explicit and uniform. T therefore avoids implicit behavior wherever possible:
+
+* No `NULL`; only typed system `NA`s and tagged user `NA`s
+* Errors are first‑class values, not exceptions
+* Pipe operators have explicit error semantics (`|>` vs `?|>`)
+* Missing‑data handling is always opt‑in via arguments
+
+By eliminating hidden rules and context‑dependent behavior, T dramatically reduces hallucination risk and increases the reliability of LLM‑generated code.
+
+---
+
+#### 3. Single Obvious Way Bias
+
+Wherever feasible, T provides **one blessed idiom** for common tasks:
+
+* One pipeline abstraction
+* One grouping model (`group_by` → `summarize`)
+* One error‑handling model
+* One plotting grammar
+
+This mirrors the philosophy that made Python successful for both humans and machines: fewer equivalent spellings, fewer ambiguous patterns, and predictable structure.
+
+---
+
+### Intent Blocks
+
+#### Structured Intent Comments
+
+T introduces *intent blocks*: structured comments that encode analytical intent in a form that is readable by both humans and tools.
+
+```t
+-- intent:
+-- goal: "Estimate the effect of age and income on approval"
+-- assumptions:
+--   - missing income is non‑random
+--   - age is approximately linear
+-- checks:
+--   - no negative income
+--   - at least 100 observations per group
+```
+
+Intent blocks:
+
+* Are ignored by the runtime
+* Are parsed and preserved by tooling
+* Can be surfaced verbatim to LLMs
+* Are version‑controlled alongside code
+
+They act as *stable prompts* embedded directly in the source, enabling reproducible and auditable LLM interaction.
+
+---
+
+#### Intent as a Regeneration Boundary
+
+LLMs are expected to generate or regenerate code **only below the nearest intent block**. This creates a clear boundary between human‑authored design and machine‑generated implementation.
+
+This locality is critical for safety, reviewability, and trust.
+
+---
+
+### Executable Invariants
+
+T strongly encourages expressing constraints as executable assertions rather than prose.
+
+```t
+assert(all(income >= 0))
+assert(nrow(df) > 1000)
+assert(!any(is_na(age)))
+```
+
+These invariants serve three purposes:
+
+1. They validate results at runtime
+2. They document analytical assumptions precisely
+3. They provide machine‑checkable constraints for LLMs
+
+An LLM generating code in T is expected to satisfy these invariants; failures become structured feedback rather than silent errors.
+
+---
+
+### Pipelines as LLM‑Friendly Structure
+
+#### Node‑Level Reasoning
+
+T’s DAG‑based pipeline model is central to its LLM‑native design.
+
+Each pipeline node:
+
+* Has a name
+* Declares its dependencies
+* Produces a single output
+* Is cacheable and inspectable
+
+This makes nodes natural *units of delegation* for LLMs.
+
+```t
+pipeline analysis {
+  raw = { read_csv("survey.csv") }
+
+  cleaned = {
+    -- intent: "Remove invalid rows and standardize units"
+    raw |> clean_survey_data()
+  }
+
+  model = {
+    cleaned |> fit_model(approval ~ age + income)
+  }
+}
+```
+
+Rather than rewriting entire scripts, LLMs operate at the level of individual nodes, minimizing blast radius and preserving human control over the overall structure.
+
+---
+
+#### Schema‑Aware Regeneration
+
+Because every node has a known schema and cached output, tooling can provide LLMs with precise context:
+
+* Input schema and column types
+* Missingness profiles
+* Value labels and factors
+* Sample rows
+* Downstream consumers
+
+This enables targeted regeneration without guesswork.
+
+---
+
+### Tooling for Human–LLM Collaboration
+
+#### `t explain`
+
+Returns a machine‑readable summary of a value or pipeline node:
+
+* Schema
+* NA statistics
+* Value labels
+* Example data
+* Error propagation paths
+
+This output is designed to be prompt‑ready for LLMs.
+
+---
+
+#### `t plan`
+
+Exposes the execution strategy chosen by the planner:
+
+* Logical plan
+* Physical operators
+* Arrow vs Owl vs VM execution
+
+This allows both humans and LLMs to reason about performance without reverse‑engineering runtime behavior.
+
+---
+
+#### `t regen`
+
+The core LLM integration primitive.
+
+```sh
+t regen cleaned --with intent
+```
+
+`t regen`:
+
+1. Extracts the relevant intent block
+2. Collects schema, invariants, and errors
+3. Requests regenerated code for a specific node
+4. Replaces only the node body
+5. Re‑executes the pipeline
+
+This enables safe, local delegation of code generation while preserving global structure and intent.
+
+---
+
+## Errors as Feedback Channels
+
+Errors in T are structured data, not control flow. Every error includes:
+
+* A symbolic code
+* A human‑readable message
+* Machine‑readable context
+
+```t
+Error {
+  code: #InvalidFactorLevel,
+  context: {
+    column: "education",
+    value: "Unknown",
+    allowed: ["Primary", "Secondary", "Higher"]
+  }
+}
+```
+
+This structure allows LLMs to:
+
+* Understand why execution failed
+* Propose minimal, targeted fixes
+* Avoid blind trial‑and‑error retries
+
+---
+
+### The Intended User Workflow
+
+1. **Human** defines pipeline structure, intent blocks, invariants, and modeling choices
+2. **LLM** generates localized transformation code and boilerplate
+3. **T** enforces semantics, missingness, types, and reproducibility
+4. **Human** reviews small, node‑level diffs and validated outputs
+
+The result is not automation, but *co‑designed analysis*.
+
+---
+
+### Positioning Statement
+
+> **T is designed for human–LLM collaboration.**
+>
+> Humans express intent, assumptions, and constraints.
+> LLMs generate mechanical, localized code.
+> The language makes intent explicit, errors inspectable, and changes auditable.
+
+This is not an add‑on feature. It is a core design goal that shapes the language, runtime, and tooling from the start.
+
 
 ## 🛤 Implementation Stack
 
