@@ -16,6 +16,10 @@ let identifier = ident_start ident_char*
 
 rule token = parse
   | [' ' '\t' '\r'] { token lexbuf } (* Whitespace — skip *)
+  (* Allow pipelines to continue on the next indented line.
+     This rule must come before the general newline rule so the newline
+     doesn't terminate the expression when immediately followed by |> . *)
+  | '\n' [' ' '\t']* "|>" { Lexing.new_line lexbuf; PIPE }
   | '\n'            { Lexing.new_line lexbuf; NEWLINE }
   | ';'             { SEMICOLON }
   | "--" [^ '\n']*  { token lexbuf } (* Line comments *)
