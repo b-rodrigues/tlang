@@ -1,0 +1,22 @@
+# dune exec src/repl.exe -- run /tmp/test_t.t
+# OCAMLPARAM: unset
+# Shared cache: disabled
+# Shared cache location: /home/runner/.cache/dune/db
+# Workspace root: /home/runner/work/tlang/tlang
+# Auto-detected concurrency: 4
+# Dune context:
+#  { name = "default"
+#  ; kind = "default"
+#  ; profile = Dev
+#  ; merlin = true
+#  ; fdo_target_exe = None
+#  ; build_dir = In_build_dir "default"
+#  ; installed_env =
+#      map
+#        { "INSIDE_DUNE" : "/home/runner/work/tlang/tlang/_build/default"
+#        ; "OCAML_COLOR" : "always"
+#        ; "OPAMCOLOR" : "always"
+#        }
+#  ; instrument_with = []
+#  }
+$ /usr/bin/ocamlc.opt -config > /tmp/dune_695803_output

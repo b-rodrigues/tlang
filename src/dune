@@ -1,36 +1,20 @@
 ; src/dune
 
 (library
- (name t_lang_lib)
- (public_name t_lang)
- (preprocess (pps menhir))
- (menhir (modules parser))
- (ocamllex lexer)
- (libraries csv)
-
- ; List all modules for the library.
- ; The order must respect dependencies.
- (modules
-  ast
-  eval_helpers
-
-  ; --- Individual Package Functions ---
-  packages_core_read_csv
-  ; packages_core_print (when added)
-  ; packages_colcraft_select (when added)
-
-  ; --- The main package loader ---
-  packages
-
-  ; --- Core Compiler ---
-  parser
-  lexer
-  eval
- )
+ (name t_lang)
+ (wrapped false)
+ (modules ast lexer parser eval)
+ (libraries menhirLib)
 )
 
 (executable
  (name repl)
- (modes (native exe))
  (modules repl)
- (libraries t_lang_lib menhirLib))
+ (libraries t_lang menhirLib)
+)
+
+(menhir
+ (modules parser)
+)
+
+(ocamllex lexer)
