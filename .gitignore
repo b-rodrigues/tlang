@@ -4,3 +4,10 @@ _build/
 *.native
 .merlin
 *.install
+*.cmi
+*.cmo
+*.cmx
+*.cma
+*.cmxa
+*.o
+*.a
