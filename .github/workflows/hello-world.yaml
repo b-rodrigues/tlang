@@ -2,6 +2,9 @@ name: Build and Test T
 
 on:
   push:
+    branches:
+      - main
+      - master
   pull_request:
   workflow_dispatch:
 
