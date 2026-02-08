@@ -42,10 +42,10 @@ let make_dataframe (names: string list) (values: value array list) : value =
     VDataFrame {
       columns = List.combine names values;
       nrows = nrows;
-      metadata = []
+      group_keys = []
     }
   else
-    Error "DataFrame Error: All columns must have the same length."
+    VError { code = GenericError; message = "DataFrame Error: All columns must have the same length."; context = [] }
 
 (**
  * A helper for 1-indexed list access, as specified in the README.

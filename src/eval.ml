@@ -442,7 +442,7 @@ let parse_csv_string (content : string) : value =
   (* Remove trailing empty lines *)
   let lines = List.filter (fun l -> String.trim l <> "") lines in
   match lines with
-  | [] -> VDataFrame { columns = []; nrows = 0 }
+  | [] -> VDataFrame { columns = []; nrows = 0; group_keys = [] }
   | header_line :: data_lines ->
       let headers = parse_csv_line header_line in
       let ncols = List.length headers in
@@ -464,7 +464,7 @@ let parse_csv_string (content : string) : value =
           ) in
           (name, col_data)
         ) headers in
-        VDataFrame { columns; nrows }
+        VDataFrame { columns; nrows; group_keys = [] }
 
 let builtins : (string * value) list = [
   ("print", make_builtin ~variadic:true 1 (fun args _env ->
@@ -696,6 +696,272 @@ let builtins : (string * value) list = [
     | [VPipeline prev] -> rerun_pipeline env prev
     | [_] -> make_error TypeError "pipeline_run() expects a Pipeline"
     | _ -> make_error ArityError "pipeline_run() takes exactly 1 argument"
+  ));
+
+  (* --- Phase 4: Core Data Verbs (colcraft) --- *)
+
+  (* select(df, "col1", "col2", ...) — column selection by name *)
+  ("select", make_builtin ~variadic:true 1 (fun args _env ->
+    match args with
+    | VDataFrame df :: col_args ->
+        let col_names = List.map (fun v ->
+          match v with
+          | VString s -> Ok s
+          | _ -> Error (make_error TypeError "select() expects string column names")
+        ) col_args in
+        (match List.find_opt Result.is_error col_names with
+         | Some (Error e) -> e
+         | _ ->
+           let names = List.map (fun r -> match r with Ok s -> s | _ -> "") col_names in
+           let missing = List.filter (fun n -> not (List.mem_assoc n df.columns)) names in
+           if missing <> [] then
+             make_error KeyError (Printf.sprintf "Column(s) not found: %s" (String.concat ", " missing))
+           else
+             let selected = List.map (fun n -> (n, List.assoc n df.columns)) names in
+             let remaining_keys = List.filter (fun k -> List.mem k names) df.group_keys in
+             VDataFrame { columns = selected; nrows = df.nrows; group_keys = remaining_keys })
+    | _ :: _ -> make_error TypeError "select() expects a DataFrame as first argument"
+    | _ -> make_error ArityError "select() requires a DataFrame and at least one column name"
+  ));
+
+  (* filter(df, pred_fn) — row filtering with a predicate function *)
+  ("filter", make_builtin 2 (fun args env ->
+    match args with
+    | [VDataFrame df; fn] ->
+        let keep = Array.make df.nrows false in
+        let had_error = ref None in
+        for i = 0 to df.nrows - 1 do
+          if !had_error = None then begin
+            let row_dict = VDict (List.map (fun (name, col) -> (name, col.(i))) df.columns) in
+            let result = eval_call env fn [(None, Value row_dict)] in
+            match result with
+            | VBool true -> keep.(i) <- true
+            | VBool false -> ()
+            | VError _ as e -> had_error := Some e
+            | _ -> had_error := Some (make_error TypeError "filter() predicate must return a Bool")
+          end
+        done;
+        (match !had_error with
+         | Some e -> e
+         | None ->
+           let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 keep in
+           let new_columns = List.map (fun (name, col) ->
+             let new_col = Array.init new_nrows (fun j ->
+               let rec find_nth src_idx count =
+                 if keep.(src_idx) then
+                   (if count = j then col.(src_idx)
+                    else find_nth (src_idx + 1) (count + 1))
+                 else find_nth (src_idx + 1) count
+               in
+               find_nth 0 0
+             ) in
+             (name, new_col)
+           ) df.columns in
+           VDataFrame { columns = new_columns; nrows = new_nrows; group_keys = df.group_keys })
+    | [VDataFrame _] -> make_error ArityError "filter() requires a DataFrame and a predicate function"
+    | [_; _] -> make_error TypeError "filter() expects a DataFrame as first argument"
+    | _ -> make_error ArityError "filter() takes exactly 2 arguments"
+  ));
+
+  (* mutate(df, "new_col", fn) — create or transform a column *)
+  ("mutate", make_builtin 3 (fun args env ->
+    match args with
+    | [VDataFrame df; VString col_name; fn] ->
+        let new_col = Array.init df.nrows (fun i ->
+          let row_dict = VDict (List.map (fun (name, col) -> (name, col.(i))) df.columns) in
+          eval_call env fn [(None, Value row_dict)]
+        ) in
+        (* Check for errors in computed column *)
+        let first_error = ref None in
+        Array.iter (fun v ->
+          if !first_error = None then
+            match v with VError _ -> first_error := Some v | _ -> ()
+        ) new_col;
+        (match !first_error with
+         | Some e -> e
+         | None ->
+           (* Replace existing column or append new one *)
+           let existing = List.mem_assoc col_name df.columns in
+           let new_columns =
+             if existing then
+               List.map (fun (n, c) -> if n = col_name then (n, new_col) else (n, c)) df.columns
+             else
+               df.columns @ [(col_name, new_col)]
+           in
+           VDataFrame { columns = new_columns; nrows = df.nrows; group_keys = df.group_keys })
+    | [VDataFrame _; VString _] -> make_error ArityError "mutate() requires a DataFrame, column name, and a function"
+    | [VDataFrame _; _; _] -> make_error TypeError "mutate() expects a string column name as second argument"
+    | [_; _; _] -> make_error TypeError "mutate() expects a DataFrame as first argument"
+    | _ -> make_error ArityError "mutate() takes exactly 3 arguments"
+  ));
+
+  (* arrange(df, "col") or arrange(df, "col", "desc") — sort rows by column *)
+  ("arrange", make_builtin ~variadic:true 2 (fun args _env ->
+    match args with
+    | [VDataFrame df; VString col_name] | [VDataFrame df; VString col_name; VString "asc"] ->
+        (match List.assoc_opt col_name df.columns with
+         | None -> make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
+         | Some col ->
+           let indices = Array.init df.nrows (fun i -> i) in
+           let compare_values a b =
+             match (a, b) with
+             | (VInt x, VInt y) -> compare x y
+             | (VFloat x, VFloat y) -> compare x y
+             | (VString x, VString y) -> String.compare x y
+             | (VBool x, VBool y) -> compare x y
+             | (VNA _, _) -> 1  (* NAs sort last *)
+             | (_, VNA _) -> -1
+             | _ -> 0
+           in
+           Array.sort (fun i j -> compare_values col.(i) col.(j)) indices;
+           let new_columns = List.map (fun (name, c) ->
+             (name, Array.init df.nrows (fun k -> c.(indices.(k))))
+           ) df.columns in
+           VDataFrame { columns = new_columns; nrows = df.nrows; group_keys = df.group_keys })
+    | [VDataFrame df; VString col_name; VString "desc"] ->
+        (match List.assoc_opt col_name df.columns with
+         | None -> make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
+         | Some col ->
+           let indices = Array.init df.nrows (fun i -> i) in
+           let compare_values a b =
+             match (a, b) with
+             | (VInt x, VInt y) -> compare y x  (* reversed *)
+             | (VFloat x, VFloat y) -> compare y x
+             | (VString x, VString y) -> String.compare y x
+             | (VBool x, VBool y) -> compare y x
+             | (VNA _, _) -> 1
+             | (_, VNA _) -> -1
+             | _ -> 0
+           in
+           Array.sort (fun i j -> compare_values col.(i) col.(j)) indices;
+           let new_columns = List.map (fun (name, c) ->
+             (name, Array.init df.nrows (fun k -> c.(indices.(k))))
+           ) df.columns in
+           VDataFrame { columns = new_columns; nrows = df.nrows; group_keys = df.group_keys })
+    | [VDataFrame _; VString _; VString dir] ->
+        make_error ValueError (Printf.sprintf "arrange() direction must be \"asc\" or \"desc\", got \"%s\"" dir)
+    | [VDataFrame _; _] | [VDataFrame _; _; _] ->
+        make_error TypeError "arrange() expects a string column name"
+    | [_; _] | [_; _; _] -> make_error TypeError "arrange() expects a DataFrame as first argument"
+    | _ -> make_error ArityError "arrange() takes 2 or 3 arguments"
+  ));
+
+  (* group_by(df, "col1", "col2", ...) — mark grouping columns *)
+  ("group_by", make_builtin ~variadic:true 1 (fun args _env ->
+    match args with
+    | VDataFrame df :: key_args ->
+        let key_names = List.map (fun v ->
+          match v with
+          | VString s -> Ok s
+          | _ -> Error (make_error TypeError "group_by() expects string column names")
+        ) key_args in
+        (match List.find_opt Result.is_error key_names with
+         | Some (Error e) -> e
+         | _ ->
+           let names = List.map (fun r -> match r with Ok s -> s | _ -> "") key_names in
+           let missing = List.filter (fun n -> not (List.mem_assoc n df.columns)) names in
+           if missing <> [] then
+             make_error KeyError (Printf.sprintf "Column(s) not found: %s" (String.concat ", " missing))
+           else if names = [] then
+             make_error ArityError "group_by() requires at least one column name"
+           else
+             VDataFrame { df with group_keys = names })
+    | [_] -> make_error TypeError "group_by() expects a DataFrame as first argument"
+    | _ -> make_error ArityError "group_by() requires a DataFrame and at least one column name"
+  ));
+
+  (* summarize(df, "result_col", agg_fn, ...) — aggregation, pairs of name+fn *)
+  ("summarize", make_builtin ~variadic:true 1 (fun args env ->
+    match args with
+    | VDataFrame df :: summary_args ->
+        (* Parse pairs of (col_name_string, agg_function) *)
+        let rec parse_pairs acc = function
+          | VString name :: fn :: rest -> parse_pairs ((name, fn) :: acc) rest
+          | [] -> Ok (List.rev acc)
+          | _ -> Error (make_error TypeError "summarize() expects pairs of (string_name, function)")
+        in
+        (match parse_pairs [] summary_args with
+         | Error e -> e
+         | Ok pairs ->
+           if pairs = [] then
+             make_error ArityError "summarize() requires at least one (name, function) pair"
+           else if df.group_keys = [] then
+             (* Ungrouped: apply each agg_fn to the whole DataFrame *)
+             let result_cols = List.map (fun (name, fn) ->
+               let result = eval_call env fn [(None, Value (VDataFrame df))] in
+               (name, result)
+             ) pairs in
+             (match List.find_opt (fun (_, v) -> is_error_value v) result_cols with
+              | Some (_, e) -> e
+              | None ->
+                let columns = List.map (fun (name, v) -> (name, Array.make 1 v)) result_cols in
+                VDataFrame { columns; nrows = 1; group_keys = [] })
+           else
+             (* Grouped: split into groups, apply agg to each, combine *)
+             let key_cols = List.map (fun k -> (k, List.assoc k df.columns)) df.group_keys in
+             (* Build group index: group_key_values -> list of row indices *)
+             let group_map = Hashtbl.create 16 in
+             for i = 0 to df.nrows - 1 do
+               let key_vals = List.map (fun (_, col) -> col.(i)) key_cols in
+               let key_str = String.concat "|" (List.map Utils.value_to_string key_vals) in
+               let existing = try Hashtbl.find group_map key_str with Not_found -> (key_vals, []) in
+               Hashtbl.replace group_map key_str (fst existing, i :: snd existing)
+             done;
+             (* Collect groups in order of first appearance *)
+             let seen = Hashtbl.create 16 in
+             let group_order = ref [] in
+             for i = 0 to df.nrows - 1 do
+               let key_vals = List.map (fun (_, col) -> col.(i)) key_cols in
+               let key_str = String.concat "|" (List.map Utils.value_to_string key_vals) in
+               if not (Hashtbl.mem seen key_str) then begin
+                 Hashtbl.add seen key_str true;
+                 group_order := key_str :: !group_order
+               end
+             done;
+             let group_keys_ordered = List.rev !group_order in
+             let n_groups = List.length group_keys_ordered in
+             (* Build result: key columns + summary columns *)
+             let key_result_cols = List.map (fun k ->
+               let col = Array.init n_groups (fun g_idx ->
+                 let key_str = List.nth group_keys_ordered g_idx in
+                 let (key_vals, _) = Hashtbl.find group_map key_str in
+                 let key_idx = let rec find_idx i = function
+                   | [] -> 0 | (kn, _) :: _ when kn = k -> i | _ :: rest -> find_idx (i+1) rest
+                 in find_idx 0 key_cols in
+                 List.nth key_vals key_idx
+               ) in
+               (k, col)
+             ) df.group_keys in
+             let had_error = ref None in
+             let summary_result_cols = List.map (fun (name, fn) ->
+               let col = Array.init n_groups (fun g_idx ->
+                 if !had_error <> None then VNull
+                 else begin
+                   let key_str = List.nth group_keys_ordered g_idx in
+                   let (_, row_indices) = Hashtbl.find group_map key_str in
+                   let row_indices = List.rev row_indices in
+                   let sub_nrows = List.length row_indices in
+                   let sub_columns = List.map (fun (cname, col) ->
+                     let sub_col = Array.init sub_nrows (fun j ->
+                       col.(List.nth row_indices j)
+                     ) in
+                     (cname, sub_col)
+                   ) df.columns in
+                   let sub_df = VDataFrame { columns = sub_columns; nrows = sub_nrows; group_keys = [] } in
+                   let result = eval_call env fn [(None, Value sub_df)] in
+                   (match result with
+                    | VError _ -> had_error := Some result; result
+                    | v -> v)
+                 end
+               ) in
+               (name, col)
+             ) pairs in
+             (match !had_error with
+              | Some e -> e
+              | None ->
+                let all_columns = key_result_cols @ summary_result_cols in
+                VDataFrame { columns = all_columns; nrows = n_groups; group_keys = [] }))
+    | _ -> make_error TypeError "summarize() expects a DataFrame as first argument"
   ));
 ]
 
