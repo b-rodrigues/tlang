@@ -16,6 +16,7 @@ let identifier = ident_start ident_char*
 
 rule token = parse
   | [' ' '\t' '\r'] { token lexbuf } (* Whitespace — skip *)
+  | '\n' [' ' '\t' '\r']* "|>" { Lexing.new_line lexbuf; PIPE }
   | '\n'            { Lexing.new_line lexbuf; NEWLINE }
   | ';'             { SEMICOLON }
   | "--" [^ '\n']*  { token lexbuf } (* Line comments *)

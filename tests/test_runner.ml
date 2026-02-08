@@ -86,6 +86,9 @@ let () =
   test "pipe with args" "add = \\(a, b) a + b; 5 |> add(3)" "8";
   test "pipe chain" "double = \\(x) x * 2; inc = \\(x) x + 1; 5 |> double |> inc" "11";
   test "pipe to builtin" "42 |> type" {|"Int"|};
+  test "pipe chain across lines"
+    "[1, 2, 3]\n  |> map(\\(x) x * x)\n  |> sum"
+    "14";
   print_newline ();
 
   (* --- If/Else --- *)
