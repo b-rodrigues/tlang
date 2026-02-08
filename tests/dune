@@ -1,6 +1,15 @@
+(include_subdirs unqualified)
+
 (executable
  (name test_runner)
- (modules test_runner)
+ (modules
+   test_runner
+   test_arithmetic test_comparisons test_logical test_variables
+   test_functions test_pipe test_ifelse test_lists test_dicts test_builtins
+   test_na test_errors
+   test_dataframe test_pipeline test_colcraft
+   test_math test_stats test_explain_tests
+ )
  (libraries t_lang menhirLib)
 )
 
