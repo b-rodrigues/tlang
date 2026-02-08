@@ -1,9 +1,29 @@
 ; src/dune
 
+(include_subdirs unqualified)
+
 (library
  (name t_lang)
  (wrapped false)
- (modules ast lexer parser eval)
+ (modules
+   ast lexer parser eval
+   ; packages/core
+   t_print t_type length head tail is_error t_seq t_map sum
+   ; packages/base
+   t_assert is_na na error_mod error_utils
+   ; packages/dataframe
+   t_read_csv colnames nrow ncol
+   ; packages/pipeline
+   pipeline_nodes pipeline_deps pipeline_node pipeline_run
+   ; packages/colcraft
+   t_select t_filter mutate arrange group_by summarize
+   ; packages/math
+   t_sqrt t_abs t_log t_exp pow
+   ; packages/stats
+   mean sd quantile cor lm
+   ; packages/explain
+   intent_fields intent_get t_explain explain_json
+ )
  (libraries menhirLib)
 )
 
