@@ -6,99 +6,200 @@
 <body bgcolor="#f5f5dc" text="#000000" link="#0000ee" vlink="#551a8b" alink="#ff0000">
 
   <center>
-    <h1><font face="Courier New">T — A Functional Language for Tabular Data</font></h1>
+    <h1><font face="Courier New">T — A Language for Tabular Data and Human–LLM Collaboration</font></h1>
     <hr width="80%">
   </center>
 
   <font face="Courier New" size="3">
-  <p><b>T</b> is an experimental programming language for declarative, functional manipulation of tabular data. Inspired by R’s tidyverse and OCaml’s type discipline, T aims to make data manipulation clear, expressive, and extensible.</p>
 
-  <p><b>Status:</b> Very early, exploratory phase. Entirely generated via iterative AI prompts.</p>
+  <p>
+    <b>T</b> is an experimental programming language for declarative, functional manipulation
+    of tabular data. Inspired by R’s tidyverse and OCaml’s semantic rigor, T is designed
+    to make data analysis <b>explicit, inspectable, and pipeline-oriented</b>.
+  </p>
+
+  <p>
+    Unlike traditional scripting languages, T is built from the ground up to support
+    <b>human–LLM collaborative programming</b>, where humans specify intent and constraints,
+    and language tools (including LLMs) generate localized, mechanical code.
+  </p>
+
+  <p><b>Status:</b> Pre-alpha. Actively designed and implemented.</p>
 
   <hr>
 
   <h2><font face="Courier New">Design Goals</font></h2>
   <ul>
-    <li>Data analysis as a pipeline</li>
-    <li>DataFrame-first operations like <code>select()</code>, <code>filter()</code></li>
-    <li>1-indexed</li>
+    <li>Data analysis as explicit pipelines</li>
+    <li>First-class tabular data (DataFrame-centric)</li>
     <li>Expression-oriented, functional style</li>
-    <li>Minimal OCaml core</li>
-    <li>Non-standard evaluation: <code>select(name, age)</code></li>
-    <li>Extensible built-ins like <code>print()</code></li>
-    <li>REPL-first exploration</li>
-    <li>Package-based modularity using Nix Flakes!</li>
+    <li>Explicit semantics (no hidden rules, no implicit NA propagation)</li>
+    <li>Minimal OCaml core, extensible via packages</li>
+    <li>Deterministic execution and inspectable errors</li>
+    <li>REPL-first exploratory workflow</li>
+    <li>LLM-friendly structure and tooling</li>
   </ul>
 
   <hr>
 
-  <h2><font face="Courier New">Why T?</font></h2>
-  <p>T is not trying to replace R. Instead, it’s a small, focused language for data wrangling, graphics, and basic stats — without general-purpose baggage.</p>
+  <h2><font face="Courier New">LLM-Native by Design</font></h2>
+
+  <p>
+    T treats large language models as <b>first-class collaborators</b>, not magic code generators.
+    The language and tooling are designed to make LLM-generated code:
+  </p>
 
   <ul>
-    <li><b>Minimal</b>: learn the whole language</li>
-    <li><b>Self-contained</b>: all functions inspectable</li>
-    <li><b>Purpose-built</b>: just for structured data</li>
+    <li>Local rather than global</li>
+    <li>Constrained rather than free-form</li>
+    <li>Inspectable rather than opaque</li>
+    <li>Correctable rather than brittle</li>
   </ul>
 
-  <p>Perfect for teaching, scripting, or exploratory work — with a REPL-first workflow.</p>
+  <p>
+    Humans define intent, assumptions, and invariants. LLMs generate localized code.
+    T enforces semantics and correctness.
+  </p>
 
   <hr>
 
-  <h2><font face="Courier New">Example</font></h2>
+  <h2><font face="Courier New">Intent Blocks</font></h2>
+
+  <p>
+    T supports <b>intent blocks</b>: structured comments that encode analytical goals,
+    assumptions, and checks in a machine-readable way.
+  </p>
+
   <pre>
-data = read_csv("data.csv")
-select(data, name, age)
+-- intent:
+-- goal: "Estimate approval as a function of age and income"
+-- assumptions:
+--   - age is approximately linear
+--   - missing income is non-random
+-- checks:
+--   - no negative income
+--   - at least 100 observations per group
   </pre>
 
-  <p><b>Also supports:</b></p>
+  <p>
+    Intent blocks are preserved by tooling, version-controlled with code, and used
+    as stable regeneration boundaries for LLM-assisted workflows.
+  </p>
+
+  <hr>
+
+  <h2><font face="Courier New">Pipelines</font></h2>
+
+  <p>
+    Pipelines are T’s core execution model. Each pipeline is a DAG of named nodes with
+    explicit dependencies, cacheable results, and inspectable outputs.
+  </p>
+
+  <pre>
+pipeline analysis {
+  raw = { read_csv("data.csv") }
+
+  cleaned = {
+    raw |> filter(age > 18)
+        |> mutate(income_k = income / 1000)
+  }
+
+  model = {
+    cleaned |> lm(approval ~ age + income_k)
+  }
+}
+  </pre>
+
+  <p>
+    Pipelines enable local reasoning, reproducibility, and safe regeneration of individual
+    steps without rewriting entire scripts.
+  </p>
+
+  <hr>
+
+  <h2><font face="Courier New">Language Features</font></h2>
+
   <ul>
     <li>R-style lambdas: <code>\(x) x + 1</code></li>
-    <li>Python-style comprehensions: <code>[x * x for x in numbers if x > 2]</code></li>
-    <li>Python-style dicts: <code>{name: "Alice", age: 30}</code></li>
+    <li>Pipe operator: <code>|></code></li>
+    <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
+    <li>Python-style dictionaries: <code>{name: "Alice", age: 30}</code></li>
+    <li>Errors as values, not exceptions</li>
+    <li>Explicit, typed missing values</li>
   </ul>
+
+  <hr>
+
+  <h2><font face="Courier New">Numerical Backend</font></h2>
+
+  <p>
+    T’s numerical stack is layered:
+  </p>
+
+  <ul>
+    <li><b>Tabular layer:</b> Apache Arrow for columnar data and interoperability</li>
+    <li><b>Compute layer:</b> Owl for linear algebra, optimization, and statistics</li>
+    <li><b>Fallback layer:</b> Selective C bindings (e.g. LAPACK, GSL) when needed</li>
+  </ul>
+
+  <p>
+    This approach prioritizes fast development, explicit semantics, and safe defaults,
+    while leaving room for future performance upgrades.
+  </p>
 
   <hr>
 
   <h2><font face="Courier New">Standard Packages</font></h2>
   <ul>
-    <li><b>core</b>: functional tools like <code>map</code></li>
-    <li><b>stats</b>: statistical tools like <code>mean</code>, <code>sd</code></li>
-    <li><b>colcraft</b>: table ops like <code>select</code>, <code>mutate</code></li>
+    <li><b>core</b>: functional utilities</li>
+    <li><b>stats</b>: statistical primitives</li>
+    <li><b>colcraft</b>: DataFrame operations</li>
   </ul>
 
-  <p>Each package is one file per function, e.g. <code>colcraft.select.ml</code></p>
+  <p>
+    Packages are part of the standard library and loaded by default.
+    Each function lives in its own file.
+  </p>
 
   <hr>
 
-  <h2><font face="Courier New">Package Philosophy</font></h2>
-  <p>Nix Flakes-powered decentralized registry. All packages live in their respective GitHub repos. A curated, centralized registry of official packages is planned. Avoids dependency hell and all contributions are transparent.</p>
+  <h2><font face="Courier New">Alpha Roadmap</font></h2>
+
+  <p>
+    The alpha version of T targets a complete, end-to-end workflow:
+  </p>
 
   <ul>
-    <li>Minimal dependency graph</li>
-    <li>Clear contribution via PRs</li>
-    <li>No version drift or registry sprawl</li>
+    <li>Stable core syntax and interpreter</li>
+    <li>Arrow-backed DataFrames</li>
+    <li>DAG-based pipelines with caching</li>
+    <li>Core data verbs (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>summarize</code>)</li>
+    <li>Basic statistics and modeling</li>
+    <li>Intent blocks and tooling hooks</li>
+    <li>REPL and CLI</li>
   </ul>
+
+  <p>
+    Performance tuning, GPUs, and distributed execution are explicitly out of scope for alpha.
+  </p>
 
   <hr>
 
   <h2><font face="Courier New">Project Structure</font></h2>
   <pre>
 .
-├── flake.nix            
-├── ast.ml               
-├── parser.ml            
-├── lexer.ml             
-├── eval.ml              
-├── repl.ml              
-├── csv_reader.ml        
+├── flake.nix
+├── ast.ml
+├── parser.ml
+├── lexer.ml
+├── eval.ml
+├── repl.ml
+├── pipeline.ml
+├── dataframe.ml
 └── packages/
     ├── core/
-    │   └── map.t
     ├── stats/
-    │   └── mean.t
     └── colcraft/
-        └── select.t
   </pre>
 
   <hr>
@@ -106,13 +207,17 @@ select(data, name, age)
   <h2><font face="Courier New">Building</font></h2>
   <pre>
 nix develop
-dune exec ./repl.exe
+t repl
   </pre>
 
   <hr>
 
   <h2><font face="Courier New">Contributing</font></h2>
-  <p>User packages can be merged into the centralized package registry, or you can keep them private.</p>
+
+  <p>
+    Contributions focus on clarity, explicit semantics, and small, reviewable changes.
+    Packages live in-repo during early development.
+  </p>
 
   <hr>
 
@@ -120,10 +225,12 @@ dune exec ./repl.exe
 
   <center>
     <hr width="60%">
-    <font size="2">This site is best viewed with Netscape Navigator 3.0 or higher.<br>
-    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a></font>
+    <font size="2">
+      Best viewed with a sense of curiosity.<br>
+      <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </font>
   </center>
+
   </font>
 </body>
 </html>
- 
