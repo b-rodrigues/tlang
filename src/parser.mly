@@ -9,7 +9,7 @@ type param_info = { names: string list; has_variadic: bool }
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE FOR IN FUNCTION PIPELINE TRUE FALSE NULL NA
+%token IF ELSE FOR IN FUNCTION PIPELINE INTENT TRUE FALSE NULL NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -154,6 +154,7 @@ primary_expr:
   | l = lambda_expr { l }
   | i = if_expr { i }
   | p = pipeline_expr { p }
+  | n = intent_expr { n }
   ;
 
 lambda_expr:
@@ -195,6 +196,22 @@ pipeline_node_list:
 pipeline_node:
   | name = any_ident EQUALS e = expr
     { { node_name = name; node_expr = e } }
+  ;
+
+intent_expr:
+  | INTENT LBRACE skip_sep pairs = intent_field_list RBRACE
+    { IntentDef pairs }
+  ;
+
+intent_field_list:
+  | { [] }
+  | p = intent_field skip_sep { [p] }
+  | p = intent_field COMMA skip_sep rest = intent_field_list { p :: rest }
+  | p = intent_field sep skip_sep rest = intent_field_list { p :: rest }
+  ;
+
+intent_field:
+  | key = any_ident COLON value = expr { (key, value) }
   ;
 
 list_lit:

@@ -38,9 +38,49 @@ let () =
            Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
        | Ast.VNull -> ()
        | v -> print_endline (Ast.Utils.value_to_string v))
+  | _ :: "explain" :: rest ->
+      (* Phase 6: t explain <expr> [--json] *)
+      let is_json = List.mem "--json" rest in
+      let expr_parts = List.filter (fun s -> s <> "--json") rest in
+      let expr_str = String.concat " " expr_parts in
+      if expr_str = "" then begin
+        Printf.eprintf "Usage: t explain <expression> [--json]\n"; exit 1
+      end else begin
+        let (result, env') = parse_and_eval env expr_str in
+        match result with
+        | Ast.VError { code; message; _ } ->
+            Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
+        | _ ->
+            let explain_expr = Printf.sprintf "explain(__explain_target__)" in
+            let env'' = Ast.Env.add "__explain_target__" result env' in
+            let (explain_result, _) = parse_and_eval env'' explain_expr in
+            if is_json then
+              print_endline (Ast.Utils.value_to_string explain_result)
+            else begin
+              (* Pretty-print explain output *)
+              let rec print_dict indent pairs =
+                List.iter (fun (k, v) ->
+                  match v with
+                  | Ast.VDict sub_pairs ->
+                      Printf.printf "%s%s:\n" indent k;
+                      print_dict (indent ^ "  ") sub_pairs
+                  | Ast.VList items ->
+                      Printf.printf "%s%s: [%s]\n" indent k
+                        (String.concat ", " (List.map (fun (_, item) -> Ast.Utils.value_to_string item) items))
+                  | _ ->
+                      Printf.printf "%s%s: %s\n" indent k (Ast.Utils.value_to_string v)
+                ) pairs
+              in
+              match explain_result with
+              | Ast.VDict pairs -> print_dict "" pairs
+              | Ast.VError { code; message; _ } ->
+                  Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
+              | v -> print_endline (Ast.Utils.value_to_string v)
+            end
+      end
   | _ ->
       (* Interactive REPL mode *)
-      Printf.printf "T language REPL — version 0.3 (Phase 2 Alpha)\n";
+      Printf.printf "T language REPL — version 0.4 (Phase 6 Alpha)\n";
       Printf.printf "Type :quit or :q to exit.\n\n";
       let rec repl env =
         print_string "T> ";

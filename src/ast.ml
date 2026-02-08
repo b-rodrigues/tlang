@@ -43,6 +43,11 @@ and dataframe = {
   group_keys : string list;
 }
 
+(** Phase 6: Intent block — structured metadata for LLM-native workflows *)
+and intent_block = {
+  intent_fields : (string * string) list;  (* Key-value pairs of metadata *)
+}
+
 (** Phase 3: Pipeline node definition *)
 and pipeline_node = {
   node_name : string;
@@ -77,6 +82,8 @@ and value =
   | VNA of na_type
   | VError of error_info
   | VNull
+  (* Phase 6: Intent block value *)
+  | VIntent of intent_block
 
 and builtin = {
   b_arity: int;
@@ -105,6 +112,7 @@ and expr =
   | DotAccess of { target : expr; field : string }
   | Block of expr list
   | PipelineDef of pipeline_node list
+  | IntentDef of (string * expr) list
 
 and binop = Plus | Minus | Mul | Div | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | Pipe
 and unop = Not | Neg
@@ -155,6 +163,7 @@ module Utils = struct
     | VPipeline _ -> "Pipeline"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
+    | VIntent _ -> "Intent"
 
   let rec value_to_string = function
     | VInt n -> string_of_int n
@@ -194,4 +203,7 @@ module Utils = struct
     | VError { code; message; _ } ->
         "Error(" ^ error_code_to_string code ^ ": \"" ^ message ^ "\")"
     | VNull -> "null"
+    | VIntent { intent_fields } ->
+        let field_to_string (k, v) = k ^ ": \"" ^ String.escaped v ^ "\"" in
+        "Intent{" ^ (intent_fields |> List.map field_to_string |> String.concat ", ") ^ "}"
 end
