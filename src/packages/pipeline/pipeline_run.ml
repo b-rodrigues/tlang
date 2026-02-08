@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin ~make_error ~rerun_pipeline env =
+let register ~rerun_pipeline env =
   Env.add "pipeline_run"
     (make_builtin 1 (fun args env ->
       match args with

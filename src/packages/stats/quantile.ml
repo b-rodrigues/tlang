@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin ~make_error env =
+let register env =
   Env.add "quantile"
     (make_builtin 2 (fun args _env ->
       let extract_nums_arr label arr =

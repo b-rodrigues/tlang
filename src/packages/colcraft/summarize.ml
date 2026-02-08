@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin ~make_error ~eval_call ~is_error_value env =
+let register ~eval_call env =
   Env.add "summarize"
     (make_builtin ~variadic:true 1 (fun args env ->
       match args with

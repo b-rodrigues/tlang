@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin env =
+let register env =
   let env = Env.add "na"
     (make_builtin 0 (fun _args _env -> VNA NAGeneric))
     env in

@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin ~make_error ~is_na_value env =
+let register env =
   Env.add "assert"
     (make_builtin ~variadic:true 1 (fun args _env ->
       match args with

@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin ~make_error env =
+let register env =
   Env.add "log"
     (make_builtin 1 (fun args _env ->
       match args with

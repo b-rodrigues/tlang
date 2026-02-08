@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin ~make_error ~eval_call env =
+let register ~eval_call env =
   Env.add "filter"
     (make_builtin 2 (fun args env ->
       match args with

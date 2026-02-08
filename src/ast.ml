@@ -207,3 +207,20 @@ module Utils = struct
         let field_to_string (k, v) = k ^ ": \"" ^ String.escaped v ^ "\"" in
         "Intent{" ^ (intent_fields |> List.map field_to_string |> String.concat ", ") ^ "}"
 end
+
+(* --- Shared Helper Functions --- *)
+(* These are used by eval.ml and all package modules. *)
+
+(** Create a structured error value *)
+let make_error ?(context=[]) code message =
+  VError { code; message; context }
+
+(** Create a builtin function value *)
+let make_builtin ?(variadic=false) arity func =
+  VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
+
+(** Check if a value is an error *)
+let is_error_value = function VError _ -> true | _ -> false
+
+(** Check if a value is NA *)
+let is_na_value = function VNA _ -> true | _ -> false

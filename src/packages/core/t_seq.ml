@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin ~make_error env =
+let register env =
   Env.add "seq"
     (make_builtin 2 (fun args _env ->
       match args with

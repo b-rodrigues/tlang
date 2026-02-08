@@ -1,6 +1,6 @@
 open Ast
 
-let register ~make_builtin ~make_error ~parse_csv_string env =
+let register ~parse_csv_string env =
   Env.add "read_csv"
     (make_builtin 1 (fun args _env ->
       match args with
