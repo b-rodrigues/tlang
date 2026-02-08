@@ -92,12 +92,12 @@
 
             # The OCaml Language Server for editor features like autocompletion,
             # type hints, and go-to-definition in editors like VSCode.
-            pkgs.ocaml-lsp
+            ocamlVersion.ocaml-lsp
 
             # The standard OCaml code formatter to keep your code clean.
-            pkgs.ocamlformat
+            ocamlVersion.ocamlformat
             # RPC version needed for Dune to run the formatter automatically.
-            pkgs.ocamlformat-rpc
+            ocamlVersion.ocamlformat-rpc
           ];
 
           shellHook = ''
