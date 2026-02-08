@@ -1,0 +1,86 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Convert Markdown docs to HTML
+        run: |
+          cat > /tmp/doc-template.html <<'TEMPLATE'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>$title$</title>
+          </head>
+          <body bgcolor="#f5f5dc" text="#000000" link="#0000ee" vlink="#551a8b" alink="#ff0000">
+            <font face="Courier New" size="3">
+            <center>
+              <p><a href="index.html">← Back to Home</a></p>
+              <hr width="80%">
+            </center>
+          $body$
+            <hr>
+            <center>
+              <p><a href="index.html">← Back to Home</a></p>
+              <font size="2">
+                <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+              </font>
+            </center>
+            </font>
+          </body>
+          </html>
+          TEMPLATE
+
+          cd docs
+          for mdfile in *.md; do
+            basename="${mdfile%.md}"
+            title=$(echo "$basename" | sed 's/_/ /g; s/\b\(.\)/\u\1/g')
+            pandoc "$mdfile" \
+              --standalone \
+              --metadata title="T Language — ${title}" \
+              --template=/tmp/doc-template.html \
+              -o "${basename}.html"
+            echo "Converted: $mdfile -> ${basename}.html"
+          done
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
