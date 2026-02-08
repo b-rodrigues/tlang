@@ -305,12 +305,15 @@ let parse_csv_string (content : string) : value =
       let valid_rows = List.filter (fun row -> List.length row = ncols) data_rows in
       let nrows = List.length valid_rows in
       if nrows = 0 && List.length data_rows > 0 then
-        make_error ValueError "CSV Error: Row column counts do not match header"
+        make_error ValueError
+          (Printf.sprintf "CSV Error: Row column counts do not match header (expected %d columns)" ncols)
       else
+        (* Convert rows to array for O(1) access *)
+        let rows_arr = Array.of_list valid_rows in
         (* Build column arrays *)
         let columns = List.mapi (fun col_idx name ->
           let col_data = Array.init nrows (fun row_idx ->
-            let row = List.nth valid_rows row_idx in
+            let row = rows_arr.(row_idx) in
             parse_csv_value (List.nth row col_idx)
           ) in
           (name, col_data)
