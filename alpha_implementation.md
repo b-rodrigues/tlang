@@ -394,36 +394,36 @@ Rule of thumb:
 
 ---
 
-## Phase 8 — Stabilization and Alpha Release
+## Phase 8 — Stabilization and Alpha Release ✅
 
 **Objective**: Produce a coherent alpha release.
 
 ### Deliverables
 
-* Documentation
-* Test coverage
-* Example analyses
+* Documentation ✅
+* Test coverage ✅
+* Example analyses ✅
 
 ### Tasks
 
 * Write:
 
-  * Language overview
-  * Pipeline tutorial
-  * Data manipulation examples
+  * Language overview ✅ (`docs/language_overview.md`)
+  * Pipeline tutorial ✅ (`docs/pipeline_tutorial.md`)
+  * Data manipulation examples ✅ (`docs/data_manipulation_examples.md`)
 
 * Add:
 
-  * Unit tests for core semantics
-  * Golden tests for pipelines
+  * Unit tests for core semantics ✅ (`tests/phase8/test_core_semantics.ml`)
+  * Golden tests for pipelines ✅ (`tests/golden/test_golden.ml`)
 
-* Freeze syntax and semantics for alpha
+* Freeze syntax and semantics for alpha ✅ (`ALPHA.md`)
 
 ### Acceptance Criteria
 
-* End-to-end examples run reproducibly
-* No known crashes in core workflows
-* Clear roadmap beyond alpha
+* End-to-end examples run reproducibly ✅ (`examples/data_analysis.t`, `examples/pipeline_example.t`, `examples/statistics_example.t`)
+* No known crashes in core workflows ✅
+* Clear roadmap beyond alpha ✅ (`ROADMAP.md`)
 
 ---
 

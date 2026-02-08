@@ -6,7 +6,9 @@ T is an experimental programming language for declarative, functional manipulati
 
 ## Project Status
 
-This project is **currently at the idea/prototype stage**. Everything from the parser to the standard library is being designed from scratch, with an emphasis on clean semantics, modularity, and practical usability for data workflows. The entire codebase is generated via iterative prompts to a language model.
+This project is at **alpha stage** (v0.1). The core language syntax and semantics are frozen for the alpha release. All eight implementation phases are complete, covering the language core, tabular data, pipelines, data manipulation, math/statistics, LLM tooling hooks, CLI/REPL, and stabilization.
+
+For detailed release notes, see [ALPHA.md](ALPHA.md). For future plans, see [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -140,6 +142,15 @@ dune exec src/repl.exe
 ```
 
 For detailed usage instructions, see [USAGE.md](USAGE.md).
+
+## Documentation
+
+- [Language Overview](docs/language_overview.md) — Complete language reference
+- [Pipeline Tutorial](docs/pipeline_tutorial.md) — Step-by-step pipeline guide
+- [Data Manipulation Examples](docs/data_manipulation_examples.md) — Practical data wrangling cookbook
+- [Alpha Release Notes](ALPHA.md) — What's included in the alpha
+- [Roadmap](ROADMAP.md) — Future plans beyond alpha
+- [Changelog](CHANGELOG.md) — Version history
 
 ## Development
 
