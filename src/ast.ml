@@ -1,14 +1,49 @@
 (* src/ast.ml *)
-(* Phase 0: Core AST for the T language alpha. *)
-(* Kept simple — no Bigarray/Tensor/DataFrame until Phase 2. *)
+(* Phase 1: Values, Types, and Errors for the T language alpha. *)
+(* Extends Phase 0 with explicit missingness, structured errors, *)
+(* and placeholder types for vectors and DataFrames. *)
 
 (** Environment module — immutable string map *)
 module Env = Map.Make(String)
 
 type symbol = string
 
+(** NA type tags — missingness is explicit and typed *)
+type na_type =
+  | NABool
+  | NAInt
+  | NAFloat
+  | NAString
+  | NAGeneric
+
+(** Symbolic error codes *)
+type error_code =
+  | TypeError
+  | ArityError
+  | NameError
+  | DivisionByZero
+  | KeyError
+  | IndexError
+  | AssertionError
+  | FileError
+  | ValueError
+  | GenericError
+
+(** Structured error information *)
+type error_info = {
+  code : error_code;
+  message : string;
+  context : (string * value) list;
+}
+
+(** Placeholder DataFrame type for Phase 2 *)
+and dataframe = {
+  columns : (string * value array) list;
+  nrows : int;
+}
+
 (** Runtime values *)
-type value =
+and value =
   (* Scalar Types *)
   | VInt of int
   | VFloat of float
@@ -18,11 +53,14 @@ type value =
   (* General-Purpose Containers *)
   | VList of (string option * value) list
   | VDict of (string * value) list
+  | VVector of value array
+  | VDataFrame of dataframe
   (* Functional Types *)
   | VLambda of lambda
   | VBuiltin of builtin
   (* Special Values *)
-  | VError of string
+  | VNA of na_type
+  | VError of error_info
   | VNull
 
 and builtin = {
@@ -71,14 +109,35 @@ module Utils = struct
   let is_truthy = function
     | VBool false | VNull | VInt 0 -> false
     | VError _ -> false
+    | VNA _ -> false
     | _ -> true
+
+  let error_code_to_string = function
+    | TypeError -> "TypeError"
+    | ArityError -> "ArityError"
+    | NameError -> "NameError"
+    | DivisionByZero -> "DivisionByZero"
+    | KeyError -> "KeyError"
+    | IndexError -> "IndexError"
+    | AssertionError -> "AssertionError"
+    | FileError -> "FileError"
+    | ValueError -> "ValueError"
+    | GenericError -> "GenericError"
+
+  let na_type_to_string = function
+    | NABool -> "Bool"
+    | NAInt -> "Int"
+    | NAFloat -> "Float"
+    | NAString -> "String"
+    | NAGeneric -> ""
 
   let type_name = function
     | VInt _ -> "Int" | VFloat _ -> "Float"
     | VBool _ -> "Bool" | VString _ -> "String"
     | VSymbol _ -> "Symbol" | VList _ -> "List" | VDict _ -> "Dict"
+    | VVector _ -> "Vector" | VDataFrame _ -> "DataFrame"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
-    | VError _ -> "Error" | VNull -> "Null"
+    | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
 
   let rec value_to_string = function
     | VInt n -> string_of_int n
@@ -95,10 +154,21 @@ module Utils = struct
     | VDict pairs ->
         let pair_to_string (k, v) = "`" ^ k ^ "`: " ^ value_to_string v in
         "{" ^ (pairs |> List.map pair_to_string |> String.concat ", ") ^ "}"
+    | VVector arr ->
+        let items = Array.to_list arr |> List.map value_to_string in
+        "Vector[" ^ String.concat ", " items ^ "]"
+    | VDataFrame { columns; nrows } ->
+        let col_names = List.map fst columns in
+        Printf.sprintf "DataFrame(%d rows x %d cols: [%s])"
+          nrows (List.length columns) (String.concat ", " col_names)
     | VLambda { params; variadic; _ } ->
         let dots = if variadic then ", ..." else "" in
         "\\(" ^ String.concat ", " params ^ dots ^ ") -> <function>"
     | VBuiltin _ -> "<builtin_function>"
-    | VError msg -> "Error(\"" ^ msg ^ "\")"
+    | VNA na_t ->
+        let tag = na_type_to_string na_t in
+        if tag = "" then "NA" else "NA(" ^ tag ^ ")"
+    | VError { code; message; _ } ->
+        "Error(" ^ error_code_to_string code ^ ": \"" ^ message ^ "\")"
     | VNull -> "null"
 end

@@ -8,14 +8,14 @@ let parse_and_eval env input =
     Eval.eval_program program env
   with
   | Lexer.SyntaxError msg ->
-      (Ast.VError ("Syntax Error: " ^ msg), env)
+      (Ast.VError { code = Ast.GenericError; message = "Syntax Error: " ^ msg; context = [] }, env)
   | Parser.Error ->
       let pos = Lexing.lexeme_start_p lexbuf in
       let msg = Printf.sprintf "Parse Error at line %d, column %d"
         pos.Lexing.pos_lnum
         (pos.Lexing.pos_cnum - pos.Lexing.pos_bol)
       in
-      (Ast.VError msg, env)
+      (Ast.VError { code = Ast.GenericError; message = msg; context = [] }, env)
 
 let run_file filename env =
   try
@@ -24,7 +24,7 @@ let run_file filename env =
     close_in ch;
     parse_and_eval env content
   with
-  | Sys_error msg -> (Ast.VError ("File Error: " ^ msg), env)
+  | Sys_error msg -> (Ast.VError { code = Ast.FileError; message = "File Error: " ^ msg; context = [] }, env)
 
 let () =
   (* Check for command-line arguments *)
@@ -34,12 +34,13 @@ let () =
   | _ :: "run" :: filename :: _ ->
       let (result, _env) = run_file filename env in
       (match result with
-       | Ast.VError msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+       | Ast.VError { code; message; _ } ->
+           Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
        | Ast.VNull -> ()
        | v -> print_endline (Ast.Utils.value_to_string v))
   | _ ->
       (* Interactive REPL mode *)
-      Printf.printf "T language REPL — version 0.1 (Phase 0 Alpha)\n";
+      Printf.printf "T language REPL — version 0.2 (Phase 1 Alpha)\n";
       Printf.printf "Type :quit or :q to exit.\n\n";
       let rec repl env =
         print_string "T> ";
@@ -56,7 +57,7 @@ let () =
               let (result, new_env) = parse_and_eval env trimmed in
               (match result with
                | Ast.VNull -> ()
-               | Ast.VError msg -> Printf.printf "Error: %s\n" msg
+               | Ast.VError { code; message; _ } -> Printf.printf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message
                | v -> print_endline (Ast.Utils.value_to_string v));
               repl new_env
             end
