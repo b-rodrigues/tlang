@@ -59,6 +59,10 @@ let () =
   Test_explain_tests.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_cli.run_tests pass_count fail_count eval_string eval_string_env test;
 
+  (* Phase 8: Stabilization tests *)
+  Test_golden.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_core_semantics.run_tests pass_count fail_count eval_string eval_string_env test;
+
   (* Summary *)
   let total = !pass_count + !fail_count in
   Printf.printf "=== Results: %d/%d passed ===\n" !pass_count total;
