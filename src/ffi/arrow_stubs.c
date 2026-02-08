@@ -184,8 +184,8 @@ CAMLprim value caml_arrow_table_filter_mask(value v_ptr, value v_mask) {
   GError *error = NULL;
 
   for (int i = 0; i < n; i++) {
-    gboolean val = Bool_val(Field(v_mask, i));
-    garrow_boolean_array_builder_append_value(builder, val, &error);
+    gboolean mask_val = Bool_val(Field(v_mask, i));
+    garrow_boolean_array_builder_append_value(builder, mask_val, &error);
     if (error) {
       g_object_unref(builder);
       g_error_free(error);

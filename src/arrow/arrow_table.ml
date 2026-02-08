@@ -79,7 +79,8 @@ let has_column (t : t) (name : string) : bool =
 
 (* --- Table operations --- *)
 
-(** Project (select) columns by name — zero-copy *)
+(** Project (select) columns by name — zero-copy in native Arrow backend.
+    Pure OCaml fallback uses O(n*m) list lookup; acceptable for typical column counts. *)
 let project (t : t) (names : string list) : t =
   let columns = List.map (fun n -> (n, List.assoc n t.columns)) names in
   let schema = List.map (fun n -> (n, List.assoc n t.schema)) names in

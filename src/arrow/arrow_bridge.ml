@@ -44,7 +44,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
       | VNA _ -> None
       | v -> Some (Utils.value_to_string v)
     ) values)
-  else if !has_float || (!has_int && !has_float) then
+  else if !has_float then
     Arrow_table.FloatColumn (Array.map (fun v ->
       match v with
       | VFloat f -> Some f
