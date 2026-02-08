@@ -9,6 +9,7 @@
    test_na test_errors
    test_dataframe test_pipeline test_colcraft
    test_math test_stats test_explain_tests
+   test_cli
  )
  (libraries t_lang menhirLib)
 )

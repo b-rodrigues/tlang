@@ -127,10 +127,16 @@ unary_expr:
 /* Function calls and dot access are postfix operations */
 postfix_expr:
   | e = primary_expr { e }
-  | fn = postfix_expr LPAREN args = separated_list(COMMA, arg) RPAREN
+  | fn = postfix_expr LPAREN skip_sep args = call_args RPAREN
     { Call { fn; args } }
   | target = postfix_expr DOT field = any_ident
     { DotAccess { target; field } }
+  ;
+
+call_args:
+  | { [] }
+  | a = arg skip_sep { [a] }
+  | a = arg COMMA skip_sep rest = call_args { a :: rest }
   ;
 
 arg:
@@ -169,12 +175,17 @@ lambda_expr:
 /* Helper for parsing parameter lists with optional variadic `...` */
 params:
   | (* empty *) { { names = []; has_variadic = false } }
-  | ps = separated_nonempty_list(COMMA, any_ident)
+  | ps = param_list
     { { names = ps; has_variadic = false } }
-  | ps = separated_nonempty_list(COMMA, any_ident) COMMA DOTDOTDOT
+  | ps = param_list COMMA skip_sep DOTDOTDOT
     { { names = ps; has_variadic = true } }
   | DOTDOTDOT
     { { names = []; has_variadic = true } }
+  ;
+
+param_list:
+  | id = any_ident skip_sep { [id] }
+  | id = any_ident COMMA skip_sep rest = param_list { id :: rest }
   ;
 
 if_expr:
@@ -215,8 +226,14 @@ intent_field:
   ;
 
 list_lit:
-  | LBRACK items = separated_list(COMMA, named_item) RBRACK
+  | LBRACK skip_sep items = list_items RBRACK
     { ListLit items }
+  ;
+
+list_items:
+  | { [] }
+  | i = named_item skip_sep { [i] }
+  | i = named_item COMMA skip_sep rest = list_items { i :: rest }
   ;
 
 named_item:
@@ -225,8 +242,14 @@ named_item:
   ;
 
 dict_lit:
-  | LBRACE pairs = separated_list(COMMA, dict_pair) RBRACE
+  | LBRACE skip_sep pairs = dict_items RBRACE
     { DictLit pairs }
+  ;
+
+dict_items:
+  | { [] }
+  | p = dict_pair skip_sep { [p] }
+  | p = dict_pair COMMA skip_sep rest = dict_items { p :: rest }
   ;
 
 dict_pair:
