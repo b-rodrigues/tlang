@@ -36,10 +36,9 @@ type error_info = {
   context : (string * value) list;
 }
 
-(** DataFrame type — Phase 2 base, Phase 4 adds group_keys *)
+(** DataFrame type — Arrow-backed columnar storage *)
 and dataframe = {
-  columns : (string * value array) list;
-  nrows : int;
+  arrow_table : Arrow_table.t;
   group_keys : string list;
 }
 
@@ -183,10 +182,11 @@ module Utils = struct
     | VVector arr ->
         let items = Array.to_list arr |> List.map value_to_string in
         "Vector[" ^ String.concat ", " items ^ "]"
-    | VDataFrame { columns; nrows; group_keys } ->
-        let col_names = List.map fst columns in
+    | VDataFrame { arrow_table; group_keys } ->
+        let col_names = Arrow_table.column_names arrow_table in
         let base = Printf.sprintf "DataFrame(%d rows x %d cols: [%s])"
-          nrows (List.length columns) (String.concat ", " col_names) in
+          (Arrow_table.num_rows arrow_table) (Arrow_table.num_columns arrow_table)
+          (String.concat ", " col_names) in
         if group_keys = [] then base
         else Printf.sprintf "%s grouped by [%s]" base (String.concat ", " group_keys)
     | VPipeline { p_nodes; _ } ->

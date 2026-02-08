@@ -150,10 +150,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env3) = eval_string_env (Printf.sprintf {|df3 = read_csv("%s")|} csv_path_na) env in
   let (v, _) = eval_string_env "df3.x" env3 in
   let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1, NA, 3]" then begin
+  if result = "Vector[1, NA(Int), 3]" then begin
     incr pass_count; Printf.printf "  ✓ NA values preserved in CSV import\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ NA values preserved in CSV import\n    Expected: Vector[1, NA, 3]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ NA values preserved in CSV import\n    Expected: Vector[1, NA(Int), 3]\n    Got: %s\n" result
   end;
   print_newline ();
 

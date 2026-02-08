@@ -30,10 +30,15 @@
             ocamlVersion.findlib
             pkgs.dune_3
             ocamlVersion.menhir
+            # Arrow C GLib for DataFrame backend (Phase 1)
+            pkgs.pkg-config
           ];
 
           buildInputs = [
             ocamlVersion.menhirLib
+            # Arrow C GLib — Apache Arrow columnar data library
+            # Provides GArrowTable, GArrowCSVReader, GArrowCompute
+            pkgs.arrow-glib
           ];
 
           buildPhase = ''
@@ -98,6 +103,12 @@
             ocamlVersion.ocamlformat
             # RPC version needed for Dune to run the formatter automatically.
             ocamlVersion.ocamlformat-rpc-lib
+
+            # 3. Arrow C GLib — Apache Arrow columnar data library
+            # -------------------------------------------------------
+            # Required for Arrow-backed DataFrame operations.
+            pkgs.arrow-glib
+            pkgs.pkg-config
           ];
 
           shellHook = ''
