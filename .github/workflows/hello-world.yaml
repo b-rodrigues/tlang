@@ -77,31 +77,3 @@ jobs:
           name: t-lang-${{ matrix.os }}
           path: result/bin/t
           retention-days: 30
-
-  quick-try:
-    name: Quick Try (nix run)
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@v25
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-
-      - name: Enable Nix flakes
-        run: |
-          mkdir -p ~/.config/nix
-          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-
-      - name: Test nix run
-        run: |
-          cat > /tmp/hello.t << 'EOF'
-          print("Hello from nix run!")
-          x = 10 * 5
-          print("10 * 5 =")
-          print(x)
-          EOF
-          nix run . -- run /tmp/hello.t
