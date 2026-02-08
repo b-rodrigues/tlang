@@ -2,6 +2,9 @@ name: Build and Test T
 
 on:
   push:
+    branches:
+      - main
+      - master
   pull_request:
   workflow_dispatch:
 
@@ -34,15 +37,6 @@ jobs:
         run: |
           ls -la result/bin/
           file result/bin/t
-
-      - name: Run hello world test
-        run: |
-          echo 'Testing T language REPL...'
-          echo 'print("Hello from T!")' | ./result/bin/t run /dev/stdin || {
-            echo 'Direct stdin test failed, trying with temp file...'
-            echo 'print("Hello from T!")' > /tmp/hello.t
-            ./result/bin/t run /tmp/hello.t
-          }
 
       - name: Run basic arithmetic test
         run: |

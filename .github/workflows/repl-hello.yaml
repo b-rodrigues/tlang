@@ -1,0 +1,51 @@
+name: REPL Hello Test
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repl-hello:
+    name: REPL Hello on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Enable Nix flakes
+        run: |
+          mkdir -p ~/.config/nix
+          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+
+      - name: Build T language
+        run: nix build
+
+      - name: Check executable exists
+        run: |
+          ls -la result/bin/
+          file result/bin/t
+
+      - name: Run hello world test
+        run: |
+          echo 'Testing T language REPL...'
+          echo 'print("Hello from T!")' | ./result/bin/t run /dev/stdin || {
+            echo 'Direct stdin test failed, trying with temp file...'
+            echo 'print("Hello from T!")' > /tmp/hello.t
+            ./result/bin/t run /tmp/hello.t
+          }
