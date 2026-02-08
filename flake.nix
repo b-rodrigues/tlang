@@ -97,7 +97,7 @@
             # The standard OCaml code formatter to keep your code clean.
             ocamlVersion.ocamlformat
             # RPC version needed for Dune to run the formatter automatically.
-            ocamlVersion.ocamlformat-rpc
+            ocamlVersion.ocamlformat-rpc-lib
           ];
 
           shellHook = ''
