@@ -21,7 +21,7 @@
         # Build the T language executable
         t-lang = pkgs.stdenv.mkDerivation {
           pname = "t-lang";
-          version = "0.1.0-alpha";
+          version = "0.5.0-alpha";
 
           src = ./.;
 
@@ -108,6 +108,9 @@
             echo "Available commands:"
             echo "  dune build           - Build the project"
             echo "  dune exec src/repl.exe - Start the T REPL"
+            echo "  dune exec src/repl.exe -- repl  - Start REPL explicitly"
+            echo "  dune exec src/repl.exe -- run file.t  - Run a T file"
+            echo "  dune exec src/repl.exe -- --help  - Show CLI help"
             echo "  dune test            - Run tests"
             echo "  dune clean           - Clean build artifacts"
             echo ""

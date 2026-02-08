@@ -542,6 +542,9 @@ let initial_env () : environment =
   let env = Intent_get.register env in
   let env = T_explain.register env in
   let env = Explain_json.register ~eval_call env in
+  (* Phase 7: Pretty-print and packages *)
+  let env = Pretty_print.register env in
+  let env = Packages.register env in
   env
 
 let eval_program (program : program) (env : environment) : value * environment =

@@ -1,5 +1,9 @@
 (* src/repl.ml *)
-(* Interactive REPL for the T language — Phase 0 Alpha *)
+(* CLI and interactive REPL for the T language — Phase 7 Alpha *)
+
+let version = "0.5.0-alpha"
+
+(* --- Parsing and Evaluation --- *)
 
 let parse_and_eval env input =
   let lexbuf = Lexing.from_string input in
@@ -26,80 +30,212 @@ let run_file filename env =
   with
   | Sys_error msg -> (Ast.VError { code = Ast.FileError; message = "File Error: " ^ msg; context = [] }, env)
 
+(* --- Multi-line Input Detection --- *)
+
+(** Count unmatched opening brackets/parens/braces in a string *)
+let count_open_delimiters s =
+  let depth = ref 0 in
+  let in_string = ref false in
+  let string_char = ref '"' in
+  for i = 0 to String.length s - 1 do
+    let c = s.[i] in
+    if !in_string then begin
+      if c = !string_char then in_string := false
+    end else begin
+      match c with
+      | '"' | '\'' -> in_string := true; string_char := c
+      | '(' | '[' | '{' -> incr depth
+      | ')' | ']' | '}' -> decr depth
+      | _ -> ()
+    end
+  done;
+  !depth
+
+(** Check if input appears to be an incomplete expression *)
+let is_incomplete input =
+  let trimmed = String.trim input in
+  if trimmed = "" then false
+  else
+    (* Unclosed delimiters *)
+    let open_count = count_open_delimiters trimmed in
+    if open_count > 0 then true
+    (* Trailing pipe operator *)
+    else
+      let len = String.length trimmed in
+      (len >= 2 && String.sub trimmed (len - 2) 2 = "|>")
+
+(* --- Pretty-Printing for REPL --- *)
+
+(** Pretty-print a value for REPL display *)
+let repl_display_value v =
+  match v with
+  | Ast.VNull -> ()
+  | Ast.VError _ ->
+      print_string (Pretty_print.pretty_print_value v)
+  | Ast.VDataFrame _ | Ast.VPipeline _ ->
+      print_string (Pretty_print.pretty_print_value v)
+  | v -> print_endline (Ast.Utils.value_to_string v)
+
+(* --- CLI Commands --- *)
+
+let print_help () =
+  Printf.printf "T language — version %s\n\n" version;
+  Printf.printf "Usage: t <command> [arguments]\n\n";
+  Printf.printf "Commands:\n";
+  Printf.printf "  repl              Start the interactive REPL\n";
+  Printf.printf "  run <file.t>      Execute a T source file\n";
+  Printf.printf "  explain <expr>    Explain a value or expression\n";
+  Printf.printf "  --help, -h        Show this help message\n";
+  Printf.printf "  --version, -v     Show version information\n";
+  Printf.printf "\nStandard packages (loaded by default):\n";
+  Printf.printf "  core              Printing, type inspection, data structures\n";
+  Printf.printf "  math              Pure numerical primitives (sqrt, abs, log, exp, pow)\n";
+  Printf.printf "  stats             Statistical summaries and models (mean, sd, lm, ...)\n";
+  Printf.printf "  colcraft          DataFrame manipulation (select, filter, mutate, ...)\n";
+  Printf.printf "  dataframe         DataFrame creation and introspection\n";
+  Printf.printf "  base              Assertions, NA handling, error utilities\n";
+  Printf.printf "  pipeline          Pipeline definition and introspection\n";
+  Printf.printf "  explain           Value introspection and intent blocks\n";
+  Printf.printf "\nExamples:\n";
+  Printf.printf "  t repl\n";
+  Printf.printf "  t run analysis.t\n";
+  Printf.printf "  t explain 'read_csv(\"data.csv\")'\n"
+
+let print_version () =
+  Printf.printf "T language version %s\n" version
+
+let cmd_run filename env =
+  let (result, _env) = run_file filename env in
+  match result with
+  | Ast.VError { code; message; _ } ->
+      Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
+  | Ast.VNull -> ()
+  | v -> print_endline (Ast.Utils.value_to_string v)
+
+let cmd_explain rest env =
+  let is_json = List.mem "--json" rest in
+  let expr_parts = List.filter (fun s -> s <> "--json") rest in
+  let expr_str = String.concat " " expr_parts in
+  if expr_str = "" then begin
+    Printf.eprintf "Usage: t explain <expression> [--json]\n"; exit 1
+  end else begin
+    let (result, env') = parse_and_eval env expr_str in
+    match result with
+    | Ast.VError { code; message; _ } ->
+        Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
+    | _ ->
+        let explain_expr = Printf.sprintf "explain(__explain_target__)" in
+        let env'' = Ast.Env.add "__explain_target__" result env' in
+        let (explain_result, _) = parse_and_eval env'' explain_expr in
+        if is_json then
+          print_endline (Ast.Utils.value_to_string explain_result)
+        else begin
+          let rec print_dict indent pairs =
+            List.iter (fun (k, v) ->
+              match v with
+              | Ast.VDict sub_pairs ->
+                  Printf.printf "%s%s:\n" indent k;
+                  print_dict (indent ^ "  ") sub_pairs
+              | Ast.VList items ->
+                  Printf.printf "%s%s: [%s]\n" indent k
+                    (String.concat ", " (List.map (fun (_, item) -> Ast.Utils.value_to_string item) items))
+              | _ ->
+                  Printf.printf "%s%s: %s\n" indent k (Ast.Utils.value_to_string v)
+            ) pairs
+          in
+          match explain_result with
+          | Ast.VDict pairs -> print_dict "" pairs
+          | Ast.VError { code; message; _ } ->
+              Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
+          | v -> print_endline (Ast.Utils.value_to_string v)
+        end
+  end
+
+(* --- Interactive REPL --- *)
+
+let cmd_repl env =
+  Printf.printf "T language REPL — version %s\n" version;
+  Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
+  let rec repl env =
+    print_string "T> ";
+    flush stdout;
+    match input_line stdin with
+    | exception End_of_file ->
+        print_endline "\nGoodbye."
+    | line ->
+        let trimmed = String.trim line in
+        if trimmed = "" then repl env
+        else if trimmed = ":quit" || trimmed = ":q" then
+          print_endline "Exiting T REPL."
+        else if trimmed = ":help" || trimmed = ":h" then begin
+          Printf.printf "REPL commands:\n";
+          Printf.printf "  :quit, :q     Exit the REPL\n";
+          Printf.printf "  :help, :h     Show this help\n";
+          Printf.printf "  :version      Show version\n";
+          Printf.printf "  :packages     List loaded packages\n";
+          Printf.printf "\nMulti-line input:\n";
+          Printf.printf "  Expressions with unclosed (, [, { or trailing |>\n";
+          Printf.printf "  automatically continue on the next line.\n\n";
+          repl env
+        end
+        else if trimmed = ":version" then begin
+          Printf.printf "T language version %s\n" version;
+          repl env
+        end
+        else if trimmed = ":packages" then begin
+          List.iter (fun (pkg : Packages.package_info) ->
+            Printf.printf "  %-12s  %s\n" pkg.name pkg.description
+          ) Packages.all_packages;
+          print_newline ();
+          repl env
+        end
+        else begin
+          (* Multi-line input: accumulate lines while expression is incomplete *)
+          let rec read_multiline acc =
+            let combined = acc in
+            if is_incomplete combined then begin
+              print_string ".. ";
+              flush stdout;
+              match input_line stdin with
+              | exception End_of_file ->
+                  combined  (* Return what we have *)
+              | next_line ->
+                  (* If the previous line ends with |>, move it to the start of
+                     the next line so the lexer recognizes the continuation *)
+                  let trimmed_acc = String.trim combined in
+                  let len = String.length trimmed_acc in
+                  if len >= 2 && String.sub trimmed_acc (len - 2) 2 = "|>" then
+                    let prefix = String.sub combined 0 (String.length combined - 2) in
+                    read_multiline (String.trim prefix ^ "\n  |> " ^ next_line)
+                  else
+                    read_multiline (combined ^ "\n" ^ next_line)
+            end else
+              combined
+          in
+          let full_input = read_multiline trimmed in
+          let (result, new_env) = parse_and_eval env full_input in
+          repl_display_value result;
+          repl new_env
+        end
+  in
+  repl env
+
+(* --- Entry Point --- *)
+
 let () =
-  (* Check for command-line arguments *)
   let args = Array.to_list Sys.argv in
   let env = Eval.initial_env () in
   match args with
-  | _ :: "run" :: filename :: _ ->
-      let (result, _env) = run_file filename env in
-      (match result with
-       | Ast.VError { code; message; _ } ->
-           Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
-       | Ast.VNull -> ()
-       | v -> print_endline (Ast.Utils.value_to_string v))
-  | _ :: "explain" :: rest ->
-      (* Phase 6: t explain <expr> [--json] *)
-      let is_json = List.mem "--json" rest in
-      let expr_parts = List.filter (fun s -> s <> "--json") rest in
-      let expr_str = String.concat " " expr_parts in
-      if expr_str = "" then begin
-        Printf.eprintf "Usage: t explain <expression> [--json]\n"; exit 1
-      end else begin
-        let (result, env') = parse_and_eval env expr_str in
-        match result with
-        | Ast.VError { code; message; _ } ->
-            Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
-        | _ ->
-            let explain_expr = Printf.sprintf "explain(__explain_target__)" in
-            let env'' = Ast.Env.add "__explain_target__" result env' in
-            let (explain_result, _) = parse_and_eval env'' explain_expr in
-            if is_json then
-              print_endline (Ast.Utils.value_to_string explain_result)
-            else begin
-              (* Pretty-print explain output *)
-              let rec print_dict indent pairs =
-                List.iter (fun (k, v) ->
-                  match v with
-                  | Ast.VDict sub_pairs ->
-                      Printf.printf "%s%s:\n" indent k;
-                      print_dict (indent ^ "  ") sub_pairs
-                  | Ast.VList items ->
-                      Printf.printf "%s%s: [%s]\n" indent k
-                        (String.concat ", " (List.map (fun (_, item) -> Ast.Utils.value_to_string item) items))
-                  | _ ->
-                      Printf.printf "%s%s: %s\n" indent k (Ast.Utils.value_to_string v)
-                ) pairs
-              in
-              match explain_result with
-              | Ast.VDict pairs -> print_dict "" pairs
-              | Ast.VError { code; message; _ } ->
-                  Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
-              | v -> print_endline (Ast.Utils.value_to_string v)
-            end
-      end
-  | _ ->
-      (* Interactive REPL mode *)
-      Printf.printf "T language REPL — version 0.4 (Phase 6 Alpha)\n";
-      Printf.printf "Type :quit or :q to exit.\n\n";
-      let rec repl env =
-        print_string "T> ";
-        flush stdout;
-        match input_line stdin with
-        | exception End_of_file ->
-            print_endline "\nGoodbye."
-        | line ->
-            let trimmed = String.trim line in
-            if trimmed = "" then repl env
-            else if trimmed = ":quit" || trimmed = ":q" then
-              print_endline "Exiting T REPL."
-            else begin
-              let (result, new_env) = parse_and_eval env trimmed in
-              (match result with
-               | Ast.VNull -> ()
-               | Ast.VError { code; message; _ } -> Printf.printf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message
-               | v -> print_endline (Ast.Utils.value_to_string v));
-              repl new_env
-            end
-      in
-      repl env
+  | _ :: "run" :: filename :: _ -> cmd_run filename env
+  | _ :: "repl" :: _ -> cmd_repl env
+  | _ :: "explain" :: rest -> cmd_explain rest env
+  | _ :: "--help" :: _ | _ :: "-h" :: _ -> print_help ()
+  | _ :: "--version" :: _ | _ :: "-v" :: _ -> print_version ()
+  | [_] ->
+      (* No arguments: start the REPL (default behavior) *)
+      cmd_repl env
+  | _ :: unknown :: _ ->
+      Printf.eprintf "Unknown command: %s\n" unknown;
+      Printf.eprintf "Run 't --help' for usage information.\n";
+      exit 1
+  | [] -> cmd_repl env
