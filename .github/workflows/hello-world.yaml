@@ -1,0 +1,107 @@
+name: Build and Test T
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Enable Nix flakes
+        run: |
+          mkdir -p ~/.config/nix
+          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+
+      - name: Build T language
+        run: nix build
+
+      - name: Check executable exists
+        run: |
+          ls -la result/bin/
+          file result/bin/t
+
+      - name: Run hello world test
+        run: |
+          echo 'Testing T language REPL...'
+          echo 'print("Hello from T!")' | ./result/bin/t run /dev/stdin || {
+            echo 'Direct stdin test failed, trying with temp file...'
+            echo 'print("Hello from T!")' > /tmp/hello.t
+            ./result/bin/t run /tmp/hello.t
+          }
+
+      - name: Run basic arithmetic test
+        run: |
+          cat > /tmp/test.t << 'EOF'
+x = 2 + 2
+print("2 + 2 =")
+print(x)
+EOF
+          ./result/bin/t run /tmp/test.t
+
+      - name: Run function test
+        run: |
+          cat > /tmp/test_func.t << 'EOF'
+square = \(x) x * x
+result = square(5)
+print("square(5) =")
+print(result)
+EOF
+          ./result/bin/t run /tmp/test_func.t
+
+      - name: Run comprehensive CI test script
+        run: ./result/bin/t run examples/ci_test.t
+
+      - name: Run test suite
+        run: nix develop --command dune test
+
+      - name: Upload T executable as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: t-lang-${{ matrix.os }}
+          path: result/bin/t
+          retention-days: 30
+
+  quick-try:
+    name: Quick Try (nix run)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Enable Nix flakes
+        run: |
+          mkdir -p ~/.config/nix
+          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+
+      - name: Test nix run
+        run: |
+          cat > /tmp/hello.t << 'EOF'
+          print("Hello from nix run!")
+          x = 10 * 5
+          print("10 * 5 =")
+          print(x)
+          EOF
+          nix run . -- run /tmp/hello.t
