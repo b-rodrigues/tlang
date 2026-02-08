@@ -9,7 +9,7 @@ type param_info = { names: string list; has_variadic: bool }
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE FOR IN FUNCTION TRUE FALSE NULL NA
+%token IF ELSE FOR IN FUNCTION PIPELINE TRUE FALSE NULL NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -153,6 +153,7 @@ primary_expr:
   | d = dict_lit { d }
   | l = lambda_expr { l }
   | i = if_expr { i }
+  | p = pipeline_expr { p }
   ;
 
 lambda_expr:
@@ -178,6 +179,22 @@ params:
 if_expr:
   | IF LPAREN cond = expr RPAREN then_ = primary_expr ELSE else_ = primary_expr
     { IfElse { cond; then_; else_ } }
+  ;
+
+pipeline_expr:
+  | PIPELINE LBRACE skip_sep nodes = pipeline_node_list RBRACE
+    { PipelineDef nodes }
+  ;
+
+pipeline_node_list:
+  | { [] }
+  | n = pipeline_node skip_sep { [n] }
+  | n = pipeline_node sep skip_sep rest = pipeline_node_list { n :: rest }
+  ;
+
+pipeline_node:
+  | name = any_ident EQUALS e = expr
+    { { node_name = name; node_expr = e } }
   ;
 
 list_lit:
