@@ -1,3 +1,3 @@
-(* In your OCaml init code *)
-Hashtbl.replace global_env "select" (VBuiltin select_function)
- 
+(* colcraft — core data manipulation verbs for T *)
+(* Phase 4: select, filter, mutate, arrange, group_by, summarize *)
+(* These verbs are registered as builtins in eval.ml *)

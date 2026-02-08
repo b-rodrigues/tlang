@@ -36,10 +36,11 @@ type error_info = {
   context : (string * value) list;
 }
 
-(** Placeholder DataFrame type for Phase 2 *)
+(** DataFrame type — Phase 2 base, Phase 4 adds group_keys *)
 and dataframe = {
   columns : (string * value array) list;
   nrows : int;
+  group_keys : string list;
 }
 
 (** Phase 3: Pipeline node definition *)
@@ -173,10 +174,12 @@ module Utils = struct
     | VVector arr ->
         let items = Array.to_list arr |> List.map value_to_string in
         "Vector[" ^ String.concat ", " items ^ "]"
-    | VDataFrame { columns; nrows } ->
+    | VDataFrame { columns; nrows; group_keys } ->
         let col_names = List.map fst columns in
-        Printf.sprintf "DataFrame(%d rows x %d cols: [%s])"
-          nrows (List.length columns) (String.concat ", " col_names)
+        let base = Printf.sprintf "DataFrame(%d rows x %d cols: [%s])"
+          nrows (List.length columns) (String.concat ", " col_names) in
+        if group_keys = [] then base
+        else Printf.sprintf "%s grouped by [%s]" base (String.concat ", " group_keys)
     | VPipeline { p_nodes; _ } ->
         let node_names = List.map fst p_nodes in
         Printf.sprintf "Pipeline(%d nodes: [%s])"
