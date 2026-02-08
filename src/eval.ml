@@ -365,7 +365,7 @@ let builtins : (string * value) list = [
   ("error_context", make_builtin 1 (fun args _env ->
     match args with
     | [VError { context; _ }] ->
-        VDict (List.map (fun (k, v) -> (k, v)) context)
+        VDict context
     | [_] -> make_error TypeError "error_context() expects an Error value"
     | _ -> make_error ArityError "error_context() takes exactly 1 argument"
   ));
