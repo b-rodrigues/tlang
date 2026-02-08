@@ -8,7 +8,7 @@
  *   - Takes a DataFrame and one or more string column names
  *   - Returns a new DataFrame with only the specified columns
  *   - Preserves column order as specified in arguments
- *   - Preserves group_keys if the grouped columns are still present
+ *   - Preserves group_keys only for grouped columns that remain in the selection
  *   - Returns explicit KeyError for missing columns
  *
  * Examples:

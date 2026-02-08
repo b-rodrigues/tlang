@@ -700,7 +700,6 @@ let builtins : (string * value) list = [
 
   (* --- Phase 4: Core Data Verbs (colcraft) --- *)
 
-  (* Helper: extract a single row from a DataFrame as a VDict *)
   (* select(df, "col1", "col2", ...) — column selection by name *)
   ("select", make_builtin ~variadic:true 1 (fun args _env ->
     match args with
@@ -719,7 +718,8 @@ let builtins : (string * value) list = [
              make_error KeyError (Printf.sprintf "Column(s) not found: %s" (String.concat ", " missing))
            else
              let selected = List.map (fun n -> (n, List.assoc n df.columns)) names in
-             VDataFrame { columns = selected; nrows = df.nrows; group_keys = df.group_keys })
+             let remaining_keys = List.filter (fun k -> List.mem k names) df.group_keys in
+             VDataFrame { columns = selected; nrows = df.nrows; group_keys = remaining_keys })
     | [_] -> make_error TypeError "select() expects a DataFrame as first argument"
     | _ -> make_error ArityError "select() requires a DataFrame and at least one column name"
   ));
