@@ -1279,6 +1279,7 @@ let builtins : (string * value) list = [
   ));
 
   (* summarize(df, "result_col", agg_fn, ...) — aggregation, pairs of name+fn *)
+  ("summarize", make_builtin ~variadic:true 1 (fun args env ->
     match args with
     | VDataFrame df :: summary_args ->
         (* Parse pairs of (col_name_string, agg_function) *)
