@@ -870,8 +870,415 @@ let builtins : (string * value) list = [
     | _ -> make_error ArityError "group_by() requires a DataFrame and at least one column name"
   ));
 
+  (* --- Phase 5: Math Package — pure numerical primitives --- *)
+
+  (* sqrt(x) — square root, scalar or vector *)
+  ("sqrt", make_builtin 1 (fun args _env ->
+    match args with
+    | [VInt n] ->
+        if n < 0 then make_error ValueError "sqrt() is undefined for negative numbers"
+        else VFloat (Float.sqrt (float_of_int n))
+    | [VFloat f] ->
+        if f < 0.0 then make_error ValueError "sqrt() is undefined for negative numbers"
+        else VFloat (Float.sqrt f)
+    | [VVector arr] ->
+        let result = Array.make (Array.length arr) VNull in
+        let had_error = ref None in
+        Array.iteri (fun i v ->
+          if !had_error = None then
+            match v with
+            | VInt n ->
+                if n < 0 then had_error := Some (make_error ValueError "sqrt() is undefined for negative numbers")
+                else result.(i) <- VFloat (Float.sqrt (float_of_int n))
+            | VFloat f ->
+                if f < 0.0 then had_error := Some (make_error ValueError "sqrt() is undefined for negative numbers")
+                else result.(i) <- VFloat (Float.sqrt f)
+            | VNA _ -> had_error := Some (make_error TypeError "sqrt() encountered NA value. Handle missingness explicitly.")
+            | _ -> had_error := Some (make_error TypeError "sqrt() requires numeric values")
+        ) arr;
+        (match !had_error with Some e -> e | None -> VVector result)
+    | [VNA _] -> make_error TypeError "sqrt() encountered NA value. Handle missingness explicitly."
+    | [_] -> make_error TypeError "sqrt() expects a number or numeric Vector"
+    | _ -> make_error ArityError "sqrt() takes exactly 1 argument"
+  ));
+
+  (* abs(x) — absolute value, scalar or vector *)
+  ("abs", make_builtin 1 (fun args _env ->
+    match args with
+    | [VInt n] -> VInt (Int.abs n)
+    | [VFloat f] -> VFloat (Float.abs f)
+    | [VVector arr] ->
+        let result = Array.make (Array.length arr) VNull in
+        let had_error = ref None in
+        Array.iteri (fun i v ->
+          if !had_error = None then
+            match v with
+            | VInt n -> result.(i) <- VInt (Int.abs n)
+            | VFloat f -> result.(i) <- VFloat (Float.abs f)
+            | VNA _ -> had_error := Some (make_error TypeError "abs() encountered NA value. Handle missingness explicitly.")
+            | _ -> had_error := Some (make_error TypeError "abs() requires numeric values")
+        ) arr;
+        (match !had_error with Some e -> e | None -> VVector result)
+    | [VNA _] -> make_error TypeError "abs() encountered NA value. Handle missingness explicitly."
+    | [_] -> make_error TypeError "abs() expects a number or numeric Vector"
+    | _ -> make_error ArityError "abs() takes exactly 1 argument"
+  ));
+
+  (* log(x) — natural logarithm, scalar or vector *)
+  ("log", make_builtin 1 (fun args _env ->
+    match args with
+    | [VInt n] ->
+        if n <= 0 then make_error ValueError "log() is undefined for non-positive numbers"
+        else VFloat (Float.log (float_of_int n))
+    | [VFloat f] ->
+        if f <= 0.0 then make_error ValueError "log() is undefined for non-positive numbers"
+        else VFloat (Float.log f)
+    | [VVector arr] ->
+        let result = Array.make (Array.length arr) VNull in
+        let had_error = ref None in
+        Array.iteri (fun i v ->
+          if !had_error = None then
+            match v with
+            | VInt n ->
+                if n <= 0 then had_error := Some (make_error ValueError "log() is undefined for non-positive numbers")
+                else result.(i) <- VFloat (Float.log (float_of_int n))
+            | VFloat f ->
+                if f <= 0.0 then had_error := Some (make_error ValueError "log() is undefined for non-positive numbers")
+                else result.(i) <- VFloat (Float.log f)
+            | VNA _ -> had_error := Some (make_error TypeError "log() encountered NA value. Handle missingness explicitly.")
+            | _ -> had_error := Some (make_error TypeError "log() requires numeric values")
+        ) arr;
+        (match !had_error with Some e -> e | None -> VVector result)
+    | [VNA _] -> make_error TypeError "log() encountered NA value. Handle missingness explicitly."
+    | [_] -> make_error TypeError "log() expects a number or numeric Vector"
+    | _ -> make_error ArityError "log() takes exactly 1 argument"
+  ));
+
+  (* exp(x) — exponential, scalar or vector *)
+  ("exp", make_builtin 1 (fun args _env ->
+    match args with
+    | [VInt n] -> VFloat (Float.exp (float_of_int n))
+    | [VFloat f] -> VFloat (Float.exp f)
+    | [VVector arr] ->
+        let result = Array.make (Array.length arr) VNull in
+        let had_error = ref None in
+        Array.iteri (fun i v ->
+          if !had_error = None then
+            match v with
+            | VInt n -> result.(i) <- VFloat (Float.exp (float_of_int n))
+            | VFloat f -> result.(i) <- VFloat (Float.exp f)
+            | VNA _ -> had_error := Some (make_error TypeError "exp() encountered NA value. Handle missingness explicitly.")
+            | _ -> had_error := Some (make_error TypeError "exp() requires numeric values")
+        ) arr;
+        (match !had_error with Some e -> e | None -> VVector result)
+    | [VNA _] -> make_error TypeError "exp() encountered NA value. Handle missingness explicitly."
+    | [_] -> make_error TypeError "exp() expects a number or numeric Vector"
+    | _ -> make_error ArityError "exp() takes exactly 1 argument"
+  ));
+
+  (* pow(base, exponent) — power function, scalar or vector *)
+  ("pow", make_builtin 2 (fun args _env ->
+    match args with
+    | [VInt b; VInt e] -> VFloat (Float.pow (float_of_int b) (float_of_int e))
+    | [VFloat b; VInt e] -> VFloat (Float.pow b (float_of_int e))
+    | [VInt b; VFloat e] -> VFloat (Float.pow (float_of_int b) e)
+    | [VFloat b; VFloat e] -> VFloat (Float.pow b e)
+    | [VVector arr; exp_val] ->
+        let exp_f = match exp_val with
+          | VInt n -> Some (float_of_int n)
+          | VFloat f -> Some f
+          | _ -> None
+        in
+        (match exp_f with
+         | None -> make_error TypeError "pow() expects a numeric exponent"
+         | Some e ->
+           let result = Array.make (Array.length arr) VNull in
+           let had_error = ref None in
+           Array.iteri (fun i v ->
+             if !had_error = None then
+               match v with
+               | VInt n -> result.(i) <- VFloat (Float.pow (float_of_int n) e)
+               | VFloat f -> result.(i) <- VFloat (Float.pow f e)
+               | VNA _ -> had_error := Some (make_error TypeError "pow() encountered NA value. Handle missingness explicitly.")
+               | _ -> had_error := Some (make_error TypeError "pow() requires numeric values")
+           ) arr;
+           (match !had_error with Some e -> e | None -> VVector result))
+    | [VNA _; _] | [_; VNA _] -> make_error TypeError "pow() encountered NA value. Handle missingness explicitly."
+    | [_; _] -> make_error TypeError "pow() expects numeric arguments"
+    | _ -> make_error ArityError "pow() takes exactly 2 arguments"
+  ));
+
+  (* --- Phase 5: Stats Package — statistical summaries and models --- *)
+
+  (* mean(v) — arithmetic mean of a numeric vector or list *)
+  ("mean", make_builtin 1 (fun args _env ->
+    let extract_nums label vals =
+      let rec go acc = function
+        | [] -> Ok (List.rev acc)
+        | (_, VInt n) :: rest -> go (float_of_int n :: acc) rest
+        | (_, VFloat f) :: rest -> go (f :: acc) rest
+        | (_, VNA _) :: _ -> Error (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
+        | _ -> Error (make_error TypeError (label ^ "() requires numeric values"))
+      in go [] vals
+    in
+    let extract_nums_arr label arr =
+      let len = Array.length arr in
+      let had_error = ref None in
+      let result = Array.make len 0.0 in
+      for i = 0 to len - 1 do
+        if !had_error = None then
+          match arr.(i) with
+          | VInt n -> result.(i) <- float_of_int n
+          | VFloat f -> result.(i) <- f
+          | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
+          | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+      done;
+      match !had_error with Some e -> Error e | None -> Ok result
+    in
+    match args with
+    | [VList []] -> make_error ValueError "mean() called on empty list"
+    | [VList items] ->
+        (match extract_nums "mean" items with
+         | Error e -> e
+         | Ok nums ->
+           let sum = List.fold_left ( +. ) 0.0 nums in
+           VFloat (sum /. float_of_int (List.length nums)))
+    | [VVector arr] when Array.length arr = 0 -> make_error ValueError "mean() called on empty vector"
+    | [VVector arr] ->
+        (match extract_nums_arr "mean" arr with
+         | Error e -> e
+         | Ok nums ->
+           let sum = Array.fold_left ( +. ) 0.0 nums in
+           VFloat (sum /. float_of_int (Array.length nums)))
+    | [VNA _] -> make_error TypeError "mean() encountered NA value. Handle missingness explicitly."
+    | [_] -> make_error TypeError "mean() expects a numeric List or Vector"
+    | _ -> make_error ArityError "mean() takes exactly 1 argument"
+  ));
+
+  (* sd(v) — standard deviation of a numeric vector or list (sample sd, n-1) *)
+  ("sd", make_builtin 1 (fun args _env ->
+    let extract_nums_arr label arr =
+      let len = Array.length arr in
+      let had_error = ref None in
+      let result = Array.make len 0.0 in
+      for i = 0 to len - 1 do
+        if !had_error = None then
+          match arr.(i) with
+          | VInt n -> result.(i) <- float_of_int n
+          | VFloat f -> result.(i) <- f
+          | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
+          | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+      done;
+      match !had_error with Some e -> Error e | None -> Ok result
+    in
+    let compute_sd nums n =
+      if n < 2 then make_error ValueError "sd() requires at least 2 values"
+      else
+        let mean = Array.fold_left ( +. ) 0.0 nums /. float_of_int n in
+        let sum_sq = Array.fold_left (fun acc x -> acc +. (x -. mean) *. (x -. mean)) 0.0 nums in
+        VFloat (Float.sqrt (sum_sq /. float_of_int (n - 1)))
+    in
+    match args with
+    | [VList items] ->
+        let arr = Array.of_list (List.map snd items) in
+        (match extract_nums_arr "sd" arr with
+         | Error e -> e
+         | Ok nums -> compute_sd nums (Array.length nums))
+    | [VVector arr] ->
+        (match extract_nums_arr "sd" arr with
+         | Error e -> e
+         | Ok nums -> compute_sd nums (Array.length nums))
+    | [VNA _] -> make_error TypeError "sd() encountered NA value. Handle missingness explicitly."
+    | [_] -> make_error TypeError "sd() expects a numeric List or Vector"
+    | _ -> make_error ArityError "sd() takes exactly 1 argument"
+  ));
+
+  (* quantile(v, p) — quantile at probability p (0 to 1) using linear interpolation *)
+  ("quantile", make_builtin 2 (fun args _env ->
+    let extract_nums_arr label arr =
+      let len = Array.length arr in
+      let had_error = ref None in
+      let result = Array.make len 0.0 in
+      for i = 0 to len - 1 do
+        if !had_error = None then
+          match arr.(i) with
+          | VInt n -> result.(i) <- float_of_int n
+          | VFloat f -> result.(i) <- f
+          | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
+          | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+      done;
+      match !had_error with Some e -> Error e | None -> Ok result
+    in
+    let get_p = function
+      | VFloat f -> if f < 0.0 || f > 1.0 then None else Some f
+      | VInt 0 -> Some 0.0
+      | VInt 1 -> Some 1.0
+      | _ -> None
+    in
+    let compute_quantile nums p =
+      let n = Array.length nums in
+      if n = 0 then make_error ValueError "quantile() called on empty data"
+      else begin
+        let sorted = Array.copy nums in
+        Array.sort compare sorted;
+        let h = p *. float_of_int (n - 1) in
+        let lo = int_of_float (Float.floor h) in
+        let hi = min (lo + 1) (n - 1) in
+        let frac = h -. float_of_int lo in
+        VFloat (sorted.(lo) +. frac *. (sorted.(hi) -. sorted.(lo)))
+      end
+    in
+    match args with
+    | [VVector arr; p_val] ->
+        (match get_p p_val with
+         | None -> make_error ValueError "quantile() expects a probability between 0 and 1"
+         | Some p ->
+           (match extract_nums_arr "quantile" arr with
+            | Error e -> e
+            | Ok nums -> compute_quantile nums p))
+    | [VList items; p_val] ->
+        (match get_p p_val with
+         | None -> make_error ValueError "quantile() expects a probability between 0 and 1"
+         | Some p ->
+           let arr = Array.of_list (List.map snd items) in
+           (match extract_nums_arr "quantile" arr with
+            | Error e -> e
+            | Ok nums -> compute_quantile nums p))
+    | [VNA _; _] | [_; VNA _] -> make_error TypeError "quantile() encountered NA value. Handle missingness explicitly."
+    | [_; _] -> make_error TypeError "quantile() expects a numeric List or Vector as first argument"
+    | _ -> make_error ArityError "quantile() takes exactly 2 arguments"
+  ));
+
+  (* cor(v1, v2) — Pearson correlation coefficient between two numeric vectors *)
+  ("cor", make_builtin 2 (fun args _env ->
+    let extract_nums_arr label arr =
+      let len = Array.length arr in
+      let had_error = ref None in
+      let result = Array.make len 0.0 in
+      for i = 0 to len - 1 do
+        if !had_error = None then
+          match arr.(i) with
+          | VInt n -> result.(i) <- float_of_int n
+          | VFloat f -> result.(i) <- f
+          | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
+          | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+      done;
+      match !had_error with Some e -> Error e | None -> Ok result
+    in
+    let to_arr = function
+      | VVector arr -> Some arr
+      | VList items -> Some (Array.of_list (List.map snd items))
+      | _ -> None
+    in
+    match args with
+    | [v1; v2] ->
+        (match (to_arr v1, to_arr v2) with
+         | (None, _) | (_, None) ->
+             (match (v1, v2) with
+              | (VNA _, _) | (_, VNA _) -> make_error TypeError "cor() encountered NA value. Handle missingness explicitly."
+              | _ -> make_error TypeError "cor() expects two numeric Vectors or Lists")
+         | (Some arr1, Some arr2) ->
+           if Array.length arr1 <> Array.length arr2 then
+             make_error ValueError "cor() requires vectors of equal length"
+           else if Array.length arr1 < 2 then
+             make_error ValueError "cor() requires at least 2 values"
+           else
+             (match (extract_nums_arr "cor" arr1, extract_nums_arr "cor" arr2) with
+              | (Error e, _) | (_, Error e) -> e
+              | (Ok xs, Ok ys) ->
+                let n = Array.length xs in
+                let mean_x = Array.fold_left ( +. ) 0.0 xs /. float_of_int n in
+                let mean_y = Array.fold_left ( +. ) 0.0 ys /. float_of_int n in
+                let sum_xy = ref 0.0 in
+                let sum_xx = ref 0.0 in
+                let sum_yy = ref 0.0 in
+                for i = 0 to n - 1 do
+                  let dx = xs.(i) -. mean_x in
+                  let dy = ys.(i) -. mean_y in
+                  sum_xy := !sum_xy +. dx *. dy;
+                  sum_xx := !sum_xx +. dx *. dx;
+                  sum_yy := !sum_yy +. dy *. dy
+                done;
+                if !sum_xx = 0.0 || !sum_yy = 0.0 then
+                  make_error ValueError "cor() undefined: one or both vectors have zero variance"
+                else
+                  VFloat (!sum_xy /. Float.sqrt (!sum_xx *. !sum_yy))))
+    | _ -> make_error ArityError "cor() takes exactly 2 arguments"
+  ));
+
+  (* lm(df, "y_col", "x_col") — simple linear regression, returns a model dict *)
+  ("lm", make_builtin 3 (fun args _env ->
+    let extract_nums_arr label arr =
+      let len = Array.length arr in
+      let had_error = ref None in
+      let result = Array.make len 0.0 in
+      for i = 0 to len - 1 do
+        if !had_error = None then
+          match arr.(i) with
+          | VInt n -> result.(i) <- float_of_int n
+          | VFloat f -> result.(i) <- f
+          | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
+          | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values in column"))
+      done;
+      match !had_error with Some e -> Error e | None -> Ok result
+    in
+    match args with
+    | [VDataFrame df; VString y_col; VString x_col] ->
+        (match (List.assoc_opt y_col df.columns, List.assoc_opt x_col df.columns) with
+         | (None, _) -> make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" y_col)
+         | (_, None) -> make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" x_col)
+         | (Some y_arr, Some x_arr) ->
+           if df.nrows < 2 then
+             make_error ValueError "lm() requires at least 2 observations"
+           else
+             (match (extract_nums_arr "lm" y_arr, extract_nums_arr "lm" x_arr) with
+              | (Error e, _) | (_, Error e) -> e
+              | (Ok ys, Ok xs) ->
+                let n = Array.length xs in
+                let nf = float_of_int n in
+                let mean_x = Array.fold_left ( +. ) 0.0 xs /. nf in
+                let mean_y = Array.fold_left ( +. ) 0.0 ys /. nf in
+                let sum_xy = ref 0.0 in
+                let sum_xx = ref 0.0 in
+                for i = 0 to n - 1 do
+                  let dx = xs.(i) -. mean_x in
+                  sum_xy := !sum_xy +. dx *. (ys.(i) -. mean_y);
+                  sum_xx := !sum_xx +. dx *. dx
+                done;
+                if !sum_xx = 0.0 then
+                  make_error ValueError "lm() cannot fit model: predictor has zero variance"
+                else begin
+                  let slope = !sum_xy /. !sum_xx in
+                  let intercept = mean_y -. slope *. mean_x in
+                  (* Compute residuals and R-squared *)
+                  let ss_res = ref 0.0 in
+                  let ss_tot = ref 0.0 in
+                  let residuals = Array.init n (fun i ->
+                    let fitted = intercept +. slope *. xs.(i) in
+                    let r = ys.(i) -. fitted in
+                    ss_res := !ss_res +. r *. r;
+                    ss_tot := !ss_tot +. (ys.(i) -. mean_y) *. (ys.(i) -. mean_y);
+                    VFloat r
+                  ) in
+                  let r_squared = if !ss_tot = 0.0 then 1.0 else 1.0 -. !ss_res /. !ss_tot in
+                  VDict [
+                    ("intercept", VFloat intercept);
+                    ("slope", VFloat slope);
+                    ("r_squared", VFloat r_squared);
+                    ("residuals", VVector residuals);
+                    ("n", VInt n);
+                    ("response", VString y_col);
+                    ("predictor", VString x_col);
+                  ]
+                end))
+    | [VDataFrame _; VString _; VNA _] | [VDataFrame _; VNA _; _] | [VNA _; _; _] ->
+        make_error TypeError "lm() encountered NA value. Handle missingness explicitly."
+    | [VDataFrame _; _; _] -> make_error TypeError "lm() expects string column names"
+    | [_; _; _] -> make_error TypeError "lm() expects a DataFrame as first argument"
+    | _ -> make_error ArityError "lm() takes exactly 3 arguments (DataFrame, y_column, x_column)"
+  ));
+
   (* summarize(df, "result_col", agg_fn, ...) — aggregation, pairs of name+fn *)
-  ("summarize", make_builtin ~variadic:true 1 (fun args env ->
     match args with
     | VDataFrame df :: summary_args ->
         (* Parse pairs of (col_name_string, agg_function) *)

@@ -1,5 +1,5 @@
 (* tests/test_runner.ml *)
-(* Test runner for T language Phase 0 + Phase 1 + Phase 2 + Phase 3 *)
+(* Test runner for T language Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 *)
 
 let pass_count = ref 0
 let fail_count = ref 0
@@ -34,7 +34,7 @@ let test name input expected =
   end
 
 let () =
-  Printf.printf "\n=== T Language Phase 0 + Phase 1 + Phase 2 + Phase 3 Tests ===\n\n";
+  Printf.printf "\n=== T Language Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 Tests ===\n\n";
 
   (* --- Arithmetic --- *)
   Printf.printf "Arithmetic:\n";
@@ -794,6 +794,234 @@ df |> mutate("senior", \(row) row.age >= 30)
 
   (* Clean up Phase 4 CSV *)
   (try Sys.remove csv_p4 with _ -> ());
+
+  (* ============================================ *)
+  (* --- Phase 5: Numerical and Statistical Libraries --- *)
+  (* ============================================ *)
+
+  Printf.printf "Phase 5 — Math: sqrt():\n";
+  test "sqrt of integer" "sqrt(4)" "2.";
+  test "sqrt of float" "sqrt(2.0)" "1.41421356237";
+  test "sqrt of 0" "sqrt(0)" "0.";
+  test "sqrt negative" "sqrt(-1)" {|Error(ValueError: "sqrt() is undefined for negative numbers")|};
+  test "sqrt NA" "sqrt(NA)" {|Error(TypeError: "sqrt() encountered NA value. Handle missingness explicitly.")|};
+  test "sqrt non-numeric" {|sqrt("hello")|} {|Error(TypeError: "sqrt() expects a number or numeric Vector")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Math: abs():\n";
+  test "abs of positive int" "abs(5)" "5";
+  test "abs of negative int" "abs(0 - 5)" "5";
+  test "abs of negative float" "abs(0.0 - 3.14)" "3.14";
+  test "abs of zero" "abs(0)" "0";
+  test "abs NA" "abs(NA)" {|Error(TypeError: "abs() encountered NA value. Handle missingness explicitly.")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Math: log():\n";
+  test "log of 1" "log(1)" "0.";
+  test "log of positive float" "log(10)" "2.30258509299";
+  test "log of 0" "log(0)" {|Error(ValueError: "log() is undefined for non-positive numbers")|};
+  test "log of negative" "log(0 - 1)" {|Error(ValueError: "log() is undefined for non-positive numbers")|};
+  test "log NA" "log(NA)" {|Error(TypeError: "log() encountered NA value. Handle missingness explicitly.")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Math: exp():\n";
+  test "exp of 0" "exp(0)" "1.";
+  test "exp of 1" "exp(1)" "2.71828182846";
+  test "exp NA" "exp(NA)" {|Error(TypeError: "exp() encountered NA value. Handle missingness explicitly.")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Math: pow():\n";
+  test "pow integer" "pow(2, 3)" "8.";
+  test "pow float base" "pow(4.0, 0.5)" "2.";
+  test "pow zero exponent" "pow(5, 0)" "1.";
+  test "pow NA base" "pow(NA, 2)" {|Error(TypeError: "pow() encountered NA value. Handle missingness explicitly.")|};
+  test "pow NA exponent" "pow(2, NA)" {|Error(TypeError: "pow() encountered NA value. Handle missingness explicitly.")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Math: Vector operations:\n";
+  (* Create a CSV for vector tests *)
+  let csv_p5_vec = "test_phase5_vec.csv" in
+  let oc_vec = open_out csv_p5_vec in
+  output_string oc_vec "a,b,c\n1,2,-1\n4,3,2\n9,4,-3\n";
+  close_out oc_vec;
+  let env_p5 = Eval.initial_env () in
+  let (_, env_p5) = eval_string_env (Printf.sprintf {|vdf = read_csv("%s")|} csv_p5_vec) env_p5 in
+
+  let (v, _) = eval_string_env "sqrt(vdf.a)" env_p5 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1., 2., 3.]" then begin
+    incr pass_count; Printf.printf "  ✓ sqrt on vector\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ sqrt on vector\n    Expected: Vector[1., 2., 3.]\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "abs(vdf.c)" env_p5 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1, 2, 3]" then begin
+    incr pass_count; Printf.printf "  ✓ abs on vector\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ abs on vector\n    Expected: Vector[1, 2, 3]\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "pow(vdf.b, 2)" env_p5 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[4., 9., 16.]" then begin
+    incr pass_count; Printf.printf "  ✓ pow on vector\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pow on vector\n    Expected: Vector[4., 9., 16.]\n    Got: %s\n" result
+  end;
+  (try Sys.remove csv_p5_vec with _ -> ());
+  print_newline ();
+
+  Printf.printf "Phase 5 — Math: Pipeline integration:\n";
+  test "sqrt in pipe" "4 |> sqrt" "2.";
+  test "exp and log roundtrip" "log(exp(1.0))" "1.";
+  test "chained math" "pow(2, 10) |> sqrt" "32.";
+  print_newline ();
+
+  Printf.printf "Phase 5 — Stats: mean():\n";
+  test "mean of int list" "mean([1, 2, 3, 4, 5])" "3.";
+  test "mean of float list" "mean([1.0, 2.0, 3.0])" "2.";
+  test "mean empty" "mean([])" {|Error(ValueError: "mean() called on empty list")|};
+  test "mean with NA" "mean([1, NA, 3])" {|Error(TypeError: "mean() encountered NA value. Handle missingness explicitly.")|};
+  test "mean non-numeric" {|mean("hello")|} {|Error(TypeError: "mean() expects a numeric List or Vector")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Stats: sd():\n";
+  test "sd of list" "sd([2, 4, 4, 4, 5, 5, 7, 9])" "2.1380899353";
+  test "sd single value" "sd([42])" {|Error(ValueError: "sd() requires at least 2 values")|};
+  test "sd with NA" "sd([1, NA, 3])" {|Error(TypeError: "sd() encountered NA value. Handle missingness explicitly.")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Stats: quantile():\n";
+  test "quantile median" "quantile([1, 2, 3, 4, 5], 0.5)" "3.";
+  test "quantile min" "quantile([1, 2, 3, 4, 5], 0.0)" "1.";
+  test "quantile max" "quantile([1, 2, 3, 4, 5], 1.0)" "5.";
+  test "quantile Q1" "quantile([1, 2, 3, 4, 5], 0.25)" "2.";
+  test "quantile invalid p" "quantile([1, 2, 3], 1.5)" {|Error(ValueError: "quantile() expects a probability between 0 and 1")|};
+  test "quantile empty" "quantile([], 0.5)" {|Error(ValueError: "quantile() called on empty data")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Stats: cor():\n";
+  (* Create CSV for correlation tests *)
+  let csv_p5_cor = "test_phase5_cor.csv" in
+  let oc_cor = open_out csv_p5_cor in
+  output_string oc_cor "x,y,z,w\n1,2,6,1\n2,4,4,1\n3,6,2,1\n";
+  close_out oc_cor;
+  let env_cor = Eval.initial_env () in
+  let (_, env_cor) = eval_string_env (Printf.sprintf {|cdf = read_csv("%s")|} csv_p5_cor) env_cor in
+
+  let (v, _) = eval_string_env "cor(cdf.x, cdf.y)" env_cor in
+  let result = Ast.Utils.value_to_string v in
+  if result = "1." then begin
+    incr pass_count; Printf.printf "  ✓ perfect positive correlation\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ perfect positive correlation\n    Expected: 1.\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "cor(cdf.x, cdf.z)" env_cor in
+  let result = Ast.Utils.value_to_string v in
+  if result = "-1." then begin
+    incr pass_count; Printf.printf "  ✓ perfect negative correlation\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ perfect negative correlation\n    Expected: -1.\n    Got: %s\n" result
+  end;
+
+  test "cor non-numeric"
+    {|cor("hello", "world")|}
+    {|Error(TypeError: "cor() expects two numeric Vectors or Lists")|};
+  test "cor with NA"
+    "cor(NA, [1, 2, 3])"
+    {|Error(TypeError: "cor() encountered NA value. Handle missingness explicitly.")|};
+
+  (try Sys.remove csv_p5_cor with _ -> ());
+  print_newline ();
+
+  Printf.printf "Phase 5 — Stats: lm():\n";
+  (* Create test CSV for lm() *)
+  let csv_p5_lm = "test_phase5_lm.csv" in
+  let oc_lm = open_out csv_p5_lm in
+  output_string oc_lm "x,y\n1,2\n2,4\n3,6\n4,8\n5,10\n";
+  close_out oc_lm;
+
+  let env_lm = Eval.initial_env () in
+  let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p5_lm) env_lm in
+  let (_, env_lm) = eval_string_env {|model = lm(df, "y", "x")|} env_lm in
+
+  let (v, _) = eval_string_env "type(model)" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"Dict"|} then begin
+    incr pass_count; Printf.printf "  ✓ lm() returns a Dict\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ lm() returns a Dict\n    Expected: \"Dict\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "model.slope" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "2." then begin
+    incr pass_count; Printf.printf "  ✓ lm() correct slope (2.0)\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ lm() correct slope (2.0)\n    Expected: 2.\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "model.intercept" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "0." then begin
+    incr pass_count; Printf.printf "  ✓ lm() correct intercept (0.0)\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ lm() correct intercept (0.0)\n    Expected: 0.\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "model.r_squared" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "1." then begin
+    incr pass_count; Printf.printf "  ✓ lm() perfect R-squared (1.0)\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ lm() perfect R-squared (1.0)\n    Expected: 1.\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "model.n" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  ✓ lm() correct observation count\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ lm() correct observation count\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  test "lm missing column"
+    (Printf.sprintf {|df = read_csv("%s"); lm(df, "y", "z")|} csv_p5_lm)
+    {|Error(KeyError: "Column 'z' not found in DataFrame")|};
+  test "lm non-dataframe"
+    {|lm(42, "y", "x")|}
+    {|Error(TypeError: "lm() expects a DataFrame as first argument")|};
+  test "lm non-string col"
+    (Printf.sprintf {|df = read_csv("%s"); lm(df, 42, "x")|} csv_p5_lm)
+    {|Error(TypeError: "lm() expects string column names")|};
+  print_newline ();
+
+  Printf.printf "Phase 5 — Stats: Pipeline integration:\n";
+  test "mean in pipe"
+    "[1, 2, 3, 4, 5] |> mean"
+    "3.";
+  test "sd in pipe"
+    "[2, 4, 4, 4, 5, 5, 7, 9] |> sd"
+    "2.1380899353";
+  print_newline ();
+
+  Printf.printf "Phase 5 — Functions available without imports:\n";
+  test "sqrt available" "type(sqrt(4))" {|"Float"|};
+  test "abs available" "type(abs(0 - 5))" {|"Int"|};
+  test "log available" "type(log(1))" {|"Float"|};
+  test "exp available" "type(exp(0))" {|"Float"|};
+  test "pow available" "type(pow(2, 3))" {|"Float"|};
+  test "mean available" "type(mean([1, 2]))" {|"Float"|};
+  test "sd available" "type(sd([1, 2, 3]))" {|"Float"|};
+  test "quantile available" "type(quantile([1, 2, 3], 0.5))" {|"Float"|};
+  test "cor available" "type(cor([1, 2, 3], [4, 5, 6]))" {|"Float"|};
+  print_newline ();
+
+  (* Clean up Phase 5 CSV *)
+  (try Sys.remove csv_p5_lm with _ -> ());
 
   (* --- Summary --- *)
   let total = !pass_count + !fail_count in
