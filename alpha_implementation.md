@@ -215,34 +215,115 @@ Design constraints:
 
 ---
 
-## Phase 5 — Statistics and Numerical Backend
 
-**Objective**: Enable basic statistical workflows.
+## **Revised Phase 5 — Numerical and Statistical Libraries**
+
+**Objective**
+Provide a clear, disciplined numerical foundation for T by separating **pure mathematical primitives** from **statistical summaries and models**.
+
+Both libraries introduced in this phase are **autoloaded by default** and live under the `packages/` directory.
+
+---
 
 ### Deliverables
 
-* Owl-backed numerical operations
-* Basic modeling functions
+* Owl-backed numerical backend
+* Two default standard libraries:
+
+  * **`math`** — pure numerical primitives
+  * **`stats`** — statistical summaries and models
+
+---
+
+### Package Structure
+
+```text
+packages/
+├── math/
+│   ├── sqrt.t
+│   ├── abs.t
+│   ├── log.t
+│   ├── exp.t
+│   └── pow.t
+└── stats/
+    ├── mean.t
+    ├── sd.t
+    ├── quantile.t
+    ├── cor.t
+    └── lm.t
+```
+
+Both packages are loaded automatically at startup and are considered part of T’s **standard library**.
+
+---
+
+### Package Responsibilities
+
+#### `math` package
+
+Contains **pure, deterministic numerical functions** that:
+
+* Operate on scalars or vectors
+* Have no statistical interpretation
+* Do not inspect distributions or tabular structure
+* Are total or fail with explicit errors
+
+Examples:
+
+* `sqrt()`
+* `abs()`
+* `log()`
+* `exp()`
+* `pow()`
+
+Rule of thumb:
+
+> If the function would make sense in a calculator, it belongs in `math`.
+
+---
+
+#### `stats` package
+
+Contains **statistical summaries and models** that:
+
+* Operate on vectors or DataFrames
+* Are sensitive to missing values
+* Encode statistical meaning or assumptions
+* May produce structured model objects
+
+Examples:
+
+* `mean()`
+* `sd()`
+* `quantile()`
+* `cor()`
+* `lm()` (linear regression)
+
+Rule of thumb:
+
+> If the function answers a question about data, it belongs in `stats`.
+
+---
 
 ### Tasks
 
-* Integrate Owl
-
-* Implement:
-
-  * `mean()`, `sd()`, `quantile()`
-  * `lm()` (linear regression)
-  * `cor()`
-
-* Ensure:
+* Integrate Owl as the numerical backend
+* Implement `math` functions as thin, pure wrappers around Owl
+* Implement `stats` functions with:
 
   * Explicit NA handling
-  * Structured errors for invalid input
+  * Structured error values for invalid inputs
+  * Clearly documented assumptions (in code)
+* Ensure all functions compose cleanly inside pipelines
+
+---
 
 ### Acceptance Criteria
 
-* Can fit and inspect a simple linear model
-* Numerical functions integrate cleanly with pipelines
+* `math` and `stats` functions are available without imports
+* Users can fit and inspect a simple linear model using `lm()`
+* Numerical and statistical functions integrate cleanly with pipelines
+* NA handling and errors are explicit and inspectable
 
 ---
 
