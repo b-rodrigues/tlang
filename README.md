@@ -188,6 +188,25 @@ dune exec src/repl.exe
 ---
 
 
+## Testing
+
+T uses a comprehensive golden testing framework that compares outputs against
+R's dplyr and stats packages.
+
+### Run All Tests
+
+```bash
+make test         # OCaml unit tests
+make golden       # Golden tests (T vs R)
+```
+
+### Test Coverage
+
+See [Golden Testing Documentation](tests/golden/README.md) for details.
+
+---
+
+
 ## Contributing
 
 There is no external package registry. All contributions are made directly to the GitHub repo. You can add new T packages under `packages/<name>/`, and define functions as `.t` files or integrate OCaml-backed functions in `src`.

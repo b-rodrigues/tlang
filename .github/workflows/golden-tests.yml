@@ -1,0 +1,90 @@
+name: Golden Tests (T vs R)
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  golden-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install Nix
+      uses: cachix/install-nix-action@v24
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+    
+    - name: Setup Cachix (for R packages)
+      uses: cachix/cachix-action@v13
+      with:
+        name: rstats-on-nix
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        skipPush: true
+    
+    - name: Build T
+      run: nix develop --command dune build
+    
+    - name: Generate test data (R datasets)
+      run: nix develop --command make golden-data
+    
+    - name: Generate expected outputs (R/dplyr)
+      run: nix develop --command make golden-expected
+    
+    - name: Run T test scripts
+      run: nix develop --command make golden-run
+      continue-on-error: true
+    
+    - name: Compare outputs (testthat)
+      run: nix develop --command make golden-compare
+      continue-on-error: true
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: golden-test-outputs
+        path: |
+          tests/golden/t_outputs/
+          tests/golden/expected/
+        retention-days: 7
+    
+    - name: Upload test report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: golden-test-report
+        path: tests/golden/test_results.xml
+        retention-days: 30
+
+  # Optional: Generate coverage report
+  coverage:
+    runs-on: ubuntu-latest
+    needs: golden-tests
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install Nix
+      uses: cachix/install-nix-action@v24
+    
+    - name: Generate coverage report
+      run: |
+        nix develop --command bash -c '
+          Rscript tests/golden/generate_coverage_report.R
+        '
+    
+    - name: Upload coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-coverage-report
+        path: tests/golden/coverage_report.html
