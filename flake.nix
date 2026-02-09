@@ -2,10 +2,8 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-09";
     flake-utils.url = "github:numtide/flake-utils";
-    # Add rstats-on-nix for latest R packages
-    rstats-on-nix.url = "github:rstats-on-nix/nixpkgs";
   };
 
   # Configure cachix for R packages
@@ -18,7 +16,7 @@
     ];
   };
 
-  outputs = { self, nixpkgs, flake-utils, rstats-on-nix }:
+  outputs = { self, nixpkgs, flake-utils }:
     # This function creates the outputs for common system architectures
     # (x86_64-linux, aarch64-darwin, etc.)
     flake-utils.lib.eachDefaultSystem (system:
@@ -26,12 +24,11 @@
         # Use the Nix packages for the specified system
         pkgs = nixpkgs.legacyPackages.${system};
 
-        # R packages from rstats-on-nix
-        r-pkgs = rstats-on-nix.packages.${system};
+
 
         # Build R with specific packages
         R-with-packages = pkgs.rWrapper.override {
-          packages = with r-pkgs; [
+          packages = with pkgs.rPackages; [
             dplyr
             readr
             testthat
