@@ -1191,8 +1191,13 @@ CAMLprim value caml_arrow_array_get_buffer_ptr(value v_array_ptr) {
   CAMLlocal2(v_result, v_tuple);
 
   GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
-  /* Buffer index 1 is the value data buffer (index 0 = null bitmap) */
-  GArrowBuffer *buffer = garrow_array_get_buffer(array, 1);
+  /* Cast to GArrowPrimitiveArray to access the data buffer.
+     Int64Array and DoubleArray both inherit from PrimitiveArray. */
+  if (!GARROW_IS_PRIMITIVE_ARRAY(array)) {
+    CAMLreturn(Val_none);
+  }
+  GArrowBuffer *buffer =
+    garrow_primitive_array_get_data_buffer(GARROW_PRIMITIVE_ARRAY(array));
 
   if (buffer == NULL) {
     CAMLreturn(Val_none);
@@ -1229,8 +1234,13 @@ CAMLprim value caml_arrow_float64_array_to_bigarray(value v_array_ptr) {
   CAMLlocal1(v_result);
 
   GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
-  /* Buffer index 1 is the value data buffer (index 0 = null bitmap) */
-  GArrowBuffer *buffer = garrow_array_get_buffer(array, 1);
+  /* Cast to GArrowPrimitiveArray to access the data buffer.
+     DoubleArray inherits from PrimitiveArray. */
+  if (!GARROW_IS_PRIMITIVE_ARRAY(array)) {
+    CAMLreturn(Val_none);
+  }
+  GArrowBuffer *buffer =
+    garrow_primitive_array_get_data_buffer(GARROW_PRIMITIVE_ARRAY(array));
 
   if (buffer == NULL) {
     CAMLreturn(Val_none);
@@ -1266,8 +1276,13 @@ CAMLprim value caml_arrow_int64_array_to_bigarray(value v_array_ptr) {
   CAMLlocal1(v_result);
 
   GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
-  /* Buffer index 1 is the value data buffer (index 0 = null bitmap) */
-  GArrowBuffer *buffer = garrow_array_get_buffer(array, 1);
+  /* Cast to GArrowPrimitiveArray to access the data buffer.
+     Int64Array inherits from PrimitiveArray. */
+  if (!GARROW_IS_PRIMITIVE_ARRAY(array)) {
+    CAMLreturn(Val_none);
+  }
+  GArrowBuffer *buffer =
+    garrow_primitive_array_get_data_buffer(GARROW_PRIMITIVE_ARRAY(array));
 
   if (buffer == NULL) {
     CAMLreturn(Val_none);
