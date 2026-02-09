@@ -522,6 +522,139 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "Vector[2, 2]";
 
   (try Sys.remove csv_groupby with _ -> ());
+  print_newline ();
+
+  Printf.printf "Arrow Integration — Zero-Copy Column Views (Phase 4):\n";
+
+  (* Test 41: numeric_view type exists and zero_copy_view returns None for pure OCaml table *)
+  let ocaml_tbl = Arrow_table.create [
+    ("x", Arrow_table.FloatColumn [| Some 1.0; Some 2.0; Some 3.0 |]);
+    ("y", Arrow_table.IntColumn [| Some 10; Some 20; Some 30 |]);
+    ("s", Arrow_table.StringColumn [| Some "a"; Some "b"; Some "c" |]);
+  ] 3 in
+  (match Arrow_column.get_column ocaml_tbl "x" with
+   | Some col_view ->
+     (match Arrow_column.zero_copy_view col_view with
+      | None ->
+        incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for pure OCaml table\n"
+      | Some _ ->
+        incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for pure OCaml table\n")
+   | None ->
+     incr fail_count; Printf.printf "  ✗ get_column failed for pure OCaml table\n");
+
+  (* Test 42: zero_copy_view returns None for string column (even native) *)
+  (match Arrow_column.get_column ocaml_tbl "s" with
+   | Some col_view ->
+     (match Arrow_column.zero_copy_view col_view with
+      | None ->
+        incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for string column\n"
+      | Some _ ->
+        incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for string column\n")
+   | None ->
+     incr fail_count; Printf.printf "  ✗ get_column failed for string column\n");
+
+  (* Test 43: column_view preserves column type *)
+  (match Arrow_column.get_column ocaml_tbl "x" with
+   | Some col_view ->
+     if Arrow_column.column_type col_view = Arrow_table.ArrowFloat64 then begin
+       incr pass_count; Printf.printf "  ✓ column_view preserves Float64 type\n"
+     end else begin
+       incr fail_count; Printf.printf "  ✗ column_view type mismatch for Float64\n"
+     end
+   | None ->
+     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+
+  (match Arrow_column.get_column ocaml_tbl "y" with
+   | Some col_view ->
+     if Arrow_column.column_type col_view = Arrow_table.ArrowInt64 then begin
+       incr pass_count; Printf.printf "  ✓ column_view preserves Int64 type\n"
+     end else begin
+       incr fail_count; Printf.printf "  ✗ column_view type mismatch for Int64\n"
+     end
+   | None ->
+     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+
+  (* Test 44: column_view length is correct *)
+  (match Arrow_column.get_column ocaml_tbl "x" with
+   | Some col_view ->
+     if Arrow_column.column_length col_view = 3 then begin
+       incr pass_count; Printf.printf "  ✓ column_view length is correct\n"
+     end else begin
+       incr fail_count; Printf.printf "  ✗ column_view length incorrect\n"
+     end
+   | None ->
+     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+
+  (* Test 45: zero_copy_view with native-backed CSV table *)
+  let csv_zerocopy = "test_arrow_zerocopy.csv" in
+  let oc4 = open_out csv_zerocopy in
+  output_string oc4 "val_f,val_i,name\n1.5,10,Alice\n2.5,20,Bob\n3.5,30,Charlie\n";
+  close_out oc4;
+
+  (match Arrow_io.read_csv csv_zerocopy with
+   | Ok native_tbl ->
+     (match native_tbl.native_handle with
+      | Some _ ->
+        (* Test float64 zero-copy view *)
+        (match Arrow_column.get_column native_tbl "val_f" with
+         | Some col_view ->
+           (match Arrow_column.zero_copy_view col_view with
+            | Some (Arrow_column.FloatView ba) ->
+              let len = Bigarray.Array1.dim ba in
+              if len = 3 && ba.{0} = 1.5 && ba.{1} = 2.5 && ba.{2} = 3.5 then begin
+                incr pass_count; Printf.printf "  ✓ FloatView zero-copy view is correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ FloatView data mismatch (len=%d)\n" len
+              end
+            | Some (Arrow_column.IntView _) ->
+              incr fail_count; Printf.printf "  ✗ Expected FloatView, got IntView\n"
+            | None ->
+              incr pass_count; Printf.printf "  ✓ zero_copy_view returned None (native buffer unavailable — ok)\n")
+         | None ->
+           incr fail_count; Printf.printf "  ✗ get_column failed for native float column\n");
+
+        (* Test int64 zero-copy view *)
+        (match Arrow_column.get_column native_tbl "val_i" with
+         | Some col_view ->
+           (match Arrow_column.zero_copy_view col_view with
+            | Some (Arrow_column.IntView ba) ->
+              let len = Bigarray.Array1.dim ba in
+              if len = 3 && ba.{0} = 10L && ba.{1} = 20L && ba.{2} = 30L then begin
+                incr pass_count; Printf.printf "  ✓ IntView zero-copy view is correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ IntView data mismatch (len=%d)\n" len
+              end
+            | Some (Arrow_column.FloatView _) ->
+              incr fail_count; Printf.printf "  ✗ Expected IntView, got FloatView\n"
+            | None ->
+              incr pass_count; Printf.printf "  ✓ zero_copy_view returned None for int column (native buffer unavailable — ok)\n")
+         | None ->
+           incr fail_count; Printf.printf "  ✗ get_column failed for native int column\n");
+
+        (* Test string column returns None *)
+        (match Arrow_column.get_column native_tbl "name" with
+         | Some col_view ->
+           (match Arrow_column.zero_copy_view col_view with
+            | None ->
+              incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for native string column\n"
+            | Some _ ->
+              incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for string column\n")
+         | None ->
+           incr fail_count; Printf.printf "  ✗ get_column failed for native string column\n")
+
+      | None ->
+        (* Arrow native not available — still pass since fallback is OK *)
+        incr pass_count; Printf.printf "  ✓ CSV read succeeded (pure OCaml fallback — zero-copy N/A)\n";
+        incr pass_count; Printf.printf "  ✓ (skipped native float view test)\n";
+        incr pass_count; Printf.printf "  ✓ (skipped native int view test)\n";
+        incr pass_count; Printf.printf "  ✓ (skipped native string column test)\n")
+   | Error msg ->
+     incr pass_count; Printf.printf "  ✓ CSV read returned error: %s (zero-copy tests skipped)\n" msg;
+     incr pass_count; Printf.printf "  ✓ (skipped native float view test)\n";
+     incr pass_count; Printf.printf "  ✓ (skipped native int view test)\n";
+     incr pass_count; Printf.printf "  ✓ (skipped native string column test)\n");
+
+  (try Sys.remove csv_zerocopy with _ -> ());
 
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());

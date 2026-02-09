@@ -133,3 +133,26 @@ external arrow_group_mean : nativeint -> string -> nativeint option
     Returns Some(result_table_ptr) with key columns + "n" column. *)
 external arrow_group_count : nativeint -> nativeint option
   = "caml_arrow_group_count"
+
+(* ===================================================================== *)
+(* Zero-Copy Buffer Access (Phase 4)                                     *)
+(* ===================================================================== *)
+
+(** Get the raw data buffer pointer and byte length from an Arrow array.
+    Returns Some (pointer, byte_length) or None if buffer is unavailable. *)
+external arrow_array_get_buffer_ptr : nativeint -> (nativeint * int) option
+  = "caml_arrow_array_get_buffer_ptr"
+
+(** Create a zero-copy Float64 Bigarray view over a raw data pointer.
+    The Bigarray does NOT own the memory — caller must keep the backing
+    Arrow table alive. *)
+external arrow_bigarray_float64_of_ptr :
+  nativeint -> int -> (float, Bigarray.float64_elt, Bigarray.c_layout) Bigarray.Array1.t
+  = "caml_arrow_bigarray_float64_of_ptr"
+
+(** Create a zero-copy Int64 Bigarray view over a raw data pointer.
+    The Bigarray does NOT own the memory — caller must keep the backing
+    Arrow table alive. *)
+external arrow_bigarray_int64_of_ptr :
+  nativeint -> int -> (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t
+  = "caml_arrow_bigarray_int64_of_ptr"
