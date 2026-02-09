@@ -29,7 +29,7 @@ let register env =
                  | (_, VNA _) -> -1
                  | _ -> 0
                in
-               Array.sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
+               Array.stable_sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
                let new_table = Arrow_compute.sort_by_indices df.arrow_table indices in
                VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
       | [VDataFrame df; VString col_name; VString "desc"] ->
@@ -57,7 +57,7 @@ let register env =
                  | (_, VNA _) -> -1
                  | _ -> 0
                in
-               Array.sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
+               Array.stable_sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
                let new_table = Arrow_compute.sort_by_indices df.arrow_table indices in
                VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
       | [VDataFrame _; VString _; VString dir] ->
