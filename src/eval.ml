@@ -586,6 +586,9 @@ let initial_env () : environment =
   let env = Arrange.register env in
   let env = Group_by.register env in
   let env = Summarize.register ~eval_call env in
+  let env = Window_rank.register env in
+  let env = Window_offset.register env in
+  let env = Window_cumulative.register env in
   (* Math package *)
   let env = T_sqrt.register env in
   let env = T_abs.register env in
