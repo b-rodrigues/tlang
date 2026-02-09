@@ -14,3 +14,4 @@ _build/
 _codeql_detected_source_root
 tests/golden/data/*.csv
 tests/golden/expected/*.csv
+tests/golden/t_outputs/*.csv
