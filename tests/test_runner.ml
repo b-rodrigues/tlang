@@ -65,6 +65,7 @@ let () =
 
   (* Arrow integration tests *)
   Test_arrow_integration.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_owl_bridge.run_tests pass_count fail_count eval_string eval_string_env test;
 
   (* Summary *)
   let total = !pass_count + !fail_count in

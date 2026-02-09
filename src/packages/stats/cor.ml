@@ -38,23 +38,11 @@ let register env =
                (match (extract_nums_arr "cor" arr1, extract_nums_arr "cor" arr2) with
                 | (Error e, _) | (_, Error e) -> e
                 | (Ok xs, Ok ys) ->
-                  let n = Array.length xs in
-                  let mean_x = Array.fold_left ( +. ) 0.0 xs /. float_of_int n in
-                  let mean_y = Array.fold_left ( +. ) 0.0 ys /. float_of_int n in
-                  let sum_xy = ref 0.0 in
-                  let sum_xx = ref 0.0 in
-                  let sum_yy = ref 0.0 in
-                  for i = 0 to n - 1 do
-                    let dx = xs.(i) -. mean_x in
-                    let dy = ys.(i) -. mean_y in
-                    sum_xy := !sum_xy +. dx *. dy;
-                    sum_xx := !sum_xx +. dx *. dx;
-                    sum_yy := !sum_yy +. dy *. dy
-                  done;
-                  if !sum_xx = 0.0 || !sum_yy = 0.0 then
+                  (* Delegate computation to Arrow_owl_bridge *)
+                  match Arrow_owl_bridge.pearson_cor xs ys with
+                  | None ->
                     make_error ValueError "cor() undefined: one or both vectors have zero variance"
-                  else
-                    VFloat (!sum_xy /. Float.sqrt (!sum_xx *. !sum_yy))))
+                  | Some r -> VFloat r))
       | _ -> make_error ArityError "cor() takes exactly 2 arguments"
     ))
     env
