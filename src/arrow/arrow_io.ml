@@ -169,8 +169,10 @@ let read_csv (path : string) : (Arrow_table.t, string) result =
     (* Try native Arrow CSV reader first *)
     match read_csv_native path with
     | Ok _ as result -> result
-    | Error _ ->
-        (* Fallback to pure OCaml if native fails *)
+    | Error _native_err ->
+        (* Native Arrow reader failed — fall back to pure OCaml parser.
+           This can happen if the file format is not supported by Arrow's
+           CSV reader or if the native library encounters an error. *)
         read_csv_fallback path
   else
     read_csv_fallback path
