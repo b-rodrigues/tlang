@@ -1191,14 +1191,16 @@ CAMLprim value caml_arrow_array_get_buffer_ptr(value v_array_ptr) {
   CAMLlocal2(v_result, v_tuple);
 
   GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
-  GArrowBuffer *buffer = garrow_array_get_value_data_buffer(array);
+  /* Buffer index 1 is the value data buffer (index 0 = null bitmap) */
+  GArrowBuffer *buffer = garrow_array_get_buffer(array, 1);
 
   if (buffer == NULL) {
     CAMLreturn(Val_none);
   }
 
-  gsize size = garrow_buffer_get_size(buffer);
-  const guint8 *data = garrow_buffer_get_data(buffer, &size);
+  GBytes *bytes = garrow_buffer_get_data(buffer);
+  gsize size = 0;
+  const guint8 *data = (const guint8 *)g_bytes_get_data(bytes, &size);
 
   /* Return Some (pointer, length) */
   v_tuple = caml_alloc(2, 0);
@@ -1208,9 +1210,10 @@ CAMLprim value caml_arrow_array_get_buffer_ptr(value v_array_ptr) {
   v_result = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_result, 0, v_tuple);
 
-  /* Safe to unref: the GArrowBuffer is a wrapper; the actual data is
-     owned by the GArrowArray, which remains alive via the OCaml-side
-     GC finalizer on the parent table. */
+  /* Safe to unref: the GArrowBuffer and GBytes are wrappers; the actual
+     data is owned by the GArrowArray, which remains alive via the
+     OCaml-side GC finalizer on the parent table. */
+  g_bytes_unref(bytes);
   g_object_unref(buffer);
   CAMLreturn(v_result);
 }
@@ -1226,14 +1229,16 @@ CAMLprim value caml_arrow_float64_array_to_bigarray(value v_array_ptr) {
   CAMLlocal1(v_result);
 
   GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
-  GArrowBuffer *buffer = garrow_array_get_value_data_buffer(array);
+  /* Buffer index 1 is the value data buffer (index 0 = null bitmap) */
+  GArrowBuffer *buffer = garrow_array_get_buffer(array, 1);
 
   if (buffer == NULL) {
     CAMLreturn(Val_none);
   }
 
-  gsize size = garrow_buffer_get_size(buffer);
-  const guint8 *data = garrow_buffer_get_data(buffer, &size);
+  GBytes *bytes = garrow_buffer_get_data(buffer);
+  gsize size = 0;
+  const guint8 *data = (const guint8 *)g_bytes_get_data(bytes, &size);
   intnat n_elements = (intnat)(size / sizeof(double));
   intnat dims[1] = { n_elements };
 
@@ -1241,7 +1246,8 @@ CAMLprim value caml_arrow_float64_array_to_bigarray(value v_array_ptr) {
     CAML_BA_FLOAT64 | CAML_BA_C_LAYOUT | CAML_BA_EXTERNAL,
     1, (void *)data, dims);
 
-  /* Safe to unref the wrapper; data owned by the array */
+  /* Safe to unref the wrappers; data owned by the array */
+  g_bytes_unref(bytes);
   g_object_unref(buffer);
 
   v_result = caml_alloc(1, 0); /* Some(...) */
@@ -1260,14 +1266,16 @@ CAMLprim value caml_arrow_int64_array_to_bigarray(value v_array_ptr) {
   CAMLlocal1(v_result);
 
   GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
-  GArrowBuffer *buffer = garrow_array_get_value_data_buffer(array);
+  /* Buffer index 1 is the value data buffer (index 0 = null bitmap) */
+  GArrowBuffer *buffer = garrow_array_get_buffer(array, 1);
 
   if (buffer == NULL) {
     CAMLreturn(Val_none);
   }
 
-  gsize size = garrow_buffer_get_size(buffer);
-  const guint8 *data = garrow_buffer_get_data(buffer, &size);
+  GBytes *bytes = garrow_buffer_get_data(buffer);
+  gsize size = 0;
+  const guint8 *data = (const guint8 *)g_bytes_get_data(bytes, &size);
   intnat n_elements = (intnat)(size / sizeof(gint64));
   intnat dims[1] = { n_elements };
 
@@ -1275,7 +1283,8 @@ CAMLprim value caml_arrow_int64_array_to_bigarray(value v_array_ptr) {
     CAML_BA_INT64 | CAML_BA_C_LAYOUT | CAML_BA_EXTERNAL,
     1, (void *)data, dims);
 
-  /* Safe to unref the wrapper; data owned by the array */
+  /* Safe to unref the wrappers; data owned by the array */
+  g_bytes_unref(bytes);
   g_object_unref(buffer);
 
   v_result = caml_alloc(1, 0); /* Some(...) */
