@@ -185,9 +185,12 @@ and group_by_ocaml (t : Arrow_table.t) (keys : string list) : grouped_table =
     let existing = try Hashtbl.find group_map key_str with Not_found -> [] in
     if existing = [] then
       group_order := key_str :: !group_order;
-    Hashtbl.replace group_map key_str (existing @ [i])
+    (* Prepend for O(1) insertion; reverse per-group lists at the end *)
+    Hashtbl.replace group_map key_str (i :: existing)
   done;
-  let groups = List.rev_map (fun k -> (k, Hashtbl.find group_map k)) !group_order in
+  let groups = List.rev_map (fun k ->
+    (k, List.rev (Hashtbl.find group_map k))
+  ) !group_order in
   { base_table = t; group_keys = keys;
     native_group = None; ocaml_groups = groups }
 

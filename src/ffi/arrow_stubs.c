@@ -820,21 +820,26 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   GPtrArray *group_order = g_ptr_array_new(); /* stores owned copies of key strings */
   /* Store row indices per group as GArray of ints */
   GPtrArray *group_rows = g_ptr_array_new();  /* GArray<int>* per group */
+  /* Store per-group key values: GPtrArray of gchar** arrays */
+  GPtrArray *group_key_vals = g_ptr_array_new();
 
   for (gint64 r = 0; r < nrows; r++) {
-    /* Build composite key: "val1|val2|..." */
+    /* Build composite key: "val1\x1Fval2\x1F..." using Unit Separator (U+001F)
+       which cannot appear in typical string data. */
     GString *key_buf = g_string_new(NULL);
+    gchar **row_keys = (gchar **)malloc(sizeof(gchar *) * n_keys);
     for (int k = 0; k < n_keys; k++) {
-      if (k > 0) g_string_append_c(key_buf, '|');
+      if (k > 0) g_string_append_c(key_buf, '\x1F');
       gchar *cell = cell_value_as_string(table, key_indices[k], r);
       g_string_append(key_buf, cell);
-      g_free(cell);
+      row_keys[k] = cell; /* ownership transferred to row_keys */
     }
     gchar *key_str = g_string_free(key_buf, FALSE);
 
     gpointer group_idx_ptr = g_hash_table_lookup(group_map, key_str);
-    if (group_idx_ptr == NULL && !g_hash_table_contains(group_map, key_str)) {
-      /* New group */
+    if (group_idx_ptr == NULL) {
+      /* New group — lookup returns NULL only for non-existent keys
+         since we store group_idx + 1 (always >= 1) */
       int group_idx = group_order->len;
       g_hash_table_insert(group_map, g_strdup(key_str), GINT_TO_POINTER(group_idx + 1)); /* +1 to distinguish from NULL */
       g_ptr_array_add(group_order, g_strdup(key_str));
@@ -842,18 +847,17 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       int ri = (int)r;
       g_array_append_val(rows, ri);
       g_ptr_array_add(group_rows, rows);
+      /* Store key values for this group (take ownership of row_keys) */
+      g_ptr_array_add(group_key_vals, row_keys);
     } else {
       /* Existing group */
-      int group_idx;
-      if (group_idx_ptr == NULL) {
-        /* This shouldn't happen if contains returned true, but guard */
-        group_idx = 0;
-      } else {
-        group_idx = GPOINTER_TO_INT(group_idx_ptr) - 1;
-      }
+      int group_idx = GPOINTER_TO_INT(group_idx_ptr) - 1;
       GArray *rows = (GArray *)g_ptr_array_index(group_rows, group_idx);
       int ri = (int)r;
       g_array_append_val(rows, ri);
+      /* Free duplicate row_keys for existing group */
+      for (int k = 0; k < n_keys; k++) g_free(row_keys[k]);
+      free(row_keys);
     }
     g_free(key_str);
   }
@@ -876,27 +880,17 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     memcpy(gt->group_row_indices[g], rows->data, sizeof(int) * rows->len);
     g_array_free(rows, TRUE);
 
-    /* Parse composite key back to individual key values */
-    gchar *composite_key = (gchar *)g_ptr_array_index(group_order, g);
-    gt->group_key_values[g] = (gchar **)malloc(sizeof(gchar *) * n_keys);
+    /* Use pre-stored key values (no delimiter parsing needed) */
+    gt->group_key_values[g] = (gchar **)g_ptr_array_index(group_key_vals, g);
 
-    /* Split on '|' — note: this is a simplified split that doesn't handle
-       '|' within values. For production, a more robust approach would be needed. */
-    if (n_keys == 1) {
-      gt->group_key_values[g][0] = g_strdup(composite_key);
-    } else {
-      gchar **parts = g_strsplit(composite_key, "|", n_keys);
-      for (int k = 0; k < n_keys; k++) {
-        gt->group_key_values[g][k] = (parts && parts[k]) ? g_strdup(parts[k]) : g_strdup("");
-      }
-      g_strfreev(parts);
-    }
+    gchar *composite_key = (gchar *)g_ptr_array_index(group_order, g);
     g_free(composite_key);
   }
 
   free(key_indices);
   g_ptr_array_free(group_order, TRUE);
   g_ptr_array_free(group_rows, TRUE);
+  g_ptr_array_free(group_key_vals, TRUE);
   g_hash_table_destroy(group_map);
 
   v_result = caml_alloc(1, 0); /* Some(...) */
