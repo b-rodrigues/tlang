@@ -65,9 +65,10 @@ let is_incomplete input =
     (* Unclosed delimiters *)
     let open_count = count_open_delimiters trimmed in
     if open_count > 0 then true
-    (* Trailing pipe operator *)
+    (* Trailing pipe operator: |> or ?|> *)
     else
       let len = String.length trimmed in
+      (len >= 3 && String.sub trimmed (len - 3) 3 = "?|>") ||
       (len >= 2 && String.sub trimmed (len - 2) 2 = "|>")
 
 (* --- Pretty-Printing for REPL --- *)
@@ -206,11 +207,14 @@ let cmd_repl env =
               | exception End_of_file ->
                   combined  (* Return what we have *)
               | next_line ->
-                  (* If the previous line ends with |>, move it to the start of
+                  (* If the previous line ends with |> or ?|>, move it to the start of
                      the next line so the lexer recognizes the continuation *)
                   let trimmed_acc = String.trim combined in
                   let len = String.length trimmed_acc in
-                  if len >= 2 && String.sub trimmed_acc (len - 2) 2 = "|>" then
+                  if len >= 3 && String.sub trimmed_acc (len - 3) 3 = "?|>" then
+                    let prefix = String.sub combined 0 (String.length combined - 3) in
+                    read_multiline (String.trim prefix ^ "\n  ?|> " ^ next_line)
+                  else if len >= 2 && String.sub trimmed_acc (len - 2) 2 = "|>" then
                     let prefix = String.sub combined 0 (String.length combined - 2) in
                     read_multiline (String.trim prefix ^ "\n  |> " ^ next_line)
                   else

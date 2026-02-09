@@ -48,7 +48,35 @@ print("Test 5: Pipe Operator")
 double = \(x) x * 2
 result = 5 |> double
 assert(result == 10)
+
+-- Conditional pipe short-circuits on error
+error_pipe = error("boom") |> double
+assert(is_error(error_pipe))
+assert(error_message(error_pipe) == "boom")
 print("✓ Pipe operator working")
+print("")
+
+-- Test 5b: Maybe-pipe operator
+print("Test 5b: Maybe-Pipe Operator")
+handle = \(x) if (is_error(x)) "recovered" else x
+
+-- Maybe-pipe forwards normal values
+assert(5 ?|> double == 10)
+
+-- Maybe-pipe forwards errors to functions (does NOT short-circuit)
+recovered = error("boom") ?|> handle
+assert(recovered == "recovered")
+
+-- Maybe-pipe with arguments
+add = \(a, b) a + b
+assert(5 ?|> add(3) == 8)
+
+-- Mixed chain: ?|> then |>
+recovery = \(x) if (is_error(x)) 0 else x
+inc = \(x) x + 1
+mixed = error("fail") ?|> recovery |> inc
+assert(mixed == 1)
+print("✓ Maybe-pipe operator working")
 print("")
 
 -- Test 6: Lists

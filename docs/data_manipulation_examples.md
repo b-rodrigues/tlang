@@ -202,6 +202,43 @@ result.count   -- Vector of counts per department
 
 ---
 
+## Error Recovery with Maybe-Pipe
+
+When working with data pipelines, operations can fail (missing files, invalid data, etc.). The maybe-pipe `?|>` forwards errors to a recovery function instead of short-circuiting:
+
+### Pattern 1: Default Value on Error
+
+```t
+-- Normal pipe short-circuits on error:
+error("missing") |> \(x) x + 1   -- Error (never calls function)
+
+-- Maybe-pipe forwards the error:
+with_default = \(x) if (is_error(x)) 0 else x
+error("missing") ?|> with_default  -- 0
+```
+
+### Pattern 2: Recovery in Data Pipelines
+
+```t
+-- Provide fallback values for errors
+with_default = \(result) if (is_error(result)) 0 else result
+
+value1 = 5 ?|> with_default                    -- 5
+value2 = error("missing data") ?|> with_default -- 0
+```
+
+### Pattern 3: Mixed Pipe Chain
+
+```t
+recovery = \(x) if (is_error(x)) 0 else x
+increment = \(x) x + 1
+
+-- ?|> forwards error to recovery, then |> continues normally
+error("fail") ?|> recovery |> increment   -- 1
+```
+
+---
+
 ## Using Math and Stats
 
 Math and stats functions work on DataFrame columns:
