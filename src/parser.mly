@@ -20,6 +20,7 @@ type param_info = { names: string list; has_variadic: bool }
 %token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
 %token COMMA COLON DOT EQUALS ARROW DOTDOTDOT
 %token PIPE
+%token MAYBE_PIPE
 %token PLUS MINUS STAR SLASH
 %token EQ NEQ LT GT LTE GTE
 %token AND OR NOT
@@ -28,7 +29,7 @@ type param_info = { names: string list; has_variadic: bool }
 %token EOF
 
 /* PRECEDENCE AND ASSOCIATIVITY (lowest to highest) */
-%left PIPE
+%left PIPE MAYBE_PIPE
 %left OR
 %left AND
 %nonassoc EQ NEQ LT GT LTE GTE
@@ -82,6 +83,8 @@ pipe_expr:
   | e = or_expr { e }
   | left = pipe_expr PIPE right = or_expr
     { BinOp { op = Pipe; left; right } }
+  | left = pipe_expr MAYBE_PIPE right = or_expr
+    { BinOp { op = MaybePipe; left; right } }
   ;
 
 or_expr:

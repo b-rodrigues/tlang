@@ -19,6 +19,7 @@ rule token = parse
   (* Allow pipelines to continue on the next indented line.
      This rule must come before the general newline rule so the newline
      doesn't terminate the expression when immediately followed by |> . *)
+  | '\n' [' ' '\t']* "?|>" { Lexing.new_line lexbuf; MAYBE_PIPE }
   | '\n' [' ' '\t']* "|>" { Lexing.new_line lexbuf; PIPE }
   | '\n'            { Lexing.new_line lexbuf; NEWLINE }
   | ';'             { SEMICOLON }
@@ -55,6 +56,7 @@ rule token = parse
   | ':' { COLON }    | '.' { DOT }
   | '=' { EQUALS }   | "->" { ARROW }
   | "..." { DOTDOTDOT }
+  | "?|>" { MAYBE_PIPE }
   | "|>" { PIPE }
   | '+' { PLUS }     | '-' { MINUS }
   | '*' { STAR }     | '/' { SLASH }
