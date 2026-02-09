@@ -12,6 +12,7 @@
    test_cli
    test_golden test_core_semantics
    test_arrow_integration
+   test_owl_bridge
  )
  (libraries t_lang menhirLib)
 )

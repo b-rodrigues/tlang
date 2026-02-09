@@ -46,6 +46,10 @@
             # and glib-2.0, and the compiler can find their headers.
             pkgs.glib
             pkgs.glib.dev
+            # Owl — OCaml numerical library for linear algebra and statistics
+            # Used by Arrow-Owl bridge for matrix operations in lm(), cor()
+            # Uncomment when owl is available in your OCaml package set:
+            # ocamlVersion.owl
           ];
 
           buildPhase = ''
@@ -122,6 +126,14 @@
             pkgs.glib
             pkgs.glib.dev
             pkgs.pkg-config
+
+            # 4. Owl — OCaml numerical library (OPTIONAL)
+            # -------------------------------------------------------
+            # Provides matrix operations, linear algebra (BLAS/LAPACK),
+            # and statistical functions. Used by Arrow-Owl bridge for
+            # optimized computation in lm(), cor(), and future ML ops.
+            # Uncomment when owl is available in your OCaml package set:
+            # ocamlVersion.owl
           ];
 
           shellHook = ''
