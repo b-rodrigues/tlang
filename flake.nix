@@ -39,6 +39,8 @@
             # Arrow C GLib — Apache Arrow columnar data library
             # Provides GArrowTable, GArrowCSVReader, GArrowCompute
             pkgs.arrow-glib
+            # GLib/GObject — required by arrow-glib headers (glib-object.h)
+            pkgs.glib
           ];
 
           buildPhase = ''
@@ -108,6 +110,8 @@
             # -------------------------------------------------------
             # Required for Arrow-backed DataFrame operations.
             pkgs.arrow-glib
+            # GLib/GObject — required by arrow-glib headers (glib-object.h)
+            pkgs.glib
             pkgs.pkg-config
           ];
 
