@@ -1,8 +1,12 @@
 (* src/arrow/arrow_io.ml *)
 (* Arrow-backed CSV reading with column-level type inference.            *)
-(* Replaces the simple per-cell type inference in the alpha evaluator.   *)
-(* When Arrow C GLib is available, this will delegate to                 *)
-(* GArrowCSVReader for native Arrow CSV parsing.                         *)
+(* When Arrow C GLib is available (Arrow_ffi.arrow_available = true),   *)
+(* uses GArrowCSVReader for native Arrow CSV parsing via FFI.            *)
+(* Falls back to pure OCaml CSV parsing otherwise.                       *)
+
+(* ===================================================================== *)
+(* Pure OCaml CSV Parsing (Fallback)                                     *)
+(* ===================================================================== *)
 
 (** Split a CSV line into fields, handling quoted fields *)
 let parse_csv_line (line : string) : string list =
@@ -106,7 +110,7 @@ let build_column (values : string array) (col_type : Arrow_table.arrow_type) : A
   | Arrow_table.ArrowNull ->
       Arrow_table.NullColumn (Array.length values)
 
-(** Parse a CSV string into an Arrow table *)
+(** Parse a CSV string into an Arrow table (pure OCaml fallback) *)
 let parse_csv_string (content : string) : (Arrow_table.t, string) result =
   let lines = split_lines content in
   let lines = List.filter (fun l -> String.trim l <> "") lines in
@@ -137,8 +141,44 @@ let parse_csv_string (content : string) : (Arrow_table.t, string) result =
         ) raw_columns in
         Ok (Arrow_table.create columns nrows)
 
-(** Read a CSV file into an Arrow table *)
-let read_csv (path : string) : (Arrow_table.t, string) result =
+(* ===================================================================== *)
+(* Native Arrow CSV Reading (via FFI)                                    *)
+(* ===================================================================== *)
+
+(** Read a CSV file using the native Arrow C GLib CSV reader.
+    Returns Ok(Arrow_table.t) with a native_handle, or Error if reading fails. *)
+let read_csv_native (path : string) : (Arrow_table.t, string) result =
+  match Arrow_ffi.arrow_read_csv path with
+  | None -> Error ("Arrow CSV read failed: " ^ path)
+  | Some ptr ->
+      let schema_pairs = Arrow_ffi.arrow_table_get_schema ptr in
+      let nrows = Arrow_ffi.arrow_table_num_rows ptr in
+      let schema = List.map (fun (name, type_tag) ->
+        (name, Arrow_table.arrow_type_of_tag type_tag)
+      ) schema_pairs in
+      Ok (Arrow_table.create_from_native ptr schema nrows)
+
+(* ===================================================================== *)
+(* Public API                                                            *)
+(* ===================================================================== *)
+
+(** Read a CSV file into an Arrow table.
+    Uses native Arrow CSV reader when available, falls back to pure OCaml. *)
+let rec read_csv (path : string) : (Arrow_table.t, string) result =
+  if Arrow_ffi.arrow_available then
+    (* Try native Arrow CSV reader first *)
+    match read_csv_native path with
+    | Ok _ as result -> result
+    | Error _native_err ->
+        (* Native Arrow reader failed — fall back to pure OCaml parser.
+           This can happen if the file format is not supported by Arrow's
+           CSV reader or if the native library encounters an error. *)
+        read_csv_fallback path
+  else
+    read_csv_fallback path
+
+(** Pure OCaml CSV reading fallback *)
+and read_csv_fallback (path : string) : (Arrow_table.t, string) result =
   try
     let ch = open_in path in
     let content = really_input_string ch (in_channel_length ch) in

@@ -1,6 +1,7 @@
 (* src/arrow/arrow_column.ml *)
 (* Column access and views for Arrow-backed DataFrames.                  *)
 (* Provides zero-copy column views that keep the backing table alive.    *)
+(* Supports both native Arrow tables (via FFI) and pure OCaml storage.   *)
 
 (** A column view — references the backing table to prevent GC collection *)
 type column_view = {
@@ -9,7 +10,8 @@ type column_view = {
   data : Arrow_table.column_data;
 }
 
-(** Get a column view from an Arrow table *)
+(** Get a column view from an Arrow table.
+    For native-backed tables, this extracts column data via FFI. *)
 let get_column (table : Arrow_table.t) (name : string) : column_view option =
   match Arrow_table.get_column table name with
   | Some data -> Some { backing = table; column_name = name; data }

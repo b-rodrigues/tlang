@@ -11,6 +11,7 @@
    test_math test_stats test_explain_tests
    test_cli
    test_golden test_core_semantics
+   test_arrow_integration
  )
  (libraries t_lang menhirLib)
 )

@@ -30,18 +30,26 @@
             ocamlVersion.findlib
             pkgs.dune_3
             ocamlVersion.menhir
-            # Arrow C GLib for DataFrame backend (Phase 1)
+            # pkg-config — resolves C library flags for arrow-glib, gobject, glib
             pkgs.pkg-config
           ];
 
           buildInputs = [
             ocamlVersion.menhirLib
+            # Arrow C++ — provides arrow.pc that arrow-glib depends on
+            pkgs.arrow-cpp
             # Arrow C GLib — Apache Arrow columnar data library
             # Provides GArrowTable, GArrowCSVReader, GArrowCompute
             pkgs.arrow-glib
+            # GLib/GObject — arrow-glib.h includes <glib-object.h> from GLib.
+            # Must be listed explicitly so pkg-config can resolve gobject-2.0
+            # and glib-2.0, and the compiler can find their headers.
+            pkgs.glib
+            pkgs.glib.dev
           ];
 
           buildPhase = ''
+            export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:$PKG_CONFIG_PATH"
             dune build src/repl.exe
           '';
 
@@ -106,8 +114,13 @@
 
             # 3. Arrow C GLib — Apache Arrow columnar data library
             # -------------------------------------------------------
+            # Arrow C++ — provides arrow.pc that arrow-glib depends on
+            pkgs.arrow-cpp
             # Required for Arrow-backed DataFrame operations.
             pkgs.arrow-glib
+            # GLib/GObject — arrow-glib.h includes <glib-object.h> from GLib.
+            pkgs.glib
+            pkgs.glib.dev
             pkgs.pkg-config
           ];
 
