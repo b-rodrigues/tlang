@@ -42,7 +42,7 @@
    ; packages/math
    t_sqrt t_abs t_log t_exp pow
    ; packages/stats
-   mean sd quantile cor lm
+   mean sd quantile cor lm min max
    ; packages/explain
    intent_fields intent_get t_explain explain_json
  )
