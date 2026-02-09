@@ -18,7 +18,7 @@ let register env =
                match (Arrow_owl_bridge.numeric_column_to_owl df.arrow_table y_col,
                       Arrow_owl_bridge.numeric_column_to_owl df.arrow_table x_col) with
                | (None, _) | (_, None) ->
-                 make_error TypeError "lm() encountered NA value. Handle missingness explicitly."
+                 make_error TypeError "lm() requires numeric columns without NA values"
                | (Some y_view, Some x_view) ->
                  let ys = y_view.arr in
                  let xs = x_view.arr in

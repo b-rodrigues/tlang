@@ -48,7 +48,7 @@ let numeric_column_to_owl (table : Arrow_table.t) (col_name : string) : owl_view
          let has_na = ref false in
          for i = 0 to n - 1 do
            match a.(i) with
-           | Some i -> result.(i) <- float_of_int i
+           | Some int_val -> result.(i) <- float_of_int int_val
            | None -> has_na := true
          done;
          if !has_na then None
@@ -73,7 +73,8 @@ let numeric_column_to_owl_exn (table : Arrow_table.t) (col_name : string)
       Error (Printf.sprintf "Column '%s' has non-numeric type %s"
                col_name (Arrow_table.arrow_type_to_string typ))
 
-(** Compute the mean of a float array *)
+(** Compute the mean of a float array.
+    Returns 0.0 for empty arrays (caller should check length first). *)
 let arr_mean (a : float array) : float =
   let n = Array.length a in
   if n = 0 then 0.0
