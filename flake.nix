@@ -4,15 +4,43 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    # Add rstats-on-nix for latest R packages
+    rstats-on-nix.url = "github:rstats-on-nix/nixpkgs";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  # Configure cachix for R packages
+  nixConfig = {
+    extra-substituters = [
+      "https://rstats-on-nix.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
+    ];
+  };
+
+  outputs = { self, nixpkgs, flake-utils, rstats-on-nix }:
     # This function creates the outputs for common system architectures
     # (x86_64-linux, aarch64-darwin, etc.)
     flake-utils.lib.eachDefaultSystem (system:
       let
         # Use the Nix packages for the specified system
         pkgs = nixpkgs.legacyPackages.${system};
+
+        # R packages from rstats-on-nix
+        r-pkgs = rstats-on-nix.packages.${system};
+
+        # Build R with specific packages
+        R-with-packages = pkgs.rWrapper.override {
+          packages = with r-pkgs; [
+            dplyr
+            readr
+            testthat
+            stringr
+            tidyr
+            purrr
+            broom
+          ];
+        };
 
         # Pin a specific version of OCaml for reproducibility.
         # OCaml 5.1 is a modern, solid choice.
@@ -134,6 +162,10 @@
             # optimized computation in lm(), cor(), and future ML ops.
             # Uncomment when owl is available in your OCaml package set:
             # ocamlVersion.owl
+
+            # 5. R environment for golden tests
+            # -------------------------------------------------------
+            R-with-packages
           ];
 
           shellHook = ''
@@ -149,6 +181,12 @@
             echo "  dune exec src/repl.exe -- --help  - Show CLI help"
             echo "  dune test            - Run tests"
             echo "  dune clean           - Clean build artifacts"
+            echo "  R                    - Launch R console"
+            echo ""
+            echo "Golden tests:"
+            echo "  Rscript tests/golden/generate_datasets.R       - Generate test data"
+            echo "  Rscript tests/golden/generate_expected.R       - Generate dplyr outputs"
+            echo "  Rscript tests/golden/generate_expected_stats.R - Generate stats outputs"
             echo ""
             echo "Quick start: dune exec src/repl.exe"
             echo ""
