@@ -105,3 +105,31 @@ external arrow_compute_subtract_scalar : nativeint -> string -> float -> nativei
 (** Divide every element of a named column by a scalar. *)
 external arrow_compute_divide_scalar : nativeint -> string -> float -> nativeint option
   = "caml_arrow_compute_divide_scalar"
+
+(* ===================================================================== *)
+(* Group-By & Aggregation (Phase 3)                                      *)
+(* ===================================================================== *)
+
+(** Group a table by key columns. Returns an opaque handle to a
+    GroupedTable structure that stores pre-computed group information. *)
+external arrow_table_group_by : nativeint -> string list -> nativeint option
+  = "caml_arrow_table_group_by"
+
+(** Free a grouped table handle (called from GC finalizer). *)
+external arrow_grouped_table_free : nativeint -> unit
+  = "caml_arrow_grouped_table_free"
+
+(** Compute sum per group for a named column.
+    Returns Some(result_table_ptr) with key columns + aggregated column. *)
+external arrow_group_sum : nativeint -> string -> nativeint option
+  = "caml_arrow_group_sum"
+
+(** Compute mean per group for a named column.
+    Returns Some(result_table_ptr) with key columns + aggregated column. *)
+external arrow_group_mean : nativeint -> string -> nativeint option
+  = "caml_arrow_group_mean"
+
+(** Compute row count per group.
+    Returns Some(result_table_ptr) with key columns + "n" column. *)
+external arrow_group_count : nativeint -> nativeint option
+  = "caml_arrow_group_count"

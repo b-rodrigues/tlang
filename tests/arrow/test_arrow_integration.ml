@@ -389,6 +389,139 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   ignore env_c;
   (try Sys.remove csv_compute with _ -> ());
+  print_newline ();
+
+  Printf.printf "Arrow Integration — Group-By & Aggregation (Phase 3):\n";
+
+  (* Test 33: Arrow_compute.group_by on pure OCaml table *)
+  let group_tbl = Arrow_table.create [
+    ("name", Arrow_table.StringColumn [| Some "Alice"; Some "Bob"; Some "Alice"; Some "Bob"; Some "Alice" |]);
+    ("dept", Arrow_table.StringColumn [| Some "Eng"; Some "Eng"; Some "Eng"; Some "Sales"; Some "Sales" |]);
+    ("score", Arrow_table.FloatColumn [| Some 90.0; Some 80.0; Some 85.0; Some 70.0; Some 95.0 |]);
+  ] 5 in
+  let grouped = Arrow_compute.group_by group_tbl ["name"] in
+  let n_groups = List.length grouped.Arrow_compute.ocaml_groups in
+  if n_groups = 2 then begin
+    incr pass_count; Printf.printf "  ✓ group_by produces 2 groups for ['name']\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_by expected 2 groups, got %d\n" n_groups
+  end;
+
+  (* Test 34: group_by preserves group order (insertion order) *)
+  let first_key = fst (List.hd grouped.Arrow_compute.ocaml_groups) in
+  if first_key = {|"Alice"|} then begin
+    incr pass_count; Printf.printf "  ✓ group_by preserves insertion order\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_by first group expected \"Alice\", got %s\n" first_key
+  end;
+
+  (* Test 35: group_by with multiple keys *)
+  let grouped2 = Arrow_compute.group_by group_tbl ["name"; "dept"] in
+  let n_groups2 = List.length grouped2.Arrow_compute.ocaml_groups in
+  if n_groups2 = 4 then begin
+    incr pass_count; Printf.printf "  ✓ group_by with 2 keys produces 4 groups\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_by with 2 keys expected 4 groups, got %d\n" n_groups2
+  end;
+
+  (* Test 36: group_aggregate sum *)
+  let sum_result = Arrow_compute.group_aggregate grouped "sum" "score" in
+  if Arrow_table.num_rows sum_result = 2 then begin
+    (match Arrow_table.get_column sum_result "score" with
+     | Some (Arrow_table.FloatColumn data) ->
+         (* Alice: 90.0 + 85.0 + 95.0 = 270.0, Bob: 80.0 + 70.0 = 150.0 *)
+         if data.(0) = Some 270.0 && data.(1) = Some 150.0 then begin
+           incr pass_count; Printf.printf "  ✓ group_aggregate sum is correct\n"
+         end else begin
+           incr fail_count;
+           Printf.printf "  ✗ group_aggregate sum values incorrect: [%s]\n"
+             (Array.to_list data |> List.map (fun v ->
+               match v with Some f -> string_of_float f | None -> "NA")
+             |> String.concat ", ")
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate sum column type mismatch\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_aggregate sum expected 2 rows, got %d\n"
+      (Arrow_table.num_rows sum_result)
+  end;
+
+  (* Test 37: group_aggregate mean *)
+  let mean_result = Arrow_compute.group_aggregate grouped "mean" "score" in
+  if Arrow_table.num_rows mean_result = 2 then begin
+    (match Arrow_table.get_column mean_result "score" with
+     | Some (Arrow_table.FloatColumn data) ->
+         (* Alice: (90+85+95)/3 = 90.0, Bob: (80+70)/2 = 75.0 *)
+         let close a b = Float.abs (a -. b) < 0.001 in
+         (match data.(0), data.(1) with
+          | Some a, Some b when close a 90.0 && close b 75.0 ->
+              incr pass_count; Printf.printf "  ✓ group_aggregate mean is correct\n"
+          | _ ->
+              incr fail_count;
+              Printf.printf "  ✗ group_aggregate mean values incorrect: [%s]\n"
+                (Array.to_list data |> List.map (fun v ->
+                  match v with Some f -> string_of_float f | None -> "NA")
+                |> String.concat ", "))
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate mean column type mismatch\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_aggregate mean expected 2 rows, got %d\n"
+      (Arrow_table.num_rows mean_result)
+  end;
+
+  (* Test 38: group_aggregate count *)
+  let count_result = Arrow_compute.group_aggregate grouped "count" "" in
+  if Arrow_table.num_rows count_result = 2 then begin
+    (match Arrow_table.get_column count_result "n" with
+     | Some (Arrow_table.FloatColumn data) ->
+         (* Alice: 3 rows, Bob: 2 rows *)
+         if data.(0) = Some 3.0 && data.(1) = Some 2.0 then begin
+           incr pass_count; Printf.printf "  ✓ group_aggregate count is correct\n"
+         end else begin
+           incr fail_count;
+           Printf.printf "  ✗ group_aggregate count values incorrect\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate count column type mismatch\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_aggregate count expected 2 rows, got %d\n"
+      (Arrow_table.num_rows count_result)
+  end;
+
+  (* Test 39: group_aggregate result has key columns *)
+  if Arrow_table.has_column sum_result "name" then begin
+    (match Arrow_table.get_column sum_result "name" with
+     | Some (Arrow_table.StringColumn data) ->
+         if data.(0) = Some "Alice" && data.(1) = Some "Bob" then begin
+           incr pass_count; Printf.printf "  ✓ group_aggregate result has correct key column\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ group_aggregate key column values incorrect\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate key column type mismatch\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_aggregate result missing key column 'name'\n"
+  end;
+
+  (* Test 40: group_by + summarize via T language *)
+  let csv_groupby = "test_arrow_groupby.csv" in
+  let oc3 = open_out csv_groupby in
+  output_string oc3 "name,dept,score\nAlice,Eng,90\nBob,Eng,80\nAlice,Sales,95\nBob,Sales,70\n";
+  close_out oc3;
+
+  test "Group-by + summarize (mean)"
+    (Printf.sprintf
+      {|df = read_csv("%s"); df |> group_by("name") |> summarize("avg_score", \(d) mean(d.score)) |> \(d) d.avg_score|}
+      csv_groupby)
+    "Vector[92.5, 75.]";
+
+  test "Group-by + summarize (sum via nrow)"
+    (Printf.sprintf
+      {|df = read_csv("%s"); df |> group_by("name") |> summarize("n", \(d) nrow(d)) |> \(d) d.n|}
+      csv_groupby)
+    "Vector[2, 2]";
+
+  (try Sys.remove csv_groupby with _ -> ());
 
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
