@@ -59,5 +59,32 @@ simple_data <- tibble(
 write_csv(simple_data, file.path(output_dir, "simple.csv"))
 message("✓ Exported simple.csv (10 rows × 5 cols)")
 
+# 8. Edge case: Empty DataFrame
+empty_data <- tibble(
+  col1 = numeric(0),
+  col2 = character(0),
+  col3 = logical(0)
+)
+write_csv(empty_data, file.path(output_dir, "empty.csv"))
+message("✓ Exported empty.csv (0 rows × 3 cols)")
+
+# 9. Edge case: Single row DataFrame
+single_row <- tibble(
+  id = 1,
+  value = 42.0,
+  label = "single"
+)
+write_csv(single_row, file.path(output_dir, "single_row.csv"))
+message("✓ Exported single_row.csv (1 row × 3 cols)")
+
+# 10. Edge case: Division by zero and special values
+special_values <- tibble(
+  id = 1:6,
+  value = c(1.0, 0.0, -1.0, 10.0, 100.0, 5.0),
+  divisor = c(2.0, 1.0, 0.0, 0.0, 10.0, 0.0)
+)
+write_csv(special_values, file.path(output_dir, "special_values.csv"))
+message("✓ Exported special_values.csv (6 rows × 3 cols)")
+
 message("\n✅ All datasets generated successfully!")
 message(sprintf("   Location: %s", normalizePath(output_dir)))

@@ -252,6 +252,39 @@ data_with_nas %>%
   ) %>%
   save_output("airquality_groupby_with_nas", "group_by with NAs present")
 
+# ============================================================================
+# Test Suite 8: EDGE CASES
+# ============================================================================
+message("\n=== EDGE CASE Tests ===")
+
+# Test 8.1: Empty DataFrame - select
+empty_df <- read_csv(file.path(data_dir, "empty.csv"), show_col_types = FALSE)
+empty_df %>%
+  select(col1, col2) %>%
+  save_output("empty_select", "select on empty DataFrame")
+
+# Test 8.2: Empty DataFrame - filter
+empty_df %>%
+  filter(col1 > 0) %>%
+  save_output("empty_filter", "filter on empty DataFrame")
+
+# Test 8.3: Single row - select
+single_row <- read_csv(file.path(data_dir, "single_row.csv"), show_col_types = FALSE)
+single_row %>%
+  select(id, value) %>%
+  save_output("single_row_select", "select on single row DataFrame")
+
+# Test 8.4: Single row - mutate
+single_row %>%
+  mutate(doubled = value * 2) %>%
+  save_output("single_row_mutate", "mutate on single row DataFrame")
+
+# Test 8.5: Division by zero (produces Inf)
+special_vals <- read_csv(file.path(data_dir, "special_values.csv"), show_col_types = FALSE)
+special_vals %>%
+  mutate(result = value / divisor) %>%
+  save_output("edge_division", "division with zeros (Inf handling)")
+
 message("\n✅ All expected outputs generated!")
 message(sprintf("   Location: %s", normalizePath(output_dir)))
 message(sprintf("   Total files: %d", 

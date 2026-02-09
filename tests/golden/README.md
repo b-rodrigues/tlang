@@ -1,181 +1,204 @@
-# Golden Tests - README
+# Golden Testing Framework: T vs R
 
-This directory contains the golden testing framework for comparing T language outputs against R (dplyr/stats) reference implementations.
+This directory contains the golden testing framework that compares T's output
+against R's dplyr and stats packages to ensure correctness and compatibility.
+
+## Overview
+
+The testing workflow:
+
+1. **Generate Test Data**: R exports built-in datasets (mtcars, iris, etc.) to CSV
+2. **Generate Expected Outputs**: R/dplyr runs operations and saves results
+3. **Run T Tests**: T runs the same operations and saves outputs
+4. **Compare**: testthat compares T outputs vs R expected outputs
 
 ## Directory Structure
 
 ```
 tests/golden/
-├── data/                    # Test datasets (generated from R)
-│   └── *.csv               # CSV files (gitignored)
-├── expected/                # Expected outputs from R
-│   └── *.csv               # CSV files (gitignored)
-├── t_outputs/               # Actual outputs from T
-│   └── *.csv               # CSV files (gitignored)
-├── t_scripts/               # T test scripts
-│   └── *.t                 # Individual test scripts
-├── generate_datasets.R      # Phase 2: Generate test data
-├── generate_expected.R      # Phase 3: Generate dplyr outputs
-├── generate_expected_stats.R # Phase 3: Generate stats outputs
-├── run_all_t_tests.sh      # Phase 4: Run all T tests
-└── test_golden_r.R         # Phase 5: Compare outputs with testthat
+├── README.md                    # This file
+├── generate_datasets.R          # Export R datasets to CSV
+├── generate_expected.R          # Generate expected outputs (dplyr)
+├── generate_expected_stats.R    # Generate expected outputs (stats)
+├── test_golden_r.R              # testthat comparison suite
+├── run_all_t_tests.sh           # Run all T test scripts
+├── generate_coverage_report.R   # Generate coverage HTML report
+├── data/                        # Generated CSV datasets (gitignored)
+├── expected/                    # Expected outputs from R (gitignored)
+├── t_outputs/                   # T outputs for comparison (gitignored)
+└── t_scripts/                   # T test scripts (.t files)
+    ├── mtcars_select_mpg.t
+    ├── mtcars_filter_mpg_gt_20.t
+    ├── mtcars_groupby_cyl_mean_mpg.t
+    └── ... (27+ test scripts)
 ```
 
-## Quick Start
+## Running Tests
 
-### Using Make (Recommended)
+### Full Test Suite
 
 ```bash
-# Run full golden test pipeline
 make golden
+```
 
-# Run individual phases
-make golden-setup      # Create directories
-make golden-data       # Generate test datasets
-make golden-expected   # Generate R expected outputs
-make golden-run        # Run T test scripts
-make golden-compare    # Compare T vs R outputs
+This runs the entire pipeline:
+1. Generates test data
+2. Generates expected outputs
+3. Runs T tests (continues even if some tests fail)
+4. Compares outputs (continues even if some comparisons fail)
 
-# Quick test (assumes data already generated)
+**Note**: The test pipeline is designed to run as many tests as possible. Even if some tests fail, the pipeline will continue to completion to provide a comprehensive report of all test results.
+
+### Quick Test (assumes data already generated)
+
+```bash
 make golden-quick
+```
 
-# Clean generated files
+### Individual Steps
+
+```bash
+make golden-data       # Generate datasets
+make golden-expected   # Generate R expected outputs
+make golden-run        # Run T tests
+make golden-compare    # Compare outputs
+```
+
+### Clean Generated Files
+
+```bash
 make golden-clean
 ```
 
-### Manual Execution
-
-```bash
-# 1. Setup directories
-mkdir -p tests/golden/{data,expected,t_outputs}
-
-# 2. Generate test data from R datasets
-Rscript tests/golden/generate_datasets.R
-
-# 3. Generate expected outputs using R/dplyr
-Rscript tests/golden/generate_expected.R
-Rscript tests/golden/generate_expected_stats.R
-
-# 4. Run T test scripts
-./tests/golden/run_all_t_tests.sh
-
-# 5. Compare T outputs vs R expected
-Rscript tests/golden/test_golden_r.R
-```
-
-## Implementation Phases
-
-### ✅ Phase 1: Nix Configuration for R
-- R with packages (dplyr, readr, testthat, etc.) added to `flake.nix`
-
-### ✅ Phase 2: Test Data Generation
-- `generate_datasets.R` creates test datasets:
-  - mtcars, iris, airquality, chickweight, toothgrowth
-  - simple.csv (for basic tests)
-  - data_with_nas.csv (for NA handling tests)
-
-### ✅ Phase 3: R Golden Outputs
-- `generate_expected.R`: dplyr operations (select, filter, mutate, arrange, group_by)
-- `generate_expected_stats.R`: statistical operations (lm, cor, summary stats)
-
-### ✅ Phase 4: T Test Scripts
-- 27 individual `.t` scripts in `tests/golden/t_scripts/`
-- `run_all_t_tests.sh` executes all scripts and reports pass/fail/skip
-- Test categories:
-  - SELECT (3 tests)
-  - FILTER (4 tests)
-  - MUTATE (4 tests)
-  - ARRANGE (3 tests)
-  - GROUP_BY + SUMMARIZE (5 tests)
-  - PIPELINES (5 tests)
-  - NA HANDLING (3 tests - not yet implemented)
-
-### ✅ Phase 5: R Comparison Tests with testthat
-- `test_golden_r.R` uses testthat to compare T outputs vs R expected
-- Includes `compare_csvs()` helper for robust comparison:
-  - Row/column count validation
-  - Column name matching
-  - Numeric value comparison with tolerance
-  - String value exact matching
-- 31 test cases total (some marked as skipped for unimplemented features)
-
-### ✅ Phase 6: Makefile Integration
-- `Makefile` provides convenient targets for running the golden test pipeline
-- Targets: `golden`, `golden-setup`, `golden-data`, `golden-expected`, `golden-run`, `golden-compare`, `golden-clean`, `golden-quick`
-
 ## Test Coverage
 
-### Implemented Tests
-- **SELECT**: Single column, multiple columns, reordering
-- **FILTER**: Numeric comparisons, AND/OR conditions, string equality
-- **MUTATE**: New columns, multiple mutations, overwriting columns, column ratios
-- **ARRANGE**: Ascending, descending, multi-column sorting
-- **GROUP_BY + SUMMARIZE**: Mean, multiple aggregations, multiple keys, various functions
-- **PIPELINES**: Chained operations (filter→select, select→filter→arrange, etc.)
+View current test coverage:
 
-### Not Yet Implemented (Skipped in Tests)
-- **NA Handling**: mean with na.rm, filtering NAs, group_by with NAs
-- **Window Functions**: group_by → mutate
-- **Linear Models**: lm() for regression
-- **Correlations**: cor() for correlation analysis
-
-## Test Execution Details
-
-### T Test Scripts
-Each `.t` script:
-1. Loads a dataset from `tests/golden/data/`
-2. Applies T language operations (select, filter, mutate, etc.)
-3. Writes result to `tests/golden/t_outputs/`
-4. Prints success message or skip warning
-
-### Test Comparison
-The R testthat script:
-1. Loads expected output from `tests/golden/expected/`
-2. Loads T output from `tests/golden/t_outputs/`
-3. Compares dimensions, column names, and values
-4. Reports pass/fail/skip for each test
-5. Provides summary statistics
+```bash
+Rscript tests/golden/generate_coverage_report.R
+open tests/golden/coverage_report.html
+```
 
 ## Adding New Tests
 
-### 1. Add to Phase 3 (R Expected Output)
-Edit `generate_expected.R` or `generate_expected_stats.R`:
+### 1. Add Expected Output (R)
+
+Edit `generate_expected.R`:
+
 ```r
 mtcars %>%
-  your_operation_here() %>%
-  save_output("test_name", "description")
+  your_new_operation() %>%
+  save_output("test_name", "Description")
 ```
 
-### 2. Add to Phase 4 (T Test Script)
-Create `tests/golden/t_scripts/test_name.t`:
-```
--- Test: Description
-df = read_csv("tests/golden/data/dataset.csv")
-result = df |> your_t_operation_here
+### 2. Add T Test Script
+
+Create `t_scripts/test_name.t`:
+
+```t
+-- Test: Your new operation
+df = read_csv("tests/golden/data/mtcars.csv")
+result = df |> your_new_operation()
 write_csv(result, "tests/golden/t_outputs/test_name.csv")
-print("✓ test_name complete")
 ```
 
-### 3. Add to Phase 5 (Comparison Test)
+### 3. Add testthat Assertion
+
 Edit `test_golden_r.R`:
+
 ```r
-test_that("Description", {
+test_that("Your new operation", {
   compare_csvs("test_name")
 })
 ```
 
-## Continuous Integration
+### 4. Run Tests
 
-The golden tests are designed to be run in CI to ensure T outputs match R reference implementations. Add to your CI pipeline:
-
-```yaml
-- name: Run Golden Tests
-  run: make golden
+```bash
+make golden
 ```
 
-## Notes
+## Test-Driven Development (TDD)
 
-- All CSV files in `data/`, `expected/`, and `t_outputs/` are gitignored
-- Tests marked as "skipped" indicate features not yet implemented in T
-- Floating-point comparisons use a tolerance of 1e-6 by default
-- Test scripts use T's pipe operator `|>` for readability
+For **unimplemented features**, tests are marked with `skip()`:
+
+```r
+test_that("Window functions", {
+  skip("Window functions not yet implemented in T")
+  compare_csvs("pipeline_groupby_mutate")
+})
+```
+
+This allows you to:
+- Define expected behavior upfront
+- Track implementation progress
+- Ensure correctness when features are added
+
+## CI Integration
+
+Golden tests run automatically on:
+- Every push to main/develop
+- Every pull request
+
+See: `.github/workflows/golden-tests.yml`
+
+## Interpreting Results
+
+### All Passed ✅
+```
+Passed:  30
+Failed:  0
+Skipped: 10 (not yet implemented)
+
+✅ ALL IMPLEMENTED TESTS PASSED!
+```
+
+### Some Failed ❌
+```
+Passed:  25
+Failed:  5
+Skipped: 10
+
+❌ SOME TESTS FAILED
+
+Check the error messages for details.
+```
+
+Common failure reasons:
+- Floating point precision differences (adjust tolerance)
+- Column order differences (use `sort(names(...))`)
+- Missing features in T (add `skip()` until implemented)
+
+## Troubleshooting
+
+### R packages not found
+
+```bash
+nix develop
+R -e "library(dplyr)"
+```
+
+If it fails, check flake.nix includes the package.
+
+### T test fails to run
+
+```bash
+dune build
+dune exec src/repl.exe -- run t_scripts/test_name.t
+```
+
+Check for syntax errors or missing features.
+
+### Tolerance issues
+
+For numerical comparisons, adjust tolerance in `compare_csvs()`:
+
+```r
+compare_csvs("test_name", tolerance = 1e-5)  # More lenient
+```
+
+## Metrics
+
+Current test coverage: **See `coverage_report.html`**
+
+Target: **80% coverage** before Beta release

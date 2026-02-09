@@ -221,6 +221,31 @@ test_that("COR: iris correlation", {
 })
 
 # ============================================================================
+# Test Suite 10: EDGE CASES
+# ============================================================================
+
+test_that("EDGE CASE: select on empty DataFrame", {
+  compare_csvs("empty_select")
+})
+
+test_that("EDGE CASE: filter on empty DataFrame", {
+  compare_csvs("empty_filter")
+})
+
+test_that("EDGE CASE: select on single row DataFrame", {
+  compare_csvs("single_row_select")
+})
+
+test_that("EDGE CASE: mutate on single row DataFrame", {
+  compare_csvs("single_row_mutate")
+})
+
+test_that("EDGE CASE: division by zero (Inf handling)", {
+  skip("Division by zero handling not yet implemented in T")
+  compare_csvs("edge_division", tolerance = 1e-6)
+})
+
+# ============================================================================
 # SUMMARY REPORT
 # ============================================================================
 
