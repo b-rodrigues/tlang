@@ -6,12 +6,12 @@
 (rule
  (targets arrow_cflags.sexp)
  (action (with-stdout-to %{targets}
-  (bash "pkg-config --cflags arrow-glib 2>/dev/null | tr ' ' '\\n' | sed '/^$/d' | sed 's/.*/(\"&\")/' | (echo '('; cat; echo ')') || echo '()'"))))
+  (bash "if pkg-config --cflags arrow-glib >/dev/null 2>&1; then echo -n '('; pkg-config --cflags arrow-glib | tr ' ' '\\n' | sed '/^$/d' | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
 
 (rule
  (targets arrow_libs.sexp)
  (action (with-stdout-to %{targets}
-  (bash "pkg-config --libs arrow-glib 2>/dev/null | tr ' ' '\\n' | sed '/^$/d' | sed 's/.*/(\"&\")/' | (echo '('; cat; echo ')') || echo '()'"))))
+  (bash "if pkg-config --libs arrow-glib >/dev/null 2>&1; then echo -n '('; pkg-config --libs arrow-glib | tr ' ' '\\n' | sed '/^$/d' | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
 
 (library
  (name t_lang)

@@ -204,6 +204,21 @@ let add_column (t : t) (name : string) (col : column_data) : t =
   in
   { schema; columns; nrows = t.nrows; native_handle = None }
 
+let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int) : column_data =
+  let pick a =
+    Array.init new_nrows (fun j ->
+      let rec find src count =
+        if mask.(src) then (if count = j then a.(src) else find (src + 1) (count + 1))
+        else find (src + 1) count
+      in find 0 0)
+  in
+  match col with
+  | IntColumn a -> IntColumn (pick a)
+  | FloatColumn a -> FloatColumn (pick a)
+  | BoolColumn a -> BoolColumn (pick a)
+  | StringColumn a -> StringColumn (pick a)
+  | NullColumn _ -> NullColumn new_nrows
+
 (** Filter rows using a boolean mask *)
 let filter_rows (t : t) (mask : bool array) : t =
   match t.native_handle with
@@ -223,21 +238,6 @@ let filter_rows (t : t) (mask : bool array) : t =
       let filter_col col = _filter_column_pure col mask new_nrows in
       let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
       { schema = t.schema; columns; nrows = new_nrows; native_handle = None }
-
-and _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int) : column_data =
-  let pick a =
-    Array.init new_nrows (fun j ->
-      let rec find src count =
-        if mask.(src) then (if count = j then a.(src) else find (src + 1) (count + 1))
-        else find (src + 1) count
-      in find 0 0)
-  in
-  match col with
-  | IntColumn a -> IntColumn (pick a)
-  | FloatColumn a -> FloatColumn (pick a)
-  | BoolColumn a -> BoolColumn (pick a)
-  | StringColumn a -> StringColumn (pick a)
-  | NullColumn _ -> NullColumn new_nrows
 
 (** Take rows by index list *)
 let take_rows (t : t) (indices : int list) : t =
