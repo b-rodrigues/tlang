@@ -84,3 +84,24 @@ external arrow_table_filter_mask : nativeint -> bool array -> nativeint option
 
 external arrow_table_sort : nativeint -> string -> bool -> nativeint option
   = "caml_arrow_table_sort"
+
+(* ===================================================================== *)
+(* Scalar Arithmetic Operations                                          *)
+(* ===================================================================== *)
+
+(** Add a scalar to every element of a named column.
+    Returns Some(new_table_ptr) or None on failure. *)
+external arrow_compute_add_scalar : nativeint -> string -> float -> nativeint option
+  = "caml_arrow_compute_add_scalar"
+
+(** Multiply every element of a named column by a scalar. *)
+external arrow_compute_multiply_scalar : nativeint -> string -> float -> nativeint option
+  = "caml_arrow_compute_multiply_scalar"
+
+(** Subtract a scalar from every element of a named column. *)
+external arrow_compute_subtract_scalar : nativeint -> string -> float -> nativeint option
+  = "caml_arrow_compute_subtract_scalar"
+
+(** Divide every element of a named column by a scalar. *)
+external arrow_compute_divide_scalar : nativeint -> string -> float -> nativeint option
+  = "caml_arrow_compute_divide_scalar"
