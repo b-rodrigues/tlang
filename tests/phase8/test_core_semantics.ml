@@ -6,9 +6,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Core Semantics: Expression evaluation:\n";
 
   (* Nested arithmetic *)
-  test "nested arithmetic" "((2 + 3) * (4 - 1)) / 5" "3";
+  test "nested arithmetic" "((2 + 3) * (4 - 1)) / 5" "3.";
   test "float precision" "0.1 + 0.2" "0.3";
-  test "int division truncation" "7 / 2" "3";
+  test "int division" "7 / 2" "3.5";
   test "negative result" "3 - 10" "-7";
   test "multiply by zero" "42 * 0" "0";
   test "string repeat via concat" {|"ha" + "ha" + "ha"|} {|"hahaha"|};

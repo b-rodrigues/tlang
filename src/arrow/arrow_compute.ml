@@ -191,8 +191,35 @@ and group_by_ocaml (t : Arrow_table.t) (keys : string list) : grouped_table =
   let groups = List.rev_map (fun k ->
     (k, List.rev (Hashtbl.find group_map k))
   ) !group_order in
+  (* Sort groups by key values to match R's group_by ordering *)
+  let compare_value a b =
+    match (a, b) with
+    | (Ast.VInt x, Ast.VInt y) -> compare x y
+    | (Ast.VFloat x, Ast.VFloat y) -> compare x y
+    | (Ast.VInt x, Ast.VFloat y) -> compare (float_of_int x) y
+    | (Ast.VFloat x, Ast.VInt y) -> compare x (float_of_int y)
+    | (Ast.VString x, Ast.VString y) -> String.compare x y
+    | (Ast.VBool x, Ast.VBool y) -> compare x y
+    | (Ast.VNA _, _) -> 1
+    | (_, Ast.VNA _) -> -1
+    | _ -> 0
+  in
+  let sorted_groups = List.sort (fun (_, indices_a) (_, indices_b) ->
+    match indices_a, indices_b with
+    | (a_first :: _, b_first :: _) ->
+      let rec cmp cols =
+        match cols with
+        | [] -> 0
+        | col :: rest ->
+          let c = compare_value col.(a_first) col.(b_first) in
+          if c <> 0 then c else cmp rest
+      in
+      cmp key_col_values
+    | ([], _) -> -1
+    | (_, []) -> 1
+  ) groups in
   { base_table = t; group_keys = keys;
-    native_group = None; ocaml_groups = groups }
+    native_group = None; ocaml_groups = sorted_groups }
 
 (** Apply an aggregation to a grouped table.
     agg_name: "sum", "mean", or "count"

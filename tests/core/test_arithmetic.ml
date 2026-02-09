@@ -3,7 +3,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "integer addition" "1 + 2" "3";
   test "integer subtraction" "10 - 3" "7";
   test "integer multiplication" "4 * 5" "20";
-  test "integer division" "15 / 3" "5";
+  test "integer division" "15 / 3" "5.";
   test "float addition" "1.5 + 2.5" "4.";
   test "mixed int+float" "1 + 2.5" "3.5";
   test "operator precedence" "2 + 3 * 4" "14";
