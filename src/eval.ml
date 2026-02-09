@@ -228,19 +228,49 @@ and eval_list_lit env items =
 
 and eval_dot_access env target_expr field =
   let target_val = eval_expr env target_expr in
+  (* Helper: check if any column name in the table starts with the given prefix *)
+  let has_column_prefix arrow_table prefix =
+    let pfx = prefix ^ "." in
+    let pfx_len = String.length pfx in
+    List.exists (fun c -> String.length c > pfx_len &&
+                          String.sub c 0 pfx_len = pfx)
+      (Arrow_table.column_names arrow_table)
+  in
   match target_val with
   | VDict pairs ->
       (match List.assoc_opt field pairs with
       | Some v -> v
-      | None -> make_error KeyError (Printf.sprintf "key '%s' not found in dict" field))
+      | None ->
+        (* Check for partial dot-access on a DataFrame (e.g. df.Petal -> df."Petal.Length").
+           Internal keys __partial_dot_df__ and __partial_dot_prefix__ carry the original
+           DataFrame and accumulated prefix through chained dot accesses. *)
+        (match List.assoc_opt "__partial_dot_df__" pairs with
+         | Some (VDataFrame { arrow_table; _ } as df_val) ->
+           let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
+                         | Some (VString s) -> s | _ -> "") in
+           let compound = prefix ^ "." ^ field in
+           (match Arrow_table.get_column arrow_table compound with
+            | Some col -> VVector (Arrow_bridge.column_to_values col)
+            | None ->
+              if has_column_prefix arrow_table compound
+              then VDict [("__partial_dot_df__", df_val);
+                          ("__partial_dot_prefix__", VString compound)]
+              else make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" compound))
+         | _ -> make_error KeyError (Printf.sprintf "key '%s' not found in dict" field)))
   | VList named_items ->
       (match List.find_opt (fun (name, _) -> name = Some field) named_items with
       | Some (_, v) -> v
       | None -> make_error KeyError (Printf.sprintf "list has no named element '%s'" field))
-  | VDataFrame { arrow_table; _ } ->
+  | VDataFrame ({ arrow_table; _ } as df) ->
       (match Arrow_table.get_column arrow_table field with
        | Some col -> VVector (Arrow_bridge.column_to_values col)
-       | None -> make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" field))
+       | None ->
+         (* Column not found — check if there are columns with this prefix (e.g. "Petal.Length")
+            to support R-style dotted column names via chained dot access (df.Petal.Length) *)
+         if has_column_prefix arrow_table field
+         then VDict [("__partial_dot_df__", VDataFrame df);
+                     ("__partial_dot_prefix__", VString field)]
+         else make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" field))
   | VPipeline { p_nodes; _ } ->
       (match List.assoc_opt field p_nodes with
        | Some v -> v
@@ -568,6 +598,8 @@ let initial_env () : environment =
   let env = Quantile.register env in
   let env = Cor.register env in
   let env = Lm.register env in
+  let env = Min.register env in
+  let env = Max.register env in
   (* Explain package *)
   let env = Intent_fields.register env in
   let env = Intent_get.register env in
