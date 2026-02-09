@@ -13,26 +13,25 @@ let register env =
              | Some new_table ->
                VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
              | None ->
-               (* Fall back to pure OCaml sort *)
-               match Arrow_table.get_column df.arrow_table col_name with
-               | None -> make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
-               | Some col ->
-                 let col_values = Arrow_bridge.column_to_values col in
-                 let nrows = Arrow_table.num_rows df.arrow_table in
-                 let indices = Array.init nrows (fun i -> i) in
-                 let compare_values a b =
-                   match (a, b) with
-                   | (VInt x, VInt y) -> compare x y
-                   | (VFloat x, VFloat y) -> compare x y
-                   | (VString x, VString y) -> String.compare x y
-                   | (VBool x, VBool y) -> compare x y
-                   | (VNA _, _) -> 1
-                   | (_, VNA _) -> -1
-                   | _ -> 0
-                 in
-                 Array.sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
-                 let new_table = Arrow_compute.sort_by_indices df.arrow_table indices in
-                 VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
+               (* Fall back to pure OCaml sort — column existence already verified *)
+               let col = match Arrow_table.get_column df.arrow_table col_name with
+                 | Some c -> c | None -> assert false in
+               let col_values = Arrow_bridge.column_to_values col in
+               let nrows = Arrow_table.num_rows df.arrow_table in
+               let indices = Array.init nrows (fun i -> i) in
+               let compare_values a b =
+                 match (a, b) with
+                 | (VInt x, VInt y) -> compare x y
+                 | (VFloat x, VFloat y) -> compare x y
+                 | (VString x, VString y) -> String.compare x y
+                 | (VBool x, VBool y) -> compare x y
+                 | (VNA _, _) -> 1
+                 | (_, VNA _) -> -1
+                 | _ -> 0
+               in
+               Array.sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
+               let new_table = Arrow_compute.sort_by_indices df.arrow_table indices in
+               VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
       | [VDataFrame df; VString col_name; VString "desc"] ->
           if not (Arrow_table.has_column df.arrow_table col_name) then
             make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
@@ -42,26 +41,25 @@ let register env =
              | Some new_table ->
                VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
              | None ->
-               (* Fall back to pure OCaml sort *)
-               match Arrow_table.get_column df.arrow_table col_name with
-               | None -> make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
-               | Some col ->
-                 let col_values = Arrow_bridge.column_to_values col in
-                 let nrows = Arrow_table.num_rows df.arrow_table in
-                 let indices = Array.init nrows (fun i -> i) in
-                 let compare_values a b =
-                   match (a, b) with
-                   | (VInt x, VInt y) -> compare y x
-                   | (VFloat x, VFloat y) -> compare y x
-                   | (VString x, VString y) -> String.compare y x
-                   | (VBool x, VBool y) -> compare y x
-                   | (VNA _, _) -> 1
-                   | (_, VNA _) -> -1
-                   | _ -> 0
-                 in
-                 Array.sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
-                 let new_table = Arrow_compute.sort_by_indices df.arrow_table indices in
-                 VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
+               (* Fall back to pure OCaml sort — column existence already verified *)
+               let col = match Arrow_table.get_column df.arrow_table col_name with
+                 | Some c -> c | None -> assert false in
+               let col_values = Arrow_bridge.column_to_values col in
+               let nrows = Arrow_table.num_rows df.arrow_table in
+               let indices = Array.init nrows (fun i -> i) in
+               let compare_values a b =
+                 match (a, b) with
+                 | (VInt x, VInt y) -> compare y x
+                 | (VFloat x, VFloat y) -> compare y x
+                 | (VString x, VString y) -> String.compare y x
+                 | (VBool x, VBool y) -> compare y x
+                 | (VNA _, _) -> 1
+                 | (_, VNA _) -> -1
+                 | _ -> 0
+               in
+               Array.sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
+               let new_table = Arrow_compute.sort_by_indices df.arrow_table indices in
+               VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
       | [VDataFrame _; VString _; VString dir] ->
           make_error ValueError (Printf.sprintf "arrange() direction must be \"asc\" or \"desc\", got \"%s\"" dir)
       | [VDataFrame _; _] | [VDataFrame _; _; _] ->

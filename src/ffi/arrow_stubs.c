@@ -587,7 +587,7 @@ apply_double_scalar_op(GArrowChunkedArray *chunked, double scalar_val, int op_co
           case 0: result = val + scalar_val; break;
           case 1: result = val * scalar_val; break;
           case 2: result = val - scalar_val; break;
-          case 3: result = (scalar_val != 0.0) ? val / scalar_val : 0.0; break;
+          case 3: result = val / scalar_val; break;  /* IEEE 754: x/0 → ±Inf, 0/0 → NaN */
           default: result = val; break;
         }
 

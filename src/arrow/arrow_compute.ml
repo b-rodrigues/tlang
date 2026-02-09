@@ -59,8 +59,8 @@ let sort_by_column (t : Arrow_table.t) (col_name : string) (ascending : bool) : 
 (* Scalar Arithmetic Operations                                          *)
 (* ===================================================================== *)
 
-(** Helper to rebuild schema from a native table pointer *)
-let _schema_from_native (ptr : nativeint) : Arrow_table.arrow_schema =
+(** Rebuild schema from a native table pointer *)
+let schema_from_native_ptr (ptr : nativeint) : Arrow_table.arrow_schema =
   let pairs = Arrow_ffi.arrow_table_get_schema ptr in
   List.map (fun (name, tag) -> (name, Arrow_table.arrow_type_of_tag tag)) pairs
 
@@ -71,7 +71,7 @@ let add_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arrow_
   | Some handle when not handle.Arrow_table.freed ->
       (match Arrow_ffi.arrow_compute_add_scalar handle.ptr col_name scalar with
        | Some new_ptr ->
-           let schema = _schema_from_native new_ptr in
+           let schema = schema_from_native_ptr new_ptr in
            let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
            Some (Arrow_table.create_from_native new_ptr schema nrows)
        | None -> None)
@@ -84,7 +84,7 @@ let multiply_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : A
   | Some handle when not handle.Arrow_table.freed ->
       (match Arrow_ffi.arrow_compute_multiply_scalar handle.ptr col_name scalar with
        | Some new_ptr ->
-           let schema = _schema_from_native new_ptr in
+           let schema = schema_from_native_ptr new_ptr in
            let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
            Some (Arrow_table.create_from_native new_ptr schema nrows)
        | None -> None)
@@ -97,7 +97,7 @@ let subtract_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : A
   | Some handle when not handle.Arrow_table.freed ->
       (match Arrow_ffi.arrow_compute_subtract_scalar handle.ptr col_name scalar with
        | Some new_ptr ->
-           let schema = _schema_from_native new_ptr in
+           let schema = schema_from_native_ptr new_ptr in
            let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
            Some (Arrow_table.create_from_native new_ptr schema nrows)
        | None -> None)
@@ -110,7 +110,7 @@ let divide_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arr
   | Some handle when not handle.Arrow_table.freed ->
       (match Arrow_ffi.arrow_compute_divide_scalar handle.ptr col_name scalar with
        | Some new_ptr ->
-           let schema = _schema_from_native new_ptr in
+           let schema = schema_from_native_ptr new_ptr in
            let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
            Some (Arrow_table.create_from_native new_ptr schema nrows)
        | None -> None)
