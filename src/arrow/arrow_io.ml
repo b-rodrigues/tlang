@@ -164,7 +164,7 @@ let read_csv_native (path : string) : (Arrow_table.t, string) result =
 
 (** Read a CSV file into an Arrow table.
     Uses native Arrow CSV reader when available, falls back to pure OCaml. *)
-let read_csv (path : string) : (Arrow_table.t, string) result =
+let rec read_csv (path : string) : (Arrow_table.t, string) result =
   if Arrow_ffi.arrow_available then
     (* Try native Arrow CSV reader first *)
     match read_csv_native path with

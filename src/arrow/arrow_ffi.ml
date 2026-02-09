@@ -43,7 +43,7 @@ external arrow_table_get_schema : nativeint -> (string * int) list
 (* ===================================================================== *)
 
 external arrow_table_get_column_data : nativeint -> string -> nativeint option
-  = "caml_arrow_table_get_column_data"
+  = "caml_arrow_table_get_column_data_by_name"
 
 external arrow_read_int64_column : nativeint -> int option array
   = "caml_arrow_read_int64_column"

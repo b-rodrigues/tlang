@@ -54,7 +54,16 @@ CAMLprim value caml_arrow_table_get_column_by_name(value v_ptr, value v_name) {
   GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
   const char *name = String_val(v_name);
 
-  GArrowChunkedArray *column = garrow_table_get_column_by_name(table, name);
+  /* Use schema to find column index by name, then get column data */
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, name);
+  g_object_unref(schema);
+
+  if (idx < 0) {
+    CAMLreturn(Val_none);
+  }
+
+  GArrowChunkedArray *column = garrow_table_get_column_data(table, idx);
   if (column == NULL) {
     CAMLreturn(Val_none);
   }
@@ -120,14 +129,23 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
 
 /* Get a column's first chunk array pointer by name.
    Returns Some(nativeint) or None. */
-CAMLprim value caml_arrow_table_get_column_data(value v_ptr, value v_col_name) {
+CAMLprim value caml_arrow_table_get_column_data_by_name(value v_ptr, value v_col_name) {
   CAMLparam2(v_ptr, v_col_name);
   CAMLlocal1(v_result);
 
   GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
   const char *col_name = String_val(v_col_name);
 
-  GArrowChunkedArray *chunked = garrow_table_get_column_by_name(table, col_name);
+  /* Use schema to find column index by name */
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (idx < 0) {
+    CAMLreturn(Val_none);
+  }
+
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, idx);
   if (chunked == NULL) {
     CAMLreturn(Val_none);
   }
@@ -332,10 +350,32 @@ CAMLprim value caml_arrow_table_project(value v_ptr, value v_names) {
 
   g_object_unref(schema);
 
-  /* Select columns */
+  /* Build new table with selected columns using Arrow APIs */
   GError *error = NULL;
-  GArrowTable *result = garrow_table_select_columns(table, indices, n_names, &error);
+  GList *fields_list = NULL;
+  GArrowChunkedArray **columns_arr = (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * n_names);
+
+  GArrowSchema *old_schema = garrow_table_get_schema(table);
+  for (int i = 0; i < n_names; i++) {
+    guint idx = indices[i];
+    GArrowField *field = garrow_schema_get_field(old_schema, idx);
+    fields_list = g_list_append(fields_list, g_object_ref(field));
+    columns_arr[i] = garrow_table_get_column_data(table, idx);
+    g_object_unref(field);
+  }
+  g_object_unref(old_schema);
   free(indices);
+
+  GArrowSchema *new_schema = garrow_schema_new(fields_list);
+  g_list_free_full(fields_list, g_object_unref);
+
+  GArrowTable *result = garrow_table_new_chunked_arrays(new_schema, columns_arr, n_names, &error);
+
+  for (int i = 0; i < n_names; i++) {
+    if (columns_arr[i]) g_object_unref(columns_arr[i]);
+  }
+  free(columns_arr);
+  g_object_unref(new_schema);
 
   if (result == NULL) {
     if (error) g_error_free(error);
@@ -381,8 +421,8 @@ CAMLprim value caml_arrow_table_filter_mask(value v_ptr, value v_mask) {
     CAMLreturn(Val_none);
   }
 
-  /* Apply filter */
-  GArrowTable *result = garrow_table_filter(table, mask_array, NULL, &error);
+  /* Apply filter - cast to GArrowBooleanArray as required by the API */
+  GArrowTable *result = garrow_table_filter(table, GARROW_BOOLEAN_ARRAY(mask_array), NULL, &error);
   g_object_unref(mask_array);
 
   if (result == NULL) {
