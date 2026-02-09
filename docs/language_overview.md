@@ -116,14 +116,21 @@ filter(numbers, \(x) x > 3)  -- [4, 5]
 
 ---
 
-## Pipe Operator
+## Pipe Operators
 
-The pipe operator `|>` passes the left-hand value as the first argument to the right-hand function:
+T provides two pipe operators with different error-handling semantics.
+
+### Conditional Pipe (`|>`)
+
+The standard pipe `|>` passes the left-hand value as the first argument to the right-hand function. If the left-hand value is an error, the pipeline **short-circuits** and the error is returned immediately without calling the function:
 
 ```t
 5 |> \(x) x * 2           -- 10
 5 |> add(3)                -- 8 (equivalent to add(5, 3))
 [1, 2, 3] |> map(\(x) x * x) |> sum  -- 14
+
+-- Short-circuits on error:
+error("boom") |> double    -- Error(GenericError: "boom")
 ```
 
 Pipes work across lines for readability:
@@ -133,6 +140,39 @@ Pipes work across lines for readability:
   |> map(\(x) x * x)
   |> sum                   -- 55
 ```
+
+### Maybe-Pipe (`?|>`)
+
+The maybe-pipe `?|>` **always** forwards the left-hand value to the right-hand function, even if it is an error. This enables explicit error recovery patterns:
+
+```t
+-- Forward normal values (same as |>):
+5 ?|> double               -- 10
+
+-- Forward errors to recovery functions:
+handle = \(x) if (is_error(x)) "recovered" else x
+error("boom") ?|> handle   -- "recovered"
+
+-- Chain recovery with normal processing:
+recovery = \(x) if (is_error(x)) 0 else x
+increment = \(x) x + 1
+error("fail") ?|> recovery |> increment  -- 1
+```
+
+The maybe-pipe also works across lines:
+
+```t
+error("fail")
+  ?|> recovery
+  |> increment             -- 1
+```
+
+### When to Use Each Pipe
+
+| Operator | On Error            | Use Case                        |
+|----------|---------------------|---------------------------------|
+| `\|>`    | Short-circuits      | Normal data pipelines           |
+| `?\|>`   | Forwards to function| Error recovery, fallback values |
 
 ---
 

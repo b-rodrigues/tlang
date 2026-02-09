@@ -130,12 +130,54 @@ pipeline analysis {
 
   <ul>
     <li>R-style lambdas: <code>\(x) x + 1</code></li>
-    <li>Pipe operator: <code>|></code></li>
+    <li>Conditional pipe operator: <code>|></code> (short-circuits on error)</li>
+    <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
     <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
     <li>Python-style dictionaries: <code>{name: "Alice", age: 30}</code></li>
     <li>Errors as values, not exceptions</li>
     <li>Explicit, typed missing values</li>
   </ul>
+
+  <hr>
+
+  <h2><font face="Courier New">Pipe Operators</font></h2>
+
+  <p>
+    T provides two pipe operators with different error-handling semantics:
+  </p>
+
+  <h3><font face="Courier New">Conditional Pipe: <code>|></code></font></h3>
+  <p>
+    The standard pipe passes the left-hand value as the first argument to the right-hand
+    function. If the left-hand value is an error, the pipeline <b>short-circuits</b> and
+    the error is returned without calling the function.
+  </p>
+  <pre>
+5 |> double                -- 10
+error("boom") |> double    -- Error (short-circuited)
+  </pre>
+
+  <h3><font face="Courier New">Maybe-Pipe: <code>?|></code></font></h3>
+  <p>
+    The maybe-pipe <b>always</b> forwards the left-hand value — including errors —
+    to the right-hand function. This enables explicit error recovery patterns.
+  </p>
+  <pre>
+-- Recover from errors:
+handle = \(x) if (is_error(x)) "recovered" else x
+error("boom") ?|> handle           -- "recovered"
+
+-- Chain recovery with normal processing:
+recovery = \(x) if (is_error(x)) 0 else x
+increment = \(x) x + 1
+error("fail") ?|> recovery |> increment  -- 1
+  </pre>
+
+  <p>
+    Together, <code>|></code> and <code>?|></code> enable
+    <b>Railway-Oriented Programming</b> in T: errors flow through pipelines as
+    explicit values, and recovery logic is composable.
+  </p>
 
   <hr>
 

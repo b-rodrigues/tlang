@@ -311,6 +311,17 @@ and eval_binop env op left right =
              let fn_val = eval_expr env right in
              eval_call env fn_val [(None, Value lval)]
       )
+  | MaybePipe ->
+      let lval = eval_expr env left in
+      (* Unconditional pipe — always forward, even errors *)
+      (match right with
+       | Call { fn; args } ->
+           let fn_val = eval_expr env fn in
+           eval_call env fn_val ((None, Value lval) :: args)
+       | _ ->
+           let fn_val = eval_expr env right in
+           eval_call env fn_val [(None, Value lval)]
+      )
   | _ ->
   let lval = eval_expr env left in
   (match lval with VError _ as e -> e | _ ->

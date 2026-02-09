@@ -44,7 +44,8 @@ null            -- Null
 + - * /         -- Arithmetic
 == != < > <= >= -- Comparison
 and or not      -- Logical
-|>              -- Pipe
+|>              -- Conditional pipe (short-circuits on error)
+?|>             -- Unconditional pipe (forwards errors to function)
 ```
 
 ### Data Structures
@@ -159,3 +160,4 @@ dune test
 - [`examples/data_analysis.t`](examples/data_analysis.t) — End-to-end data analysis
 - [`examples/pipeline_example.t`](examples/pipeline_example.t) — Pipeline features
 - [`examples/statistics_example.t`](examples/statistics_example.t) — Math and statistics
+- [`examples/error_recovery.t`](examples/error_recovery.t) — Error recovery with maybe-pipe (`?|>`)

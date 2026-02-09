@@ -83,7 +83,7 @@ p.count  -- 5
 
 ---
 
-## 5. Pipelines with Pipe Operator
+## 5. Pipelines with Pipe Operators
 
 The pipe operator `|>` works naturally inside pipelines:
 
@@ -96,6 +96,26 @@ p = pipeline {
 }
 p.b  -- 10
 ```
+
+### Error Recovery with Maybe-Pipe
+
+The maybe-pipe `?|>` forwards all values — including errors — to the next function.
+This is useful for building recovery logic into pipelines:
+
+```t
+recovery = \(x) if (is_error(x)) 0 else x
+double = \(x) x * 2
+
+p = pipeline {
+  raw = 1 / 0                    -- Error: division by zero
+  safe = raw ?|> recovery        -- forwards error to recovery → 0
+  result = safe |> double        -- 0 |> double → 0
+}
+p.safe    -- 0
+p.result  -- 0
+```
+
+Without `?|>`, the error from `raw` would short-circuit at `|>` and never reach `recovery`. The maybe-pipe lets you intercept errors and provide fallback values.
 
 ---
 

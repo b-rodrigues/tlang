@@ -4,6 +4,12 @@ All notable changes to the T programming language are documented here.
 
 ## [Alpha 0.1] — 2026-02
 
+### Maybe-Pipe Operator
+- `?|>` unconditional pipe operator: always forwards the left-hand value (including errors) to the right-hand function
+- Enables explicit error recovery patterns (Railway-Oriented Programming)
+- Both `|>` and `?|>` share the same precedence and left-associativity
+- Multi-line continuation support: `\n  ?|>` works like `\n  |>`
+
 ### Phase 0 — Foundations
 - OCaml project structure with Dune build system
 - Lexer (OCamllex) and parser (Menhir)
