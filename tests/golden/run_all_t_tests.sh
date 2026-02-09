@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 # Run all T test scripts and generate output CSVs
-
-set -e
+# Note: Does not use 'set -e' so all tests run even if some fail
 
 T_REPL="dune exec src/repl.exe --"
 SCRIPT_DIR="tests/golden/t_scripts"

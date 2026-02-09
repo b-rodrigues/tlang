@@ -44,8 +44,10 @@ make golden
 This runs the entire pipeline:
 1. Generates test data
 2. Generates expected outputs
-3. Runs T tests
-4. Compares outputs
+3. Runs T tests (continues even if some tests fail)
+4. Compares outputs (continues even if some comparisons fail)
+
+**Note**: The test pipeline is designed to run as many tests as possible. Even if some tests fail, the pipeline will continue to completion to provide a comprehensive report of all test results.
 
 ### Quick Test (assumes data already generated)
 
