@@ -197,7 +197,6 @@ let register env =
              VVector (Array.map (fun t -> VInt t) result))
       | [_; VInt n] when n <= 0 ->
         make_error ValueError "ntile() requires a positive number of tiles"
-      | [_; VInt _] -> make_error TypeError "ntile() expects a numeric Vector or List as first argument"
       | [_; _] -> make_error TypeError "ntile() expects an integer as second argument"
       | _ -> make_error ArityError "ntile() takes exactly 2 arguments"
     ))
