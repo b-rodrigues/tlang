@@ -14,7 +14,7 @@ let register env =
            | Some (Error e) -> e
            | _ ->
              let names = List.map (fun r -> match r with Ok s -> s | _ -> "") key_names in
-             let missing = List.filter (fun n -> not (List.mem_assoc n df.columns)) names in
+             let missing = List.filter (fun n -> not (Arrow_table.has_column df.arrow_table n)) names in
              if missing <> [] then
                make_error KeyError (Printf.sprintf "Column(s) not found: %s" (String.concat ", " missing))
              else if names = [] then

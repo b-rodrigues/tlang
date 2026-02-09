@@ -4,11 +4,13 @@
 open Ast
 
 (** Pretty-print a DataFrame as a table *)
-let pretty_print_dataframe { columns; nrows; group_keys } =
-  if columns = [] then
+let pretty_print_dataframe { arrow_table; group_keys } =
+  let nrows = Arrow_table.num_rows arrow_table in
+  let value_columns = Arrow_bridge.table_to_value_columns arrow_table in
+  if value_columns = [] then
     "Empty DataFrame (0 rows x 0 cols)\n"
   else
-    let col_names = List.map fst columns in
+    let col_names = List.map fst value_columns in
     (* Format each cell value *)
     let cell_to_string v =
       match v with
@@ -25,7 +27,7 @@ let pretty_print_dataframe { columns; nrows; group_keys } =
         max acc (String.length (cell_to_string v))
       ) 0 col_data in
       max header_len max_data_len
-    ) columns in
+    ) value_columns in
     let buf = Buffer.create 256 in
     (* Header *)
     let header_parts = List.map2 (fun name width ->
@@ -43,7 +45,7 @@ let pretty_print_dataframe { columns; nrows; group_keys } =
       let row_parts = List.map2 (fun (_name, col_data) width ->
         let v = col_data.(row_idx) in
         Printf.sprintf "%-*s" width (cell_to_string v)
-      ) columns col_widths in
+      ) value_columns col_widths in
       Buffer.add_string buf ("  " ^ String.concat "  " row_parts ^ "\n")
     done;
     if nrows > 20 then
@@ -52,7 +54,7 @@ let pretty_print_dataframe { columns; nrows; group_keys } =
     let group_info = if group_keys = [] then ""
       else Printf.sprintf " grouped by [%s]" (String.concat ", " group_keys) in
     Buffer.add_string buf (Printf.sprintf "DataFrame: %d rows x %d cols%s\n"
-      nrows (List.length columns) group_info);
+      nrows (List.length value_columns) group_info);
     Buffer.contents buf
 
 (** Pretty-print an error value *)
@@ -78,8 +80,9 @@ let pretty_print_pipeline { p_nodes; p_deps; _ } =
       | _ -> ""
     in
     let val_str = match v with
-      | VDataFrame { nrows; columns; _ } ->
-          Printf.sprintf "DataFrame(%d rows x %d cols)" nrows (List.length columns)
+      | VDataFrame { arrow_table; _ } ->
+          Printf.sprintf "DataFrame(%d rows x %d cols)"
+            (Arrow_table.num_rows arrow_table) (Arrow_table.num_columns arrow_table)
       | _ -> Utils.value_to_string v
     in
     Buffer.add_string buf (Printf.sprintf "  %s = %s%s\n" name val_str deps)

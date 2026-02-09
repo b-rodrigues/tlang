@@ -19,11 +19,14 @@ let register env =
       in
       match args with
       | [VDataFrame df; VString y_col; VString x_col] ->
-          (match (List.assoc_opt y_col df.columns, List.assoc_opt x_col df.columns) with
+          (match (Arrow_table.get_column df.arrow_table y_col, Arrow_table.get_column df.arrow_table x_col) with
            | (None, _) -> make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" y_col)
            | (_, None) -> make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" x_col)
-           | (Some y_arr, Some x_arr) ->
-             if df.nrows < 2 then
+           | (Some y_col_data, Some x_col_data) ->
+             let y_arr = Arrow_bridge.column_to_values y_col_data in
+             let x_arr = Arrow_bridge.column_to_values x_col_data in
+             let nrows = Arrow_table.num_rows df.arrow_table in
+             if nrows < 2 then
                make_error ValueError "lm() requires at least 2 observations"
              else
                (match (extract_nums_arr "lm" y_arr, extract_nums_arr "lm" x_arr) with

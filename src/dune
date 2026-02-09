@@ -6,6 +6,9 @@
  (name t_lang)
  (wrapped false)
  (modules
+   ; arrow — Arrow-backed table implementation
+   arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
+   ; core language
    ast lexer parser eval
    ; packages/core
    t_print t_type length head tail is_error t_seq t_map sum pretty_print packages

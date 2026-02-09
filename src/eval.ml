@@ -237,9 +237,9 @@ and eval_dot_access env target_expr field =
       (match List.find_opt (fun (name, _) -> name = Some field) named_items with
       | Some (_, v) -> v
       | None -> make_error KeyError (Printf.sprintf "list has no named element '%s'" field))
-  | VDataFrame { columns; _ } ->
-      (match List.assoc_opt field columns with
-       | Some col -> VVector col
+  | VDataFrame { arrow_table; _ } ->
+      (match Arrow_table.get_column arrow_table field with
+       | Some col -> VVector (Arrow_bridge.column_to_values col)
        | None -> make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" field))
   | VPipeline { p_nodes; _ } ->
       (match List.assoc_opt field p_nodes with
@@ -392,7 +392,7 @@ let eval_statement (env : environment) (stmt : stmt) : value * environment =
 let make_builtin ?(variadic=false) arity func =
   VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
 
-(* --- Phase 2: Simple CSV Parser --- *)
+(* --- Phase 2: Arrow-Backed CSV Parser --- *)
 
 (** Split a CSV line into fields, handling quoted fields *)
 let parse_csv_line (line : string) : string list =
@@ -460,13 +460,13 @@ let split_lines (s : string) : string list =
       line
   ) lines
 
-(** Parse a CSV string into a DataFrame *)
+(** Parse a CSV string into an Arrow-backed DataFrame *)
 let parse_csv_string (content : string) : value =
   let lines = split_lines content in
   (* Remove trailing empty lines *)
   let lines = List.filter (fun l -> String.trim l <> "") lines in
   match lines with
-  | [] -> VDataFrame { columns = []; nrows = 0; group_keys = [] }
+  | [] -> VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
   | header_line :: data_lines ->
       let headers = parse_csv_line header_line in
       let ncols = List.length headers in
@@ -480,15 +480,17 @@ let parse_csv_string (content : string) : value =
       else
         (* Convert rows to array for O(1) access *)
         let rows_arr = Array.of_list valid_rows in
-        (* Build column arrays *)
-        let columns = List.mapi (fun col_idx name ->
+        (* Build column arrays using per-cell type inference for backward compatibility *)
+        let value_columns = List.mapi (fun col_idx name ->
           let col_data = Array.init nrows (fun row_idx ->
             let row = rows_arr.(row_idx) in
             parse_csv_value (List.nth row col_idx)
           ) in
           (name, col_data)
         ) headers in
-        VDataFrame { columns; nrows; group_keys = [] }
+        (* Convert to Arrow table via bridge *)
+        let arrow_table = Arrow_bridge.table_from_value_columns value_columns nrows in
+        VDataFrame { arrow_table; group_keys = [] }
 
 
 (* --- Load All Packages --- *)

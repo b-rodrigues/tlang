@@ -56,6 +56,8 @@ let register env =
             ("examples", examples);
           ]
       | [VDataFrame df] ->
+          let value_columns = Arrow_bridge.table_to_value_columns df.arrow_table in
+          let nrows = Arrow_table.num_rows df.arrow_table in
           let schema = VList (List.map (fun (name, col) ->
             let col_type = ref "Unknown" in
             Array.iter (fun v ->
@@ -63,16 +65,16 @@ let register env =
                 match v with VNA _ -> () | _ -> col_type := Utils.type_name v
             ) col;
             (None, VDict [("name", VString name); ("type", VString !col_type)])
-          ) df.columns) in
+          ) value_columns) in
           let na_stats = VDict (List.map (fun (name, col) ->
             let na_count = Array.fold_left (fun acc v ->
               match v with VNA _ -> acc + 1 | _ -> acc
             ) 0 col in
             (name, VInt na_count)
-          ) df.columns) in
-          let example_n = min 5 df.nrows in
+          ) value_columns) in
+          let example_n = min 5 nrows in
           let example_rows = VList (List.init example_n (fun i ->
-            (None, VDict (List.map (fun (name, col) -> (name, col.(i))) df.columns))
+            (None, VDict (Arrow_bridge.row_to_dict df.arrow_table i))
           )) in
           let grouped_info =
             if df.group_keys = [] then []
@@ -80,8 +82,8 @@ let register env =
           in
           VDict ([
             ("kind", VString "dataframe");
-            ("nrow", VInt df.nrows);
-            ("ncol", VInt (List.length df.columns));
+            ("nrow", VInt nrows);
+            ("ncol", VInt (Arrow_table.num_columns df.arrow_table));
             ("schema", schema);
             ("na_stats", na_stats);
             ("example_rows", example_rows);
