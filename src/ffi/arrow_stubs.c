@@ -615,23 +615,12 @@ apply_double_scalar_op(GArrowChunkedArray *chunked, double scalar_val, int op_co
     return NULL;
   }
 
-  /* Build ChunkedArray from result chunks */
-  guint n_result = g_list_length(result_chunks);
-  GArrowArray **arrays = (GArrowArray **)malloc(sizeof(GArrowArray *) * n_result);
-  GList *iter = result_chunks;
-  for (guint i = 0; i < n_result; i++) {
-    arrays[i] = (GArrowArray *)iter->data;
-    iter = iter->next;
-  }
-
-  GArrowDoubleDataType *dtype = garrow_double_data_type_new();
+  /* Build ChunkedArray from result chunks.
+     garrow_chunked_array_new takes (GList *chunks, GError **error). */
   GArrowChunkedArray *result =
-      garrow_chunked_array_new(GARROW_DATA_TYPE(dtype), arrays, n_result, &error);
-  g_object_unref(dtype);
+      garrow_chunked_array_new(result_chunks, &error);
 
-  for (guint i = 0; i < n_result; i++) g_object_unref(arrays[i]);
-  free(arrays);
-  g_list_free(result_chunks);
+  g_list_free_full(result_chunks, g_object_unref);
 
   if (result == NULL && error) g_error_free(error);
   return result;
