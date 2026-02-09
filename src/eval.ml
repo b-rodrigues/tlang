@@ -348,7 +348,7 @@ and eval_binop env op left right =
   | (Mul, VInt a, VFloat b) -> VFloat (float_of_int a *. b)
   | (Mul, VFloat a, VInt b) -> VFloat (a *. float_of_int b)
   | (Div, VInt _, VInt 0) -> make_error DivisionByZero "Division by zero"
-  | (Div, VInt a, VInt b) -> VInt (a / b)
+  | (Div, VInt a, VInt b) -> VFloat (float_of_int a /. float_of_int b)
   | (Div, VFloat _, VFloat b) when b = 0.0 -> make_error DivisionByZero "Division by zero"
   | (Div, VFloat a, VFloat b) -> VFloat (a /. b)
   | (Div, VInt a, VFloat b) -> if b = 0.0 then make_error DivisionByZero "Division by zero" else VFloat (float_of_int a /. b)
