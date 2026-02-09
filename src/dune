@@ -3,15 +3,17 @@
 (include_subdirs unqualified)
 
 ; Generate C compiler flags from pkg-config for arrow-glib
+; We query gobject-2.0 and glib-2.0 explicitly because the Nix sandbox
+; does not always resolve transitive pkg-config dependencies reliably.
 (rule
  (targets arrow_cflags.sexp)
  (action (with-stdout-to %{targets}
-  (bash "if pkg-config --cflags arrow-glib >/dev/null 2>&1; then echo -n '('; pkg-config --cflags arrow-glib | tr ' ' '\\n' | sed '/^$/d' | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
+  (bash "if pkg-config --cflags arrow-glib gobject-2.0 glib-2.0 >/dev/null 2>&1; then echo -n '('; pkg-config --cflags arrow-glib gobject-2.0 glib-2.0 | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
 
 (rule
  (targets arrow_libs.sexp)
  (action (with-stdout-to %{targets}
-  (bash "if pkg-config --libs arrow-glib >/dev/null 2>&1; then echo -n '('; pkg-config --libs arrow-glib | tr ' ' '\\n' | sed '/^$/d' | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
+  (bash "if pkg-config --libs arrow-glib gobject-2.0 glib-2.0 >/dev/null 2>&1; then echo -n '('; pkg-config --libs arrow-glib gobject-2.0 glib-2.0 | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
 
 (library
  (name t_lang)
