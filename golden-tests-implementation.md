@@ -1626,7 +1626,7 @@ compare_csvs("test_name", tolerance = 1e-5)  # More lenient
 Current test coverage: **See `coverage_report.html`**
 
 Target: **80% coverage** before Beta release
-```
+
 
 #### **Checklist:**
 - [ ] Create tests/golden/README.md
@@ -1640,7 +1640,7 @@ Target: **80% coverage** before Beta release
 
 #### **Add to main README.md:**
 
-```markdown
+````markdown
 ## Testing
 
 T uses a comprehensive golden testing framework that compares outputs against
@@ -1658,7 +1658,7 @@ make golden       # Golden tests (T vs R)
 Current coverage: [![Coverage](https://img.shields.io/badge/coverage-75%25-yellow)](tests/golden/coverage_report.html)
 
 See [Golden Testing Documentation](tests/golden/README.md) for details.
-```
+````
 
 ---
 
