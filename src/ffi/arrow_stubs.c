@@ -489,3 +489,202 @@ CAMLprim value caml_arrow_table_sort(value v_ptr, value v_col_name, value v_asce
   Store_field(v_result, 0, caml_copy_nativeint((intnat)sorted));
   CAMLreturn(v_result);
 }
+
+/* ===================================================================== */
+/* Scalar Arithmetic Operations                                          */
+/* ===================================================================== */
+
+/* Helper: rebuild a GArrowTable replacing one column's ChunkedArray.
+   Copies the schema and all columns, substituting the column at `idx`
+   with `new_col`. The schema field at `idx` is updated to match the
+   new column's data type (e.g., Int64 → Float64 after scalar op).
+   Returns a new GArrowTable* or NULL on failure. */
+static GArrowTable *
+rebuild_table_with_column(GArrowTable *table, guint idx, GArrowChunkedArray *new_col)
+{
+  GError *error = NULL;
+  GArrowSchema *old_schema = garrow_table_get_schema(table);
+  guint ncols = garrow_schema_n_fields(old_schema);
+
+  GList *fields_list = NULL;
+  GArrowChunkedArray **columns_arr =
+      (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * ncols);
+
+  for (guint i = 0; i < ncols; i++) {
+    if (i == idx) {
+      /* Create a new field with the replacement column's data type */
+      GArrowField *old_field = garrow_schema_get_field(old_schema, i);
+      const gchar *name = garrow_field_get_name(old_field);
+      GArrowDataType *new_dtype = garrow_chunked_array_get_value_data_type(new_col);
+      GArrowField *new_field = garrow_field_new(name, new_dtype);
+      fields_list = g_list_append(fields_list, new_field);
+      columns_arr[i] = g_object_ref(new_col);
+      g_object_unref(new_dtype);
+      g_object_unref(old_field);
+    } else {
+      GArrowField *field = garrow_schema_get_field(old_schema, i);
+      fields_list = g_list_append(fields_list, g_object_ref(field));
+      columns_arr[i] = garrow_table_get_column_data(table, i);
+      g_object_unref(field);
+    }
+  }
+
+  GArrowSchema *new_schema = garrow_schema_new(fields_list);
+  g_list_free_full(fields_list, g_object_unref);
+
+  GArrowTable *result =
+      garrow_table_new_chunked_arrays(new_schema, columns_arr, ncols, &error);
+
+  for (guint i = 0; i < ncols; i++) {
+    if (columns_arr[i]) g_object_unref(columns_arr[i]);
+  }
+  free(columns_arr);
+  g_object_unref(new_schema);
+  g_object_unref(old_schema);
+
+  if (result == NULL && error) g_error_free(error);
+  return result;
+}
+
+/* Helper: apply a scalar arithmetic operation element-by-element on a
+   Float64 (double) column. Builds a new GArrowChunkedArray* with the
+   results. op_code: 0=add, 1=multiply, 2=subtract, 3=divide.
+   Returns NULL on failure or type mismatch. */
+static GArrowChunkedArray *
+apply_double_scalar_op(GArrowChunkedArray *chunked, double scalar_val, int op_code)
+{
+  GError *error = NULL;
+  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
+
+  /* Process each chunk, collecting result arrays */
+  GList *result_chunks = NULL;
+  gboolean ok = TRUE;
+
+  for (guint c = 0; c < n_chunks && ok; c++) {
+    GArrowArray *chunk = garrow_chunked_array_get_chunk(chunked, c);
+    gint64 length = garrow_array_get_length(chunk);
+
+    /* Build a new double array with the operation applied */
+    GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
+
+    for (gint64 i = 0; i < length; i++) {
+      if (garrow_array_is_null(chunk, i)) {
+        garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+      } else {
+        gdouble val;
+
+        if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+          val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT64_ARRAY(chunk)) {
+          val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
+        } else {
+          ok = FALSE;
+          break;
+        }
+
+        gdouble result;
+        switch (op_code) {
+          case 0: result = val + scalar_val; break;
+          case 1: result = val * scalar_val; break;
+          case 2: result = val - scalar_val; break;
+          case 3: result = val / scalar_val; break;  /* IEEE 754: x/0 → ±Inf, 0/0 → NaN */
+          default: result = val; break;
+        }
+
+        garrow_double_array_builder_append_value(builder, result, &error);
+      }
+      if (error) { ok = FALSE; break; }
+    }
+
+    if (ok) {
+      GArrowArray *result_array =
+          garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+      if (result_array) {
+        result_chunks = g_list_append(result_chunks, result_array);
+      } else {
+        ok = FALSE;
+      }
+    }
+    g_object_unref(builder);
+    g_object_unref(chunk);
+  }
+
+  if (!ok || result_chunks == NULL) {
+    g_list_free_full(result_chunks, g_object_unref);
+    if (error) g_error_free(error);
+    return NULL;
+  }
+
+  /* Build ChunkedArray from result chunks.
+     garrow_chunked_array_new takes (GList *chunks, GError **error). */
+  GArrowChunkedArray *result =
+      garrow_chunked_array_new(result_chunks, &error);
+
+  g_list_free_full(result_chunks, g_object_unref);
+
+  if (result == NULL && error) g_error_free(error);
+  return result;
+}
+
+/* Generic scalar operation: table_ptr, column_name, scalar, op_code.
+   op_code: 0=add, 1=multiply, 2=subtract, 3=divide.
+   Returns Some(new_table_ptr) or None. */
+static value arrow_scalar_op_impl(value v_ptr, value v_col_name, value v_scalar, int op_code) {
+  CAMLparam3(v_ptr, v_col_name, v_scalar);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col_name);
+  double scalar_val = Double_val(v_scalar);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (idx < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
+  if (col == NULL) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *result_col = apply_double_scalar_op(col, scalar_val, op_code);
+  g_object_unref(col);
+
+  if (result_col == NULL) CAMLreturn(Val_none);
+
+  GArrowTable *new_table = rebuild_table_with_column(table, (guint)idx, result_col);
+  g_object_unref(result_col);
+
+  if (new_table == NULL) CAMLreturn(Val_none);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)new_table));
+  CAMLreturn(v_result);
+}
+
+/* Add a scalar to every element of a column.
+   Args: table_ptr, column_name, scalar_value
+   Returns: Some(new_table_ptr) or None */
+CAMLprim value caml_arrow_compute_add_scalar(value v_ptr, value v_col_name, value v_scalar) {
+  return arrow_scalar_op_impl(v_ptr, v_col_name, v_scalar, 0);
+}
+
+/* Multiply every element of a column by a scalar.
+   Args: table_ptr, column_name, scalar_value
+   Returns: Some(new_table_ptr) or None */
+CAMLprim value caml_arrow_compute_multiply_scalar(value v_ptr, value v_col_name, value v_scalar) {
+  return arrow_scalar_op_impl(v_ptr, v_col_name, v_scalar, 1);
+}
+
+/* Subtract a scalar from every element of a column.
+   Args: table_ptr, column_name, scalar_value
+   Returns: Some(new_table_ptr) or None */
+CAMLprim value caml_arrow_compute_subtract_scalar(value v_ptr, value v_col_name, value v_scalar) {
+  return arrow_scalar_op_impl(v_ptr, v_col_name, v_scalar, 2);
+}
+
+/* Divide every element of a column by a scalar.
+   Args: table_ptr, column_name, scalar_value
+   Returns: Some(new_table_ptr) or None */
+CAMLprim value caml_arrow_compute_divide_scalar(value v_ptr, value v_col_name, value v_scalar) {
+  return arrow_scalar_op_impl(v_ptr, v_col_name, v_scalar, 3);
+}
