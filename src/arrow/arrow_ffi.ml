@@ -139,20 +139,23 @@ external arrow_group_count : nativeint -> nativeint option
 (* ===================================================================== *)
 
 (** Get the raw data buffer pointer and byte length from an Arrow array.
-    Returns Some (pointer, byte_length) or None if buffer is unavailable. *)
+    Returns Some (pointer, byte_length) or None if buffer is unavailable.
+    SAFETY: pointer is only valid while the parent GArrowTable is alive. *)
 external arrow_array_get_buffer_ptr : nativeint -> (nativeint * int) option
   = "caml_arrow_array_get_buffer_ptr"
 
-(** Create a zero-copy Float64 Bigarray view over a raw data pointer.
+(** Create a zero-copy Float64 Bigarray from an Arrow array.
+    Handles buffer access internally — no raw pointers are exposed.
     The Bigarray does NOT own the memory — caller must keep the backing
-    Arrow table alive. *)
-external arrow_bigarray_float64_of_ptr :
-  nativeint -> int -> (float, Bigarray.float64_elt, Bigarray.c_layout) Bigarray.Array1.t
-  = "caml_arrow_bigarray_float64_of_ptr"
+    Arrow table alive (via GC finalizer on native_handle). *)
+external arrow_float64_array_to_bigarray :
+  nativeint -> (float, Bigarray.float64_elt, Bigarray.c_layout) Bigarray.Array1.t option
+  = "caml_arrow_float64_array_to_bigarray"
 
-(** Create a zero-copy Int64 Bigarray view over a raw data pointer.
+(** Create a zero-copy Int64 Bigarray from an Arrow array.
+    Handles buffer access internally — no raw pointers are exposed.
     The Bigarray does NOT own the memory — caller must keep the backing
-    Arrow table alive. *)
-external arrow_bigarray_int64_of_ptr :
-  nativeint -> int -> (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t
-  = "caml_arrow_bigarray_int64_of_ptr"
+    Arrow table alive (via GC finalizer on native_handle). *)
+external arrow_int64_array_to_bigarray :
+  nativeint -> (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t option
+  = "caml_arrow_int64_array_to_bigarray"

@@ -47,10 +47,8 @@ let zero_copy_view (col : column_view) : numeric_view option =
      | Arrow_table.ArrowFloat64 ->
        (match Arrow_ffi.arrow_table_get_column_data handle.ptr col.column_name with
         | Some array_ptr ->
-          (match Arrow_ffi.arrow_array_get_buffer_ptr array_ptr with
-           | Some (buf_ptr, byte_len) ->
-             let n_elements = byte_len / 8 in (* float64 = 8 bytes *)
-             let ba = Arrow_ffi.arrow_bigarray_float64_of_ptr buf_ptr n_elements in
+          (match Arrow_ffi.arrow_float64_array_to_bigarray array_ptr with
+           | Some ba ->
              (* Keep the backing table alive as long as this view is reachable *)
              ignore (Sys.opaque_identity col.backing);
              Some (FloatView ba)
@@ -59,10 +57,8 @@ let zero_copy_view (col : column_view) : numeric_view option =
      | Arrow_table.ArrowInt64 ->
        (match Arrow_ffi.arrow_table_get_column_data handle.ptr col.column_name with
         | Some array_ptr ->
-          (match Arrow_ffi.arrow_array_get_buffer_ptr array_ptr with
-           | Some (buf_ptr, byte_len) ->
-             let n_elements = byte_len / 8 in (* int64 = 8 bytes *)
-             let ba = Arrow_ffi.arrow_bigarray_int64_of_ptr buf_ptr n_elements in
+          (match Arrow_ffi.arrow_int64_array_to_bigarray array_ptr with
+           | Some ba ->
              ignore (Sys.opaque_identity col.backing);
              Some (IntView ba)
            | None -> None)

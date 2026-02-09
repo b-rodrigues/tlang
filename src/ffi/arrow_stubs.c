@@ -1182,7 +1182,10 @@ CAMLprim value caml_arrow_group_count(value v_grouped_ptr) {
 /* Get the raw data buffer pointer and size from an Arrow array.
    Args: array_ptr (nativeint — GArrowArray*)
    Returns: Some (pointer, length) or None if buffer is unavailable.
-   The pointer is to the raw value data buffer of the array. */
+   The pointer is to the raw value data buffer of the array.
+   SAFETY: The returned pointer is valid only as long as the parent
+   GArrowArray (and its parent GArrowTable) is alive. The GArrowBuffer
+   wrapper is unreffed here, but the data is owned by the array. */
 CAMLprim value caml_arrow_array_get_buffer_ptr(value v_array_ptr) {
   CAMLparam1(v_array_ptr);
   CAMLlocal2(v_result, v_tuple);
@@ -1205,32 +1208,77 @@ CAMLprim value caml_arrow_array_get_buffer_ptr(value v_array_ptr) {
   v_result = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_result, 0, v_tuple);
 
+  /* Safe to unref: the GArrowBuffer is a wrapper; the actual data is
+     owned by the GArrowArray, which remains alive via the OCaml-side
+     GC finalizer on the parent table. */
   g_object_unref(buffer);
   CAMLreturn(v_result);
 }
 
-/* Create a zero-copy Float64 Bigarray view over an Arrow buffer.
-   Args: ptr (nativeint — raw data pointer), n_elements (int)
-   Returns: (float, float64_elt, c_layout) Array1.t
-   The Bigarray does NOT own the memory (CAML_BA_EXTERNAL). */
-CAMLprim value caml_arrow_bigarray_float64_of_ptr(value v_ptr, value v_len) {
-  intnat ptr = Nativeint_val(v_ptr);
-  intnat n_elements = Long_val(v_len);
+/* Create a zero-copy Float64 Bigarray from an Arrow array.
+   Args: array_ptr (nativeint — GArrowArray*)
+   Returns: Some (float, float64_elt, c_layout) Array1.t or None.
+   Handles buffer access internally — no raw pointers are exposed.
+   The Bigarray does NOT own the memory (CAML_BA_EXTERNAL).
+   Caller must keep the parent GArrowTable alive. */
+CAMLprim value caml_arrow_float64_array_to_bigarray(value v_array_ptr) {
+  CAMLparam1(v_array_ptr);
+  CAMLlocal1(v_result);
+
+  GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
+  GArrowBuffer *buffer = garrow_array_get_value_data_buffer(array);
+
+  if (buffer == NULL) {
+    CAMLreturn(Val_none);
+  }
+
+  gsize size = garrow_buffer_get_size(buffer);
+  const guint8 *data = garrow_buffer_get_data(buffer, &size);
+  intnat n_elements = (intnat)(size / sizeof(double));
   intnat dims[1] = { n_elements };
-  return caml_ba_alloc(
+
+  value ba = caml_ba_alloc(
     CAML_BA_FLOAT64 | CAML_BA_C_LAYOUT | CAML_BA_EXTERNAL,
-    1, (void *)ptr, dims);
+    1, (void *)data, dims);
+
+  /* Safe to unref the wrapper; data owned by the array */
+  g_object_unref(buffer);
+
+  v_result = caml_alloc(1, 0); /* Some(...) */
+  Store_field(v_result, 0, ba);
+  CAMLreturn(v_result);
 }
 
-/* Create a zero-copy Int64 Bigarray view over an Arrow buffer.
-   Args: ptr (nativeint — raw data pointer), n_elements (int)
-   Returns: (int64, int64_elt, c_layout) Array1.t
-   The Bigarray does NOT own the memory (CAML_BA_EXTERNAL). */
-CAMLprim value caml_arrow_bigarray_int64_of_ptr(value v_ptr, value v_len) {
-  intnat ptr = Nativeint_val(v_ptr);
-  intnat n_elements = Long_val(v_len);
+/* Create a zero-copy Int64 Bigarray from an Arrow array.
+   Args: array_ptr (nativeint — GArrowArray*)
+   Returns: Some (int64, int64_elt, c_layout) Array1.t or None.
+   Handles buffer access internally — no raw pointers are exposed.
+   The Bigarray does NOT own the memory (CAML_BA_EXTERNAL).
+   Caller must keep the parent GArrowTable alive. */
+CAMLprim value caml_arrow_int64_array_to_bigarray(value v_array_ptr) {
+  CAMLparam1(v_array_ptr);
+  CAMLlocal1(v_result);
+
+  GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
+  GArrowBuffer *buffer = garrow_array_get_value_data_buffer(array);
+
+  if (buffer == NULL) {
+    CAMLreturn(Val_none);
+  }
+
+  gsize size = garrow_buffer_get_size(buffer);
+  const guint8 *data = garrow_buffer_get_data(buffer, &size);
+  intnat n_elements = (intnat)(size / sizeof(gint64));
   intnat dims[1] = { n_elements };
-  return caml_ba_alloc(
+
+  value ba = caml_ba_alloc(
     CAML_BA_INT64 | CAML_BA_C_LAYOUT | CAML_BA_EXTERNAL,
-    1, (void *)ptr, dims);
+    1, (void *)data, dims);
+
+  /* Safe to unref the wrapper; data owned by the array */
+  g_object_unref(buffer);
+
+  v_result = caml_alloc(1, 0); /* Some(...) */
+  Store_field(v_result, 0, ba);
+  CAMLreturn(v_result);
 }

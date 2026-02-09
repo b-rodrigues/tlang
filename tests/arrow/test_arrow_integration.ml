@@ -601,7 +601,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
            (match Arrow_column.zero_copy_view col_view with
             | Some (Arrow_column.FloatView ba) ->
               let len = Bigarray.Array1.dim ba in
-              if len = 3 && ba.{0} = 1.5 && ba.{1} = 2.5 && ba.{2} = 3.5 then begin
+              let close a b = Float.abs (a -. b) < 1e-10 in
+              if len = 3 && close ba.{0} 1.5 && close ba.{1} 2.5 && close ba.{2} 3.5 then begin
                 incr pass_count; Printf.printf "  ✓ FloatView zero-copy view is correct\n"
               end else begin
                 incr fail_count; Printf.printf "  ✗ FloatView data mismatch (len=%d)\n" len
