@@ -69,9 +69,16 @@ let values_to_column (values : value array) : Arrow_table.column_data =
   else
     Arrow_table.NullColumn (Array.length values)
 
-(** Extract a row from an Arrow table as a T Dict (list of name-value pairs) *)
+(** Extract a row from an Arrow table as a T Dict (list of name-value pairs).
+    For native-backed tables, extracts column data via FFI as needed. *)
 let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list =
-  List.map (fun (name, col) ->
+  let get_col_data name =
+    match Arrow_table.get_column table name with
+    | Some col -> col
+    | None -> Arrow_table.NullColumn table.nrows
+  in
+  List.map (fun (name, _) ->
+    let col = get_col_data name in
     let v = match col with
       | Arrow_table.IntColumn a ->
           (match a.(row_idx) with Some i -> VInt i | None -> VNA NAInt)
@@ -84,7 +91,7 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
       | Arrow_table.NullColumn _ -> VNA NAGeneric
     in
     (name, v)
-  ) table.columns
+  ) table.schema
 
 (** Create an Arrow table from T value columns *)
 let table_from_value_columns (columns : (string * value array) list) (nrows : int) : Arrow_table.t =
@@ -93,8 +100,13 @@ let table_from_value_columns (columns : (string * value array) list) (nrows : in
   ) columns in
   Arrow_table.create arrow_columns nrows
 
-(** Convert an Arrow table back to T value columns *)
+(** Convert an Arrow table back to T value columns.
+    For native-backed tables, extracts column data via FFI as needed. *)
 let table_to_value_columns (table : Arrow_table.t) : (string * value array) list =
-  List.map (fun (name, col) ->
+  List.map (fun (name, _) ->
+    let col = match Arrow_table.get_column table name with
+      | Some c -> c
+      | None -> Arrow_table.NullColumn table.nrows
+    in
     (name, column_to_values col)
-  ) table.columns
+  ) table.schema

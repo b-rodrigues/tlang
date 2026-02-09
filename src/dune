@@ -2,9 +2,25 @@
 
 (include_subdirs unqualified)
 
+; Generate C compiler flags from pkg-config for arrow-glib
+(rule
+ (targets arrow_cflags.sexp)
+ (action (with-stdout-to %{targets}
+  (bash "pkg-config --cflags arrow-glib 2>/dev/null | tr ' ' '\\n' | sed '/^$/d' | sed 's/.*/(\"&\")/' | (echo '('; cat; echo ')') || echo '()'"))))
+
+(rule
+ (targets arrow_libs.sexp)
+ (action (with-stdout-to %{targets}
+  (bash "pkg-config --libs arrow-glib 2>/dev/null | tr ' ' '\\n' | sed '/^$/d' | sed 's/.*/(\"&\")/' | (echo '('; cat; echo ')') || echo '()'"))))
+
 (library
  (name t_lang)
  (wrapped false)
+ (foreign_stubs
+  (language c)
+  (names arrow_stubs)
+  (flags (:include arrow_cflags.sexp)))
+ (c_library_flags (:include arrow_libs.sexp))
  (modules
    ; arrow — Arrow-backed table implementation
    arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
