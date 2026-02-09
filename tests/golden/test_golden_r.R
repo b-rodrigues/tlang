@@ -246,6 +246,113 @@ test_that("EDGE CASE: division by zero (Inf handling)", {
 })
 
 # ============================================================================
+# Test Suite 11: RANKING WINDOW FUNCTIONS
+# ============================================================================
+
+test_that("WINDOW RANK: row_number on simple.age", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_row_number_age")
+})
+
+test_that("WINDOW RANK: min_rank on simple.age", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_min_rank_age")
+})
+
+test_that("WINDOW RANK: dense_rank on simple.age", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_dense_rank_age")
+})
+
+test_that("WINDOW RANK: percent_rank on simple.age", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_percent_rank_age")
+})
+
+test_that("WINDOW RANK: cume_dist on simple.age", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_cume_dist_age")
+})
+
+test_that("WINDOW RANK: ntile on simple.age", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_ntile_age")
+})
+
+test_that("WINDOW RANK: min_rank on mtcars.mpg", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("mtcars_min_rank_mpg")
+})
+
+# ============================================================================
+# Test Suite 12: OFFSET WINDOW FUNCTIONS (lead/lag)
+# ============================================================================
+
+test_that("WINDOW OFFSET: lag on simple.score", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_lag_score")
+})
+
+test_that("WINDOW OFFSET: lead on simple.score", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_lead_score")
+})
+
+test_that("WINDOW OFFSET: lag with offset 2 on simple.score", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_lag2_score")
+})
+
+test_that("WINDOW OFFSET: lead with offset 2 on simple.score", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_lead2_score")
+})
+
+test_that("WINDOW OFFSET: lag on mtcars.mpg", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("mtcars_lag_mpg")
+})
+
+test_that("WINDOW OFFSET: lead on mtcars.mpg", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("mtcars_lead_mpg")
+})
+
+# ============================================================================
+# Test Suite 13: CUMULATIVE WINDOW FUNCTIONS
+# ============================================================================
+
+test_that("WINDOW CUMULATIVE: cumsum on simple.score", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_cumsum_score")
+})
+
+test_that("WINDOW CUMULATIVE: cummax on simple.score", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_cummax_score")
+})
+
+test_that("WINDOW CUMULATIVE: cummin on simple.score", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_cummin_score")
+})
+
+test_that("WINDOW CUMULATIVE: cummean on simple.score", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_cummean_score")
+})
+
+test_that("WINDOW CUMULATIVE: cumsum on mtcars.mpg", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("mtcars_cumsum_mpg")
+})
+
+test_that("WINDOW CUMULATIVE: cumall and cumany", {
+  skip("Window function column-level mutate not yet supported in T")
+  compare_csvs("simple_cumall_cumany")
+})
+
+# ============================================================================
 # SUMMARY REPORT
 # ============================================================================
 

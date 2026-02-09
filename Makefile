@@ -30,6 +30,7 @@ golden-expected:
 	@echo "=== Generating expected outputs from R ==="
 	@Rscript tests/golden/generate_expected.R
 	@Rscript tests/golden/generate_expected_stats.R
+	@Rscript tests/golden/generate_expected_window.R
 
 # Run T tests (T -> CSV)
 # Uses - prefix to continue even if some tests fail
