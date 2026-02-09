@@ -849,7 +849,7 @@ After each phase:
 
 **Recommendation:** This is your **top priority** before any Beta features. The entire performance story depends on it.
 
-# Arrow Backend Implementation: Complete Checklist
+# Part 3: Arrow Backend Implementation: Complete Checklist
 
 ## **Phase 1: Arrow C GLib Integration (Weeks 1-3)**
 
