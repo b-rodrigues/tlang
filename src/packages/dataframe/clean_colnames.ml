@@ -175,7 +175,7 @@ let clean_names (names : string list) : string list =
     if name = "" then Printf.sprintf "col_%d" (i + 1) else name
   ) cleaned in
   (* Resolve collisions: track counts seen so far *)
-  let seen = Hashtbl.create 16 in
+  let seen = Hashtbl.create (List.length cleaned) in
   List.map (fun name ->
     let count =
       match Hashtbl.find_opt seen name with
