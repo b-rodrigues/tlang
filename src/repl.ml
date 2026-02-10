@@ -3,6 +3,18 @@
 
 let version = "0.5.0-alpha"
 
+(* --- Readline / History --- *)
+
+let history_file =
+  try Filename.concat (Sys.getenv "HOME") ".t_history"
+  with Not_found -> ".t_history"
+
+let max_history_length = 1000
+
+let () =
+  ignore (LNoise.history_set ~max_length:max_history_length);
+  ignore (LNoise.history_load ~filename:history_file)
+
 (* --- Parsing and Evaluation --- *)
 
 let parse_and_eval env input =
@@ -164,12 +176,10 @@ let cmd_repl env =
   Printf.printf "T language REPL — version %s\n" version;
   Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
   let rec repl env =
-    print_string "T> ";
-    flush stdout;
-    match input_line stdin with
-    | exception End_of_file ->
+    match LNoise.linenoise "T> " with
+    | None ->
         print_endline "\nGoodbye."
-    | line ->
+    | Some line ->
         let trimmed = String.trim line in
         if trimmed = "" then repl env
         else if trimmed = ":quit" || trimmed = ":q" then
@@ -201,12 +211,10 @@ let cmd_repl env =
           let rec read_multiline acc =
             let combined = acc in
             if is_incomplete combined then begin
-              print_string ".. ";
-              flush stdout;
-              match input_line stdin with
-              | exception End_of_file ->
+              match LNoise.linenoise ".. " with
+              | None ->
                   combined  (* Return what we have *)
-              | next_line ->
+              | Some next_line ->
                   (* If the previous line ends with |> or ?|>, move it to the start of
                      the next line so the lexer recognizes the continuation *)
                   let trimmed_acc = String.trim combined in
@@ -223,6 +231,8 @@ let cmd_repl env =
               combined
           in
           let full_input = read_multiline trimmed in
+          ignore (LNoise.history_add full_input);
+          ignore (LNoise.history_save ~filename:history_file);
           let (result, new_env) = parse_and_eval env full_input in
           repl_display_value result;
           repl new_env

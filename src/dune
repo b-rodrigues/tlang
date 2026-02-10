@@ -53,7 +53,7 @@
 (executable
  (name repl)
  (modules repl)
- (libraries t_lang menhirLib)
+ (libraries t_lang menhirLib linenoise)
 )
 
 (menhir
