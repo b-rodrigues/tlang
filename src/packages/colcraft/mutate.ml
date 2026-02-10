@@ -4,6 +4,17 @@ let register ~eval_call env =
   Env.add "mutate"
     (make_builtin 3 (fun args env ->
       match args with
+      | [VDataFrame df; VString col_name; VVector vec] ->
+          (* Column-level mutate: directly add a vector as a new column *)
+          let nrows = Arrow_table.num_rows df.arrow_table in
+          if Array.length vec <> nrows then
+            make_error ValueError
+              (Printf.sprintf "mutate() vector length %d does not match DataFrame row count %d"
+                 (Array.length vec) nrows)
+          else
+            let arrow_col = Arrow_bridge.values_to_column vec in
+            let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
+            VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
       | [VDataFrame df; VString col_name; fn] ->
           let nrows = Arrow_table.num_rows df.arrow_table in
           let new_col = Array.init nrows (fun i ->

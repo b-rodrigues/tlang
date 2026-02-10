@@ -1,10 +1,8 @@
 -- Test: cumall and cumany window functions on simple dataset
--- Compares to: dplyr::mutate(cumall_high = cumall(score > 85), cumany_high = cumany(score > 85))
--- Note: T window functions operate on vectors; column-level mutate not yet supported
+-- Compares to: dplyr::mutate(high_score = score > 85, cumall_high = cumall(high_score), cumany_high = cumany(high_score))
 df = read_csv("tests/golden/data/simple.csv")
--- When column-level mutate is supported:
--- result = df |> mutate("high_score", \(row) row.score > 85)
---            |> mutate("cumall_high", cumall(result.high_score))
---            |> mutate("cumany_high", cumany(result.high_score))
--- write_csv(result, "tests/golden/t_outputs/simple_cumall_cumany.csv")
-print("⚠ window function golden test - column-level mutate not yet supported")
+df2 = mutate(df, "high_score", \(row) row.score > 85)
+df3 = mutate(df2, "cumall_high", cumall(df2.high_score))
+result = mutate(df3, "cumany_high", cumany(df3.high_score))
+write_csv(result, "tests/golden/t_outputs/simple_cumall_cumany.csv")
+print("✓ cumall/cumany complete")
