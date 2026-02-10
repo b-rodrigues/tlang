@@ -66,7 +66,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let env_lm = Eval.initial_env () in
   let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p5_lm) env_lm in
-  let (_, env_lm) = eval_string_env {|model = lm(df, "y", "x")|} env_lm in
+  let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
 
   let (v, _) = eval_string_env "type(model)" env_lm in
   let result = Ast.Utils.value_to_string v in
@@ -108,15 +108,33 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ lm() correct observation count\n    Expected: 5\n    Got: %s\n" result
   end;
 
+  (* Formula type and printing tests *)
+  test "formula type"
+    "type(y ~ x)"
+    {|"Formula"|};
+  test "formula to string"
+    "f = y ~ x; print(type(f))"
+    "null";
+  test "multi-variable formula"
+    "f = mpg ~ hp + wt; type(f)"
+    {|"Formula"|};
+
+  (* lm() error handling tests *)
   test "lm missing column"
-    (Printf.sprintf {|df = read_csv("%s"); lm(df, "y", "z")|} csv_p5_lm)
+    (Printf.sprintf {|df = read_csv("%s"); lm(data = df, formula = y ~ z)|} csv_p5_lm)
     {|Error(KeyError: "Column 'z' not found in DataFrame")|};
   test "lm non-dataframe"
-    {|lm(42, "y", "x")|}
-    {|Error(TypeError: "lm() expects a DataFrame as first argument")|};
-  test "lm non-string col"
-    (Printf.sprintf {|df = read_csv("%s"); lm(df, 42, "x")|} csv_p5_lm)
-    {|Error(TypeError: "lm() expects string column names")|};
+    {|lm(data = 42, formula = y ~ x)|}
+    {|Error(TypeError: "lm() 'data' must be a DataFrame")|};
+  test "lm non-formula"
+    (Printf.sprintf {|df = read_csv("%s"); lm(data = df, formula = 42)|} csv_p5_lm)
+    {|Error(TypeError: "lm() 'formula' must be a Formula (use ~ operator)")|};
+  test "lm missing data arg"
+    {|lm(formula = y ~ x)|}
+    {|Error(ArityError: "lm() missing required argument 'data'")|};
+  test "lm missing formula arg"
+    (Printf.sprintf {|df = read_csv("%s"); lm(data = df)|} csv_p5_lm)
+    {|Error(ArityError: "lm() missing required argument 'formula'")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: Pipeline integration:\n";

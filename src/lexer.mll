@@ -63,6 +63,7 @@ rule token = parse
   | "==" { EQ }      | "!=" { NEQ }
   | '<' { LT }       | '>' { GT }
   | "<=" { LTE }     | ">=" { GTE }
+  | '~' { TILDE }
 
   (* Identifiers must be matched after keywords *)
   | identifier as lxm { IDENT lxm }

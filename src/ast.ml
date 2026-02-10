@@ -60,6 +60,14 @@ and pipeline_result = {
   p_deps  : (string * string list) list;     (* Dependency graph *)
 }
 
+(** Formula specification — captures LHS/RHS of ~ expressions *)
+and formula_spec = {
+  response: string list;
+  predictors: string list;
+  raw_lhs: expr;
+  raw_rhs: expr;
+}
+
 (** Runtime values *)
 and value =
   (* Scalar Types *)
@@ -83,11 +91,13 @@ and value =
   | VNull
   (* Phase 6: Intent block value *)
   | VIntent of intent_block
+  (* Formula value *)
+  | VFormula of formula_spec
 
 and builtin = {
   b_arity: int;
   b_variadic: bool;
-  b_func: (value list -> value Env.t -> value);
+  b_func: ((string option * value) list -> value Env.t -> value);
 }
 
 and lambda = {
@@ -113,7 +123,7 @@ and expr =
   | PipelineDef of pipeline_node list
   | IntentDef of (string * expr) list
 
-and binop = Plus | Minus | Mul | Div | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | Pipe | MaybePipe
+and binop = Plus | Minus | Mul | Div | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | Pipe | MaybePipe | Formula
 and unop = Not | Neg
 and comp_clause = CFor of { var : symbol; iter : expr } | CFilter of expr
 
@@ -163,6 +173,7 @@ module Utils = struct
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
     | VIntent _ -> "Intent"
+    | VFormula _ -> "Formula"
 
   let rec value_to_string = function
     | VInt n -> string_of_int n
@@ -206,6 +217,10 @@ module Utils = struct
     | VIntent { intent_fields } ->
         let field_to_string (k, v) = k ^ ": \"" ^ String.escaped v ^ "\"" in
         "Intent{" ^ (intent_fields |> List.map field_to_string |> String.concat ", ") ^ "}"
+    | VFormula { response; predictors; _ } ->
+        Printf.sprintf "%s ~ %s"
+          (String.concat " + " response)
+          (String.concat " + " predictors)
 end
 
 (* --- Shared Helper Functions --- *)
@@ -215,8 +230,13 @@ end
 let make_error ?(context=[]) code message =
   VError { code; message; context }
 
-(** Create a builtin function value *)
+(** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?(variadic=false) arity func =
+  VBuiltin { b_arity = arity; b_variadic = variadic;
+             b_func = (fun named_args env -> func (List.map snd named_args) env) }
+
+(** Create a builtin function value that receives named args *)
+let make_builtin_named ?(variadic=false) arity func =
   VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
 
 (** Check if a value is an error *)

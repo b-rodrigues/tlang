@@ -24,11 +24,13 @@ type param_info = { names: string list; has_variadic: bool }
 %token PLUS MINUS STAR SLASH
 %token EQ NEQ LT GT LTE GTE
 %token AND OR NOT
+%token TILDE
 %token LAMBDA (* \ character *)
 %token NEWLINE SEMICOLON
 %token EOF
 
 /* PRECEDENCE AND ASSOCIATIVITY (lowest to highest) */
+%left TILDE
 %left PIPE MAYBE_PIPE
 %left OR
 %left AND
@@ -80,11 +82,17 @@ expr:
   ;
 
 pipe_expr:
-  | e = or_expr { e }
-  | left = pipe_expr PIPE right = or_expr
+  | e = formula_expr { e }
+  | left = pipe_expr PIPE right = formula_expr
     { BinOp { op = Pipe; left; right } }
-  | left = pipe_expr MAYBE_PIPE right = or_expr
+  | left = pipe_expr MAYBE_PIPE right = formula_expr
     { BinOp { op = MaybePipe; left; right } }
+  ;
+
+formula_expr:
+  | e = or_expr { e }
+  | left = or_expr TILDE right = or_expr
+    { BinOp { op = Formula; left; right } }
   ;
 
 or_expr:
@@ -145,6 +153,7 @@ call_args:
 arg:
   | e = expr { (None, e) }
   | name = IDENT COLON e = expr { (Some name, e) }
+  | name = IDENT EQUALS e = expr { (Some name, e) }
   ;
 
 /* Primary (atomic) expressions */

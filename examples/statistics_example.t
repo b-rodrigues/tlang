@@ -49,7 +49,7 @@ print("")
 -- Linear regression
 print("Step 4: Linear regression")
 df = read_csv("examples/regression_data.csv")
-model = lm(df, "y", "x")
+model = lm(data = df, formula = y ~ x)
 print("Model: y ~ x")
 print("Slope:")
 print(model.slope)

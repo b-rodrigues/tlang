@@ -257,7 +257,7 @@ abs(df.balance)    -- Vector of absolute values
 ### Linear Regression
 
 ```t
-model = lm(df, "salary", "age")
+model = lm(data = df, formula = salary ~ age)
 model.slope       -- coefficient
 model.intercept   -- intercept
 model.r_squared   -- R² goodness of fit
