@@ -58,10 +58,60 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     {|ntile([1, 2, 3, 4], 4)|}
     "Vector[1, 2, 3, 4]";
 
-  (* Error cases for ranking *)
+  (* NA handling for ranking — NA positions get NA rank *)
   test "row_number with NA"
     {|row_number([1, NA, 3])|}
-    {|Error(TypeError: "row_number() encountered NA value. Handle missingness explicitly.")|};
+    "Vector[1, NA(Int), 2]";
+  test "row_number all NA"
+    {|row_number([NA, NA, NA])|}
+    "Vector[NA(Int), NA(Int), NA(Int)]";
+  test "row_number first NA"
+    {|row_number([NA, 2, 1])|}
+    "Vector[NA(Int), 2, 1]";
+  test "row_number last NA"
+    {|row_number([3, 1, NA])|}
+    "Vector[2, 1, NA(Int)]";
+  test "row_number alternating NA"
+    {|row_number([1, NA, 3, NA, 5])|}
+    "Vector[1, NA(Int), 2, NA(Int), 3]";
+  test "row_number single element"
+    {|row_number([42])|}
+    "Vector[1]";
+  test "min_rank with NA"
+    {|min_rank([3, NA, 1, NA, 2])|}
+    "Vector[3, NA(Int), 1, NA(Int), 2]";
+  test "min_rank all NA"
+    {|min_rank([NA, NA])|}
+    "Vector[NA(Int), NA(Int)]";
+  test "dense_rank with NA"
+    {|dense_rank([3, NA, 1, NA, 1])|}
+    "Vector[2, NA(Int), 1, NA(Int), 1]";
+  test "dense_rank all NA"
+    {|dense_rank([NA, NA])|}
+    "Vector[NA(Int), NA(Int)]";
+  test "cume_dist with NA"
+    {|cume_dist([1, NA, 2, 3])|}
+    "Vector[0.333333333333, NA(Float), 0.666666666667, 1.]";
+  test "cume_dist all NA"
+    {|cume_dist([NA, NA])|}
+    "Vector[NA(Float), NA(Float)]";
+  test "percent_rank with NA"
+    {|percent_rank([1, NA, 3])|}
+    "Vector[0., NA(Float), 1.]";
+  test "percent_rank all NA"
+    {|percent_rank([NA, NA])|}
+    "Vector[NA(Float), NA(Float)]";
+  test "percent_rank single non-NA with NAs"
+    {|percent_rank([NA, 42, NA])|}
+    "Vector[NA(Float), 0., NA(Float)]";
+  test "ntile with NA"
+    {|ntile([1, NA, 3, NA, 5], 2)|}
+    "Vector[1, NA(Int), 1, NA(Int), 2]";
+  test "ntile all NA"
+    {|ntile([NA, NA, NA], 2)|}
+    "Vector[NA(Int), NA(Int), NA(Int)]";
+
+  (* Error cases for ranking *)
   test "ntile non-positive"
     {|ntile([1, 2, 3], 0)|}
     {|Error(ValueError: "ntile() requires a positive number of tiles")|};
@@ -162,10 +212,59 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     {|cumany([])|}
     "Vector[]";
 
-  (* Error cases for cumulative *)
+  (* NA handling for cumulative — NA propagates to subsequent values *)
   test "cumsum with NA"
     {|cumsum([1, NA, 3])|}
-    {|Error(TypeError: "cumsum() encountered NA value. Handle missingness explicitly.")|};
+    "Vector[1, NA(Float), NA(Float)]";
+  test "cumsum all NA"
+    {|cumsum([NA, NA, NA])|}
+    "Vector[NA(Float), NA(Float), NA(Float)]";
+  test "cumsum first NA"
+    {|cumsum([NA, 2, 3])|}
+    "Vector[NA(Float), NA(Float), NA(Float)]";
+  test "cumsum last NA"
+    {|cumsum([1, 2, NA])|}
+    "Vector[1, 3, NA(Float)]";
+  test "cummin with NA"
+    {|cummin([3, NA, 1])|}
+    "Vector[3, NA(Float), NA(Float)]";
+  test "cummin all NA"
+    {|cummin([NA, NA])|}
+    "Vector[NA(Float), NA(Float)]";
+  test "cummax with NA"
+    {|cummax([1, NA, 5])|}
+    "Vector[1, NA(Float), NA(Float)]";
+  test "cummax all NA"
+    {|cummax([NA, NA])|}
+    "Vector[NA(Float), NA(Float)]";
+  test "cummean with NA"
+    {|cummean([1, NA, 3])|}
+    "Vector[1., NA(Float), NA(Float)]";
+  test "cummean all NA"
+    {|cummean([NA, NA])|}
+    "Vector[NA(Float), NA(Float)]";
+  test "cumall with NA"
+    {|cumall([true, NA, true])|}
+    "Vector[true, NA(Bool), NA(Bool)]";
+  test "cumall all NA"
+    {|cumall([NA, NA])|}
+    "Vector[NA(Bool), NA(Bool)]";
+  test "cumany with NA"
+    {|cumany([false, NA, true])|}
+    "Vector[false, NA(Bool), NA(Bool)]";
+  test "cumany all NA"
+    {|cumany([NA, NA])|}
+    "Vector[NA(Bool), NA(Bool)]";
+
+  (* lag/lead with NA in input — NA passes through *)
+  test "lag with NA in input"
+    {|lag([1, NA, 3, 4])|}
+    "Vector[NA, 1, NA, 3]";
+  test "lead with NA in input"
+    {|lead([1, NA, 3, 4])|}
+    "Vector[NA, 3, 4, NA]";
+
+  (* Error cases for cumulative *)
   test "cummin with string"
     {|cummin(["a", "b"])|}
     {|Error(TypeError: "cummin() requires numeric values")|};
