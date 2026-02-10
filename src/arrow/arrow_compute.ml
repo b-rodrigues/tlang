@@ -422,17 +422,23 @@ let mean_column (t : Arrow_table.t) (col_name : string) : float option =
 let min_column (t : Arrow_table.t) (col_name : string) : float option =
   column_agg t col_name Arrow_ffi.arrow_compute_min_column
     (fun arr ->
-       let m = ref arr.(0) in
-       Array.iter (fun x -> if x < !m then m := x) arr;
-       Some !m)
+       if Array.length arr = 0 then None
+       else begin
+         let m = ref arr.(0) in
+         Array.iter (fun x -> if x < !m then m := x) arr;
+         Some !m
+       end)
 
 (** Compute the maximum of a named numeric column. *)
 let max_column (t : Arrow_table.t) (col_name : string) : float option =
   column_agg t col_name Arrow_ffi.arrow_compute_max_column
     (fun arr ->
-       let m = ref arr.(0) in
-       Array.iter (fun x -> if x > !m then m := x) arr;
-       Some !m)
+       if Array.length arr = 0 then None
+       else begin
+         let m = ref arr.(0) in
+         Array.iter (fun x -> if x > !m then m := x) arr;
+         Some !m
+       end)
 
 (* ===================================================================== *)
 (* Comparison Operations (Phase 5 — Week 1)                              *)
