@@ -33,7 +33,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let env_lm = Eval.initial_env () in
   let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_lm) env_lm in
-  let (_, env_lm) = eval_string_env {|model = lm(df, "y", "x")|} env_lm in
+  let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
 
   (* slope should be 2.0 (y = 2x + 1) *)
   let (v, _) = eval_string_env "model.slope" env_lm in
@@ -95,11 +95,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   Printf.printf "Arrow-Owl Bridge — error handling:\n";
   test "lm via bridge: missing column"
-    (Printf.sprintf {|df = read_csv("%s"); lm(df, "y", "z")|} csv_lm)
+    (Printf.sprintf {|df = read_csv("%s"); lm(data = df, formula = y ~ z)|} csv_lm)
     {|Error(KeyError: "Column 'z' not found in DataFrame")|};
   test "lm via bridge: non-dataframe"
-    {|lm(42, "y", "x")|}
-    {|Error(TypeError: "lm() expects a DataFrame as first argument")|};
+    {|lm(data = 42, formula = y ~ x)|}
+    {|Error(TypeError: "lm() 'data' must be a DataFrame")|};
   test "cor via bridge: NA value"
     "cor(NA, [1, 2, 3])"
     {|Error(TypeError: "cor() encountered NA value. Handle missingness explicitly.")|};

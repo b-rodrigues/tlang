@@ -49,6 +49,11 @@ It's ideal for users who want a compact environment, excellent documentation, an
 data = read_csv("data.csv")
 data |> select("name", "age") |> filter(\(row) row.age > 30)
 
+-- Linear regression with formula syntax
+model = lm(data = data, formula = age ~ income)
+print(model.slope)
+print(model.r_squared)
+
 -- Error recovery with maybe-pipe
 safe_result = error("missing") ?|> \(x) if (is_error(x)) "default" else x
 ```
@@ -56,6 +61,8 @@ safe_result = error("missing") ?|> \(x) if (is_error(x)) "default" else x
 Features supported:
 
 - R-style lambdas: `\(x) x + 1`
+- Formula syntax: `y ~ x` creates Formula objects for statistical modeling
+- Named arguments: `lm(data = df, formula = y ~ x)`
 - Conditional pipe: `x |> f` (short-circuits on error)
 - Maybe-pipe: `x ?|> f` (forwards errors for recovery)
 - Python-style list comprehensions: `[x * x for x in numbers if x > 2]`
@@ -152,6 +159,7 @@ For detailed usage instructions, see [USAGE.md](USAGE.md).
 ## Documentation
 
 - [Language Overview](docs/language_overview.md) — Complete language reference
+- [Formulas](docs/formulas.md) — Formula syntax and `lm()` reference
 - [Pipeline Tutorial](docs/pipeline_tutorial.md) — Step-by-step pipeline guide
 - [Data Manipulation Examples](docs/data_manipulation_examples.md) — Practical data wrangling cookbook
 - [Alpha Release Notes](ALPHA.md) — What's included in the alpha

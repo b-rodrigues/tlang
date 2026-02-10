@@ -356,7 +356,7 @@ mean([1, 2, 3, 4, 5])             -- 3.0
 sd([2, 4, 4, 4, 5, 5, 7, 9])     -- 2.1380899353
 quantile([1, 2, 3, 4, 5], 0.5)   -- 3.0 (median)
 cor(df.x, df.y)                   -- correlation coefficient
-lm(df, "y", "x")                 -- linear regression model
+lm(data = df, formula = y ~ x)   -- linear regression model
 ```
 
 ### Introspection

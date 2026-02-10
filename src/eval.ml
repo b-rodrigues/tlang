@@ -16,6 +16,18 @@ let is_error_value = function VError _ -> true | _ -> false
 let is_na_value = function VNA _ -> true | _ -> false
 
 (* Forward declarations for mutual recursion *)
+
+(** Extract variable names from a formula expression.
+    Supports: x, x + y, x + y + z
+    Returns list of variable names *)
+let rec extract_formula_vars (expr : Ast.expr) : string list =
+  match expr with
+  | Var s -> [s]
+  | BinOp { op = Plus; left; right } ->
+      extract_formula_vars left @ extract_formula_vars right
+  | Value (VInt 1) -> []  (* Intercept term: y ~ x + 1 *)
+  | _ -> []  (* Unsupported formula syntax *)
+
 let rec eval_expr (env : environment) (expr : Ast.expr) : value =
   match expr with
   | Value v -> v
@@ -310,11 +322,12 @@ and eval_dot_access env target_expr field =
 and eval_call env fn_val raw_args =
   match fn_val with
   | VBuiltin { b_arity; b_variadic; b_func } ->
-      let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
-      if not b_variadic && List.length args <> b_arity then
-        make_error ArityError (Printf.sprintf "Expected %d arguments but got %d" b_arity (List.length args))
+      let named_args = List.map (fun (name, e) -> (name, eval_expr env e)) raw_args in
+      let arg_count = List.length named_args in
+      if not b_variadic && arg_count <> b_arity then
+        make_error ArityError (Printf.sprintf "Expected %d arguments but got %d" b_arity arg_count)
       else
-        b_func args env
+        b_func named_args env
 
   | VLambda { params; variadic = _; body; env = Some closure_env } ->
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
@@ -354,6 +367,16 @@ and eval_call env fn_val raw_args =
 and eval_binop env op left right =
   (* Pipe is special: x |> f(y) becomes f(x, y), x |> f becomes f(x) *)
   match op with
+  | Formula ->
+      (* Formulas are not evaluated - they're data structures *)
+      let lhs_vars = extract_formula_vars left in
+      let rhs_vars = extract_formula_vars right in
+      VFormula {
+        response = lhs_vars;
+        predictors = rhs_vars;
+        raw_lhs = left;
+        raw_rhs = right;
+      }
   | Pipe ->
       let lval = eval_expr env left in
       (match lval with
@@ -471,6 +494,10 @@ let eval_statement (env : environment) (stmt : stmt) : value * environment =
 (* --- Built-in Functions --- *)
 
 let make_builtin ?(variadic=false) arity func =
+  VBuiltin { b_arity = arity; b_variadic = variadic;
+             b_func = (fun named_args env -> func (List.map snd named_args) env) }
+
+let make_builtin_named ?(variadic=false) arity func =
   VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
 
 (* --- Phase 2: Arrow-Backed CSV Parser --- *)
