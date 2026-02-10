@@ -236,7 +236,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      => 92.3, 78.9, 88.1, 95.0, NA *)
   test "golden window: lead matches dplyr"
     {|lead([85.5, 92.3, 78.9, 88.1, 95.0])|}
-    "Vector[92.3, 78.9, 88.1, 95.0, NA]";
+    "Vector[92.3, 78.9, 88.1, 95., NA]";
 
   (* R: dplyr::lag(c(1, 2, 3, 4, 5), 2)
      => NA, NA, 1, 2, 3 *)
