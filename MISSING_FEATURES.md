@@ -283,7 +283,7 @@ This section outlines the concrete implementation phases required to complete th
 
 | Phase | Issue | Impact | Time | Priority |
 |-------|-------|--------|------|----------|
-| **1** | **Arrow Backend Stubbed** | 10x performance penalty on 10k+ rows | 7-8 days | CRITICAL |
+| **1** | **Arrow Backend Stubbed** | 10x performance penalty on 100k+ rows | 7-8 days | CRITICAL |
 | **2** | **Large Dataset Testing** | Unknown behavior >100k rows | 2-3 days | HIGH |
 | **3** | **Edge Case Hardening** | Potential crashes on unusual inputs | 2 days | MEDIUM |
 | **4** | **Documentation Polish** | Minor inconsistencies | 2 days | LOW |
@@ -302,7 +302,7 @@ This section outlines the concrete implementation phases required to complete th
 - No vectorized operations — everything loops element-by-element
 - Grouped operations don't use Arrow's hash-based aggregation
 
-**Impact**: Operations on 10,000+ row datasets are ~10x slower than R/dplyr, with some operations showing worse performance on specific workloads.
+**Impact**: Operations on 100,000+ row datasets are ~10x slower than R/dplyr, with some operations showing worse performance on specific workloads.
 
 #### Task 1.1: Zero-Copy Column Access (2 days)
 
@@ -607,10 +607,10 @@ let group_by df keys =
 
 | Operation | 100k Rows (Current) | 100k Rows (Target) | 1M Rows (Target) | Improvement |
 |-----------|---------------------|--------------------|--------------------|-------------|
-| Column selection | ~500ms | <50ms | <200ms | **10x faster** |
-| Arithmetic ops | ~2s | <200ms | <1s | **10x faster** |
-| Filtering | ~1s | <100ms | <500ms | **10x faster** |
-| Grouping + agg | ~5s | <500ms | <3s | **10x faster** |
+| Column selection | ~500ms | <50ms | <500ms | **10x faster** |
+| Arithmetic ops | ~2s | <200ms | <2s | **10x faster** |
+| Filtering | ~1s | <100ms | <1s | **10x faster** |
+| Grouping + agg | ~5s | <500ms | <5s | **10x faster** |
 | Window functions | ~3s | <300ms | <3s | **10x faster** |
 
 ---
