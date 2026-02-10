@@ -60,50 +60,53 @@ result = df
 
 **Implementation Complexity**: High
 
-#### Approach 2: Dot-Prefix Syntax
+#### Approach 2: Dollar-Prefix Syntax
+**Syntax**: `select($name, $age, $salary)`
+
+**Pros**:
+- Clear distinction between columns and variables
+- Very concise - minimal boilerplate (just `$`)
+- No scoping ambiguity
+- No conflict with existing dot accessor
+- Familiar to R users (`$` is used for column access in R)
+- Easier to implement than bare names
+- Simpler lexer (no ambiguity with `.5` floats or `row.field`)
+
+**Cons**:
+- Requires lexer changes to support dollar prefix
+- Not as common as dot notation in other languages
+
+**Implementation Complexity**: Low-Medium
+
+#### Approach 3: Dot-Prefix Syntax (Alternative)
 **Syntax**: `select(.name, .age, .salary)`
 
 **Pros**:
 - Clear distinction between columns and variables
-- Very concise - minimal boilerplate
-- No scoping ambiguity
-- Visually clean and distinctive
-- Easier to implement than bare names
+- Very concise
 
 **Cons**:
-- Requires lexer changes to support leading dot
-- Novel syntax (not used in other languages)
+- Conflicts with existing dot accessor (ambiguity issues)
+- Conflicts with floating point syntax (`.5`)
+- More complex lexer disambiguation needed
 
 **Implementation Complexity**: Medium
 
-#### Approach 3: Symbol/Accessor Syntax (Alternative)
-**Syntax**: `select(col.name, col.age, col.salary)` or `select($name, $age, $salary)`
-
-**Pros**:
-- Clear distinction between columns and variables
-- Easier to implement than bare names
-- No scoping ambiguity
-
-**Cons**:
-- More verbose than dot-prefix
-- Less concise than bare names
-
-**Implementation Complexity**: Medium
-
-### Recommended Approach: Start with Dot-Prefix Syntax, Evolve to Bare Names
+### Recommended Approach: Start with Dollar-Prefix Syntax, Evolve to Bare Names
 
 Given T's current alpha stage and the need for rapid iteration, we recommend:
 
-**Phase 1 (Beta)**: Implement **Dot-Prefix Syntax** (`.name`)
+**Phase 1 (Beta)**: Implement **Dollar-Prefix Syntax** (`$name`)
 - Lower implementation complexity than bare names
 - Very concise and clean
 - Clear semantics with no scoping ambiguity
+- No conflict with existing dot accessor
 - No backward compatibility needed (breaking change accepted)
 
 **Phase 2 (Future)**: Add **Bare Names** support
 - Build on Phase 1 infrastructure
 - Add sophisticated scoping resolution
-- Maintain dot-prefix syntax as alternative for disambiguating cases
+- Maintain dollar-prefix syntax as alternative for disambiguating cases
 
 This staged approach allows us to:
 1. Deliver immediate value with clean syntax
@@ -111,56 +114,45 @@ This staged approach allows us to:
 3. Avoid premature complexity
 4. Keep the door open for the ideal bare names syntax
 
-## Phase 1: Dot-Prefix Syntax Implementation
+## Phase 1: Dollar-Prefix Syntax Implementation
 
-### Dot-Prefix Syntax: `.name`
+### Dollar-Prefix Syntax: `$name`
 
 #### Example Usage
 ```t
-df |> select(.name, .age, .salary)
-df |> filter(.age > 30)
-df |> mutate(.bonus, \(row) row.salary * 0.1)  -- Keep lambda for complex expressions
-df |> arrange(.age, "desc")
+df |> select($name, $age, $salary)
+df |> filter($age > 30)
+df |> mutate($bonus, \(row) row.salary * 0.1)  -- Keep lambda for complex expressions
+df |> arrange($age, "desc")
 ```
 
 #### Advantages
-- Very concise - only one extra character
+- Very concise - only one extra character (`$`)
 - Clear marker that this is a column reference
-- Visually distinctive from variables
+- Familiar to R users (`df$column` in R)
+- No ambiguity with existing dot accessor
+- No ambiguity with floating point numbers
 - Clean and minimal syntax
+- Simple lexer implementation
 
-### Implementation Details for `.name` Syntax
+### Implementation Details for `$name` Syntax
 
 #### 1. Lexer Changes (`src/lexer.mll`)
 
-Add support for dot-prefixed identifiers:
+Add support for dollar-prefixed identifiers:
 
 ```ocaml
 (* Add to identifier/operator section *)
-| '.' (lower (letter | digit | '_')*) as s {
+| '$' (lower (letter | digit | '_')*) as s {
     COLUMN_REF (String.sub s 1 (String.length s - 1))
   }
 ```
 
-**Note**: This requires careful handling to distinguish from:
-- Regular dot for field access (e.g., `row.age`)
-- Floating point numbers (e.g., `.5` should still be `0.5`)
-
-The lexer needs to check the context:
-```ocaml
-| '.' (lower (letter | digit | '_')*) as s {
-    (* .name - column reference *)
-    COLUMN_REF (String.sub s 1 (String.length s - 1))
-  }
-| '.' (digit+ as d) {
-    (* .5 - floating point number *)
-    FLOAT (float_of_string ("0." ^ d))
-  }
-| '.' {
-    (* . - dot operator for field access *)
-    DOT
-  }
-```
+**Note**: This is much simpler than dot-prefix because:
+- No ambiguity with field access (`.` operator)
+- No ambiguity with floating point numbers (`.5`)
+- Dollar sign is not used elsewhere in T's syntax
+- Clean, unambiguous pattern
 
 #### 2. Parser Changes (`src/parser.mly`)
 
@@ -181,7 +173,7 @@ Add a new expression variant for column references:
 ```ocaml
 and expr =
   (* ... existing variants ... *)
-  | ColumnRef of string  (* NEW: .name syntax *)
+  | ColumnRef of string  (* NEW: $name syntax *)
 
 (** Check if an expression is a column reference *)
 let is_column_ref expr =
@@ -209,14 +201,14 @@ let register ~eval_expr env =
             (* Evaluate the expression first *)
             let v = eval_expr env expr in
             match v with
-            (* NSE: .field pattern *)
+            (* NSE: $field pattern *)
             | _ when (match Ast.is_column_ref expr with Some _ -> true | None -> false) ->
                 (match Ast.is_column_ref expr with
                  | Some field -> Ok field
                  | None -> Error (make_error ValueError "Unexpected column ref"))
             (* Error: not a column reference *)
             | _ -> Error (make_error TypeError 
-                    "select() expects column references using .field syntax")
+                    "select() expects column references using $field syntax")
           ) col_args in
           
           (match List.find_opt Result.is_error col_names with
@@ -243,11 +235,11 @@ For `filter()`, we need to transform NSE expressions into the traditional lambda
 ```ocaml
 open Ast
 
-(** Transform an NSE expression like (.age > 30) into \(row) row.age > 30 *)
+(** Transform an NSE expression like ($age > 30) into \(row) row.age > 30 *)
 let rec desugar_nse_expr expr =
   match expr with
   | ColumnRef field ->
-      (* .field → row.field *)
+      (* $field → row.field *)
       DotAccess { target = Var "row"; field }
   | BinOp { op; left; right } ->
       (* Recursively transform both sides *)
@@ -267,7 +259,7 @@ let rec desugar_nse_expr expr =
       ListExpr (List.map desugar_nse_expr exprs)
   | _ -> expr  (* Literals, variables, etc. remain unchanged *)
 
-(** Check if an expression uses NSE (contains .field) *)
+(** Check if an expression uses NSE (contains $field) *)
 let rec uses_nse expr =
   match expr with
   | ColumnRef _ -> true
@@ -289,7 +281,7 @@ let register ~eval_expr ~eval_call env =
            | VDataFrame df ->
                (* Check if predicate uses NSE *)
                let pred_fn = if uses_nse pred_expr then
-                 (* Transform .field → row.field and wrap in lambda *)
+                 (* Transform $field → row.field and wrap in lambda *)
                  let desugared_body = desugar_nse_expr pred_expr in
                  VLambda {
                    params = ["row"];
@@ -336,10 +328,10 @@ let register ~eval_expr ~eval_call env =
 
 **Example: `arrange()` in `src/packages/colcraft/arrange.ml`**
 
-Similar to `select()`, needs to handle `.field` syntax:
+Similar to `select()`, needs to handle `$field` syntax:
 
 ```ocaml
-(* Extract column names, supporting .field syntax *)
+(* Extract column names, supporting $field syntax *)
 let col_names = List.map (fun (name_opt, expr) ->
   let v = eval_expr env expr in
   match v with
@@ -348,7 +340,7 @@ let col_names = List.map (fun (name_opt, expr) ->
        | Some field -> Ok field
        | None -> Error (make_error ValueError "Unexpected column ref"))
   | _ -> Error (make_error TypeError 
-          "arrange() expects column references using .field syntax")
+          "arrange() expects column references using $field syntax")
 ) sort_cols in
 ```
 
@@ -414,7 +406,7 @@ df |> filter(\(row) row.age > 30 && row.status == active_status)
 --                     column             column        variable (from env)
 ```
 
-Note: With Phase 1 `.name` syntax already in place, the transformation is simpler as `.age` is already explicitly a column reference.
+Note: With Phase 1 `$name` syntax already in place, the transformation is simpler as `$age` is already explicitly a column reference.
 
 ### Parser Context Tracking
 
@@ -443,32 +435,32 @@ let parse_filter env df_expr pred_expr =
 Since backward compatibility is not required, the migration is straightforward:
 
 1. **Remove string syntax**: Strings will no longer be accepted for column references
-2. **Update all existing code**: All T code using strings must be updated to `.name` syntax
-3. **Provide migration script**: Automated tool to convert `select("name")` → `select(.name)`
+2. **Update all existing code**: All T code using strings must be updated to `$name` syntax
+3. **Provide migration script**: Automated tool to convert `select("name")` → `select($name)`
 
 ### Gradual Rollout
 
 **Phase 1.1 (Immediate - Beta 0.2)**:
-- Implement `.name` syntax
+- Implement `$name` syntax
 - Support in: `select()`, `arrange()`, `group_by()`
-- Simple NSE for `filter()` (e.g., `.age > 30`)
+- Simple NSE for `filter()` (e.g., `$age > 30`)
 
 **Phase 1.2 (Beta 0.3)**:
-- NSE for `mutate()` (column name uses `.name`, value expression can use NSE)
-- NSE for `summarize()` (column name uses `.name`, aggregation can use NSE)
+- NSE for `mutate()` (column name uses `$name`, value expression can use NSE)
+- NSE for `summarize()` (column name uses `$name`, aggregation can use NSE)
 - Complex filter predicates with NSE
 
 **Phase 2.1 (Stable 1.0)**:
 - Bare names support
 - Advanced scoping resolution
 - Full NSE for all data verbs
-- Ability to use `.name` for disambiguation when needed
+- Ability to use `$name` for disambiguation when needed
 
 ## Testing Strategy
 
 ### Unit Tests
 
-1. **NSE column references**: Test `.name` parsing and evaluation
+1. **NSE column references**: Test `$name` parsing and evaluation
 2. **Error messages**: Verify helpful errors for invalid column refs
 3. **Edge cases**: Test columns with underscores, numbers, special names
 
@@ -478,7 +470,7 @@ Create golden test comparisons against R dplyr:
 
 ```t
 -- T code
-df |> select(.name, .age)
+df |> select($name, $age)
 
 -- Equivalent R
 df %>% select(name, age)
@@ -513,22 +505,22 @@ Select columns from a DataFrame.
 ### Syntax
 
 ```t
-select(df, .col1, .col2, ...)
+select(df, $col1, $col2, ...)
 ```
 
 ### Arguments
 
 - `df`: DataFrame to select from
-- `.col1, .col2, ...`: Column names using dot-prefix syntax
+- `$col1, $col2, ...`: Column names using dollar-prefix syntax
 
 ### Examples
 
 ```t
--- Using NSE (dot-prefix)
-df |> select(.name, .age)
+-- Using NSE (dollar-prefix)
+df |> select($name, $age)
 
 -- Column names with underscores
-df |> select(.first_name, .last_name)
+df |> select($first_name, $last_name)
 ```
 ```
 
@@ -536,10 +528,11 @@ df |> select(.first_name, .last_name)
 
 ### For Users
 
-1. **Less Typing**: Only one extra character (`.`) for column references
+1. **Less Typing**: Only one extra character (`$`) for column references
 2. **Better Readability**: Code looks cleaner without quotes or verbose prefixes
-3. **Clear Semantics**: Dot prefix clearly indicates column references
+3. **Clear Semantics**: Dollar prefix clearly indicates column references
 4. **Easier Migration**: Simple pattern to convert from strings
+5. **Familiar to R Users**: R uses `$` for column access (`df$column`)
 
 ### For the Language
 
@@ -547,29 +540,25 @@ df |> select(.first_name, .last_name)
 2. **Differentiation**: Unique positioning vs. Python/Julia
 3. **Extensibility**: Foundation for future features (e.g., column expressions)
 4. **No Ambiguity**: Clear distinction from variables and field access
+5. **Simple Implementation**: No conflicts with existing operators
 
 ## Open Questions
 
-1. **Lexer disambiguation**:
-   - How to distinguish `.name` (column) from `.5` (float)?
-   - Solution: Check if character after dot is lowercase letter vs digit
-   - Need careful testing of edge cases
-
-2. **Should we allow bare names in Phase 1**?
-   - Pro: Match tidyverse exactly from the start
-   - Con: Higher implementation complexity, scoping ambiguities
-   - Decision: **No, wait for Phase 2** to get experience with `.name` syntax first
-
-3. **How to handle dynamic column names**?
+1. **Dynamic column names**:
    - NSE won't work for computed column names
    - Recommendation: **Provide escape hatch** - perhaps `select(col_from_var(var_name))`
    - Example: When column name is in a variable
 
-4. **Error messages**?
+2. **Error messages**?
    - When a column isn't found, should we suggest:
      - Similar column names?
      - Variables in scope that might have been intended?
    - Recommendation: **Yes, provide "Did you mean?" suggestions**
+
+3. **Reserved symbols**?
+   - Should `$` be reserved only for column references?
+   - Or allow other uses in the future?
+   - Recommendation: **Reserve `$` prefix for NSE** to avoid future conflicts
 
 ## Implementation Timeline
 
@@ -645,12 +634,12 @@ df |> select("name", "age")
 df |> filter(\(row) row.age > 30)
 ```
 
-### T's Proposed NSE (Phase 1) - Dot-Prefix
+### T's Proposed NSE (Phase 1) - Dollar-Prefix
 
 ```t
--- .field syntax
-df |> select(.name, .age)
-df |> filter(.age > 30)
+-- $field syntax
+df |> select($name, $age)
+df |> filter($age > 30)
 ```
 
 ### T's Ultimate Goal (Phase 2)
@@ -663,18 +652,20 @@ df |> filter(age > 30)
 
 ## Conclusion
 
-Non-Standard Evaluation is a crucial feature for making T competitive with modern data manipulation languages. By implementing it in phases—starting with dot-prefix syntax (`.name`) and evolving to bare names—we can:
+Non-Standard Evaluation is a crucial feature for making T competitive with modern data manipulation languages. By implementing it in phases—starting with dollar-prefix syntax (`$name`) and evolving to bare names—we can:
 
 1. Deliver immediate value to users with clean, concise syntax
 2. Maintain code clarity and avoid scoping issues
 3. Learn from user feedback before committing to complex bare name resolution
 4. Make a clean break from string-based syntax without backward compatibility concerns
 
-The recommended approach is to implement **`.name` syntax** in Phase 1, as it:
-- Very concise - only one extra character
+The recommended approach is to implement **`$name` syntax** in Phase 1, as it:
+- Very concise - only one extra character (`$`)
 - Clear semantics with no ambiguity
 - Distinctive visual marker for column references
-- Requires lexer changes but these are straightforward
+- No conflict with existing dot accessor (avoids parser complexity)
+- Familiar to R users (`df$column` in R)
+- Simple, clean lexer implementation
 - Provides foundation for eventual bare name support
 
 This positions T as a modern, user-friendly language for data analysis while maintaining the technical rigor and reproducibility that are core to the project's mission. The breaking change is acceptable given the alpha status and allows for a cleaner, more elegant syntax from the start.
