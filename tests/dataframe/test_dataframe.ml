@@ -218,8 +218,121 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|"DataFrame"|};
   print_newline ();
 
+  (* Phase 5 — read_csv() with optional arguments *)
+  Printf.printf "Phase 5 — read_csv() optional arguments:\n";
+
+  let csv_path_sep = "test_phase5_sep.csv" in
+  let oc5 = open_out csv_path_sep in
+  output_string oc5 "name;age;score\nAlice;30;95.5\nBob;25;87.3\n";
+  close_out oc5;
+
+  let csv_path_skip = "test_phase5_skip.csv" in
+  let oc6 = open_out csv_path_skip in
+  output_string oc6 "# This is a comment\n# Another comment\nname,age,score\nAlice,30,95.5\nBob,25,87.3\n";
+  close_out oc6;
+
+  let csv_path_noheader = "test_phase5_noheader.csv" in
+  let oc7 = open_out csv_path_noheader in
+  output_string oc7 "Alice,30,95.5\nBob,25,87.3\n";
+  close_out oc7;
+
+  (* Test read_csv with sep *)
+  let env5 = Eval.initial_env () in
+  let (_, env5) = eval_string_env (Printf.sprintf {|df = read_csv("%s", sep = ";")|} csv_path_sep) env5 in
+  let (v, _) = eval_string_env "nrow(df)" env5 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "2" then begin
+    incr pass_count; Printf.printf "  ✓ read_csv with sep=\";\" reads correct rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ read_csv with sep=\";\" reads correct rows\n    Expected: 2\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "colnames(df)" env5 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["name", "age", "score"]|} then begin
+    incr pass_count; Printf.printf "  ✓ read_csv with sep=\";\" reads correct columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ read_csv with sep=\";\" reads correct columns\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
+  end;
+
+  (* Test read_csv with skip_lines *)
+  let env6 = Eval.initial_env () in
+  let (_, env6) = eval_string_env (Printf.sprintf {|df = read_csv("%s", skip_lines = 2)|} csv_path_skip) env6 in
+  let (v, _) = eval_string_env "nrow(df)" env6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "2" then begin
+    incr pass_count; Printf.printf "  ✓ read_csv with skip_lines=2 skips comment lines\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ read_csv with skip_lines=2 skips comment lines\n    Expected: 2\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "colnames(df)" env6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["name", "age", "score"]|} then begin
+    incr pass_count; Printf.printf "  ✓ read_csv with skip_lines=2 reads correct header\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ read_csv with skip_lines=2 reads correct header\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
+  end;
+
+  (* Test read_csv with skip_header *)
+  let env7 = Eval.initial_env () in
+  let (_, env7) = eval_string_env (Printf.sprintf {|df = read_csv("%s", skip_header = true)|} csv_path_noheader) env7 in
+  let (v, _) = eval_string_env "nrow(df)" env7 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "2" then begin
+    incr pass_count; Printf.printf "  ✓ read_csv with skip_header=true reads all lines as data\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ read_csv with skip_header=true reads all lines as data\n    Expected: 2\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "colnames(df)" env7 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["V1", "V2", "V3"]|} then begin
+    incr pass_count; Printf.printf "  ✓ read_csv with skip_header=true generates V1,V2,V3 column names\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ read_csv with skip_header=true generates V1,V2,V3 column names\n    Expected: [\"V1\", \"V2\", \"V3\"]\n    Got: %s\n" result
+  end;
+  print_newline ();
+
+  (* Phase 5 — write_csv() with optional arguments *)
+  Printf.printf "Phase 5 — write_csv() optional arguments:\n";
+
+  let csv_out_sep = "test_phase5_write_sep.csv" in
+  let env_w = Eval.initial_env () in
+  let (_, env_w) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_w in
+  let (v, _) = eval_string_env (Printf.sprintf {|write_csv(df, "%s", sep = ";")|} csv_out_sep) env_w in
+  let result = Ast.Utils.value_to_string v in
+  if result = "null" then begin
+    incr pass_count; Printf.printf "  ✓ write_csv with sep=\";\" returns null\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ write_csv with sep=\";\" returns null\n    Expected: null\n    Got: %s\n" result
+  end;
+
+  (* Roundtrip: read back the semicolon-separated file *)
+  let (_, env_w2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s", sep = ";")|} csv_out_sep) env_w in
+  let (v, _) = eval_string_env "nrow(df2)" env_w2 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ roundtrip with sep=\";\" preserves row count\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ roundtrip with sep=\";\" preserves row count\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "colnames(df2)" env_w2 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["name", "age", "score"]|} then begin
+    incr pass_count; Printf.printf "  ✓ roundtrip with sep=\";\" preserves column names\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ roundtrip with sep=\";\" preserves column names\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
+  end;
+  print_newline ();
+
   (* Clean up test CSV files *)
   (try Sys.remove csv_path with _ -> ());
   (try Sys.remove csv_path_types with _ -> ());
   (try Sys.remove csv_path_na with _ -> ());
-  (try Sys.remove csv_path_empty with _ -> ())
+  (try Sys.remove csv_path_empty with _ -> ());
+  (try Sys.remove csv_path_sep with _ -> ());
+  (try Sys.remove csv_path_skip with _ -> ());
+  (try Sys.remove csv_path_noheader with _ -> ());
+  (try Sys.remove csv_out_sep with _ -> ())

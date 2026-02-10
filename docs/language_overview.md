@@ -299,6 +299,15 @@ nrow(df)      -- number of rows
 ncol(df)      -- number of columns
 colnames(df)  -- list of column names
 df.age        -- column as Vector
+
+-- Optional arguments
+df = read_csv("data.tsv", sep = ";")              -- custom separator
+df = read_csv("data.csv", skip_lines = 2)          -- skip first N lines
+df = read_csv("raw.csv", skip_header = true)        -- no header row
+
+-- Save DataFrames
+write_csv(df, "output.csv")                         -- write to CSV
+write_csv(df, "output.tsv", sep = "\t")             -- custom separator
 ```
 
 ### Data Manipulation
@@ -415,7 +424,7 @@ All packages are loaded automatically at startup:
 | `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`                   |
-| `dataframe` | `read_csv`, `colnames`, `nrow`, `ncol`                  |
+| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`     |
 | `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `row_number`, `min_rank`, `dense_rank`, `cume_dist`, `percent_rank`, `ntile`, `lag`, `lead`, `cumsum`, `cummin`, `cummax`, `cummean`, `cumall`, `cumany` |
 | `pipeline`  | `pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run` |
 | `explain`   | `explain`, `intent_fields`, `intent_get`                |

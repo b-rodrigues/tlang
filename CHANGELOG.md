@@ -94,3 +94,11 @@ All notable changes to the T programming language are documented here.
 - End-to-end example analyses (data analysis, pipelines, statistics)
 - Alpha release notes with frozen syntax
 - Roadmap for beta and v1.0
+
+### CSV I/O Enhancements
+- `read_csv()` now supports optional `sep` parameter for custom delimiters (e.g., `sep = ";"`)
+- `read_csv()` now supports optional `skip_lines` parameter to skip leading lines (e.g., comments)
+- `read_csv()` now supports optional `skip_header` parameter for headerless CSV files (columns named V1, V2, ...)
+- `write_csv()` now supports optional `sep` parameter for custom delimiters
+- Roundtrip tests: read_csv → write_csv → read_csv with default and custom separators
+- Tests for writing empty DataFrames and DataFrames with NA values

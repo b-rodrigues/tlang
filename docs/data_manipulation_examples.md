@@ -17,6 +17,31 @@ ncol(df)      -- 5
 colnames(df)  -- ["name", "age", "score", "dept", "salary"]
 ```
 
+### read_csv() Options
+
+```t
+-- Custom separator (e.g., semicolon-delimited files)
+df = read_csv("data.tsv", sep = ";")
+
+-- Skip comment lines at the top of a file
+df = read_csv("data_with_header.csv", skip_lines = 2)
+
+-- No header row (columns named V1, V2, ...)
+df = read_csv("raw_data.csv", skip_header = true)
+```
+
+---
+
+## Saving Data
+
+```t
+-- Save a DataFrame to CSV
+write_csv(df, "output.csv")
+
+-- Save with a custom separator
+write_csv(df, "output.tsv", sep = "\t")
+```
+
 ---
 
 ## select() — Choose Columns
