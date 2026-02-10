@@ -189,5 +189,78 @@ df |> mutate("senior", \(row) row.age >= 30)
     "3";
   print_newline ();
 
+  Printf.printf "Phase 4 — Grouped Mutate:\n";
+  (* Grouped mutate: broadcast group size to each row *)
+  let (v, _) = eval_string_env
+    {|df |> group_by("dept") |> mutate("dept_size", \(g) nrow(g))|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, dept_size]) grouped by [dept]" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate adds column with group context\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate adds column with group context\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, dept_size]) grouped by [dept]\n    Got: %s\n" result
+  end;
+
+  (* Grouped mutate: check broadcast values *)
+  let (v, _) = eval_string_env
+    {|result = df |> group_by("dept") |> mutate("dept_size", \(g) nrow(g)); result.dept_size|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  (* eng has 3 rows (Alice, Charlie, Eve), sales has 2 rows (Bob, Diana) *)
+  (* Original order: Alice(eng=3), Bob(sales=2), Charlie(eng=3), Diana(sales=2), Eve(eng=3) *)
+  if result = "Vector[3, 2, 3, 2, 3]" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate broadcasts group values correctly\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate broadcasts group values correctly\n    Expected: Vector[3, 2, 3, 2, 3]\n    Got: %s\n" result
+  end;
+
+  (* Grouped mutate: preserves group keys *)
+  let (v, _) = eval_string_env
+    {|df |> group_by("dept") |> mutate("x", \(g) 1)|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, x]) grouped by [dept]" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate preserves group keys\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate preserves group keys\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, x]) grouped by [dept]\n    Got: %s\n" result
+  end;
+
+  (* Grouped mutate: compute group mean score *)
+  let (v, _) = eval_string_env
+    {|result = df |> group_by("dept") |> mutate("mean_score", \(g) mean(g.score)); result.mean_score|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  (* eng scores: 95.5, 92.1, 91.5 -> mean = 93.0333... *)
+  (* sales scores: 87.3, 88.0 -> mean = 87.65 *)
+  (* Original order: Alice(eng), Bob(sales), Charlie(eng), Diana(sales), Eve(eng) *)
+  let expected_prefix = "Vector[93.0" in
+  if String.length result > String.length expected_prefix && String.sub result 0 (String.length expected_prefix) = expected_prefix then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate computes group mean\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate computes group mean\n    Expected to start with: %s\n    Got: %s\n" expected_prefix result
+  end;
+
+  (* Grouped mutate followed by ungrouped operation *)
+  let (v, _) = eval_string_env
+    {|df |> group_by("dept") |> mutate("dept_size", \(g) nrow(g)) |> filter(\(row) row.dept_size > 2) |> nrow|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate chains with filter\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate chains with filter\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  (* Ungrouped mutate still works (regression check) *)
+  let (v, _) = eval_string_env {|mutate(df, "age_x2", \(row) row.age * 2) |> ncol|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  ✓ ungrouped mutate still works (regression)\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ ungrouped mutate still works (regression)\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  print_newline ();
+
   (* Clean up Phase 4 CSV *)
   (try Sys.remove csv_p4 with _ -> ())

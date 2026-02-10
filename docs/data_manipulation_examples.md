@@ -125,7 +125,7 @@ df |> group_by("dept")
 -- DataFrame(100 rows x 5 cols: [...]) grouped by [dept]
 ```
 
-Grouping is a marker — it doesn't change the data, but tells `summarize()` how to split the computation.
+Grouping is a marker — it doesn't change the data, but tells `summarize()` and `mutate()` how to split the computation.
 
 **Error handling:**
 ```t
@@ -157,6 +157,36 @@ df |> group_by("dept")
 -- DataFrame(N rows x 2 cols: [dept, count])
 -- One row per group
 ```
+
+---
+
+## Grouped Mutate — Group-Wise Transformations
+
+When `mutate()` is applied to a grouped DataFrame, the function receives the group sub-DataFrame instead of a single row. The result is broadcast to every row in that group:
+
+```t
+-- Add group size to each row
+df |> group_by("dept")
+   |> mutate("dept_size", \(g) nrow(g))
+-- Each row gets the count of its group
+
+-- Compute group mean and broadcast
+df |> group_by("dept")
+   |> mutate("mean_score", \(g) mean(g.score))
+-- Each row gets the mean score of its department
+```
+
+### Common Patterns
+
+```t
+-- Chain grouped mutate with filter
+df |> group_by("dept")
+   |> mutate("dept_size", \(g) nrow(g))
+   |> filter(\(row) row.dept_size > 2)
+-- Keep only rows from large departments
+```
+
+**Note:** Grouped mutate preserves the group keys on the resulting DataFrame.
 
 ---
 
