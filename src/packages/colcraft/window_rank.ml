@@ -1,215 +1,261 @@
 open Ast
 
-(** Helper: extract numeric values from a VVector or VList for comparison.
-    Returns an array of floats or an error. *)
-let extract_floats label values =
+(** Helper: extract numeric values from a VVector or VList, tolerating NA.
+    Returns an array of (float option) — None for NA positions — or an error
+    for non-numeric values. *)
+let extract_floats_na label values =
   let len = Array.length values in
-  let result = Array.make len 0.0 in
+  let result = Array.make len None in
   let had_error = ref None in
   for i = 0 to len - 1 do
     if !had_error = None then
       match values.(i) with
-      | VInt n -> result.(i) <- float_of_int n
-      | VFloat f -> result.(i) <- f
-      | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
+      | VInt n -> result.(i) <- Some (float_of_int n)
+      | VFloat f -> result.(i) <- Some f
+      | VNA _ -> result.(i) <- None
       | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
   done;
   match !had_error with Some e -> Error e | None -> Ok result
 
-(** Helper: convert args to a float array *)
-let to_float_array label = function
-  | VVector arr -> extract_floats label arr
+(** Helper: convert args to a (float option) array, tolerating NA *)
+let to_float_array_na label = function
+  | VVector arr -> extract_floats_na label arr
   | VList items ->
     let arr = Array.of_list (List.map snd items) in
-    extract_floats label arr
-  | VNA _ -> Error (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
+    extract_floats_na label arr
+  | VNA _ -> Ok [|None|]
   | _ -> Error (make_error TypeError (label ^ "() expects a numeric Vector or List"))
 
-(** Compute sorted indices (ascending) for a float array *)
-let argsort (nums : float array) : int array =
+(** Collect indices of non-NA positions and their float values *)
+let non_na_indices (nums : float option array) : (int * float) array =
   let n = Array.length nums in
-  let indices = Array.init n (fun i -> i) in
-  Array.stable_sort (fun i j -> compare nums.(i) nums.(j)) indices;
-  indices
+  let count = ref 0 in
+  Array.iter (fun v -> if v <> None then incr count) nums;
+  let result = Array.make !count (0, 0.0) in
+  let pos = ref 0 in
+  for i = 0 to n - 1 do
+    match nums.(i) with
+    | Some f -> result.(!pos) <- (i, f); incr pos
+    | None -> ()
+  done;
+  result
+
+(** Compute sorted indices (ascending) for an array of (original_index, float) pairs.
+    Returns sorted array of (original_index, float). *)
+let argsort_pairs (pairs : (int * float) array) : (int * float) array =
+  let copy = Array.copy pairs in
+  Array.stable_sort (fun (_, a) (_, b) -> compare a b) copy;
+  copy
 
 let register env =
-  (* row_number(x): rank from 1..n, ties broken by position *)
+  (* row_number(x): rank from 1..n among non-NA values, NA positions get NA *)
   let env = Env.add "row_number"
     (make_builtin 1 (fun args _env ->
       match args with
       | [arg] ->
-        (match to_float_array "row_number" arg with
+        (match to_float_array_na "row_number" arg with
          | Error e -> e
          | Ok nums ->
            let n = Array.length nums in
            if n = 0 then VVector [||]
            else
-             let sorted_idx = argsort nums in
-             let ranks = Array.make n 0 in
-             Array.iteri (fun rank_minus_1 orig_idx ->
-               ranks.(orig_idx) <- rank_minus_1 + 1
-             ) sorted_idx;
-             VVector (Array.map (fun r -> VInt r) ranks))
+             let result = Array.make n (VNA NAInt) in
+             let pairs = non_na_indices nums in
+             let sorted = argsort_pairs pairs in
+             Array.iteri (fun rank_minus_1 (orig_idx, _) ->
+               result.(orig_idx) <- VInt (rank_minus_1 + 1)
+             ) sorted;
+             VVector result)
       | _ -> make_error ArityError "row_number() takes exactly 1 argument"
     ))
     env
   in
-  (* min_rank(x): ties get minimum rank, gaps after ties *)
+  (* min_rank(x): ties get minimum rank, gaps after ties; NA positions get NA *)
   let env = Env.add "min_rank"
     (make_builtin 1 (fun args _env ->
       match args with
       | [arg] ->
-        (match to_float_array "min_rank" arg with
+        (match to_float_array_na "min_rank" arg with
          | Error e -> e
          | Ok nums ->
            let n = Array.length nums in
            if n = 0 then VVector [||]
            else
-             let sorted_idx = argsort nums in
-             let ranks = Array.make n 0 in
-             let i = ref 0 in
-             while !i < n do
-               let cur_val = nums.(sorted_idx.(!i)) in
-               let start = !i in
-               while !i < n && nums.(sorted_idx.(!i)) = cur_val do
-                 incr i
+             let result = Array.make n (VNA NAInt) in
+             let pairs = non_na_indices nums in
+             let m = Array.length pairs in
+             if m = 0 then VVector result
+             else begin
+               let sorted = argsort_pairs pairs in
+               let i = ref 0 in
+               while !i < m do
+                 let (_, cur_val) = sorted.(!i) in
+                 let start = !i in
+                 while !i < m && snd sorted.(!i) = cur_val do
+                   incr i
+                 done;
+                 for j = start to !i - 1 do
+                   let (orig_idx, _) = sorted.(j) in
+                   result.(orig_idx) <- VInt (start + 1)
+                 done
                done;
-               (* All tied values get rank start+1 *)
-               for j = start to !i - 1 do
-                 ranks.(sorted_idx.(j)) <- start + 1
-               done
-             done;
-             VVector (Array.map (fun r -> VInt r) ranks))
+               VVector result
+             end)
       | _ -> make_error ArityError "min_rank() takes exactly 1 argument"
     ))
     env
   in
-  (* dense_rank(x): ties get same rank, no gaps *)
+  (* dense_rank(x): ties get same rank, no gaps; NA positions get NA *)
   let env = Env.add "dense_rank"
     (make_builtin 1 (fun args _env ->
       match args with
       | [arg] ->
-        (match to_float_array "dense_rank" arg with
+        (match to_float_array_na "dense_rank" arg with
          | Error e -> e
          | Ok nums ->
            let n = Array.length nums in
            if n = 0 then VVector [||]
            else
-             let sorted_idx = argsort nums in
-             let ranks = Array.make n 0 in
-             let cur_rank = ref 1 in
-             let i = ref 0 in
-             while !i < n do
-               let cur_val = nums.(sorted_idx.(!i)) in
-               while !i < n && nums.(sorted_idx.(!i)) = cur_val do
-                 ranks.(sorted_idx.(!i)) <- !cur_rank;
-                 incr i
+             let result = Array.make n (VNA NAInt) in
+             let pairs = non_na_indices nums in
+             let m = Array.length pairs in
+             if m = 0 then VVector result
+             else begin
+               let sorted = argsort_pairs pairs in
+               let cur_rank = ref 1 in
+               let i = ref 0 in
+               while !i < m do
+                 let (_, cur_val) = sorted.(!i) in
+                 while !i < m && snd sorted.(!i) = cur_val do
+                   let (orig_idx, _) = sorted.(!i) in
+                   result.(orig_idx) <- VInt !cur_rank;
+                   incr i
+                 done;
+                 incr cur_rank
                done;
-               incr cur_rank
-             done;
-             VVector (Array.map (fun r -> VInt r) ranks))
+               VVector result
+             end)
       | _ -> make_error ArityError "dense_rank() takes exactly 1 argument"
     ))
     env
   in
-  (* cume_dist(x): proportion of values <= current value *)
+  (* cume_dist(x): proportion of non-NA values <= current value; NA positions get NA *)
   let env = Env.add "cume_dist"
     (make_builtin 1 (fun args _env ->
       match args with
       | [arg] ->
-        (match to_float_array "cume_dist" arg with
+        (match to_float_array_na "cume_dist" arg with
          | Error e -> e
          | Ok nums ->
            let n = Array.length nums in
            if n = 0 then VVector [||]
            else
-             let sorted_idx = argsort nums in
-             let result = Array.make n 0.0 in
-             let i = ref 0 in
-             while !i < n do
-               let cur_val = nums.(sorted_idx.(!i)) in
-               let start = !i in
-               while !i < n && nums.(sorted_idx.(!i)) = cur_val do
-                 incr i
+             let result = Array.make n (VNA NAFloat) in
+             let pairs = non_na_indices nums in
+             let m = Array.length pairs in
+             if m = 0 then VVector result
+             else begin
+               let sorted = argsort_pairs pairs in
+               let i = ref 0 in
+               while !i < m do
+                 let (_, cur_val) = sorted.(!i) in
+                 let start = !i in
+                 while !i < m && snd sorted.(!i) = cur_val do
+                   incr i
+                 done;
+                 let cd = float_of_int !i /. float_of_int m in
+                 for j = start to !i - 1 do
+                   let (orig_idx, _) = sorted.(j) in
+                   result.(orig_idx) <- VFloat cd
+                 done
                done;
-               (* All tied values get cume_dist = last_position / n *)
-               let cd = float_of_int !i /. float_of_int n in
-               for j = start to !i - 1 do
-                 result.(sorted_idx.(j)) <- cd
-               done
-             done;
-             VVector (Array.map (fun f -> VFloat f) result))
+               VVector result
+             end)
       | _ -> make_error ArityError "cume_dist() takes exactly 1 argument"
     ))
     env
   in
-  (* percent_rank(x): (rank - 1) / (n - 1), 0 for first *)
+  (* percent_rank(x): (rank - 1) / (n - 1) among non-NA values; NA positions get NA *)
   let env = Env.add "percent_rank"
     (make_builtin 1 (fun args _env ->
       match args with
       | [arg] ->
-        (match to_float_array "percent_rank" arg with
+        (match to_float_array_na "percent_rank" arg with
          | Error e -> e
          | Ok nums ->
            let n = Array.length nums in
            if n = 0 then VVector [||]
-           else if n = 1 then VVector [|VFloat 0.0|]
            else
-             (* Use min_rank logic, then scale *)
-             let sorted_idx = argsort nums in
-             let min_ranks = Array.make n 0 in
-             let i = ref 0 in
-             while !i < n do
-               let cur_val = nums.(sorted_idx.(!i)) in
-               let start = !i in
-               while !i < n && nums.(sorted_idx.(!i)) = cur_val do
-                 incr i
+             let result = Array.make n (VNA NAFloat) in
+             let pairs = non_na_indices nums in
+             let m = Array.length pairs in
+             if m = 0 then VVector result
+             else if m = 1 then begin
+               let (orig_idx, _) = pairs.(0) in
+               result.(orig_idx) <- VFloat 0.0;
+               VVector result
+             end else begin
+               let sorted = argsort_pairs pairs in
+               let min_ranks = Array.make m 0 in
+               let i = ref 0 in
+               while !i < m do
+                 let (_, cur_val) = sorted.(!i) in
+                 let start = !i in
+                 while !i < m && snd sorted.(!i) = cur_val do
+                   incr i
+                 done;
+                 for j = start to !i - 1 do
+                   min_ranks.(j) <- start + 1
+                 done
                done;
-               for j = start to !i - 1 do
-                 min_ranks.(sorted_idx.(j)) <- start + 1
-               done
-             done;
-             let denom = float_of_int (n - 1) in
-             VVector (Array.map (fun r ->
-               VFloat (float_of_int (r - 1) /. denom)
-             ) min_ranks))
+               let denom = float_of_int (m - 1) in
+               Array.iteri (fun sorted_pos rank ->
+                 let (orig_idx, _) = sorted.(sorted_pos) in
+                 result.(orig_idx) <- VFloat (float_of_int (rank - 1) /. denom)
+               ) min_ranks;
+               VVector result
+             end)
       | _ -> make_error ArityError "percent_rank() takes exactly 1 argument"
     ))
     env
   in
-  (* ntile(x, n): divide into n approximately equal-sized groups *)
+  (* ntile(x, n): divide non-NA values into n approximately equal-sized groups; NA positions get NA *)
   (* Matches R's dplyr::ntile: first (len %% n) groups have (len / n + 1) elements,
      remaining groups have (len / n) elements. Assignment is based on rank. *)
   let env = Env.add "ntile"
     (make_builtin 2 (fun args _env ->
       match args with
       | [arg; VInt num_tiles] when num_tiles > 0 ->
-        (match to_float_array "ntile" arg with
+        (match to_float_array_na "ntile" arg with
          | Error e -> e
          | Ok nums ->
            let n = Array.length nums in
            if n = 0 then VVector [||]
            else
-             let sorted_idx = argsort nums in
-             (* Build tile assignments for sorted positions, matching R's algorithm:
-                first r groups have (grp_len+1) elements, rest have grp_len *)
-             let grp_len = n / num_tiles in
-             let remainder = n mod num_tiles in
-             let tiles_for_sorted = Array.make n 0 in
-             let pos = ref 0 in
-             for tile = 1 to num_tiles do
-               let size = if tile <= remainder then grp_len + 1 else grp_len in
-               for _ = 1 to size do
-                 tiles_for_sorted.(!pos) <- tile;
-                 incr pos
-               done
-             done;
-             (* Assign tiles based on rank (sorted position) *)
-             let result = Array.make n 0 in
-             Array.iteri (fun sorted_pos orig_idx ->
-               result.(orig_idx) <- tiles_for_sorted.(sorted_pos)
-             ) sorted_idx;
-             VVector (Array.map (fun t -> VInt t) result))
+             let result = Array.make n (VNA NAInt) in
+             let pairs = non_na_indices nums in
+             let m = Array.length pairs in
+             if m = 0 then VVector result
+             else begin
+               let sorted = argsort_pairs pairs in
+               let grp_len = m / num_tiles in
+               let remainder = m mod num_tiles in
+               let tiles_for_sorted = Array.make m 0 in
+               let pos = ref 0 in
+               for tile = 1 to num_tiles do
+                 let size = if tile <= remainder then grp_len + 1 else grp_len in
+                 for _ = 1 to size do
+                   if !pos < m then begin
+                     tiles_for_sorted.(!pos) <- tile;
+                     incr pos
+                   end
+                 done
+               done;
+               Array.iteri (fun sorted_pos (orig_idx, _) ->
+                 result.(orig_idx) <- VInt tiles_for_sorted.(sorted_pos)
+               ) sorted;
+               VVector result
+             end)
       | [_; VInt n] when n <= 0 ->
         make_error ValueError "ntile() requires a positive number of tiles"
       | [_; _] -> make_error TypeError "ntile() expects an integer as second argument"

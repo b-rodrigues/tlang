@@ -118,6 +118,7 @@ Features supported:
 - Formula syntax: `y ~ x` creates Formula objects for statistical modeling
 - Named arguments: `lm(data = df, formula = y ~ x)`
 - NA handling: `mean(data, na_rm = true)` skips missing values
+- Window functions: `row_number`, `min_rank`, `dense_rank`, `lag`, `lead`, `cumsum` with NA support
 - Conditional pipe: `x |> f` (short-circuits on error)
 - Maybe-pipe: `x ?|> f` (forwards errors for recovery)
 - Python-style list comprehensions: `[x * x for x in numbers if x > 2]`
@@ -130,7 +131,7 @@ The following packages are automatically loaded at REPL startup:
 
 - `core`: functional utilities (e.g. `map`, `filter`)
 - `stats`: statistical functions (e.g. `mean`, `sd`)
-- `colcraft`: tabular functions (`select`, `mutate`, `filter`, etc.)
+- `colcraft`: tabular functions (`select`, `mutate`, `filter`, `arrange`, `group_by`, `summarize`) and window functions (`row_number`, `min_rank`, `dense_rank`, `lag`, `lead`, `cumsum`, etc.)
 
 Each package consists of one file per function, e.g. `colcraft.select.ml`.
 

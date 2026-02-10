@@ -297,6 +297,65 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   print_newline ();
 
   (* ===================================================================== *)
+  (* Window Functions NA Handling Golden Tests                               *)
+  (* Expected values match R's dplyr behavior for NA in window functions     *)
+  (* ===================================================================== *)
+
+  Printf.printf "Phase 8 — Golden: Window Functions NA Handling:\n";
+
+  (* R: dplyr::row_number(c(3, NA, 1)) => 2, NA, 1 *)
+  test "golden window NA: row_number with NA"
+    {|row_number([3, NA, 1])|}
+    "Vector[2, NA(Int), 1]";
+
+  (* R: dplyr::min_rank(c(3, NA, 1, 3)) => 2, NA, 1, 2 *)
+  test "golden window NA: min_rank with NA"
+    {|min_rank([3, NA, 1, 3])|}
+    "Vector[2, NA(Int), 1, 2]";
+
+  (* R: dplyr::dense_rank(c(3, NA, 1, 3)) => 2, NA, 1, 2 *)
+  test "golden window NA: dense_rank with NA"
+    {|dense_rank([3, NA, 1, 3])|}
+    "Vector[2, NA(Int), 1, 2]";
+
+  (* R: dplyr::ntile(c(10, NA, 20, NA, 30), 2) => 1, NA, 1, NA, 2 *)
+  test "golden window NA: ntile with NA"
+    {|ntile([10, NA, 20, NA, 30], 2)|}
+    "Vector[1, NA(Int), 1, NA(Int), 2]";
+
+  (* R: dplyr::lag(c(1, NA, 3)) => NA, 1, NA *)
+  test "golden window NA: lag propagates NA"
+    {|lag([1, NA, 3])|}
+    "Vector[NA, 1, NA]";
+
+  (* R: dplyr::lead(c(1, NA, 3)) => NA, 3, NA *)
+  test "golden window NA: lead propagates NA"
+    {|lead([1, NA, 3])|}
+    "Vector[NA, 3, NA]";
+
+  (* R: cumsum(c(1, NA, 3)) => 1, NA, NA *)
+  test "golden window NA: cumsum propagates NA"
+    {|cumsum([1, NA, 3])|}
+    "Vector[1, NA(Float), NA(Float)]";
+
+  (* R: cummin(c(3, NA, 1)) => 3, NA, NA *)
+  test "golden window NA: cummin propagates NA"
+    {|cummin([3, NA, 1])|}
+    "Vector[3, NA(Float), NA(Float)]";
+
+  (* R: cummax(c(1, NA, 5)) => 1, NA, NA *)
+  test "golden window NA: cummax propagates NA"
+    {|cummax([1, NA, 5])|}
+    "Vector[1, NA(Float), NA(Float)]";
+
+  (* R: dplyr::cummean(c(2, NA, 6)) => 2, NA, NA *)
+  test "golden window NA: cummean propagates NA"
+    {|cummean([2, NA, 6])|}
+    "Vector[2., NA(Float), NA(Float)]";
+
+  print_newline ();
+
+  (* ===================================================================== *)
   (* NA Parameter Support Golden Tests                                      *)
   (* Expected values below are computed from R for na_rm parameter handling *)
   (* ===================================================================== *)
