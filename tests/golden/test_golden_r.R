@@ -165,7 +165,7 @@ test_that("PIPELINE: filter %>% mutate %>% arrange", {
 })
 
 test_that("PIPELINE: group_by %>% mutate (window)", {
-  skip("Window functions not yet implemented in T")
+  skip("Grouped mutate (group_by %>% mutate with group-aware expressions) not yet supported in T")
   compare_csvs("mtcars_pipeline_groupby_mutate")
 })
 
