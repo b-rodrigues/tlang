@@ -14,8 +14,9 @@ This approach provides:
 
 - **Perfect reproducibility**: Same inputs always produce the same environment
 - **No dependency hell**: Nix guarantees consistent package versions
-- **Centralized quality**: All packages contributed to the main repository
-- **Transparent review**: All contributions via GitHub Pull Requests
+- **Decentralized ecosystem**: Each package lives in its own git repository
+- **Flexible distribution**: Authors maintain and release their own packages
+- **Version pinning**: Packages are pinned via git tags/releases for reproducibility
 
 ---
 
@@ -62,13 +63,14 @@ version = "0.1.0"
 description = "A brief description of what the package does"
 authors = ["Your Name <email@example.com>"]
 license = "EUPL-1.2"
-homepage = "https://github.com/b-rodrigues/tlang"
+homepage = "https://github.com/username/my-package"
+repository = "https://github.com/username/my-package"
 
 [dependencies]
 # T packages this package depends on
-# Format: package_name = "commit-hash-or-version"
-stats = "main"
-colcraft = "main"
+# Format: package = { git = "repository-url", tag = "version" }
+stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
+colcraft = { git = "https://github.com/t-lang/colcraft", tag = "v0.2.1" }
 
 [t]
 # Minimum T language version required
@@ -85,10 +87,13 @@ Each package includes a `flake.nix` that specifies its build and runtime depende
 
   inputs = {
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
-    t-lang.url = "github:b-rodrigues/tlang";
+    t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
+    # Package dependencies as flake inputs
+    stats.url = "github:t-lang/stats/v0.5.0";
+    colcraft.url = "github:t-lang/colcraft/v0.2.1";
   };
 
-  outputs = { self, nixpkgs, t-lang }:
+  outputs = { self, nixpkgs, t-lang, stats, colcraft }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -99,7 +104,11 @@ Each package includes a `flake.nix` that specifies its build and runtime depende
         version = "0.1.0";
         src = ./.;
         
-        buildInputs = [ t-lang.packages.${system}.default ];
+        buildInputs = [ 
+          t-lang.packages.${system}.default 
+          stats.packages.${system}.default
+          colcraft.packages.${system}.default
+        ];
         
         installPhase = ''
           mkdir -p $out/lib/t/packages/my-package
@@ -180,6 +189,11 @@ The project `flake.nix` pins all dependencies to a specific date from the `rstat
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
     flake-utils.url = "github:numtide/flake-utils";
     t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
+    
+    # T packages from decentralized repositories
+    stats.url = "github:t-lang/stats/v0.5.0";
+    colcraft.url = "github:t-lang/colcraft/v0.2.1";
+    my-viz-package.url = "github:johndoe/t-viz/v1.2.0";
   };
 
   # Configure cachix for R packages
@@ -192,14 +206,16 @@ The project `flake.nix` pins all dependencies to a specific date from the `rstat
     ];
   };
 
-  outputs = { self, nixpkgs, flake-utils, t-lang }:
+  outputs = { self, nixpkgs, flake-utils, t-lang, stats, colcraft, my-viz-package }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         
-        # Custom T packages for this project
+        # T packages for this project (imported from flake inputs)
         projectPackages = [
-          # Add package paths here
+          stats.packages.${system}.default
+          colcraft.packages.${system}.default
+          my-viz-package.packages.${system}.default
         ];
 
       in
@@ -254,19 +270,20 @@ nixpkgs = "github:rstats-on-nix/nixpkgs/2026-02-10"
 t_version = "0.5.0"
 
 [dependencies]
-# T packages from the main repository
-# Format: package = "commit-hash" or "version-tag"
-stats = "v0.5.0"
-colcraft = "v0.5.0"
-dataframe = "v0.5.0"
+# T packages from decentralized repositories
+# Each package is hosted in its own git repository and pinned to a release tag
+# Format: package = { git = "repository-url", tag = "version-tag" }
+stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
+colcraft = { git = "https://github.com/t-lang/colcraft", tag = "v0.2.1" }
+dataframe = { git = "https://github.com/t-lang/dataframe", tag = "v0.3.0" }
 
 # User-contributed packages from the community
-# Format: package = { git = "url", rev = "commit-hash" }
-# my-viz-package = { git = "https://github.com/user/t-viz", rev = "abc123" }
+my-viz-package = { git = "https://github.com/johndoe/t-viz", tag = "v1.2.0" }
+advanced-stats = { git = "https://github.com/janedoe/t-advanced-stats", tag = "v2.0.1" }
 
 [dependencies.dev]
 # Development-only dependencies (for testing, etc.)
-# test-helpers = "v0.1.0"
+test-helpers = { git = "https://github.com/t-lang/test-helpers", tag = "v0.1.0" }
 
 [r-packages]
 # R packages available via rstats-on-nix
@@ -290,9 +307,35 @@ readr = "*"
 
 2. **rstats-on-nix date pins**: The nixpkgs input is pinned to a specific date branch (e.g., `2026-02-10`), which corresponds to a snapshot of all R packages at that date.
 
-3. **T package versions**: T packages are referenced by commit hash or version tag, ensuring exact reproducibility.
+3. **T package git tags**: T packages are referenced from their git repositories using release tags (e.g., `v0.5.0`), ensuring exact reproducibility.
 
 4. **Transitive dependencies**: All dependencies of dependencies are also pinned through Nix's evaluation.
+
+### Package Releases and Versioning
+
+**Critical requirement**: All T packages **must have releases** to be used as dependencies.
+
+Package authors should:
+
+1. **Use semantic versioning**: `v0.1.0`, `v1.2.3`, etc.
+2. **Create git tags** for each release:
+   ```bash
+   git tag -a v0.1.0 -m "Release version 0.1.0"
+   git push origin v0.1.0
+   ```
+3. **Update CHANGELOG.md** with release notes
+4. **Test thoroughly** before tagging a release
+
+Projects reference packages by their **git repository URL** and **tag**:
+```toml
+my-package = { git = "https://github.com/user/my-package", tag = "v0.1.0" }
+```
+
+This approach ensures:
+- **Exact pinning**: Tags are immutable once pushed
+- **Reproducibility**: Same tag = same code, always
+- **Discoverability**: Users can browse releases on GitHub
+- **Flexibility**: Authors control their own release schedule
 
 ### Date-Based Pinning
 
@@ -309,6 +352,58 @@ When initializing a project, `t init project` automatically:
 3. Runs `nix flake lock` to generate the lockfile
 
 This ensures that running the project in 5 years will use the **exact same** package versions.
+
+---
+
+## Package Discovery
+
+In a decentralized ecosystem, package discovery happens through:
+
+### 1. Community Package Index
+
+A curated, community-maintained index (e.g., at `https://t-packages.org`) could list:
+- Package name and description
+- Git repository URL
+- Latest release version
+- Author information
+- Categories/tags
+- Documentation link
+
+Example entry:
+```toml
+[advanced-stats]
+description = "Advanced statistical functions for T"
+repository = "https://github.com/janedoe/t-advanced-stats"
+latest = "v2.0.1"
+author = "Jane Doe"
+tags = ["statistics", "data-analysis"]
+```
+
+### 2. GitHub Topics and Search
+
+Package authors should:
+- Use the `t-lang-package` topic on GitHub
+- Include clear description and keywords
+- Maintain good documentation
+
+Users can discover packages via GitHub search:
+```
+topic:t-lang-package stars:>10
+```
+
+### 3. Community Resources
+
+- **Awesome T Packages**: Curated list on GitHub
+- **T Community Forum**: Package announcements
+- **Social media**: #TLang hashtag for package releases
+
+### 4. Direct References
+
+Projects can depend on any git repository:
+```toml
+# Even experimental/private packages
+my-internal-package = { git = "https://gitlab.company.com/data/t-utils", tag = "v0.1.0" }
+```
 
 ---
 
@@ -343,23 +438,50 @@ This ensures that running the project in 5 years will use the **exact same** pac
    t run tests/test-cool-function.t
    ```
 
-6. **Contribute to the main repository**:
-   - Fork `https://github.com/b-rodrigues/tlang`
-   - Copy your package to `packages/my-awesome-package/`
-   - Create a Pull Request
-   - Maintainers review and merge
+6. **Initialize git repository and publish**:
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   ```
 
-### Package Contribution Guidelines
+7. **Create a GitHub repository**:
+   - Create a new repository on GitHub (e.g., `https://github.com/username/my-awesome-package`)
+   - Push your code:
+     ```bash
+     git remote add origin https://github.com/username/my-awesome-package
+     git push -u origin main
+     ```
 
-All packages must:
+8. **Create your first release**:
+   ```bash
+   # Update CHANGELOG.md with release notes
+   git add CHANGELOG.md
+   git commit -m "Prepare v0.1.0 release"
+   
+   # Create and push a release tag
+   git tag -a v0.1.0 -m "Release version 0.1.0"
+   git push origin v0.1.0
+   ```
+
+9. **Share your package**:
+   - Add a clear README.md explaining usage
+   - Share on social media, forums, or the T community
+   - Users can now add it to their projects via tproject.toml
+
+### Package Publishing Guidelines
+
+All published packages should:
 
 1. Follow the standard folder structure
 2. Include comprehensive tests
 3. Have clear documentation in README.md
-4. Use semantic versioning
+4. Use semantic versioning with git tags
 5. Include examples
-6. Pass CI checks (linting, tests, builds)
-7. Have a EUPL-1.2 compatible license
+6. Have automated tests
+7. Use an open-source license (EUPL-1.2 or compatible)
+8. **Create releases** for version pinning
+9. Maintain a CHANGELOG.md
 
 ---
 
@@ -381,17 +503,29 @@ All packages must:
 3. **Edit tproject.toml** to add dependencies:
    ```toml
    [dependencies]
-   stats = "v0.5.0"
-   colcraft = "v0.5.0"
-   my-awesome-package = "v0.2.0"
+   stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
+   colcraft = { git = "https://github.com/t-lang/colcraft", tag = "v0.2.1" }
+   my-awesome-package = { git = "https://github.com/username/my-awesome-package", tag = "v0.2.0" }
    ```
 
-4. **Update flake.nix** to include the package:
+4. **Update flake.nix** to include the packages:
    ```nix
-   # In the outputs function
-   projectPackages = [
-     (import ./packages/my-awesome-package { inherit pkgs; })
-   ];
+   inputs = {
+     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
+     t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
+     stats.url = "github:t-lang/stats/v0.5.0";
+     colcraft.url = "github:t-lang/colcraft/v0.2.1";
+     my-awesome-package.url = "github:username/my-awesome-package/v0.2.0";
+   };
+   
+   # In outputs, reference the packages
+   outputs = { self, nixpkgs, t-lang, stats, colcraft, my-awesome-package, ... }:
+     # ...
+     projectPackages = [
+       stats.packages.${system}.default
+       colcraft.packages.${system}.default
+       my-awesome-package.packages.${system}.default
+     ];
    ```
 
 5. **Lock dependencies**:
@@ -455,20 +589,31 @@ The exact same environment will be reproduced, regardless of:
 | Feature | npm/PyPI | CRAN | T (Nix) |
 |---------|----------|------|---------|
 | **Reproducibility** | Lockfiles (fragile) | Single version policy | Perfect (Nix) |
-| **Contribution** | Decentralized | Centralized, opaque | Centralized, transparent |
+| **Contribution** | Decentralized | Centralized, opaque | Decentralized, transparent |
 | **Dependency Hell** | Common | Rare | Impossible |
 | **Version Conflicts** | Common | Managed | Impossible |
 | **Setup Complexity** | Low | Low | Medium (learning Nix) |
 | **Long-term Stability** | Poor | Good | Excellent |
+| **Package Discovery** | Central registry | CRAN website | GitHub/community curated lists |
 
 ### Why Not a Traditional Package Manager?
 
 T deliberately avoids:
 
 1. **Version resolution algorithms**: Nix handles this perfectly
-2. **Package registries**: Centralized Git repository is simpler
+2. **Central package registries**: Decentralized git repositories provide flexibility
 3. **Dependency hell**: Nix makes it impossible
-4. **Breaking changes**: Date-pinning prevents surprise breakage
+4. **Breaking changes**: Git tags and date-pinning prevent surprise breakage
+
+### Why Decentralized?
+
+The decentralized approach provides:
+
+1. **Author autonomy**: Package authors control their own release schedule
+2. **No gatekeepers**: Anyone can publish packages without approval
+3. **Flexibility**: Packages can be hosted anywhere (GitHub, GitLab, self-hosted)
+4. **Resilience**: No single point of failure for the ecosystem
+5. **Direct attribution**: Clear ownership and provenance of each package
 
 The tradeoff is a steeper learning curve (Nix), but the payoff is **guaranteed reproducibility**.
 
@@ -478,22 +623,24 @@ The tradeoff is a steeper learning curve (Nix), but the payoff is **guaranteed r
 
 ### Planned Features
 
-- [ ] `t install <package>`: Add package to tproject.toml and update flake.nix
-- [ ] `t update`: Update packages to latest versions
+- [ ] `t install <package-url>`: Clone package repo, add to tproject.toml and update flake.nix
+- [ ] `t update`: Update packages to latest tagged releases
 - [ ] `t test`: Run all package/project tests
-- [ ] `t publish`: Automated PR creation for package contribution
+- [ ] `t publish`: Create initial release tag and push to git repository
 - [ ] `t doctor`: Verify project setup and dependencies
+- [ ] `t search <query>`: Search community package index for packages
 
-### Package Registry
+### Package Discovery
 
 In the future, we may add:
 
-- Web UI for browsing available packages
-- Automated documentation generation
-- Package download statistics
-- Dependency graph visualization
+- **Community package index**: Curated list of T packages with metadata
+- **Web UI** for browsing available packages
+- **Automated documentation** generation from package repos
+- **Package statistics**: Downloads, stars, recent updates
+- **Dependency graph** visualization
 
-All packages would still be managed through the main repository.
+Packages remain decentralized in individual git repositories; the index only provides discovery.
 
 ---
 
@@ -581,13 +728,18 @@ t run src/analysis.t  # Identical results
 
 T's package management system leverages Nix flakes to provide:
 
-1. **Perfect reproducibility** through date-pinned nixpkgs
-2. **Centralized quality** through the main repository
+1. **Perfect reproducibility** through date-pinned nixpkgs and git-tagged releases
+2. **Decentralized ecosystem** where each package lives in its own repository
 3. **Zero dependency conflicts** through Nix's isolation
 4. **Long-term stability** through immutable package snapshots
 
 The workflow is simple:
-- **Package authors**: `t init package` → develop → PR to main repo
+- **Package authors**: `t init package` → develop → publish to git with tagged releases
 - **Project authors**: `t init project` → add dependencies to tproject.toml → `nix develop`
 
-This ensures that **T's package manager is Nix itself**, providing reproducibility guarantees that traditional package managers cannot match.
+Key principles:
+- **Decentralized**: No central authority controls package distribution
+- **Release-based**: All packages must use git tags for version pinning
+- **Nix-powered**: T's package manager is Nix itself
+
+This ensures reproducibility guarantees that traditional package managers cannot match, while maintaining the flexibility and autonomy of a decentralized ecosystem.
