@@ -4,6 +4,15 @@ All notable changes to the T programming language are documented here.
 
 ## [Alpha 0.1] — 2026-02
 
+### Formula Interface
+- R-style formula syntax with `~` operator: `y ~ x`, `mpg ~ hp + wt`
+- `Formula` type: formulas are first-class values (`type(y ~ x)` → `"Formula"`)
+- Named arguments for function calls using `=` syntax: `lm(data = df, formula = y ~ x)`
+- `lm()` refactored to use formula interface instead of positional string arguments
+- `lm()` result now includes the formula object alongside coefficients and statistics
+- Multi-variable formula support: `y ~ x1 + x2 + x3`
+- Formula variable extraction from `+` expressions
+
 ### Maybe-Pipe Operator
 - `?|>` unconditional pipe operator: always forwards the left-hand value (including errors) to the right-hand function
 - Enables explicit error recovery patterns (Railway-Oriented Programming)
