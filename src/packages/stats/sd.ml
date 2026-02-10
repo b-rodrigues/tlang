@@ -6,7 +6,7 @@ let register env =
       let na_rm = List.exists (fun (name, v) ->
         name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
       ) named_args in
-      let args = List.map snd named_args in
+      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in
