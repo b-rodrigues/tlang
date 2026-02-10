@@ -196,7 +196,6 @@ test_that("NA: group by with NAs", {
 # ============================================================================
 
 test_that("LM: simple regression coefficients", {
-  skip("T's lm() returns different format than broom::tidy")
   compare_csvs("lm_mpg_hp_coefficients", tolerance = 1e-5)
 })
 

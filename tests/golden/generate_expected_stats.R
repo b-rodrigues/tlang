@@ -19,10 +19,14 @@ mtcars <- read_csv(file.path(data_dir, "mtcars.csv"), show_col_types = FALSE)
 # ============================================================================
 message("=== LINEAR MODEL Tests ===")
 
-# Test 8.1: Simple linear regression (mpg ~ hp) - coefficients (broom format)
+# Test 8.1: Simple linear regression (mpg ~ hp) - coefficients
+# Extract just intercept and slope for direct comparison with T's lm()
 lm_mpg_hp <- lm(mpg ~ hp, data = mtcars)
-lm_mpg_hp_tidy <- tidy(lm_mpg_hp)
-write_csv(lm_mpg_hp_tidy, file.path(output_dir, "lm_mpg_hp_coefficients.csv"))
+lm_mpg_hp_coefficients <- tibble(
+  intercept = coef(lm_mpg_hp)[1],
+  slope = coef(lm_mpg_hp)[2]
+)
+write_csv(lm_mpg_hp_coefficients, file.path(output_dir, "lm_mpg_hp_coefficients.csv"))
 message("✓ lm(mpg ~ hp) coefficients")
 
 # Save model stats (full R stats)
