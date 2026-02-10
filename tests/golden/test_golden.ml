@@ -169,22 +169,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* --- Ranking functions --- *)
 
   (* R: dplyr::row_number(c(25, 30, 35, 28, 22, 45, 33, 29, 31, 27))
-     =>  3, 6, 9, 5, 1, 10, 8, 4, 7, 2 *)
+     =>  2, 6, 9, 4, 1, 10, 8, 5, 7, 3 *)
   test "golden window: row_number matches dplyr"
     {|row_number([25, 30, 35, 28, 22, 45, 33, 29, 31, 27])|}
-    "Vector[3, 6, 9, 5, 1, 10, 8, 4, 7, 2]";
+    "Vector[2, 6, 9, 4, 1, 10, 8, 5, 7, 3]";
 
   (* R: dplyr::min_rank(c(25, 30, 35, 28, 22, 45, 33, 29, 31, 27))
-     =>  3, 6, 9, 5, 1, 10, 8, 4, 7, 2 (no ties in this data) *)
+     =>  2, 6, 9, 4, 1, 10, 8, 5, 7, 3 (no ties in this data) *)
   test "golden window: min_rank matches dplyr"
     {|min_rank([25, 30, 35, 28, 22, 45, 33, 29, 31, 27])|}
-    "Vector[3, 6, 9, 5, 1, 10, 8, 4, 7, 2]";
+    "Vector[2, 6, 9, 4, 1, 10, 8, 5, 7, 3]";
 
   (* R: dplyr::dense_rank(c(25, 30, 35, 28, 22, 45, 33, 29, 31, 27))
-     =>  3, 6, 9, 5, 1, 10, 8, 4, 7, 2 (no ties in this data) *)
+     =>  2, 6, 9, 4, 1, 10, 8, 5, 7, 3 (no ties in this data) *)
   test "golden window: dense_rank matches dplyr"
     {|dense_rank([25, 30, 35, 28, 22, 45, 33, 29, 31, 27])|}
-    "Vector[3, 6, 9, 5, 1, 10, 8, 4, 7, 2]";
+    "Vector[2, 6, 9, 4, 1, 10, 8, 5, 7, 3]";
 
   (* R: dplyr::min_rank(c(1, 1, 2, 2, 2))
      =>  1, 1, 3, 3, 3 *)
@@ -200,8 +200,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* R: dplyr::percent_rank(c(25, 30, 35, 28, 22, 45, 33, 29, 31, 27))
      => (rank-1)/(n-1) for n=10
-     Ranks: 3,6,9,5,1,10,8,4,7,2
-     => 2/9, 5/9, 8/9, 4/9, 0/9, 9/9, 7/9, 3/9, 6/9, 1/9 *)
+     Ranks: 2,6,9,4,1,10,8,5,7,3
+     => 1/9, 5/9, 8/9, 3/9, 0/9, 9/9, 7/9, 4/9, 6/9, 2/9 *)
   test "golden window: percent_rank matches dplyr"
     {|percent_rank([1, 2, 3, 4, 5])|}
     "Vector[0., 0.25, 0.5, 0.75, 1.]";
