@@ -226,6 +226,51 @@ end
 (* --- Shared Helper Functions --- *)
 (* These are used by eval.ml and all package modules. *)
 
+(** Levenshtein edit distance between two strings *)
+let levenshtein s t =
+  let m = String.length s in
+  let n = String.length t in
+  if m = 0 then n
+  else if n = 0 then m
+  else
+    let d = Array.make_matrix (m + 1) (n + 1) 0 in
+    for i = 0 to m do d.(i).(0) <- i done;
+    for j = 0 to n do d.(0).(j) <- j done;
+    for i = 1 to m do
+      for j = 1 to n do
+        let cost = if s.[i - 1] = t.[j - 1] then 0 else 1 in
+        d.(i).(j) <- min (min (d.(i - 1).(j) + 1) (d.(i).(j - 1) + 1))
+                         (d.(i - 1).(j - 1) + cost)
+      done
+    done;
+    d.(m).(n)
+
+(** Find the closest matching name from a list of candidates.
+    Returns Some name if there is a match within a reasonable edit distance.
+    The threshold is max(2, len/3) — allowing up to ~33% character changes. *)
+let suggest_name name candidates =
+  let max_dist = max 2 (String.length name / 3) in
+  let scored = List.filter_map (fun c ->
+    let d = levenshtein name c in
+    if d > 0 && d <= max_dist then Some (c, d) else None
+  ) candidates in
+  match List.sort (fun (_, d1) (_, d2) -> compare d1 d2) scored with
+  | (best, _) :: _ -> Some best
+  | [] -> None
+
+(** Hint for common type conversion between two types *)
+let type_conversion_hint left_type right_type =
+  match (left_type, right_type) with
+  | ("String", "Int") | ("String", "Float") ->
+    Some "Hint: Strings cannot be used in arithmetic. Convert with int() or float() if available, or check your data types."
+  | ("Int", "String") | ("Float", "String") ->
+    Some "Hint: Cannot combine numbers with strings. Use string concatenation (+) with two strings."
+  | ("Bool", "Int") | ("Bool", "Float") | ("Int", "Bool") | ("Float", "Bool") ->
+    Some "Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values."
+  | ("List", "Int") | ("List", "Float") | ("Int", "List") | ("Float", "List") ->
+    Some "Hint: Use map() to apply arithmetic operations to each element of a list."
+  | _ -> None
+
 (** Create a structured error value *)
 let make_error ?(context=[]) code message =
   VError { code; message; context }

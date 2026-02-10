@@ -4,6 +4,11 @@ All notable changes to the T programming language are documented here.
 
 ## [Alpha 0.1] — 2026-02
 
+### Actionable Error Messages
+- Levenshtein-based name suggestions for NameError: `'prnt' is not defined. Did you mean 'print'?`
+- Type conversion hints for TypeError: common mismatches suggest corrective actions
+- Function signature display in ArityError for lambdas: `Expected 2 arguments (a, b) but got 1`
+
 ### Formula Interface
 - R-style formula syntax with `~` operator: `y ~ x`, `mpg ~ hp + wt`
 - `Formula` type: formulas are first-class values (`type(y ~ x)` → `"Formula"`)

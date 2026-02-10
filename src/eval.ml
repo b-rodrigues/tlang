@@ -319,6 +319,10 @@ and eval_dot_access env target_expr field =
   | VNA _ -> make_error TypeError "Cannot access field on NA"
   | other -> make_error TypeError (Printf.sprintf "Cannot access field '%s' on %s" field (Utils.type_name other))
 
+and lambda_arity_error params args =
+  let sig_str = String.concat ", " params in
+  make_error ArityError (Printf.sprintf "Expected %d arguments (%s) but got %d" (List.length params) sig_str (List.length args))
+
 and eval_call env fn_val raw_args =
   match fn_val with
   | VBuiltin { b_arity; b_variadic; b_func } ->
@@ -332,7 +336,7 @@ and eval_call env fn_val raw_args =
   | VLambda { params; variadic = _; body; env = Some closure_env } ->
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
       if List.length params <> List.length args then
-        make_error ArityError (Printf.sprintf "Expected %d arguments but got %d" (List.length params) (List.length args))
+        lambda_arity_error params args
       else
         let call_env =
           List.fold_left2
@@ -345,7 +349,7 @@ and eval_call env fn_val raw_args =
       (* Lambda without closure — use current env *)
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
       if List.length params <> List.length args then
-        make_error ArityError (Printf.sprintf "Expected %d arguments but got %d" (List.length params) (List.length args))
+        lambda_arity_error params args
       else
         let call_env =
           List.fold_left2
@@ -358,7 +362,13 @@ and eval_call env fn_val raw_args =
       (* Try to look up the symbol in the env — might be a function name *)
       (match Env.find_opt s env with
        | Some fn -> eval_call env fn raw_args
-       | None -> make_error NameError (Printf.sprintf "'%s' is not defined" s))
+       | None ->
+         let names = List.map fst (Env.bindings env) in
+         let msg = match Ast.suggest_name s names with
+           | Some suggestion -> Printf.sprintf "'%s' is not defined. Did you mean '%s'?" s suggestion
+           | None -> Printf.sprintf "'%s' is not defined" s
+         in
+         make_error NameError msg)
 
   | VError _ as e -> e
   | VNA _ -> make_error TypeError "Cannot call NA as a function"
@@ -465,7 +475,12 @@ and eval_binop env op left right =
       | Plus -> "add" | Minus -> "subtract" | Mul -> "multiply" | Div -> "divide"
       | Lt | Gt | LtEq | GtEq -> "compare" | _ -> "apply operator to"
     in
-    make_error TypeError (Printf.sprintf "Cannot %s %s and %s" op_name (Utils.type_name l) (Utils.type_name r))))
+    let base_msg = Printf.sprintf "Cannot %s %s and %s" op_name (Utils.type_name l) (Utils.type_name r) in
+    let msg = match Ast.type_conversion_hint (Utils.type_name l) (Utils.type_name r) with
+      | Some hint -> base_msg ^ ". " ^ hint
+      | None -> base_msg
+    in
+    make_error TypeError msg))
 
 and eval_unop env op operand =
   let v = eval_expr env operand in

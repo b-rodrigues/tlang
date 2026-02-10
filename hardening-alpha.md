@@ -41,7 +41,7 @@ The T Language Alpha validates the core design principles:
 | Data Manipulation | 98% | ✅ Grouped operations + window NA handling complete |
 | Statistics & Math | 95% | ✅ NA parameter support complete |
 | Pipeline Execution | 95% | ✅ Strong |
-| Error Handling | 90% | ✅ Strong |
+| Error Handling | 95% | ✅ Strong — actionable error messages with suggestions |
 | Testing Infrastructure | 95% | ✅ Comprehensive NA + window function tests |
 | Documentation | 95% | ✅ Strong |
 | Tooling (REPL/CLI) | 95% | ✅ Strong |
@@ -141,9 +141,10 @@ The T Language Alpha validates the core design principles:
 
 #### Minor Gaps (Nice to Have)
 
-5. **Error Messages Could Be More Helpful**
-   - **Issue**: Type errors and name errors don't suggest alternatives
-   - **Example**: `NameError: 'slect'` could suggest `Did you mean 'select'?`
+5. **~~Error Messages Could Be More Helpful~~** ✅ COMPLETE
+   - NameError now suggests similar names via Levenshtein distance: `'slect' is not defined. Did you mean 'select'?`
+   - TypeError shows type conversion hints for common mismatches
+   - ArityError for lambdas shows function parameter signature
 
 6. **No Distinct/Unique Function**
    - **Issue**: Cannot remove duplicate rows from DataFrames
@@ -579,27 +580,27 @@ No `left_join()`, `inner_join()`, or other merge operations.
 
 ---
 
-### Phase 4: Improve Error Messages (LOW PRIORITY)
+### Phase 4: Improve Error Messages ✅ COMPLETE
 
 **Goal**: Make error messages actionable with suggestions
 
 **Tasks**:
-1. [ ] **Implement name suggestion system**
+1. [x] **Implement name suggestion system**
    - Add Levenshtein distance function
    - Find closest matching names in scope
    - Show suggestions in NameError messages
 
-2. [ ] **Add type conversion hints**
+2. [x] **Add type conversion hints**
    - Detect common type mismatches
    - Suggest conversion functions
    - Show examples in error messages
 
-3. [ ] **Improve arity error messages**
+3. [x] **Improve arity error messages**
    - Show expected vs actual argument count
    - Show function signature
    - Indicate which argument is missing
 
-4. [ ] **Add tests for error message quality**
+4. [x] **Add tests for error message quality**
    - Test: Typo in function name shows suggestion
    - Test: Type error shows conversion hint
    - Test: Arity error shows signature

@@ -83,7 +83,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "error * error" "(1 / 0) * (1 / 0)" {|Error(DivisionByZero: "Division by zero")|};
 
   (* Type errors *)
-  test "int + bool error" "1 + true" {|Error(TypeError: "Cannot add Int and Bool")|};
+  test "int + bool error" "1 + true" {|Error(TypeError: "Cannot add Int and Bool. Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values.")|};
   test "bool * string error" {|true * "hello"|} {|Error(TypeError: "Cannot multiply Bool and String")|};
 
   (* Name errors *)
