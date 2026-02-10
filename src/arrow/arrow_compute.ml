@@ -300,3 +300,173 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
   ) in
   let all_columns = key_result_cols @ [(agg_col_name, agg_col)] in
   Arrow_bridge.table_from_value_columns all_columns n_groups
+
+(* ===================================================================== *)
+(* Unary Math Operations (Phase 5 — Week 1)                              *)
+(* ===================================================================== *)
+
+(** Helper: apply a unary float function to every element of a named column.
+    Uses native Arrow compute when available, else pure OCaml fallback. *)
+let apply_unary_math_column (t : Arrow_table.t) (col_name : string)
+    (native_fn : nativeint -> string -> nativeint option)
+    (ocaml_fn : float -> float) : Arrow_table.t option =
+  (* Try native Arrow path first *)
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+    (match native_fn handle.ptr col_name with
+     | Some new_ptr ->
+       let schema = schema_from_native_ptr new_ptr in
+       let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
+       Some (Arrow_table.create_from_native new_ptr schema nrows)
+     | None -> None)
+  | _ ->
+    (* Pure OCaml fallback: apply function element-by-element *)
+    match Arrow_table.get_column t col_name with
+    | None -> None
+    | Some col ->
+      let values = Arrow_bridge.column_to_values col in
+      let new_values = Array.map (fun v ->
+        match v with
+        | Ast.VFloat f -> Ast.VFloat (ocaml_fn f)
+        | Ast.VInt i -> Ast.VFloat (ocaml_fn (float_of_int i))
+        | Ast.VNA _ as na -> na
+        | _ -> v
+      ) values in
+      let new_col = Arrow_bridge.values_to_column new_values in
+      Some (Arrow_table.add_column t col_name new_col)
+
+(** Apply sqrt to every element of a named numeric column. *)
+let sqrt_column (t : Arrow_table.t) (col_name : string) : Arrow_table.t option =
+  apply_unary_math_column t col_name Arrow_ffi.arrow_compute_sqrt_column sqrt
+
+(** Apply abs to every element of a named numeric column. *)
+let abs_column (t : Arrow_table.t) (col_name : string) : Arrow_table.t option =
+  apply_unary_math_column t col_name Arrow_ffi.arrow_compute_abs_column abs_float
+
+(** Apply natural log to every element of a named numeric column. *)
+let log_column (t : Arrow_table.t) (col_name : string) : Arrow_table.t option =
+  apply_unary_math_column t col_name Arrow_ffi.arrow_compute_log_column log
+
+(** Apply exp to every element of a named numeric column. *)
+let exp_column (t : Arrow_table.t) (col_name : string) : Arrow_table.t option =
+  apply_unary_math_column t col_name Arrow_ffi.arrow_compute_exp_column exp
+
+(** Raise every element of a named numeric column to a scalar power. *)
+let pow_column (t : Arrow_table.t) (col_name : string) (exponent : float) : Arrow_table.t option =
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+    (match Arrow_ffi.arrow_compute_pow_column handle.ptr col_name exponent with
+     | Some new_ptr ->
+       let schema = schema_from_native_ptr new_ptr in
+       let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
+       Some (Arrow_table.create_from_native new_ptr schema nrows)
+     | None -> None)
+  | _ ->
+    match Arrow_table.get_column t col_name with
+    | None -> None
+    | Some col ->
+      let values = Arrow_bridge.column_to_values col in
+      let new_values = Array.map (fun v ->
+        match v with
+        | Ast.VFloat f -> Ast.VFloat (Float.pow f exponent)
+        | Ast.VInt i -> Ast.VFloat (Float.pow (float_of_int i) exponent)
+        | Ast.VNA _ as na -> na
+        | _ -> v
+      ) values in
+      let new_col = Arrow_bridge.values_to_column new_values in
+      Some (Arrow_table.add_column t col_name new_col)
+
+(* ===================================================================== *)
+(* Column-Level Aggregations (Phase 5 — Week 1)                          *)
+(* ===================================================================== *)
+
+(** Helper: compute a column aggregation with native/OCaml fallback. *)
+let column_agg (t : Arrow_table.t) (col_name : string)
+    (native_fn : nativeint -> string -> float option)
+    (ocaml_fn : float array -> float option) : float option =
+  (* Try native Arrow path first *)
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+    (match native_fn handle.ptr col_name with
+     | Some _ as result -> result
+     | None -> None)
+  | _ ->
+    (* Pure OCaml fallback *)
+    match Arrow_table.get_column t col_name with
+    | None -> None
+    | Some col ->
+      let values = Arrow_bridge.column_to_values col in
+      let floats = Array.to_list values |> List.filter_map (fun v ->
+        match v with
+        | Ast.VFloat f -> Some f
+        | Ast.VInt i -> Some (float_of_int i)
+        | _ -> None
+      ) in
+      if floats = [] then None
+      else ocaml_fn (Array.of_list floats)
+
+(** Compute the sum of a named numeric column. *)
+let sum_column (t : Arrow_table.t) (col_name : string) : float option =
+  column_agg t col_name Arrow_ffi.arrow_compute_sum_column
+    (fun arr -> Some (Array.fold_left ( +. ) 0.0 arr))
+
+(** Compute the mean of a named numeric column. *)
+let mean_column (t : Arrow_table.t) (col_name : string) : float option =
+  column_agg t col_name Arrow_ffi.arrow_compute_mean_column
+    (fun arr ->
+       let n = Array.length arr in
+       if n = 0 then None
+       else Some (Array.fold_left ( +. ) 0.0 arr /. float_of_int n))
+
+(** Compute the minimum of a named numeric column. *)
+let min_column (t : Arrow_table.t) (col_name : string) : float option =
+  column_agg t col_name Arrow_ffi.arrow_compute_min_column
+    (fun arr ->
+       let m = ref arr.(0) in
+       Array.iter (fun x -> if x < !m then m := x) arr;
+       Some !m)
+
+(** Compute the maximum of a named numeric column. *)
+let max_column (t : Arrow_table.t) (col_name : string) : float option =
+  column_agg t col_name Arrow_ffi.arrow_compute_max_column
+    (fun arr ->
+       let m = ref arr.(0) in
+       Array.iter (fun x -> if x > !m then m := x) arr;
+       Some !m)
+
+(* ===================================================================== *)
+(* Comparison Operations (Phase 5 — Week 1)                              *)
+(* ===================================================================== *)
+
+(** Compare each element of a named numeric column to a scalar.
+    Returns a bool array suitable for use with filter.
+    op: "eq", "lt", "gt", "le", "ge" *)
+let compare_column_scalar (t : Arrow_table.t) (col_name : string)
+    (scalar : float) (op : string) : bool array option =
+  let op_code = match op with
+    | "eq" -> 0 | "lt" -> 1 | "gt" -> 2 | "le" -> 3 | "ge" -> 4 | _ -> -1
+  in
+  if op_code < 0 then None
+  else
+    (* Try native Arrow path first *)
+    match t.native_handle with
+    | Some handle when not handle.Arrow_table.freed ->
+      (match Arrow_ffi.arrow_compute_compare_scalar handle.ptr col_name scalar op_code with
+       | Some _ as result -> result
+       | None -> None)
+    | _ ->
+      (* Pure OCaml fallback *)
+      match Arrow_table.get_column t col_name with
+      | None -> None
+      | Some col ->
+        let values = Arrow_bridge.column_to_values col in
+        let cmp_fn = match op with
+          | "eq" -> ( = ) | "lt" -> ( < ) | "gt" -> ( > )
+          | "le" -> ( <= ) | "ge" -> ( >= ) | _ -> ( = )
+        in
+        Some (Array.map (fun v ->
+          match v with
+          | Ast.VFloat f -> cmp_fn f scalar
+          | Ast.VInt i -> cmp_fn (float_of_int i) scalar
+          | _ -> false
+        ) values)
