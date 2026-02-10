@@ -283,10 +283,10 @@ This section outlines the concrete implementation phases required to complete th
 
 | Phase | Issue | Impact | Time | Priority |
 |-------|-------|--------|------|----------|
-| **1** | **Arrow Backend Stubbed** | ~100x performance penalty on 10k+ rows | 7-8 days | CRITICAL |
+| **1** | **Arrow Backend Stubbed** | 10x performance penalty on 10k+ rows | 7-8 days | CRITICAL |
 | **2** | **Large Dataset Testing** | Unknown behavior >100k rows | 2-3 days | HIGH |
-| **3** | **Edge Case Hardening** | Potential crashes on unusual inputs | 2-3 days | MEDIUM |
-| **4** | **Documentation Polish** | Minor inconsistencies | 1-2 days | LOW |
+| **3** | **Edge Case Hardening** | Potential crashes on unusual inputs | 2 days | MEDIUM |
+| **4** | **Documentation Polish** | Minor inconsistencies | 2 days | LOW |
 
 **Total Remaining Work**: 13-16 days across 4 phases
 
@@ -294,7 +294,7 @@ This section outlines the concrete implementation phases required to complete th
 
 ### Phase 1: Arrow Backend Performance Optimization (CRITICAL)
 
-**Objective**: Eliminate 100x performance penalty by implementing zero-copy operations and vectorized compute.
+**Objective**: Eliminate 10x performance penalty by implementing zero-copy operations and vectorized compute.
 
 **Current Performance Problem**:
 - Arrow integration is **partially stubbed**
@@ -302,7 +302,7 @@ This section outlines the concrete implementation phases required to complete th
 - No vectorized operations — everything loops element-by-element
 - Grouped operations don't use Arrow's hash-based aggregation
 
-**Impact**: Operations on 10,000+ row datasets are ~100x slower than R/dplyr.
+**Impact**: Operations on 10,000+ row datasets are ~10x slower than R/dplyr, with some operations showing worse performance on specific workloads.
 
 #### Task 1.1: Zero-Copy Column Access (2 days)
 
