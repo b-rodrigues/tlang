@@ -275,7 +275,7 @@ The T Language Alpha implementation includes **22 additional functions** and **1
 > **Estimated Time**: 13-16 days (2.5-3 weeks)  
 > **Priority**: HIGH — Essential for production-ready alpha release
 
-This section outlines the concrete implementation phases required to complete the T Language Alpha (v0.1), with **primary emphasis on performance optimization** to achieve production-quality performance on datasets >10,000 rows.
+This section outlines the concrete implementation phases required to complete the T Language Alpha (v0.1), with **primary emphasis on performance optimization** to achieve production-quality performance on datasets >100,000 rows.
 
 ---
 
@@ -302,7 +302,7 @@ This section outlines the concrete implementation phases required to complete th
 - No vectorized operations — everything loops element-by-element
 - Grouped operations don't use Arrow's hash-based aggregation
 
-**Impact**: Operations on 100,000+ row datasets are ~10x slower than R/dplyr, with some operations showing worse performance on specific workloads.
+**Impact**: Operations on 100,000+ row datasets are ~10x slower than R/dplyr.
 
 #### Task 1.1: Zero-Copy Column Access (2 days)
 
@@ -605,13 +605,17 @@ let group_by df keys =
 
 **Key Performance Targets**:
 
-| Operation | 100k Rows (Current) | 100k Rows (Target) | 1M Rows (Target) | Improvement |
+Performance targets assume linear scaling with row count (10x rows = 10x time) for columnar operations. Actual scaling may vary based on operation type and dataset characteristics.
+
+| Operation | Current (100k) | Target (100k) | Target (1M) | Improvement |
 |-----------|---------------------|--------------------|--------------------|-------------|
 | Column selection | ~500ms | <50ms | <500ms | **10x faster** |
 | Arithmetic ops | ~2s | <200ms | <2s | **10x faster** |
 | Filtering | ~1s | <100ms | <1s | **10x faster** |
 | Grouping + agg | ~5s | <500ms | <5s | **10x faster** |
 | Window functions | ~3s | <300ms | <3s | **10x faster** |
+
+*Note: Targets based on typical datasets with 10-20 columns. Performance may vary with significantly higher column counts.*
 
 ---
 
