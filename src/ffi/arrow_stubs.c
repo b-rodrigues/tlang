@@ -12,6 +12,7 @@
 #include <caml/custom.h>
 #include <caml/fail.h>
 #include <caml/bigarray.h>
+#include <math.h>
 
 /* ===================================================================== */
 /* Memory Management                                                     */
@@ -1304,5 +1305,398 @@ CAMLprim value caml_arrow_int64_array_to_bigarray(value v_array_ptr) {
 
   v_result = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_result, 0, ba);
+  CAMLreturn(v_result);
+}
+
+/* ===================================================================== */
+/* Unary Math Operations (Phase 5 — Week 1)                              */
+/* ===================================================================== */
+
+/* Helper: apply a unary math operation element-by-element on a numeric column.
+   op_code: 0=sqrt, 1=abs, 2=log, 3=exp.
+   Returns a new GArrowChunkedArray* with the results, or NULL on failure. */
+static GArrowChunkedArray *
+apply_unary_math_op(GArrowChunkedArray *chunked, int op_code)
+{
+  GError *error = NULL;
+  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
+
+  GList *result_chunks = NULL;
+  gboolean ok = TRUE;
+
+  for (guint c = 0; c < n_chunks && ok; c++) {
+    GArrowArray *chunk = garrow_chunked_array_get_chunk(chunked, c);
+    gint64 length = garrow_array_get_length(chunk);
+
+    GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
+
+    for (gint64 i = 0; i < length; i++) {
+      if (garrow_array_is_null(chunk, i)) {
+        garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+      } else {
+        gdouble val;
+        if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+          val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT64_ARRAY(chunk)) {
+          val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
+        } else {
+          ok = FALSE;
+          break;
+        }
+
+        gdouble result;
+        switch (op_code) {
+          case 0: result = sqrt(val); break;
+          case 1: result = fabs(val); break;
+          case 2: result = log(val); break;
+          case 3: result = exp(val); break;
+          default: result = val; break;
+        }
+
+        garrow_double_array_builder_append_value(builder, result, &error);
+      }
+      if (error) { ok = FALSE; break; }
+    }
+
+    if (ok) {
+      GArrowArray *result_array =
+          garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+      if (result_array) {
+        result_chunks = g_list_append(result_chunks, result_array);
+      } else {
+        ok = FALSE;
+      }
+    }
+    g_object_unref(builder);
+    g_object_unref(chunk);
+  }
+
+  if (!ok || result_chunks == NULL) {
+    g_list_free_full(result_chunks, g_object_unref);
+    if (error) g_error_free(error);
+    return NULL;
+  }
+
+  GArrowChunkedArray *result =
+      garrow_chunked_array_new(result_chunks, &error);
+  g_list_free_full(result_chunks, g_object_unref);
+
+  if (result == NULL && error) g_error_free(error);
+  return result;
+}
+
+/* Generic unary math operation: table_ptr, column_name, op_code.
+   Returns Some(new_table_ptr) or None. */
+static value arrow_unary_math_impl(value v_ptr, value v_col_name, int op_code) {
+  CAMLparam2(v_ptr, v_col_name);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (idx < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
+  if (col == NULL) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *result_col = apply_unary_math_op(col, op_code);
+  g_object_unref(col);
+
+  if (result_col == NULL) CAMLreturn(Val_none);
+
+  GArrowTable *new_table = rebuild_table_with_column(table, (guint)idx, result_col);
+  g_object_unref(result_col);
+
+  if (new_table == NULL) CAMLreturn(Val_none);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)new_table));
+  CAMLreturn(v_result);
+}
+
+/* sqrt: Apply sqrt to every element of a named column */
+CAMLprim value caml_arrow_compute_sqrt_column(value v_ptr, value v_col_name) {
+  return arrow_unary_math_impl(v_ptr, v_col_name, 0);
+}
+
+/* abs: Apply fabs to every element of a named column */
+CAMLprim value caml_arrow_compute_abs_column(value v_ptr, value v_col_name) {
+  return arrow_unary_math_impl(v_ptr, v_col_name, 1);
+}
+
+/* log: Apply natural log to every element of a named column */
+CAMLprim value caml_arrow_compute_log_column(value v_ptr, value v_col_name) {
+  return arrow_unary_math_impl(v_ptr, v_col_name, 2);
+}
+
+/* exp: Apply exp to every element of a named column */
+CAMLprim value caml_arrow_compute_exp_column(value v_ptr, value v_col_name) {
+  return arrow_unary_math_impl(v_ptr, v_col_name, 3);
+}
+
+/* pow: Raise every element of a named column to a scalar power.
+   Args: table_ptr, column_name, exponent
+   Returns: Some(new_table_ptr) or None */
+CAMLprim value caml_arrow_compute_pow_column(value v_ptr, value v_col_name, value v_exp) {
+  CAMLparam3(v_ptr, v_col_name, v_exp);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col_name);
+  double exponent = Double_val(v_exp);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (idx < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
+  if (col == NULL) CAMLreturn(Val_none);
+
+  /* Apply pow element-by-element */
+  GError *error = NULL;
+  guint n_chunks = garrow_chunked_array_get_n_chunks(col);
+  GList *result_chunks = NULL;
+  gboolean ok = TRUE;
+
+  for (guint c = 0; c < n_chunks && ok; c++) {
+    GArrowArray *chunk = garrow_chunked_array_get_chunk(col, c);
+    gint64 length = garrow_array_get_length(chunk);
+    GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
+
+    for (gint64 i = 0; i < length; i++) {
+      if (garrow_array_is_null(chunk, i)) {
+        garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+      } else {
+        gdouble val;
+        if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+          val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT64_ARRAY(chunk)) {
+          val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
+        } else { ok = FALSE; break; }
+
+        garrow_double_array_builder_append_value(builder, pow(val, exponent), &error);
+      }
+      if (error) { ok = FALSE; break; }
+    }
+
+    if (ok) {
+      GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+      if (arr) result_chunks = g_list_append(result_chunks, arr);
+      else ok = FALSE;
+    }
+    g_object_unref(builder);
+    g_object_unref(chunk);
+  }
+
+  g_object_unref(col);
+
+  if (!ok || result_chunks == NULL) {
+    g_list_free_full(result_chunks, g_object_unref);
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowChunkedArray *result_col = garrow_chunked_array_new(result_chunks, &error);
+  g_list_free_full(result_chunks, g_object_unref);
+
+  if (result_col == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowTable *new_table = rebuild_table_with_column(table, (guint)idx, result_col);
+  g_object_unref(result_col);
+
+  if (new_table == NULL) CAMLreturn(Val_none);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)new_table));
+  CAMLreturn(v_result);
+}
+
+/* ===================================================================== */
+/* Column-Level Aggregations (Phase 5 — Week 1)                          */
+/* ===================================================================== */
+
+/* Helper: extract numeric value from a chunked array at a row index.
+   Used for aggregation operations. Returns the value and sets *is_null. */
+static gdouble get_chunked_numeric_value(GArrowChunkedArray *chunked,
+                                          gint64 row_idx, gboolean *is_null) {
+  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
+  gint64 offset = row_idx;
+  for (guint c = 0; c < n_chunks; c++) {
+    GArrowArray *chunk = garrow_chunked_array_get_chunk(chunked, c);
+    gint64 chunk_len = garrow_array_get_length(chunk);
+    if (offset < chunk_len) {
+      if (garrow_array_is_null(chunk, offset)) {
+        *is_null = TRUE;
+        g_object_unref(chunk);
+        return 0.0;
+      }
+      gdouble val = 0.0;
+      if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+        val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
+      } else if (GARROW_IS_INT64_ARRAY(chunk)) {
+        val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
+      } else {
+        *is_null = TRUE;
+        g_object_unref(chunk);
+        return 0.0;
+      }
+      *is_null = FALSE;
+      g_object_unref(chunk);
+      return val;
+    }
+    offset -= chunk_len;
+    g_object_unref(chunk);
+  }
+  *is_null = TRUE;
+  return 0.0;
+}
+
+/* Generic column aggregation: table_ptr, column_name.
+   agg_code: 0=sum, 1=mean, 2=min, 3=max.
+   Returns Some(float) or None. */
+static value arrow_column_agg_impl(value v_ptr, value v_col_name, int agg_code) {
+  CAMLparam2(v_ptr, v_col_name);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (idx < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
+  if (col == NULL) CAMLreturn(Val_none);
+
+  gint64 nrows = garrow_chunked_array_get_length(col);
+  gdouble result = 0.0;
+  int count = 0;
+  gboolean initialized = FALSE;
+
+  for (gint64 i = 0; i < nrows; i++) {
+    gboolean is_null;
+    gdouble val = get_chunked_numeric_value(col, i, &is_null);
+    if (!is_null) {
+      switch (agg_code) {
+        case 0: /* sum */
+          result += val;
+          break;
+        case 1: /* mean */
+          result += val;
+          count++;
+          break;
+        case 2: /* min */
+          if (!initialized || val < result) result = val;
+          initialized = TRUE;
+          break;
+        case 3: /* max */
+          if (!initialized || val > result) result = val;
+          initialized = TRUE;
+          break;
+      }
+      if (agg_code <= 1) initialized = TRUE;
+    }
+  }
+  g_object_unref(col);
+
+  if (!initialized) CAMLreturn(Val_none);
+  if (agg_code == 1 && count > 0) result = result / (gdouble)count;
+  if (agg_code == 1 && count == 0) CAMLreturn(Val_none);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_double(result));
+  CAMLreturn(v_result);
+}
+
+CAMLprim value caml_arrow_compute_sum_column(value v_ptr, value v_col_name) {
+  return arrow_column_agg_impl(v_ptr, v_col_name, 0);
+}
+
+CAMLprim value caml_arrow_compute_mean_column(value v_ptr, value v_col_name) {
+  return arrow_column_agg_impl(v_ptr, v_col_name, 1);
+}
+
+CAMLprim value caml_arrow_compute_min_column(value v_ptr, value v_col_name) {
+  return arrow_column_agg_impl(v_ptr, v_col_name, 2);
+}
+
+CAMLprim value caml_arrow_compute_max_column(value v_ptr, value v_col_name) {
+  return arrow_column_agg_impl(v_ptr, v_col_name, 3);
+}
+
+/* ===================================================================== */
+/* Comparison Operations (Phase 5 — Week 1)                              */
+/* ===================================================================== */
+
+/* Compare each element of a named numeric column to a scalar.
+   op_code: 0=eq, 1=lt, 2=gt, 3=le, 4=ge.
+   Returns Some(bool_array) or None. */
+CAMLprim value caml_arrow_compute_compare_scalar(value v_ptr, value v_col_name,
+                                                  value v_scalar, value v_op_code) {
+  CAMLparam4(v_ptr, v_col_name, v_scalar, v_op_code);
+  CAMLlocal2(v_result, v_arr);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col_name);
+  double scalar_val = Double_val(v_scalar);
+  int op_code = Int_val(v_op_code);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (idx < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
+  if (col == NULL) CAMLreturn(Val_none);
+
+  gint64 nrows = garrow_chunked_array_get_length(col);
+  v_arr = caml_alloc(nrows, 0);
+
+  gint64 arr_idx = 0;
+  guint n_chunks = garrow_chunked_array_get_n_chunks(col);
+  for (guint c = 0; c < n_chunks; c++) {
+    GArrowArray *chunk = garrow_chunked_array_get_chunk(col, c);
+    gint64 chunk_len = garrow_array_get_length(chunk);
+
+    for (gint64 i = 0; i < chunk_len; i++) {
+      gboolean cmp_result = FALSE;
+      if (!garrow_array_is_null(chunk, i)) {
+        gdouble val = 0.0;
+        if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+          val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
+        } else if (GARROW_IS_INT64_ARRAY(chunk)) {
+          val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
+        }
+        switch (op_code) {
+          case 0: cmp_result = (val == scalar_val); break;
+          case 1: cmp_result = (val < scalar_val); break;
+          case 2: cmp_result = (val > scalar_val); break;
+          case 3: cmp_result = (val <= scalar_val); break;
+          case 4: cmp_result = (val >= scalar_val); break;
+          default: cmp_result = FALSE; break;
+        }
+      }
+      Store_field(v_arr, arr_idx, Val_bool(cmp_result));
+      arr_idx++;
+    }
+    g_object_unref(chunk);
+  }
+
+  g_object_unref(col);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, v_arr);
   CAMLreturn(v_result);
 }
