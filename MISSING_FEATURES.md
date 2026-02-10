@@ -587,7 +587,7 @@ let group_by df keys =
 
 ### Summary: Critical Path to Production-Ready Alpha
 
-**Total Estimated Time**: 13-15 days (2.5-3 weeks)
+**Total Estimated Time**: 13-16 days (2.5-3 weeks)
 
 **Priority Order**:
 1. **Week 1**: Phase 1 (Arrow backend optimization) — **CRITICAL**
@@ -605,13 +605,13 @@ let group_by df keys =
 
 **Key Performance Targets**:
 
-| Operation | 100k Rows | 1M Rows | Target vs. Current |
-|-----------|-----------|---------|-------------------|
-| Column selection | <50ms | <200ms | **10x faster** |
-| Arithmetic ops | <200ms | <1s | **5-10x faster** |
-| Filtering | <100ms | <500ms | **5-10x faster** |
-| Grouping + agg | <500ms | <3s | **10-20x faster** |
-| Window functions | <300ms | <3s | **5-10x faster** |
+| Operation | 100k Rows (Current) | 100k Rows (Target) | 1M Rows (Target) | Improvement |
+|-----------|---------------------|--------------------|--------------------|-------------|
+| Column selection | ~500ms | <50ms | <200ms | **10x faster** |
+| Arithmetic ops | ~2s | <200ms | <1s | **10x faster** |
+| Filtering | ~1s | <100ms | <500ms | **10x faster** |
+| Grouping + agg | ~5s | <500ms | <3s | **10x faster** |
+| Window functions | ~3s | <300ms | <3s | **10x faster** |
 
 ---
 
