@@ -134,6 +134,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(ArityError: "group_by() requires at least one column name")|};
   print_newline ();
 
+  Printf.printf "Phase 4 — ungroup():\n";
+  let (v, _) = eval_string_env {|df |> group_by("dept") |> ungroup|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 4 cols: [name, age, score, dept])" then begin
+    incr pass_count; Printf.printf "  ✓ ungroup removes grouping\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ ungroup removes grouping\n    Expected: DataFrame(5 rows x 4 cols: [name, age, score, dept])\n    Got: %s\n" result
+  end;
+
+  test "ungroup on ungrouped dataframe"
+    (Printf.sprintf {|df = read_csv("%s"); ungroup(df)|} csv_p4)
+    "DataFrame(5 rows x 4 cols: [name, age, score, dept])";
+  test "ungroup non-dataframe"
+    {|ungroup(42)|}
+    {|Error(TypeError: "ungroup() expects a DataFrame as first argument")|};
+  print_newline ();
+
   Printf.printf "Phase 4 — summarize():\n";
   (* Ungrouped summarize *)
   let (v, _) = eval_string_env {|summarize(df, "total_rows", \(d) nrow(d))|} env_p4 in

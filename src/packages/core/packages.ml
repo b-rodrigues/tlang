@@ -27,7 +27,7 @@ let stats_package = {
 let colcraft_package = {
   name = "colcraft";
   description = "DataFrame manipulation verbs";
-  functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "summarize"];
+  functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "ungroup"; "summarize"];
 }
 
 let math_package = {
