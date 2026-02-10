@@ -5,6 +5,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "mean empty" "mean([])" {|Error(ValueError: "mean() called on empty list")|};
   test "mean with NA" "mean([1, NA, 3])" {|Error(TypeError: "mean() encountered NA value. Handle missingness explicitly.")|};
   test "mean non-numeric" {|mean("hello")|} {|Error(TypeError: "mean() expects a numeric List or Vector")|};
+  test "mean na_rm=true skips NA" "mean([1.0, 2.0, NA, 4.0], na_rm = true)" "2.33333333333";
+  test "mean na_rm=true no NAs" "mean([1.0, 2.0, 3.0], na_rm = true)" "2.";
+  test "mean na_rm=true all NAs" "mean([NA, NA, NA], na_rm = true)" "NA(Float)";
+  test "mean na_rm=false with NA errors" "mean([1, NA, 3], na_rm = false)" {|Error(TypeError: "mean() encountered NA value. Handle missingness explicitly.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: sd():\n";
