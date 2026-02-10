@@ -343,7 +343,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      => sd(c(2, 4, 4, 5, 5, 9)) = 2.316610 *)
   test "golden na_rm: sd na_rm=true"
     {|sd([2, 4, NA, 4, 5, 5, NA, 9], na_rm = true)|}
-    "2.31660966746";
+    "2.31660671385";
 
   (* R: sd(c(NA, NA, NA), na.rm = TRUE) => NA *)
   test "golden na_rm: sd all NA na_rm=true"

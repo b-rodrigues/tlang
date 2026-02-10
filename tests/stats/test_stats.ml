@@ -23,7 +23,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "sd of list" "sd([2, 4, 4, 4, 5, 5, 7, 9])" "2.1380899353";
   test "sd single value" "sd([42])" {|Error(ValueError: "sd() requires at least 2 values")|};
   test "sd with NA" "sd([1, NA, 3])" {|Error(TypeError: "sd() encountered NA value. Handle missingness explicitly.")|};
-  test "sd na_rm=true skips NA" "sd([2, 4, NA, 4, 5, 5, NA, 9], na_rm = true)" "2.31660966746";
+  test "sd na_rm=true skips NA" "sd([2, 4, NA, 4, 5, 5, NA, 9], na_rm = true)" "2.31660671385";
   test "sd na_rm=true no NAs" "sd([2, 4, 4, 4, 5, 5, 7, 9], na_rm = true)" "2.1380899353";
   test "sd na_rm=true all NAs" "sd([NA, NA, NA], na_rm = true)" "NA(Float)";
   test "sd na_rm=false with NA errors" "sd([1, NA, 3], na_rm = false)" {|Error(TypeError: "sd() encountered NA value. Handle missingness explicitly.")|};
