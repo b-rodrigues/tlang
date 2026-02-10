@@ -635,7 +635,7 @@ let initial_env () : environment =
   let env = Error_mod.register env in
   let env = Error_utils.register env in
   (* Dataframe package *)
-  let env = T_read_csv.register ~parse_csv_string env in
+  let env = T_read_csv.register ~parse_csv_string:(fun ~sep ~skip_header ~skip_lines content -> parse_csv_string ~sep ~skip_header ~skip_lines content) env in
   let env = T_write_csv.register ~write_csv_fn:Arrow_io.write_csv env in
   let env = Colnames.register env in
   let env = Nrow.register env in
