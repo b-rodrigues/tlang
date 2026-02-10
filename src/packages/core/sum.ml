@@ -2,9 +2,14 @@ open Ast
 
 let register env =
   Env.add "sum"
-    (make_builtin 1 (fun args _env ->
-      match args with
-      | [VList items] ->
+    (make_builtin_named ~variadic:true 1 (fun named_args _env ->
+      let na_rm = List.exists (fun (name, v) ->
+        name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
+      ) named_args in
+      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
+      let first_arg = match args with a :: _ -> Some a | [] -> None in
+      match first_arg with
+      | Some (VList items) ->
           let rec add_all = function
             | [] -> VInt 0
             | (_, VInt n) :: rest ->
@@ -17,10 +22,37 @@ let register env =
                  | VInt acc -> VFloat (float_of_int acc +. f)
                  | VFloat acc -> VFloat (acc +. f)
                  | e -> e)
+            | (_, VNA _) :: rest when na_rm -> add_all rest
             | (_, VNA _) :: _ -> make_error TypeError "sum() encountered NA value. Handle missingness explicitly."
             | _ -> make_error TypeError "sum() requires a list of numbers"
           in
           add_all items
-      | _ -> make_error ArityError "sum() takes exactly 1 List argument"
+      | Some (VVector arr) ->
+          let total_int = ref 0 in
+          let total_float = ref 0.0 in
+          let is_float = ref false in
+          let had_error = ref None in
+          for i = 0 to Array.length arr - 1 do
+            if !had_error = None then
+              match arr.(i) with
+              | VInt n ->
+                  if !is_float then total_float := !total_float +. float_of_int n
+                  else total_int := !total_int + n
+              | VFloat f ->
+                  if not !is_float then begin
+                    is_float := true;
+                    total_float := float_of_int !total_int +. f
+                  end else
+                    total_float := !total_float +. f
+              | VNA _ when na_rm -> ()
+              | VNA _ -> had_error := Some (make_error TypeError "sum() encountered NA value. Handle missingness explicitly.")
+              | _ -> had_error := Some (make_error TypeError "sum() requires numeric values")
+          done;
+          (match !had_error with
+           | Some e -> e
+           | None -> if !is_float then VFloat !total_float else VInt !total_int)
+      | Some (VNA _) -> make_error TypeError "sum() encountered NA value. Handle missingness explicitly."
+      | Some _ -> make_error TypeError "sum() takes a List or Vector argument"
+      | None -> make_error ArityError "sum() takes exactly 1 argument"
     ))
     env

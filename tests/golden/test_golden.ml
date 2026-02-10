@@ -294,4 +294,106 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|cumany([false, false, true, false])|}
     "Vector[false, false, true, true]";
 
+  print_newline ();
+
+  (* ===================================================================== *)
+  (* NA Parameter Support Golden Tests                                      *)
+  (* Expected values below are computed from R for na_rm parameter handling *)
+  (* ===================================================================== *)
+
+  Printf.printf "Phase 8 — Golden: NA Parameter Support (na_rm):\n";
+
+  (* --- mean() na_rm --- *)
+
+  (* R: mean(c(1, NA, 3), na.rm = TRUE) => 2 *)
+  test "golden na_rm: mean na_rm=true"
+    {|mean([1, NA, 3], na_rm = true)|}
+    "2.";
+
+  (* R: mean(c(NA, NA, NA), na.rm = TRUE) => NaN — T returns NA(Float) *)
+  test "golden na_rm: mean all NA na_rm=true"
+    {|mean([NA, NA, NA], na_rm = true)|}
+    "NA(Float)";
+
+  (* R: mean(c(1, 2, 3), na.rm = TRUE) => 2 *)
+  test "golden na_rm: mean no NAs na_rm=true"
+    {|mean([1, 2, 3], na_rm = true)|}
+    "2.";
+
+  (* --- sum() na_rm --- *)
+
+  (* R: sum(c(1, NA, 3), na.rm = TRUE) => 4 *)
+  test "golden na_rm: sum na_rm=true"
+    {|sum([1, NA, 3], na_rm = true)|}
+    "4";
+
+  (* R: sum(c(NA, NA, NA), na.rm = TRUE) => 0 *)
+  test "golden na_rm: sum all NA na_rm=true"
+    {|sum([NA, NA, NA], na_rm = true)|}
+    "0";
+
+  (* R: sum(c(1.5, NA, 2.5), na.rm = TRUE) => 4 *)
+  test "golden na_rm: sum float na_rm=true"
+    {|sum([1.5, NA, 2.5], na_rm = true)|}
+    "4.";
+
+  (* --- sd() na_rm --- *)
+
+  (* R: sd(c(2, 4, NA, 4, 5, 5, NA, 9), na.rm = TRUE)
+     => sd(c(2, 4, 4, 5, 5, 9)) = 2.316610 *)
+  test "golden na_rm: sd na_rm=true"
+    {|sd([2, 4, NA, 4, 5, 5, NA, 9], na_rm = true)|}
+    "2.31660671385";
+
+  (* R: sd(c(NA, NA, NA), na.rm = TRUE) => NA *)
+  test "golden na_rm: sd all NA na_rm=true"
+    {|sd([NA, NA, NA], na_rm = true)|}
+    "NA(Float)";
+
+  (* --- quantile() na_rm --- *)
+
+  (* R: quantile(c(1, NA, 3, NA, 5), 0.5, na.rm = TRUE) => 3 *)
+  test "golden na_rm: quantile na_rm=true"
+    {|quantile([1, NA, 3, NA, 5], 0.5, na_rm = true)|}
+    "3.";
+
+  (* R: quantile(c(NA, NA, NA), 0.5, na.rm = TRUE) => NA *)
+  test "golden na_rm: quantile all NA na_rm=true"
+    {|quantile([NA, NA, NA], 0.5, na_rm = true)|}
+    "NA(Float)";
+
+  (* --- cor() na_rm --- *)
+
+  (* R: cor(c(1, NA, 3, 4, 5), c(2, 4, NA, 8, 10), use = "pairwise.complete.obs") => 1 *)
+  test "golden na_rm: cor na_rm=true pairwise"
+    {|cor([1, NA, 3, 4, 5], [2, 4, NA, 8, 10], na_rm = true)|}
+    "1.";
+
+  (* R: cor(c(NA, NA, NA), c(NA, NA, NA), use = "pairwise.complete.obs") => NA *)
+  test "golden na_rm: cor all NA na_rm=true"
+    {|cor([NA, NA, NA], [NA, NA, NA], na_rm = true)|}
+    "NA(Float)";
+
+  (* --- Error cases: na_rm=false (default) should error on NA --- *)
+
+  test "golden na_rm: mean default errors on NA"
+    {|mean([1, NA, 3])|}
+    {|Error(TypeError: "mean() encountered NA value. Handle missingness explicitly.")|};
+
+  test "golden na_rm: sum default errors on NA"
+    {|sum([1, NA, 3])|}
+    {|Error(TypeError: "sum() encountered NA value. Handle missingness explicitly.")|};
+
+  test "golden na_rm: sd default errors on NA"
+    {|sd([1, NA, 3])|}
+    {|Error(TypeError: "sd() encountered NA value. Handle missingness explicitly.")|};
+
+  test "golden na_rm: quantile default errors on NA"
+    {|quantile([1, NA, 3], 0.5)|}
+    {|Error(TypeError: "quantile() encountered NA value. Handle missingness explicitly.")|};
+
+  test "golden na_rm: cor default errors on NA"
+    {|cor([1, NA, 3], [4, 5, 6])|}
+    {|Error(TypeError: "cor() encountered NA value. Handle missingness explicitly.")|};
+
   print_newline ()

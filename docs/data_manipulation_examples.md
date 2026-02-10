@@ -284,6 +284,22 @@ sqrt(df.score)     -- Vector of sqrt values
 abs(df.balance)    -- Vector of absolute values
 ```
 
+### Handling Missing Values in Statistics
+
+By default, aggregation functions **error** when encountering NA values, forcing explicit handling. Use `na_rm = true` to skip NA values:
+
+```t
+-- Default: errors on NA (forces explicit handling)
+mean(df.salary)                      -- Error if any salary is NA
+
+-- Skip NA values with na_rm = true
+mean(df.salary, na_rm = true)        -- mean of non-NA salaries
+sum(df.amount, na_rm = true)         -- sum of non-NA amounts
+sd(df.score, na_rm = true)           -- sd of non-NA scores
+quantile(df.age, 0.5, na_rm = true)  -- median of non-NA ages
+cor(df.x, df.y, na_rm = true)        -- correlation with pairwise deletion
+```
+
 ### Linear Regression
 
 ```t
