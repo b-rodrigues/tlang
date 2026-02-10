@@ -230,14 +230,20 @@ df |> mutate("senior", \(row) row.age >= 30)
     {|result = df |> group_by("dept") |> mutate("mean_score", \(g) mean(g.score)); result.mean_score|}
     env_p4 in
   let result = Ast.Utils.value_to_string v in
-  (* eng scores: 95.5, 92.1, 91.5 -> mean = 93.0333... *)
+  (* eng scores: 95.5, 92.1, 91.5 -> mean = 93.0333333333 *)
   (* sales scores: 87.3, 88.0 -> mean = 87.65 *)
   (* Original order: Alice(eng), Bob(sales), Charlie(eng), Diana(sales), Eve(eng) *)
-  let expected_prefix = "Vector[93.0" in
-  if String.length result > String.length expected_prefix && String.sub result 0 (String.length expected_prefix) = expected_prefix then begin
+  let contains s sub =
+    let slen = String.length s in
+    let sublen = String.length sub in
+    let rec check i = if i > slen - sublen then false
+      else if String.sub s i sublen = sub then true else check (i + 1)
+    in check 0
+  in
+  if contains result "93.03333" && contains result "87.65" then begin
     incr pass_count; Printf.printf "  ✓ grouped mutate computes group mean\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate computes group mean\n    Expected to start with: %s\n    Got: %s\n" expected_prefix result
+    incr fail_count; Printf.printf "  ✗ grouped mutate computes group mean\n    Expected eng mean ~93.03 and sales mean ~87.65\n    Got: %s\n" result
   end;
 
   (* Grouped mutate followed by ungrouped operation *)
