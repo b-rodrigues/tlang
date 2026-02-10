@@ -28,11 +28,17 @@ let to_float_array_na label = function
 
 (** Collect indices of non-NA positions and their float values *)
 let non_na_indices (nums : float option array) : (int * float) array =
-  let acc = ref [] in
-  Array.iteri (fun i v ->
-    match v with Some f -> acc := (i, f) :: !acc | None -> ()
-  ) nums;
-  Array.of_list (List.rev !acc)
+  let n = Array.length nums in
+  let count = ref 0 in
+  Array.iter (fun v -> if v <> None then incr count) nums;
+  let result = Array.make !count (0, 0.0) in
+  let pos = ref 0 in
+  for i = 0 to n - 1 do
+    match nums.(i) with
+    | Some f -> result.(!pos) <- (i, f); incr pos
+    | None -> ()
+  done;
+  result
 
 (** Compute sorted indices (ascending) for an array of (original_index, float) pairs.
     Returns sorted array of (original_index, float). *)
