@@ -33,7 +33,10 @@ RESULTS_FILE="$OUTPUT_DIR/performance_analysis.md"
 # Build
 # ---------------------------------------------------------------------------
 echo "=== Building T ==="
-dune build 2>&1
+if ! dune build 2>&1; then
+  echo "✗ Build failed. Fix build errors before profiling."
+  exit 1
+fi
 echo "✓ Build complete"
 echo ""
 

@@ -102,7 +102,7 @@ df_1m <- data.frame(
   subcategory  = sample(paste0("sub_", 1:200), n_1m, replace = TRUE),
   flag_1       = sample(c(TRUE, FALSE), n_1m, replace = TRUE),
   flag_2       = sample(c(TRUE, FALSE), n_1m, replace = TRUE),
-  region       = sample(c("NA", "EU", "APAC", "LATAM", "MEA"), n_1m, replace = TRUE),
+  region       = sample(c("NOAM", "EU", "APAC", "LATAM", "MEA"), n_1m, replace = TRUE),
   country      = sample(paste0("country_", 1:30), n_1m, replace = TRUE),
   date_year    = sample(2000:2025, n_1m, replace = TRUE),
   date_month   = sample(1:12, n_1m, replace = TRUE),
