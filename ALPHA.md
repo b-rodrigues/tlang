@@ -18,7 +18,7 @@ This alpha release validates T's core design ideas:
 - **Pipelines**: DAG-based execution with named nodes, dependency resolution, and caching
 - **Tabular Data**: First-class DataFrames with CSV loading and column access
 - **Data Manipulation**: Six core verbs — `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`
-- **Explicit Semantics**: Structured errors, typed NA values, no implicit propagation
+- **Explicit Semantics**: Structured errors with actionable messages (name suggestions, type hints), typed NA values, no implicit propagation
 - **Standard Library**: Math, statistics, and data manipulation packages loaded by default
 - **LLM-Friendly**: Intent blocks and `explain()` for machine-readable metadata
 - **Interactive**: REPL with multi-line input and pretty-printing

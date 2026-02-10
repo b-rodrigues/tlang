@@ -121,6 +121,7 @@ Features supported:
 - Window functions: `row_number`, `min_rank`, `dense_rank`, `lag`, `lead`, `cumsum` with NA support
 - Conditional pipe: `x |> f` (short-circuits on error)
 - Maybe-pipe: `x ?|> f` (forwards errors for recovery)
+- Actionable error messages: typo suggestions (`Did you mean 'select'?`), type conversion hints, function signatures in arity errors
 - Python-style list comprehensions: `[x * x for x in numbers if x > 2]`
 - Python-style dictionaries: `{name: "Alice", age: 30}`
 

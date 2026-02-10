@@ -24,4 +24,25 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "sum with NA returns error" "sum([1, NA, 3])" {|Error(TypeError: "sum() encountered NA value. Handle missingness explicitly.")|};
   test "head on NA returns error" "head(NA)" {|Error(TypeError: "Cannot call head() on NA")|};
   test "length on NA returns error" "length(NA)" {|Error(TypeError: "Cannot get length of NA")|};
+  print_newline ();
+
+  Printf.printf "Phase 4 — Error Message Quality (Name Suggestions):\n";
+  test "typo in function name suggests correction" "prnt(42)" {|Error(NameError: "'prnt' is not defined. Did you mean 'print'?")|};
+  test "typo in 'select' suggests correction" "slect(1)" {|Error(NameError: "'slect' is not defined. Did you mean 'select'?")|};
+  test "typo in 'filter' suggests correction" "flter(1)" {|Error(NameError: "'flter' is not defined. Did you mean 'filter'?")|};
+  test "typo in 'mutate' suggests correction" "mutat(1)" {|Error(NameError: "'mutat' is not defined. Did you mean 'mutate'?")|};
+  test "typo in 'mean' suggests correction" "meen(1)" {|Error(NameError: "'meen' is not defined. Did you mean 'mean'?")|};
+  test "completely unknown name has no suggestion" "xyzzy_unknown(1)" {|Error(NameError: "'xyzzy_unknown' is not defined")|};
+  print_newline ();
+
+  Printf.printf "Phase 4 — Error Message Quality (Type Conversion Hints):\n";
+  test "int + bool shows hint" "1 + true" {|Error(TypeError: "Cannot add Int and Bool. Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values.")|};
+  test "list + int shows hint" "[1, 2] + 3" {|Error(TypeError: "Cannot add List and Int. Hint: Use map() to apply arithmetic operations to each element of a list.")|};
+  test "string + int shows hint" {|"hello" + 1|} {|Error(TypeError: "Cannot add String and Int. Hint: Strings cannot be used in arithmetic. Convert with int() or float() if available, or check your data types.")|};
+  print_newline ();
+
+  Printf.printf "Phase 4 — Error Message Quality (Arity Signatures):\n";
+  test "lambda arity error shows params" "f = \\(a, b) a + b; f(1)" {|Error(ArityError: "Expected 2 arguments (a, b) but got 1")|};
+  test "lambda arity error shows single param" "f = \\(x) x; f(1, 2)" {|Error(ArityError: "Expected 1 arguments (x) but got 2")|};
+  test "builtin arity error shows count" "length(1, 2)" {|Error(ArityError: "Expected 1 arguments but got 2")|};
   print_newline ()

@@ -280,6 +280,24 @@ err = error("something broke")
 err = error("ValueError", "invalid input")
 ```
 
+### Actionable Error Messages
+
+T provides helpful error messages with suggestions:
+
+```t
+-- Name suggestions for typos (Levenshtein distance):
+prnt(42)           -- Error(NameError: "'prnt' is not defined. Did you mean 'print'?")
+slect(df, "name")  -- Error(NameError: "'slect' is not defined. Did you mean 'select'?")
+
+-- Type conversion hints:
+1 + true           -- Error(TypeError: "Cannot add Int and Bool. Hint: ...")
+[1, 2] + 3         -- Error(TypeError: "Cannot add List and Int. Hint: Use map()...")
+
+-- Function signature in arity errors:
+f = \(a, b) a + b
+f(1)               -- Error(ArityError: "Expected 2 arguments (a, b) but got 1")
+```
+
 ### Assert
 
 ```t
