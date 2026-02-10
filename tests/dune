@@ -14,6 +14,11 @@
    test_arrow_integration
    test_owl_bridge
    test_arrow_performance
+   test_colcraft_edge_cases
+   test_window_edge_cases
+   test_formula_edge_cases
+   test_large_datasets
+   test_error_recovery
  )
  (libraries t_lang menhirLib)
 )

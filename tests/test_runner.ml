@@ -69,6 +69,13 @@ let () =
   Test_owl_bridge.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_arrow_performance.run_tests pass_count fail_count eval_string eval_string_env test;
 
+  (* Week 2: Edge case hardening + large dataset tests *)
+  Test_colcraft_edge_cases.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_window_edge_cases.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_formula_edge_cases.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_large_datasets.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_error_recovery.run_tests pass_count fail_count eval_string eval_string_env test;
+
   (* Summary *)
   let total = !pass_count + !fail_count in
   Printf.printf "=== Results: %d/%d passed ===\n" !pass_count total;
