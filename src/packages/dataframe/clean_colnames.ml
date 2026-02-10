@@ -12,15 +12,18 @@
     and survives the later ASCII-only filter. *)
 let symbol_map = [
   (* Currency & common symbols *)
-  ("\xe2\x82\xac", "euro");     (* € U+20AC *)
-  ("\xc2\xa3", "pound");        (* £ U+00A3 *)
-  ("\xc2\xa5", "yen");          (* ¥ U+00A5 *)
-  ("%", "percent");
-  ("$", "dollar");
-  ("&", "and");
-  ("+", "plus");
-  ("@", "at");
-  ("#", "number");
+  (* Replacements are padded with underscores so expanded words are
+     separated from adjacent text.  Consecutive underscores are collapsed
+     and leading/trailing underscores trimmed in later pipeline stages. *)
+  ("\xe2\x82\xac", "_euro_");     (* € U+20AC *)
+  ("\xc2\xa3", "_pound_");        (* £ U+00A3 *)
+  ("\xc2\xa5", "_yen_");          (* ¥ U+00A5 *)
+  ("%", "_percent_");
+  ("$", "_dollar_");
+  ("&", "_and_");
+  ("+", "_plus_");
+  ("@", "_at_");
+  ("#", "_number_");
 ]
 
 (* ===================================================================== *)
