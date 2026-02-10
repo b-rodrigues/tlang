@@ -401,10 +401,14 @@ mean([1, 2, NA, 4], na_rm = true)  -- 2.33...
 -- Error(TypeError: Cannot add String and Int)
 ```
 
-**Solution**: Explicit conversion (if `string()` function exists)
+**Solution**: Use separate print statements (alpha does not have string conversion yet)
 
 ```t
-"Age: " + string(25)  -- "Age: 25"
+-- Workaround for output:
+print("Age: ")
+print(25)
+
+-- Or use R/Python for formatting if needed
 ```
 
 ### Empty Collection Errors
