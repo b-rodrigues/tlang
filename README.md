@@ -63,6 +63,7 @@ Features supported:
 - R-style lambdas: `\(x) x + 1`
 - Formula syntax: `y ~ x` creates Formula objects for statistical modeling
 - Named arguments: `lm(data = df, formula = y ~ x)`
+- NA handling: `mean(data, na_rm = true)` skips missing values
 - Conditional pipe: `x |> f` (short-circuits on error)
 - Maybe-pipe: `x ?|> f` (forwards errors for recovery)
 - Python-style list comprehensions: `[x * x for x in numbers if x > 2]`

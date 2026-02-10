@@ -132,6 +132,8 @@ pipeline analysis {
     <li>R-style lambdas: <code>\(x) x + 1</code></li>
     <li>Conditional pipe operator: <code>|></code> (short-circuits on error)</li>
     <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
+    <li>Named arguments: <code>lm(data = df, formula = y ~ x)</code></li>
+    <li>NA handling: <code>mean(data, na_rm = true)</code> — all aggregation functions support <code>na_rm</code></li>
     <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
     <li>Python-style dictionaries: <code>{name: "Alice", age: 30}</code></li>
     <li>Errors as values, not exceptions</li>
@@ -202,14 +204,44 @@ error("fail") ?|> recovery |> increment  -- 1
 
   <h2><font face="Courier New">Standard Packages</font></h2>
   <ul>
-    <li><b>core</b>: functional utilities</li>
-    <li><b>stats</b>: statistical primitives</li>
-    <li><b>colcraft</b>: DataFrame operations</li>
+    <li><b>core</b>: functional utilities (<code>map</code>, <code>sum</code>, <code>seq</code>)</li>
+    <li><b>stats</b>: statistical primitives (<code>mean</code>, <code>sd</code>, <code>quantile</code>, <code>cor</code>, <code>lm</code>)</li>
+    <li><b>colcraft</b>: DataFrame operations (<code>select</code>, <code>filter</code>, <code>mutate</code>, <code>group_by</code>, <code>summarize</code>)</li>
   </ul>
 
   <p>
     Packages are part of the standard library and loaded by default.
     Each function lives in its own file.
+  </p>
+
+  <hr>
+
+  <h2><font face="Courier New">Missing Value Handling</font></h2>
+
+  <p>
+    T uses explicit <code>NA</code> values with type tags. NA does <b>not</b> propagate
+    implicitly — operations on NA produce errors by default:
+  </p>
+
+  <pre>
+mean([1, NA, 3])                   -- Error: NA encountered
+sum([1, NA, 3])                    -- Error: NA encountered
+  </pre>
+
+  <p>
+    To skip NA values, use the <code>na_rm = true</code> parameter:
+  </p>
+
+  <pre>
+mean([1, NA, 3], na_rm = true)     -- 2.0
+sum([1, NA, 3], na_rm = true)      -- 4
+sd([2, NA, 4, 9], na_rm = true)    -- 3.61
+cor(x, y, na_rm = true)            -- pairwise deletion
+  </pre>
+
+  <p>
+    All aggregation functions (<code>mean</code>, <code>sum</code>, <code>sd</code>,
+    <code>quantile</code>, <code>cor</code>) support the <code>na_rm</code> parameter.
   </p>
 
   <hr>
@@ -225,7 +257,8 @@ error("fail") ?|> recovery |> increment  -- 1
     <li>Arrow-backed DataFrames</li>
     <li>DAG-based pipelines with caching</li>
     <li>Core data verbs (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>summarize</code>)</li>
-    <li>Basic statistics and modeling</li>
+    <li>Grouped operations (<code>group_by |> mutate</code>, <code>group_by |> summarize</code>)</li>
+    <li>Basic statistics and modeling with NA handling (<code>na_rm</code> parameter)</li>
     <li>Intent blocks and tooling hooks</li>
     <li>REPL and CLI</li>
   </ul>

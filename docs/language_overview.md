@@ -233,6 +233,36 @@ is_na(42)      -- false
 NA + 1         -- Error(TypeError: "Operation on NA...")
 ```
 
+### NA Handling in Aggregation Functions
+
+By default, aggregation functions **error** when they encounter NA values. This forces you to handle missingness explicitly rather than silently ignoring it:
+
+```t
+mean([1, 2, NA, 4])           -- Error: NA encountered
+sum([1, NA, 3])               -- Error: NA encountered
+sd([1, NA, 3])                -- Error: NA encountered
+quantile([1, NA, 3], 0.5)     -- Error: NA encountered
+cor([1, NA, 3], [4, 5, 6])    -- Error: NA encountered
+```
+
+To compute statistics while skipping NA values, use `na_rm = true`:
+
+```t
+mean([1, 2, NA, 4], na_rm = true)           -- 2.33333333333
+sum([1, NA, 3], na_rm = true)               -- 4
+sd([2, 4, NA, 9], na_rm = true)             -- 3.60555127546
+quantile([1, NA, 3, NA, 5], 0.5, na_rm = true) -- 3.
+cor([1, NA, 3, 4], [2, 4, NA, 8], na_rm = true) -- 1. (pairwise deletion)
+```
+
+When all values are NA and `na_rm = true`, functions return `NA(Float)`:
+
+```t
+mean([NA, NA, NA], na_rm = true)    -- NA(Float)
+sum([NA, NA, NA], na_rm = true)     -- 0
+sd([NA, NA, NA], na_rm = true)      -- NA(Float)
+```
+
 ---
 
 ## Error Handling
@@ -353,7 +383,7 @@ pow(2, 3)      -- 8.0
 
 ### Stats Functions
 
-Statistical summaries that work on lists and vectors:
+Statistical summaries that work on lists and vectors. All aggregation functions support an optional `na_rm` parameter:
 
 ```t
 mean([1, 2, 3, 4, 5])             -- 3.0
@@ -361,6 +391,11 @@ sd([2, 4, 4, 4, 5, 5, 7, 9])     -- 2.1380899353
 quantile([1, 2, 3, 4, 5], 0.5)   -- 3.0 (median)
 cor(df.x, df.y)                   -- correlation coefficient
 lm(data = df, formula = y ~ x)   -- linear regression model
+
+-- With NA handling (na_rm = true skips NA values):
+mean([1, NA, 3], na_rm = true)    -- 2.0
+sum([1, NA, 3], na_rm = true)     -- 4
+sd([2, NA, 4, 9], na_rm = true)   -- 3.60555127546
 ```
 
 ### Introspection
