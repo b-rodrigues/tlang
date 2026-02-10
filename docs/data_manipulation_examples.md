@@ -350,3 +350,65 @@ e.schema      -- column type information
 e.na_stats    -- NA counts per column
 e.example_rows -- sample rows
 ```
+
+---
+
+## Window Functions
+
+Window functions operate on vectors without collapsing them, useful for ranking, shifting, and cumulative calculations.
+
+### Ranking
+
+```t
+-- Rank values (ties broken by position)
+row_number([10, 30, 20])    -- Vector[1, 3, 2]
+
+-- Rank with ties (minimum rank, with gaps)
+min_rank([1, 1, 2, 2, 2])  -- Vector[1, 1, 3, 3, 3]
+
+-- Dense rank (no gaps)
+dense_rank([1, 1, 2, 2])   -- Vector[1, 1, 2, 2]
+
+-- Divide into n groups
+ntile([1, 2, 3, 4, 5, 6], 3)  -- Vector[1, 1, 2, 2, 3, 3]
+```
+
+### Lag and Lead
+
+```t
+-- Previous value (lagged by 1)
+lag([10, 20, 30, 40])       -- Vector[NA, 10, 20, 30]
+
+-- Next value (lead by 1)
+lead([10, 20, 30, 40])      -- Vector[20, 30, 40, NA]
+
+-- Custom offset
+lag([10, 20, 30, 40], 2)    -- Vector[NA, NA, 10, 20]
+```
+
+### Cumulative Functions
+
+```t
+cumsum([1, 2, 3, 4])        -- Vector[1, 3, 6, 10]
+cummin([5, 3, 4, 1])        -- Vector[5, 3, 3, 1]
+cummax([1, 3, 2, 5])        -- Vector[1, 3, 3, 5]
+cummean([2, 4, 6])           -- Vector[2.0, 3.0, 4.0]
+```
+
+### NA Handling in Window Functions
+
+All window functions handle NA values gracefully:
+
+- **Ranking functions**: NA positions receive NA rank; ranks are computed only among non-NA values
+- **Offset functions (lag/lead)**: NA values pass through unchanged
+- **Cumulative functions**: NA propagates to all subsequent values (matching R behavior)
+
+```t
+-- Ranking with NA
+row_number([3, NA, 1])      -- Vector[2, NA, 1]
+min_rank([3, NA, 1, 3])    -- Vector[2, NA, 1, 2]
+
+-- Cumulative with NA (propagation)
+cumsum([1, NA, 3])           -- Vector[1, NA, NA]
+cummax([1, NA, 5])           -- Vector[1, NA, NA]
+```

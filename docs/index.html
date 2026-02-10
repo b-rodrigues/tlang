@@ -206,7 +206,7 @@ error("fail") ?|> recovery |> increment  -- 1
   <ul>
     <li><b>core</b>: functional utilities (<code>map</code>, <code>sum</code>, <code>seq</code>)</li>
     <li><b>stats</b>: statistical primitives (<code>mean</code>, <code>sd</code>, <code>quantile</code>, <code>cor</code>, <code>lm</code>)</li>
-    <li><b>colcraft</b>: DataFrame operations (<code>select</code>, <code>filter</code>, <code>mutate</code>, <code>group_by</code>, <code>summarize</code>)</li>
+    <li><b>colcraft</b>: DataFrame operations (<code>select</code>, <code>filter</code>, <code>mutate</code>, <code>group_by</code>, <code>summarize</code>) and window functions (<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>, <code>lag</code>, <code>lead</code>, <code>cumsum</code>, etc.)</li>
   </ul>
 
   <p>
@@ -244,6 +244,30 @@ cor(x, y, na_rm = true)            -- pairwise deletion
     <code>quantile</code>, <code>cor</code>) support the <code>na_rm</code> parameter.
   </p>
 
+  <h3><font face="Courier New">Window Functions and NA</font></h3>
+
+  <p>
+    Window functions compute values across a set of rows without collapsing them.
+    All window functions handle NA gracefully:
+  </p>
+
+  <ul>
+    <li><b>Ranking</b> (<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>,
+        <code>cume_dist</code>, <code>percent_rank</code>, <code>ntile</code>):
+        NA positions get NA rank; ranks computed only among non-NA values</li>
+    <li><b>Offset</b> (<code>lag</code>, <code>lead</code>):
+        NA values pass through unchanged</li>
+    <li><b>Cumulative</b> (<code>cumsum</code>, <code>cummin</code>, <code>cummax</code>,
+        <code>cummean</code>, <code>cumall</code>, <code>cumany</code>):
+        NA propagates to all subsequent values (matching R)</li>
+  </ul>
+
+  <pre>
+row_number([3, NA, 1])             -- Vector[2, NA, 1]
+cumsum([1, NA, 3])                 -- Vector[1, NA, NA]
+lag([1, NA, 3])                    -- Vector[NA, 1, NA]
+  </pre>
+
   <hr>
 
   <h2><font face="Courier New">Alpha Roadmap</font></h2>
@@ -258,6 +282,7 @@ cor(x, y, na_rm = true)            -- pairwise deletion
     <li>DAG-based pipelines with caching</li>
     <li>Core data verbs (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>summarize</code>)</li>
     <li>Grouped operations (<code>group_by |> mutate</code>, <code>group_by |> summarize</code>)</li>
+    <li>Window functions with NA handling (<code>row_number</code>, <code>lag</code>, <code>lead</code>, <code>cumsum</code>, etc.)</li>
     <li>Basic statistics and modeling with NA handling (<code>na_rm</code> parameter)</li>
     <li>Intent blocks and tooling hooks</li>
     <li>REPL and CLI</li>

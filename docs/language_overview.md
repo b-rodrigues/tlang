@@ -328,6 +328,57 @@ df |> group_by("dept")
    |> mutate("dept_size", \(g) nrow(g))
 ```
 
+### Window Functions
+
+Window functions compute values across a set of rows without collapsing them. All window functions handle `NA` gracefully.
+
+#### Ranking Functions
+
+Ranking functions assign ranks to elements. NA values receive NA rank; ranks are computed only among non-NA values:
+
+```t
+row_number([10, 30, 20])    -- Vector[1, 3, 2]   (ties broken by position)
+min_rank([1, 1, 2, 2, 2])  -- Vector[1, 1, 3, 3, 3]  (gaps after ties)
+dense_rank([1, 1, 2, 2])   -- Vector[1, 1, 2, 2]     (no gaps)
+cume_dist([1, 2, 3])        -- Vector[0.333..., 0.666..., 1.0]
+percent_rank([1, 2, 3])     -- Vector[0.0, 0.5, 1.0]
+ntile([1, 2, 3, 4], 2)     -- Vector[1, 1, 2, 2]
+
+-- NA handling: NA positions get NA rank
+row_number([3, NA, 1])     -- Vector[2, NA, 1]
+min_rank([3, NA, 1, 3])   -- Vector[2, NA, 1, 2]
+```
+
+#### Offset Functions (lag/lead)
+
+Shift values forward or backward, filling with NA. NA values in the input pass through:
+
+```t
+lag([1, 2, 3, 4])          -- Vector[NA, 1, 2, 3]
+lag([1, 2, 3, 4], 2)       -- Vector[NA, NA, 1, 2]
+lead([1, 2, 3, 4])         -- Vector[2, 3, 4, NA]
+lead([1, 2, 3, 4], 2)      -- Vector[3, 4, NA, NA]
+
+-- NA passes through
+lag([1, NA, 3])            -- Vector[NA, 1, NA]
+```
+
+#### Cumulative Functions
+
+Cumulative functions propagate NA: once NA is encountered, all subsequent values become NA (matching R behavior):
+
+```t
+cumsum([1, 2, 3, 4])      -- Vector[1, 3, 6, 10]
+cummin([3, 1, 4, 1])      -- Vector[3, 1, 1, 1]
+cummax([1, 3, 2, 5])      -- Vector[1, 3, 3, 5]
+cummean([2, 4, 6])         -- Vector[2.0, 3.0, 4.0]
+cumall([true, true, false]) -- Vector[true, true, false]
+cumany([false, true, false]) -- Vector[false, true, true]
+
+-- NA propagation
+cumsum([1, NA, 3])         -- Vector[1, NA, NA]
+```
+
 ---
 
 ## Pipelines
@@ -365,7 +416,7 @@ All packages are loaded automatically at startup:
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`                   |
 | `dataframe` | `read_csv`, `colnames`, `nrow`, `ncol`                  |
-| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize` |
+| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `row_number`, `min_rank`, `dense_rank`, `cume_dist`, `percent_rank`, `ntile`, `lag`, `lead`, `cumsum`, `cummin`, `cummax`, `cummean`, `cumall`, `cumany` |
 | `pipeline`  | `pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run` |
 | `explain`   | `explain`, `intent_fields`, `intent_get`                |
 
