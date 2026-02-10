@@ -321,6 +321,7 @@ Package authors should:
 2. **Create git tags** for each release:
    ```bash
    git tag -a v0.1.0 -m "Release version 0.1.0"
+   git tag -l v0.1.0  # Verify tag was created
    git push origin v0.1.0
    ```
 3. **Update CHANGELOG.md** with release notes
@@ -388,8 +389,10 @@ Package authors should:
 
 Users can discover packages via GitHub search:
 ```
-topic:t-lang-package stars:>10
+https://github.com/search?q=topic:t-lang-package+stars:>10
 ```
+
+Or using GitHub's advanced search interface with the `topic:t-lang-package` filter.
 
 ### 3. Community Resources
 
@@ -623,7 +626,7 @@ The tradeoff is a steeper learning curve (Nix), but the payoff is **guaranteed r
 
 ### Planned Features
 
-- [ ] `t install <package-url>`: Clone package repo, add to tproject.toml and update flake.nix
+- [ ] `t install <package-url>`: Add package flake input reference to tproject.toml and update flake.nix
 - [ ] `t update`: Update packages to latest tagged releases
 - [ ] `t test`: Run all package/project tests
 - [ ] `t publish`: Create initial release tag and push to git repository
