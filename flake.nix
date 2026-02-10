@@ -61,6 +61,8 @@
 
           buildInputs = [
             ocamlVersion.menhirLib
+            # linenoise — lightweight readline alternative for REPL line editing and history
+            ocamlVersion.linenoise
             # Arrow C++ — provides arrow.pc that arrow-glib depends on
             pkgs.arrow-cpp
             # Arrow C GLib — Apache Arrow columnar data library
@@ -126,6 +128,9 @@
 
             # OCaml package manager - provides setup hooks for OCAMLPATH
             ocamlVersion.findlib
+
+            # Lightweight readline alternative for REPL line editing and history
+            ocamlVersion.linenoise
 
             # 2. Enhanced Development Tools (Highly Recommended)
             # ----------------------------------------------------
