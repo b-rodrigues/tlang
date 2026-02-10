@@ -2,7 +2,11 @@ open Ast
 
 let register env =
   Env.add "quantile"
-    (make_builtin 2 (fun args _env ->
+    (make_builtin_named ~variadic:true 2 (fun named_args _env ->
+      let na_rm = List.exists (fun (name, v) ->
+        name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
+      ) named_args in
+      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in
@@ -16,6 +20,19 @@ let register env =
             | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
+      in
+      let extract_nums_arr_na_rm label arr =
+        let nums = ref [] in
+        let had_error = ref None in
+        for i = 0 to Array.length arr - 1 do
+          if !had_error = None then
+            match arr.(i) with
+            | VInt n -> nums := float_of_int n :: !nums
+            | VFloat f -> nums := f :: !nums
+            | VNA _ -> ()
+            | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+        done;
+        match !had_error with Some e -> Error e | None -> Ok (Array.of_list (List.rev !nums))
       in
       let get_p = function
         | VFloat f -> if f < 0.0 || f > 1.0 then None else Some f
@@ -41,17 +58,29 @@ let register env =
           (match get_p p_val with
            | None -> make_error ValueError "quantile() expects a probability between 0 and 1"
            | Some p ->
-             (match extract_nums_arr "quantile" arr with
-              | Error e -> e
-              | Ok nums -> compute_quantile nums p))
+             if na_rm then
+               (match extract_nums_arr_na_rm "quantile" arr with
+                | Error e -> e
+                | Ok nums when Array.length nums = 0 -> VNA NAFloat
+                | Ok nums -> compute_quantile nums p)
+             else
+               (match extract_nums_arr "quantile" arr with
+                | Error e -> e
+                | Ok nums -> compute_quantile nums p))
       | [VList items; p_val] ->
           (match get_p p_val with
            | None -> make_error ValueError "quantile() expects a probability between 0 and 1"
            | Some p ->
              let arr = Array.of_list (List.map snd items) in
-             (match extract_nums_arr "quantile" arr with
-              | Error e -> e
-              | Ok nums -> compute_quantile nums p))
+             if na_rm then
+               (match extract_nums_arr_na_rm "quantile" arr with
+                | Error e -> e
+                | Ok nums when Array.length nums = 0 -> VNA NAFloat
+                | Ok nums -> compute_quantile nums p)
+             else
+               (match extract_nums_arr "quantile" arr with
+                | Error e -> e
+                | Ok nums -> compute_quantile nums p))
       | [VNA _; _] | [_; VNA _] -> make_error TypeError "quantile() encountered NA value. Handle missingness explicitly."
       | [_; _] -> make_error TypeError "quantile() expects a numeric List or Vector as first argument"
       | _ -> make_error ArityError "quantile() takes exactly 2 arguments"

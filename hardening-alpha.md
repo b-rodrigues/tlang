@@ -38,15 +38,15 @@ The T Language Alpha validates the core design principles:
 | Category | Completion | Status |
 |----------|------------|--------|
 | Core Language | 95% | ✅ Strong |
-| Data Manipulation | 85% | ⚠️ Gaps in grouped operations |
-| Statistics & Math | 90% | ⚠️ Missing NA parameter support |
+| Data Manipulation | 95% | ✅ Grouped operations complete |
+| Statistics & Math | 95% | ✅ NA parameter support complete |
 | Pipeline Execution | 95% | ✅ Strong |
 | Error Handling | 90% | ✅ Strong |
-| Testing Infrastructure | 85% | ⚠️ Some edge cases untested |
-| Documentation | 90% | ✅ Strong |
+| Testing Infrastructure | 90% | ✅ Comprehensive NA tests added |
+| Documentation | 95% | ✅ Strong |
 | Tooling (REPL/CLI) | 95% | ✅ Strong |
 
-**Overall Alpha Readiness**: **88%** — Good foundation, requires hardening in specific areas
+**Overall Alpha Readiness**: **94%** — Strong foundation with grouped operations and NA handling complete
 
 ---
 
@@ -119,25 +119,14 @@ The T Language Alpha validates the core design principles:
 
 #### Critical Gaps (Must Fix for Alpha)
 
-1. **Grouped Mutate Not Supported** (HIGH PRIORITY)
-   - **Issue**: `group_by() |> mutate()` does not pass group context to mutate expressions
-   - **Impact**: Cannot compute group-wise transformations (e.g., z-scores within groups)
-   - **Test Status**: Explicitly skipped in `test_colcraft.ml`
-   - **Example**:
-     ```t
-     -- Currently fails:
-     df |> group_by(\(r) r.category) |> mutate("z_score", \(r) (r.value - mean(r.value)) / sd(r.value))
-     ```
+1. **~~Grouped Mutate Not Supported~~** ✅ COMPLETE
+   - `group_by() |> mutate()` now passes group context to mutate expressions
+   - Supports group-wise transformations (z-scores, group means, ranks within groups)
 
-2. **NA Parameters Missing in Aggregations** (HIGH PRIORITY)
-   - **Issue**: `mean()`, `sum()`, `sd()` don't support `na_rm` parameter
-   - **Impact**: Cannot compute statistics on data with missing values
-   - **Test Status**: Explicitly skipped in `test_colcraft.ml` and `test_stats.ml`
-   - **Example**:
-     ```t
-     -- Currently fails:
-     mean([1.0, 2.0, NA, 4.0], na_rm = true)  -- Should return 2.33
-     ```
+2. **~~NA Parameters Missing in Aggregations~~** ✅ COMPLETE
+   - All aggregation functions (`mean`, `sum`, `sd`, `quantile`, `cor`) now support `na_rm` parameter
+   - `na_rm = true` skips NA values; `na_rm = false` (default) errors on NA
+   - `cor()` supports pairwise deletion with `na_rm = true`
 
 3. **Window Functions with NA** (MEDIUM PRIORITY)
    - **Issue**: `lag()`, `lead()`, and ranking functions don't handle NA gracefully
@@ -185,15 +174,15 @@ The T Language Alpha validates the core design principles:
 |----------|-----------|------------|----------|--------|
 | Core Language | 10 | ~120 | 95% | ✅ Excellent |
 | Base Library | 2 | ~40 | 90% | ✅ Strong |
-| Data Manipulation | 4 | ~80 | 85% | ⚠️ Gaps in grouped ops |
-| Math & Stats | 2 | ~50 | 90% | ⚠️ NA parameter missing |
+| Data Manipulation | 4 | ~80 | 90% | ✅ Grouped ops complete |
+| Math & Stats | 2 | ~70 | 95% | ✅ NA parameter support complete |
 | Arrow Integration | 2 | ~15 | 60% | ⚠️ Zero-copy stubbed |
 | CLI & Tooling | 1 | ~20 | 90% | ✅ Strong |
 | Explain/Intent | 1 | ~30 | 95% | ✅ Excellent |
-| Golden Tests | 3 | ~40 | 80% | ✅ Strong |
+| Golden Tests | 3 | ~60 | 90% | ✅ Strong (incl. na_rm tests) |
 
-**Total Tests**: ~200+ individual assertions  
-**Pass Rate**: ~95% (5-6 tests explicitly skipped)
+**Total Tests**: ~250+ individual assertions  
+**Pass Rate**: ~97% (2-3 tests explicitly skipped)
 
 ### Well-Tested Features
 
@@ -272,11 +261,6 @@ The T Language Alpha validates the core design principles:
 From test suite analysis, these tests are **intentionally skipped**:
 
 ```ocaml
--- In tests/colcraft/test_colcraft.ml:
-skip("Grouped mutate (group_by %>% mutate with group-aware expressions) not yet supported")
-skip("mean() does not yet support na_rm parameter")
-skip("Grouped summarize with na_rm not yet supported")
-
 -- In tests/arrow/test_arrow_integration.ml:
 skip("Zero-copy column views not yet implemented")
 skip("Owl bridge not fully integrated")
@@ -285,8 +269,13 @@ skip("Owl bridge not fully integrated")
 skip("Golden test file not found (expected but acceptable)")
 ```
 
-**Count**: 5-6 explicitly skipped tests  
+**Count**: 2-3 explicitly skipped tests  
 **Reason**: Features planned but not implemented for alpha
+
+**Previously skipped, now resolved**:
+- ~~`skip("Grouped mutate not yet supported")`~~ ✅ Implemented
+- ~~`skip("mean() does not yet support na_rm parameter")`~~ ✅ Implemented
+- ~~`skip("Grouped summarize with na_rm not yet supported")`~~ ✅ Implemented
 
 ---
 
@@ -301,70 +290,21 @@ skip("Golden test file not found (expected but acceptable)")
 **Impact**: Cannot perform group-wise transformations
 
 **Description**:
-When using `group_by() |> mutate()`, the group context is not passed to the mutate lambda function. This prevents computing statistics like z-scores, percentile ranks, or deviations from group means.
+#### 1. ~~Grouped Mutate Not Implemented~~ ✅ RESOLVED
 
-**Expected Behavior**:
-```t
-df = read_csv("data.csv")
-df |> 
-  group_by(\(r) r.category) |>
-  mutate("z_score", \(r) (r.value - mean(r.value)) / sd(r.value))
--- Should compute z-score within each category group
-```
-
-**Current Behavior**:
-```
-Error: NameError - 'value' is not defined in the global scope
-```
-
-**Root Cause**:
-- `group_by()` splits DataFrame into groups
-- `mutate()` receives individual rows, not group context
-- No mechanism to pass group-level data to row-level functions
-
-**Fix Required**:
-1. Extend DataFrame to carry group metadata
-2. Pass group subset to mutate lambda
-3. Update mutate evaluation to use group-local data
-4. Add tests for grouped mutate with various aggregations
-
-**Test Coverage**: Skipped in `tests/colcraft/test_colcraft.ml`
+**Status**: COMPLETE — `group_by() |> mutate()` now passes group sub-DataFrames to mutate lambda functions. Supports computing group means, z-scores, ranks within groups, and multiple grouping variables.
 
 ---
 
-#### 2. NA Parameter Support Missing
+#### 2. ~~NA Parameter Support Missing~~ ✅ RESOLVED
 
-**Severity**: HIGH  
-**Category**: Statistics  
-**Impact**: Cannot compute statistics on data with missing values
+**Status**: COMPLETE — All aggregation functions (`mean`, `sum`, `sd`, `quantile`, `cor`) now support the `na_rm` parameter.
 
-**Description**:
-Aggregation functions (`mean`, `sum`, `sd`, `quantile`) don't support `na_rm` parameter, making it impossible to compute statistics when NA values are present.
-
-**Expected Behavior**:
-```t
-mean([1.0, 2.0, NA, 4.0], na_rm = true)  -- Should return 2.33
-sd([1.0, NA, 3.0], na_rm = true)         -- Should return 1.41
-```
-
-**Current Behavior**:
-```
-Error: TypeError - NA value in numeric operation
-```
-
-**Root Cause**:
-- Functions expect all-numeric inputs
-- No optional parameter system for `na_rm`
-- NA values cause immediate type errors
-
-**Fix Required**:
-1. Add named parameter support to aggregation functions
-2. Implement NA filtering when `na_rm = true`
-3. Return NA when all values are NA
-4. Add tests for NA handling in all aggregations
-5. Update documentation with na_rm examples
-
-**Test Coverage**: Skipped in `tests/stats/test_stats.ml` and `tests/colcraft/test_colcraft.ml`
+- `na_rm = true` filters out NA values before computation
+- `na_rm = false` (default) raises an explicit error when NA values are encountered
+- `cor()` implements pairwise deletion when `na_rm = true`
+- All-NA inputs return `NA(Float)` when `na_rm = true`
+- Comprehensive tests and golden tests added
 
 ---
 
@@ -545,25 +485,25 @@ No `left_join()`, `inner_join()`, or other merge operations.
 **Goal**: Make `group_by() |> mutate()` work with group context
 
 **Tasks**:
-1. [ ] **Extend DataFrame with group metadata**
+1. [x] **Extend DataFrame with group metadata**
    - Add `groups` field to DataFrame type
    - Store group keys and row indices
    - Implement group splitting/recombining
 
-2. [ ] **Update mutate to accept group context**
+2. [x] **Update mutate to accept group context**
    - Detect grouped DataFrame in mutate
    - Pass group subset to lambda instead of single row
    - Aggregate results back to original row order
 
-3. [ ] **Add tests for grouped mutate**
-   - [ ] Test: Compute group mean
-   - [ ] Test: Compute z-score within groups
-   - [ ] Test: Rank within groups
-   - [ ] Test: Multiple grouping variables
-   - [ ] Test: Empty groups
-   - [ ] Test: Single-row groups
+3. [x] **Add tests for grouped mutate**
+   - [x] Test: Compute group mean
+   - [x] Test: Compute z-score within groups
+   - [x] Test: Rank within groups
+   - [x] Test: Multiple grouping variables
+   - [x] Test: Empty groups
+   - [x] Test: Single-row groups
 
-4. [ ] **Document grouped mutate**
+4. [x] **Document grouped mutate**
    - Add examples to `docs/data_manipulation_examples.md`
    - Update `docs/language_overview.md` with semantics
    - Add cookbook entry for common patterns
@@ -579,26 +519,26 @@ No `left_join()`, `inner_join()`, or other merge operations.
 **Goal**: Support `na_rm = true` in all aggregation functions
 
 **Tasks**:
-1. [ ] **Implement named parameter system**
+1. [x] **Implement named parameter system**
    - Extend function call AST to support named args
    - Update evaluator to handle optional parameters
    - Add default value mechanism
 
-2. [ ] **Update aggregation functions**
-   - [ ] `mean(data, na_rm = false)` with NA filtering
-   - [ ] `sum(data, na_rm = false)` with NA filtering
-   - [ ] `sd(data, na_rm = false)` with NA filtering
-   - [ ] `quantile(data, probs, na_rm = false)` with NA filtering
-   - [ ] `cor(x, y, na_rm = false)` with pairwise deletion
+2. [x] **Update aggregation functions**
+   - [x] `mean(data, na_rm = false)` with NA filtering
+   - [x] `sum(data, na_rm = false)` with NA filtering
+   - [x] `sd(data, na_rm = false)` with NA filtering
+   - [x] `quantile(data, probs, na_rm = false)` with NA filtering
+   - [x] `cor(x, y, na_rm = false)` with pairwise deletion
 
-3. [ ] **Add comprehensive NA tests**
-   - [ ] Test: All NA values (should return NA)
-   - [ ] Test: Some NA values with na_rm = false (should error)
-   - [ ] Test: Some NA values with na_rm = true (should compute)
-   - [ ] Test: No NA values (should work regardless of na_rm)
-   - [ ] Test: Grouped aggregation with NA
+3. [x] **Add comprehensive NA tests**
+   - [x] Test: All NA values (should return NA)
+   - [x] Test: Some NA values with na_rm = false (should error)
+   - [x] Test: Some NA values with na_rm = true (should compute)
+   - [x] Test: No NA values (should work regardless of na_rm)
+   - [x] Test: Grouped aggregation with NA
 
-4. [ ] **Update documentation**
+4. [x] **Update documentation**
    - Document na_rm parameter in function signatures
    - Add NA handling section to stats guide
    - Update examples to show NA handling patterns
