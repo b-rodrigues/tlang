@@ -322,11 +322,42 @@ df.age        -- column as Vector
 df = read_csv("data.tsv", sep = ";")              -- custom separator
 df = read_csv("data.csv", skip_lines = 2)          -- skip first N lines
 df = read_csv("raw.csv", skip_header = true)        -- no header row
+df = read_csv("messy.csv", clean_colnames = true)   -- normalize column names
 
 -- Save DataFrames
 write_csv(df, "output.csv")                         -- write to CSV
 write_csv(df, "output.tsv", sep = "\t")             -- custom separator
 ```
+
+### Column Name Cleaning
+
+When `clean_colnames = true`, column names are normalized into safe, consistent snake_case identifiers:
+
+```t
+-- Original headers: "Growth%", "MILLION€", "café"
+df = read_csv("data.csv", clean_colnames = true)
+colnames(df)  -- ["growth_percent", "million_euro", "cafe"]
+
+-- Standalone function on an existing DataFrame
+df2 = clean_colnames(df)
+
+-- Or on a list of strings
+clean_colnames(["A.1", "A-1"])  -- ["a_1", "a_1_2"]
+```
+
+The cleaning pipeline applies these transformations in order:
+
+| Stage | Transformation | Example |
+|-------|---------------|---------|
+| 1 | Symbol expansion (`%` → `percent`, `€` → `euro`, `$` → `dollar`, `£` → `pound`, `¥` → `yen`) | `"growth%"` → `"growthpercent"` |
+| 2 | Diacritics stripping | `"café"` → `"cafe"` |
+| 3 | Lowercase | `"MyCol"` → `"mycol"` |
+| 4 | Non-alphanumeric → `_`, collapse runs, trim edges | `"foo---bar"` → `"foo_bar"` |
+| 5 | Prefix digit-leading names with `x_` | `"1st"` → `"x_1st"` |
+| 6 | Empty names → `col_N` | `""` → `"col_1"` |
+| 7 | Collision resolution (first unchanged, then `_2`, `_3`, …) | `["A.1", "A-1"]` → `["a_1", "a_1_2"]` |
+
+The transformation is pure, stable across platforms, and idempotent.
 
 ### Data Manipulation
 
@@ -442,7 +473,7 @@ All packages are loaded automatically at startup:
 | `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`                   |
-| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`     |
+| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
 | `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `row_number`, `min_rank`, `dense_rank`, `cume_dist`, `percent_rank`, `ntile`, `lag`, `lead`, `cumsum`, `cummin`, `cummax`, `cummean`, `cumall`, `cumany` |
 | `pipeline`  | `pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run` |
 | `explain`   | `explain`, `intent_fields`, `intent_get`                |

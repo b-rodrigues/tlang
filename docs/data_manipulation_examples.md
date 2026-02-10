@@ -28,7 +28,31 @@ df = read_csv("data_with_header.csv", skip_lines = 2)
 
 -- No header row (columns named V1, V2, ...)
 df = read_csv("raw_data.csv", skip_header = true)
+
+-- Normalize column names to safe snake_case identifiers
+df = read_csv("messy_headers.csv", clean_colnames = true)
 ```
+
+### Column Name Cleaning
+
+The `clean_colnames` option (or standalone function) normalizes column names:
+
+```t
+-- As a read_csv option
+df = read_csv("data.csv", clean_colnames = true)
+-- "Growth%"  → "growth_percent"
+-- "MILLION€" → "million_euro"
+-- "café"     → "cafe"
+-- "A.1"      → "a_1"
+
+-- As a standalone function on a DataFrame
+df2 = clean_colnames(df)
+
+-- On a list of strings
+clean_colnames(["A.1", "A-1"])  -- ["a_1", "a_1_2"]
+```
+
+Duplicate names after cleaning are disambiguated: the first occurrence stays unchanged, subsequent duplicates get `_2`, `_3`, etc.
 
 ---
 

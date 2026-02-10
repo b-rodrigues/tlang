@@ -584,7 +584,7 @@ let split_lines (s : string) : string list =
   ) lines
 
 (** Parse a CSV string into an Arrow-backed DataFrame *)
-let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) (content : string) : value =
+let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) ?(clean_colnames=false) (content : string) : value =
   let lines = split_lines content in
   (* Remove trailing empty lines *)
   let lines = List.filter (fun l -> String.trim l <> "") lines in
@@ -602,6 +602,11 @@ let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) (content : 
           (headers, lines)
         else
           (parse_csv_line ~sep first_line, rest_lines)
+      in
+      (* Apply column name cleaning if requested *)
+      let headers =
+        if clean_colnames then Clean_colnames.clean_names headers
+        else headers
       in
       let ncols = List.length headers in
       let data_rows = List.map (parse_csv_line ~sep) data_lines in
@@ -650,11 +655,38 @@ let initial_env () : environment =
   let env = Error_mod.register env in
   let env = Error_utils.register env in
   (* Dataframe package *)
-  let env = T_read_csv.register ~parse_csv_string:(fun ~sep ~skip_header ~skip_lines content -> parse_csv_string ~sep ~skip_header ~skip_lines content) env in
+  let env = T_read_csv.register ~parse_csv_string:(fun ~sep ~skip_header ~skip_lines ~clean_colnames content -> parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames content) env in
   let env = T_write_csv.register ~write_csv_fn:(fun ~sep table path -> Arrow_io.write_csv ~sep table path) env in
   let env = Colnames.register env in
   let env = Nrow.register env in
   let env = Ncol.register env in
+  (* clean_colnames as a standalone function on DataFrames *)
+  let env = Env.add "clean_colnames"
+    (make_builtin 1 (fun args _env ->
+      match args with
+      | [VDataFrame { arrow_table; group_keys }] ->
+          let old_names = Arrow_table.column_names arrow_table in
+          let new_names = Clean_colnames.clean_names old_names in
+          let columns = List.map2 (fun old_name new_name ->
+            match Arrow_table.get_column arrow_table old_name with
+            | Some col -> (new_name, col)
+            | None -> (new_name, Arrow_table.NullColumn (Arrow_table.num_rows arrow_table))
+          ) old_names new_names in
+          let nrows = Arrow_table.num_rows arrow_table in
+          let new_table = Arrow_table.create columns nrows in
+          VDataFrame { arrow_table = new_table; group_keys }
+      | [VList items] ->
+          let strs = List.map (fun (_, v) ->
+            match v with VString s -> s | _ -> Ast.Utils.value_to_string v
+          ) items in
+          let cleaned = Clean_colnames.clean_names strs in
+          VList (List.map (fun s -> (None, VString s)) cleaned)
+      | [VNA _] -> make_error TypeError "clean_colnames() expects a DataFrame or List, got NA"
+      | [_] -> make_error TypeError "clean_colnames() expects a DataFrame or List of strings"
+      | _ -> make_error ArityError "clean_colnames() takes exactly 1 argument"
+    ))
+    env
+  in
   (* Pipeline package *)
   let env = Pipeline_nodes.register env in
   let env = Pipeline_deps.register env in

@@ -27,9 +27,13 @@ let register ~parse_csv_string env =
         | Some "skip_lines", VInt n when n >= 0 -> n
         | _ -> acc
       ) 0 named_args in
+      let do_clean = List.exists (fun (name, v) ->
+        name = Some "clean_colnames" && (match v with VBool true -> true | _ -> false)
+      ) named_args in
       (* Extract positional arguments *)
       let args = List.filter (fun (name, _) ->
-        name <> Some "sep" && name <> Some "skip_header" && name <> Some "skip_lines"
+        name <> Some "sep" && name <> Some "skip_header"
+        && name <> Some "skip_lines" && name <> Some "clean_colnames"
       ) named_args |> List.map snd in
       match args with
       | [VString path] ->
@@ -37,7 +41,7 @@ let register ~parse_csv_string env =
             let ch = open_in path in
             let content = really_input_string ch (in_channel_length ch) in
             close_in ch;
-            parse_csv_string ~sep ~skip_header ~skip_lines content
+            parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean content
           with
           | Sys_error msg -> make_error FileError ("File Error: " ^ msg))
       | [VNA _] -> make_error TypeError "read_csv() expects a String path, got NA"

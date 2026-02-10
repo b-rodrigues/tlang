@@ -327,6 +327,139 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
   print_newline ();
 
+  (* ================================================================= *)
+  (* clean_colnames tests                                               *)
+  (* ================================================================= *)
+  Printf.printf "Phase — read_csv() with clean_colnames:\n";
+
+  (* Test CSV with symbols in column names *)
+  let csv_path_symbols = "test_clean_symbols.csv" in
+  let oc_s = open_out csv_path_symbols in
+  output_string oc_s "growth%,MILLION\xe2\x82\xac,price$\n10,500,42\n";
+  close_out oc_s;
+
+  let env_c1 = Eval.initial_env () in
+  let (_, env_c1) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_symbols) env_c1 in
+  let (v, _) = eval_string_env "colnames(df)" env_c1 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["growth_percent", "million_euro", "price_dollar"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 clean_colnames expands symbols\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 clean_colnames expands symbols\n    Expected: [\"growth_percent\", \"million_euro\", \"price_dollar\"]\n    Got: %s\n" result
+  end;
+
+  (* Test CSV with punctuation in column names *)
+  let csv_path_punct = "test_clean_punct.csv" in
+  let oc_p = open_out csv_path_punct in
+  output_string oc_p "A.1,foo---bar,hello world\n1,2,3\n";
+  close_out oc_p;
+
+  let env_c2 = Eval.initial_env () in
+  let (_, env_c2) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_punct) env_c2 in
+  let (v, _) = eval_string_env "colnames(df)" env_c2 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["a_1", "foo_bar", "hello_world"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 clean_colnames handles punctuation\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 clean_colnames handles punctuation\n    Expected: [\"a_1\", \"foo_bar\", \"hello_world\"]\n    Got: %s\n" result
+  end;
+
+  (* Test CSV with Unicode diacritics *)
+  let csv_path_unicode = "test_clean_unicode.csv" in
+  let oc_u = open_out csv_path_unicode in
+  output_string oc_u "caf\xc3\xa9,na\xc3\xafve\n1,2\n";
+  close_out oc_u;
+
+  let env_c3 = Eval.initial_env () in
+  let (_, env_c3) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_unicode) env_c3 in
+  let (v, _) = eval_string_env "colnames(df)" env_c3 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["cafe", "naive"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 clean_colnames strips diacritics\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 clean_colnames strips diacritics\n    Expected: [\"cafe\", \"naive\"]\n    Got: %s\n" result
+  end;
+
+  (* Test collision resolution *)
+  let csv_path_collide = "test_clean_collide.csv" in
+  let oc_co = open_out csv_path_collide in
+  output_string oc_co "A.1,A-1,A_1\n1,2,3\n";
+  close_out oc_co;
+
+  let env_c4 = Eval.initial_env () in
+  let (_, env_c4) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_collide) env_c4 in
+  let (v, _) = eval_string_env "colnames(df)" env_c4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["a_1", "a_1_2", "a_1_3"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 clean_colnames resolves collisions\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 clean_colnames resolves collisions\n    Expected: [\"a_1\", \"a_1_2\", \"a_1_3\"]\n    Got: %s\n" result
+  end;
+
+  (* Test digit-prefixed names *)
+  let csv_path_digits = "test_clean_digits.csv" in
+  let oc_d = open_out csv_path_digits in
+  output_string oc_d "1st,2nd_col,normal\n1,2,3\n";
+  close_out oc_d;
+
+  let env_c5 = Eval.initial_env () in
+  let (_, env_c5) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_digits) env_c5 in
+  let (v, _) = eval_string_env "colnames(df)" env_c5 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["x_1st", "x_2nd_col", "normal"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 clean_colnames prefixes digit-leading names\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 clean_colnames prefixes digit-leading names\n    Expected: [\"x_1st\", \"x_2nd_col\", \"normal\"]\n    Got: %s\n" result
+  end;
+
+  (* Test clean_colnames = false preserves original names *)
+  let env_c6 = Eval.initial_env () in
+  let (_, env_c6) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = false)|} csv_path_punct) env_c6 in
+  let (v, _) = eval_string_env "colnames(df)" env_c6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["A.1", "foo---bar", "hello world"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 clean_colnames = false preserves original names\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 clean_colnames = false preserves original names\n    Expected: [\"A.1\", \"foo---bar\", \"hello world\"]\n    Got: %s\n" result
+  end;
+
+  (* Test standalone clean_colnames() on a DataFrame *)
+  let env_c7 = Eval.initial_env () in
+  let (_, env_c7) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path_punct) env_c7 in
+  let (_, env_c7) = eval_string_env "df2 = clean_colnames(df)" env_c7 in
+  let (v, _) = eval_string_env "colnames(df2)" env_c7 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["a_1", "foo_bar", "hello_world"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 standalone clean_colnames() on DataFrame\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 standalone clean_colnames() on DataFrame\n    Expected: [\"a_1\", \"foo_bar\", \"hello_world\"]\n    Got: %s\n" result
+  end;
+
+  (* Test standalone clean_colnames() on a List *)
+  let env_c8 = Eval.initial_env () in
+  let (v, _) = eval_string_env {|clean_colnames(["A.1", "A-1"])|} env_c8 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["a_1", "a_1_2"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 standalone clean_colnames() on List\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 standalone clean_colnames() on List\n    Expected: [\"a_1\", \"a_1_2\"]\n    Got: %s\n" result
+  end;
+
+  (* Test idempotence: clean(clean(x)) == clean(x) *)
+  let env_c9 = Eval.initial_env () in
+  let (_, env_c9) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_symbols) env_c9 in
+  let (_, env_c9) = eval_string_env "df2 = clean_colnames(df)" env_c9 in
+  let (v1, _) = eval_string_env "colnames(df)" env_c9 in
+  let (v2, _) = eval_string_env "colnames(df2)" env_c9 in
+  let r1 = Ast.Utils.value_to_string v1 in
+  let r2 = Ast.Utils.value_to_string v2 in
+  if r1 = r2 then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 clean_colnames is idempotent\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 clean_colnames is idempotent\n    First clean: %s\n    Second clean: %s\n" r1 r2
+  end;
+  print_newline ();
+
   (* Clean up test CSV files *)
   (try Sys.remove csv_path with _ -> ());
   (try Sys.remove csv_path_types with _ -> ());
@@ -335,4 +468,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (try Sys.remove csv_path_sep with _ -> ());
   (try Sys.remove csv_path_skip with _ -> ());
   (try Sys.remove csv_path_noheader with _ -> ());
-  (try Sys.remove csv_out_sep with _ -> ())
+  (try Sys.remove csv_out_sep with _ -> ());
+  (try Sys.remove csv_path_symbols with _ -> ());
+  (try Sys.remove csv_path_punct with _ -> ());
+  (try Sys.remove csv_path_unicode with _ -> ());
+  (try Sys.remove csv_path_collide with _ -> ());
+  (try Sys.remove csv_path_digits with _ -> ())
