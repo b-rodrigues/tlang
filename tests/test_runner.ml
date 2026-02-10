@@ -54,6 +54,7 @@ let () =
   Test_dataframe.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_pipeline.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_colcraft.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_window.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_math.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_stats.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_explain_tests.run_tests pass_count fail_count eval_string eval_string_env test;

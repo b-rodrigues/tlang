@@ -256,7 +256,35 @@ and eval_dot_access env target_expr field =
               then VDict [("__partial_dot_df__", df_val);
                           ("__partial_dot_prefix__", VString compound)]
               else make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" compound))
-         | _ -> make_error KeyError (Printf.sprintf "key '%s' not found in dict" field)))
+         | _ ->
+           (* Check for partial dot-access on a plain dict with compound keys
+              (e.g. row.Petal.Length where dict has key "Petal.Length").
+              Internal keys __partial_dot_dict__ and __partial_dot_prefix__ carry the
+              original dict pairs and accumulated prefix through chained dot accesses. *)
+           (match List.assoc_opt "__partial_dot_dict__" pairs with
+            | Some (VDict orig_pairs) ->
+              let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
+                            | Some (VString s) -> s | _ -> "") in
+              let compound = if prefix = "" then field else prefix ^ "." ^ field in
+              (match List.assoc_opt compound orig_pairs with
+               | Some v -> v
+               | None ->
+                 let cpfx = compound ^ "." in
+                 let cpfx_len = String.length cpfx in
+                 if List.exists (fun (k, _) ->
+                   String.length k > cpfx_len && String.sub k 0 cpfx_len = cpfx) orig_pairs
+                 then VDict [("__partial_dot_dict__", VDict orig_pairs);
+                             ("__partial_dot_prefix__", VString compound)]
+                 else make_error KeyError (Printf.sprintf "key '%s' not found in dict" compound))
+            | _ ->
+              (* Check if any keys have this field as a dotted prefix *)
+              let pfx = field ^ "." in
+              let pfx_len = String.length pfx in
+              if List.exists (fun (k, _) ->
+                String.length k > pfx_len && String.sub k 0 pfx_len = pfx) pairs
+              then VDict [("__partial_dot_dict__", VDict pairs);
+                          ("__partial_dot_prefix__", VString field)]
+              else make_error KeyError (Printf.sprintf "key '%s' not found in dict" field))))
   | VList named_items ->
       (match List.find_opt (fun (name, _) -> name = Some field) named_items with
       | Some (_, v) -> v
@@ -586,6 +614,9 @@ let initial_env () : environment =
   let env = Arrange.register env in
   let env = Group_by.register env in
   let env = Summarize.register ~eval_call env in
+  let env = Window_rank.register env in
+  let env = Window_offset.register env in
+  let env = Window_cumulative.register env in
   (* Math package *)
   let env = T_sqrt.register env in
   let env = T_abs.register env in

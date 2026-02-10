@@ -1,7 +1,6 @@
 -- Test: Filter out NAs
--- Note: NA handling may not be implemented yet
+-- Compares to: dplyr::filter(!is.na(Ozone))
 df = read_csv("tests/golden/data/data_with_nas.csv")
--- This is a placeholder for when NA handling is implemented
--- result = df |> filter(\(row) !is_na(row.Ozone))
--- For now, skip this test
-print("⚠ filter(!is.na(Ozone)) - not yet implemented")
+result = df |> filter(\(row) not is_na(row.Ozone))
+write_csv(result, "tests/golden/t_outputs/airquality_filter_no_na.csv")
+print("✓ filter(!is.na(Ozone)) complete")

@@ -165,7 +165,7 @@ test_that("PIPELINE: filter %>% mutate %>% arrange", {
 })
 
 test_that("PIPELINE: group_by %>% mutate (window)", {
-  skip("Window functions not yet implemented in T")
+  skip("Grouped mutate (group_by %>% mutate with group-aware expressions) not yet supported in T")
   compare_csvs("mtcars_pipeline_groupby_mutate")
 })
 
@@ -178,17 +178,16 @@ test_that("PIPELINE: complex iris pipeline", {
 # ============================================================================
 
 test_that("NA: mean with na.rm", {
-  skip("NA handling not yet implemented in T")
+  skip("mean() does not yet support na_rm parameter")
   compare_csvs("airquality_mean_na_rm")
 })
 
 test_that("NA: filter out NAs", {
-  skip("NA handling not yet implemented in T")
   compare_csvs("airquality_filter_no_na")
 })
 
 test_that("NA: group by with NAs", {
-  skip("NA handling not yet implemented in T")
+  skip("Grouped summarize with na_rm not yet supported")
   compare_csvs("airquality_groupby_with_nas")
 })
 
@@ -197,13 +196,12 @@ test_that("NA: group by with NAs", {
 # ============================================================================
 
 test_that("LM: simple regression coefficients", {
-  skip("lm() not yet implemented in T")
+  skip("T's lm() returns different format than broom::tidy")
   compare_csvs("lm_mpg_hp_coefficients", tolerance = 1e-5)
 })
 
 test_that("LM: simple regression statistics", {
-  skip("lm() not yet implemented in T")
-  compare_csvs("lm_mpg_hp_stats", tolerance = 1e-5)
+  compare_csvs("lm_mpg_hp_simple", tolerance = 1e-5)
 })
 
 # ============================================================================
@@ -211,12 +209,10 @@ test_that("LM: simple regression statistics", {
 # ============================================================================
 
 test_that("COR: simple correlation", {
-  skip("cor() not yet implemented in T")
   compare_csvs("cor_mpg_hp", tolerance = 1e-6)
 })
 
 test_that("COR: iris correlation", {
-  skip("cor() not yet implemented in T")
   compare_csvs("cor_iris_sepal_petal", tolerance = 1e-6)
 })
 
@@ -241,8 +237,96 @@ test_that("EDGE CASE: mutate on single row DataFrame", {
 })
 
 test_that("EDGE CASE: division by zero (Inf handling)", {
-  skip("Division by zero handling not yet implemented in T")
+  skip("T returns DivisionByZero error instead of Inf for division by zero")
   compare_csvs("edge_division", tolerance = 1e-6)
+})
+
+# ============================================================================
+# Test Suite 11: RANKING WINDOW FUNCTIONS
+# ============================================================================
+
+test_that("WINDOW RANK: row_number on simple.age", {
+  compare_csvs("simple_row_number_age")
+})
+
+test_that("WINDOW RANK: min_rank on simple.age", {
+  compare_csvs("simple_min_rank_age")
+})
+
+test_that("WINDOW RANK: dense_rank on simple.age", {
+  compare_csvs("simple_dense_rank_age")
+})
+
+test_that("WINDOW RANK: percent_rank on simple.age", {
+  compare_csvs("simple_percent_rank_age")
+})
+
+test_that("WINDOW RANK: cume_dist on simple.age", {
+  compare_csvs("simple_cume_dist_age")
+})
+
+test_that("WINDOW RANK: ntile on simple.age", {
+  compare_csvs("simple_ntile_age")
+})
+
+test_that("WINDOW RANK: min_rank on mtcars.mpg", {
+  compare_csvs("mtcars_min_rank_mpg")
+})
+
+# ============================================================================
+# Test Suite 12: OFFSET WINDOW FUNCTIONS (lead/lag)
+# ============================================================================
+
+test_that("WINDOW OFFSET: lag on simple.score", {
+  compare_csvs("simple_lag_score")
+})
+
+test_that("WINDOW OFFSET: lead on simple.score", {
+  compare_csvs("simple_lead_score")
+})
+
+test_that("WINDOW OFFSET: lag with offset 2 on simple.score", {
+  compare_csvs("simple_lag2_score")
+})
+
+test_that("WINDOW OFFSET: lead with offset 2 on simple.score", {
+  compare_csvs("simple_lead2_score")
+})
+
+test_that("WINDOW OFFSET: lag on mtcars.mpg", {
+  compare_csvs("mtcars_lag_mpg")
+})
+
+test_that("WINDOW OFFSET: lead on mtcars.mpg", {
+  compare_csvs("mtcars_lead_mpg")
+})
+
+# ============================================================================
+# Test Suite 13: CUMULATIVE WINDOW FUNCTIONS
+# ============================================================================
+
+test_that("WINDOW CUMULATIVE: cumsum on simple.score", {
+  compare_csvs("simple_cumsum_score")
+})
+
+test_that("WINDOW CUMULATIVE: cummax on simple.score", {
+  compare_csvs("simple_cummax_score")
+})
+
+test_that("WINDOW CUMULATIVE: cummin on simple.score", {
+  compare_csvs("simple_cummin_score")
+})
+
+test_that("WINDOW CUMULATIVE: cummean on simple.score", {
+  compare_csvs("simple_cummean_score")
+})
+
+test_that("WINDOW CUMULATIVE: cumsum on mtcars.mpg", {
+  compare_csvs("mtcars_cumsum_mpg")
+})
+
+test_that("WINDOW CUMULATIVE: cumall and cumany", {
+  compare_csvs("simple_cumall_cumany")
 })
 
 # ============================================================================
