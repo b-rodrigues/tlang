@@ -272,7 +272,7 @@ The T Language Alpha implementation includes **22 additional functions** and **1
 
 > **Critical Focus**: Performance Optimization  
 > **Current Status**: 96% Complete (4% remaining)  
-> **Estimated Time**: 2-3 weeks  
+> **Estimated Time**: 13-16 days (2.5-3 weeks)  
 > **Priority**: HIGH — Essential for production-ready alpha release
 
 This section outlines the concrete implementation phases required to complete the T Language Alpha (v0.1), with **primary emphasis on performance optimization** to achieve production-quality performance on datasets >10,000 rows.
@@ -288,7 +288,7 @@ This section outlines the concrete implementation phases required to complete th
 | **3** | **Edge Case Hardening** | Potential crashes on unusual inputs | 2-3 days | MEDIUM |
 | **4** | **Documentation Polish** | Minor inconsistencies | 1-2 days | LOW |
 
-**Total Remaining Work**: 12-16 days across 4 phases
+**Total Remaining Work**: 13-16 days across 4 phases
 
 ---
 
@@ -338,7 +338,7 @@ let get_at view idx =
 - [ ] Add correctness tests (view access == list access)
 - [ ] Benchmark: Measure speedup (target: **10x+ improvement**)
 
-**Success Criteria**: Column access on 100k rows completes in <10ms (vs. current ~500ms)
+**Success Criteria**: Column access on 100k rows completes in <50ms (vs. current ~500ms)
 
 ---
 
@@ -375,7 +375,7 @@ let map_column_numeric f col =
 - [ ] Add tests comparing vectorized vs. non-vectorized results
 - [ ] Benchmark: Measure speedup (target: **5-10x improvement**)
 
-**Success Criteria**: Arithmetic operations on 100k rows complete in <50ms (vs. current ~2s)
+**Success Criteria**: Arithmetic operations on 100k rows complete in <200ms (vs. current ~2s)
 
 ---
 
@@ -407,7 +407,7 @@ let group_by df keys =
 - [ ] Add correctness tests (grouped results match current implementation)
 - [ ] Benchmark: Measure speedup (target: **10-20x improvement** on large groups)
 
-**Success Criteria**: Grouping + summarization on 100k rows with 1000 groups completes in <200ms (vs. current ~5s)
+**Success Criteria**: Grouping + summarization on 100k rows with 1000 groups completes in <500ms (vs. current ~5s)
 
 ---
 
@@ -607,10 +607,10 @@ let group_by df keys =
 
 | Operation | 100k Rows | 1M Rows | Target vs. Current |
 |-----------|-----------|---------|-------------------|
-| Column selection | <10ms | <50ms | **10x faster** |
-| Arithmetic ops | <50ms | <300ms | **5-10x faster** |
-| Filtering | <100ms | <500ms | **5x faster** |
-| Grouping + agg | <200ms | <2s | **10-20x faster** |
+| Column selection | <50ms | <200ms | **10x faster** |
+| Arithmetic ops | <200ms | <1s | **5-10x faster** |
+| Filtering | <100ms | <500ms | **5-10x faster** |
+| Grouping + agg | <500ms | <3s | **10-20x faster** |
 | Window functions | <300ms | <3s | **5-10x faster** |
 
 ---
