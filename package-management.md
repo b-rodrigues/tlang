@@ -285,7 +285,7 @@ my-project/
 
 ### Project flake.nix
 
-The project `flake.nix` automatically reads package dependencies from `tproject.toml` and includes them in the development environment.
+The project uses `tproject.toml` for declaring dependencies, and the `t` CLI tool helps synchronize these with the `flake.nix` inputs.
 
 **Design decision: tproject.toml vs tproject.nix**
 
@@ -295,9 +295,9 @@ We use **`tproject.toml`** because:
 - Can be parsed by the `t` CLI for commands like `t install`
 - Human-readable and easy to edit
 
-The flake reads `tproject.toml` at build time using `builtins.fromTOML`.
+When you add a package to `tproject.toml` and run `t install`, it automatically updates your `flake.nix` to include the package as an input.
 
-**Generated project flake.nix:**
+**Example project flake.nix:**
 
 ```nix
 {
@@ -308,6 +308,11 @@ The flake reads `tproject.toml` at build time using `builtins.fromTOML`.
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
     flake-utils.url = "github:numtide/flake-utils";
     t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
+    
+    # T packages - auto-added by 't install' command from tproject.toml
+    stats.url = "github:t-lang/stats/v0.5.0";
+    colcraft.url = "github:t-lang/colcraft/v0.2.1";
+    my-viz-package.url = "github:johndoe/t-viz/v1.2.0";
   };
 
   # Configure cachix for R packages
@@ -320,36 +325,17 @@ The flake reads `tproject.toml` at build time using `builtins.fromTOML`.
     ];
   };
 
-  outputs = { self, nixpkgs, flake-utils, t-lang }:
+  outputs = { self, nixpkgs, flake-utils, t-lang, stats, colcraft, my-viz-package }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         
-        # Parse tproject.toml to get package dependencies
-        projectConfig = builtins.fromTOML (builtins.readFile ./tproject.toml);
-        
-        # Helper function to fetch a T package from git
-        fetchTPackage = name: spec:
-          let
-            pkg = builtins.fetchGit {
-              url = spec.git;
-              ref = "refs/tags/${spec.tag}";
-            };
-          in
-          (import "${pkg}/flake.nix").outputs {
-            inherit self nixpkgs;
-            inherit (nixpkgs) lib;
-            flake-utils = flake-utils;
-            t-lang = t-lang;
-          };
-        
-        # Load all T packages from tproject.toml
-        tPackages = pkgs.lib.mapAttrs fetchTPackage projectConfig.dependencies;
-        
-        # Collect package derivations
-        projectPackages = pkgs.lib.mapAttrsToList 
-          (name: pkg: pkg.packages.${system}.default or pkg.defaultPackage.${system})
-          tPackages;
+        # Collect all T package dependencies
+        tPackages = [
+          stats.packages.${system}.default
+          colcraft.packages.${system}.default
+          my-viz-package.packages.${system}.default
+        ];
 
       in
       {
@@ -358,7 +344,7 @@ The flake reads `tproject.toml` at build time using `builtins.fromTOML`.
           buildInputs = [
             t-lang.packages.${system}.default
             pkgs.pandoc  # For documentation generation
-          ] ++ projectPackages;
+          ] ++ tPackages;
 
           shellHook = ''
             echo "=================================================="
@@ -367,7 +353,11 @@ The flake reads `tproject.toml` at build time using `builtins.fromTOML`.
             echo ""
             echo "T version: $(t --version)"
             echo "Nixpkgs date: 2026-02-10"
-            echo "Loaded T packages: ${toString (pkgs.lib.attrNames tPackages)}"
+            echo ""
+            echo "Loaded packages:"
+            echo "  - stats (v0.5.0)"
+            echo "  - colcraft (v0.2.1)"
+            echo "  - my-viz-package (v1.2.0)"
             echo ""
             echo "Available commands:"
             echo "  t repl              - Start T REPL"
@@ -388,9 +378,11 @@ The flake reads `tproject.toml` at build time using `builtins.fromTOML`.
 }
 ```
 
+The `t install` command reads `tproject.toml`, and automatically updates the `flake.nix` inputs section and the `tPackages` list in the outputs.
+
 ### tproject.toml
 
-The `tproject.toml` file specifies project metadata and T package dependencies. This file is automatically parsed by the project's `flake.nix` to include packages in the development environment.
+The `tproject.toml` file specifies project metadata and T package dependencies. When you run `t install`, it reads this file and synchronizes your `flake.nix`.
 
 ```toml
 [project]
@@ -437,11 +429,12 @@ readr = "*"
 **Using packages in your project:**
 
 1. Edit `tproject.toml` and add the package to `[dependencies]`
-2. Run `nix flake lock` to update the lockfile
-3. Run `nix develop` to enter the environment with all packages loaded
-4. That's it! The packages are automatically available in your T code
+2. Run `t install` to update flake.nix with the new package
+3. Run `nix flake lock` to update the lockfile
+4. Run `nix develop` to enter the environment with all packages loaded
+5. That's it! The packages are now available in your T code
 
-No need to manually edit the flake inputs - the flake reads `tproject.toml` automatically.
+The `t install` command synchronizes `tproject.toml` with `flake.nix` automatically.
 
 ---
 
@@ -449,11 +442,11 @@ No need to manually edit the flake inputs - the flake reads `tproject.toml` auto
 
 ### How It Works
 
-1. **tproject.toml parsing**: The project flake reads `tproject.toml` using `builtins.fromTOML` at build time.
+1. **tproject.toml declaration**: You declare packages in `tproject.toml` with git URLs and tags.
 
-2. **Automatic package fetching**: Each package in `[dependencies]` is fetched from its git repository using the specified tag.
+2. **t install sync**: The `t install` command reads `tproject.toml` and updates `flake.nix` to add the package as a flake input.
 
-3. **Nix flake lock**: When you run `nix flake lock` in a project, Nix resolves all inputs and creates a `flake.lock` file with exact commits/hashes.
+3. **Nix flake lock**: When you run `nix flake lock`, Nix resolves all flake inputs and creates a `flake.lock` file with exact commits/hashes.
 
 4. **rstats-on-nix date pins**: The nixpkgs input is pinned to a specific date branch (e.g., `2026-02-10`), which corresponds to a snapshot of all R packages at that date.
 
@@ -666,39 +659,31 @@ All published packages should:
    my-awesome-package = { git = "https://github.com/username/my-awesome-package", tag = "v0.2.0" }
    ```
 
-4. **Update flake.nix** to include the packages:
-   ```nix
-   inputs = {
-     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
-     t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
-     stats.url = "github:t-lang/stats/v0.5.0";
-     colcraft.url = "github:t-lang/colcraft/v0.2.1";
-     my-awesome-package.url = "github:username/my-awesome-package/v0.2.0";
-   };
-   
-   # In outputs, reference the packages
-   outputs = { self, nixpkgs, t-lang, stats, colcraft, my-awesome-package, ... }:
-     # ...
-     projectPackages = [
-       stats.packages.${system}.default
-       colcraft.packages.${system}.default
-       my-awesome-package.packages.${system}.default
-     ];
+4. **Synchronize flake with tproject.toml**:
+   ```bash
+   t install
    ```
+   
+   This reads `tproject.toml` and updates `flake.nix` to add the packages as inputs.
 
 5. **Lock dependencies**:
    ```bash
    nix flake lock
    ```
 
-6. **Write your analysis** in `src/`:
+6. **Enter development environment**:
+   ```bash
+   nix develop
+   ```
+
+7. **Write your analysis** in `src/`:
    ```bash
    # src/analysis.t
    data = read_csv("data/customers.csv")
    result = data |> cool_function()
    ```
 
-7. **Run your analysis**:
+8. **Run your analysis**:
    ```bash
    t run src/analysis.t
    ```
@@ -707,7 +692,7 @@ All published packages should:
 
 When sharing a project with collaborators:
 
-1. **Commit flake.lock** to version control
+1. **Commit both tproject.toml and flake.lock** to version control
 2. **Share the repository** (e.g., GitHub)
 3. **Collaborators run**:
    ```bash
@@ -898,9 +883,12 @@ The generated documentation is committed to the repository, making it available:
 
 ### Planned Features
 
-- [ ] `t install <package-url>`: Add package flake input reference to tproject.toml and update flake.nix
-- [ ] `t update`: Update packages to latest tagged releases
+- [x] `t install`: Synchronize tproject.toml with flake.nix (reads dependencies and updates flake inputs)
+- [ ] `t install <package-url>`: Interactive package installation (prompts to add to tproject.toml)
+- [ ] `t update`: Update packages to latest tagged releases in tproject.toml
+- [ ] `t update <package>`: Update specific package to latest release
 - [ ] `t test`: Run all package/project tests
+- [ ] `t document`: Generate documentation from docstrings (covered above)
 - [ ] `t publish`: Create initial release tag and push to git repository
 - [ ] `t doctor`: Verify project setup and dependencies
 - [ ] `t search <query>`: Search community package index for packages
