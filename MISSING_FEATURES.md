@@ -283,7 +283,7 @@ This section outlines the concrete implementation phases required to complete th
 
 | Phase | Issue | Impact | Time | Priority |
 |-------|-------|--------|------|----------|
-| **1** | **Arrow Backend Stubbed** | 10x performance penalty on 100k+ rows | 7-8 days | CRITICAL |
+| **1** | **Arrow Backend Stubbed** | ~10x performance penalty on 100k+ rows | 7-8 days | CRITICAL |
 | **2** | **Large Dataset Testing** | Unknown behavior >100k rows | 2-3 days | HIGH |
 | **3** | **Edge Case Hardening** | Potential crashes on unusual inputs | 2 days | MEDIUM |
 | **4** | **Documentation Polish** | Minor inconsistencies | 2 days | LOW |
@@ -451,8 +451,8 @@ let group_by df keys =
 **Steps**:
 - [ ] Generate CSV test datasets:
   - [ ] 10k rows, 10 columns (small)
-  - [ ] 100k rows, 20 columns (medium)
-  - [ ] 1M rows, 50 columns (large)
+  - [ ] 100k rows, 15 columns (medium)
+  - [ ] 1M rows, 20 columns (large)
 - [ ] Include diverse data types (Int, Float, String, NA)
 - [ ] Include edge cases (all NA column, single value column, high cardinality)
 
@@ -605,8 +605,6 @@ let group_by df keys =
 
 **Key Performance Targets**:
 
-Performance targets assume linear scaling with row count (10x rows = 10x time) for columnar operations. Actual scaling may vary based on operation type and dataset characteristics.
-
 | Operation | Current (100k) | Target (100k) | Target (1M) | Improvement |
 |-----------|---------------------|--------------------|--------------------|-------------|
 | Column selection | ~500ms | <50ms | <500ms | **10x faster** |
@@ -615,7 +613,9 @@ Performance targets assume linear scaling with row count (10x rows = 10x time) f
 | Grouping + agg | ~5s | <500ms | <5s | **10x faster** |
 | Window functions | ~3s | <300ms | <3s | **10x faster** |
 
-*Note: Targets based on typical datasets with 10-20 columns. Performance may vary with significantly higher column counts.*
+*Performance targets assume linear scaling with row count (10x rows = 10x time) for columnar operations. Actual scaling may vary based on operation type and dataset characteristics.*
+
+*Targets based on typical datasets with 10-20 columns. Performance may vary with significantly higher column counts.*
 
 ---
 
