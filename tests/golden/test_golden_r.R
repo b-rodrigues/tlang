@@ -178,17 +178,16 @@ test_that("PIPELINE: complex iris pipeline", {
 # ============================================================================
 
 test_that("NA: mean with na.rm", {
-  skip("NA handling not yet implemented in T")
+  skip("mean() does not yet support na_rm parameter")
   compare_csvs("airquality_mean_na_rm")
 })
 
 test_that("NA: filter out NAs", {
-  skip("NA handling not yet implemented in T")
   compare_csvs("airquality_filter_no_na")
 })
 
 test_that("NA: group by with NAs", {
-  skip("NA handling not yet implemented in T")
+  skip("Grouped summarize with na_rm not yet supported")
   compare_csvs("airquality_groupby_with_nas")
 })
 
@@ -197,13 +196,12 @@ test_that("NA: group by with NAs", {
 # ============================================================================
 
 test_that("LM: simple regression coefficients", {
-  skip("lm() not yet implemented in T")
+  skip("T's lm() returns different format than broom::tidy")
   compare_csvs("lm_mpg_hp_coefficients", tolerance = 1e-5)
 })
 
 test_that("LM: simple regression statistics", {
-  skip("lm() not yet implemented in T")
-  compare_csvs("lm_mpg_hp_stats", tolerance = 1e-5)
+  compare_csvs("lm_mpg_hp_simple", tolerance = 1e-5)
 })
 
 # ============================================================================
@@ -211,12 +209,10 @@ test_that("LM: simple regression statistics", {
 # ============================================================================
 
 test_that("COR: simple correlation", {
-  skip("cor() not yet implemented in T")
   compare_csvs("cor_mpg_hp", tolerance = 1e-6)
 })
 
 test_that("COR: iris correlation", {
-  skip("cor() not yet implemented in T")
   compare_csvs("cor_iris_sepal_petal", tolerance = 1e-6)
 })
 
@@ -241,7 +237,7 @@ test_that("EDGE CASE: mutate on single row DataFrame", {
 })
 
 test_that("EDGE CASE: division by zero (Inf handling)", {
-  skip("Division by zero handling not yet implemented in T")
+  skip("T returns DivisionByZero error instead of Inf for division by zero")
   compare_csvs("edge_division", tolerance = 1e-6)
 })
 

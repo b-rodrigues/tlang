@@ -19,13 +19,13 @@ mtcars <- read_csv(file.path(data_dir, "mtcars.csv"), show_col_types = FALSE)
 # ============================================================================
 message("=== LINEAR MODEL Tests ===")
 
-# Test 8.1: Simple linear regression (mpg ~ hp)
+# Test 8.1: Simple linear regression (mpg ~ hp) - coefficients (broom format)
 lm_mpg_hp <- lm(mpg ~ hp, data = mtcars)
 lm_mpg_hp_tidy <- tidy(lm_mpg_hp)
 write_csv(lm_mpg_hp_tidy, file.path(output_dir, "lm_mpg_hp_coefficients.csv"))
 message("✓ lm(mpg ~ hp) coefficients")
 
-# Save model stats
+# Save model stats (full R stats)
 lm_mpg_hp_stats <- tibble(
   r_squared = summary(lm_mpg_hp)$r.squared,
   adj_r_squared = summary(lm_mpg_hp)$adj.r.squared,
@@ -34,6 +34,16 @@ lm_mpg_hp_stats <- tibble(
 )
 write_csv(lm_mpg_hp_stats, file.path(output_dir, "lm_mpg_hp_stats.csv"))
 message("✓ lm(mpg ~ hp) statistics")
+
+# Test 8.1b: Simple linear regression - T-compatible format
+# T's lm() returns intercept, slope, r_squared
+lm_mpg_hp_simple <- tibble(
+  intercept = coef(lm_mpg_hp)[1],
+  slope = coef(lm_mpg_hp)[2],
+  r_squared = summary(lm_mpg_hp)$r.squared
+)
+write_csv(lm_mpg_hp_simple, file.path(output_dir, "lm_mpg_hp_simple.csv"))
+message("✓ lm(mpg ~ hp) simple stats (T-compatible)")
 
 # Test 8.2: Multiple regression (mpg ~ hp + wt)
 lm_mpg_multi <- lm(mpg ~ hp + wt, data = mtcars)

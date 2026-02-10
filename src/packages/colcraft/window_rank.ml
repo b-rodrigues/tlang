@@ -178,6 +178,8 @@ let register env =
     env
   in
   (* ntile(x, n): divide into n approximately equal-sized groups *)
+  (* Matches R's dplyr::ntile: first (len %% n) groups have (len / n + 1) elements,
+     remaining groups have (len / n) elements. Assignment is based on rank. *)
   let env = Env.add "ntile"
     (make_builtin 2 (fun args _env ->
       match args with
@@ -189,10 +191,23 @@ let register env =
            if n = 0 then VVector [||]
            else
              let sorted_idx = argsort nums in
+             (* Build tile assignments for sorted positions, matching R's algorithm:
+                first r groups have (grp_len+1) elements, rest have grp_len *)
+             let grp_len = n / num_tiles in
+             let remainder = n mod num_tiles in
+             let tiles_for_sorted = Array.make n 0 in
+             let pos = ref 0 in
+             for tile = 1 to num_tiles do
+               let size = if tile <= remainder then grp_len + 1 else grp_len in
+               for _ = 1 to size do
+                 tiles_for_sorted.(!pos) <- tile;
+                 incr pos
+               done
+             done;
+             (* Assign tiles based on rank (sorted position) *)
              let result = Array.make n 0 in
-             Array.iteri (fun pos orig_idx ->
-               let tile = (pos * num_tiles / n) + 1 in
-               result.(orig_idx) <- tile
+             Array.iteri (fun sorted_pos orig_idx ->
+               result.(orig_idx) <- tiles_for_sorted.(sorted_pos)
              ) sorted_idx;
              VVector (Array.map (fun t -> VInt t) result))
       | [_; VInt n] when n <= 0 ->
