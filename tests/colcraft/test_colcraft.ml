@@ -134,6 +134,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(ArityError: "group_by() requires at least one column name")|};
   print_newline ();
 
+  Printf.printf "Phase 4 — ungroup():\n";
+  let (v, _) = eval_string_env {|df |> group_by("dept") |> ungroup|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 4 cols: [name, age, score, dept])" then begin
+    incr pass_count; Printf.printf "  ✓ ungroup removes grouping\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ ungroup removes grouping\n    Expected: DataFrame(5 rows x 4 cols: [name, age, score, dept])\n    Got: %s\n" result
+  end;
+
+  test "ungroup on ungrouped dataframe"
+    (Printf.sprintf {|df = read_csv("%s"); ungroup(df)|} csv_p4)
+    "DataFrame(5 rows x 4 cols: [name, age, score, dept])";
+  test "ungroup non-dataframe"
+    {|ungroup(42)|}
+    {|Error(TypeError: "ungroup() expects a DataFrame as first argument")|};
+  print_newline ();
+
   Printf.printf "Phase 4 — summarize():\n";
   (* Ungrouped summarize *)
   let (v, _) = eval_string_env {|summarize(df, "total_rows", \(d) nrow(d))|} env_p4 in
@@ -187,6 +204,147 @@ df |> mutate("senior", \(row) row.age >= 30)
   |> filter(\(row) row.senior == true)
   |> nrow|} csv_p4)
     "3";
+  print_newline ();
+
+  Printf.printf "Phase 4 — Grouped Mutate:\n";
+  (* Grouped mutate: broadcast group size to each row *)
+  let (v, _) = eval_string_env
+    {|df |> group_by("dept") |> mutate("dept_size", \(g) nrow(g))|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, dept_size]) grouped by [dept]" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate adds column with group context\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate adds column with group context\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, dept_size]) grouped by [dept]\n    Got: %s\n" result
+  end;
+
+  (* Grouped mutate: check broadcast values *)
+  let (v, _) = eval_string_env
+    {|result = df |> group_by("dept") |> mutate("dept_size", \(g) nrow(g)); result.dept_size|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  (* eng has 3 rows (Alice, Charlie, Eve), sales has 2 rows (Bob, Diana) *)
+  (* Original order: Alice(eng=3), Bob(sales=2), Charlie(eng=3), Diana(sales=2), Eve(eng=3) *)
+  if result = "Vector[3, 2, 3, 2, 3]" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate broadcasts group values correctly\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate broadcasts group values correctly\n    Expected: Vector[3, 2, 3, 2, 3]\n    Got: %s\n" result
+  end;
+
+  (* Grouped mutate: preserves group keys *)
+  let (v, _) = eval_string_env
+    {|df |> group_by("dept") |> mutate("x", \(g) 1)|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, x]) grouped by [dept]" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate preserves group keys\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate preserves group keys\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, x]) grouped by [dept]\n    Got: %s\n" result
+  end;
+
+  (* Grouped mutate: compute group mean score *)
+  let (v, _) = eval_string_env
+    {|result = df |> group_by("dept") |> mutate("mean_score", \(g) mean(g.score)); result.mean_score|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  (* eng scores: 95.5, 92.1, 91.5 -> mean = 93.0333333333 *)
+  (* sales scores: 87.3, 88.0 -> mean = 87.65 *)
+  (* Original order: Alice(eng), Bob(sales), Charlie(eng), Diana(sales), Eve(eng) *)
+  let contains s sub =
+    let slen = String.length s in
+    let sublen = String.length sub in
+    let rec check i = if i > slen - sublen then false
+      else if String.sub s i sublen = sub then true else check (i + 1)
+    in check 0
+  in
+  if contains result "93.03333" && contains result "87.65" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate computes group mean\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate computes group mean\n    Expected eng mean ~93.03 and sales mean ~87.65\n    Got: %s\n" result
+  end;
+
+  (* Grouped mutate followed by ungrouped operation *)
+  let (v, _) = eval_string_env
+    {|df |> group_by("dept") |> mutate("dept_size", \(g) nrow(g)) |> filter(\(row) row.dept_size > 2) |> nrow|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate chains with filter\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate chains with filter\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  (* Ungrouped mutate still works (regression check) *)
+  let (v, _) = eval_string_env {|mutate(df, "age_x2", \(row) row.age * 2) |> ncol|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  ✓ ungrouped mutate still works (regression)\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ ungrouped mutate still works (regression)\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  print_newline ();
+
+  Printf.printf "Phase 4 — Group-by with NAs (golden test repro):\n";
+
+  (* Reproduce the airquality_groupby_with_nas golden test *)
+  let csv_nas = "test_nas_groupby.csv" in
+  let oc_nas = open_out csv_nas in
+  output_string oc_nas "Ozone,Wind,Temp\n";
+  output_string oc_nas "41,7.4,67\n";
+  output_string oc_nas ",8.0,72\n";
+  output_string oc_nas "12,12.6,74\n";
+  output_string oc_nas ",14.3,56\n";
+  output_string oc_nas "28,14.9,66\n";
+  output_string oc_nas "23,8.6,65\n";
+  output_string oc_nas "45,14.9,81\n";
+  output_string oc_nas "115,5.7,79\n";
+  output_string oc_nas "37,7.4,76\n";
+  close_out oc_nas;
+
+  let env_nas = Eval.initial_env () in
+  let (_, env_nas) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_nas) env_nas in
+
+  (* Step 1: mutate with if (condition) expr else expr — T's if syntax *)
+  let step1_result = (try
+    let (v, env_n) = eval_string_env
+      {|step1 = df |> mutate("temp_category", \(row) if (row.Temp > 75) "hot" else "cool")|}
+      env_nas in
+    Ok (v, env_n)
+  with e -> Error (Printexc.to_string e))
+  in
+  (match step1_result with
+  | Ok (v, env_nas2) ->
+    let result = Ast.Utils.value_to_string v in
+    if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
+      incr pass_count; Printf.printf "  ✓ mutate with if/else on CSV with NAs\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ mutate with if/else on CSV with NAs\n    Got: %s\n" result
+    end;
+
+    (* Step 2: group_by + summarize with mean(na_rm=true) *)
+    let step2_result = (try
+      let (v2, _) = eval_string_env
+        {|result = step1 |> group_by("temp_category") |> summarize("mean_ozone", \(g) mean(g.Ozone, na_rm = true), "count", \(g) nrow(g))|}
+        env_nas2 in
+      Ok v2
+    with e -> Error (Printexc.to_string e))
+    in
+    (match step2_result with
+    | Ok v2 ->
+      let result2 = Ast.Utils.value_to_string v2 in
+      if String.length result2 >= 9 && String.sub result2 0 9 = "DataFrame" then begin
+        incr pass_count; Printf.printf "  ✓ grouped summarize with mean(na_rm=true) on NAs\n"
+      end else begin
+        incr fail_count; Printf.printf "  ✗ grouped summarize with mean(na_rm=true) on NAs\n    Got: %s\n" result2
+      end
+    | Error msg ->
+      incr fail_count; Printf.printf "  ✗ grouped summarize with mean(na_rm=true) on NAs\n    EXCEPTION: %s\n" msg)
+  | Error msg ->
+    incr fail_count; Printf.printf "  ✗ mutate with if/else on CSV with NAs\n    EXCEPTION: %s\n" msg;
+    incr fail_count; Printf.printf "  ✗ grouped summarize with mean(na_rm=true) on NAs (skipped)\n");
+
+  (try Sys.remove csv_nas with _ -> ());
   print_newline ();
 
   (* Clean up Phase 4 CSV *)

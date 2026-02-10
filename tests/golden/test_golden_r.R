@@ -165,7 +165,6 @@ test_that("PIPELINE: filter %>% mutate %>% arrange", {
 })
 
 test_that("PIPELINE: group_by %>% mutate (window)", {
-  skip("Grouped mutate (group_by %>% mutate with group-aware expressions) not yet supported in T")
   compare_csvs("mtcars_pipeline_groupby_mutate")
 })
 
@@ -178,7 +177,6 @@ test_that("PIPELINE: complex iris pipeline", {
 # ============================================================================
 
 test_that("NA: mean with na.rm", {
-  skip("mean() does not yet support na_rm parameter")
   compare_csvs("airquality_mean_na_rm")
 })
 
@@ -187,7 +185,6 @@ test_that("NA: filter out NAs", {
 })
 
 test_that("NA: group by with NAs", {
-  skip("Grouped summarize with na_rm not yet supported")
   compare_csvs("airquality_groupby_with_nas")
 })
 

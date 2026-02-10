@@ -292,6 +292,10 @@ df |> arrange("age", "desc") -- descending
 -- Group and summarize
 df |> group_by("dept")
    |> summarize("count", \(g) nrow(g))
+
+-- Grouped mutate (broadcast group result to each row)
+df |> group_by("dept")
+   |> mutate("dept_size", \(g) nrow(g))
 ```
 
 ---
