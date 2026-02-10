@@ -160,7 +160,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Phase 5: CSV Read/Write Options Golden Tests                           *)
   (* ===================================================================== *)
 
-  Printf.printf "Phase 8 — Golden: CSV Read/Write Options:\n";
+  Printf.printf "Phase 5 — Golden: CSV Read/Write Options:\n";
 
   (* Create test CSV with comma separator *)
   let csv_golden_rw = "test_golden_rw.csv" in

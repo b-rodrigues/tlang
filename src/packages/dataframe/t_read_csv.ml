@@ -3,11 +3,20 @@ open Ast
 let register ~parse_csv_string env =
   Env.add "read_csv"
     (make_builtin_named ~variadic:true 1 (fun named_args _env ->
+      (* Validate sep parameter if provided *)
+      let bad_sep = List.exists (fun (name, v) ->
+        match name, v with
+        | Some "sep", VString s -> String.length s <> 1
+        | Some "sep", _ -> true
+        | _ -> false
+      ) named_args in
+      if bad_sep then
+        make_error TypeError "read_csv() sep must be a single character string"
+      else
       (* Extract named arguments *)
       let sep = List.fold_left (fun acc (name, v) ->
         match name, v with
-        | Some "sep", VString s when String.length s = 1 -> s.[0]
-        | Some "sep", VString _ -> acc  (* ignore multi-char sep, keep default *)
+        | Some "sep", VString s -> s.[0]
         | _ -> acc
       ) ',' named_args in
       let skip_header = List.exists (fun (name, v) ->
