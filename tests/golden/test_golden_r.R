@@ -336,23 +336,6 @@ message("\n", paste(rep("=", 70), collapse = ""))
 message("GOLDEN TEST SUMMARY")
 message(paste(rep("=", 70), collapse = ""))
 
-# Get test results
-results <- test_results()
-if (length(results) > 0) {
-  passed <- sum(sapply(results, function(r) inherits(r, "expectation_success")))
-  failed <- sum(sapply(results, function(r) inherits(r, "expectation_failure")))
-  skipped <- sum(sapply(results, function(r) inherits(r, "expectation_skip")))
-  
-  message(sprintf("Passed:  %d", passed))
-  message(sprintf("Failed:  %d", failed))
-  message(sprintf("Skipped: %d (not yet implemented)", skipped))
-  message(paste(rep("=", 70), collapse = ""))
-  
-  if (failed == 0) {
-    message("✅ ALL IMPLEMENTED TESTS PASSED!")
-  } else {
-    message("❌ SOME TESTS FAILED")
-  }
-} else {
-  message("No results available")
-}
+message("See test output above for pass/fail/skip details")
+message(paste(rep("=", 70), collapse = ""))
+message("✓ Golden test comparison complete")
