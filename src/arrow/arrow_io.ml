@@ -192,13 +192,14 @@ and read_csv_fallback (path : string) : (Arrow_table.t, string) result =
 (* ===================================================================== *)
 
 (** Convert a column value to CSV field string *)
-let value_to_csv_field = function
+let value_to_csv_field ~sep = function
   | Ast.VInt n -> string_of_int n
   | Ast.VFloat f -> string_of_float f
   | Ast.VBool b -> if b then "true" else "false"
   | Ast.VString s -> 
-      (* Quote strings if they contain commas, quotes, or newlines *)
-      if String.contains s ',' || String.contains s '"' || String.contains s '\n' then
+      (* Quote strings if they contain the separator, quotes, or newlines *)
+      let has_sep = String.length sep > 0 && String.contains s sep.[0] in
+      if has_sep || String.contains s '"' || String.contains s '\n' then
         "\"" ^ String.concat "\"\"" (String.split_on_char '"' s) ^ "\""
       else s
   | Ast.VNA _ -> "NA"
@@ -206,23 +207,23 @@ let value_to_csv_field = function
   | _ -> ""
 
 (** Write an Arrow table to a CSV file *)
-let write_csv (table : Arrow_table.t) (path : string) : (unit, string) result =
+let write_csv ?(sep=",") (table : Arrow_table.t) (path : string) : (unit, string) result =
   try
     let ch = open_out path in
     let col_names = Arrow_table.column_names table in
     let nrows = Arrow_table.num_rows table in
     
     (* Write header *)
-    output_string ch (String.concat "," col_names);
+    output_string ch (String.concat sep col_names);
     output_char ch '\n';
     
     (* Write data rows *)
     let value_columns = Arrow_bridge.table_to_value_columns table in
     for row_idx = 0 to nrows - 1 do
       let row_values = List.map (fun (_name, col_data) ->
-        value_to_csv_field col_data.(row_idx)
+        value_to_csv_field ~sep col_data.(row_idx)
       ) value_columns in
-      output_string ch (String.concat "," row_values);
+      output_string ch (String.concat sep row_values);
       output_char ch '\n'
     done;
     

@@ -134,6 +134,7 @@ pipeline analysis {
     <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
     <li>Named arguments: <code>lm(data = df, formula = y ~ x)</code></li>
     <li>NA handling: <code>mean(data, na_rm = true)</code> — all aggregation functions support <code>na_rm</code></li>
+    <li>CSV I/O: <code>read_csv(path, sep = ";", skip_lines = 2)</code> and <code>write_csv(df, path, sep = ";")</code></li>
     <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
     <li>Python-style dictionaries: <code>{name: "Alice", age: 30}</code></li>
     <li>Errors as values, not exceptions</li>

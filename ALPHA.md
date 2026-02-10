@@ -16,7 +16,7 @@ T is a functional programming language designed for declarative, tabular data ma
 This alpha release validates T's core design ideas:
 
 - **Pipelines**: DAG-based execution with named nodes, dependency resolution, and caching
-- **Tabular Data**: First-class DataFrames with CSV loading and column access
+- **Tabular Data**: First-class DataFrames with CSV reading/writing and column access
 - **Data Manipulation**: Six core verbs — `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`
 - **Explicit Semantics**: Structured errors with actionable messages (name suggestions, type hints), typed NA values, no implicit propagation
 - **Standard Library**: Math, statistics, and data manipulation packages loaded by default
@@ -96,7 +96,7 @@ intent {                    -- LLM metadata
 | `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                       |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`                    |
-| `dataframe` | `read_csv`, `colnames`, `nrow`, `ncol`                   |
+| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`      |
 | `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize` |
 | `pipeline`  | `pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run` |
 | `explain`   | `explain`, `explain_json`, `intent_fields`, `intent_get` |

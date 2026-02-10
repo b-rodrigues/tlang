@@ -157,6 +157,112 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   print_newline ();
 
   (* ===================================================================== *)
+  (* Phase 5: CSV Read/Write Options Golden Tests                           *)
+  (* ===================================================================== *)
+
+  Printf.printf "Phase 5 — Golden: CSV Read/Write Options:\n";
+
+  (* Create test CSV with comma separator *)
+  let csv_golden_rw = "test_golden_rw.csv" in
+  let oc = open_out csv_golden_rw in
+  output_string oc "name,value\nAlice,100\nBob,200\nCharlie,150\n";
+  close_out oc;
+
+  (* Test: read_csv -> write_csv -> read_csv roundtrip *)
+  let env_rw = Eval.initial_env () in
+  let (_, env_rw) = eval_string_env (Printf.sprintf
+    {|df = read_csv("%s")|} csv_golden_rw) env_rw in
+  let csv_golden_out = "test_golden_rw_out.csv" in
+  let (_, env_rw) = eval_string_env (Printf.sprintf
+    {|write_csv(df, "%s")|} csv_golden_out) env_rw in
+  let (_, env_rw) = eval_string_env (Printf.sprintf
+    {|df2 = read_csv("%s")|} csv_golden_out) env_rw in
+  let (v, _) = eval_string_env "nrow(df2)" env_rw in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ golden: read->write->read roundtrip preserves rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ golden: read->write->read roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
+  end;
+  let (v, _) = eval_string_env "colnames(df2)" env_rw in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["name", "value"]|} then begin
+    incr pass_count; Printf.printf "  ✓ golden: read->write->read roundtrip preserves columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ golden: read->write->read roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
+  end;
+
+  (* Test: write_csv with custom separator and read back *)
+  let csv_golden_sep_out = "test_golden_sep_out.csv" in
+  let (_, env_rw) = eval_string_env (Printf.sprintf
+    {|write_csv(df, "%s", sep = ";")|} csv_golden_sep_out) env_rw in
+  let (_, env_rw) = eval_string_env (Printf.sprintf
+    {|df3 = read_csv("%s", sep = ";")|} csv_golden_sep_out) env_rw in
+  let (v, _) = eval_string_env "nrow(df3)" env_rw in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ golden: write sep=\";\" -> read sep=\";\" roundtrip preserves rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ golden: write sep=\";\" -> read sep=\";\" roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
+  end;
+  let (v, _) = eval_string_env "colnames(df3)" env_rw in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["name", "value"]|} then begin
+    incr pass_count; Printf.printf "  ✓ golden: write sep=\";\" -> read sep=\";\" roundtrip preserves columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ golden: write sep=\";\" -> read sep=\";\" roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
+  end;
+
+  (* Test: write empty DataFrame *)
+  let csv_golden_empty = "test_golden_empty_rw.csv" in
+  let env_empty = Eval.initial_env () in
+  let (_, env_empty) = eval_string_env (Printf.sprintf
+    {|df = read_csv("%s")|} csv_golden_rw) env_empty in
+  let (_, env_empty) = eval_string_env
+    {|empty_df = filter(df, \(row) row.value > 9999)|} env_empty in
+  let (_, env_empty) = eval_string_env (Printf.sprintf
+    {|write_csv(empty_df, "%s")|} csv_golden_empty) env_empty in
+  let (_, env_empty) = eval_string_env (Printf.sprintf
+    {|df_back = read_csv("%s")|} csv_golden_empty) env_empty in
+  let (v, _) = eval_string_env "nrow(df_back)" env_empty in
+  let result = Ast.Utils.value_to_string v in
+  if result = "0" then begin
+    incr pass_count; Printf.printf "  ✓ golden: write empty DataFrame roundtrip\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ golden: write empty DataFrame roundtrip\n    Expected: 0\n    Got: %s\n" result
+  end;
+
+  (* Test: write DataFrame with NA values *)
+  let csv_golden_na = "test_golden_na_rw.csv" in
+  let csv_golden_na_src = "test_golden_na_src.csv" in
+  let oc = open_out csv_golden_na_src in
+  output_string oc "x,y\n1,hello\nNA,world\n3,NA\n";
+  close_out oc;
+  let env_na = Eval.initial_env () in
+  let (_, env_na) = eval_string_env (Printf.sprintf
+    {|df = read_csv("%s")|} csv_golden_na_src) env_na in
+  let (_, env_na) = eval_string_env (Printf.sprintf
+    {|write_csv(df, "%s")|} csv_golden_na) env_na in
+  let (_, env_na) = eval_string_env (Printf.sprintf
+    {|df2 = read_csv("%s")|} csv_golden_na) env_na in
+  let (v, _) = eval_string_env "nrow(df2)" env_na in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ golden: write NA DataFrame roundtrip preserves rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ golden: write NA DataFrame roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  (* Clean up roundtrip test files *)
+  (try Sys.remove csv_golden_rw with _ -> ());
+  (try Sys.remove csv_golden_out with _ -> ());
+  (try Sys.remove csv_golden_sep_out with _ -> ());
+  (try Sys.remove csv_golden_empty with _ -> ());
+  (try Sys.remove csv_golden_na with _ -> ());
+  (try Sys.remove csv_golden_na_src with _ -> ());
+  print_newline ();
+
+  (* ===================================================================== *)
   (* Window Function Golden Tests                                          *)
   (* Expected values below are computed from R/dplyr for the simple.csv    *)
   (* dataset: age = [25, 30, 35, 28, 22, 45, 33, 29, 31, 27]             *)

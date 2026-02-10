@@ -150,9 +150,9 @@ The T Language Alpha validates the core design principles:
    - **Issue**: Cannot remove duplicate rows from DataFrames
    - **Workaround**: Use `group_by() |> summarize()` pattern
 
-7. **CSV-Only File I/O**
-   - **Issue**: No `write_csv()` or support for Parquet/JSON
-   - **Impact**: Cannot save analysis results
+7. **Limited File Format Support**
+   - **Issue**: No support for Parquet/JSON (write_csv now available with optional sep, skip_header, skip_lines)
+   - **Impact**: Parquet/JSON import/export not yet supported
    - **Roadmap**: Deferred to Beta v0.2
 
 8. **No Join Operations**
@@ -430,22 +430,14 @@ df |> distinct("key")
 
 **Severity**: LOW  
 **Category**: File I/O  
-**Impact**: Cannot save analysis results
+**Impact**: Parquet/JSON import/export not yet supported
 
 **Description**:
-Only `read_csv()` exists; no `write_csv()` or other output functions.
+`read_csv()` and `write_csv()` now support optional `sep`, `skip_header`, and `skip_lines` parameters. Parquet/JSON support is deferred to Beta.
 
-**Workaround**:
-- Use `print()` and shell redirection
-- Manually construct CSV strings
+**Status**: RESOLVED (write_csv implemented with optional separator)
 
-**Fix Required**:
-1. Implement `write_csv(df, path)` function
-2. Add optional parameters: delimiter, quote style, na_string
-3. Add tests for roundtrip (read -> write -> read)
-4. Document in dataframe package
-
-**Roadmap**: Deferred to Beta v0.2
+**Roadmap**: Parquet/JSON deferred to Beta v0.2
 
 ---
 
@@ -616,20 +608,20 @@ No `left_join()`, `inner_join()`, or other merge operations.
 **Goal**: Support saving DataFrames to CSV
 
 **Tasks**:
-1. [ ] **Implement write_csv() function**
+1. [x] **Implement write_csv() function**
    - Accept DataFrame and file path
    - Support optional delimiter parameter
    - Support optional na_string parameter
    - Handle file write errors gracefully
 
-2. [ ] **Add roundtrip tests**
-   - [ ] Test: read_csv -> write_csv -> read_csv
-   - [ ] Test: Write with custom delimiter
-   - [ ] Test: Write with NA values
-   - [ ] Test: Write empty DataFrame
-   - [ ] Test: Write DataFrame with quoted strings
+2. [x] **Add roundtrip tests**
+   - [x] Test: read_csv -> write_csv -> read_csv
+   - [x] Test: Write with custom delimiter
+   - [x] Test: Write with NA values
+   - [x] Test: Write empty DataFrame
+   - [x] Test: Write DataFrame with quoted strings
 
-3. [ ] **Document write_csv()**
+3. [x] **Document write_csv()**
    - Add to dataframe package documentation
    - Show examples of saving analysis results
    - Document parameters and error conditions
@@ -693,7 +685,7 @@ No `left_join()`, `inner_join()`, or other merge operations.
 
 #### DataFrame Operations
 - [x] Load CSV: read_csv()
-- [ ] Write CSV: write_csv() (not implemented)
+- [x] Write CSV: write_csv()
 - [ ] Load Parquet (deferred to Beta)
 - [ ] Load JSON (deferred to Beta)
 - [x] Column selection: select()
@@ -1140,7 +1132,7 @@ Each feature must have corresponding tests in the test suite.
 ### Nice-to-Have for Alpha Release
 
 #### Enhanced Features (Optional)
-- [ ] write_csv() for saving results
+- [x] write_csv() for saving results
 - [ ] distinct() for removing duplicates
 - [ ] Better error messages with suggestions
 - [ ] Performance optimizations
@@ -1171,7 +1163,7 @@ To move from Alpha (v0.1) to Beta (v0.2), the following must be completed:
 
 #### Data Features
 - [ ] Parquet/JSON file support
-- [ ] write_csv() and write_parquet()
+- [ ] write_parquet()
 - [ ] Join operations (left_join, inner_join, etc.)
 - [ ] Pivot operations (pivot_wider, pivot_longer)
 

@@ -518,7 +518,7 @@ let make_builtin_named ?(variadic=false) arity func =
 (* --- Phase 2: Arrow-Backed CSV Parser --- *)
 
 (** Split a CSV line into fields, handling quoted fields *)
-let parse_csv_line (line : string) : string list =
+let parse_csv_line ?(sep=',') (line : string) : string list =
   let len = String.length line in
   let buf = Buffer.create 64 in
   let fields = ref [] in
@@ -543,7 +543,7 @@ let parse_csv_line (line : string) : string list =
       if c = '"' then begin
         in_quotes := true;
         i := !i + 1
-      end else if c = ',' then begin
+      end else if c = sep then begin
         fields := Buffer.contents buf :: !fields;
         Buffer.clear buf;
         i := !i + 1
@@ -584,16 +584,27 @@ let split_lines (s : string) : string list =
   ) lines
 
 (** Parse a CSV string into an Arrow-backed DataFrame *)
-let parse_csv_string (content : string) : value =
+let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) (content : string) : value =
   let lines = split_lines content in
   (* Remove trailing empty lines *)
   let lines = List.filter (fun l -> String.trim l <> "") lines in
+  (* Skip the first N lines *)
+  let rec drop n lst = if n <= 0 then lst else match lst with [] -> [] | _ :: rest -> drop (n - 1) rest in
+  let lines = drop skip_lines lines in
   match lines with
   | [] -> VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
-  | header_line :: data_lines ->
-      let headers = parse_csv_line header_line in
+  | first_line :: rest_lines ->
+      let headers, data_lines =
+        if skip_header then
+          (* No header row: generate column names V1, V2, ... *)
+          let ncols = List.length (parse_csv_line ~sep first_line) in
+          let headers = List.init ncols (fun i -> Printf.sprintf "V%d" (i + 1)) in
+          (headers, lines)
+        else
+          (parse_csv_line ~sep first_line, rest_lines)
+      in
       let ncols = List.length headers in
-      let data_rows = List.map parse_csv_line data_lines in
+      let data_rows = List.map (parse_csv_line ~sep) data_lines in
       (* Validate column count consistency *)
       let valid_rows = List.filter (fun row -> List.length row = ncols) data_rows in
       let nrows = List.length valid_rows in
@@ -639,8 +650,8 @@ let initial_env () : environment =
   let env = Error_mod.register env in
   let env = Error_utils.register env in
   (* Dataframe package *)
-  let env = T_read_csv.register ~parse_csv_string env in
-  let env = T_write_csv.register ~write_csv_fn:Arrow_io.write_csv env in
+  let env = T_read_csv.register ~parse_csv_string:(fun ~sep ~skip_header ~skip_lines content -> parse_csv_string ~sep ~skip_header ~skip_lines content) env in
+  let env = T_write_csv.register ~write_csv_fn:(fun ~sep table path -> Arrow_io.write_csv ~sep table path) env in
   let env = Colnames.register env in
   let env = Nrow.register env in
   let env = Ncol.register env in
