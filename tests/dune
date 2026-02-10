@@ -13,6 +13,7 @@
    test_golden test_core_semantics
    test_arrow_integration
    test_owl_bridge
+   test_arrow_performance
  )
  (libraries t_lang menhirLib)
 )
