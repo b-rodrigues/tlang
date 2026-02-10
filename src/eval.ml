@@ -265,7 +265,7 @@ and eval_dot_access env target_expr field =
             | Some (VDict orig_pairs) ->
               let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
                             | Some (VString s) -> s | _ -> "") in
-              let compound = prefix ^ "." ^ field in
+              let compound = if prefix = "" then field else prefix ^ "." ^ field in
               (match List.assoc_opt compound orig_pairs with
                | Some v -> v
                | None ->
