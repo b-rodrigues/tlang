@@ -246,7 +246,8 @@ let levenshtein s t =
     d.(m).(n)
 
 (** Find the closest matching name from a list of candidates.
-    Returns Some name if there is a match within a reasonable edit distance. *)
+    Returns Some name if there is a match within a reasonable edit distance.
+    The threshold is max(2, len/3) — allowing up to ~33% character changes. *)
 let suggest_name name candidates =
   let max_dist = max 2 (String.length name / 3) in
   let scored = List.filter_map (fun c ->

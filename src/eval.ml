@@ -319,6 +319,10 @@ and eval_dot_access env target_expr field =
   | VNA _ -> make_error TypeError "Cannot access field on NA"
   | other -> make_error TypeError (Printf.sprintf "Cannot access field '%s' on %s" field (Utils.type_name other))
 
+and lambda_arity_error params args =
+  let sig_str = String.concat ", " params in
+  make_error ArityError (Printf.sprintf "Expected %d arguments (%s) but got %d" (List.length params) sig_str (List.length args))
+
 and eval_call env fn_val raw_args =
   match fn_val with
   | VBuiltin { b_arity; b_variadic; b_func } ->
@@ -332,8 +336,7 @@ and eval_call env fn_val raw_args =
   | VLambda { params; variadic = _; body; env = Some closure_env } ->
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
       if List.length params <> List.length args then
-        let sig_str = String.concat ", " params in
-        make_error ArityError (Printf.sprintf "Expected %d arguments (%s) but got %d" (List.length params) sig_str (List.length args))
+        lambda_arity_error params args
       else
         let call_env =
           List.fold_left2
@@ -346,8 +349,7 @@ and eval_call env fn_val raw_args =
       (* Lambda without closure — use current env *)
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
       if List.length params <> List.length args then
-        let sig_str = String.concat ", " params in
-        make_error ArityError (Printf.sprintf "Expected %d arguments (%s) but got %d" (List.length params) sig_str (List.length args))
+        lambda_arity_error params args
       else
         let call_env =
           List.fold_left2
