@@ -39,7 +39,7 @@ my-package/
 ├── README.md             # Package documentation
 ├── LICENSE               # License file (default: EUPL-1.2)
 ├── CHANGELOG.md          # Version history
-├── R/                    # T source files (named after R convention)
+├── src/                  # T source files
 │   ├── function1.t
 │   ├── function2.t
 │   └── helpers.t
@@ -48,8 +48,11 @@ my-package/
 │   └── test-function2.t
 ├── examples/             # Example scripts
 │   └── demo.t
-└── docs/                 # Additional documentation
-    └── usage.md
+└── docs/                 # Generated documentation (auto-created)
+    ├── index.md
+    └── reference/
+        ├── function1.md
+        └── function2.md
 ```
 
 ### DESCRIPTION.toml
@@ -79,7 +82,7 @@ min_version = "0.5.0"
 
 ### Package flake.nix
 
-Each package includes a `flake.nix` that specifies its build and runtime dependencies:
+Each package includes a `flake.nix` that provides both a package output and a development shell:
 
 ```nix
 {
@@ -87,53 +90,158 @@ Each package includes a `flake.nix` that specifies its build and runtime depende
 
   inputs = {
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
+    flake-utils.url = "github:numtide/flake-utils";
     t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
     # Package dependencies as flake inputs
     stats.url = "github:t-lang/stats/v0.5.0";
     colcraft.url = "github:t-lang/colcraft/v0.2.1";
   };
 
-  outputs = { self, nixpkgs, t-lang, stats, colcraft }:
-    let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-    in
-    {
-      packages.${system}.default = pkgs.stdenv.mkDerivation {
-        pname = "t-my-package";
-        version = "0.1.0";
-        src = ./.;
+  outputs = { self, nixpkgs, flake-utils, t-lang, stats, colcraft }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      {
+        # The package itself
+        packages.default = pkgs.stdenv.mkDerivation {
+          pname = "t-my-package";
+          version = "0.1.0";
+          src = ./.;
+          
+          buildInputs = [ 
+            t-lang.packages.${system}.default 
+            stats.packages.${system}.default
+            colcraft.packages.${system}.default
+          ];
+          
+          installPhase = ''
+            mkdir -p $out/lib/t/packages/my-package
+            cp -r src/* $out/lib/t/packages/my-package/
+          '';
+          
+          meta = {
+            description = "My T package";
+            homepage = "https://github.com/username/my-package";
+          };
+        };
         
-        buildInputs = [ 
-          t-lang.packages.${system}.default 
-          stats.packages.${system}.default
-          colcraft.packages.${system}.default
-        ];
-        
-        installPhase = ''
-          mkdir -p $out/lib/t/packages/my-package
-          cp -r R/* $out/lib/t/packages/my-package/
-        '';
-      };
-    };
+        # Development shell for hacking on the package
+        devShells.default = pkgs.mkShell {
+          buildInputs = [
+            t-lang.packages.${system}.default
+            stats.packages.${system}.default
+            colcraft.packages.${system}.default
+            pkgs.pandoc  # For documentation generation
+          ];
+          
+          shellHook = ''
+            echo "=========================================="
+            echo "T Package Development Environment"
+            echo "Package: my-package"
+            echo "=========================================="
+            echo ""
+            echo "Available commands:"
+            echo "  t repl              - Start T REPL"
+            echo "  t run <file>        - Run a T file"
+            echo "  t test              - Run package tests"
+            echo "  t document .        - Generate documentation"
+            echo ""
+            echo "Source files: src/"
+            echo "Tests: tests/"
+            echo ""
+          '';
+        };
+      }
+    );
 }
 ```
 
-### R/ Directory Convention
+This flake provides:
+- **`packages.default`**: The package as a Nix derivation
+- **`devShells.default`**: A development environment with T and all dependencies
+- **Automatic composition**: When used as an input, both the package and its dependencies are available
 
-Following R's convention, T source files are placed in the `R/` directory:
+### src/ Directory Convention
+
+T source files are placed in the `src/` directory:
 
 - Each file should define one or more related functions
 - File names should be lowercase with hyphens: `data-manipulation.t`
 - Helper functions can be in separate files: `helpers.t`, `utils.t`
 - Internal functions should be prefixed with `.` (e.g., `.internal_helper`)
 
-### Example Package Function
+### Docstrings and Documentation
 
-File: `R/summarize-numeric.t`
+Functions should include docstrings for automatic documentation generation:
 
 ```t
+-- @doc
 -- Summarize numeric columns with common statistics
+--
+-- @description
+-- This function takes a dataframe and computes summary statistics
+-- (mean, standard deviation, min, max) for all numeric columns.
+--
+-- @param df A dataframe with numeric columns
+-- @return A dataframe with summary statistics
+-- @example
+-- data = read_csv("data.csv")
+-- summary = summarize_numeric(data)
+-- print(summary)
+-- @end
+summarize_numeric = \(df) -> {
+  df |> select_if(\(col) is_numeric(col))
+     |> summarize(
+          mean = mean(__column__),
+          sd = sd(__column__),
+          min = min(__column__),
+          max = max(__column__)
+        )
+}
+```
+
+Docstring format:
+- **`@doc`**: Marks the start of a docstring block
+- **`@description`**: Detailed description of the function
+- **`@param`**: Parameter description (one per parameter)
+- **`@return`**: Description of return value
+- **`@example`**: Usage example
+- **`@end`**: Marks the end of the docstring block
+
+Generate documentation with:
+```bash
+# From within the package directory
+t document .
+
+# Or specify the package path
+t document my-package/
+
+# Or by package name (if installed)
+t document my-package
+```
+
+This generates markdown documentation in the `docs/` directory using pandoc.
+
+### Example Package Function
+
+File: `src/summarize-numeric.t`
+
+```t
+-- @doc
+-- Summarize numeric columns with common statistics
+--
+-- @description
+-- Computes mean, standard deviation, minimum, and maximum
+-- for all numeric columns in a dataframe.
+--
+-- @param df A dataframe with one or more numeric columns
+-- @return A dataframe containing summary statistics
+-- @example
+-- data = read_csv("sales.csv")
+-- summary = summarize_numeric(data)
+-- print(summary)
+-- @end
 summarize_numeric = \(df) -> {
   df |> select_if(\(col) is_numeric(col))
      |> summarize(
@@ -177,7 +285,19 @@ my-project/
 
 ### Project flake.nix
 
-The project `flake.nix` pins all dependencies to a specific date from the `rstats-on-nix/nixpkgs` fork:
+The project `flake.nix` automatically reads package dependencies from `tproject.toml` and includes them in the development environment.
+
+**Design decision: tproject.toml vs tproject.nix**
+
+We use **`tproject.toml`** because:
+- More accessible to non-Nix users
+- Clear separation of concerns (project config vs build logic)
+- Can be parsed by the `t` CLI for commands like `t install`
+- Human-readable and easy to edit
+
+The flake reads `tproject.toml` at build time using `builtins.fromTOML`.
+
+**Generated project flake.nix:**
 
 ```nix
 {
@@ -185,15 +305,9 @@ The project `flake.nix` pins all dependencies to a specific date from the `rstat
 
   inputs = {
     # Pin to a specific date for reproducibility
-    # This ensures the exact same R packages and system dependencies
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
     flake-utils.url = "github:numtide/flake-utils";
     t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
-    
-    # T packages from decentralized repositories
-    stats.url = "github:t-lang/stats/v0.5.0";
-    colcraft.url = "github:t-lang/colcraft/v0.2.1";
-    my-viz-package.url = "github:johndoe/t-viz/v1.2.0";
   };
 
   # Configure cachix for R packages
@@ -206,17 +320,36 @@ The project `flake.nix` pins all dependencies to a specific date from the `rstat
     ];
   };
 
-  outputs = { self, nixpkgs, flake-utils, t-lang, stats, colcraft, my-viz-package }:
+  outputs = { self, nixpkgs, flake-utils, t-lang }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         
-        # T packages for this project (imported from flake inputs)
-        projectPackages = [
-          stats.packages.${system}.default
-          colcraft.packages.${system}.default
-          my-viz-package.packages.${system}.default
-        ];
+        # Parse tproject.toml to get package dependencies
+        projectConfig = builtins.fromTOML (builtins.readFile ./tproject.toml);
+        
+        # Helper function to fetch a T package from git
+        fetchTPackage = name: spec:
+          let
+            pkg = builtins.fetchGit {
+              url = spec.git;
+              ref = "refs/tags/${spec.tag}";
+            };
+          in
+          (import "${pkg}/flake.nix").outputs {
+            inherit self nixpkgs;
+            inherit (nixpkgs) lib;
+            flake-utils = flake-utils;
+            t-lang = t-lang;
+          };
+        
+        # Load all T packages from tproject.toml
+        tPackages = pkgs.lib.mapAttrs fetchTPackage projectConfig.dependencies;
+        
+        # Collect package derivations
+        projectPackages = pkgs.lib.mapAttrsToList 
+          (name: pkg: pkg.packages.${system}.default or pkg.defaultPackage.${system})
+          tPackages;
 
       in
       {
@@ -224,8 +357,7 @@ The project `flake.nix` pins all dependencies to a specific date from the `rstat
         devShells.default = pkgs.mkShell {
           buildInputs = [
             t-lang.packages.${system}.default
-            pkgs.rPackages.dplyr
-            pkgs.rPackages.ggplot2
+            pkgs.pandoc  # For documentation generation
           ] ++ projectPackages;
 
           shellHook = ''
@@ -235,10 +367,13 @@ The project `flake.nix` pins all dependencies to a specific date from the `rstat
             echo ""
             echo "T version: $(t --version)"
             echo "Nixpkgs date: 2026-02-10"
+            echo "Loaded T packages: ${toString (pkgs.lib.attrNames tPackages)}"
             echo ""
             echo "Available commands:"
             echo "  t repl              - Start T REPL"
             echo "  t run src/analysis.t - Run analysis"
+            echo "  t document .        - Generate documentation"
+            echo "  t install <pkg-url> - Add a new package"
             echo ""
           '';
         };
@@ -255,7 +390,7 @@ The project `flake.nix` pins all dependencies to a specific date from the `rstat
 
 ### tproject.toml
 
-The `tproject.toml` file specifies project metadata and T package dependencies:
+The `tproject.toml` file specifies project metadata and T package dependencies. This file is automatically parsed by the project's `flake.nix` to include packages in the development environment.
 
 ```toml
 [project]
@@ -272,7 +407,9 @@ t_version = "0.5.0"
 [dependencies]
 # T packages from decentralized repositories
 # Each package is hosted in its own git repository and pinned to a release tag
-# Format: package = { git = "repository-url", tag = "version-tag" }
+# Format: package-name = { git = "repository-url", tag = "version-tag" }
+# 
+# Simply add packages here - the flake will automatically fetch and include them!
 stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
 colcraft = { git = "https://github.com/t-lang/colcraft", tag = "v0.2.1" }
 dataframe = { git = "https://github.com/t-lang/dataframe", tag = "v0.3.0" }
@@ -297,19 +434,32 @@ readr = "*"
 # This section is reserved for future pipeline/DAG specification
 ```
 
+**Using packages in your project:**
+
+1. Edit `tproject.toml` and add the package to `[dependencies]`
+2. Run `nix flake lock` to update the lockfile
+3. Run `nix develop` to enter the environment with all packages loaded
+4. That's it! The packages are automatically available in your T code
+
+No need to manually edit the flake inputs - the flake reads `tproject.toml` automatically.
+
 ---
 
 ## Dependency Resolution
 
 ### How It Works
 
-1. **Nix flake lock**: When you run `nix flake lock` in a project, Nix resolves all inputs and creates a `flake.lock` file with exact commits/hashes.
+1. **tproject.toml parsing**: The project flake reads `tproject.toml` using `builtins.fromTOML` at build time.
 
-2. **rstats-on-nix date pins**: The nixpkgs input is pinned to a specific date branch (e.g., `2026-02-10`), which corresponds to a snapshot of all R packages at that date.
+2. **Automatic package fetching**: Each package in `[dependencies]` is fetched from its git repository using the specified tag.
 
-3. **T package git tags**: T packages are referenced from their git repositories using release tags (e.g., `v0.5.0`), ensuring exact reproducibility.
+3. **Nix flake lock**: When you run `nix flake lock` in a project, Nix resolves all inputs and creates a `flake.lock` file with exact commits/hashes.
 
-4. **Transitive dependencies**: All dependencies of dependencies are also pinned through Nix's evaluation.
+4. **rstats-on-nix date pins**: The nixpkgs input is pinned to a specific date branch (e.g., `2026-02-10`), which corresponds to a snapshot of all R packages at that date.
+
+5. **T package git tags**: T packages are referenced from their git repositories using release tags (e.g., `v0.5.0`), ensuring exact reproducibility.
+
+6. **Transitive dependencies**: All dependencies of dependencies are also pinned through Nix's evaluation.
 
 ### Package Releases and Versioning
 
@@ -420,9 +570,14 @@ my-internal-package = { git = "https://gitlab.company.com/data/t-utils", tag = "
    cd my-awesome-package
    ```
 
-2. **Write your T functions** in the `R/` directory:
+2. **Write your T functions** in the `src/` directory:
    ```bash
-   # R/cool-function.t
+   # src/cool-function.t
+   -- @doc
+   -- Add 42 to a number
+   -- @param x A number
+   -- @return The number plus 42
+   -- @end
    cool_function = \(x) -> x + 42
    ```
 
@@ -622,6 +777,123 @@ The tradeoff is a steeper learning curve (Nix), but the payoff is **guaranteed r
 
 ---
 
+## Documentation Generation
+
+T packages can include docstrings that are automatically converted to documentation using `t document`.
+
+### Docstring Format
+
+Docstrings use a special comment syntax with tags:
+
+```t
+-- @doc
+-- Brief one-line description of the function
+--
+-- @description
+-- Longer, detailed description of what the function does,
+-- how it works, and any important notes.
+--
+-- @param param_name Description of the parameter
+-- @param other_param Description of another parameter
+--
+-- @return Description of what the function returns
+--
+-- @example
+-- # Usage example
+-- result = my_function(arg1, arg2)
+-- print(result)
+--
+-- @see related_function, other_function
+-- @end
+function_name = \(param_name, other_param) -> {
+  -- function body
+}
+```
+
+### Documentation Tags
+
+- **`@doc`**: Marks the start of a docstring block (required)
+- **`@description`**: Detailed description (optional but recommended)
+- **`@param name desc`**: Parameter documentation (one per parameter)
+- **`@return desc`**: Return value description
+- **`@example`**: Usage examples (can have multiple)
+- **`@see`**: Cross-references to related functions
+- **`@deprecated`**: Mark function as deprecated
+- **`@since version`**: Version when function was added
+- **`@end`**: Marks the end of the docstring (required)
+
+### Generating Documentation
+
+```bash
+# Generate docs for current package
+t document .
+
+# Generate docs for specific package
+t document path/to/package/
+
+# Generate docs for installed package by name
+t document my-package
+
+# Options
+t document . --format html   # Generate HTML (default: markdown)
+t document . --output docs/  # Specify output directory
+```
+
+### Documentation Output
+
+The `t document` command:
+
+1. Scans all `.t` files in `src/` for docstrings
+2. Parses the docstring tags
+3. Generates markdown files in `docs/reference/`
+4. Creates an index in `docs/index.md`
+5. Uses pandoc to convert to HTML if requested
+
+**Generated structure:**
+```
+docs/
+├── index.md                 # Package overview and function index
+├── reference/
+│   ├── function1.md        # Function documentation
+│   ├── function2.md
+│   └── helpers.md
+└── html/                    # HTML output (if --format html)
+    ├── index.html
+    └── reference/
+        ├── function1.html
+        └── function2.html
+```
+
+### Integration with Package Development
+
+Documentation generation is integrated into the package development workflow:
+
+```bash
+# Enter package dev environment
+cd my-package
+nix develop
+
+# Write code with docstrings
+# Edit src/my-function.t
+
+# Generate documentation
+t document .
+
+# View generated docs
+cat docs/reference/my-function.md
+
+# Commit documentation to git
+git add docs/
+git commit -m "Update documentation"
+```
+
+The generated documentation is committed to the repository, making it available:
+- In the GitHub repository UI
+- In package managers/indexes
+- For local reference by package users
+
+---
+
 ## Future Enhancements
 
 ### Planned Features
@@ -655,8 +927,13 @@ Packages remain decentralized in individual git repositories; the index only pro
 # Create package
 t init package simple-stats
 
-# Edit R/descriptives.t
-cat > R/descriptives.t <<EOF
+# Edit src/descriptives.t
+cat > src/descriptives.t <<EOF
+-- @doc
+-- Describe a dataframe with summary statistics
+-- @param df A dataframe
+-- @return Summary statistics
+-- @end
 describe = \(df) -> {
   df |> summarize(
     count = n(),
@@ -668,8 +945,11 @@ describe = \(df) -> {
 }
 EOF
 
-# Test it
+# Generate documentation
 nix develop
+t document .
+
+# Test it
 t repl
 ```
 
