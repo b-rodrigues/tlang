@@ -65,3 +65,48 @@ let zero_copy_view (col : column_view) : numeric_view option =
         | None -> None)
      | _ -> None)
   | _ -> None
+
+(** Access a single element from a column view without copying.
+    Returns the T value at the given index, or VNull if out of bounds.
+    For numeric columns backed by a zero-copy view, reads directly from
+    the Arrow buffer. Otherwise, falls back to column_data indexing. *)
+let get_value_at (view : column_view) (idx : int) : Ast.value =
+  let len = column_length view in
+  if idx < 0 || idx >= len then Ast.VNull
+  else
+    match view.data with
+    | Arrow_table.IntColumn a ->
+      (match a.(idx) with Some i -> Ast.VInt i | None -> Ast.VNA Ast.NAInt)
+    | Arrow_table.FloatColumn a ->
+      (match a.(idx) with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
+    | Arrow_table.BoolColumn a ->
+      (match a.(idx) with Some b -> Ast.VBool b | None -> Ast.VNA Ast.NABool)
+    | Arrow_table.StringColumn a ->
+      (match a.(idx) with Some s -> Ast.VString s | None -> Ast.VNA Ast.NAString)
+    | Arrow_table.NullColumn _ -> Ast.VNA Ast.NAGeneric
+
+(** Get a slice (sub-view) of a column view.
+    Returns a new column_view covering [start, start+length) of the original.
+    The backing table reference is shared to prevent GC collection. *)
+let get_slice (view : column_view) (start : int) (len : int) : column_view =
+  let total = column_length view in
+  let actual_start = max 0 (min start total) in
+  let actual_len = max 0 (min len (total - actual_start)) in
+  let slice_data = match view.data with
+    | Arrow_table.IntColumn a ->
+      Arrow_table.IntColumn (Array.sub a actual_start actual_len)
+    | Arrow_table.FloatColumn a ->
+      Arrow_table.FloatColumn (Array.sub a actual_start actual_len)
+    | Arrow_table.BoolColumn a ->
+      Arrow_table.BoolColumn (Array.sub a actual_start actual_len)
+    | Arrow_table.StringColumn a ->
+      Arrow_table.StringColumn (Array.sub a actual_start actual_len)
+    | Arrow_table.NullColumn _ ->
+      Arrow_table.NullColumn actual_len
+  in
+  { backing = view.backing; column_name = view.column_name; data = slice_data }
+
+(** Convert a column view to a T value list (fallback for non-vectorizable ops).
+    Always works regardless of backing storage. *)
+let column_view_to_list (view : column_view) : Ast.value list =
+  Array.to_list (Arrow_bridge.column_to_values view.data)

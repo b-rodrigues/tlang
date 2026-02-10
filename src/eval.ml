@@ -261,8 +261,8 @@ and eval_dot_access env target_expr field =
            let prefix = (match List.assoc_opt "__partial_dot_prefix__" pairs with
                          | Some (VString s) -> s | _ -> "") in
            let compound = prefix ^ "." ^ field in
-           (match Arrow_table.get_column arrow_table compound with
-            | Some col -> VVector (Arrow_bridge.column_to_values col)
+           (match Arrow_column.get_column arrow_table compound with
+            | Some col_view -> VVector (Array.of_list (Arrow_column.column_view_to_list col_view))
             | None ->
               if has_column_prefix arrow_table compound
               then VDict [("__partial_dot_df__", df_val);
@@ -302,8 +302,10 @@ and eval_dot_access env target_expr field =
       | Some (_, v) -> v
       | None -> make_error KeyError (Printf.sprintf "list has no named element '%s'" field))
   | VDataFrame ({ arrow_table; _ } as df) ->
-      (match Arrow_table.get_column arrow_table field with
-       | Some col -> VVector (Arrow_bridge.column_to_values col)
+      (* Use column views for efficient access — avoids redundant copies
+         when the column data is already available in the Arrow table. *)
+      (match Arrow_column.get_column arrow_table field with
+       | Some col_view -> VVector (Array.of_list (Arrow_column.column_view_to_list col_view))
        | None ->
          (* Column not found — check if there are columns with this prefix (e.g. "Petal.Length")
             to support R-style dotted column names via chained dot access (df.Petal.Length) *)

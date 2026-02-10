@@ -159,3 +159,59 @@ external arrow_float64_array_to_bigarray :
 external arrow_int64_array_to_bigarray :
   nativeint -> (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t option
   = "caml_arrow_int64_array_to_bigarray"
+
+(* ===================================================================== *)
+(* Unary Math Operations (Phase 5 — Week 1)                              *)
+(* ===================================================================== *)
+
+(** Apply sqrt to every element of a named numeric column.
+    Returns Some(new_table_ptr) or None on failure. *)
+external arrow_compute_sqrt_column : nativeint -> string -> nativeint option
+  = "caml_arrow_compute_sqrt_column"
+
+(** Apply abs to every element of a named numeric column. *)
+external arrow_compute_abs_column : nativeint -> string -> nativeint option
+  = "caml_arrow_compute_abs_column"
+
+(** Apply log (natural logarithm) to every element of a named numeric column. *)
+external arrow_compute_log_column : nativeint -> string -> nativeint option
+  = "caml_arrow_compute_log_column"
+
+(** Apply exp to every element of a named numeric column. *)
+external arrow_compute_exp_column : nativeint -> string -> nativeint option
+  = "caml_arrow_compute_exp_column"
+
+(** Raise every element of a named numeric column to a scalar power. *)
+external arrow_compute_pow_column : nativeint -> string -> float -> nativeint option
+  = "caml_arrow_compute_pow_column"
+
+(* ===================================================================== *)
+(* Column-Level Aggregations (Phase 5 — Week 1)                          *)
+(* ===================================================================== *)
+
+(** Compute the sum of a named numeric column.
+    Returns Some(float) or None if column not found / non-numeric. *)
+external arrow_compute_sum_column : nativeint -> string -> float option
+  = "caml_arrow_compute_sum_column"
+
+(** Compute the mean of a named numeric column. *)
+external arrow_compute_mean_column : nativeint -> string -> float option
+  = "caml_arrow_compute_mean_column"
+
+(** Compute the minimum of a named numeric column. *)
+external arrow_compute_min_column : nativeint -> string -> float option
+  = "caml_arrow_compute_min_column"
+
+(** Compute the maximum of a named numeric column. *)
+external arrow_compute_max_column : nativeint -> string -> float option
+  = "caml_arrow_compute_max_column"
+
+(* ===================================================================== *)
+(* Comparison Operations (Phase 5 — Week 1)                              *)
+(* ===================================================================== *)
+
+(** Compare each element of a named numeric column to a scalar.
+    Returns Some(bool_array) where each element is the comparison result.
+    op_code: 0=eq, 1=lt, 2=gt, 3=le, 4=ge *)
+external arrow_compute_compare_scalar : nativeint -> string -> float -> int -> bool array option
+  = "caml_arrow_compute_compare_scalar"
