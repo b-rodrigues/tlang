@@ -287,29 +287,6 @@ df |> mutate("senior", \(row) row.age >= 30)
 
   Printf.printf "Phase 4 — Group-by with NAs (golden test repro):\n";
 
-  (* Debug parse tests *)
-  let try_parse label s =
-    try
-      let lexbuf = Lexing.from_string s in
-      let _program = Parser.program Lexer.token lexbuf in
-      Printf.printf "  parse OK: %s\n" label
-    with _ ->
-      Printf.printf "  parse FAIL: %s\n" label
-  in
-  try_parse "1-if" {|if true then "a" else "b"|};
-  try_parse "2-lambda-if" {|\(x) if x > 5 then "big" else "small"|};
-  try_parse "3-mutate-call" {|mutate(df, "c", \(row) if row.x > 5 then "a" else "b")|};
-  try_parse "4-pipe-mutate" {|df |> mutate("c", \(row) if row.x > 5 then "a" else "b")|};
-  try_parse "5-assign-pipe-mutate" {|x = df |> mutate("c", \(row) if row.x > 5 then "a" else "b")|};
-  try_parse "6-golden-mutate" {|step1 = df |> mutate("temp_category", \(row) if row.Temp > 75 then "hot" else "cool")|};
-  try_parse "7-no-closing-paren" {|step1 = df |> mutate("temp_category", \(row) if row.Temp > 75 then "hot" else "cool")|};
-  try_parse "8-separate-lambda" {|f = \(row) if row.Temp > 75 then "hot" else "cool"|};
-  try_parse "9-call-with-lambda" {|mutate(df, "x", \(row) if true then "a" else "b")|};
-  try_parse "10-minimal" {|f(\(x) if x then 1 else 2)|};
-  try_parse "11-assign-call" {|y = f(\(x) if x then 1 else 2)|};
-  try_parse "12-pipe-lambda-if" {|x |> f(\(r) if r then 1 else 2)|};
-  try_parse "13-assign-pipe" {|z = x |> f(\(r) if r then 1 else 2)|};
-
   (* Reproduce the airquality_groupby_with_nas golden test *)
   let csv_nas = "test_nas_groupby.csv" in
   let oc_nas = open_out csv_nas in
@@ -328,10 +305,10 @@ df |> mutate("senior", \(row) row.age >= 30)
   let env_nas = Eval.initial_env () in
   let (_, env_nas) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_nas) env_nas in
 
-  (* Step 1: mutate with if/then/else conditional *)
+  (* Step 1: mutate with if (condition) expr else expr — T's if syntax *)
   let step1_result = (try
     let (v, env_n) = eval_string_env
-      {|step1 = df |> mutate("temp_category", \(row) if row.Temp > 75 then "hot" else "cool")|}
+      {|step1 = df |> mutate("temp_category", \(row) if (row.Temp > 75) "hot" else "cool")|}
       env_nas in
     Ok (v, env_n)
   with e -> Error (Printexc.to_string e))
@@ -340,9 +317,9 @@ df |> mutate("senior", \(row) row.age >= 30)
   | Ok (v, env_nas2) ->
     let result = Ast.Utils.value_to_string v in
     if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-      incr pass_count; Printf.printf "  ✓ mutate with if/then/else on CSV with NAs\n"
+      incr pass_count; Printf.printf "  ✓ mutate with if/else on CSV with NAs\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ mutate with if/then/else on CSV with NAs\n    Got: %s\n" result
+      incr fail_count; Printf.printf "  ✗ mutate with if/else on CSV with NAs\n    Got: %s\n" result
     end;
 
     (* Step 2: group_by + summarize with mean(na_rm=true) *)
@@ -364,7 +341,7 @@ df |> mutate("senior", \(row) row.age >= 30)
     | Error msg ->
       incr fail_count; Printf.printf "  ✗ grouped summarize with mean(na_rm=true) on NAs\n    EXCEPTION: %s\n" msg)
   | Error msg ->
-    incr fail_count; Printf.printf "  ✗ mutate with if/then/else on CSV with NAs\n    EXCEPTION: %s\n" msg;
+    incr fail_count; Printf.printf "  ✗ mutate with if/else on CSV with NAs\n    EXCEPTION: %s\n" msg;
     incr fail_count; Printf.printf "  ✗ grouped summarize with mean(na_rm=true) on NAs (skipped)\n");
 
   (try Sys.remove csv_nas with _ -> ());
