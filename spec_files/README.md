@@ -134,9 +134,14 @@ Features supported:
 
 The following packages are automatically loaded at REPL startup:
 
-- `core`: functional utilities (e.g. `map`, `filter`)
-- `stats`: statistical functions (e.g. `mean`, `sd`)
-- `colcraft`: tabular functions (`select`, `mutate`, `filter`, `arrange`, `group_by`, `summarize`) and window functions (`row_number`, `min_rank`, `dense_rank`, `lag`, `lead`, `cumsum`, etc.)
+- `core`: functional utilities (e.g. `map`, `filter`, `sum`, `seq`, `pretty_print`)
+- `base`: error handling and NA support (e.g. `assert`, `is_na`, `is_error`, `error`)
+- `math`: numerical primitives (`sqrt`, `abs`, `log`, `exp`, `pow`)
+- `stats`: statistical functions (e.g. `mean`, `sd`, `quantile`, `cor`, `lm`)
+- `dataframe`: tabular I/O (`read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames`)
+- `colcraft`: data manipulation verbs (`select`, `mutate`, `filter`, `arrange`, `group_by`, `summarize`) and window functions (`row_number`, `min_rank`, `dense_rank`, `cume_dist`, `percent_rank`, `ntile`, `lag`, `lead`, `cumsum`, `cummin`, `cummax`, `cummean`, `cumall`, `cumany`)
+- `pipeline`: DAG-based execution (`pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run`)
+- `explain`: introspection and LLM tooling (`explain`, `explain_json`, `intent_fields`, `intent_get`)
 
 Each package consists of one file per function, e.g. `colcraft.select.ml`.
 
@@ -177,19 +182,34 @@ For details on creating packages and projects, see [package-management.md](packa
 ```
 .
 ├── flake.nix            # Nix flake-based build
-├── ast.ml               # Abstract syntax tree
-├── parser.ml            # Recursive descent parser
-├── lexer.ml             # Tokenizer
-├── eval.ml              # Interpreter / evaluator
-├── repl.ml              # Read-eval-print loop
-├── csv_reader.ml        # CSV integration
-├── packages/
-│   ├── core/
-│   │   └── map.t
-│   ├── stats/
-│   │   └── mean.t
-│   └── colcraft/
-│       └── select.t
+├── dune-project         # Dune project configuration
+├── src/
+│   ├── ast.ml           # Abstract syntax tree
+│   ├── parser.mly       # Menhir parser
+│   ├── lexer.mll        # OCamllex tokenizer
+│   ├── eval.ml          # Interpreter / evaluator
+│   ├── repl.ml          # Read-eval-print loop
+│   ├── arrow/           # Arrow-backed columnar storage
+│   │   ├── arrow_table.ml     # Arrow table types and operations
+│   │   ├── arrow_ffi.ml       # FFI bindings to Arrow C GLib
+│   │   ├── arrow_compute.ml   # Vectorized compute operations
+│   │   ├── arrow_column.ml    # Zero-copy column views
+│   │   ├── arrow_bridge.ml    # Arrow ↔ T value conversions
+│   │   ├── arrow_io.ml        # CSV reading/writing
+│   │   └── arrow_owl_bridge.ml # Numeric extraction for stats
+│   ├── ffi/
+│   │   └── arrow_stubs.c      # C stubs for Arrow C GLib
+│   └── packages/
+│       ├── core/        # print, type, length, map, etc.
+│       ├── base/        # assert, is_na, error, etc.
+│       ├── math/        # sqrt, abs, log, exp, pow
+│       ├── stats/       # mean, sd, quantile, cor, lm
+│       ├── dataframe/   # read_csv, write_csv, colnames, etc.
+│       ├── colcraft/    # select, filter, mutate, arrange, group_by, summarize, window functions
+│       ├── pipeline/    # pipeline_nodes, pipeline_deps, etc.
+│       └── explain/     # explain, intent_fields, etc.
+├── tests/               # Comprehensive test suite
+└── docs/                # Documentation
 ```
 
 ---
@@ -238,6 +258,7 @@ For detailed usage instructions, see [USAGE.md](USAGE.md).
 - [Formulas](docs/formulas.md) — Formula syntax and `lm()` reference
 - [Pipeline Tutorial](docs/pipeline_tutorial.md) — Step-by-step pipeline guide
 - [Data Manipulation Examples](docs/data_manipulation_examples.md) — Practical data wrangling cookbook
+- [Performance](docs/performance.md) — Arrow backend architecture and performance expectations
 - [Alpha Release Notes](ALPHA.md) — What's included in the alpha
 - [Roadmap](ROADMAP.md) — Future plans beyond alpha
 - [Changelog](CHANGELOG.md) — Version history

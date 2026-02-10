@@ -96,10 +96,46 @@ intent {                    -- LLM metadata
 | `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                       |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`                    |
-| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`      |
-| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize` |
+| `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
+| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `row_number`, `min_rank`, `dense_rank`, `cume_dist`, `percent_rank`, `ntile`, `lag`, `lead`, `cumsum`, `cummin`, `cummax`, `cummean`, `cumall`, `cumany` |
 | `pipeline`  | `pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run` |
 | `explain`   | `explain`, `explain_json`, `intent_fields`, `intent_get` |
+
+### Window Functions
+
+Window functions compute values across a set of rows without collapsing them:
+
+```t
+-- Ranking
+row_number([10, 30, 20])     -- Vector[1, 3, 2]
+min_rank([1, 1, 2, 2, 2])   -- Vector[1, 1, 3, 3, 3]
+dense_rank([1, 1, 2, 2])    -- Vector[1, 1, 2, 2]
+ntile([1, 2, 3, 4], 2)      -- Vector[1, 1, 2, 2]
+
+-- Offset (lag/lead)
+lag([1, 2, 3, 4])            -- Vector[NA, 1, 2, 3]
+lead([1, 2, 3, 4])           -- Vector[2, 3, 4, NA]
+
+-- Cumulative
+cumsum([1, 2, 3, 4])         -- Vector[1, 3, 6, 10]
+cummin([3, 1, 4, 1])         -- Vector[3, 1, 1, 1]
+cummax([1, 3, 2, 5])         -- Vector[1, 3, 3, 5]
+cummean([2, 4, 6])            -- Vector[2.0, 3.0, 4.0]
+```
+
+### Formula Interface
+
+Formulas provide a declarative way to specify statistical models:
+
+```t
+-- Linear regression with formula syntax
+model = lm(data = df, formula = y ~ x)
+model.slope       -- coefficient
+model.intercept   -- intercept
+model.r_squared   -- R² statistic
+model.residuals   -- residual vector
+model.n           -- number of observations
+```
 
 ---
 
