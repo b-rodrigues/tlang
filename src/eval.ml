@@ -372,7 +372,7 @@ and eval_call env fn_val raw_args =
          in
          make_error NameError msg)
 
-  | VError _ as e -> e
+  | VError _ -> make_error TypeError "Cannot call Error as a function"
   | VNA _ -> make_error TypeError "Cannot call NA as a function"
   | _ -> make_error TypeError (Printf.sprintf "Cannot call %s as a function" (Utils.type_name fn_val))
 
@@ -417,11 +417,16 @@ and eval_binop env op left right =
       )
   | _ ->
   let lval = eval_expr env left in
-  (match lval with VError _ as e -> e | _ ->
   let rval = eval_expr env right in
-  (match rval with VError _ as e -> e | _ ->
+  (* Error values in arithmetic produce TypeError instead of propagating *)
+  (match (lval, rval) with
+  | (VError _, _) | (_, VError _) ->
+    let op_name = match op with
+      | Plus -> "add" | Minus -> "subtract" | Mul -> "multiply" | Div -> "divide"
+      | Lt | Gt | LtEq | GtEq -> "compare" | Eq | NEq -> "compare" | _ -> "apply operator to"
+    in
+    make_error TypeError (Printf.sprintf "Cannot %s %s and %s" op_name (Utils.type_name lval) (Utils.type_name rval))
   (* NA does not propagate implicitly — operations with NA produce explicit errors *)
-  match (lval, rval) with
   | (VNA _, _) | (_, VNA _) ->
       make_error TypeError "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
   | _ ->
@@ -482,7 +487,7 @@ and eval_binop env op left right =
       | Some hint -> base_msg ^ ". " ^ hint
       | None -> base_msg
     in
-    make_error TypeError msg))
+    make_error TypeError msg)
 
 and eval_unop env op operand =
   let v = eval_expr env operand in

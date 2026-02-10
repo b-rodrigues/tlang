@@ -14,6 +14,6 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   print_newline ();
 
   Printf.printf "Error Handling:\n";
-  test "error propagation in addition" "(1 / 0) + 1" {|Error(DivisionByZero: "Division by zero")|};
+  test "error propagation in addition" "(1 / 0) + 1" {|Error(TypeError: "Cannot add Error and Int")|};
   test "error in list" "[1, 1/0, 3]" {|Error(DivisionByZero: "Division by zero")|};
   print_newline ()

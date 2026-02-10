@@ -78,9 +78,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Core Semantics: Error invariants:\n";
 
   (* Error propagation through binary operations *)
-  test "error + value" "(1 / 0) + 5" {|Error(DivisionByZero: "Division by zero")|};
-  test "value + error" "5 + (1 / 0)" {|Error(DivisionByZero: "Division by zero")|};
-  test "error * error" "(1 / 0) * (1 / 0)" {|Error(DivisionByZero: "Division by zero")|};
+  test "error + value" "(1 / 0) + 5" {|Error(TypeError: "Cannot add Error and Int")|};
+  test "value + error" "5 + (1 / 0)" {|Error(TypeError: "Cannot add Int and Error")|};
+  test "error * error" "(1 / 0) * (1 / 0)" {|Error(TypeError: "Cannot multiply Error and Error")|};
 
   (* Type errors *)
   test "int + bool error" "1 + true" {|Error(TypeError: "Cannot add Int and Bool. Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values.")|};
