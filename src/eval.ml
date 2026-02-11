@@ -17,8 +17,8 @@ let is_na_value = function VNA _ -> true | _ -> false
 
 (* --- NSE (Non-Standard Evaluation) Helpers --- *)
 
-(** Transform an NSE expression like ($age > 30) into \(row) row.age > 30 
-    This recursively replaces ColumnRef nodes with DotAccess nodes *)
+(** Transform an NSE expression like ($age > 30) into (fun row -> row.age > 30).
+    This recursively replaces ColumnRef nodes with DotAccess nodes. *)
 let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
   match expr with
   | ColumnRef field ->

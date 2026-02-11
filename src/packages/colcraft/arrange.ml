@@ -1,19 +1,11 @@
 open Ast
 
-(** Extract column name from value, supporting NSE ($column) and strings *)
-let extract_column_name = function
-  | VString s -> Some s
-  | VSymbol s when String.length s > 0 && s.[0] = '$' ->
-      Some (String.sub s 1 (String.length s - 1))
-  | VSymbol s -> Some s  (* Backward compat *)
-  | _ -> None
-
 let register env =
   Env.add "arrange"
     (make_builtin ~variadic:true 2 (fun args _env ->
       match args with
       | [VDataFrame df; col_val] | [VDataFrame df; col_val; VString "asc"] ->
-          (match extract_column_name col_val with
+          (match Utils.extract_column_name col_val with
            | None -> make_error TypeError "arrange() expects a column name (string or $column syntax)"
            | Some col_name ->
               if not (Arrow_table.has_column df.arrow_table col_name) then
@@ -44,7 +36,7 @@ let register env =
                    let new_table = Arrow_compute.sort_by_indices df.arrow_table indices in
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
       | [VDataFrame df; col_val; VString "desc"] ->
-          (match extract_column_name col_val with
+          (match Utils.extract_column_name col_val with
            | None -> make_error TypeError "arrange() expects a column name (string or $column syntax)"
            | Some col_name ->
               if not (Arrow_table.has_column df.arrow_table col_name) then

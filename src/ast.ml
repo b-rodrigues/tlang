@@ -146,9 +146,21 @@ module Utils = struct
     | VNA _ -> false
     | _ -> true
 
-  (** Check if an expression is a column reference and extract the column name *)
+  (** Check if an expression is a column reference and extract the column name.
+      Intended for use in NSE-aware functions that need to inspect AST nodes
+      before evaluation (e.g., future filter/mutate NSE support). *)
   let is_column_ref = function
     | ColumnRef field -> Some field
+    | _ -> None
+
+  (** Extract column name from a runtime value, supporting NSE ($column) and strings.
+      Used by data verbs (select, arrange, group_by, etc.) to accept both
+      string column names and $column_name NSE syntax. *)
+  let extract_column_name = function
+    | VString s -> Some s
+    | VSymbol s when String.length s > 0 && s.[0] = '$' ->
+        Some (String.sub s 1 (String.length s - 1))
+    | VSymbol s -> Some s
     | _ -> None
 
   let error_code_to_string = function
