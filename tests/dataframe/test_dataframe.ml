@@ -236,23 +236,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc7 "Alice,30,95.5\nBob,25,87.3\n";
   close_out oc7;
 
-  (* Test read_csv with sep *)
+  (* Test read_csv with separator *)
   let env5 = Eval.initial_env () in
-  let (_, env5) = eval_string_env (Printf.sprintf {|df = read_csv("%s", sep = ";")|} csv_path_sep) env5 in
+  let (_, env5) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = ";")|} csv_path_sep) env5 in
   let (v, _) = eval_string_env "nrow(df)" env5 in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ read_csv with sep=\";\" reads correct rows\n"
+    incr pass_count; Printf.printf "  ✓ read_csv with separator=\";\" reads correct rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ read_csv with sep=\";\" reads correct rows\n    Expected: 2\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ read_csv with separator=\";\" reads correct rows\n    Expected: 2\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "colnames(df)" env5 in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "age", "score"]|} then begin
-    incr pass_count; Printf.printf "  ✓ read_csv with sep=\";\" reads correct columns\n"
+    incr pass_count; Printf.printf "  ✓ read_csv with separator=\";\" reads correct columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ read_csv with sep=\";\" reads correct columns\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ read_csv with separator=\";\" reads correct columns\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
   end;
 
   (* Test read_csv with skip_lines *)
@@ -300,30 +300,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let csv_out_sep = "test_phase5_write_sep.csv" in
   let env_w = Eval.initial_env () in
   let (_, env_w) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_w in
-  let (v, _) = eval_string_env (Printf.sprintf {|write_csv(df, "%s", sep = ";")|} csv_out_sep) env_w in
+  let (v, _) = eval_string_env (Printf.sprintf {|write_csv(df, "%s", separator = ";")|} csv_out_sep) env_w in
   let result = Ast.Utils.value_to_string v in
   if result = "null" then begin
-    incr pass_count; Printf.printf "  ✓ write_csv with sep=\";\" returns null\n"
+    incr pass_count; Printf.printf "  ✓ write_csv with separator=\";\" returns null\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ write_csv with sep=\";\" returns null\n    Expected: null\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ write_csv with separator=\";\" returns null\n    Expected: null\n    Got: %s\n" result
   end;
 
   (* Roundtrip: read back the semicolon-separated file *)
-  let (_, env_w2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s", sep = ";")|} csv_out_sep) env_w in
+  let (_, env_w2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s", separator = ";")|} csv_out_sep) env_w in
   let (v, _) = eval_string_env "nrow(df2)" env_w2 in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ roundtrip with sep=\";\" preserves row count\n"
+    incr pass_count; Printf.printf "  ✓ roundtrip with separator=\";\" preserves row count\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ roundtrip with sep=\";\" preserves row count\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ roundtrip with separator=\";\" preserves row count\n    Expected: 3\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "colnames(df2)" env_w2 in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "age", "score"]|} then begin
-    incr pass_count; Printf.printf "  ✓ roundtrip with sep=\";\" preserves column names\n"
+    incr pass_count; Printf.printf "  ✓ roundtrip with separator=\";\" preserves column names\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ roundtrip with sep=\";\" preserves column names\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ roundtrip with separator=\";\" preserves column names\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
   end;
   print_newline ();
 
@@ -460,6 +460,306 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
   print_newline ();
 
+  (* ================================================================= *)
+  (* separator alias tests                                              *)
+  (* ================================================================= *)
+  Printf.printf "Phase — read_csv() with separator alias:\n";
+
+  let csv_path_sep_alias = "test_sep_alias.csv" in
+  let oc_sa = open_out csv_path_sep_alias in
+  output_string oc_sa "name|age|score\nAlice|30|95.5\nBob|25|87.3\n";
+  close_out oc_sa;
+
+  let env_sa = Eval.initial_env () in
+  let (_, env_sa) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = "|")|} csv_path_sep_alias) env_sa in
+  let (v, _) = eval_string_env "nrow(df)" env_sa in
+  let result = Ast.Utils.value_to_string v in
+  if result = "2" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 read_csv with separator=\"|\" reads correct rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 read_csv with separator=\"|\" reads correct rows\n    Expected: 2\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "colnames(df)" env_sa in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["name", "age", "score"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 read_csv with separator=\"|\" reads correct columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 read_csv with separator=\"|\" reads correct columns\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "df.name" env_sa in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|Vector["Alice", "Bob"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 read_csv with separator=\"|\" reads correct values\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 read_csv with separator=\"|\" reads correct values\n    Expected: Vector[\"Alice\", \"Bob\"]\n    Got: %s\n" result
+  end;
+
+  (* Test write_csv with separator alias *)
+  let csv_out_sep_alias = "test_write_sep_alias.csv" in
+  let env_wsa = Eval.initial_env () in
+  let (_, env_wsa) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_wsa in
+  let (v, _) = eval_string_env (Printf.sprintf {|write_csv(df, "%s", separator = ";")|} csv_out_sep_alias) env_wsa in
+  let result = Ast.Utils.value_to_string v in
+  if result = "null" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 write_csv with separator=\";\" returns null\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 write_csv with separator=\";\" returns null\n    Expected: null\n    Got: %s\n" result
+  end;
+
+  (* Roundtrip: read back the semicolon-separated file written with separator alias *)
+  let (_, env_wsa2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s", separator = ";")|} csv_out_sep_alias) env_wsa in
+  let (v, _) = eval_string_env "nrow(df2)" env_wsa2 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 roundtrip with separator=\";\" preserves row count\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 roundtrip with separator=\";\" preserves row count\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "colnames(df2)" env_wsa2 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["name", "age", "score"]|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 roundtrip with separator=\";\" preserves column names\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 roundtrip with separator=\";\" preserves column names\n    Expected: [\"name\", \"age\", \"score\"]\n    Got: %s\n" result
+  end;
+
+  test "read_csv separator bad type"
+    {|read_csv("test_phase2.csv", separator = 42)|}
+    {|Error(TypeError: "read_csv() separator must be a single character string")|};
+  test "read_csv separator too long"
+    {|read_csv("test_phase2.csv", separator = "||")|}
+    {|Error(TypeError: "read_csv() separator must be a single character string")|};
+  print_newline ();
+
+  (* ================================================================= *)
+  (* head/tail on DataFrames                                            *)
+  (* ================================================================= *)
+  Printf.printf "Phase — head() and tail() on DataFrames:\n";
+
+  let csv_path_ht = "test_head_tail.csv" in
+  let oc_ht = open_out csv_path_ht in
+  output_string oc_ht "x,y\n1,a\n2,b\n3,c\n4,d\n5,e\n6,f\n7,g\n8,h\n";
+  close_out oc_ht;
+
+  let env_ht = Eval.initial_env () in
+  let (_, env_ht) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path_ht) env_ht in
+
+  (* head default n=5 *)
+  let (v, _) = eval_string_env "nrow(head(df))" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 head(df) returns 5 rows by default\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 head(df) returns 5 rows by default\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  (* head with n=3 as positional arg *)
+  let (v, _) = eval_string_env "nrow(head(df, 3))" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 head(df, 3) returns 3 rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 head(df, 3) returns 3 rows\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  (* head with n=3 as named arg *)
+  let (v, _) = eval_string_env "nrow(head(df, n = 3))" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 head(df, n=3) returns 3 rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 head(df, n=3) returns 3 rows\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  (* head preserves columns *)
+  let (v, _) = eval_string_env "h = head(df, 2); h.x" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1, 2]" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 head(df, 2) preserves column data\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 head(df, 2) preserves column data\n    Expected: Vector[1, 2]\n    Got: %s\n" result
+  end;
+
+  (* head n > nrow *)
+  let (v, _) = eval_string_env "nrow(head(df, 100))" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "8" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 head(df, 100) returns all rows when n > nrow\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 head(df, 100) returns all rows when n > nrow\n    Expected: 8\n    Got: %s\n" result
+  end;
+
+  (* tail default n=5 *)
+  let (v, _) = eval_string_env "nrow(tail(df))" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 tail(df) returns 5 rows by default\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 tail(df) returns 5 rows by default\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  (* tail with n=3 as positional arg *)
+  let (v, _) = eval_string_env "nrow(tail(df, 3))" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 tail(df, 3) returns 3 rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 tail(df, 3) returns 3 rows\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  (* tail with n=3 as named arg *)
+  let (v, _) = eval_string_env "nrow(tail(df, n = 3))" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 tail(df, n=3) returns 3 rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 tail(df, n=3) returns 3 rows\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  (* tail returns last rows *)
+  let (v, _) = eval_string_env "t = tail(df, 2); t.x" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[7, 8]" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 tail(df, 2) returns last rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 tail(df, 2) returns last rows\n    Expected: Vector[7, 8]\n    Got: %s\n" result
+  end;
+
+  (* tail n > nrow *)
+  let (v, _) = eval_string_env "nrow(tail(df, 100))" env_ht in
+  let result = Ast.Utils.value_to_string v in
+  if result = "8" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 tail(df, 100) returns all rows when n > nrow\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 tail(df, 100) returns all rows when n > nrow\n    Expected: 8\n    Got: %s\n" result
+  end;
+
+  (* head/tail preserve list behavior *)
+  test "head on list still works"
+    "head([1, 2, 3])"
+    "1";
+  test "tail on list still works"
+    "tail([1, 2, 3])"
+    "[2, 3]";
+  print_newline ();
+
+  (* ================================================================= *)
+  (* glimpse() tests                                                    *)
+  (* ================================================================= *)
+  Printf.printf "Phase — glimpse():\n";
+
+  let env_gl = Eval.initial_env () in
+  let (_, env_gl) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_gl in
+
+  let (v, _) = eval_string_env "g = glimpse(df); g.kind" env_gl in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"dataframe"|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse returns dict with kind=dataframe\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse returns dict with kind=dataframe\n    Expected: \"dataframe\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "g = glimpse(df); g.nrow" env_gl in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse nrow correct\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse nrow correct\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "g = glimpse(df); g.ncol" env_gl in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse ncol correct\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse ncol correct\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "g = glimpse(df); type(g.columns)" env_gl in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"List"|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse columns is a List\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse columns is a List\n    Expected: \"List\"\n    Got: %s\n" result
+  end;
+
+  test "glimpse on non-DataFrame"
+    "glimpse(42)"
+    {|Error(TypeError: "glimpse() expects a DataFrame")|};
+  test "glimpse on NA"
+    "glimpse(NA)"
+    {|Error(TypeError: "glimpse() expects a DataFrame, got NA")|};
+  print_newline ();
+
+  (* ================================================================= *)
+  (* explain() compact display for DataFrames                           *)
+  (* ================================================================= *)
+  Printf.printf "Phase — explain() compact display for DataFrames:\n";
+
+  let env_ex = Eval.initial_env () in
+  let (_, env_ex) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_ex in
+
+  (* Compact display should not contain schema, na_stats, example_rows *)
+  let (v, _) = eval_string_env "explain(df)" env_ex in
+  let result = Ast.Utils.value_to_string v in
+  let contains_sub s sub =
+    let slen = String.length s in
+    let sublen = String.length sub in
+    if sublen > slen then false
+    else
+      let found = ref false in
+      for i = 0 to slen - sublen do
+        if not !found && String.sub s i sublen = sub then found := true
+      done;
+      !found
+  in
+  let has_schema = contains_sub result "schema" in
+  let has_na_stats = contains_sub result "na_stats" in
+  let has_example = contains_sub result "example_rows" in
+  if not has_schema && not has_na_stats && not has_example then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 explain(df) display does not show schema/na_stats/example_rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 explain(df) display does not show schema/na_stats/example_rows\n    Got: %s\n" result
+  end;
+
+  (* But fields should be accessible via dot notation *)
+  let (v, _) = eval_string_env "e = explain(df); type(e.schema)" env_ex in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"List"|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 explain(df).schema still accessible\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 explain(df).schema still accessible\n    Expected: \"List\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "e = explain(df); type(e.na_stats)" env_ex in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"Dict"|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 explain(df).na_stats still accessible\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 explain(df).na_stats still accessible\n    Expected: \"Dict\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "e = explain(df); type(e.example_rows)" env_ex in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"List"|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 explain(df).example_rows still accessible\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 explain(df).example_rows still accessible\n    Expected: \"List\"\n    Got: %s\n" result
+  end;
+
+  (* Hint message should be present *)
+  let (v, _) = eval_string_env "e = explain(df); type(e.hint)" env_ex in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"String"|} then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 explain(df) has hint field\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 explain(df) has hint field\n    Expected: \"String\"\n    Got: %s\n" result
+  end;
+  print_newline ();
+
   (* Clean up test CSV files *)
   (try Sys.remove csv_path with _ -> ());
   (try Sys.remove csv_path_types with _ -> ());
@@ -473,4 +773,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (try Sys.remove csv_path_punct with _ -> ());
   (try Sys.remove csv_path_unicode with _ -> ());
   (try Sys.remove csv_path_collide with _ -> ());
-  (try Sys.remove csv_path_digits with _ -> ())
+  (try Sys.remove csv_path_digits with _ -> ());
+  (try Sys.remove csv_path_sep_alias with _ -> ());
+  (try Sys.remove csv_out_sep_alias with _ -> ());
+  (try Sys.remove csv_path_ht with _ -> ())

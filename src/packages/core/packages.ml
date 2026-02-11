@@ -45,7 +45,7 @@ let base_package = {
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
-  functions = ["read_csv"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"];
+  functions = ["read_csv"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"];
 }
 
 let pipeline_package = {

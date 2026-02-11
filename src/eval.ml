@@ -741,6 +741,7 @@ let initial_env () : environment =
   let env = Colnames.register env in
   let env = Nrow.register env in
   let env = Ncol.register env in
+  let env = Glimpse.register env in
   (* clean_colnames as a standalone function on DataFrames *)
   let env = Env.add "clean_colnames"
     (make_builtin 1 (fun args _env ->

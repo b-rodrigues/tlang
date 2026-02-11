@@ -72,7 +72,7 @@ Version history and roadmap for the T programming language.
 - `lm` (linear regression: `y ~ x`)
 
 ✅ **DataFrame Package**:
-- `read_csv` (with `sep`, `skip_lines`, `skip_header`, `clean_colnames`)
+- `read_csv` (with `separator`, `skip_lines`, `skip_header`, `clean_colnames`)
 - `write_csv`
 - `nrow`, `ncol`, `colnames`
 - `clean_colnames` (symbol expansion, diacritics, snake_case, collision resolution)

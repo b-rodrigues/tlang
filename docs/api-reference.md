@@ -642,13 +642,13 @@ predict(200)  -- Predicted sales for advertising = 200
 
 CSV I/O and DataFrame introspection.
 
-### `read_csv(path, sep = ",", skip_lines = 0, skip_header = false, clean_colnames = false)`
+### `read_csv(path, separator = ",", skip_lines = 0, skip_header = false, clean_colnames = false)`
 
 Read a CSV file into a DataFrame.
 
 **Parameters:**
 - `path` — File path (String)
-- `sep` (optional) — Column separator (default: ",")
+- `separator` (optional) — Column separator (default: ",")
 - `skip_lines` (optional) — Number of lines to skip at start (default: 0)
 - `skip_header` (optional) — If true, treat first row as data (default: false)
 - `clean_colnames` (optional) — If true, normalize column names (default: false)
@@ -658,28 +658,28 @@ Read a CSV file into a DataFrame.
 **Examples:**
 ```t
 df = read_csv("data.csv")
-df = read_csv("data.tsv", sep = "\t")
+df = read_csv("data.tsv", separator = "\t")
 df = read_csv("data.csv", skip_lines = 2)
 df = read_csv("messy.csv", clean_colnames = true)
 ```
 
 ---
 
-### `write_csv(dataframe, path, sep = ",")`
+### `write_csv(dataframe, path, separator = ",")`
 
 Write a DataFrame to a CSV file.
 
 **Parameters:**
 - `dataframe` — DataFrame to write
 - `path` — Output file path (String)
-- `sep` (optional) — Column separator (default: ",")
+- `separator` (optional) — Column separator (default: ",")
 
 **Returns:** `null`
 
 **Examples:**
 ```t
 write_csv(df, "output.csv")
-write_csv(df, "output.tsv", sep = "\t")
+write_csv(df, "output.tsv", separator = "\t")
 ```
 
 ---

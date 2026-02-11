@@ -122,7 +122,7 @@ Features supported:
 - Formula syntax: `y ~ x` creates Formula objects for statistical modeling
 - Named arguments: `lm(data = df, formula = y ~ x)`
 - NA handling: `mean(data, na_rm = true)` skips missing values
-- CSV I/O: `read_csv(path, sep = ";", skip_lines = 2)` and `write_csv(df, path, sep = ";")`
+- CSV I/O: `read_csv(path, separator = ";", skip_lines = 2)` and `write_csv(df, path, separator = ";")`
 - Window functions: `row_number`, `min_rank`, `dense_rank`, `lag`, `lead`, `cumsum` with NA support
 - Conditional pipe: `x |> f` (short-circuits on error)
 - Maybe-pipe: `x ?|> f` (forwards errors for recovery)

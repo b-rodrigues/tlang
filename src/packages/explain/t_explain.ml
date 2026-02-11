@@ -80,13 +80,19 @@ let register env =
             if df.group_keys = [] then []
             else [("group_keys", VList (List.map (fun k -> (None, VString k)) df.group_keys))]
           in
+          let display_keys = [
+            (None, VString "kind"); (None, VString "nrow"); (None, VString "ncol");
+            (None, VString "hint")
+          ] @ (if df.group_keys = [] then [] else [(None, VString "group_keys")]) in
           VDict ([
             ("kind", VString "dataframe");
             ("nrow", VInt nrows);
             ("ncol", VInt (Arrow_table.num_columns df.arrow_table));
+            ("hint", VString "Use explain(df).schema, explain(df).na_stats, explain(df).example_rows for details");
             ("schema", schema);
             ("na_stats", na_stats);
             ("example_rows", example_rows);
+            ("_display_keys", VList display_keys);
           ] @ grouped_info)
       | [VPipeline { p_nodes; p_deps; _ }] ->
           let nodes_info = VList (List.map (fun (name, v) ->
