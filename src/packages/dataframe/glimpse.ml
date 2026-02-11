@@ -37,6 +37,7 @@ let register env =
             Printf.printf "$ %-13s <%s> %s%s\n" name !col_type example_str suffix
           ) value_columns;
           
+          flush stdout;
           VNull
       | [VNA _] -> make_error TypeError "glimpse() expects a DataFrame, got NA"
       | [_] -> make_error TypeError "glimpse() expects a DataFrame"
