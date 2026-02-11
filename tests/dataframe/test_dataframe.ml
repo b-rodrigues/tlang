@@ -654,36 +654,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let env_gl = Eval.initial_env () in
   let (_, env_gl) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_gl in
 
-  let (v, _) = eval_string_env "g = glimpse(df); g.kind" env_gl in
+  let (v, _) = eval_string_env "g = glimpse(df)" env_gl in
   let result = Ast.Utils.value_to_string v in
-  if result = {|"dataframe"|} then begin
-    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse returns dict with kind=dataframe\n"
+  if result = "null" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse returns null (prints to stdout)\n"
   end else begin
-    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse returns dict with kind=dataframe\n    Expected: \"dataframe\"\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "g = glimpse(df); g.nrow" env_gl in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse nrow correct\n"
-  end else begin
-    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse nrow correct\n    Expected: 3\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "g = glimpse(df); g.ncol" env_gl in
-  let result = Ast.Utils.value_to_string v in
-  if result = "3" then begin
-    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse ncol correct\n"
-  end else begin
-    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse ncol correct\n    Expected: 3\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "g = glimpse(df); type(g.columns)" env_gl in
-  let result = Ast.Utils.value_to_string v in
-  if result = {|"List"|} then begin
-    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse columns is a List\n"
-  end else begin
-    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse columns is a List\n    Expected: \"List\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse returns null\n    Expected: null\n    Got: %s\n" result
   end;
 
   test "glimpse on non-DataFrame"
