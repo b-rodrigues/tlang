@@ -716,9 +716,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       done;
       !found
   in
-  let has_schema = contains_sub result "schema" in
-  let has_na_stats = contains_sub result "na_stats" in
-  let has_example = contains_sub result "example_rows" in
+  let has_schema = contains_sub result "`schema`:" in
+  let has_na_stats = contains_sub result "`na_stats`:" in
+  let has_example = contains_sub result "`example_rows`:" in
   if not has_schema && not has_na_stats && not has_example then begin
     incr pass_count; Printf.printf "  \xe2\x9c\x93 explain(df) display does not show schema/na_stats/example_rows\n"
   end else begin
