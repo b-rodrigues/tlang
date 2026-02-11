@@ -11,8 +11,8 @@ let _detect_simple_agg (_fn : value) : string option =
   None
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
-  (* Helper: call fn with arg if callable, otherwise use fn as a constant value *)
-  let call_or_use env fn arg =
+  (* Helper: apply aggregation fn with arg if callable, otherwise use fn as a constant value *)
+  let apply_aggregation env fn arg =
     match fn with
     | VLambda _ | VBuiltin _ -> eval_call env fn [(None, Value arg)]
     | v -> v
@@ -44,7 +44,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                make_error ArityError "summarize() requires at least one (name, function) pair"
              else if df.group_keys = [] then
                let result_cols = List.map (fun (name, fn) ->
-                 let result = call_or_use env fn (VDataFrame df) in
+                 let result = apply_aggregation env fn (VDataFrame df) in
                  (name, result)
                ) pairs in
                (match List.find_opt (fun (_, v) -> is_error_value v) result_cols with
@@ -85,7 +85,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                      (* Create sub-table using Arrow take_rows *)
                      let sub_table = Arrow_compute.take_rows df.arrow_table row_indices in
                      let sub_df = VDataFrame { arrow_table = sub_table; group_keys = [] } in
-                     let result = call_or_use env fn sub_df in
+                     let result = apply_aggregation env fn sub_df in
                      (match result with
                       | VError _ -> had_error := Some result; result
                       | v -> v)

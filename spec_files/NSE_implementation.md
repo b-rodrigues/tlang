@@ -185,8 +185,10 @@ This means both syntaxes ultimately use the same underlying mechanism, but the d
 ```t
 df |> select($name, $age, $salary)
 df |> filter($age > 30)
-df |> mutate($bonus, \(row) row.salary * 0.1)  -- Keep lambda for complex expressions
+df |> mutate($bonus = $salary * 0.1)  -- Named-arg NSE syntax
+df |> mutate($bonus, \(row) row.salary * 0.1)  -- Positional with explicit lambda
 df |> arrange($age, "desc")
+df |> group_by($dept) |> summarize($avg = mean($salary))  -- Named-arg NSE
 ```
 
 #### Advantages

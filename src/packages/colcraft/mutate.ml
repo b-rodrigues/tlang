@@ -73,7 +73,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                  | VDataFrame new_df -> apply_named_mutations new_df rest_mutations
                  | err -> err)
             | (None, _) :: _ ->
-                make_error TypeError "mutate() cannot mix named ($col = expr) and positional arguments"
+                make_error TypeError "mutate() cannot mix named ($col = expr) and positional arguments in the same call"
             | _ ->
                 make_error TypeError "mutate() expects $column = expression pairs"
           in
