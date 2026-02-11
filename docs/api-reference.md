@@ -815,11 +815,15 @@ df |> filter(\(row) row.age > 30)
 
 ---
 
-#### `mutate(dataframe, new_col, fn)` / `mutate(dataframe, new_col, value)`
+#### `mutate(dataframe, $col = expr)` / `mutate(dataframe, new_col, fn)`
 
-Add or transform a column. Supports dollar-prefix NSE for column names.
+Add or transform a column. Supports `$col = expr` named-arg syntax with NSE.
 
-**Parameters:**
+**Parameters (named-arg form):**
+- `dataframe` — DataFrame
+- `$col = expr` — Column name from `$col`, value from NSE expression
+
+**Parameters (positional form):**
 - `dataframe` — DataFrame
 - `new_col` — Column reference (`$bonus`) or column name string (`"bonus"`)
 - `fn` — Function taking row dict: `\(row) ...`, OR
@@ -829,9 +833,12 @@ Add or transform a column. Supports dollar-prefix NSE for column names.
 
 **Examples:**
 ```t
--- NSE syntax (preferred)
+-- Named-arg NSE syntax (preferred)
+df |> mutate($bonus = $salary * 0.1)
+df |> mutate($age_next_year = $age + 1)
+
+-- Positional NSE with lambda
 df |> mutate($bonus, \(row) row.salary * 0.1)
-df |> mutate($age_next_year, \(row) row.age + 1)
 
 -- String syntax (also works)
 df |> mutate("bonus", \(row) row.salary * 0.1)
@@ -894,11 +901,15 @@ df |> group_by($dept, $location)
 
 ---
 
-#### `summarize(grouped_df, new_col, fn)`
+#### `summarize(grouped_df, $col = expr)` / `summarize(grouped_df, new_col, fn)`
 
-Aggregate grouped data. Supports dollar-prefix NSE for column names.
+Aggregate grouped data. Supports `$col = expr` named-arg syntax with NSE.
 
-**Parameters:**
+**Parameters (named-arg form):**
+- `grouped_df` — Grouped DataFrame (from `group_by()`)
+- `$col = expr` — Column name from `$col`, aggregation from NSE expression (e.g. `sum($amount)`)
+
+**Parameters (positional form):**
 - `grouped_df` — Grouped DataFrame (from `group_by()`)
 - `new_col` — Column reference (`$count`) or column name string (`"count"`)
 - `fn` — Aggregation function: `\(group) ...`
@@ -907,10 +918,13 @@ Aggregate grouped data. Supports dollar-prefix NSE for column names.
 
 **Examples:**
 ```t
--- NSE syntax (preferred)
+-- Named-arg NSE syntax (preferred)
+df |> group_by($dept) |> summarize($count = nrow($dept))
+df |> group_by($dept) |> summarize($avg_salary = mean($salary))
+df |> group_by($region) |> summarize($total_sales = sum($sales), $n = nrow($region))
+
+-- Positional NSE with lambda
 df |> group_by($dept) |> summarize($count, \(g) nrow(g))
-df |> group_by($dept) |> summarize($avg_salary, \(g) mean(g.salary))
-df |> group_by($region) |> summarize($total_sales, \(g) sum(g.sales))
 
 -- String syntax (also works)
 df |> group_by("dept") |> summarize("count", \(g) nrow(g))

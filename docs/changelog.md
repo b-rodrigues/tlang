@@ -17,6 +17,16 @@ Version history and roadmap for the T programming language.
 - Dynamic typing with runtime checks
 - First-class functions and closures
 - List comprehensions
+- **Non-Standard Evaluation (NSE)**: Dollar-prefix column references (`$column_name`) for concise data manipulation
+
+### NSE (Non-Standard Evaluation)
+
+✅ **Implemented**:
+- Dollar-prefix syntax: `$column_name` for column references
+- Auto-transformation: `$age > 30` → `\(row) row.age > 30`
+- Named-arg syntax: `summarize($total = sum($amount))`, `mutate($bonus = $salary * 0.1)`
+- Works with all data verbs: `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`
+- Backward compatible: string syntax (`"name"`) and lambda syntax still supported
 
 ### Data Types
 

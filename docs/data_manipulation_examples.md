@@ -123,9 +123,12 @@ The NSE syntax auto-transforms `$age > 30` into `\(row) row.age > 30`.
 Mutate adds a new column or replaces an existing one:
 
 ```t
--- NSE syntax for column name (preferred)
+-- Named-arg NSE syntax (preferred): $col = NSE expression
+df |> mutate($age_plus_10 = $age + 10)
+df |> mutate($bonus = $salary * 0.1)
+
+-- Positional NSE for column name with explicit lambda
 df |> mutate($age_plus_10, \(row) row.age + 10)
-df |> mutate($age, \(row) row.age + 1)
 
 -- String syntax (also works)
 df |> mutate("age_plus_10", \(row) row.age + 10)
@@ -201,7 +204,10 @@ Summarize computes aggregate statistics:
 ### Ungrouped Summarize
 
 ```t
--- NSE syntax (preferred)
+-- Named-arg NSE syntax (preferred): $col = NSE aggregation
+df |> summarize($total_score = sum($score))
+
+-- Positional NSE with lambda
 df |> summarize($total_rows, \(d) nrow(d))
 
 -- String syntax (also works)
@@ -212,7 +218,11 @@ df |> summarize("total_rows", \(d) nrow(d))
 ### Grouped Summarize
 
 ```t
--- NSE syntax (preferred)
+-- Named-arg NSE syntax (preferred)
+df |> group_by($dept)
+   |> summarize($count = nrow($dept), $avg_score = mean($score))
+
+-- Positional NSE with lambda
 df |> group_by($dept)
    |> summarize($count, \(g) nrow(g))
 

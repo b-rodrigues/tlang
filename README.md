@@ -82,7 +82,7 @@ analysis = pipeline {
   by_age = filtered
     |> mutate($age_group, \(row) if (row.age < 30) "young" else "mature")
     |> group_by($age_group)
-    |> summarize($churn_rate, \(g) mean(g.churned))
+    |> summarize($churn_rate = mean($churned))
   
   model = lm(data = filtered, formula = churned ~ age)
 }
@@ -120,14 +120,15 @@ mean([1, NA, 3], na_rm = true) -- 2.0 (explicit handling)
 T uses dollar-prefix (`$column`) syntax for concise column references (NSE):
 
 ```t
-df |> select($name, $age)                         -- Select columns
-df |> filter($age > 25)                            -- Filter rows
-df |> mutate($bonus, \(row) row.salary * 0.1)      -- Add columns
-df |> arrange($age, "desc")                        -- Sort
-df |> group_by($dept) |> summarize($n, \(g) nrow(g))  -- Aggregate
+df |> select($name, $age)                              -- Select columns
+df |> filter($age > 25)                                -- Filter rows
+df |> mutate($bonus = $salary * 0.1)                   -- Add columns (named-arg)
+df |> arrange($age, "desc")                            -- Sort
+df |> group_by($dept) |> summarize($n = nrow($dept))   -- Aggregate (named-arg)
 ```
 
-String syntax is also supported for backward compatibility:
+The `$col = expr` syntax uses NSE expressions that are auto-transformed into lambdas.
+String/lambda syntax is also supported for backward compatibility:
 
 ```t
 df |> select("name", "age")                    -- Select columns

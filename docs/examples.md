@@ -56,17 +56,17 @@ print("IQR: " + string(iqr))
 
 ```t
 -- Active customers only
-active = customers |> filter(\(row) row.active == true)
+active = customers |> filter($active == true)
 
 -- High-value customers
 high_value = customers 
-  |> filter(\(row) row.purchases > 100)
-  |> select("name", "purchases")
+  |> filter($purchases > 100)
+  |> select($name, $purchases)
 
 -- Age groups
-young = customers |> filter(\(row) row.age < 30)
-mature = customers |> filter(\(row) row.age >= 30 and row.age < 50)
-senior = customers |> filter(\(row) row.age >= 50)
+young = customers |> filter($age < 30)
+mature = customers |> filter($age >= 30 and $age < 50)
+senior = customers |> filter($age >= 50)
 
 print("Young customers: " + string(nrow(young)))
 print("Mature customers: " + string(nrow(mature)))
@@ -240,20 +240,20 @@ print("Cohen's d: " + string(cohens_d))
 ```t
 sales = read_csv("sales_data.csv")
 
--- Group by region, count rows
+-- Group by region, count rows (using $col = expr syntax)
 by_region = sales
-  |> group_by("region")
-  |> summarize("count", \(g) nrow(g))
+  |> group_by($region)
+  |> summarize($count = nrow($region))
 
 print(by_region)
 
 -- Multiple aggregations
 by_product = sales
-  |> group_by("product")
-  |> summarize("total_revenue", \(g) sum(g.revenue, na_rm = true))
+  |> group_by($product)
+  |> summarize($total_revenue = sum($revenue))
   
 by_product = by_product
-  |> mutate("avg_price", \(row) row.total_revenue / row.count)
+  |> mutate($avg_price = $total_revenue / $count)
 ```
 
 ### Grouped Statistics
@@ -263,14 +263,14 @@ employees = read_csv("employees.csv")
 
 -- Average salary by department
 dept_stats = employees
-  |> group_by("department")
-  |> summarize("avg_salary", \(g) mean(g.salary, na_rm = true))
+  |> group_by($department)
+  |> summarize($avg_salary = mean($salary))
 
 -- Multiple groups
 regional_dept_stats = employees
-  |> group_by("region", "department")
-  |> summarize("avg_salary", \(g) mean(g.salary, na_rm = true))
-  |> arrange("avg_salary", "desc")
+  |> group_by($region, $department)
+  |> summarize($avg_salary = mean($salary))
+  |> arrange($avg_salary, "desc")
 
 print(regional_dept_stats)
 ```
@@ -280,18 +280,18 @@ print(regional_dept_stats)
 ```t
 -- Add department size to each row
 employees_with_size = employees
-  |> group_by("department")
-  |> mutate("dept_size", \(g) nrow(g))
+  |> group_by($department)
+  |> mutate($dept_size, \(g) nrow(g))
 
 -- Add group mean to each row
 employees_with_avg = employees
-  |> group_by("department")
-  |> mutate("dept_avg_salary", \(g) mean(g.salary, na_rm = true))
+  |> group_by($department)
+  |> mutate($dept_avg_salary, \(g) mean(g.salary, na_rm = true))
   
 -- Calculate z-score within group
 employees_normalized = employees_with_avg
-  |> group_by("department")
-  |> mutate("salary_z", \(g) 
+  |> group_by($department)
+  |> mutate($salary_z, \(g) 
       (g.salary - mean(g.salary, na_rm = true)) / sd(g.salary, na_rm = true)
     )
 ```
@@ -393,19 +393,19 @@ analysis = pipeline {
   
   -- Clean data
   cleaned = raw
-    |> filter(\(row) not is_na(row.amount) and row.amount > 0)
-    |> filter(\(row) row.date >= "2023-01-01" and row.date <= "2023-12-31")
+    |> filter(not is_na($amount) and $amount > 0)
+    |> filter($date >= "2023-01-01" and $date <= "2023-12-31")
   
   -- Customer aggregations
   customer_stats = cleaned
-    |> group_by("customer_id")
-    |> summarize("total_spend", \(g) sum(g.amount))
-    |> summarize("purchase_count", \(g) nrow(g))
-    |> mutate("avg_order_value", \(row) row.total_spend / row.purchase_count)
+    |> group_by($customer_id)
+    |> summarize($total_spend = sum($amount))
+    |> summarize($purchase_count = nrow($customer_id))
+    |> mutate($avg_order_value = $total_spend / $purchase_count)
   
   -- Segment customers
   segments = customer_stats
-    |> mutate("segment", \(row)
+    |> mutate($segment, \(row)
         if (row.total_spend > 1000) "high_value"
         else if (row.total_spend > 500) "medium_value"
         else "low_value"
@@ -413,10 +413,9 @@ analysis = pipeline {
   
   -- Summary by segment
   segment_summary = segments
-    |> group_by("segment")
-    |> summarize("customer_count", \(g) nrow(g))
-    |> summarize("avg_ltv", \(g) mean(g.total_spend))
-    |> arrange("avg_ltv", "desc")
+    |> group_by($segment)
+    |> summarize($customer_count = nrow($segment), $avg_ltv = mean($total_spend))
+    |> arrange($avg_ltv, "desc")
 }
 
 -- Access results
@@ -434,19 +433,19 @@ etl = pipeline {
   products = read_csv("products.csv")
   
   -- Clean each source
-  sales_clean = sales |> filter(\(row) row.amount > 0)
+  sales_clean = sales |> filter($amount > 0)
   
   -- Aggregate sales by customer
   customer_sales = sales_clean
-    |> group_by("customer_id")
-    |> summarize("total_sales", \(g) sum(g.amount))
+    |> group_by($customer_id)
+    |> summarize($total_sales = sum($amount))
   
   -- Combine with customer data (manual join via filter/map)
   -- (Assuming a join function exists or using manual matching)
   
   -- Final report
   report = customer_sales
-    |> arrange("total_sales", "desc")
+    |> arrange($total_sales, "desc")
 }
 
 write_csv(etl.report, "sales_report.csv")
@@ -644,8 +643,8 @@ dashboard_prep = pipeline {
   
   -- 2. Data quality
   clean_sales = raw_sales
-    |> filter(\(row) not is_na(row.revenue) and row.revenue > 0)
-    |> filter(\(row) not is_na(row.product_id))
+    |> filter(not is_na($revenue) and $revenue > 0)
+    |> filter(not is_na($product_id))
   
   -- 3. Summary statistics
   summary = {
@@ -657,17 +656,16 @@ dashboard_prep = pipeline {
   
   -- 4. Top products
   top_products = clean_sales
-    |> group_by("product_name")
-    |> summarize("revenue", \(g) sum(g.revenue))
-    |> arrange("revenue", "desc")
+    |> group_by($product_name)
+    |> summarize($revenue = sum($revenue))
+    |> arrange($revenue, "desc")
   
   -- 5. Regional breakdown
   by_region = clean_sales
-    |> group_by("region")
-    |> summarize("revenue", \(g) sum(g.revenue))
-    |> summarize("orders", \(g) nrow(g))
-    |> mutate("avg_order_value", \(row) row.revenue / row.orders)
-    |> arrange("revenue", "desc")
+    |> group_by($region)
+    |> summarize($revenue = sum($revenue), $orders = nrow($region))
+    |> mutate($avg_order_value = $revenue / $orders)
+    |> arrange($revenue, "desc")
 }
 
 -- Export results

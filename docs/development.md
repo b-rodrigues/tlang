@@ -520,7 +520,7 @@ echo "Benchmarking T operations..."
 
 time dune exec src/repl.exe <<EOF
 df = read_csv("large_data.csv")
-result = df |> filter(\(row) row.age > 30) |> summarize("count", \(g) nrow(g))
+result = df |> filter($age > 30) |> summarize($count = nrow($age))
 print(result)
 EOF
 ```

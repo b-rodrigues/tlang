@@ -367,22 +367,35 @@ T provides six core data verbs with dollar-prefix NSE syntax for concise column 
 -- NSE syntax (preferred) — use $column for column references
 df |> select($name, $age)
 df |> filter($age > 25)
-df |> mutate($age_plus_10, \(row) row.age + 10)
+df |> mutate($age_plus_10 = $age + 10)         -- named-arg style
 df |> arrange($age, "desc")
 df |> group_by($dept)
-   |> summarize($count, \(g) nrow(g))
+   |> summarize($count = nrow($dept))           -- named-arg style
 df |> group_by($dept)
    |> mutate($dept_size, \(g) nrow(g))
 ```
 
-String syntax is also supported for backward compatibility:
+#### Named-Arg Syntax (`$col = expr`)
+
+For `mutate` and `summarize`, you can use `$col = expr` to name the result column and provide an NSE expression in one step:
+
+```t
+-- mutate: $new_col = NSE expression (auto-wrapped in lambda per row)
+df |> mutate($bonus = $salary * 0.1)
+df |> mutate($full_name = $first + " " + $last)
+
+-- summarize: $result_col = NSE aggregation (auto-wrapped in lambda per group)
+df |> group_by($dept)
+   |> summarize($avg_salary = mean($salary), $count = nrow($dept))
+```
+
+String/lambda syntax is also supported for backward compatibility:
 
 ```t
 -- String syntax (still works)
 df |> select("name", "age")
 df |> filter(\(row) row.age > 25)
 df |> mutate("age_plus_10", \(row) row.age + 10)
-df |> arrange("age")
 df |> arrange("age", "desc")
 df |> group_by("dept")
    |> summarize("count", \(g) nrow(g))

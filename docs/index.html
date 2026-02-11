@@ -165,6 +165,7 @@ pipeline analysis {
     <li>R-style lambdas: <code>\(x) x + 1</code></li>
     <li>Conditional pipe operator: <code>|></code> (short-circuits on error)</li>
     <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
+    <li>Dollar-prefix NSE: <code>select($name, $age)</code>, <code>filter($age > 30)</code>, <code>summarize($total = sum($amount))</code></li>
     <li>Named arguments: <code>lm(data = df, formula = y ~ x)</code></li>
     <li>NA handling: <code>mean(data, na_rm = true)</code> — all aggregation functions support <code>na_rm</code></li>
     <li>CSV I/O: <code>read_csv(path, sep = ";", skip_lines = 2)</code> and <code>write_csv(df, path, sep = ";")</code></li>
