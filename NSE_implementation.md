@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the implementation plan for Non-Standard Evaluation (NSE) in T, inspired by R's tidyverse. NSE will allow users to reference DataFrame column names as bare identifiers instead of strings, making data manipulation code more concise and readable.
+This document outlines the implementation plan for Non-Standard Evaluation (NSE) in T, using the dollar-prefix syntax (`$column_name`) for column references. This approach provides clean, concise syntax while avoiding any ambiguity with existing language features.
 
 ## Motivation
 
@@ -19,7 +19,7 @@ result = df
   |> arrange("age", "desc")
 ```
 
-### Proposed Syntax (NSE with Bare Names)
+### Proposed Syntax (Dollar-Prefix NSE)
 
 ```t
 -- Load data
@@ -27,94 +27,157 @@ df = read_csv("data.csv", clean_colnames = true)
 
 -- Data manipulation pipeline
 result = df
-  |> filter(age > 30)
-  |> select(name, age, salary)
-  |> arrange(age, "desc")
+  |> filter($age > 30)
+  |> select($name, $age, $salary)
+  |> arrange($age, "desc")
 ```
 
 ### Benefits
 
 1. **More Readable**: Cleaner syntax without quotes and lambda boilerplate
-2. **Less Typing**: Reduces cognitive load and code verbosity
-3. **Tidyverse-Like**: Familiar to R users transitioning to T
-4. **Less Error-Prone**: Fewer string quotes to manage
-5. **Better IDE Support**: Potential for column name autocomplete
+2. **Less Typing**: Only one extra character (`$`) for column references
+3. **Clear Intent**: Dollar sign immediately signals a column reference
+4. **R-Familiar**: Similar to R's `df$column` syntax
+5. **No Ambiguity**: No conflict with existing dot accessor or other syntax
+6. **Simple Implementation**: Clean lexer pattern with no disambiguation needed
 
-## Design Considerations
+## Design Decision: Dollar-Prefix Only
 
-### Three Approaches to NSE
+After considering multiple approaches (bare names, col.name, .name, $name), the decision has been made to focus **exclusively on the dollar-prefix syntax** (`$column_name`).
 
-#### Approach 1: Bare Names (Tidyverse Style)
-**Syntax**: `select(name, age, salary)`
+### Why Dollar-Prefix is the Final Choice
 
-**Pros**:
-- Most concise and readable
-- Exactly like R tidyverse
-- Least typing required
+**No Ambiguity**:
+- No conflict with existing dot accessor (`row.field`)
+- No conflict with floating point numbers (`.5`)
+- Dollar sign is not used elsewhere in T's syntax
+- Clear, unambiguous column reference marker
 
-**Cons**:
-- Requires sophisticated scoping rules
-- May conflict with existing variables in scope
-- More complex to implement
-- Potential ambiguity between column names and variables
+**Very Concise**:
+- Only 1 character prefix: `$`
+- `$name` (5 chars) vs `"name"` (6 chars including quotes)
+- Much shorter than alternatives like `col.name` (8 chars)
 
-**Implementation Complexity**: High
+**R Familiarity**:
+- R users already know `df$column` for column access
+- Natural transition for R → T migration
+- Intuitive for the target audience
 
-#### Approach 2: Dollar-Prefix Syntax
-**Syntax**: `select($name, $age, $salary)`
+**Simple Implementation**:
+- Single lexer pattern: `'$'` + identifier
+- No complex disambiguation logic needed
+- Straightforward parser changes
+- Clean AST representation
 
-**Pros**:
-- Clear distinction between columns and variables
-- Very concise - minimal boilerplate (just `$`)
-- No scoping ambiguity
-- No conflict with existing dot accessor
-- Familiar to R users (`$` is used for column access in R)
-- Easier to implement than bare names
-- Simpler lexer (no ambiguity with `.5` floats or `row.field`)
+**Universal Context**:
+- Works in any context where a DataFrame is referenced
+- No need for special scoping rules
+- Consistent across all data manipulation functions
 
-**Cons**:
-- Requires lexer changes to support dollar prefix
-- Not as common as dot notation in other languages
+## Dot Accessor vs. Dollar Accessor: Key Differences
 
-**Implementation Complexity**: Low-Medium
+It's important to understand the distinction between T's two accessor syntaxes:
 
-#### Approach 3: Dot-Prefix Syntax (Alternative)
-**Syntax**: `select(.name, .age, .salary)`
+### Dot Accessor (`.`) - Field Access on Objects
 
-**Pros**:
-- Clear distinction between columns and variables
-- Very concise
+The dot accessor is used for accessing fields/properties on **specific objects** or **row instances**:
 
-**Cons**:
-- Conflicts with existing dot accessor (ambiguity issues)
-- Conflicts with floating point syntax (`.5`)
-- More complex lexer disambiguation needed
+```t
+-- Accessing fields on a row object (in lambda context)
+df |> filter(\(row) row.age > 30)
+--                  ^^^ dot accesses the 'age' field of the 'row' object
 
-**Implementation Complexity**: Medium
+-- Accessing properties on any object
+pipeline.result
+model.r_squared
+dict.field_name
+```
 
-### Recommended Approach: Start with Dollar-Prefix Syntax, Evolve to Bare Names
+**Characteristics**:
+- Requires an explicit object/variable on the left side
+- Used in traditional lambda-based row operations
+- Accesses a specific instance's field
+- Always requires context: `<object>.<field>`
 
-Given T's current alpha stage and the need for rapid iteration, we recommend:
+### Dollar Accessor (`$`) - Column Reference in DataFrame Context
 
-**Phase 1 (Beta)**: Implement **Dollar-Prefix Syntax** (`$name`)
-- Lower implementation complexity than bare names
-- Very concise and clean
-- Clear semantics with no scoping ambiguity
-- No conflict with existing dot accessor
-- No backward compatibility needed (breaking change accepted)
+The dollar accessor is used for referencing **columns** in a DataFrame when the DataFrame is **contextually implied**:
 
-**Phase 2 (Future)**: Add **Bare Names** support
-- Build on Phase 1 infrastructure
-- Add sophisticated scoping resolution
-- Maintain dollar-prefix syntax as alternative for disambiguating cases
+```t
+-- Referencing columns when df is in context (via pipe)
+df |> filter($age > 30)
+--           ^^^ dollar references the 'age' column of the contextual DataFrame
 
-This staged approach allows us to:
-1. Deliver immediate value with clean syntax
-2. Learn from user feedback
-3. Avoid premature complexity
-4. Keep the door open for the ideal bare names syntax
+df |> select($name, $age, $salary)
+--           ^^^^  ^^^^  ^^^^^^^ column references without object prefix
+```
 
-## Phase 1: Dollar-Prefix Syntax Implementation
+**Characteristics**:
+- No explicit object needed - references the DataFrame in context
+- Used in NSE (Non-Standard Evaluation) contexts
+- References an entire column, not a single field
+- Standalone: just `$column_name`
+
+### Side-by-Side Comparison
+
+```t
+-- OLD SYNTAX: Using dot accessor with lambda
+df |> filter(\(row) row.age > 30 && row.dept == "sales")
+--                  ^^^^^^^^         ^^^^^^^^^^ 
+--                  explicit row object required
+
+-- NEW SYNTAX: Using dollar accessor with NSE
+df |> filter($age > 30 && $dept == "sales")
+--           ^^^^         ^^^^^ 
+--           column references - no row object needed
+
+-- BOTH are valid, but dollar syntax is more concise
+```
+
+### When to Use Which
+
+**Use Dot Accessor (`.`)** when:
+- You have an explicit object/variable to access
+- Working with non-DataFrame objects (dictionaries, models, etc.)
+- You need to access nested properties: `pipeline.data.field`
+- Inside traditional lambdas that receive a row parameter
+
+**Use Dollar Accessor (`$`)** when:
+- Working with DataFrame operations (select, filter, arrange, etc.)
+- The DataFrame is contextually clear (e.g., in a pipe chain)
+- You want concise column references without lambda boilerplate
+- Performing data manipulation with data verbs
+
+### Migration Example
+
+```t
+-- Before (String-based with lambda):
+customers 
+  |> filter(\(row) row.age > 25 && row.status == "active")
+  |> select("name", "email", "purchase_total")
+  |> arrange("purchase_total", "desc")
+
+-- After (Dollar-accessor NSE):
+customers
+  |> filter($age > 25 && $status == "active")
+  |> select($name, $email, $purchase_total)
+  |> arrange($purchase_total, "desc")
+
+-- Key difference:
+-- - Dot (.) requires explicit 'row' object in lambda
+-- - Dollar ($) directly references columns in DataFrame context
+```
+
+### Technical Implementation Note
+
+Internally, when you write `filter($age > 30)`, the T compiler transforms it to `filter(\(row) row.age > 30)`. The dollar syntax is syntactic sugar that:
+1. Detects column references (`$column_name`)
+2. Automatically wraps the expression in a lambda
+3. Transforms `$column` to `row.column` references
+
+This means both syntaxes ultimately use the same underlying mechanism, but the dollar accessor provides a cleaner, more readable surface syntax.
+
+## Implementation: Dollar-Prefix Syntax
 
 ### Dollar-Prefix Syntax: `$name`
 
@@ -352,82 +415,6 @@ Each of these functions needs similar updates:
 - **`group_by()`**: Column names support NSE
 - **`summarize()`**: Column names support NSE
 
-## Phase 2: Bare Names Support (Future)
-
-### Challenge: Scoping Resolution
-
-The main challenge with bare names is distinguishing between:
-- DataFrame column names
-- Variables in scope
-- Built-in functions
-
-### Example Ambiguity
-
-```t
-age = 25  -- Local variable
-
-df = read_csv("data.csv")
-
--- Does this filter by column 'age' or variable 'age'?
-result = df |> filter(age > 30)
-```
-
-### Solution: Context-Aware Resolution
-
-1. **Within data verb context**: Bare names refer to columns by default
-2. **Explicit variable reference**: Use special syntax (e.g., `var.name` or `^name`)
-3. **Scoping priority**:
-   - First check if name is a column in the active DataFrame
-   - Then check if name is a variable in current scope
-   - Finally check if name is a built-in function
-
-### Implementation Sketch
-
-```ocaml
-(** Resolve a bare name in data verb context *)
-let resolve_bare_name (df : dataframe) (name : string) (env : environment) : resolution =
-  if Arrow_table.has_column df.arrow_table name then
-    ColumnRef name
-  else if Env.mem name env then
-    VarRef name
-  else
-    Error (Printf.sprintf "Name '%s' not found in DataFrame columns or environment" name)
-```
-
-### Transformation for `filter()`
-
-```t
--- User writes:
-df |> filter(age > 30 && status == active_status)
-
--- Transformer resolves to:
-df |> filter(\(row) row.age > 30 && row.status == active_status)
---                     ^^^                ^^^^^^        ^^^^^^^^^^^^^^
---                     column             column        variable (from env)
-```
-
-Note: With Phase 1 `$name` syntax already in place, the transformation is simpler as `$age` is already explicitly a column reference.
-
-### Parser Context Tracking
-
-The parser needs to track when it's inside a data verb to enable bare name resolution:
-
-```ocaml
-(** Parser state to track data verb context *)
-type parse_context = {
-  in_data_verb: bool;
-  current_dataframe: dataframe option;
-}
-
-(** During parsing of data verbs, set context *)
-let parse_filter env df_expr pred_expr =
-  let df = eval_expr env df_expr in
-  (* Enter data verb context *)
-  let ctx = { in_data_verb = true; current_dataframe = Some df } in
-  let pred = parse_expr_with_context ctx pred_expr in
-  ...
-```
-
 ## Migration Strategy
 
 ### Breaking Change Accepted
@@ -440,21 +427,21 @@ Since backward compatibility is not required, the migration is straightforward:
 
 ### Gradual Rollout
 
-**Phase 1.1 (Immediate - Beta 0.2)**:
+**Beta 0.2 (Initial Release)**:
 - Implement `$name` syntax
 - Support in: `select()`, `arrange()`, `group_by()`
 - Simple NSE for `filter()` (e.g., `$age > 30`)
 
-**Phase 1.2 (Beta 0.3)**:
+**Beta 0.3 (Enhanced Support)**:
 - NSE for `mutate()` (column name uses `$name`, value expression can use NSE)
 - NSE for `summarize()` (column name uses `$name`, aggregation can use NSE)
 - Complex filter predicates with NSE
 
-**Phase 2.1 (Stable 1.0)**:
-- Bare names support
-- Advanced scoping resolution
-- Full NSE for all data verbs
-- Ability to use `$name` for disambiguation when needed
+**Stable 1.0 (Production Ready)**:
+- Full NSE support across all data verbs
+- Comprehensive error messages with suggestions
+- Performance optimizations
+- Complete documentation
 
 ## Testing Strategy
 
@@ -634,38 +621,41 @@ df |> select("name", "age")
 df |> filter(\(row) row.age > 30)
 ```
 
-### T's Proposed NSE (Phase 1) - Dollar-Prefix
+### T's New Approach - Dollar-Prefix NSE
 
 ```t
--- $field syntax
+-- $field syntax - final design
 df |> select($name, $age)
 df |> filter($age > 30)
 ```
 
-### T's Ultimate Goal (Phase 2)
-
-```t
--- Bare names (tidyverse-style)
-df |> select(name, age)
-df |> filter(age > 30)
-```
-
 ## Conclusion
 
-Non-Standard Evaluation is a crucial feature for making T competitive with modern data manipulation languages. By implementing it in phases—starting with dollar-prefix syntax (`$name`) and evolving to bare names—we can:
+Non-Standard Evaluation using the dollar-prefix syntax (`$column_name`) is a crucial feature for making T competitive with modern data manipulation languages while maintaining clarity and simplicity.
 
-1. Deliver immediate value to users with clean, concise syntax
-2. Maintain code clarity and avoid scoping issues
-3. Learn from user feedback before committing to complex bare name resolution
-4. Make a clean break from string-based syntax without backward compatibility concerns
+The dollar-prefix approach provides:
 
-The recommended approach is to implement **`$name` syntax** in Phase 1, as it:
+1. **Immediate value** with clean, concise syntax
+2. **Clear semantics** with no ambiguity between column references and other language features
+3. **Universal applicability** - works in any DataFrame context without special scoping rules
+4. **R familiarity** - intuitive for the target audience already using `df$column` in R
+5. **Simple implementation** - clean lexer pattern with straightforward parser changes
+
+The **`$name` syntax** is the final design choice because it:
 - Very concise - only one extra character (`$`)
 - Clear semantics with no ambiguity
 - Distinctive visual marker for column references
-- No conflict with existing dot accessor (avoids parser complexity)
+- No conflict with existing dot accessor (which remains for field access on objects)
 - Familiar to R users (`df$column` in R)
 - Simple, clean lexer implementation
-- Provides foundation for eventual bare name support
+- Works universally in any context where a DataFrame is referenced
 
 This positions T as a modern, user-friendly language for data analysis while maintaining the technical rigor and reproducibility that are core to the project's mission. The breaking change is acceptable given the alpha status and allows for a cleaner, more elegant syntax from the start.
+
+### Key Distinction
+
+Remember: 
+- **Dot (`.`)** = field access on an **explicit object** (`row.field`, `obj.property`)
+- **Dollar (`$`)** = column reference in **contextual DataFrame** (`$column_name`)
+
+Both serve different purposes and complement each other in T's syntax design.
