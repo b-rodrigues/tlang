@@ -32,10 +32,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
              let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
              VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
         else
-          (* Ungrouped mutate: first try calling fn with the whole DataFrame.
-             If the result is a VVector of the right length, use it directly.
-             This supports window functions (row_number, cumsum, lead, lag, etc.)
-             that need the entire column rather than row-by-row values. *)
+          (* Try whole-DataFrame evaluation first for window functions.
+             Falls back to row-by-row if result isn't a VVector/VList of correct length. *)
           let whole_result = eval_call env fn [(None, Value (VDataFrame df))] in
           (match whole_result with
            | VVector vec when Array.length vec = nrows ->
@@ -48,22 +46,22 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
              let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
              VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
            | _ ->
-          (* Fallback: apply fn row-by-row *)
-          let new_col = Array.init nrows (fun i ->
-            let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
-            eval_call env fn [(None, Value row_dict)]
-          ) in
-          let first_error = ref None in
-          Array.iter (fun v ->
-            if !first_error = None then
-              match v with VError _ -> first_error := Some v | _ -> ()
-          ) new_col;
-          (match !first_error with
-           | Some e -> e
-           | None ->
-             let arrow_col = Arrow_bridge.values_to_column new_col in
-             let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
-             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
+             (* Fallback: apply fn row-by-row *)
+             let new_col = Array.init nrows (fun i ->
+               let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
+               eval_call env fn [(None, Value row_dict)]
+             ) in
+             let first_error = ref None in
+             Array.iter (fun v ->
+               if !first_error = None then
+                 match v with VError _ -> first_error := Some v | _ -> ()
+             ) new_col;
+             (match !first_error with
+              | Some e -> e
+              | None ->
+                let arrow_col = Arrow_bridge.values_to_column new_col in
+                let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
+                VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
       in
       (* Helper: apply a vector mutation directly *)
       let apply_vector_mutation df col_name vec =
