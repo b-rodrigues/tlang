@@ -175,12 +175,15 @@ let cmd_explain rest env =
 (* --- Interactive REPL --- *)
 
 let cmd_repl env =
-  Printf.printf "T language REPL — version %s\n" version;
+  Printf.printf "T, a reproducibility-first programming language for declarative\n";
+  Printf.printf "data manipulation and statistical analysis.\n";
+  Printf.printf "Version %s\n" version;
   Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
   Printf.printf "This software is in alpha and is entirely LLM-generated — caveat emptor.\n";
   Printf.printf "Website: https://tstats-project.org\n";
   Printf.printf "Contributions are welcome!\n";
   Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
+  flush stdout;
   let rec repl env =
     match LNoise.linenoise "T> " with
     | None ->
@@ -188,60 +191,62 @@ let cmd_repl env =
     | Some line ->
         let trimmed = String.trim line in
         if trimmed = "" then repl env
-        else if trimmed = ":quit" || trimmed = ":q" then
-          print_endline "Exiting T REPL."
-        else if trimmed = ":help" || trimmed = ":h" then begin
-          Printf.printf "REPL commands:\n";
-          Printf.printf "  :quit, :q     Exit the REPL\n";
-          Printf.printf "  :help, :h     Show this help\n";
-          Printf.printf "  :version      Show version\n";
-          Printf.printf "  :packages     List loaded packages\n";
-          Printf.printf "\nMulti-line input:\n";
-          Printf.printf "  Expressions with unclosed (, [, { or trailing |>\n";
-          Printf.printf "  automatically continue on the next line.\n\n";
-          repl env
-        end
-        else if trimmed = ":version" then begin
-          Printf.printf "T language version %s\n" version;
-          repl env
-        end
-        else if trimmed = ":packages" then begin
-          List.iter (fun (pkg : Packages.package_info) ->
-            Printf.printf "  %-12s  %s\n" pkg.name pkg.description
-          ) Packages.all_packages;
-          print_newline ();
-          repl env
-        end
         else begin
-          (* Multi-line input: accumulate lines while expression is incomplete *)
-          let rec read_multiline acc =
-            let combined = acc in
-            if is_incomplete combined then begin
-              match LNoise.linenoise ".. " with
-              | None ->
-                  combined  (* Return what we have *)
-              | Some next_line ->
-                  (* If the previous line ends with |> or ?|>, move it to the start of
-                     the next line so the lexer recognizes the continuation *)
-                  let trimmed_acc = String.trim combined in
-                  let len = String.length trimmed_acc in
-                  if len >= 3 && String.sub trimmed_acc (len - 3) 3 = "?|>" then
-                    let prefix = String.sub combined 0 (String.length combined - 3) in
-                    read_multiline (String.trim prefix ^ "\n  ?|> " ^ next_line)
-                  else if len >= 2 && String.sub trimmed_acc (len - 2) 2 = "|>" then
-                    let prefix = String.sub combined 0 (String.length combined - 2) in
-                    read_multiline (String.trim prefix ^ "\n  |> " ^ next_line)
-                  else
-                    read_multiline (combined ^ "\n" ^ next_line)
-            end else
-              combined
-          in
-          let full_input = read_multiline trimmed in
-          ignore (LNoise.history_add full_input);
-          ignore (LNoise.history_save ~filename:history_file);
-          let (result, new_env) = parse_and_eval env full_input in
-          repl_display_value result;
-          repl new_env
+          if trimmed = ":quit" || trimmed = ":q" then
+            print_endline "Exiting T REPL."
+          else if trimmed = ":help" || trimmed = ":h" then begin
+            Printf.printf "REPL commands:\n";
+            Printf.printf "  :quit, :q     Exit the REPL\n";
+            Printf.printf "  :help, :h     Show this help\n";
+            Printf.printf "  :version      Show version\n";
+            Printf.printf "  :packages     List loaded packages\n";
+            Printf.printf "\nMulti-line input:\n";
+            Printf.printf "  Expressions with unclosed (, [, { or trailing |>\n";
+            Printf.printf "  automatically continue on the next line.\n\n";
+            repl env
+          end
+          else if trimmed = ":version" then begin
+            Printf.printf "T language version %s\n" version;
+            repl env
+          end
+          else if trimmed = ":packages" then begin
+            List.iter (fun (pkg : Packages.package_info) ->
+              Printf.printf "  %-12s  %s\n" pkg.name pkg.description
+            ) Packages.all_packages;
+            print_newline ();
+            repl env
+          end
+          else begin
+            (* Multi-line input: accumulate lines while expression is incomplete *)
+            let rec read_multiline acc =
+              let combined = acc in
+              if is_incomplete combined then begin
+                match LNoise.linenoise ".. " with
+                | None ->
+                    combined  (* Return what we have *)
+                | Some next_line ->
+                    (* If the previous line ends with |> or ?|>, move it to the start of
+                       the next line so the lexer recognizes the continuation *)
+                    let trimmed_acc = String.trim combined in
+                    let len = String.length trimmed_acc in
+                    if len >= 3 && String.sub trimmed_acc (len - 3) 3 = "?|>" then
+                      let prefix = String.sub combined 0 (String.length combined - 3) in
+                      read_multiline (String.trim prefix ^ "\n  ?|> " ^ next_line)
+                    else if len >= 2 && String.sub trimmed_acc (len - 2) 2 = "|>" then
+                      let prefix = String.sub combined 0 (String.length combined - 2) in
+                      read_multiline (String.trim prefix ^ "\n  |> " ^ next_line)
+                    else
+                      read_multiline (combined ^ "\n" ^ next_line)
+              end else
+                combined
+            in
+            let full_input = read_multiline trimmed in
+            ignore (LNoise.history_add full_input);
+            ignore (LNoise.history_save ~filename:history_file);
+            let (result, new_env) = parse_and_eval env full_input in
+            repl_display_value result;
+            repl new_env
+          end
         end
   in
   repl env
