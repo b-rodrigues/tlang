@@ -1579,7 +1579,7 @@ static value arrow_column_agg_impl(value v_ptr, value v_col_name, int agg_code) 
   GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
   if (col == NULL) CAMLreturn(Val_none);
 
-  gint64 nrows = garrow_chunked_array_get_length(col);
+  gint64 nrows = garrow_chunked_array_get_n_rows(col);
   gdouble result = 0.0;
   int count = 0;
   gboolean initialized = FALSE;
@@ -1661,7 +1661,7 @@ CAMLprim value caml_arrow_compute_compare_scalar(value v_ptr, value v_col_name,
   GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
   if (col == NULL) CAMLreturn(Val_none);
 
-  gint64 nrows = garrow_chunked_array_get_length(col);
+  gint64 nrows = garrow_chunked_array_get_n_rows(col);
   v_arr = caml_alloc(nrows, 0);
 
   gint64 arr_idx = 0;

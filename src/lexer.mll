@@ -28,8 +28,7 @@ rule token = parse
   (* Keywords *)
   | "if"        { IF }
   | "else"      { ELSE }
-  | "for"       { FOR }
-  | "in"        { IN }
+
   | "function"  { FUNCTION }
   | "pipeline"  { PIPELINE }
   | "intent"    { INTENT }

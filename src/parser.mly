@@ -9,7 +9,7 @@ type param_info = { names: string list; has_variadic: bool }
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE FOR IN FUNCTION PIPELINE INTENT TRUE FALSE NULL NA
+%token IF ELSE FUNCTION PIPELINE INTENT TRUE FALSE NULL NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -134,8 +134,8 @@ mul_expr:
 
 unary_expr:
   | e = postfix_expr { e }
-  | MINUS e = unary_expr %prec UMINUS { UnOp { op = Neg; operand = e } }
-  | NOT e = unary_expr %prec UNOT    { UnOp { op = Not; operand = e } }
+  | MINUS e = unary_expr { UnOp { op = Neg; operand = e } }
+  | NOT e = unary_expr { UnOp { op = Not; operand = e } }
   ;
 
 /* Function calls and dot access are postfix operations */
