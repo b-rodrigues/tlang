@@ -110,6 +110,7 @@ and lambda = {
 and expr =
   | Value of value
   | Var of symbol
+  | ColumnRef of string  (* NSE: $column_name references *)
   | Call of { fn : expr; args : (string option * expr) list }
   | Lambda of lambda
   | IfElse of { cond : expr; then_ : expr; else_ : expr }
@@ -144,6 +145,11 @@ module Utils = struct
     | VError _ -> false
     | VNA _ -> false
     | _ -> true
+
+  (** Check if an expression is a column reference and extract the column name *)
+  let is_column_ref = function
+    | ColumnRef field -> Some field
+    | _ -> None
 
   let error_code_to_string = function
     | TypeError -> "TypeError"
@@ -283,6 +289,15 @@ let make_builtin ?(variadic=false) arity func =
 (** Create a builtin function value that receives named args *)
 let make_builtin_named ?(variadic=false) arity func =
   VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
+
+(** Create a builtin that receives raw expressions (unevaluated)
+    This is used for NSE-aware functions like filter that need to inspect
+    expressions before evaluation *)
+let make_builtin_raw ?(variadic=false) arity (func : (Ast.expr list -> value Env.t -> value)) =
+  (* This is a marker - we'll handle it specially in eval_call *)
+  VBuiltin { b_arity = arity; b_variadic = variadic; 
+             b_func = (fun _named_args _env -> 
+               make_error GenericError "make_builtin_raw should be handled specially") }
 
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false

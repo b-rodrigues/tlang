@@ -16,6 +16,7 @@ type param_info = { names: string list; has_variadic: bool }
 %token <string> STRING
 %token <string> IDENT
 %token <string> BACKTICK_IDENT
+%token <string> COLUMN_REF
 /* Symbols and Operators */
 %token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
 %token COMMA COLON DOT EQUALS ARROW DOTDOTDOT
@@ -165,6 +166,7 @@ primary_expr:
   | FALSE { Value (VBool false) }
   | NULL { Value VNull }
   | NA { Value (VNA NAGeneric) }
+  | col = COLUMN_REF { ColumnRef col }
   | id = any_ident { Var id }
   | LPAREN e = expr RPAREN { e }
   | l = list_lit { l }

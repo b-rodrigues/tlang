@@ -8,7 +8,11 @@ let register env =
           let key_names = List.map (fun v ->
             match v with
             | VString s -> Ok s
-            | _ -> Error (make_error TypeError "group_by() expects string column names")
+            | VSymbol s when String.length s > 0 && s.[0] = '$' ->
+                (* NSE column reference: $name becomes Symbol "$name" *)
+                Ok (String.sub s 1 (String.length s - 1))
+            | VSymbol s -> Ok s  (* Backward compat *)
+            | _ -> Error (make_error TypeError "group_by() expects column names (strings or $column syntax)")
           ) key_args in
           (match List.find_opt Result.is_error key_names with
            | Some (Error e) -> e
@@ -23,5 +27,5 @@ let register env =
                VDataFrame { df with group_keys = names })
       | [_] -> make_error TypeError "group_by() expects a DataFrame as first argument"
       | _ -> make_error ArityError "group_by() requires a DataFrame and at least one column name"
-    ))
-    env
+     ))
+     env
