@@ -36,7 +36,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Summarize with function that produces error on some groups *)
   let (v, _) = eval_string_env
-    {|df |> group_by("group") |> summarize("result", \(g) sd(g.value))|}
+    {|df |> group_by($group) |> summarize($result = sd($value))|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   (* Each group has 2 values, so sd() should work for all groups *)
@@ -113,7 +113,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Error in filter predicate propagation *)
   let (v, _) = eval_string_env
-    {|df |> filter(\(row) row.nonexistent > 10)|}
+    {|df |> filter($nonexistent > 10)|}
     env_pipe in
   let result = Ast.Utils.value_to_string v in
   let starts_with s prefix =
@@ -129,7 +129,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Select nonexistent column in pipeline *)
   test "select nonexistent in pipeline"
-    (Printf.sprintf {|df = read_csv("%s"); df |> select("nonexistent")|} csv_pipe_err)
+    (Printf.sprintf {|df = read_csv("%s"); df |> select($nonexistent)|} csv_pipe_err)
     {|Error(KeyError: "Column(s) not found: nonexistent")|};
 
   (try Sys.remove csv_pipe_err with _ -> ());

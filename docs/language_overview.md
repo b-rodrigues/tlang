@@ -361,29 +361,45 @@ The transformation is pure, stable across platforms, and idempotent.
 
 ### Data Manipulation
 
-T provides six core data verbs:
+T provides six core data verbs with dollar-prefix NSE syntax for concise column references:
 
 ```t
--- Select columns
-df |> select("name", "age")
+-- Use $column for column references
+df |> select($name, $age)
+df |> filter($age > 25)
+df |> mutate($age_plus_10 = $age + 10)         -- named-arg style
+df |> arrange($age, "desc")
+df |> group_by($dept)
+   |> summarize($count = nrow($dept))           -- named-arg style
+df |> group_by($dept)
+   |> mutate($dept_size, \(g) nrow(g))
+```
 
--- Filter rows
-df |> filter(\(row) row.age > 25)
+#### Named-Arg Syntax (`$col = expr`)
 
--- Add/transform columns
-df |> mutate("age_plus_10", \(row) row.age + 10)
+For `mutate` and `summarize`, you can use `$col = expr` to name the result column and provide an NSE expression in one step:
 
--- Sort rows
-df |> arrange("age")        -- ascending
-df |> arrange("age", "desc") -- descending
+```t
+-- mutate: $new_col = NSE expression (auto-wrapped in lambda per row)
+df |> mutate($bonus = $salary * 0.1)
+df |> mutate($full_name = $first + " " + $last)
 
--- Group and summarize
-df |> group_by("dept")
-   |> summarize("count", \(g) nrow(g))
+-- summarize: $result_col = NSE aggregation (auto-wrapped in lambda per group)
+df |> group_by($dept)
+   |> summarize($avg_salary = mean($salary), $count = nrow($dept))
+```
 
--- Grouped mutate (broadcast group result to each row)
-df |> group_by("dept")
-   |> mutate("dept_size", \(g) nrow(g))
+#### Dollar-Prefix vs Dot Accessor
+
+- **Dollar (`$`)**: Column reference in DataFrame context — `$column_name`
+- **Dot (`.`)**: Field access on an explicit object — `row.field`, `obj.property`
+
+```t
+-- Dollar: references columns contextually (no explicit row variable)
+df |> filter($age > 30)
+
+-- Dot: accesses fields on an explicit object (in lambda context)
+df |> filter($age > 30)
 ```
 
 ### Window Functions
@@ -446,8 +462,8 @@ Pipelines define named computation nodes with automatic dependency resolution:
 ```t
 p = pipeline {
   data = read_csv("sales.csv")
-  filtered = filter(data, \(row) row.amount > 100)
-  total = filtered |> select("amount") |> \(d) sum(d.amount)
+  filtered = filter(data, $amount > 100)
+  total = filtered |> select($amount) |> \(d) sum(d.amount)
 }
 
 p.data       -- access node result

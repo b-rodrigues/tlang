@@ -138,9 +138,9 @@ ncol(df)      -- number of columns
 colnames(df)  -- column names
 head(df.age)  -- first few values of age column
 
--- Filter and select
-young_people = df |> filter(\(row) row.age < 30)
-names_only = young_people |> select("name")
+-- Filter and select using NSE dollar-prefix syntax
+young_people = df |> filter($age < 30)
+names_only = young_people |> select($name)
 
 -- Compute statistics
 mean(df.age, na_rm = true)
@@ -157,13 +157,13 @@ analysis = pipeline {
   
   -- Clean and filter
   clean = raw
-    |> filter(\(row) row.amount > 0)
-    |> mutate("profit", \(row) row.revenue - row.cost)
+    |> filter($amount > 0)
+    |> mutate($profit, \(row) row.revenue - row.cost)
   
   -- Aggregate
   summary = clean
-    |> group_by("region")
-    |> summarize("total_profit", \(g) sum(g.profit))
+    |> group_by($region)
+    |> summarize($total_profit, \(g) sum(g.profit))
 }
 
 -- Access pipeline results
@@ -209,21 +209,21 @@ is_na(42)        -- false
 
 ```t
 -- Select specific columns
-subset = df |> select("name", "age", "salary")
+subset = df |> select($name, $age, $salary)
 
 -- Filter rows by condition
-adults = df |> filter(\(row) row.age >= 18)
+adults = df |> filter($age >= 18)
 
 -- Add or modify columns
-with_bonus = df |> mutate("bonus", \(row) row.salary * 0.1)
+with_bonus = df |> mutate($bonus, \(row) row.salary * 0.1)
 
 -- Sort data
-sorted = df |> arrange("salary", "desc")
+sorted = df |> arrange($salary, "desc")
 
 -- Group and summarize
 by_dept = df
-  |> group_by("dept")
-  |> summarize("avg_salary", \(g) mean(g.salary))
+  |> group_by($dept)
+  |> summarize($avg_salary, \(g) mean(g.salary))
 ```
 
 ## REPL Tips

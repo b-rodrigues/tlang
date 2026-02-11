@@ -62,13 +62,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "nrow on non-DataFrame"
     "nrow(42)"
-    {|Error(TypeError: "nrow() expects a DataFrame")|};
+    {|Error(TypeError: "nrow() expects a DataFrame or vector")|};
   test "ncol on non-DataFrame"
     "ncol([1, 2, 3])"
     {|Error(TypeError: "ncol() expects a DataFrame")|};
   test "nrow on NA"
     "nrow(NA)"
-    {|Error(TypeError: "nrow() expects a DataFrame, got NA")|};
+    {|Error(TypeError: "nrow() expects a DataFrame or vector, got NA")|};
   print_newline ();
 
   Printf.printf "Phase 2 — colnames():\n";

@@ -11,27 +11,31 @@ let _detect_simple_agg (_fn : value) : string option =
   None
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
+  (* Helper: apply aggregation fn with arg if callable, otherwise use fn as a constant value *)
+  let apply_aggregation env fn arg =
+    match fn with
+    | VLambda _ | VBuiltin _ -> eval_call env fn [(None, Value arg)]
+    | v -> v
+  in
   Env.add "summarize"
-    (make_builtin ~variadic:true 1 (fun args env ->
-      match args with
-      | VDataFrame df :: summary_args ->
+    (make_builtin_named ~variadic:true 1 (fun named_args env ->
+      match named_args with
+      | (_, VDataFrame df) :: rest_args ->
+          (* Parse named args: summarize(df, $total = sum($amount), ...) *)
           let rec parse_pairs acc = function
-            | VString name :: fn :: rest -> parse_pairs ((name, fn) :: acc) rest
-            | v :: fn :: rest ->
-                (match Utils.extract_column_name v with
-                 | Some name -> parse_pairs ((name, fn) :: acc) rest
-                 | None -> Error (make_error TypeError "summarize() expects pairs of (column_name, function)"))
+            | (Some name, fn) :: rest ->
+                parse_pairs ((name, fn) :: acc) rest
             | [] -> Ok (List.rev acc)
-            | _ -> Error (make_error TypeError "summarize() expects pairs of (column_name, function)")
+            | _ -> Error (make_error TypeError "summarize() expects $column = expr syntax")
           in
-          (match parse_pairs [] summary_args with
+          (match parse_pairs [] rest_args with
            | Error e -> e
            | Ok pairs ->
              if pairs = [] then
-               make_error ArityError "summarize() requires at least one (name, function) pair"
+               make_error ArityError "summarize() requires at least one $column = expr argument"
              else if df.group_keys = [] then
                let result_cols = List.map (fun (name, fn) ->
-                 let result = eval_call env fn [(None, Value (VDataFrame df))] in
+                 let result = apply_aggregation env fn (VDataFrame df) in
                  (name, result)
                ) pairs in
                (match List.find_opt (fun (_, v) -> is_error_value v) result_cols with
@@ -41,9 +45,6 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                   let arrow_table = Arrow_bridge.table_from_value_columns value_columns 1 in
                   VDataFrame { arrow_table; group_keys = [] })
              else
-               (* Use Arrow_compute.group_by for efficient grouping.
-                  This delegates to native Arrow hash grouping when a
-                  native handle is present, falling back to pure OCaml. *)
                let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
                let groups = grouped.Arrow_compute.ocaml_groups in
                let n_groups = List.length groups in
@@ -69,10 +70,9 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                    if !had_error <> None then VNull
                    else begin
                      let (_, row_indices) = List.nth groups g_idx in
-                     (* Create sub-table using Arrow take_rows *)
                      let sub_table = Arrow_compute.take_rows df.arrow_table row_indices in
                      let sub_df = VDataFrame { arrow_table = sub_table; group_keys = [] } in
-                     let result = eval_call env fn [(None, Value sub_df)] in
+                     let result = apply_aggregation env fn sub_df in
                      (match result with
                       | VError _ -> had_error := Some result; result
                       | v -> v)

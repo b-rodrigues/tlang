@@ -95,23 +95,22 @@ analysis = pipeline {
   raw = read_csv("customers.csv", clean_colnames = true)
   
   validated = raw
-    |> filter(\(row) row.total_spend > 0)
-    |> filter(\(row) row.purchase_count > 0)
+    |> filter($total_spend > 0)
+    |> filter($purchase_count > 0)
   
   with_ltv = validated
-    |> mutate("ltv", \(row) row.total_spend / months_since(row.signup_date))
+    |> mutate($ltv, \(row) row.total_spend / months_since(row.signup_date))
   
   segmented = with_ltv
-    |> mutate("segment", \(row)
+    |> mutate($segment, \(row)
         if (row.ltv > 1000) "high_value"
         else if (row.ltv > 500) "medium_value"
         else "low_value"
       )
   
   summary = segmented
-    |> group_by("segment")
-    |> summarize("count", \(g) nrow(g))
-    |> summarize("avg_ltv", \(g) mean(g.ltv))
+    |> group_by($segment)
+    |> summarize($count = nrow($segment), $avg_ltv = mean($ltv))
 }
 
 write_csv(analysis.segmented, "customer_segments.csv")
@@ -172,13 +171,13 @@ analysis = pipeline {
   raw = read_csv("sales.csv")
   
   -- Node 2: Clean (can regenerate independently)
-  cleaned = raw |> filter(\(row) row.amount > 0)
+  cleaned = raw |> filter($amount > 0)
   
   -- Node 3: Analyze (can regenerate independently)
   by_region = cleaned
-    |> group_by("region")
-    |> summarize("total", \(g) sum(g.amount))
-    |> arrange("total", "desc")
+    |> group_by($region)
+    |> summarize($total = sum($amount))
+    |> arrange($total, "desc")
 }
 ```
 
@@ -220,7 +219,7 @@ cohort_analysis = pipeline {
 
 **Step 4**: LLM updates (localized change)
 ```t
-  cleaned = orders |> filter(\(row) row.status == "completed")
+  cleaned = orders |> filter($status == "completed")
 ```
 
 ### Pattern 2: Explain and Generate
@@ -246,10 +245,10 @@ intent {
 }
 
 top_products = sample
-  |> mutate("revenue", \(row) row.quantity * row.price)
-  |> group_by("product")
-  |> summarize("total_revenue", \(g) sum(g.revenue))
-  |> arrange("total_revenue", "desc")
+  |> mutate($revenue = $quantity * $price)
+  |> group_by($product)
+  |> summarize($total_revenue = sum($revenue))
+  |> arrange($total_revenue, "desc")
   |> head(10)
 ```
 
@@ -259,7 +258,7 @@ top_products = sample
 ```t
 intent { description: "Average sales by month" }
 
-monthly = sales |> group_by("month") |> summarize("avg", \(g) mean(g.amount))
+monthly = sales |> group_by($month) |> summarize($avg = mean($amount))
 ```
 
 **Iteration 2**: Add NA handling
@@ -269,7 +268,7 @@ intent {
   requirements: "Handle missing amounts"
 }
 
-monthly = sales |> group_by("month") |> summarize("avg", \(g) mean(g.amount, na_rm = true))
+monthly = sales |> group_by($month) |> summarize($avg = mean($amount))
 ```
 
 **Iteration 3**: Add validation
@@ -280,9 +279,9 @@ intent {
 }
 
 monthly = sales
-  |> filter(\(row) row.amount > 0)
-  |> group_by("month")
-  |> summarize("avg", \(g) mean(g.amount, na_rm = true))
+  |> filter($amount > 0)
+  |> group_by($month)
+  |> summarize($avg = mean($amount))
 ```
 
 **Each iteration**: Intent updated, LLM regenerates, human verifies.
@@ -392,10 +391,8 @@ salary_analysis = pipeline {
   
   -- Department statistics
   dept_stats = employees
-    |> group_by("department")
-    |> summarize("mean_salary", \(g) mean(g.salary, na_rm = true))
-    |> summarize("sd_salary", \(g) sd(g.salary, na_rm = true))
-    |> summarize("count", \(g) nrow(g))
+    |> group_by($department)
+    |> summarize($mean_salary = mean($salary), $sd_salary = sd($salary), $count = nrow($department))
   
   -- Identify outliers
   -- (Join would be manual or use a join function if available)
@@ -405,8 +402,8 @@ salary_analysis = pipeline {
   threshold = overall_mean + 2 * overall_sd
   
   outliers = employees
-    |> filter(\(row) row.salary > threshold)
-    |> select("employee_id", "department", "salary")
+    |> filter($salary > threshold)
+    |> select($employee_id, $department, $salary)
 }
 
 -- Export results
@@ -424,13 +421,13 @@ print("Outliers: outliers.csv")
 ```t
   -- Update: Per-department outliers
   with_dept_stats = employees
-    |> group_by("department")
-    |> mutate("dept_mean", \(g) mean(g.salary, na_rm = true))
-    |> mutate("dept_sd", \(g) sd(g.salary, na_rm = true))
+    |> group_by($department)
+    |> mutate($dept_mean, \(g) mean(g.salary, na_rm = true))
+    |> mutate($dept_sd, \(g) sd(g.salary, na_rm = true))
   
   outliers = with_dept_stats
-    |> filter(\(row) row.salary > row.dept_mean + 2 * row.dept_sd)
-    |> select("employee_id", "department", "salary", "dept_mean", "dept_sd")
+    |> filter($salary > $dept_mean + 2 * $dept_sd)
+    |> select($employee_id, $department, $salary, $dept_mean, $dept_sd)
 ```
 
 **Note**: Only `outliers` node changed; `dept_stats` and `employees` nodes unchanged.

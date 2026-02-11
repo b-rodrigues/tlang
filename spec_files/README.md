@@ -30,7 +30,7 @@ For detailed release notes, see [ALPHA.md](ALPHA.md). For future plans, see [ROA
 - **1-indexed**: Humans don't start counting from 0, only clankers do. You aren't a clanker aren't you?
 - **Declarative and functional**: T is expression-oriented and avoids mutation and imperative constructs.
 - **Minimal OCaml core**: The runtime and interpreter are minimal. Most functionality is implemented as packages written in T itself.
-- **Non-Standard Evaluation (NSE)**: Column names can be passed as bare identifiers, not strings: `select(name, age)`.
+- **Non-Standard Evaluation (NSE)**: Column names use dollar-prefix syntax: `select($name, $age)`, `filter($age > 30)`, `summarize($total = sum($amount))`.
 - **Extensible built-ins**: Functions like `print()` support multiple dispatch and can be extended for user-defined types.
 - **REPL-first**: T is designed to be explored interactively via a custom REPL.
 - **Package-based**: Features are grouped into internal packages (e.g. `core`, `stats`, `colcraft`) that load modularly.
@@ -100,10 +100,10 @@ intent {
 
 -- Load and transform data
 data = read_csv("data.csv")
-data |> select("name", "age") |> filter(\(row) row.age > 30)
+data |> select($name, $age) |> filter($age > 30)
 
 -- Save results with write_csv
-data |> filter(\(row) row.age > 30) |> \(d) write_csv(d, "filtered.csv")
+data |> filter($age > 30) |> \(d) write_csv(d, "filtered.csv")
 
 -- Linear regression with formula syntax
 model = lm(data = data, formula = age ~ income)
@@ -117,6 +117,7 @@ safe_result = error("missing") ?|> \(x) if (is_error(x)) "default" else x
 Features supported:
 
 - **Intent blocks**: `intent { ... }` for structured LLM collaboration
+- **Dollar-prefix NSE**: `select($name, $age)`, `filter($age > 30)`, `summarize($total = sum($amount))`
 - R-style lambdas: `\(x) x + 1`
 - Formula syntax: `y ~ x` creates Formula objects for statistical modeling
 - Named arguments: `lm(data = df, formula = y ~ x)`

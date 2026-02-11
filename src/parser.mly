@@ -155,6 +155,7 @@ arg:
   | e = expr { (None, e) }
   | name = IDENT COLON e = expr { (Some name, e) }
   | name = IDENT EQUALS e = expr { (Some name, e) }
+  | col = COLUMN_REF EQUALS e = expr { (Some col, e) }
   ;
 
 /* Primary (atomic) expressions */

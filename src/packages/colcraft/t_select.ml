@@ -8,7 +8,7 @@ let register env =
           let col_names = List.map (fun v ->
             match Utils.extract_column_name v with
             | Some s -> Ok s
-            | None -> Error (make_error TypeError "select() expects column names (strings or $column syntax)")
+            | None -> Error (make_error TypeError "select() expects $column syntax")
           ) col_args in
           (match List.find_opt Result.is_error col_names with
            | Some (Error e) -> e
@@ -22,7 +22,7 @@ let register env =
                let remaining_keys = List.filter (fun k -> List.mem k names) df.group_keys in
                VDataFrame { arrow_table = new_table; group_keys = remaining_keys })
       | _ :: _ -> make_error TypeError "select() expects a DataFrame as first argument"
-      | _ -> make_error ArityError "select() requires a DataFrame and at least one column name"
+      | _ -> make_error ArityError "select() requires a DataFrame and at least one $column"
     ))
     env
 

@@ -73,22 +73,20 @@ write_csv(df, "output.tsv", sep = "\t")
 Select keeps only the specified columns:
 
 ```t
--- Select two columns
-df |> select("name", "age")
+df |> select($name, $age)
 -- DataFrame(100 rows x 2 cols: [name, age])
 
--- Select a single column
-df |> select("name")
+df |> select($name)
 -- DataFrame(100 rows x 1 cols: [name])
 ```
 
 **Error handling:**
 ```t
-df |> select("nonexistent")
+df |> select($nonexistent)
 -- Error(KeyError: "Column(s) not found: nonexistent")
 
 df |> select(42)
--- Error(TypeError: "select() expects string column names")
+-- Error(TypeError: "select() expects $column syntax")
 ```
 
 ---
@@ -98,18 +96,15 @@ df |> select(42)
 Filter keeps rows where a predicate returns true:
 
 ```t
--- Keep employees older than 30
-df |> filter(\(row) row.age > 30)
-
--- Keep engineering department
-df |> filter(\(row) row.dept == "eng")
+df |> filter($age > 30)
+df |> filter($dept == "eng")
 
 -- Combine with pipe
-df |> filter(\(row) row.dept == "eng") |> nrow
+df |> filter($dept == "eng") |> nrow
 -- 42 (number of engineers)
 ```
 
-The predicate receives each row as a record with dot-access to columns.
+The NSE syntax auto-transforms `$age > 30` into `\(row) row.age > 30`.
 
 ---
 
@@ -118,22 +113,21 @@ The predicate receives each row as a record with dot-access to columns.
 Mutate adds a new column or replaces an existing one:
 
 ```t
--- Add a new column
-df |> mutate("age_plus_10", \(row) row.age + 10)
--- DataFrame with new column 'age_plus_10'
+-- Named-arg NSE syntax: $col = NSE expression
+df |> mutate($age_plus_10 = $age + 10)
+df |> mutate($bonus = $salary * 0.1)
 
--- Replace an existing column
-df |> mutate("age", \(row) row.age + 1)
--- DataFrame with updated 'age' column (same column count)
+-- Positional NSE for column name with explicit lambda
+df |> mutate($age_plus_10, \(row) row.age + 10)
 ```
 
 **Error handling:**
 ```t
-mutate(42, "x", \(r) r)
+mutate(42, $x, \(r) r)
 -- Error(TypeError: "mutate() expects a DataFrame as first argument")
 
 df |> mutate(42, \(r) r)
--- Error(TypeError: "mutate() expects a string column name as second argument")
+-- Error(TypeError: "mutate() expects $column = expr syntax")
 ```
 
 ---
@@ -143,23 +137,16 @@ df |> mutate(42, \(r) r)
 Arrange sorts a DataFrame by a column:
 
 ```t
--- Sort ascending (default)
-df |> arrange("age")
-
--- Sort descending
-df |> arrange("age", "desc")
-
--- Verify sort order
-df |> arrange("age") |> select("name") |> \(d) d.name
--- Vector sorted by age
+df |> arrange($age)
+df |> arrange($age, "desc")
 ```
 
 **Error handling:**
 ```t
-df |> arrange("nonexistent")
+df |> arrange($nonexistent)
 -- Error(KeyError: "Column 'nonexistent' not found in DataFrame")
 
-df |> arrange("age", "up")
+df |> arrange($age, "up")
 -- Error(ValueError: "arrange() direction must be "asc" or "desc"")
 ```
 
@@ -170,7 +157,7 @@ df |> arrange("age", "up")
 Group creates a grouped DataFrame for subsequent summarization:
 
 ```t
-df |> group_by("dept")
+df |> group_by($dept)
 -- DataFrame(100 rows x 5 cols: [...]) grouped by [dept]
 ```
 
@@ -178,11 +165,11 @@ Grouping is a marker — it doesn't change the data, but tells `summarize()` and
 
 **Error handling:**
 ```t
-df |> group_by("nonexistent")
+df |> group_by($nonexistent)
 -- Error(KeyError: "Column(s) not found: nonexistent")
 
 df |> group_by(42)
--- Error(TypeError: "group_by() expects string column names")
+-- Error(TypeError: "group_by() expects $column syntax")
 ```
 
 ---
@@ -194,15 +181,24 @@ Summarize computes aggregate statistics:
 ### Ungrouped Summarize
 
 ```t
-df |> summarize("total_rows", \(d) nrow(d))
+-- Named-arg NSE syntax: $col = NSE aggregation
+df |> summarize($total_score = sum($score))
+
+-- Positional NSE with lambda
+df |> summarize($total_rows, \(d) nrow(d))
 -- DataFrame(1 rows x 1 cols: [total_rows])
 ```
 
 ### Grouped Summarize
 
 ```t
-df |> group_by("dept")
-   |> summarize("count", \(g) nrow(g))
+-- Named-arg NSE syntax
+df |> group_by($dept)
+   |> summarize($count = nrow($dept), $avg_score = mean($score))
+
+-- Positional NSE with lambda
+df |> group_by($dept)
+   |> summarize($count, \(g) nrow(g))
 -- DataFrame(N rows x 2 cols: [dept, count])
 -- One row per group
 ```
@@ -215,23 +211,21 @@ When `mutate()` is applied to a grouped DataFrame, the function receives the gro
 
 ```t
 -- Add group size to each row
-df |> group_by("dept")
-   |> mutate("dept_size", \(g) nrow(g))
--- Each row gets the count of its group
+df |> group_by($dept)
+   |> mutate($dept_size, \(g) nrow(g))
 
 -- Compute group mean and broadcast
-df |> group_by("dept")
-   |> mutate("mean_score", \(g) mean(g.score))
--- Each row gets the mean score of its department
+df |> group_by($dept)
+   |> mutate($mean_score, \(g) mean(g.score))
 ```
 
 ### Common Patterns
 
 ```t
 -- Chain grouped mutate with filter
-df |> group_by("dept")
-   |> mutate("dept_size", \(g) nrow(g))
-   |> filter(\(row) row.dept_size > 2)
+df |> group_by($dept)
+   |> mutate($dept_size, \(g) nrow(g))
+   |> filter($dept_size > 2)
 -- Keep only rows from large departments
 ```
 
@@ -246,25 +240,25 @@ The real power is in composing verbs with the pipe operator:
 ### Example 1: Filter, Select, and Count
 
 ```t
-df |> filter(\(row) row.age > 25)
-   |> select("name", "score")
+df |> filter($age > 25)
+   |> select($name, $score)
    |> nrow
 ```
 
 ### Example 2: Mutate and Filter
 
 ```t
-df |> mutate("senior", \(row) row.age >= 30)
-   |> filter(\(row) row.senior == true)
+df |> mutate($senior, \(row) row.age >= 30)
+   |> filter($senior == true)
    |> nrow
 ```
 
 ### Example 3: Complete Tidy Pipeline
 
 ```t
-df |> filter(\(row) row.age > 25)
-   |> select("name", "score")
-   |> arrange("score", "desc")
+df |> filter($age > 25)
+   |> select($name, $score)
+   |> arrange($score, "desc")
    |> nrow
 ```
 
@@ -272,8 +266,8 @@ df |> filter(\(row) row.age > 25)
 
 ```t
 result = df
-  |> group_by("dept")
-  |> summarize("count", \(g) nrow(g))
+  |> group_by($dept)
+  |> summarize($count, \(g) nrow(g))
 
 result.dept    -- Vector of department names
 result.count   -- Vector of counts per department
@@ -370,15 +364,15 @@ p = pipeline {
   raw = read_csv("sales.csv")
   
   -- Clean
-  clean = raw |> filter(\(row) row.amount > 0)
+  clean = raw |> filter($amount > 0)
   
   -- Analyze by region
   by_region = clean
-    |> group_by("region")
-    |> summarize("total", \(g) sum(g.amount))
+    |> group_by($region)
+    |> summarize($total, \(g) sum(g.amount))
   
   -- Sort results
-  ranked = by_region |> arrange("total", "desc")
+  ranked = by_region |> arrange($total, "desc")
 }
 
 p.ranked  -- regions ranked by total sales

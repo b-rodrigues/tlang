@@ -111,7 +111,7 @@ T is a tree-walking interpreter built in OCaml. The architecture prioritizes:
 
 **Example**:
 ```t
-df |> filter(\(row) row.age > 30)
+df |> filter($age > 30)
 ```
 
 Tokens:

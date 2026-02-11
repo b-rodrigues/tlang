@@ -117,7 +117,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   rows = data |> nrow
   cols = data |> ncol
   names = data |> colnames
-  filtered = filter(data, \(row) row.value > 150)
+  filtered = filter(data, $value > 150)
   filtered_count = filtered |> nrow
 }|} csv_golden) env_gd in
 
@@ -219,7 +219,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_empty) = eval_string_env (Printf.sprintf
     {|df = read_csv("%s")|} csv_golden_rw) env_empty in
   let (_, env_empty) = eval_string_env
-    {|empty_df = filter(df, \(row) row.value > 9999)|} env_empty in
+    {|empty_df = filter(df, $value > 9999)|} env_empty in
   let (_, env_empty) = eval_string_env (Printf.sprintf
     {|write_csv(empty_df, "%s")|} csv_golden_empty) env_empty in
   let (_, env_empty) = eval_string_env (Printf.sprintf

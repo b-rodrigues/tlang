@@ -153,11 +153,10 @@ module Utils = struct
     | ColumnRef field -> Some field
     | _ -> None
 
-  (** Extract column name from a runtime value, supporting NSE ($column) and strings.
-      Used by data verbs (select, arrange, group_by, etc.) to accept both
-      string column names and $column_name NSE syntax. *)
+  (** Extract column name from a runtime value, supporting NSE ($column) syntax.
+      Used by data verbs (select, arrange, group_by, etc.) to accept
+      $column_name NSE syntax. *)
   let extract_column_name = function
-    | VString s -> Some s
     | VSymbol s when String.length s > 0 && s.[0] = '$' ->
         Some (String.sub s 1 (String.length s - 1))
     | VSymbol s -> Some s
