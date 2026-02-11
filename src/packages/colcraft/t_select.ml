@@ -8,7 +8,13 @@ let register env =
           let col_names = List.map (fun v ->
             match v with
             | VString s -> Ok s
-            | _ -> Error (make_error TypeError "select() expects string column names")
+            | VSymbol s when String.length s > 0 && s.[0] = '$' ->
+                (* NSE column reference: $name becomes Symbol "$name" *)
+                Ok (String.sub s 1 (String.length s - 1))
+            | VSymbol s ->
+                (* Regular symbol treated as column name for backward compat *)
+                Ok s
+            | _ -> Error (make_error TypeError "select() expects column names (strings or $column syntax)")
           ) col_args in
           (match List.find_opt Result.is_error col_names with
            | Some (Error e) -> e

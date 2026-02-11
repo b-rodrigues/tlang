@@ -110,6 +110,7 @@ and lambda = {
 and expr =
   | Value of value
   | Var of symbol
+  | ColumnRef of string  (* NSE: $column_name references *)
   | Call of { fn : expr; args : (string option * expr) list }
   | Lambda of lambda
   | IfElse of { cond : expr; then_ : expr; else_ : expr }
@@ -144,6 +145,11 @@ module Utils = struct
     | VError _ -> false
     | VNA _ -> false
     | _ -> true
+
+  (** Check if an expression is a column reference and extract the column name *)
+  let is_column_ref = function
+    | ColumnRef field -> Some field
+    | _ -> None
 
   let error_code_to_string = function
     | TypeError -> "TypeError"
