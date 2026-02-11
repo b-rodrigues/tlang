@@ -19,3 +19,4 @@ tests/golden/coverage_report.html
 tests/golden/coverage.csv
 *.bak
 _build_cflags_override.sexp
+result
