@@ -1,17 +1,19 @@
 open Ast
 
+let is_sep_name = function Some "separator" -> true | _ -> false
+
 let register ~write_csv_fn env =
   Env.add "write_csv"
     (make_builtin_named ~variadic:true 2 (fun named_args _env ->
       (* Extract named arguments *)
       let sep = List.fold_left (fun acc (name, v) ->
         match name, v with
-        | Some "sep", VString s -> s
+        | n, VString s when is_sep_name n -> s
         | _ -> acc
       ) "," named_args in
       (* Extract positional arguments *)
       let args = List.filter (fun (name, _) ->
-        name <> Some "sep"
+        not (is_sep_name name)
       ) named_args |> List.map snd in
       match args with
       | [VDataFrame df; VString path] ->

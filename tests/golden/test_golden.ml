@@ -195,22 +195,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Test: write_csv with custom separator and read back *)
   let csv_golden_sep_out = "test_golden_sep_out.csv" in
   let (_, env_rw) = eval_string_env (Printf.sprintf
-    {|write_csv(df, "%s", sep = ";")|} csv_golden_sep_out) env_rw in
+    {|write_csv(df, "%s", separator = ";")|} csv_golden_sep_out) env_rw in
   let (_, env_rw) = eval_string_env (Printf.sprintf
-    {|df3 = read_csv("%s", sep = ";")|} csv_golden_sep_out) env_rw in
+    {|df3 = read_csv("%s", separator = ";")|} csv_golden_sep_out) env_rw in
   let (v, _) = eval_string_env "nrow(df3)" env_rw in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: write sep=\";\" -> read sep=\";\" roundtrip preserves rows\n"
+    incr pass_count; Printf.printf "  ✓ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write sep=\";\" -> read sep=\";\" roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "colnames(df3)" env_rw in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "value"]|} then begin
-    incr pass_count; Printf.printf "  ✓ golden: write sep=\";\" -> read sep=\";\" roundtrip preserves columns\n"
+    incr pass_count; Printf.printf "  ✓ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write sep=\";\" -> read sep=\";\" roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
   end;
 
   (* Test: write empty DataFrame *)

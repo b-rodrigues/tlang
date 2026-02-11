@@ -319,14 +319,14 @@ colnames(df)  -- list of column names
 df.age        -- column as Vector
 
 -- Optional arguments
-df = read_csv("data.tsv", sep = ";")              -- custom separator
+df = read_csv("data.tsv", separator = ";")              -- custom separator
 df = read_csv("data.csv", skip_lines = 2)          -- skip first N lines
 df = read_csv("raw.csv", skip_header = true)        -- no header row
 df = read_csv("messy.csv", clean_colnames = true)   -- normalize column names
 
 -- Save DataFrames
 write_csv(df, "output.csv")                         -- write to CSV
-write_csv(df, "output.tsv", sep = "\t")             -- custom separator
+write_csv(df, "output.tsv", separator = "\t")             -- custom separator
 ```
 
 ### Column Name Cleaning

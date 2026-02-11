@@ -101,39 +101,42 @@ length([])             -- 0
 
 ---
 
-### `head(collection, n = 1)`
+### `head(collection, n)`
 
-Get the first element(s) of a collection.
+Get the first element(s) of a collection. For DataFrames, returns the first `n` rows (default 5). For Lists, returns the first element.
 
 **Parameters:**
-- `collection` — List or Vector
-- `n` (optional) — Number of elements (default: 1)
+- `collection` — List or DataFrame
+- `n` (optional) — Number of rows for DataFrames (default: 5); not used for Lists
 
-**Returns:** Single element (if n=1) or List
+**Returns:** Single element (for Lists) or DataFrame (for DataFrames)
 
 **Examples:**
 ```t
 head([1, 2, 3, 4, 5])       -- 1
-head([1, 2, 3, 4, 5], 3)    -- [1, 2, 3]
-head([])                     -- Error
+head(df)                     -- first 5 rows
+head(df, 3)                  -- first 3 rows
+head(df, n = 10)             -- first 10 rows
 ```
 
 ---
 
-### `tail(collection)`
+### `tail(collection, n)`
 
-Get all elements except the first.
+For DataFrames, returns the last `n` rows (default 5). For Lists, returns all elements except the first.
 
 **Parameters:**
-- `collection` — List or Vector
+- `collection` — List or DataFrame
+- `n` (optional) — Number of rows for DataFrames (default: 5); not used for Lists
 
-**Returns:** List (or Vector)
+**Returns:** List (for Lists) or DataFrame (for DataFrames)
 
 **Examples:**
 ```t
 tail([1, 2, 3, 4, 5])  -- [2, 3, 4, 5]
-tail([42])             -- []
-tail([])               -- []
+tail(df)                -- last 5 rows
+tail(df, 3)             -- last 3 rows
+tail(df, n = 10)        -- last 10 rows
 ```
 
 ---
@@ -642,13 +645,13 @@ predict(200)  -- Predicted sales for advertising = 200
 
 CSV I/O and DataFrame introspection.
 
-### `read_csv(path, sep = ",", skip_lines = 0, skip_header = false, clean_colnames = false)`
+### `read_csv(path, separator = ",", skip_lines = 0, skip_header = false, clean_colnames = false)`
 
 Read a CSV file into a DataFrame.
 
 **Parameters:**
 - `path` — File path (String)
-- `sep` (optional) — Column separator (default: ",")
+- `separator` (optional) — Column separator (default: ",")
 - `skip_lines` (optional) — Number of lines to skip at start (default: 0)
 - `skip_header` (optional) — If true, treat first row as data (default: false)
 - `clean_colnames` (optional) — If true, normalize column names (default: false)
@@ -658,28 +661,28 @@ Read a CSV file into a DataFrame.
 **Examples:**
 ```t
 df = read_csv("data.csv")
-df = read_csv("data.tsv", sep = "\t")
+df = read_csv("data.tsv", separator = "\t")
 df = read_csv("data.csv", skip_lines = 2)
 df = read_csv("messy.csv", clean_colnames = true)
 ```
 
 ---
 
-### `write_csv(dataframe, path, sep = ",")`
+### `write_csv(dataframe, path, separator = ",")`
 
 Write a DataFrame to a CSV file.
 
 **Parameters:**
 - `dataframe` — DataFrame to write
 - `path` — Output file path (String)
-- `sep` (optional) — Column separator (default: ",")
+- `separator` (optional) — Column separator (default: ",")
 
 **Returns:** `null`
 
 **Examples:**
 ```t
 write_csv(df, "output.csv")
-write_csv(df, "output.tsv", sep = "\t")
+write_csv(df, "output.tsv", separator = "\t")
 ```
 
 ---
@@ -728,6 +731,23 @@ Get column names.
 **Examples:**
 ```t
 colnames(df)  -- ["name", "age", "dept", "salary"]
+```
+
+---
+
+### `glimpse(dataframe)`
+
+Get a compact overview of a DataFrame, showing column names, types, and example values. Similar to dplyr's `glimpse()`.
+
+**Parameters:**
+- `dataframe` — DataFrame
+
+**Returns:** Dict with `kind`, `nrow`, `ncol`, and `columns` (list of column summaries)
+
+**Examples:**
+```t
+glimpse(df)
+-- {`kind`: "dataframe", `nrow`: 100, `ncol`: 4, `columns`: ["name <String> ...", "age <Int> ...", ...]}
 ```
 
 ---
@@ -1227,20 +1247,25 @@ Introspection and LLM tooling.
 
 ### `explain(value)`
 
-Get detailed explanation of a value (especially DataFrames).
+Get detailed explanation of a value. For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation.
 
 **Parameters:**
 - `value` — Any value
 
-**Returns:** String description
+**Returns:** Dict with introspection data
 
 **Examples:**
 ```t
-explain(df)
--- "DataFrame(100 rows x 5 cols: [name, age, dept, salary, active])"
-
 explain(42)
--- "Int: 42"
+-- {`kind`: "value", `type`: "Int", `value`: 42}
+
+explain(df)
+-- {`kind`: "dataframe", `nrow`: 100, `ncol`: 5, `hint`: "Use explain(df).schema, ..."}
+
+-- Access detailed fields:
+explain(df).schema        -- list of column name/type pairs
+explain(df).na_stats      -- NA count per column
+explain(df).example_rows  -- first 5 rows as list of dicts
 ```
 
 ---

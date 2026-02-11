@@ -205,8 +205,21 @@ module Utils = struct
         in
         "[" ^ (items |> List.map item_to_string |> String.concat ", ") ^ "]"
     | VDict pairs ->
+        let display_keys = List.fold_left (fun acc (k, v) ->
+          match k, v with
+          | "_display_keys", VList items ->
+              Some (List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items)
+          | _ -> acc
+        ) None pairs in
+        let visible_pairs = match display_keys with
+          | None -> pairs
+          | Some keys ->
+              List.filter (fun (k, _) ->
+                List.mem k keys
+              ) pairs
+        in
         let pair_to_string (k, v) = "`" ^ k ^ "`: " ^ value_to_string v in
-        "{" ^ (pairs |> List.map pair_to_string |> String.concat ", ") ^ "}"
+        "{" ^ (visible_pairs |> List.map pair_to_string |> String.concat ", ") ^ "}"
     | VVector arr ->
         let items = Array.to_list arr |> List.map value_to_string in
         "Vector[" ^ String.concat ", " items ^ "]"

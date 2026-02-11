@@ -52,7 +52,7 @@ The alpha release validates T's core design:
 ### Data Features
 
 - [ ] **Multiple file formats**: Parquet, JSON support
-- [x] **Write operations**: `write_csv()` with optional `sep` parameter
+- [x] **Write operations**: `write_csv()` with optional `separator` parameter
 - [ ] **Write Parquet**: `write_parquet()`
 - [ ] **Join operations**: `left_join()`, `inner_join()`, `full_join()`
 - [ ] **Pivot operations**: `pivot_wider()`, `pivot_longer()`

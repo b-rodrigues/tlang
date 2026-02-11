@@ -21,7 +21,7 @@ colnames(df)  -- ["name", "age", "score", "dept", "salary"]
 
 ```t
 -- Custom separator (e.g., semicolon-delimited files)
-df = read_csv("data.tsv", sep = ";")
+df = read_csv("data.tsv", separator = ";")
 
 -- Skip comment lines at the top of a file
 df = read_csv("data_with_header.csv", skip_lines = 2)
@@ -63,7 +63,7 @@ Duplicate names after cleaning are disambiguated: the first occurrence stays unc
 write_csv(df, "output.csv")
 
 -- Save with a custom separator
-write_csv(df, "output.tsv", sep = "\t")
+write_csv(df, "output.tsv", separator = "\t")
 ```
 
 ---

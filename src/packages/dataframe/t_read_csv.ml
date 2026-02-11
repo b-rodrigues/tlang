@@ -1,22 +1,24 @@
 open Ast
 
+let is_sep_name = function Some "separator" -> true | _ -> false
+
 let register ~parse_csv_string env =
   Env.add "read_csv"
     (make_builtin_named ~variadic:true 1 (fun named_args _env ->
-      (* Validate sep parameter if provided *)
+      (* Validate sep/separator parameter if provided *)
       let bad_sep = List.exists (fun (name, v) ->
         match name, v with
-        | Some "sep", VString s -> String.length s <> 1
-        | Some "sep", _ -> true
+        | n, VString s when is_sep_name n -> String.length s <> 1
+        | n, _ when is_sep_name n -> true
         | _ -> false
       ) named_args in
       if bad_sep then
-        make_error TypeError "read_csv() sep must be a single character string"
+        make_error TypeError "read_csv() separator must be a single character string"
       else
       (* Extract named arguments *)
       let sep = List.fold_left (fun acc (name, v) ->
         match name, v with
-        | Some "sep", VString s -> s.[0]
+        | n, VString s when is_sep_name n -> s.[0]
         | _ -> acc
       ) ',' named_args in
       let skip_header = List.exists (fun (name, v) ->
@@ -32,7 +34,7 @@ let register ~parse_csv_string env =
       ) named_args in
       (* Extract positional arguments *)
       let args = List.filter (fun (name, _) ->
-        name <> Some "sep" && name <> Some "skip_header"
+        not (is_sep_name name) && name <> Some "skip_header"
         && name <> Some "skip_lines" && name <> Some "clean_colnames"
       ) named_args |> List.map snd in
       match args with

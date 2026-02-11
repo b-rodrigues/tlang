@@ -151,7 +151,7 @@ The T Language Alpha validates the core design principles:
    - **Workaround**: Use `group_by() |> summarize()` pattern
 
 7. **Limited File Format Support**
-   - **Issue**: No support for Parquet/JSON (write_csv now available with optional sep, skip_header, skip_lines)
+   - **Issue**: No support for Parquet/JSON (write_csv now available with optional separator, skip_header, skip_lines)
    - **Impact**: Parquet/JSON import/export not yet supported
    - **Roadmap**: Deferred to Beta v0.2
 
@@ -433,7 +433,7 @@ df |> distinct("key")
 **Impact**: Parquet/JSON import/export not yet supported
 
 **Description**:
-`read_csv()` and `write_csv()` now support optional `sep`, `skip_header`, and `skip_lines` parameters. Parquet/JSON support is deferred to Beta.
+`read_csv()` and `write_csv()` now support optional `separator`, `skip_header`, and `skip_lines` parameters. Parquet/JSON support is deferred to Beta.
 
 **Status**: RESOLVED (write_csv implemented with optional separator)
 

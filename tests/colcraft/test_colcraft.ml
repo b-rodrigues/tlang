@@ -300,9 +300,10 @@ df |> mutate($senior = $age >= 30)
   let (_, env_nas) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_nas) env_nas in
 
   let step1_result = (try
-    let (v, env_n) = eval_string_env
+    let (_, env_n) = eval_string_env
       {|step1 = df |> mutate($temp_category = if ($Temp > 75) "hot" else "cool")|}
       env_nas in
+    let (v, _) = eval_string_env "step1" env_n in
     Ok (v, env_n)
   with e -> Error (Printexc.to_string e))
   in
@@ -316,9 +317,10 @@ df |> mutate($senior = $age >= 30)
     end;
 
     let step2_result = (try
-      let (v2, _) = eval_string_env
+      let (_, env_n2) = eval_string_env
         {|result = step1 |> group_by($temp_category) |> summarize($mean_ozone = mean($Ozone, na_rm = true), $count = nrow($temp_category))|}
         env_nas2 in
+      let (v2, _) = eval_string_env "result" env_n2 in
       Ok v2
     with e -> Error (Printexc.to_string e))
     in
