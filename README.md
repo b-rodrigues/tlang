@@ -11,11 +11,11 @@
 -- Load data
 df = read_csv("data.csv", clean_colnames = true)
 
--- Data manipulation pipeline
+-- Data manipulation pipeline using NSE (dollar-prefix) syntax
 result = df
-  |> filter(\(row) row.age > 30)
-  |> select("name", "age", "salary")
-  |> arrange("age", "desc")
+  |> filter($age > 30)
+  |> select($name, $age, $salary)
+  |> arrange($age, "desc")
   
 -- Statistics
 mean(df.salary, na_rm = true)
@@ -25,7 +25,7 @@ model = lm(data = df, formula = salary ~ age)
 ## Key Features
 
 - **🔒 Perfect Reproducibility**: Every project is a Nix flake with pinned dependencies
-- **📊 DataFrame-First**: First-class tabular data with Arrow backend
+- **📊 DataFrame-First**: First-class tabular data with Arrow backend, NSE column references (`$name`)
 - **🔄 Pipeline-Oriented**: DAG-based computation with automatic dependency resolution
 - **🤖 LLM-Native**: Intent blocks for structured AI collaboration
 - **⚡ Explicit Semantics**: No silent failures, no implicit NA propagation
@@ -75,14 +75,14 @@ intent {
 -- Load and clean data
 customers = read_csv("customers.csv", clean_colnames = true)
 
--- Analysis pipeline
+-- Analysis pipeline using NSE dollar-prefix syntax
 analysis = pipeline {
-  filtered = customers |> filter(\(row) row.age > 18)
+  filtered = customers |> filter($age > 18)
   
   by_age = filtered
-    |> mutate("age_group", \(row) if (row.age < 30) "young" else "mature")
-    |> group_by("age_group")
-    |> summarize("churn_rate", \(g) mean(g.churned))
+    |> mutate($age_group, \(row) if (row.age < 30) "young" else "mature")
+    |> group_by($age_group)
+    |> summarize($churn_rate, \(g) mean(g.churned))
   
   model = lm(data = filtered, formula = churned ~ age)
 }
@@ -102,6 +102,9 @@ print(analysis.model.r_squared)
 
 -- Maybe-pipe (?|>) forwards errors for recovery
 error("fail") ?|> \(x) if (is_error(x)) 0 else x  -- 0
+
+-- Pipes work naturally with NSE data verbs
+df |> filter($age > 30) |> select($name, $salary)
 ```
 
 ### Explicit NA Handling
@@ -113,6 +116,18 @@ mean([1, NA, 3], na_rm = true) -- 2.0 (explicit handling)
 ```
 
 ### Data Verbs
+
+T uses dollar-prefix (`$column`) syntax for concise column references (NSE):
+
+```t
+df |> select($name, $age)                         -- Select columns
+df |> filter($age > 25)                            -- Filter rows
+df |> mutate($bonus, \(row) row.salary * 0.1)      -- Add columns
+df |> arrange($age, "desc")                        -- Sort
+df |> group_by($dept) |> summarize($n, \(g) nrow(g))  -- Aggregate
+```
+
+String syntax is also supported for backward compatibility:
 
 ```t
 df |> select("name", "age")                    -- Select columns

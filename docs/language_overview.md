@@ -361,29 +361,46 @@ The transformation is pure, stable across platforms, and idempotent.
 
 ### Data Manipulation
 
-T provides six core data verbs:
+T provides six core data verbs with dollar-prefix NSE syntax for concise column references:
 
 ```t
--- Select columns
+-- NSE syntax (preferred) — use $column for column references
+df |> select($name, $age)
+df |> filter($age > 25)
+df |> mutate($age_plus_10, \(row) row.age + 10)
+df |> arrange($age, "desc")
+df |> group_by($dept)
+   |> summarize($count, \(g) nrow(g))
+df |> group_by($dept)
+   |> mutate($dept_size, \(g) nrow(g))
+```
+
+String syntax is also supported for backward compatibility:
+
+```t
+-- String syntax (still works)
 df |> select("name", "age")
-
--- Filter rows
 df |> filter(\(row) row.age > 25)
-
--- Add/transform columns
 df |> mutate("age_plus_10", \(row) row.age + 10)
-
--- Sort rows
-df |> arrange("age")        -- ascending
-df |> arrange("age", "desc") -- descending
-
--- Group and summarize
+df |> arrange("age")
+df |> arrange("age", "desc")
 df |> group_by("dept")
    |> summarize("count", \(g) nrow(g))
-
--- Grouped mutate (broadcast group result to each row)
 df |> group_by("dept")
    |> mutate("dept_size", \(g) nrow(g))
+```
+
+#### Dollar-Prefix vs Dot Accessor
+
+- **Dollar (`$`)**: Column reference in DataFrame context — `$column_name`
+- **Dot (`.`)**: Field access on an explicit object — `row.field`, `obj.property`
+
+```t
+-- Dollar: references columns contextually (no explicit row variable)
+df |> filter($age > 30)
+
+-- Dot: accesses fields on an explicit object (in lambda context)
+df |> filter(\(row) row.age > 30)
 ```
 
 ### Window Functions

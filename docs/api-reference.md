@@ -772,48 +772,56 @@ Data manipulation verbs and window functions.
 
 #### `select(dataframe, ...columns)`
 
-Select columns by name.
+Select columns by name. Supports dollar-prefix NSE syntax.
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `...columns` — Column names (Strings)
+- `...columns` — Column references (`$name`) or column name strings (`"name"`)
 
 **Returns:** DataFrame with selected columns
 
 **Examples:**
 ```t
+-- NSE syntax (preferred)
+df |> select($name, $age)
+df |> select($dept)
+
+-- String syntax (also works)
 df |> select("name", "age")
-df |> select("dept")
 ```
 
 ---
 
 #### `filter(dataframe, predicate)`
 
-Filter rows by condition.
+Filter rows by condition. Supports NSE expressions with dollar-prefix column references.
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `predicate` — Function taking row dict: `\(row) row.age > 25`
+- `predicate` — NSE expression (`$age > 25`) or lambda (`\(row) row.age > 25`)
 
 **Returns:** DataFrame with matching rows
 
 **Examples:**
 ```t
+-- NSE syntax (preferred)
+df |> filter($age > 30)
+df |> filter($dept == "Engineering")
+df |> filter($salary > 50000 and $active == true)
+
+-- Lambda syntax (also works)
 df |> filter(\(row) row.age > 30)
-df |> filter(\(row) row.dept == "Engineering")
-df |> filter(\(row) row.salary > 50000 and row.active == true)
 ```
 
 ---
 
 #### `mutate(dataframe, new_col, fn)` / `mutate(dataframe, new_col, value)`
 
-Add or transform a column.
+Add or transform a column. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `new_col` — New column name (String)
+- `new_col` — Column reference (`$bonus`) or column name string (`"bonus"`)
 - `fn` — Function taking row dict: `\(row) ...`, OR
 - `value` — Constant value for all rows
 
@@ -821,78 +829,91 @@ Add or transform a column.
 
 **Examples:**
 ```t
+-- NSE syntax (preferred)
+df |> mutate($bonus, \(row) row.salary * 0.1)
+df |> mutate($age_next_year, \(row) row.age + 1)
+
+-- String syntax (also works)
 df |> mutate("bonus", \(row) row.salary * 0.1)
 df |> mutate("status", "active")
-df |> mutate("age_next_year", \(row) row.age + 1)
 
 -- Grouped mutate (broadcast group result)
-df |> group_by("dept") |> mutate("dept_size", \(g) nrow(g))
+df |> group_by($dept) |> mutate($dept_size, \(g) nrow(g))
 ```
 
 ---
 
 #### `arrange(dataframe, column, direction = "asc")`
 
-Sort rows by column.
+Sort rows by column. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `column` — Column name (String)
+- `column` — Column reference (`$age`) or column name string (`"age"`)
 - `direction` (optional) — "asc" or "desc" (default: "asc")
 
 **Returns:** Sorted DataFrame
 
 **Examples:**
 ```t
-df |> arrange("age")            -- Ascending
-df |> arrange("salary", "desc") -- Descending
+-- NSE syntax (preferred)
+df |> arrange($age)
+df |> arrange($salary, "desc")
+
+-- String syntax (also works)
+df |> arrange("age")
+df |> arrange("salary", "desc")
 ```
 
 ---
 
 #### `group_by(dataframe, ...columns)`
 
-Group by one or more columns.
+Group by one or more columns. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `...columns` — Column names to group by (Strings)
+- `...columns` — Column references (`$dept`) or column name strings (`"dept"`)
 
 **Returns:** Grouped DataFrame
 
 **Usage:**
 ```t
 -- Use with summarize to aggregate
-df |> group_by("dept") |> summarize("avg_salary", \(g) mean(g.salary))
+df |> group_by($dept) |> summarize($avg_salary, \(g) mean(g.salary))
 
 -- Use with mutate to broadcast group results
-df |> group_by("dept") |> mutate("dept_count", \(g) nrow(g))
+df |> group_by($dept) |> mutate($dept_count, \(g) nrow(g))
 ```
 
 **Examples:**
 ```t
-df |> group_by("dept")
-df |> group_by("dept", "location")
+df |> group_by($dept)
+df |> group_by($dept, $location)
 ```
 
 ---
 
 #### `summarize(grouped_df, new_col, fn)`
 
-Aggregate grouped data.
+Aggregate grouped data. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 - `grouped_df` — Grouped DataFrame (from `group_by()`)
-- `new_col` — Result column name (String)
+- `new_col` — Column reference (`$count`) or column name string (`"count"`)
 - `fn` — Aggregation function: `\(group) ...`
 
 **Returns:** DataFrame with one row per group
 
 **Examples:**
 ```t
+-- NSE syntax (preferred)
+df |> group_by($dept) |> summarize($count, \(g) nrow(g))
+df |> group_by($dept) |> summarize($avg_salary, \(g) mean(g.salary))
+df |> group_by($region) |> summarize($total_sales, \(g) sum(g.sales))
+
+-- String syntax (also works)
 df |> group_by("dept") |> summarize("count", \(g) nrow(g))
-df |> group_by("dept") |> summarize("avg_salary", \(g) mean(g.salary))
-df |> group_by("region") |> summarize("total_sales", \(g) sum(g.sales))
 ```
 
 ---
