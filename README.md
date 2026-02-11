@@ -44,6 +44,13 @@ cd tlang
 # Enter development environment
 nix develop
 
+# You might see following prompts, accept them all
+
+#do you want to allow configuration setting 'extra-substituters' to be set to 'https://rstats-on-#nix.cachix.org' (y/N)? y
+#do you want to permanently mark this value as trusted (y/N)? y
+#do you want to allow configuration setting 'extra-trusted-public-keys' to be set to 'rstats-on-#nix.cachix.org-1:vdii...' (y/N)? y
+#do you want to permanently mark this value as trusted (y/N)? y
+
 # Start the REPL
 dune exec src/repl.exe
 ```
