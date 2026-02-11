@@ -90,9 +90,11 @@ let repl_display_value v =
   match v with
   | Ast.VNull -> ()
   | Ast.VError _ ->
-      print_string (Pretty_print.pretty_print_value v)
+      print_string (Pretty_print.pretty_print_value v);
+      flush stdout
   | Ast.VDataFrame _ | Ast.VPipeline _ ->
-      print_string (Pretty_print.pretty_print_value v)
+      print_string (Pretty_print.pretty_print_value v);
+      flush stdout
   | v -> print_endline (Ast.Utils.value_to_string v)
 
 (* --- CLI Commands --- *)
