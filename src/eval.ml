@@ -830,8 +830,8 @@ let eval_program (program : program) (env : environment) : value * environment =
     | [stmt] -> eval_statement env stmt
     | stmt :: rest ->
         let (v, new_env) = eval_statement env stmt in
-        (match v with
-         | VError _ when new_env == env -> (v, env)
+        (match stmt, v with
+         | (Assignment _ | Reassignment _), VError _ when new_env == env -> (v, env)
          | _ -> go new_env rest)
   in
   go env program
