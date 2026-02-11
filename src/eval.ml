@@ -147,6 +147,7 @@ and free_vars (expr : Ast.expr) : string list =
   let rec collect = function
     | Value _ -> []
     | Var s -> [s]
+    | ColumnRef _ -> []
     | Call { fn; args } ->
         collect fn @ List.concat_map (fun (_, e) -> collect e) args
     | Lambda { body; params; _ } ->
