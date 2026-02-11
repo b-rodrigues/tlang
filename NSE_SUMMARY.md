@@ -24,7 +24,7 @@ The dollar-prefix NSE syntax (`$column_name`) has been implemented for T languag
    - Data verbs recognize and process these special symbols
    - Helper functions: `desugar_nse_expr`, `uses_nse`
 
-### Working Data Verbs (50% Complete)
+### Working Data Verbs (100% Complete)
 
 ✅ **select()** - Fully working
 ```t
@@ -39,6 +39,21 @@ df |> arrange($age, "desc")
 ✅ **group_by()** - Fully working
 ```t
 df |> group_by($dept, $region)
+```
+
+✅ **filter()** - Fully working (NSE expressions auto-transform to lambdas)
+```t
+df |> filter($age > 30)
+```
+
+✅ **mutate()** - Fully working (accepts $column names and NSE expressions)
+```t
+df |> mutate($new_col, $old_col * 2)
+```
+
+✅ **summarize()** - Fully working (accepts $column names and NSE expressions)
+```t
+df |> summarize($avg_age, mean($age))
 ```
 
 ### Implementation Approach
@@ -86,36 +101,17 @@ df |> filter(\(row) row.age > 30)  -- row is an object, .age accesses its field
 df |> select($age, $name)  -- $ references columns when df is in context
 ```
 
-## 🚧 Remaining Work
+## ✅ All Data Verbs Complete
 
-### Not Yet Implemented (50%)
+### Implementation Approach for filter/mutate/summarize
 
-❌ **filter()** - Needs expression transformation before evaluation
-```t
-df |> filter($age > 30)  -- Planned but not yet working
-```
+The NSE auto-transformation is implemented in `eval_call` (src/eval.ml):
+- Before evaluating arguments, each arg is checked for NSE usage
+- **Bare `$column`** → evaluates to `VSymbol("$column")` (used as column name)
+- **Complex expression with `$column`** (e.g., `$age > 30`) → auto-wrapped in `\(row) row.age > 30` lambda
+- This works universally for all builtins without function-specific code
 
-❌ **mutate()** - Needs NSE for both column name and value expression
-```t
-df |> mutate($new_col, $old_col * 2)  -- Planned but not yet working
-```
-
-❌ **summarize()** - Needs NSE for aggregation expressions
-```t
-df |> summarize($avg_age, mean($age))  -- Planned but not yet working
-```
-
-### Technical Challenge
-
-These functions require access to **raw expressions** (not evaluated values) because:
-- They need to detect if expressions use NSE (`uses_nse()`)
-- They need to transform expressions (`desugar_nse_expr()`)
-- The current builtin system evaluates all arguments before passing them
-
-**Solution**: These functions will need special registration that provides access to:
-- `eval_expr` - To evaluate expressions when needed
-- `uses_nse` - To detect NSE usage
-- `desugar_nse_expr` - To transform NSE expressions
+**filter()**, **mutate()**, and **summarize()** accept `$column` names via `Utils.extract_column_name`.
 
 ## 📝 Documentation
 
@@ -124,11 +120,11 @@ These functions require access to **raw expressions** (not evaluated values) bec
 - ✅ Dot vs Dollar explanation added to NSE_implementation.md
 - ✅ Code examples in examples/test_nse.t
 
-## 🎯 Next Steps
+## ✅ Completed Steps
 
-1. Implement filter() NSE support (highest priority)
-2. Implement mutate() NSE support
-3. Implement summarize() NSE support  
+1. ~~Implement filter() NSE support~~ ✅
+2. ~~Implement mutate() NSE support~~ ✅
+3. ~~Implement summarize() NSE support~~ ✅
 4. Create comprehensive tests
 5. Update all example files to use NSE syntax
 6. Update user documentation
