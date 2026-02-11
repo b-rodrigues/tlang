@@ -68,7 +68,7 @@ let register env =
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
       | [VDataFrame _; _; VString dir] ->
           make_error ValueError (Printf.sprintf "arrange() direction must be \"asc\" or \"desc\", got \"%s\"" dir)
-      | [VDataFrame _; _] | [VDataFrame _; _; _] ->
+      | [VDataFrame _; _; _] ->
           make_error TypeError "arrange() expects a column name (string or $column syntax)"
       | [_; _] | [_; _; _] -> make_error TypeError "arrange() expects a DataFrame as first argument"
       | _ -> make_error ArityError "arrange() takes 2 or 3 arguments"

@@ -64,7 +64,6 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                    let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
       | [VDataFrame _; _] -> make_error ArityError "mutate() requires a DataFrame, column name, and a function"
-      | [VDataFrame _; _; _] -> make_error TypeError "mutate() expects a string or $column column name as second argument"
       | [_; _; _] -> make_error TypeError "mutate() expects a DataFrame as first argument"
       | _ -> make_error ArityError "mutate() takes exactly 3 arguments"
     ))
