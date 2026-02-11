@@ -174,6 +174,10 @@ let cmd_explain rest env =
 
 let cmd_repl env =
   Printf.printf "T language REPL — version %s\n" version;
+  Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
+  Printf.printf "This software is in alpha and is entirely LLM-generated — caveat emptor.\n";
+  Printf.printf "Website: https://tstats-project.org\n";
+  Printf.printf "Contributions are welcome!\n";
   Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
   let rec repl env =
     match LNoise.linenoise "T> " with
