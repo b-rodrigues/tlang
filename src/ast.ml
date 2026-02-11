@@ -290,6 +290,15 @@ let make_builtin ?(variadic=false) arity func =
 let make_builtin_named ?(variadic=false) arity func =
   VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
 
+(** Create a builtin that receives raw expressions (unevaluated)
+    This is used for NSE-aware functions like filter that need to inspect
+    expressions before evaluation *)
+let make_builtin_raw ?(variadic=false) arity (func : (Ast.expr list -> value Env.t -> value)) =
+  (* This is a marker - we'll handle it specially in eval_call *)
+  VBuiltin { b_arity = arity; b_variadic = variadic; 
+             b_func = (fun _named_args _env -> 
+               make_error GenericError "make_builtin_raw should be handled specially") }
+
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false
 

@@ -15,6 +15,55 @@ let is_error_value = function VError _ -> true | _ -> false
 (** Check if a value is NA *)
 let is_na_value = function VNA _ -> true | _ -> false
 
+(* --- NSE (Non-Standard Evaluation) Helpers --- *)
+
+(** Transform an NSE expression like ($age > 30) into \(row) row.age > 30 
+    This recursively replaces ColumnRef nodes with DotAccess nodes *)
+let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
+  match expr with
+  | ColumnRef field ->
+      (* $field → row.field *)
+      DotAccess { target = Var "row"; field }
+  | BinOp { op; left; right } ->
+      (* Recursively transform both sides *)
+      BinOp { op; left = desugar_nse_expr left; right = desugar_nse_expr right }
+  | UnOp { op; operand } ->
+      UnOp { op; operand = desugar_nse_expr operand }
+  | Call { fn; args } ->
+      Call { fn = desugar_nse_expr fn; 
+             args = List.map (fun (n, e) -> (n, desugar_nse_expr e)) args }
+  | IfElse { cond; then_; else_ } ->
+      IfElse { 
+        cond = desugar_nse_expr cond;
+        then_ = desugar_nse_expr then_;
+        else_ = desugar_nse_expr else_ 
+      }
+  | ListLit items ->
+      ListLit (List.map (fun (n, e) -> (n, desugar_nse_expr e)) items)
+  | DictLit pairs ->
+      DictLit (List.map (fun (k, e) -> (k, desugar_nse_expr e)) pairs)
+  | DotAccess { target; field } ->
+      DotAccess { target = desugar_nse_expr target; field }
+  | Block exprs ->
+      Block (List.map desugar_nse_expr exprs)
+  (* Other expression types remain unchanged *)
+  | Value _ | Var _ | Lambda _ | ListComp _ | PipelineDef _ | IntentDef _ as e -> e
+
+(** Check if an expression uses NSE (contains $field references) *)
+let rec uses_nse (expr : Ast.expr) : bool =
+  match expr with
+  | ColumnRef _ -> true
+  | BinOp { left; right; _ } -> uses_nse left || uses_nse right
+  | UnOp { operand; _ } -> uses_nse operand
+  | Call { fn; args } -> uses_nse fn || List.exists (fun (_, e) -> uses_nse e) args
+  | IfElse { cond; then_; else_ } ->
+      uses_nse cond || uses_nse then_ || uses_nse else_
+  | ListLit items -> List.exists (fun (_, e) -> uses_nse e) items
+  | DictLit pairs -> List.exists (fun (_, e) -> uses_nse e) pairs
+  | DotAccess { target; _ } -> uses_nse target
+  | Block exprs -> List.exists uses_nse exprs
+  | _ -> false
+
 (* Forward declarations for mutual recursion *)
 
 (** Extract variable names from a formula expression.
@@ -35,6 +84,12 @@ let rec eval_expr (env : environment) (expr : Ast.expr) : value =
       (match Env.find_opt s env with
       | Some v -> v
       | None -> VSymbol s) (* Return bare words as Symbols for future NSE *)
+  
+  | ColumnRef field ->
+      (* Column references ($name) evaluate to a special symbol value
+         that data verbs can recognize and process. The symbol is prefixed
+         with "$" to distinguish it from regular symbols. *)
+      VSymbol ("$" ^ field)
 
   | BinOp { op; left; right } -> eval_binop env op left right
   | UnOp { op; operand } -> eval_unop env op operand
@@ -701,7 +756,7 @@ let initial_env () : environment =
   let env = Pipeline_run.register ~rerun_pipeline env in
   (* Colcraft package *)
   let env = T_select.register env in
-  let env = T_filter.register ~eval_call env in
+  let env = T_filter.register ~eval_call ~eval_expr ~uses_nse ~desugar_nse_expr env in
   let env = Mutate.register ~eval_call env in
   let env = Arrange.register env in
   let env = Group_by.register env in
