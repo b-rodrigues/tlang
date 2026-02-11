@@ -41,7 +41,7 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
      | _ -> None)
   | _ -> None
 
-let register ~eval_call env =
+let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
   Env.add "filter"
     (make_builtin 2 (fun args env ->
       match args with

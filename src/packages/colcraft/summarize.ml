@@ -10,15 +10,19 @@ let _detect_simple_agg (_fn : value) : string option =
      the manual implementation. *)
   None
 
-let register ~eval_call env =
+let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
   Env.add "summarize"
     (make_builtin ~variadic:true 1 (fun args env ->
       match args with
       | VDataFrame df :: summary_args ->
           let rec parse_pairs acc = function
             | VString name :: fn :: rest -> parse_pairs ((name, fn) :: acc) rest
+            | v :: fn :: rest ->
+                (match Utils.extract_column_name v with
+                 | Some name -> parse_pairs ((name, fn) :: acc) rest
+                 | None -> Error (make_error TypeError "summarize() expects pairs of (column_name, function)"))
             | [] -> Ok (List.rev acc)
-            | _ -> Error (make_error TypeError "summarize() expects pairs of (string_name, function)")
+            | _ -> Error (make_error TypeError "summarize() expects pairs of (column_name, function)")
           in
           (match parse_pairs [] summary_args with
            | Error e -> e

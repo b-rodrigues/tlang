@@ -381,6 +381,22 @@ and lambda_arity_error params args =
   make_error ArityError (Printf.sprintf "Expected %d arguments (%s) but got %d" (List.length params) sig_str (List.length args))
 
 and eval_call env fn_val raw_args =
+  (* NSE auto-transformation: if an argument is a complex expression containing
+     ColumnRef nodes (not a bare ColumnRef), wrap it in a lambda \(row) <desugared>
+     before evaluation. Bare ColumnRef stays as-is (evaluates to VSymbol). *)
+  let transform_nse_args args =
+    List.map (fun (name, expr) ->
+      match expr with
+      | ColumnRef _ -> (name, expr)  (* bare $col → keep, evaluates to VSymbol *)
+      | _ when uses_nse expr ->
+          (* Complex expression with NSE → wrap in lambda *)
+          let desugared = desugar_nse_expr expr in
+          (name, Lambda { params = ["row"]; variadic = false;
+                          body = desugared; env = None })
+      | _ -> (name, expr)
+    ) args
+  in
+  let raw_args = transform_nse_args raw_args in
   match fn_val with
   | VBuiltin { b_arity; b_variadic; b_func } ->
       let named_args = List.map (fun (name, e) -> (name, eval_expr env e)) raw_args in
@@ -756,12 +772,12 @@ let initial_env () : environment =
   let env = Pipeline_run.register ~rerun_pipeline env in
   (* Colcraft package *)
   let env = T_select.register env in
-  let env = T_filter.register ~eval_call env in
-  let env = Mutate.register ~eval_call env in
+  let env = T_filter.register ~eval_call ~eval_expr ~uses_nse ~desugar_nse_expr env in
+  let env = Mutate.register ~eval_call ~eval_expr ~uses_nse ~desugar_nse_expr env in
   let env = Arrange.register env in
   let env = Group_by.register env in
   let env = Ungroup.register env in
-  let env = Summarize.register ~eval_call env in
+  let env = Summarize.register ~eval_call ~eval_expr ~uses_nse ~desugar_nse_expr env in
   let env = Window_rank.register env in
   let env = Window_offset.register env in
   let env = Window_cumulative.register env in

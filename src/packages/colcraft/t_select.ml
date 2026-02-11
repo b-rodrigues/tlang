@@ -25,3 +25,4 @@ let register env =
       | _ -> make_error ArityError "select() requires a DataFrame and at least one column name"
     ))
     env
+

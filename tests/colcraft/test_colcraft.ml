@@ -30,7 +30,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(KeyError: "Column(s) not found: nonexistent")|};
   test "select non-string arg"
     (Printf.sprintf {|df = read_csv("%s"); select(df, 42)|} csv_p4)
-    {|Error(TypeError: "select() expects string column names")|};
+    {|Error(TypeError: "select() expects column names (strings or $column syntax)")|};
   test "select non-dataframe"
     {|select(42, "name")|}
     {|Error(TypeError: "select() expects a DataFrame as first argument")|};
@@ -84,7 +84,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(TypeError: "mutate() expects a DataFrame as first argument")|};
   test "mutate non-string col name"
     (Printf.sprintf {|df = read_csv("%s"); mutate(df, 42, \(r) r)|} csv_p4)
-    {|Error(TypeError: "mutate() expects a string column name as second argument")|};
+    {|Error(TypeError: "mutate() expects a string or $column column name as second argument")|};
   print_newline ();
 
   Printf.printf "Phase 4 — arrange():\n";
@@ -128,7 +128,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(KeyError: "Column(s) not found: nonexistent")|};
   test "group_by non-string"
     (Printf.sprintf {|df = read_csv("%s"); group_by(df, 42)|} csv_p4)
-    {|Error(TypeError: "group_by() expects string column names")|};
+    {|Error(TypeError: "group_by() expects column names (strings or $column syntax)")|};
   test "group_by no columns"
     (Printf.sprintf {|df = read_csv("%s"); group_by(df)|} csv_p4)
     {|Error(ArityError: "group_by() requires at least one column name")|};
@@ -345,6 +345,99 @@ df |> mutate("senior", \(row) row.age >= 30)
     incr fail_count; Printf.printf "  ✗ grouped summarize with mean(na_rm=true) on NAs (skipped)\n");
 
   (try Sys.remove csv_nas with _ -> ());
+  print_newline ();
+
+  (* NSE Tests — Dollar-prefix column reference syntax *)
+  Printf.printf "Phase 4 — NSE (Non-Standard Evaluation):\n";
+
+  (* NSE select *)
+  let (v, _) = eval_string_env {|select(df, $name, $age)|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 2 cols: [name, age])" then begin
+    incr pass_count; Printf.printf "  ✓ NSE select with $column syntax\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE select with $column syntax\n    Expected: DataFrame(5 rows x 2 cols: [name, age])\n    Got: %s\n" result
+  end;
+
+  (* NSE select via pipe *)
+  test "NSE select via pipe"
+    (Printf.sprintf {|df = read_csv("%s"); df |> select($name, $score) |> ncol|} csv_p4)
+    "2";
+
+  (* NSE arrange *)
+  let (v, _) = eval_string_env {|df2 = arrange(df, $age); select(df2, "name") |> \(d) d.name|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|Vector["Bob", "Diana", "Alice", "Eve", "Charlie"]|} then begin
+    incr pass_count; Printf.printf "  ✓ NSE arrange with $column syntax\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE arrange with $column syntax\n    Expected: Vector[\"Bob\", \"Diana\", \"Alice\", \"Eve\", \"Charlie\"]\n    Got: %s\n" result
+  end;
+
+  (* NSE arrange desc *)
+  let (v, _) = eval_string_env {|df2 = arrange(df, $age, "desc"); select(df2, "name") |> \(d) d.name|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|Vector["Charlie", "Eve", "Alice", "Diana", "Bob"]|} then begin
+    incr pass_count; Printf.printf "  ✓ NSE arrange desc with $column syntax\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE arrange desc with $column syntax\n    Expected: Vector[\"Charlie\", \"Eve\", \"Alice\", \"Diana\", \"Bob\"]\n    Got: %s\n" result
+  end;
+
+  (* NSE group_by *)
+  let (v, _) = eval_string_env {|group_by(df, $dept)|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 4 cols: [name, age, score, dept]) grouped by [dept]" then begin
+    incr pass_count; Printf.printf "  ✓ NSE group_by with $column syntax\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE group_by with $column syntax\n    Expected: DataFrame(5 rows x 4 cols: [name, age, score, dept]) grouped by [dept]\n    Got: %s\n" result
+  end;
+
+  (* NSE filter — $age > 28 should auto-transform to \(row) row.age > 28 *)
+  let (v, _) = eval_string_env {|filter(df, $age > 28)|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(3 rows x 4 cols: [name, age, score, dept])" then begin
+    incr pass_count; Printf.printf "  ✓ NSE filter with $column > scalar\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE filter with $column > scalar\n    Expected: DataFrame(3 rows x 4 cols: [name, age, score, dept])\n    Got: %s\n" result
+  end;
+
+  (* NSE filter via pipe *)
+  test "NSE filter via pipe"
+    (Printf.sprintf {|df = read_csv("%s"); df |> filter($age > 28) |> nrow|} csv_p4)
+    "3";
+
+  (* NSE filter with string comparison *)
+  test "NSE filter with string comparison"
+    (Printf.sprintf {|df = read_csv("%s"); df |> filter($dept == "eng") |> nrow|} csv_p4)
+    "3";
+
+  (* NSE mutate with $column_name *)
+  let (v, _) = eval_string_env {|mutate(df, $age_plus_10, \(row) row.age + 10)|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])" then begin
+    incr pass_count; Printf.printf "  ✓ NSE mutate with $column_name for new column\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE mutate with $column_name for new column\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])\n    Got: %s\n" result
+  end;
+
+  (* NSE summarize with $column names *)
+  let (v, _) = eval_string_env {|summarize(df, $total_rows, \(d) nrow(d))|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(1 rows x 1 cols: [total_rows])" then begin
+    incr pass_count; Printf.printf "  ✓ NSE summarize with $column_name\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE summarize with $column_name\n    Expected: DataFrame(1 rows x 1 cols: [total_rows])\n    Got: %s\n" result
+  end;
+
+  (* NSE combined pipeline *)
+  test "NSE full pipeline"
+    (Printf.sprintf
+      {|df = read_csv("%s")
+df |> filter($age > 25)
+  |> select($name, $score)
+  |> arrange($score, "desc")
+  |> nrow|} csv_p4)
+    "4";
+
   print_newline ();
 
   (* Clean up Phase 4 CSV *)
