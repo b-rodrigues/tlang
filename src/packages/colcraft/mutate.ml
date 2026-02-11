@@ -3,14 +3,9 @@ open Ast
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
   Env.add "mutate"
     (make_builtin 3 (fun args env ->
-      let extract_col_name v =
-        match Utils.extract_column_name v with
-        | Some s -> Some s
-        | None -> None
-      in
       match args with
       | [VDataFrame df; col_val; VVector vec] ->
-          (match extract_col_name col_val with
+          (match Utils.extract_column_name col_val with
            | None -> make_error TypeError "mutate() expects a string or $column column name as second argument"
            | Some col_name ->
               (* Column-level mutate: directly add a vector as a new column *)
@@ -24,7 +19,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                 let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
                 VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
       | [VDataFrame df; col_val; fn] ->
-          (match extract_col_name col_val with
+          (match Utils.extract_column_name col_val with
            | None -> make_error TypeError "mutate() expects a string or $column column name as second argument"
            | Some col_name ->
               let nrows = Arrow_table.num_rows df.arrow_table in

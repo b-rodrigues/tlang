@@ -365,7 +365,7 @@ df |> mutate("senior", \(row) row.age >= 30)
     "2";
 
   (* NSE arrange *)
-  let (v, _) = eval_string_env {|df2 = arrange(df, $age); select(df2, "name") |> \(d) d.name|} env_p4 in
+  let (v, _) = eval_string_env {|df2 = arrange(df, $age); select(df2, $name) |> \(d) d.name|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = {|Vector["Bob", "Diana", "Alice", "Eve", "Charlie"]|} then begin
     incr pass_count; Printf.printf "  ✓ NSE arrange with $column syntax\n"
@@ -374,7 +374,7 @@ df |> mutate("senior", \(row) row.age >= 30)
   end;
 
   (* NSE arrange desc *)
-  let (v, _) = eval_string_env {|df2 = arrange(df, $age, "desc"); select(df2, "name") |> \(d) d.name|} env_p4 in
+  let (v, _) = eval_string_env {|df2 = arrange(df, $age, "desc"); select(df2, $name) |> \(d) d.name|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = {|Vector["Charlie", "Eve", "Alice", "Diana", "Bob"]|} then begin
     incr pass_count; Printf.printf "  ✓ NSE arrange desc with $column syntax\n"
