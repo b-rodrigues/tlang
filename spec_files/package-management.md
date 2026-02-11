@@ -1047,7 +1047,7 @@ This specification defines a **documentation generation system** for the T progr
 **Key Features:**
 - **Structured documentation blocks** embedded in source code
 - **Automatic documentation generation** from annotated functions
-- **REPL-accessible help system** (`?function_name`)
+- **REPL-accessible help system** (`help(function_name)`)
 - **Multiple output formats** (Markdown, HTML, JSON)
 - **Integration with T's package system**
 - **LLM-friendly documentation** with intent blocks
@@ -1080,7 +1080,7 @@ T language (v0.5.0-alpha) has:
 |--------|---------|--------------|
 | roxygen2 | Parse inline docs | `tdoc parse` |
 | devtools::document() | Generate man pages | `tdoc generate` |
-| ?function | REPL help | `?function` or `help(function)` |
+| ?function | REPL help | `help(function)` |
 | pkgdown | Website generation | `tdoc site` (future) |
 
 ---
@@ -1215,7 +1215,7 @@ summary_stats = \(x) {
 │                              │                              │
 │                              ▼                              │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │         REPL Integration (help(), ?)                  │  │
+│  │         REPL Integration (help())                  │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -1501,11 +1501,9 @@ statistics
 **New REPL Commands:**
 
 ```t
-T> ?mean
+T> help("mean")
 -- Shows full documentation for mean()
 
-T> help("mean")
--- Same as ?mean
 
 T> apropos("statistics")
 -- Lists all functions with "statistics" tag
@@ -1523,21 +1521,8 @@ val register : Ast.environment -> Ast.environment
 (* Adds help(), apropos(), package_help() functions *)
 ```
 
-**Modified REPL:**
-
-```ocaml
-(* src/repl.ml *)
-let handle_help_query query env =
-  if String.starts_with ~prefix:"?" query then
-    let func_name = String.sub query 1 (String.length query - 1) in
-    display_help func_name env
-  else
-    parse_and_eval env query
-```
-
 **Deliverables:**
 - ✅ `help()` builtin function
-- ✅ `?` prefix syntax in REPL
 - ✅ `apropos()` for searching
 - ✅ Load docs from `.tdoc/docs.json` at startup
 
@@ -1985,7 +1970,7 @@ $ t doc --init
 
 ```t
 -- Future: Live examples in documentation
-T> ?mean
+T> help(mean)
 [Show documentation with runnable examples]
 
 T> [Run Example 1]  # Button in enhanced REPL
@@ -2063,7 +2048,6 @@ src/packages/stats/
 ### Phase 3: REPL
 - [ ] Implement `help()` builtin
 - [ ] Implement `apropos()` search
-- [ ] Add `?` syntax to REPL
 - [ ] Load `.tdoc/docs.json` at REPL startup
 - [ ] Pretty-print help output
 - [ ] Test interactive workflows
@@ -2158,9 +2142,1144 @@ mean([1, 2, 3])
 - [ ] 10+ community documentation PRs (12 months)
 
 ---
+I'll add a comprehensive phased implementation plan with checkboxes at the end of the document. Let me create this addition:
 
-## Document History
+---
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0-draft | 2026-02-11 | Initial specification |
+## Appendix E: Phased Implementation Plan
+
+### Overview
+
+This implementation plan breaks down the T documentation system into **6 phases** over approximately **8-10 weeks**. Each phase builds on the previous one and includes concrete deliverables with checkboxes for tracking progress.
+
+**Timeline Summary:**
+- **Phase 0:** Foundation & Setup (Week 1) — 5 days
+- **Phase 1:** Core Parser Infrastructure (Week 1-2) — 7 days  
+- **Phase 2:** Markdown Generation (Week 2-3) — 5 days
+- **Phase 3:** REPL Integration (Week 3-4) — 7 days
+- **Phase 4:** Standard Library Documentation (Week 4-6) — 10 days
+- **Phase 5:** Advanced Features & Polish (Week 6-8+) — 10+ days
+
+---
+
+### Phase 0: Foundation & Setup (Week 1 — 5 days)
+
+**Goal:** Establish project structure and tooling
+prepare what is needed to document the included packages
+with T (colcraft for example)
+
+**Tasks:**
+
+#### Project Structure
+- [ ] Create `src/tdoc/` directory in T repository
+- [ ] Create `.tdoc/` directory structure for caching
+- [ ] Add `.tdoc/` to `.gitignore` (build artifacts)
+- [ ] Create `docs/` directory for output
+- [ ] Set up `docs/.gitkeep` to track directory in git
+
+#### Configuration System
+- [ ] Design `[documentation]` section for `package.toml` schema
+- [ ] Implement `tdoc_config.ml` module
+- [ ] Add default configuration fallbacks
+- [ ] Write configuration loader with TOML parser
+- [ ] Test config loading with/without `package.toml`
+
+#### Development Environment
+- [ ] Add tdoc modules to T's `dune` build file
+- [ ] Set up unit test framework for tdoc
+- [ ] Configure CI to run tdoc tests
+- [ ] Document tdoc architecture in `docs/ARCHITECTURE.md`
+
+**Success Criteria:**
+- ✅ `src/tdoc/` directory exists with proper structure
+- ✅ Configuration loads from `package.toml` or uses defaults
+- ✅ Build system compiles tdoc modules
+- ✅ Basic test suite runs successfully
+
+**Estimated Time:** 5 days (1 week)
+
+---
+
+### Phase 1: Core Parser Infrastructure (Week 1-2 — 7 days)
+
+**Goal:** Parse T-Doc blocks from source files and store in JSON
+
+**Tasks:**
+
+#### Data Model
+- [ ] Define `tdoc_types.ml` with core types:
+  - [ ] `doc_entry` type
+  - [ ] `param_doc` type
+  - [ ] `return_doc` type
+  - [ ] `intent_block` type
+- [ ] Add JSON serialization functions
+- [ ] Add JSON deserialization functions
+- [ ] Write round-trip tests (data → JSON → data)
+
+#### Parser Implementation
+- [ ] Create `tdoc_parser.ml` module
+- [ ] Implement comment block scanner (`--#` prefix detection)
+- [ ] Parse brief description (first line)
+- [ ] Parse extended description (multiline)
+- [ ] Parse `@param` tags with types
+- [ ] Parse `@return` tags
+- [ ] Parse `@example` blocks (preserve code)
+- [ ] Parse `@seealso` tags
+- [ ] Parse `@family` tags
+- [ ] Parse `@export` flag
+- [ ] Parse `@intent` blocks
+- [ ] Parse optional tags (`@note`, `@details`, `@references`)
+
+#### Registry System
+- [ ] Create `tdoc_registry.ml` module
+- [ ] Implement in-memory doc storage (hash table)
+- [ ] Implement `register_doc : doc_entry -> unit`
+- [ ] Implement `lookup_doc : string -> doc_entry option`
+- [ ] Implement `save_to_json : string -> unit`
+- [ ] Implement `load_from_json : string -> unit`
+- [ ] Add package-level indexing
+- [ ] Add tag-based search functionality
+
+#### CLI Integration
+- [ ] Add `doc` command to `src/repl.ml`
+- [ ] Implement `--parse` flag handler
+- [ ] Implement directory scanning (recursive)
+- [ ] Add progress indicator for parsing
+- [ ] Add error reporting for malformed docs
+- [ ] Implement `--help` flag for doc command
+
+#### Testing
+- [ ] Write unit tests for parser (10+ test cases)
+- [ ] Test parsing valid T-Doc blocks
+- [ ] Test handling of malformed blocks
+- [ ] Test multi-file parsing
+- [ ] Test JSON round-trip for all fields
+- [ ] Create 3 pilot documented functions:
+  - [ ] `mean` in `src/packages/stats/mean.ml`
+  - [ ] `filter` in `src/packages/colcraft/filter.ml`
+  - [ ] `read_csv` in `src/packages/tables/csv.ml`
+
+**Success Criteria:**
+- ✅ Parser successfully extracts all T-Doc tags
+- ✅ 100% of pilot functions parse correctly
+- ✅ JSON storage/loading works without data loss
+- ✅ `t doc --parse src/` completes successfully
+- ✅ Unit tests achieve >90% code coverage
+
+**Estimated Time:** 7 days (1.5 weeks)
+
+---
+
+### Phase 2: Markdown Generation (Week 2-3 — 5 days)
+
+**Goal:** Generate human-readable Markdown documentation
+
+**Tasks:**
+
+#### Markdown Generator
+- [ ] Create `tdoc_markdown.ml` module
+- [ ] Implement function doc template
+- [ ] Format function signature nicely
+- [ ] Format parameter tables
+- [ ] Format return value section
+- [ ] Format examples with syntax highlighting markers
+- [ ] Generate "See Also" links
+- [ ] Generate family grouping
+- [ ] Add source location links (GitHub URLs)
+- [ ] Add metadata footer (version, package)
+
+#### Index Generation
+- [ ] Implement package index generator
+- [ ] Create alphabetical function listing
+- [ ] Create family-based grouping
+- [ ] Create tag-based filtering
+- [ ] Generate table of contents
+- [ ] Add search-friendly structure
+
+#### File Output
+- [ ] Create `docs/reference/` directory structure
+- [ ] Implement per-function Markdown file generation
+- [ ] Implement package `index.md` generation
+- [ ] Add cross-reference link resolution
+- [ ] Implement incremental generation (only changed files)
+
+#### CLI Integration
+- [ ] Implement `--generate` flag handler
+- [ ] Add `--format` flag (markdown/html/json)
+- [ ] Add `--output` flag for custom directory
+- [ ] Implement combined `--parse --generate` workflow
+- [ ] Add dry-run mode (`--dry-run`)
+
+#### Testing
+- [ ] Test Markdown output formatting
+- [ ] Test cross-reference link generation
+- [ ] Test index generation
+- [ ] Test incremental updates
+- [ ] Validate Markdown syntax with linter
+- [ ] Generate docs for pilot functions
+- [ ] Manual review of generated docs
+
+**Success Criteria:**
+- ✅ Generated Markdown is valid and readable
+- ✅ All cross-references resolve correctly
+- ✅ Package index lists all functions
+- ✅ `t doc --parse --generate` produces complete docs
+- ✅ Generated docs render correctly on GitHub
+
+**Estimated Time:** 5 days (1 week)
+
+---
+
+### Phase 3: REPL Integration (Week 3-4 — 7 days)
+
+**Goal:** Interactive help system in T REPL
+
+**Tasks:**
+
+#### Help System Core
+- [ ] Create `src/packages/core/help.ml` module
+- [ ] Implement `help()` builtin function
+- [ ] Load `.tdoc/docs.json` at REPL startup
+- [ ] Implement doc lookup by function name
+- [ ] Implement graceful handling of undocumented functions
+- [ ] Add caching for fast repeated lookups
+
+#### Search Functionality
+- [ ] Implement `apropos()` function (keyword search)
+- [ ] Search across function names
+- [ ] Search across descriptions
+- [ ] Search across tags
+- [ ] Rank search results by relevance
+
+#### Package Help
+- [ ] Implement `package_help()` function
+- [ ] Show package overview
+- [ ] List all exported functions
+- [ ] Show package metadata
+- [ ] Display example usage
+
+#### REPL Syntax Sugar
+- [ ] Add syntax highlighting for help output
+- [ ] Add pagination for long help text
+- [ ] Implement "Press Enter to continue" for examples
+
+#### Pretty Printing
+- [ ] Format help output for 80-column terminal
+- [ ] Use colors/bold for section headers (if TTY)
+- [ ] Add horizontal rules between sections
+- [ ] Format code examples with indentation
+- [ ] Add "See Also" links at bottom
+
+#### CLI Integration
+- [ ] Register help functions in `initial_env()`
+- [ ] Update REPL welcome message with help tips
+- [ ] Add REPL command `.help` as alias
+- [ ] Implement `.apropos` REPL command
+
+#### Testing
+- [ ] Test `help()` for documented functions
+- [ ] Test `help()` for undocumented functions
+- [ ] Test `apropos()` search
+- [ ] Test `package_help()` display
+- [ ] Test output formatting in different terminal sizes
+- [ ] Integration test: full REPL workflow
+
+**Success Criteria:**
+- ✅ `help("mean")` displays complete documentation
+- ✅ `apropos("stats")` returns relevant functions
+- ✅ Help loads in <50ms
+- ✅ Output fits in standard terminal width
+- ✅ Undocumented functions show helpful message
+
+**Estimated Time:** 7 days (1.5 weeks)
+
+---
+
+### Phase 4: Standard Library Documentation (Week 4-6 — 10 days)
+
+**Goal:** Document all functions in T's standard library
+
+**Tasks:**
+
+#### Documentation Audit
+- [ ] List all functions in standard library (50+ functions)
+- [ ] Categorize by package:
+  - [ ] `core` package (10 functions)
+  - [ ] `stats` package (8 functions)
+  - [ ] `colcraft` package (15 functions)
+  - [ ] `tables` package (5 functions)
+  - [ ] `plots` package (6 functions)
+  - [ ] `strings` package (8 functions)
+  - [ ] `pipelines` package (3 functions)
+  - [ ] `introspection` package (5 functions)
+- [ ] Prioritize by usage frequency (top 20 first)
+
+#### Auto-Stub Generation
+- [ ] Implement `--stub` CLI flag
+- [ ] Generate stub T-Doc blocks from signatures
+- [ ] Infer parameter types from implementation
+- [ ] Add TODO comments for manual enhancement
+- [ ] Generate stubs for all undocumented functions
+
+#### Manual Documentation (Core Package)
+- [ ] Document `print()` with examples
+- [ ] Document `assert()` with error handling
+- [ ] Document `type()` with all type examples
+- [ ] Document `length()` for lists/strings
+- [ ] Document `range()` with step examples
+- [ ] Document `map()` with lambda examples
+- [ ] Document `filter()` with predicate examples
+- [ ] Document `reduce()` with accumulator examples
+- [ ] Document `zip()` with multiple lists
+- [ ] Document `enumerate()` with index examples
+
+#### Manual Documentation (Stats Package)
+- [ ] Document `mean()` with NA handling
+- [ ] Document `median()` with even/odd cases
+- [ ] Document `sd()` with population vs sample
+- [ ] Document `quantile()` with percentile examples
+- [ ] Document `min()` and `max()` with edge cases
+- [ ] Document `sum()` with NA propagation
+- [ ] Document `cor()` with correlation types
+- [ ] Document `lm()` with formula syntax
+
+#### Manual Documentation (Colcraft Package)
+- [ ] Document `filter()` with NSE examples
+- [ ] Document `select()` with column syntax
+- [ ] Document `mutate()` with transformation examples
+- [ ] Document `summarize()` with grouping
+- [ ] Document `group_by()` with multiple keys
+- [ ] Document `arrange()` with sorting
+- [ ] Document `left_join()` with key examples
+- [ ] Document `distinct()` with unique rows
+- [ ] Document `rename()` with column mapping
+- [ ] Document `pivot_longer()` and `pivot_wider()`
+
+#### Manual Documentation (Tables Package)
+- [ ] Document `read_csv()` with options
+- [ ] Document `write_csv()` with formatting
+- [ ] Document `read_parquet()` with Arrow integration
+- [ ] Document `write_parquet()` with compression
+- [ ] Document `show()` with display options
+
+#### Manual Documentation (Other Packages)
+- [ ] Document plotting functions (`plot()`, `ggplot()`)
+- [ ] Document string functions (`str_split()`, `str_replace()`)
+- [ ] Document pipeline operators (`|>`, `|=>`)
+- [ ] Document introspection functions (`explain()`, `packages()`)
+
+#### Package-Level Documentation
+- [ ] Write `docs/packages/core.md`
+- [ ] Write `docs/packages/stats.md`
+- [ ] Write `docs/packages/colcraft.md`
+- [ ] Write `docs/packages/tables.md`
+- [ ] Write `docs/packages/plots.md`
+- [ ] Write `docs/packages/strings.md`
+- [ ] Write `docs/packages/pipelines.md`
+- [ ] Write `docs/packages/introspection.md`
+
+#### Quality Assurance
+- [ ] Review all documentation for clarity
+- [ ] Ensure all examples run successfully
+- [ ] Check cross-references resolve
+- [ ] Verify parameter types are accurate
+- [ ] Add intent blocks to top 20 functions
+- [ ] Peer review by core team
+- [ ] User testing with newcomers (5 people)
+
+#### Coverage Reporting
+- [ ] Implement `--coverage` CLI flag
+- [ ] Report documented vs total functions
+- [ ] Report functions with examples
+- [ ] Report functions with intent blocks
+- [ ] Generate coverage badge for README
+
+**Success Criteria:**
+- ✅ 100% of exported functions have T-Doc blocks
+- ✅ 80% of functions have runnable examples
+- ✅ 50% of functions have intent blocks
+- ✅ All cross-references resolve correctly
+- ✅ Coverage report shows >95% documentation
+- ✅ User testing shows improved onboarding experience
+
+**Estimated Time:** 10 days (2 weeks)
+
+---
+
+### Phase 5: Advanced Features & Polish (Week 6-8+ — 10+ days)
+
+**Goal:** Production-ready documentation system
+
+**Tasks:**
+
+#### HTML Generation (Optional)
+- [ ] Create `tdoc_html.ml` module
+- [ ] Design HTML template with CSS
+- [ ] Implement static site generation
+- [ ] Add client-side search functionality (JavaScript)
+- [ ] Generate navigation sidebar
+- [ ] Add syntax highlighting for code blocks
+- [ ] Support dark/light theme toggle
+- [ ] Generate sitemap and RSS feed
+- [ ] Implement `--format html` flag
+
+#### Documentation Testing
+- [ ] Create `tdoc_test.ml` module
+- [ ] Extract examples from T-Doc blocks
+- [ ] Run examples as integration tests
+- [ ] Verify output matches documented behavior
+- [ ] Report test failures with context
+- [ ] Add `--test` CLI flag
+- [ ] Integrate with CI pipeline
+
+#### LLM Integration
+- [ ] Export docs to JSON-LD format
+- [ ] Add structured data for LLM training
+- [ ] Implement intent block validation
+- [ ] Create LLM-friendly API reference
+- [ ] Generate few-shot examples for code generation
+
+#### Documentation Website
+- [ ] Set up GitHub Pages deployment
+- [ ] Create landing page (`docs/index.html`)
+- [ ] Add "Getting Started" guide
+- [ ] Add "API Reference" section
+- [ ] Add search functionality
+- [ ] Add version selector (future-proofing)
+- [ ] Configure custom domain (if available)
+
+#### CLI Polish
+- [ ] Add progress bars for long operations
+- [ ] Improve error messages with suggestions
+- [ ] Add color output for better UX
+- [ ] Implement `--quiet` and `--verbose` flags
+- [ ] Add `--watch` mode for live regeneration
+- [ ] Add `--serve` mode for local preview
+
+#### CI/CD Integration
+- [ ] Add documentation generation to CI
+- [ ] Fail CI if docs are out of date
+- [ ] Auto-deploy docs on release tags
+- [ ] Generate coverage report in CI
+- [ ] Add pre-commit hook for doc validation
+
+#### Performance Optimization
+- [ ] Profile doc generation speed
+- [ ] Implement parallel parsing (if needed)
+- [ ] Add caching for incremental builds
+- [ ] Optimize JSON serialization
+- [ ] Benchmark: parse + generate in <5s for stdlib
+
+#### Community Tools
+- [ ] Create documentation contribution guide
+- [ ] Add "Edit on GitHub" links in docs
+- [ ] Create doc review checklist for PRs
+- [ ] Set up automated doc quality checks
+- [ ] Create documentation style guide
+
+#### Versioning System (Future)
+- [ ] Design version-aware documentation
+- [ ] Track documentation changes across versions
+- [ ] Generate changelog from doc updates
+- [ ] Implement `@since` tag version tracking
+- [ ] Add deprecation warnings
+
+**Success Criteria:**
+- ✅ HTML docs generated and deployable
+- ✅ Example tests pass for all documented functions
+- ✅ Documentation website is live
+- ✅ CI enforces documentation requirements
+- ✅ Parse + generate completes in <5 seconds
+- ✅ Community contributors can submit doc PRs
+
+**Estimated Time:** 10+ days (2+ weeks, ongoing)
+
+---
+
+### Phase 6: Maintenance & Future Work (Ongoing)
+
+**Goal:** Keep documentation system healthy and evolving
+
+**Ongoing Tasks:**
+
+#### Documentation Maintenance
+- [ ] Review documentation for accuracy (monthly)
+- [ ] Update examples when API changes
+- [ ] Add documentation for new features
+- [ ] Respond to documentation issues/PRs
+- [ ] Update package-level docs as packages evolve
+
+#### Community Engagement
+- [ ] Respond to documentation questions
+- [ ] Mentor new contributors on writing docs
+- [ ] Feature high-quality doc contributions
+- [ ] Collect feedback on help system UX
+- [ ] Run documentation sprints (quarterly)
+
+#### Feature Requests (Backlog)
+- [ ] Internationalization support (i18n)
+- [ ] Video tutorials integration
+- [ ] Interactive code playgrounds
+- [ ] Documentation analytics
+- [ ] API stability tracking
+- [ ] Automated doc quality scoring
+
+#### Performance Monitoring
+- [ ] Track doc generation time
+- [ ] Monitor help system latency
+- [ ] Profile memory usage
+- [ ] Optimize bottlenecks
+- [ ] Add performance benchmarks to CI
+
+**Success Criteria:**
+- ✅ Documentation stays up-to-date with code
+- ✅ Community actively contributes docs
+- ✅ Doc system scales to 500+ functions
+- ✅ Users rate help system as "excellent" (surveys)
+
+---
+
+## Summary Progress Tracker
+
+### Quick Status Overview
+
+**Phase 0: Foundation** ⬜ Not Started / 🟡 In Progress / ✅ Complete
+- [ ] Project structure
+- [ ] Configuration system  
+- [ ] Development environment
+
+**Phase 1: Core Parser** ⬜
+- [ ] Data model
+- [ ] Parser implementation
+- [ ] Registry system
+- [ ] CLI integration
+- [ ] Testing with pilot functions
+
+**Phase 2: Markdown Generation** ⬜
+- [ ] Markdown generator
+- [ ] Index generation
+- [ ] File output
+- [ ] CLI integration
+- [ ] Testing
+
+**Phase 3: REPL Integration** ⬜
+- [ ] Help system core
+- [ ] Search functionality
+- [ ] REPL syntax sugar
+- [ ] Pretty printing
+- [ ] Testing
+
+**Phase 4: Standard Library Docs** ⬜
+- [ ] Documentation audit
+- [ ] Core package (10 functions)
+- [ ] Stats package (8 functions)
+- [ ] Colcraft package (15 functions)
+- [ ] Other packages (17 functions)
+- [ ] Package-level docs
+- [ ] Quality assurance
+- [ ] Coverage reporting
+
+**Phase 5: Advanced Features** ⬜
+- [ ] HTML generation
+- [ ] Documentation testing
+- [ ] LLM integration
+- [ ] Documentation website
+- [ ] CI/CD integration
+- [ ] Performance optimization
+- [ ] Community tools
+
+**Phase 6: Maintenance** ⬜
+- [ ] Ongoing documentation updates
+- [ ] Community engagement
+- [ ] Feature requests (backlog)
+- [ ] Performance monitoring
+
+---
+
+### Milestone Checklist
+
+**v0.6.0-alpha (Weeks 1-4):**
+- [ ] T-Doc parser complete
+- [ ] Markdown generation working
+- [ ] REPL help system functional
+- [ ] 5 pilot functions documented
+- [ ] Documentation for core team review
+
+**v0.6.0-beta (Weeks 5-6):**
+- [ ] All standard library functions documented
+- [ ] Package-level documentation complete
+- [ ] Coverage >95%
+- [ ] User testing with 5 external users
+- [ ] Feedback incorporated
+
+**v0.7.0 (Weeks 7-8):**
+- [ ] HTML documentation generated
+- [ ] Documentation website deployed
+- [ ] CI integration complete
+- [ ] Example testing functional
+- [ ] Public announcement ready
+
+**v1.0.0 (Future):**
+- [ ] Documentation system stable API
+- [ ] 500+ functions documented
+- [ ] Community actively contributing
+- [ ] Performance benchmarks met
+- [ ] Documentation considered feature-complete
+
+---
+
+### Weekly Progress Tracking Template
+
+**Week [N] — [Date Range]**
+
+**Phase:** [Current Phase Name]
+
+**Completed This Week:**
+- [ ] Task 1
+- [ ] Task 2
+- [ ] Task 3
+
+**Blockers:**
+- [List any impediments]
+
+**Next Week:**
+- [ ] Task 4
+- [ ] Task 5
+- [ ] Task 6
+
+**Notes:**
+[Any important observations or decisions]
+
+---
+
+## Getting Started
+
+To begin implementation:
+
+1. **Create a GitHub project board** with these phases as columns
+2. **Convert checkboxes to GitHub issues** for tracking
+3. **Assign team members** to specific phases
+4. **Set up weekly sync meetings** to review progress
+5. **Update this document** as phases are completed
+
+**First Action Item:**
+```bash
+# Create the project structure
+$ mkdir -p src/tdoc .tdoc docs/reference
+$ touch src/tdoc/tdoc_types.ml
+$ git add src/tdoc .tdoc docs
+$ git commit -m "Phase 0: Initialize T documentation system"
+```
+
+---
+
+**Document Status:** Ready for Implementation  
+**Last Updated:** 2026-02-11  
+**Next Review:** After Phase 1 Completion
+
+
+You're absolutely right! The implementation plan only covers the **documentation system** but completely ignores implementing the **package management system itself** (the `t init package`, `t init project`, `t install` commands, etc.). 
+
+Let me add that missing implementation plan:
+
+---
+
+## Appendix F: Package Management System Implementation Plan
+
+### Overview
+
+This plan covers implementing T's **package management features** (separate from but coordinated with the documentation system). These can be developed in parallel with the documentation system.
+
+**Timeline Summary:**
+- **Phase A:** Project/Package Scaffolding (Week 1-2) — 7 days
+- **Phase B:** Dependency Management (Week 2-3) — 7 days
+- **Phase C:** Package Testing & Validation (Week 3-4) — 5 days
+- **Phase D:** Publishing & Release Workflow (Week 4-5) — 5 days
+- **Phase E:** Integration & Polish (Week 5-6) — 5 days
+
+---
+
+### Phase A: Project/Package Scaffolding (Week 1-2 — 7 days)
+
+**Goal:** Implement `t init package` and `t init project` commands
+
+**Tasks:**
+
+#### Core Infrastructure
+- [ ] Create `src/package_manager/` directory
+- [ ] Create `src/package_manager/templates/` for file templates
+- [ ] Define package structure types in `package_types.ml`
+- [ ] Implement TOML generation utilities
+- [ ] Implement Nix flake generation utilities
+
+#### `t init package` Command
+- [ ] Add `init` command handler to `src/repl.ml`
+- [ ] Implement package name validation (lowercase, hyphens)
+- [ ] Create directory structure generator
+- [ ] Generate `DESCRIPTION.toml` from template
+- [ ] Generate `flake.nix` for packages
+- [ ] Generate `README.md` template
+- [ ] Generate `LICENSE` file (EUPL-1.2 default)
+- [ ] Generate `CHANGELOG.md` template
+- [ ] Create `src/`, `tests/`, `examples/`, `docs/` directories
+- [ ] Generate `.gitignore` for T packages
+- [ ] Initialize git repository (optional flag)
+- [ ] Add welcome message with next steps
+
+#### `t init project` Command
+- [ ] Implement project name validation
+- [ ] Create project directory structure
+- [ ] Generate `tproject.toml` from template
+- [ ] Generate project `flake.nix` with:
+  - [ ] nixpkgs input (date-pinned)
+  - [ ] t-lang input
+  - [ ] cachix configuration
+  - [ ] devShells.default
+  - [ ] shellHook with instructions
+- [ ] Generate `README.md` for projects
+- [ ] Create `src/`, `data/`, `outputs/`, `tests/` directories
+- [ ] Generate project-specific `.gitignore`
+- [ ] Initialize git repository (optional flag)
+
+#### Template System
+- [ ] Create `templates/package/DESCRIPTION.toml.template`
+- [ ] Create `templates/package/flake.nix.template`
+- [ ] Create `templates/package/README.md.template`
+- [ ] Create `templates/package/CHANGELOG.md.template`
+- [ ] Create `templates/project/tproject.toml.template`
+- [ ] Create `templates/project/flake.nix.template`
+- [ ] Create `templates/project/README.md.template`
+- [ ] Create `templates/.gitignore.template`
+- [ ] Implement template variable substitution (name, date, author)
+
+#### CLI Options
+- [ ] Add `--name` flag for package/project name
+- [ ] Add `--author` flag for author information
+- [ ] Add `--license` flag (default EUPL-1.2)
+- [ ] Add `--no-git` flag to skip git init
+- [ ] Add `--force` flag to overwrite existing directory
+- [ ] Implement interactive mode (prompt for options)
+
+#### Testing
+- [ ] Test `t init package my-pkg` creates correct structure
+- [ ] Test `t init project my-project` creates correct structure
+- [ ] Test template substitution works correctly
+- [ ] Test git initialization
+- [ ] Test error handling for existing directories
+- [ ] Test TOML generation is valid
+- [ ] Test Nix flake generation is valid
+- [ ] Integration test: init → nix develop succeeds
+
+**Success Criteria:**
+- ✅ `t init package foo` creates valid package structure
+- ✅ `t init project bar` creates valid project structure
+- ✅ Generated flake.nix can be evaluated by Nix
+- ✅ Generated DESCRIPTION.toml/tproject.toml are valid
+- ✅ `nix develop` works in initialized packages/projects
+
+**Estimated Time:** 7 days (1.5 weeks)
+
+---
+
+### Phase B: Dependency Management (Week 2-3 — 7 days)
+
+**Goal:** Implement `t install` for dependency management
+
+**Tasks:**
+
+#### TOML Parser Integration
+- [ ] Add TOML parsing library to T's dependencies
+- [ ] Create `toml_parser.ml` module
+- [ ] Implement `parse_tproject_toml : string -> project_config`
+- [ ] Implement `parse_description_toml : string -> package_config`
+- [ ] Add validation for required fields
+- [ ] Add validation for dependency format
+- [ ] Handle parsing errors gracefully
+
+#### Flake.nix Manipulation
+- [ ] Create `nix_generator.ml` module
+- [ ] Implement Nix expression AST (simplified)
+- [ ] Parse existing flake.nix (extract inputs section)
+- [ ] Generate new inputs from tproject.toml dependencies
+- [ ] Merge user inputs with generated inputs
+- [ ] Update tPackages list in outputs
+- [ ] Preserve user modifications in flake.nix
+- [ ] Format generated Nix code (indentation, comments)
+
+#### `t install` Command (Basic)
+- [ ] Add `install` command handler to `src/repl.ml`
+- [ ] Read `tproject.toml` from current directory
+- [ ] Extract `[dependencies]` section
+- [ ] Validate git URLs and tags
+- [ ] Generate flake inputs for each dependency
+- [ ] Update `flake.nix` in place (backup original)
+- [ ] Print summary of changes
+- [ ] Suggest running `nix flake lock`
+
+#### Dependency Resolution
+- [ ] Validate git URLs are accessible
+- [ ] Check that tags exist on remote
+- [ ] Detect circular dependencies (warn)
+- [ ] Validate package names are unique
+- [ ] Handle transitive dependencies (document, don't resolve)
+
+#### Git Integration
+- [ ] Use libgit2 bindings or shell out to git
+- [ ] Implement `check_git_tag_exists : url -> tag -> bool`
+- [ ] Implement `get_git_remote : unit -> string option`
+- [ ] Add `--check` flag to validate dependencies without updating
+
+#### Error Handling
+- [ ] Clear error messages for missing tproject.toml
+- [ ] Clear error messages for invalid TOML syntax
+- [ ] Clear error messages for malformed git URLs
+- [ ] Clear error messages for non-existent tags
+- [ ] Suggest fixes for common mistakes
+- [ ] Add dry-run mode (`--dry-run`)
+
+#### Testing
+- [ ] Test parsing valid tproject.toml
+- [ ] Test parsing invalid TOML (error handling)
+- [ ] Test flake.nix generation
+- [ ] Test updating existing flake.nix
+- [ ] Test dependency validation
+- [ ] Integration test: install → nix develop → package available
+- [ ] Test with circular dependencies
+- [ ] Test with invalid git URLs
+
+**Success Criteria:**
+- ✅ `t install` reads tproject.toml correctly
+- ✅ Generated flake.nix includes all dependencies
+- ✅ `nix develop` after `t install` loads packages
+- ✅ Error messages guide users to fixes
+- ✅ Original flake.nix structure preserved
+
+**Estimated Time:** 7 days (1.5 weeks)
+
+---
+
+### Phase C: Package Testing & Validation (Week 3-4 — 5 days)
+
+**Goal:** Implement `t test` and package validation
+
+**Tasks:**
+
+#### Test Discovery
+- [ ] Create `test_runner.ml` module
+- [ ] Scan `tests/` directory for `test-*.t` or `*_test.t` files
+- [ ] Implement test file pattern matching
+- [ ] Support recursive directory scanning
+- [ ] Add `.tignore` support for excluding files
+
+#### Test Execution
+- [ ] Load test files into T runtime
+- [ ] Capture test assertions (`assert()`)
+- [ ] Track pass/fail status per test
+- [ ] Collect error messages and stack traces
+- [ ] Support test fixtures (setup/teardown)
+- [ ] Implement test isolation (separate environment)
+
+#### `t test` Command
+- [ ] Add `test` command handler to `src/repl.ml`
+- [ ] Discover all test files
+- [ ] Execute tests sequentially
+- [ ] Display progress indicator
+- [ ] Print test results summary
+- [ ] Exit with appropriate code (0 = pass, 1 = fail)
+
+#### Test Output Formatting
+- [ ] Implement TAP (Test Anything Protocol) output
+- [ ] Add colored output for terminal
+- [ ] Show passed tests with ✓
+- [ ] Show failed tests with ✗ and error details
+- [ ] Display timing information
+- [ ] Add verbose mode (`--verbose`)
+
+#### Package Validation
+- [ ] Create `package_validator.ml` module
+- [ ] Validate DESCRIPTION.toml is present
+- [ ] Validate flake.nix is present and valid
+- [ ] Check required directories exist (src/, tests/)
+- [ ] Validate function exports match documentation
+- [ ] Check for common issues (missing LICENSE, etc.)
+
+#### `t doctor` Command
+- [ ] Add `doctor` command handler
+- [ ] Run package validation checks
+- [ ] Check Nix installation
+- [ ] Verify git repository is configured
+- [ ] Check for uncommitted changes
+- [ ] Validate dependencies are fetchable
+- [ ] Print actionable suggestions
+
+#### Testing
+- [ ] Create example test files
+- [ ] Test discovery of multiple test files
+- [ ] Test execution with passing tests
+- [ ] Test execution with failing tests
+- [ ] Test error reporting
+- [ ] Test timing and output formatting
+- [ ] Integration test: full test suite
+
+**Success Criteria:**
+- ✅ `t test` discovers and runs all tests
+- ✅ Test output is clear and actionable
+- ✅ Failed tests show helpful error messages
+- ✅ `t doctor` identifies common issues
+- ✅ Test runner integrates with CI
+
+**Estimated Time:** 5 days (1 week)
+
+---
+
+### Phase D: Publishing & Release Workflow (Week 4-5 — 5 days)
+
+**Goal:** Streamline package publishing to git
+
+**Tasks:**
+
+#### Release Validation
+- [ ] Create `release_manager.ml` module
+- [ ] Validate package structure before release
+- [ ] Check all tests pass (`t test`)
+- [ ] Check documentation is up-to-date
+- [ ] Validate version in DESCRIPTION.toml
+- [ ] Check for uncommitted changes
+- [ ] Validate CHANGELOG.md has entry for version
+
+#### Git Tag Management
+- [ ] Implement git tag creation helper
+- [ ] Parse version from DESCRIPTION.toml
+- [ ] Generate semantic version tag (e.g., v0.1.0)
+- [ ] Add git annotation with changelog excerpt
+- [ ] Prevent duplicate tags
+- [ ] Support pre-release tags (alpha, beta)
+
+#### `t publish` Command (Basic)
+- [ ] Add `publish` command handler
+- [ ] Run pre-publish validation
+- [ ] Display checklist to user
+- [ ] Prompt for confirmation
+- [ ] Create git tag
+- [ ] Push tag to remote (with confirmation)
+- [ ] Display post-publish instructions
+
+#### Release Checklist
+- [ ] Generate checklist from validation results
+- [ ] Check git remote is configured
+- [ ] Check version is incremented from last tag
+- [ ] Check CHANGELOG.md is updated
+- [ ] Check all tests pass
+- [ ] Check documentation coverage
+- [ ] Warn about uncommitted changes
+
+#### GitHub Integration (Optional)
+- [ ] Generate GitHub release notes from CHANGELOG
+- [ ] Add `--github` flag to create GitHub release
+- [ ] Use GitHub API to publish release
+- [ ] Attach built artifacts (optional)
+
+#### Testing
+- [ ] Test tag creation with valid version
+- [ ] Test validation catches common issues
+- [ ] Test duplicate tag prevention
+- [ ] Test dry-run mode
+- [ ] Integration test: publish → clone → install
+
+**Success Criteria:**
+- ✅ `t publish` validates package thoroughly
+- ✅ Git tags are created correctly
+- ✅ Release process is documented and clear
+- ✅ Users can publish without Nix expertise
+- ✅ Published packages are installable
+
+**Estimated Time:** 5 days (1 week)
+
+---
+
+### Phase E: Integration & Polish (Week 5-6 — 5 days)
+
+**Goal:** Connect all components and improve UX
+
+**Tasks:**
+
+#### Command Integration
+- [ ] Ensure `t init` → `t install` → `t test` → `t publish` workflow works
+- [ ] Add workflow documentation to generated READMEs
+- [ ] Create comprehensive CLI help messages
+- [ ] Add examples to `t --help` output
+- [ ] Implement command aliases (if useful)
+
+#### `t update` Command
+- [ ] Add `update` command handler
+- [ ] Check for newer tags on git remotes
+- [ ] Update tproject.toml with latest versions
+- [ ] Run `t install` to update flake.nix
+- [ ] Display changelog summaries for updates
+- [ ] Add `--package` flag for updating specific dependency
+
+#### `t search` Command (Future)
+- [ ] Design package index format
+- [ ] Implement basic search by name/description
+- [ ] Add `--tag` flag for tag-based filtering
+- [ ] Display search results with metadata
+- [ ] Link to package repositories
+
+#### Interactive Mode
+- [ ] Add `--interactive` flag to `t init`
+- [ ] Prompt for package name, author, license
+- [ ] Prompt for initial dependencies
+- [ ] Validate inputs interactively
+- [ ] Show preview before creating files
+
+#### Documentation Generation Integration
+- [ ] Ensure `t init package` sets up docs/ structure
+- [ ] Update package templates to include doc examples
+- [ ] Add `t document` to post-init instructions
+- [ ] Integrate documentation coverage with `t doctor`
+
+#### Error Handling Polish
+- [ ] Audit all error messages for clarity
+- [ ] Add "Did you mean...?" suggestions
+- [ ] Provide recovery steps in error messages
+- [ ] Add troubleshooting guide to documentation
+- [ ] Implement `--debug` flag for verbose output
+
+#### Performance Optimization
+- [ ] Profile CLI startup time
+- [ ] Cache parsed TOML files
+- [ ] Optimize flake.nix parsing
+- [ ] Parallelize test execution (if needed)
+- [ ] Add progress bars for long operations
+
+#### CI/CD Templates
+- [ ] Create GitHub Actions workflow template
+- [ ] Add to `t init` generated files
+- [ ] Test on push (run `t test`)
+- [ ] Validate documentation on PR
+- [ ] Auto-deploy docs on release
+
+#### User Guide
+- [ ] Write "Creating Your First Package" tutorial
+- [ ] Write "Managing Project Dependencies" guide
+- [ ] Write "Publishing to GitHub" guide
+- [ ] Add troubleshooting section
+- [ ] Add FAQ section
+
+#### Testing
+- [ ] End-to-end test: init package → develop → test → publish
+- [ ] End-to-end test: init project → install deps → run
+- [ ] Test on clean system (Docker container)
+- [ ] Test with multiple packages/projects
+- [ ] User acceptance testing with external users
+
+**Success Criteria:**
+- ✅ Complete package workflow works smoothly
+- ✅ Error messages guide users effectively
+- ✅ CLI performance is snappy (<100ms startup)
+- ✅ Documentation is comprehensive
+- ✅ External users can create packages without help
+
+**Estimated Time:** 5 days (1 week)
+
+---
+
+## Coordinated Timeline: Package Management + Documentation
+
+Here's how both systems can be developed in parallel:
+
+### Weeks 1-2: Foundations
+**Package Management (Phase A):** Scaffolding commands
+**Documentation (Phase 0-1):** Parser infrastructure
+- Team can split: 2 devs on packages, 1 dev on docs
+
+### Weeks 2-3: Core Features
+**Package Management (Phase B):** Dependency management
+**Documentation (Phase 2):** Markdown generation
+- Integration point: Generated packages include doc structure
+
+### Weeks 3-4: Testing
+**Package Management (Phase C):** Test runner
+**Documentation (Phase 3):** REPL integration
+- Integration point: `t doctor` checks documentation coverage
+
+### Weeks 4-5: Publishing
+**Package Management (Phase D):** Release workflow
+**Documentation (Phase 4):** Standard library docs
+- Integration point: `t publish` validates documentation
+
+### Weeks 5-6: Polish
+**Package Management (Phase E):** Integration
+**Documentation (Phase 5):** Advanced features
+- Integration point: Full workflow validated
+
+### Weeks 6+: Ongoing
+**Both systems:** Maintenance and community support
+
+---
+
+## Combined Progress Tracker
+
+### Package Management System ⬜
+
+**Phase A: Scaffolding** ⬜
+- [ ] `t init package` command
+- [ ] `t init project` command
+- [ ] Template system
+- [ ] CLI options
+- [ ] Testing
+
+**Phase B: Dependencies** ⬜
+- [ ] TOML parsing
+- [ ] Nix flake manipulation
+- [ ] `t install` command
+- [ ] Dependency validation
+- [ ] Testing
+
+**Phase C: Testing** ⬜
+- [ ] Test discovery and execution
+- [ ] `t test` command
+- [ ] Package validation
+- [ ] `t doctor` command
+- [ ] Testing
+
+**Phase D: Publishing** ⬜
+- [ ] Release validation
+- [ ] Git tag management
+- [ ] `t publish` command
+- [ ] Release checklist
+- [ ] Testing
+
+**Phase E: Integration** ⬜
+- [ ] Command integration
+- [ ] `t update` command
+- [ ] Interactive mode
+- [ ] Documentation integration
+- [ ] CI/CD templates
+- [ ] User guide
+
+### Documentation System ⬜
+
+(See Appendix E for full documentation checklist)
+
+---
+
+## First Steps
+
+**To begin package management implementation:**
+
+```bash
+# Create the infrastructure
+$ mkdir -p src/package_manager/templates
+$ touch src/package_manager/package_types.ml
+$ touch src/package_manager/templates/package_description.toml.template
+$ git add src/package_manager
+$ git commit -m "Phase A: Initialize package management system"
+```
+
+**Integration with documentation:**
+- Generated packages will have `docs/` directory ready for T-Doc
+- `t doctor` will check documentation coverage
+- `t publish` will validate docs are up-to-date
+
+Would you like me to add more detail to any specific phase?
