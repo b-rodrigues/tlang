@@ -399,7 +399,7 @@ df |> group_by($dept)
 df |> filter($age > 30)
 
 -- Dot: accesses fields on an explicit object (in lambda context)
-df |> filter(\(row) row.age > 30)
+df |> filter($age > 30)
 ```
 
 ### Window Functions
@@ -462,8 +462,8 @@ Pipelines define named computation nodes with automatic dependency resolution:
 ```t
 p = pipeline {
   data = read_csv("sales.csv")
-  filtered = filter(data, \(row) row.amount > 100)
-  total = filtered |> select("amount") |> \(d) sum(d.amount)
+  filtered = filter(data, $amount > 100)
+  total = filtered |> select($amount) |> \(d) sum(d.amount)
 }
 
 p.data       -- access node result

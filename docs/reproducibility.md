@@ -236,13 +236,13 @@ sales = read_csv("data/sales.csv", clean_colnames = true)
 
 analysis = pipeline {
   cleaned = sales
-    |> filter(\(row) row.amount > 0)
-    |> filter(\(row) not is_na(row.region))
+    |> filter($amount > 0)
+    |> filter(not is_na($region))
   
   by_region = cleaned
-    |> group_by("region")
-    |> summarize("total_revenue", \(g) sum(g.amount))
-    |> arrange("total_revenue", "desc")
+    |> group_by($region)
+    |> summarize($total_revenue = sum($amount))
+    |> arrange($total_revenue, "desc")
 }
 
 write_csv(analysis.by_region, "outputs/report.csv")

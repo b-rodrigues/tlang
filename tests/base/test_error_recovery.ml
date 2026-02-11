@@ -113,7 +113,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Error in filter predicate propagation *)
   let (v, _) = eval_string_env
-    {|df |> filter(\(row) row.nonexistent > 10)|}
+    {|df |> filter($nonexistent > 10)|}
     env_pipe in
   let result = Ast.Utils.value_to_string v in
   let starts_with s prefix =

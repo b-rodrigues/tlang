@@ -212,9 +212,9 @@ error("fail") |> \(x) x * 2 |> \(x) x + 1
 
 ```t
 df = read_csv("data.csv")
-  |> filter(\(row) row.age > 0)
-  |> select("name", "age")
-  |> arrange("age")
+  |> filter($age > 0)
+  |> select($name, $age)
+  |> arrange($age)
 -- If read_csv fails, rest of pipeline is skipped
 ```
 
@@ -519,7 +519,7 @@ if (age < 0 or age > 150)
 
 **Use `|>`** for normal success paths:
 ```t
-df |> filter(\(row) row.active) |> select("name")
+df |> filter($active) |> select($name)
 ```
 
 **Use `?|>`** for error recovery:

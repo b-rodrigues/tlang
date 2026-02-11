@@ -327,11 +327,11 @@ df = read_csv("data.csv", clean_colnames = true)
 ```t
 -- Slow: Load everything then filter
 df = read_csv("huge.csv")
-small = df |> filter(\(row) row.year == 2023)
+small = df |> filter($year == 2023)
 
 -- Better: Filter during load (if supported) or filter immediately
 df = read_csv("huge.csv")
-small = df |> filter(\(row) row.year == 2023)  -- Filter early
+small = df |> filter($year == 2023)  -- Filter early
 ```
 
 ---

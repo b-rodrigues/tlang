@@ -91,8 +91,8 @@ print("NA in revenue: " + string(na_count_revenue))
 print("NA in cost: " + string(na_count_cost))
 
 -- Remove rows with any NA
-clean = sales |> filter(\(row) 
-  not is_na(row.revenue) and not is_na(row.cost)
+clean = sales |> filter(
+  not is_na($revenue) and not is_na($cost)
 )
 
 -- Or use na_rm in calculations
@@ -150,8 +150,8 @@ lower_bound = q25 - 1.5 * iqr
 upper_bound = q75 + 1.5 * iqr
 
 -- Remove outliers
-cleaned = df |> filter(\(row) 
-  row.salary >= lower_bound and row.salary <= upper_bound
+cleaned = df |> filter(
+  $salary >= lower_bound and $salary <= upper_bound
 )
 
 print("Original rows: " + string(nrow(df)))
@@ -213,8 +213,8 @@ print("Predicted sales for $5000 ad spend: " + string(predicted_sales))
 
 ```t
 -- Compare two groups
-group_a = df |> filter(\(row) row.treatment == "A") |> \(d) d.outcome
-group_b = df |> filter(\(row) row.treatment == "B") |> \(d) d.outcome
+group_a = df |> filter($treatment == "A") |> \(d) d.outcome
+group_b = df |> filter($treatment == "B") |> \(d) d.outcome
 
 -- Calculate means and SDs
 mean_a = mean(group_a, na_rm = true)
@@ -493,8 +493,8 @@ validate = pipeline {
   else
     check_rows
   
-  check_values = check_columns |> filter(\(row)
-    not is_na(row.value) and row.value > 0
+  check_values = check_columns |> filter(
+    not is_na($value) and $value > 0
   )
   
   -- If validation passes, proceed
@@ -555,15 +555,15 @@ q4_sales = read_csv("q4_2023_sales.csv")
 
 analysis = pipeline {
   clean = q4_sales
-    |> filter(\(row) row.type != "return" and row.type != "refund")
+    |> filter($type != "return" and $type != "refund")
   
   by_category = clean
-    |> group_by("category")
-    |> summarize("total_revenue", \(g) sum(g.revenue))
-    |> arrange("total_revenue", "desc")
+    |> group_by($category)
+    |> summarize($total_revenue = sum($revenue))
+    |> arrange($total_revenue, "desc")
   
   top_categories = by_category
-    |> filter(\(row) row.total_revenue > 10000)
+    |> filter($total_revenue > 10000)
 }
 
 print(analysis.top_categories)

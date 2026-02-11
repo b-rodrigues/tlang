@@ -242,7 +242,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "2";
 
   test "Arrow filter"
-    (Printf.sprintf {|df = read_csv("%s"); filter(df, \(row) row.age > 28) |> nrow|} csv_path)
+    (Printf.sprintf {|df = read_csv("%s"); filter(df, $age > 28) |> nrow|} csv_path)
     "2";
 
   test "Arrow mutate"
@@ -256,7 +256,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "Arrow pipeline"
     (Printf.sprintf
-      {|read_csv("%s") |> filter(\(row) row.age > 25) |> select($name, $score) |> nrow|} csv_path)
+      {|read_csv("%s") |> filter($age > 25) |> select($name, $score) |> nrow|} csv_path)
     "2";
   print_newline ();
 
@@ -377,7 +377,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test 31: filter on native-backed table via compute *)
   test "Compute: filter (native filter)"
-    (Printf.sprintf {|df = read_csv("%s"); filter(df, \(row) row.age > 28) |> nrow|} csv_compute)
+    (Printf.sprintf {|df = read_csv("%s"); filter(df, $age > 28) |> nrow|} csv_compute)
     "2";
 
   (* Test 32: chained compute operations *)

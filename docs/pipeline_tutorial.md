@@ -141,9 +141,9 @@ p.names  -- list of column names
 ```t
 p = pipeline {
   raw = read_csv("sales.csv")
-  filtered = filter(raw, \(row) row.amount > 100)
-  by_region = filtered |> group_by("region")
-  summary = by_region |> summarize("total", \(g) sum(g.amount))
+  filtered = filter(raw, $amount > 100)
+  by_region = filtered |> group_by($region)
+  summary = by_region |> summarize($total = sum($amount))
 }
 
 p.summary  -- DataFrame with regional totals
@@ -278,8 +278,8 @@ p = pipeline {
   
   -- Filter to active engineers
   engineers = raw
-    |> filter(\(row) row.dept == "eng")
-    |> filter(\(row) row.active == true)
+    |> filter($dept == "eng")
+    |> filter($active == true)
   
   -- Compute statistics
   avg_salary = engineers.salary |> mean

@@ -219,7 +219,7 @@ cohort_analysis = pipeline {
 
 **Step 4**: LLM updates (localized change)
 ```t
-  cleaned = orders |> filter(\(row) row.status == "completed")
+  cleaned = orders |> filter($status == "completed")
 ```
 
 ### Pattern 2: Explain and Generate
