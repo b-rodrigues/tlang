@@ -5,6 +5,61 @@
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
 [![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.1-orange.svg)](https://tstats-project.org)
 
+The goal is not to create a clone of R’s tidyverse, but to design a new, strictly functional 
+programming language with deliberate constraints that make reproducibility a core design 
+principle and provide guarantees other languages do not.
+
+Rather than bolting on an integrated, imperative package manager, T is built from the 
+ground up to be installed via Nix, and T packages are defined as Nix flakes. Any project 
+that uses T therefore must use Nix from the outset, ensuring reproducibility by design and 
+from day one.
+
+Other constraints reinforce this philosophy: there are no loops and no mutable variables, 
+significantly reducing the surface area for bugs. Another distinctive feature is the concept of 
+“intent” blocks—structured, comment-like constructs embedded in code that can be easily parsed by 
+LLMs. The aim is to make collaboration with LLMs as transparent and deterministic as possible.
+
+T does not attempt to reinvent the wheel. It can be understood as a layer of syntactic and semantic 
+sugar on top of Apache Arrow for data frames and tabular operations, Owl (the OCaml scientific 
+computing library) for mathematics and statistics, and Nix for package management. Rather than 
+replacing these foundations, T provides a coherent, opinionated interface over them.
+
+R’s tidyverse is known for its strong user experience, and T deliberately adopts many of its design 
+principles. As a result, it may feel like a clone at first glance: many tidyverse functions are 
+intentionally reimplemented. However, this is a conscious UX choice, not an architectural one. Under 
+the hood, T is grounded in a strictly functional core, reproducibility through Nix, and a different
+execution and packaging model altogether.
+
+Another deliberate “limitation” is that non-interactive scripts must be defined as pipelines. This 
+constraint is intended to prevent the accumulation of ad hoc, spaghetti-style scripts in production 
+contexts. The workflow model is explicit: exploratory work can be messy and iterative, but once 
+stabilized, it should be transformed (potentially with the help of an LLM) into a well-structured, 
+declarative pipeline.
+
+I am still evaluating which pipeline engine to adopt. One possibility is to rely on Nix for this
+layer as well, following the same approach I used for my R package *rixpress*. This would further 
+consolidate reproducibility and execution semantics within a single, coherent system rather than 
+introducing an additional orchestration framework.
+
+Why “T”? The name is a nod to lineage and a bit of humor. R is a GPL-licensed 
+reimplementation of S, and since T draws heavy inspiration from R, I thought calling it "T" would be
+funny.
+
+Why the EUPL? Because I love Europe and I love the GPL.
+
+With all that said, this is a hobby project, 100% experimental, and made for fun. DO NOT USE IN PRODUCTION.
+
+What is currently missing:
+
+* No infrastructure for user-contributed packages.
+* No graphics or plotting library.
+* Only a subset of mathematical functions and dplyr-like verbs are implemented.
+* Only linear regression is available for statistical modeling.
+* No random number generators.
+* Only CSV files can be read and written.
+
+You guessed it, I welcome contributions!
+
 ## Quick Start
 
 ```t
