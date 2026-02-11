@@ -26,7 +26,6 @@ Version history and roadmap for the T programming language.
 - Auto-transformation: `$age > 30` → `\(row) row.age > 30`
 - Named-arg syntax: `summarize($total = sum($amount))`, `mutate($bonus = $salary * 0.1)`
 - Works with all data verbs: `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`
-- Backward compatible: string syntax (`"name"`) and lambda syntax still supported
 
 ### Data Types
 

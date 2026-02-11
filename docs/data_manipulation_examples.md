@@ -73,25 +73,20 @@ write_csv(df, "output.tsv", sep = "\t")
 Select keeps only the specified columns:
 
 ```t
--- NSE syntax (preferred)
 df |> select($name, $age)
 -- DataFrame(100 rows x 2 cols: [name, age])
 
 df |> select($name)
 -- DataFrame(100 rows x 1 cols: [name])
-
--- String syntax (also works)
-df |> select("name", "age")
-df |> select("name")
 ```
 
 **Error handling:**
 ```t
-df |> select("nonexistent")
+df |> select($nonexistent)
 -- Error(KeyError: "Column(s) not found: nonexistent")
 
 df |> select(42)
--- Error(TypeError: "select() expects string column names")
+-- Error(TypeError: "select() expects $column syntax")
 ```
 
 ---
@@ -101,13 +96,8 @@ df |> select(42)
 Filter keeps rows where a predicate returns true:
 
 ```t
--- NSE syntax (preferred)
 df |> filter($age > 30)
 df |> filter($dept == "eng")
-
--- String/lambda syntax (also works)
-df |> filter(\(row) row.age > 30)
-df |> filter(\(row) row.dept == "eng")
 
 -- Combine with pipe
 df |> filter($dept == "eng") |> nrow
@@ -123,25 +113,21 @@ The NSE syntax auto-transforms `$age > 30` into `\(row) row.age > 30`.
 Mutate adds a new column or replaces an existing one:
 
 ```t
--- Named-arg NSE syntax (preferred): $col = NSE expression
+-- Named-arg NSE syntax: $col = NSE expression
 df |> mutate($age_plus_10 = $age + 10)
 df |> mutate($bonus = $salary * 0.1)
 
 -- Positional NSE for column name with explicit lambda
 df |> mutate($age_plus_10, \(row) row.age + 10)
-
--- String syntax (also works)
-df |> mutate("age_plus_10", \(row) row.age + 10)
-df |> mutate("age", \(row) row.age + 1)
 ```
 
 **Error handling:**
 ```t
-mutate(42, "x", \(r) r)
+mutate(42, $x, \(r) r)
 -- Error(TypeError: "mutate() expects a DataFrame as first argument")
 
 df |> mutate(42, \(r) r)
--- Error(TypeError: "mutate() expects a string column name as second argument")
+-- Error(TypeError: "mutate() expects $column = expr syntax")
 ```
 
 ---
@@ -151,21 +137,16 @@ df |> mutate(42, \(r) r)
 Arrange sorts a DataFrame by a column:
 
 ```t
--- NSE syntax (preferred)
 df |> arrange($age)
 df |> arrange($age, "desc")
-
--- String syntax (also works)
-df |> arrange("age")
-df |> arrange("age", "desc")
 ```
 
 **Error handling:**
 ```t
-df |> arrange("nonexistent")
+df |> arrange($nonexistent)
 -- Error(KeyError: "Column 'nonexistent' not found in DataFrame")
 
-df |> arrange("age", "up")
+df |> arrange($age, "up")
 -- Error(ValueError: "arrange() direction must be "asc" or "desc"")
 ```
 
@@ -176,23 +157,19 @@ df |> arrange("age", "up")
 Group creates a grouped DataFrame for subsequent summarization:
 
 ```t
--- NSE syntax (preferred)
 df |> group_by($dept)
 -- DataFrame(100 rows x 5 cols: [...]) grouped by [dept]
-
--- String syntax (also works)
-df |> group_by("dept")
 ```
 
 Grouping is a marker — it doesn't change the data, but tells `summarize()` and `mutate()` how to split the computation.
 
 **Error handling:**
 ```t
-df |> group_by("nonexistent")
+df |> group_by($nonexistent)
 -- Error(KeyError: "Column(s) not found: nonexistent")
 
 df |> group_by(42)
--- Error(TypeError: "group_by() expects string column names")
+-- Error(TypeError: "group_by() expects $column syntax")
 ```
 
 ---
@@ -204,31 +181,24 @@ Summarize computes aggregate statistics:
 ### Ungrouped Summarize
 
 ```t
--- Named-arg NSE syntax (preferred): $col = NSE aggregation
+-- Named-arg NSE syntax: $col = NSE aggregation
 df |> summarize($total_score = sum($score))
 
 -- Positional NSE with lambda
 df |> summarize($total_rows, \(d) nrow(d))
-
--- String syntax (also works)
-df |> summarize("total_rows", \(d) nrow(d))
 -- DataFrame(1 rows x 1 cols: [total_rows])
 ```
 
 ### Grouped Summarize
 
 ```t
--- Named-arg NSE syntax (preferred)
+-- Named-arg NSE syntax
 df |> group_by($dept)
    |> summarize($count = nrow($dept), $avg_score = mean($score))
 
 -- Positional NSE with lambda
 df |> group_by($dept)
    |> summarize($count, \(g) nrow(g))
-
--- String syntax (also works)
-df |> group_by("dept")
-   |> summarize("count", \(g) nrow(g))
 -- DataFrame(N rows x 2 cols: [dept, count])
 -- One row per group
 ```

@@ -81,7 +81,6 @@ Violations can be reported to the project maintainers. All complaints will be re
 1. Clearly describe the problem it solves
 2. Provide concrete examples
 3. Discuss alternatives
-4. Consider backward compatibility
 
 ### Contributing Code
 

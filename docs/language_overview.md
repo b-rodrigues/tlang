@@ -364,7 +364,7 @@ The transformation is pure, stable across platforms, and idempotent.
 T provides six core data verbs with dollar-prefix NSE syntax for concise column references:
 
 ```t
--- NSE syntax (preferred) — use $column for column references
+-- Use $column for column references
 df |> select($name, $age)
 df |> filter($age > 25)
 df |> mutate($age_plus_10 = $age + 10)         -- named-arg style
@@ -387,20 +387,6 @@ df |> mutate($full_name = $first + " " + $last)
 -- summarize: $result_col = NSE aggregation (auto-wrapped in lambda per group)
 df |> group_by($dept)
    |> summarize($avg_salary = mean($salary), $count = nrow($dept))
-```
-
-String/lambda syntax is also supported for backward compatibility:
-
-```t
--- String syntax (still works)
-df |> select("name", "age")
-df |> filter(\(row) row.age > 25)
-df |> mutate("age_plus_10", \(row) row.age + 10)
-df |> arrange("age", "desc")
-df |> group_by("dept")
-   |> summarize("count", \(g) nrow(g))
-df |> group_by("dept")
-   |> mutate("dept_size", \(g) nrow(g))
 ```
 
 #### Dollar-Prefix vs Dot Accessor

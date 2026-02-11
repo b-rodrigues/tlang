@@ -776,18 +776,14 @@ Select columns by name. Supports dollar-prefix NSE syntax.
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `...columns` — Column references (`$name`) or column name strings (`"name"`)
+- `...columns` — Column references (`$name`)
 
 **Returns:** DataFrame with selected columns
 
 **Examples:**
 ```t
--- NSE syntax (preferred)
 df |> select($name, $age)
 df |> select($dept)
-
--- String syntax (also works)
-df |> select("name", "age")
 ```
 
 ---
@@ -798,19 +794,15 @@ Filter rows by condition. Supports NSE expressions with dollar-prefix column ref
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `predicate` — NSE expression (`$age > 25`) or lambda (`\(row) row.age > 25`)
+- `predicate` — NSE expression (`$age > 25`)
 
 **Returns:** DataFrame with matching rows
 
 **Examples:**
 ```t
--- NSE syntax (preferred)
 df |> filter($age > 30)
 df |> filter($dept == "Engineering")
 df |> filter($salary > 50000 and $active == true)
-
--- Lambda syntax (also works)
-df |> filter(\(row) row.age > 30)
 ```
 
 ---
@@ -825,7 +817,7 @@ Add or transform a column. Supports `$col = expr` named-arg syntax with NSE.
 
 **Parameters (positional form):**
 - `dataframe` — DataFrame
-- `new_col` — Column reference (`$bonus`) or column name string (`"bonus"`)
+- `new_col` — Column reference (`$bonus`)
 - `fn` — Function taking row dict: `\(row) ...`, OR
 - `value` — Constant value for all rows
 
@@ -833,16 +825,12 @@ Add or transform a column. Supports `$col = expr` named-arg syntax with NSE.
 
 **Examples:**
 ```t
--- Named-arg NSE syntax (preferred)
+-- Named-arg NSE syntax
 df |> mutate($bonus = $salary * 0.1)
 df |> mutate($age_next_year = $age + 1)
 
 -- Positional NSE with lambda
 df |> mutate($bonus, \(row) row.salary * 0.1)
-
--- String syntax (also works)
-df |> mutate("bonus", \(row) row.salary * 0.1)
-df |> mutate("status", "active")
 
 -- Grouped mutate (broadcast group result)
 df |> group_by($dept) |> mutate($dept_size, \(g) nrow(g))
@@ -856,20 +844,15 @@ Sort rows by column. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `column` — Column reference (`$age`) or column name string (`"age"`)
+- `column` — Column reference (`$age`)
 - `direction` (optional) — "asc" or "desc" (default: "asc")
 
 **Returns:** Sorted DataFrame
 
 **Examples:**
 ```t
--- NSE syntax (preferred)
 df |> arrange($age)
 df |> arrange($salary, "desc")
-
--- String syntax (also works)
-df |> arrange("age")
-df |> arrange("salary", "desc")
 ```
 
 ---
@@ -880,7 +863,7 @@ Group by one or more columns. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
 - `dataframe` — DataFrame
-- `...columns` — Column references (`$dept`) or column name strings (`"dept"`)
+- `...columns` — Column references (`$dept`)
 
 **Returns:** Grouped DataFrame
 
@@ -911,23 +894,20 @@ Aggregate grouped data. Supports `$col = expr` named-arg syntax with NSE.
 
 **Parameters (positional form):**
 - `grouped_df` — Grouped DataFrame (from `group_by()`)
-- `new_col` — Column reference (`$count`) or column name string (`"count"`)
+- `new_col` — Column reference (`$count`)
 - `fn` — Aggregation function: `\(group) ...`
 
 **Returns:** DataFrame with one row per group
 
 **Examples:**
 ```t
--- Named-arg NSE syntax (preferred)
+-- Named-arg NSE syntax
 df |> group_by($dept) |> summarize($count = nrow($dept))
 df |> group_by($dept) |> summarize($avg_salary = mean($salary))
 df |> group_by($region) |> summarize($total_sales = sum($sales), $n = nrow($region))
 
 -- Positional NSE with lambda
 df |> group_by($dept) |> summarize($count, \(g) nrow(g))
-
--- String syntax (also works)
-df |> group_by("dept") |> summarize("count", \(g) nrow(g))
 ```
 
 ---
@@ -943,7 +923,7 @@ Remove grouping from a DataFrame.
 
 **Examples:**
 ```t
-ungrouped = df |> group_by("dept") |> ungroup()
+ungrouped = df |> group_by($dept) |> ungroup()
 ```
 
 ---

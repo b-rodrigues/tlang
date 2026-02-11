@@ -128,15 +128,6 @@ df |> group_by($dept) |> summarize($n = nrow($dept))   -- Aggregate (named-arg)
 ```
 
 The `$col = expr` syntax uses NSE expressions that are auto-transformed into lambdas.
-String/lambda syntax is also supported for backward compatibility:
-
-```t
-df |> select("name", "age")                    -- Select columns
-df |> filter(\(row) row.age > 25)              -- Filter rows
-df |> mutate("bonus", \(row) row.salary * 0.1) -- Add columns
-df |> arrange("age", "desc")                   -- Sort
-df |> group_by("dept") |> summarize("n", \(g) nrow(g))  -- Aggregate
-```
 
 ### Window Functions
 
