@@ -825,7 +825,13 @@ let initial_env () : environment =
   env
 
 let eval_program (program : program) (env : environment) : value * environment =
-  List.fold_left
-    (fun (_v, current_env) stmt -> eval_statement current_env stmt)
-    (VNull, env)
-    program
+  let rec go env = function
+    | [] -> (VNull, env)
+    | [stmt] -> eval_statement env stmt
+    | stmt :: rest ->
+        let (v, new_env) = eval_statement env stmt in
+        (match v with
+         | VError _ when new_env == env -> (v, env)
+         | _ -> go new_env rest)
+  in
+  go env program
