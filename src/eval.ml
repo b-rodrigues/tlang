@@ -583,7 +583,9 @@ let eval_statement (env : environment) (stmt : stmt) : value * environment =
   | Assignment { name; expr; _ } ->
       let v = eval_expr env expr in
       let new_env = Env.add name v env in
-      (v, new_env)
+      (match v with
+       | VError _ -> (v, new_env)
+       | _ -> (VNull, new_env))
 
 (* --- Built-in Functions --- *)
 
