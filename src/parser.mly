@@ -19,7 +19,7 @@ type param_info = { names: string list; has_variadic: bool }
 %token <string> COLUMN_REF
 /* Symbols and Operators */
 %token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
-%token COMMA COLON DOT EQUALS ARROW DOTDOTDOT
+%token COMMA COLON COLON_EQ DOT EQUALS ARROW DOTDOTDOT
 %token PIPE
 %token MAYBE_PIPE
 %token PLUS MINUS STAR SLASH
@@ -75,6 +75,8 @@ statement:
     { Assignment { name; typ = None; expr = e } }
   | name = any_ident COLON t = typ EQUALS e = expr
     { Assignment { name; typ = Some t; expr = e } }
+  | name = any_ident COLON_EQ e = expr
+    { Reassignment { name; expr = e } }
   | e = expr { Expression e }
   ;
 
