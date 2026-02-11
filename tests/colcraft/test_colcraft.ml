@@ -317,7 +317,7 @@ df |> mutate($senior = $age >= 30)
 
     let step2_result = (try
       let (v2, _) = eval_string_env
-        {|result = step1 |> group_by($temp_category) |> summarize($mean_ozone = mean($Ozone), $count = nrow($temp_category))|}
+        {|result = step1 |> group_by($temp_category) |> summarize($mean_ozone = mean($Ozone, na_rm = true), $count = nrow($temp_category))|}
         env_nas2 in
       Ok v2
     with e -> Error (Printexc.to_string e))

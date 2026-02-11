@@ -238,7 +238,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test 19: Colcraft operations on Arrow-backed DataFrame *)
   test "Arrow select"
-    (Printf.sprintf {|df = read_csv("%s"); select(df, "name", "age") |> ncol|} csv_path)
+    (Printf.sprintf {|df = read_csv("%s"); select(df, $name, $age) |> ncol|} csv_path)
     "2";
 
   test "Arrow filter"
@@ -246,17 +246,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "2";
 
   test "Arrow mutate"
-    (Printf.sprintf {|df = read_csv("%s"); mutate(df, "senior", \(row) row.age >= 30) |> ncol|} csv_path)
+    (Printf.sprintf {|df = read_csv("%s"); mutate(df, $senior = $age >= 30) |> ncol|} csv_path)
     "4";
 
   test "Arrow arrange"
     (Printf.sprintf
-      {|df = read_csv("%s"); df2 = arrange(df, "age"); select(df2, "name") |> \(d) d.name|} csv_path)
+      {|df = read_csv("%s"); df2 = arrange(df, $age); select(df2, $name) |> \(d) d.name|} csv_path)
     {|Vector["Bob", "Alice", "Charlie"]|};
 
   test "Arrow pipeline"
     (Printf.sprintf
-      {|read_csv("%s") |> filter(\(row) row.age > 25) |> select("name", "score") |> nrow|} csv_path)
+      {|read_csv("%s") |> filter(\(row) row.age > 25) |> select($name, $score) |> nrow|} csv_path)
     "2";
   print_newline ();
 
@@ -362,17 +362,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test arrange ascending on native-backed table *)
   test "Compute: arrange ascending (native sort)"
-    (Printf.sprintf {|df = read_csv("%s"); arrange(df, "age") |> \(d) d.name|} csv_compute)
+    (Printf.sprintf {|df = read_csv("%s"); arrange(df, $age) |> \(d) d.name|} csv_compute)
     {|Vector["Bob", "Alice", "Charlie"]|};
 
   (* Test arrange descending on native-backed table *)
   test "Compute: arrange descending (native sort)"
-    (Printf.sprintf {|df = read_csv("%s"); arrange(df, "age", "desc") |> \(d) d.name|} csv_compute)
+    (Printf.sprintf {|df = read_csv("%s"); arrange(df, $age, "desc") |> \(d) d.name|} csv_compute)
     {|Vector["Charlie", "Alice", "Bob"]|};
 
   (* Test 30: select on native-backed table via compute *)
   test "Compute: select (native project)"
-    (Printf.sprintf {|df = read_csv("%s"); select(df, "name", "score") |> ncol|} csv_compute)
+    (Printf.sprintf {|df = read_csv("%s"); select(df, $name, $score) |> ncol|} csv_compute)
     "2";
 
   (* Test 31: filter on native-backed table via compute *)

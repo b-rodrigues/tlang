@@ -49,7 +49,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Grouped summarize with mean(na_rm=true) on all-NA values *)
   let step_result = (try
     let (v, _) = eval_string_env
-      {|df_na |> group_by($name) |> summarize($mean_val = mean($value))|}
+      {|df_na |> group_by($name) |> summarize($mean_val = mean($value, na_rm = true))|}
       env_na in
     Ok v
   with e -> Error (Printexc.to_string e))
