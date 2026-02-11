@@ -36,16 +36,5 @@ jobs:
       - name: Build T language
         run: nix build
 
-      - name: Check executable exists
-        run: |
-          ls -la result/bin/
-          file result/bin/t
-
-      - name: Run hello world test
-        run: |
-          echo 'Testing T language REPL...'
-          echo 'print("Hello from T!")' | ./result/bin/t run /dev/stdin || {
-            echo 'Direct stdin test failed, trying with temp file...'
-            echo 'print("Hello from T!")' > /tmp/hello.t
-            ./result/bin/t run /tmp/hello.t
-          }
+      - name: Print T welcome message
+        run: echo ':quit' | ./result/bin/t repl

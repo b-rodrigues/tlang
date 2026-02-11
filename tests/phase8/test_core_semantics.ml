@@ -16,8 +16,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   Printf.printf "Phase 8 — Core Semantics: Variable scoping:\n";
 
-  (* Variable shadowing *)
-  test "variable shadowing" "x = 1; x = 2; x" "2";
+  (* Variable immutability *)
+  test "variable immutability" "x = 1; x = 2; x"
+    {|Error(NameError: "Cannot reassign immutable variable 'x'. Use ':=' to overwrite.")|};
+  test "variable overwrite with :=" "x = 1; x := 2; x" "2";
   test "variable in expression" "a = 3; b = 4; a * b + 1" "13";
   test "variable chain" "x = 1; y = x + 1; z = y + 1; z" "3";
   print_newline ();

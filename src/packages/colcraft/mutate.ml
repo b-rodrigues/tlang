@@ -19,6 +19,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
               let result = eval_call env fn [(None, Value sub_df)] in
               match result with
               | VError _ -> had_error := Some result
+              | VVector vec when Array.length vec = List.length row_indices ->
+                List.iteri (fun i idx -> new_col.(idx) <- vec.(i)) row_indices
               | _ ->
                 List.iter (fun idx -> new_col.(idx) <- result) row_indices
             end
@@ -30,22 +32,36 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
              let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
              VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
         else
-          (* Ungrouped mutate: apply fn row-by-row *)
-          let new_col = Array.init nrows (fun i ->
-            let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
-            eval_call env fn [(None, Value row_dict)]
-          ) in
-          let first_error = ref None in
-          Array.iter (fun v ->
-            if !first_error = None then
-              match v with VError _ -> first_error := Some v | _ -> ()
-          ) new_col;
-          (match !first_error with
-           | Some e -> e
-           | None ->
-             let arrow_col = Arrow_bridge.values_to_column new_col in
+          (* Try whole-DataFrame evaluation first for window functions.
+             Falls back to row-by-row if result isn't a VVector/VList of correct length. *)
+          let whole_result = eval_call env fn [(None, Value (VDataFrame df))] in
+          (match whole_result with
+           | VVector vec when Array.length vec = nrows ->
+             let arrow_col = Arrow_bridge.values_to_column vec in
              let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
-             VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
+             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+           | VList items when List.length items = nrows ->
+             let vec = Array.of_list (List.map snd items) in
+             let arrow_col = Arrow_bridge.values_to_column vec in
+             let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
+             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+           | _ ->
+             (* Fallback: apply fn row-by-row *)
+             let new_col = Array.init nrows (fun i ->
+               let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
+               eval_call env fn [(None, Value row_dict)]
+             ) in
+             let first_error = ref None in
+             Array.iter (fun v ->
+               if !first_error = None then
+                 match v with VError _ -> first_error := Some v | _ -> ()
+             ) new_col;
+             (match !first_error with
+              | Some e -> e
+              | None ->
+                let arrow_col = Arrow_bridge.values_to_column new_col in
+                let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
+                VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
       in
       (* Helper: apply a vector mutation directly *)
       let apply_vector_mutation df col_name vec =

@@ -581,11 +581,26 @@ let eval_statement (env : environment) (stmt : stmt) : value * environment =
       let v = eval_expr env e in
       (v, env)
   | Assignment { name; expr; _ } ->
-      let v = eval_expr env expr in
-      let new_env = Env.add name v env in
-      (match v with
-       | VError _ -> (v, new_env)
-       | _ -> (VNull, new_env))
+      if Env.mem name env then
+        let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite." name in
+        (make_error NameError msg, env)
+      else
+        let v = eval_expr env expr in
+        let new_env = Env.add name v env in
+        (match v with
+         | VError _ -> (v, new_env)
+         | _ -> (VNull, new_env))
+  | Reassignment { name; expr } ->
+      if not (Env.mem name env) then
+        let msg = Printf.sprintf "Cannot overwrite '%s': variable not defined. Use '=' for first assignment." name in
+        (make_error NameError msg, env)
+      else
+        let v = eval_expr env expr in
+        Printf.eprintf "Warning: overwriting variable '%s'\n" name;
+        let new_env = Env.add name v env in
+        (match v with
+         | VError _ -> (v, new_env)
+         | _ -> (VNull, new_env))
 
 (* --- Built-in Functions --- *)
 
@@ -810,7 +825,13 @@ let initial_env () : environment =
   env
 
 let eval_program (program : program) (env : environment) : value * environment =
-  List.fold_left
-    (fun (_v, current_env) stmt -> eval_statement current_env stmt)
-    (VNull, env)
-    program
+  let rec go env = function
+    | [] -> (VNull, env)
+    | [stmt] -> eval_statement env stmt
+    | stmt :: rest ->
+        let (v, new_env) = eval_statement env stmt in
+        (match stmt, v with
+         | (Assignment _ | Reassignment _), VError _ when new_env == env -> (v, env)
+         | _ -> go new_env rest)
+  in
+  go env program

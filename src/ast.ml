@@ -133,6 +133,7 @@ type typ = TInt | TFloat | TBool | TString | TList | TDict | TDataFrame | TCusto
 type stmt =
   | Expression of expr
   | Assignment of { name : symbol; typ : typ option; expr : expr }
+  | Reassignment of { name : symbol; expr : expr }
 
 type program = stmt list
 
