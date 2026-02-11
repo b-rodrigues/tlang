@@ -231,7 +231,7 @@ df |> mutate($senior = $age >= 30)
 
   (* Grouped mutate: preserves group keys *)
   let (v, _) = eval_string_env
-    {|df |> group_by($dept) |> mutate($x, \(g) 1)|}
+    {|df |> group_by($dept) |> mutate($x = \(g) 1)|}
     env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, x]) grouped by [dept]" then begin
@@ -301,7 +301,7 @@ df |> mutate($senior = $age >= 30)
 
   let step1_result = (try
     let (v, env_n) = eval_string_env
-      {|step1 = df |> mutate($temp_category, \(row) if (row.Temp > 75) "hot" else "cool")|}
+      {|step1 = df |> mutate($temp_category = \(row) if (row.Temp > 75) "hot" else "cool")|}
       env_nas in
     Ok (v, env_n)
   with e -> Error (Printexc.to_string e))

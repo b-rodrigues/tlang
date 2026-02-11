@@ -32,7 +32,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
            | Error e -> e
            | Ok pairs ->
              if pairs = [] then
-               make_error ArityError "summarize() requires at least one $column = expr pair"
+               make_error ArityError "summarize() requires at least one $column = expr argument"
              else if df.group_keys = [] then
                let result_cols = List.map (fun (name, fn) ->
                  let result = apply_aggregation env fn (VDataFrame df) in

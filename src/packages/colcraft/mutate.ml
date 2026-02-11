@@ -78,7 +78,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                 make_error TypeError "mutate() expects $column = expression pairs"
           in
           apply_named_mutations df rest
-      | (_, VDataFrame _) :: [] -> make_error ArityError "mutate() requires at least one $column = expr pair"
+      | (_, VDataFrame _) :: [] -> make_error ArityError "mutate() requires at least one $column = expr argument"
       | [(_, _); _; _] | [(_, _); _] -> make_error TypeError "mutate() expects a DataFrame as first argument"
       | _ -> make_error ArityError "mutate() expects a DataFrame and $col = expr arguments"
     ))
