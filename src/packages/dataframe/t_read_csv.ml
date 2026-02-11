@@ -40,9 +40,24 @@ let register ~parse_csv_string env =
       match args with
       | [VString path] ->
           (try
-            let ch = open_in path in
-            let content = really_input_string ch (in_channel_length ch) in
-            close_in ch;
+            let read_content_from_path p =
+              let ch = open_in p in
+              let content = really_input_string ch (in_channel_length ch) in
+              close_in ch;
+              content
+            in
+
+            let content = 
+              if Arrow_io.is_url path then
+                match Arrow_io.download_url path with
+                | Ok temp_path ->
+                    let c = read_content_from_path temp_path in
+                    (try Sys.remove temp_path with _ -> ());
+                    c
+                | Error msg -> raise (Sys_error msg)
+              else
+                read_content_from_path path
+            in
             parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean content
           with
           | Sys_error msg -> make_error FileError ("File Error: " ^ msg))

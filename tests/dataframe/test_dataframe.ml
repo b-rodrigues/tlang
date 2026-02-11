@@ -760,6 +760,35 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
   print_newline ();
 
+  (* ================================================================= *)
+  (* URL read_csv tests                                                 *)
+  (* ================================================================= *)
+  Printf.printf "Phase — read_csv() from URL with separator:\n";
+
+  let url = "https://raw.githubusercontent.com/b-rodrigues/rixpress_demos/refs/heads/master/r_python_quarto/data/mtcars.csv" in
+  (* Note: This test requires internet access *)
+  let env_url = Eval.initial_env () in
+  let (_, env_url) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = "|")|} url) env_url in
+  
+  let (v, _) = eval_string_env "nrow(df)" env_url in
+  let result = Ast.Utils.value_to_string v in
+  (* mtcars has 32 rows *)
+  if result = "32" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 read_csv from URL with separator=\"|\" reads correct rows (32)\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 read_csv from URL with separator=\"|\" reads correct rows\n    Expected: 32\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "ncol(df)" env_url in
+  let result = Ast.Utils.value_to_string v in
+  (* mtcars has 11 columns *)
+  if result = "11" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 read_csv from URL with separator=\"|\" reads correct columns (11)\n"
+  end else begin
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 read_csv from URL with separator=\"|\" reads correct columns\n    Expected: 11\n    Got: %s\n" result
+  end;
+  print_newline ();
+
   (* Clean up test CSV files *)
   (try Sys.remove csv_path with _ -> ());
   (try Sys.remove csv_path_types with _ -> ());

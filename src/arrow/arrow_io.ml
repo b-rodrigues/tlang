@@ -162,9 +162,40 @@ let read_csv_native (path : string) : (Arrow_table.t, string) result =
 (* Public API                                                            *)
 (* ===================================================================== *)
 
+(* ===================================================================== *)
+(* Public API                                                            *)
+(* ===================================================================== *)
+
+let starts_with prefix s =
+  let len_p = String.length prefix in
+  let len_s = String.length s in
+  len_s >= len_p && String.sub s 0 len_p = prefix
+
+let is_url path =
+  starts_with "http://" path || starts_with "https://" path
+
+let download_url (url : string) : (string, string) result =
+  let temp_file = Filename.temp_file "tlang_" ".csv" in
+  let cmd = Printf.sprintf "curl -s -L -o %s %s" (Filename.quote temp_file) (Filename.quote url) in
+  match Sys.command cmd with
+  | 0 -> Ok temp_file
+  | n -> 
+      let _ = Sys.remove temp_file in
+      Error (Printf.sprintf "Download failed with exit code %d" n)
+
+(** Pure OCaml CSV reading fallback *)
+let read_csv_fallback (path : string) : (Arrow_table.t, string) result =
+  try
+    let ch = open_in path in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    parse_csv_string content
+  with
+  | Sys_error msg -> Error ("File Error: " ^ msg)
+
 (** Read a CSV file into an Arrow table.
     Uses native Arrow CSV reader when available, falls back to pure OCaml. *)
-let rec read_csv (path : string) : (Arrow_table.t, string) result =
+let read_csv_local (path : string) : (Arrow_table.t, string) result =
   if Arrow_ffi.arrow_available then
     (* Try native Arrow CSV reader first *)
     match read_csv_native path with
@@ -177,15 +208,16 @@ let rec read_csv (path : string) : (Arrow_table.t, string) result =
   else
     read_csv_fallback path
 
-(** Pure OCaml CSV reading fallback *)
-and read_csv_fallback (path : string) : (Arrow_table.t, string) result =
-  try
-    let ch = open_in path in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    parse_csv_string content
-  with
-  | Sys_error msg -> Error ("File Error: " ^ msg)
+let read_csv (path : string) : (Arrow_table.t, string) result =
+  if is_url path then
+    match download_url path with
+    | Ok temp_path ->
+        let result = read_csv_local temp_path in
+        (try Sys.remove temp_path with _ -> ());
+        result
+    | Error msg -> Error msg
+  else
+    read_csv_local path
 
 (* ===================================================================== *)
 (* CSV Writing                                                           *)
