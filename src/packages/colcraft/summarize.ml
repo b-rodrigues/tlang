@@ -11,27 +11,40 @@ let _detect_simple_agg (_fn : value) : string option =
   None
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
+  (* Helper: call fn with arg if callable, otherwise use fn as a constant value *)
+  let call_or_use env fn arg =
+    match fn with
+    | VLambda _ | VBuiltin _ -> eval_call env fn [(None, Value arg)]
+    | v -> v
+  in
   Env.add "summarize"
-    (make_builtin ~variadic:true 1 (fun args env ->
-      match args with
-      | VDataFrame df :: summary_args ->
+    (make_builtin_named ~variadic:true 1 (fun named_args env ->
+      match named_args with
+      | (_, VDataFrame df) :: rest_args ->
+          (* Parse pairs from named or positional args.
+             Named args: summarize(df, $total = sum($amount))
+             Positional:  summarize(df, "total", \(g) sum(g.amount)) *)
           let rec parse_pairs acc = function
-            | VString name :: fn :: rest -> parse_pairs ((name, fn) :: acc) rest
-            | v :: fn :: rest ->
+            | (Some name, fn) :: rest ->
+                (* Named arg: $col = agg_fn *)
+                parse_pairs ((name, fn) :: acc) rest
+            | (None, VString name) :: (_, fn) :: rest ->
+                parse_pairs ((name, fn) :: acc) rest
+            | (None, v) :: (_, fn) :: rest ->
                 (match Utils.extract_column_name v with
                  | Some name -> parse_pairs ((name, fn) :: acc) rest
-                 | None -> Error (make_error TypeError "summarize() expects pairs of (column_name, function)"))
+                 | None -> Error (make_error TypeError "summarize() expects pairs of (column_name, function) or $column = expr"))
             | [] -> Ok (List.rev acc)
-            | _ -> Error (make_error TypeError "summarize() expects pairs of (column_name, function)")
+            | _ -> Error (make_error TypeError "summarize() expects pairs of (column_name, function) or $column = expr")
           in
-          (match parse_pairs [] summary_args with
+          (match parse_pairs [] rest_args with
            | Error e -> e
            | Ok pairs ->
              if pairs = [] then
                make_error ArityError "summarize() requires at least one (name, function) pair"
              else if df.group_keys = [] then
                let result_cols = List.map (fun (name, fn) ->
-                 let result = eval_call env fn [(None, Value (VDataFrame df))] in
+                 let result = call_or_use env fn (VDataFrame df) in
                  (name, result)
                ) pairs in
                (match List.find_opt (fun (_, v) -> is_error_value v) result_cols with
@@ -72,7 +85,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                      (* Create sub-table using Arrow take_rows *)
                      let sub_table = Arrow_compute.take_rows df.arrow_table row_indices in
                      let sub_df = VDataFrame { arrow_table = sub_table; group_keys = [] } in
-                     let result = eval_call env fn [(None, Value sub_df)] in
+                     let result = call_or_use env fn sub_df in
                      (match result with
                       | VError _ -> had_error := Some result; result
                       | v -> v)

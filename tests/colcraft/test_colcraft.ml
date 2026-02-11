@@ -438,6 +438,38 @@ df |> filter($age > 25)
   |> nrow|} csv_p4)
     "4";
 
+  (* NSE named-arg syntax: summarize($col = expr) *)
+  let (v, _) = eval_string_env {|summarize(df, $total_score = sum($score))|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(1 rows x 1 cols: [total_score])" then begin
+    incr pass_count; Printf.printf "  ✓ NSE summarize with $col = expr syntax\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE summarize with $col = expr syntax\n    Expected: DataFrame(1 rows x 1 cols: [total_score])\n    Got: %s\n" result
+  end;
+
+  (* NSE named-arg grouped summarize *)
+  let (v, _) = eval_string_env {|df |> group_by($dept) |> summarize($avg_score = mean($score))|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(2 rows x 2 cols: [dept, avg_score])" then begin
+    incr pass_count; Printf.printf "  ✓ NSE grouped summarize with $col = expr\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE grouped summarize with $col = expr\n    Expected: DataFrame(2 rows x 2 cols: [dept, avg_score])\n    Got: %s\n" result
+  end;
+
+  (* NSE named-arg mutate: mutate($col = expr) *)
+  let (v, _) = eval_string_env {|mutate(df, $age_plus_10 = $age + 10)|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])" then begin
+    incr pass_count; Printf.printf "  ✓ NSE mutate with $col = expr syntax\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ NSE mutate with $col = expr syntax\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])\n    Got: %s\n" result
+  end;
+
+  (* NSE named-arg mutate via pipe *)
+  test "NSE mutate $col = expr via pipe"
+    (Printf.sprintf {|df = read_csv("%s"); df |> mutate($age_x2 = $age * 2) |> ncol|} csv_p4)
+    "5";
+
   print_newline ();
 
   (* Clean up Phase 4 CSV *)
