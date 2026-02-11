@@ -40,7 +40,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "Large Datasets — Filter + select on 1000 rows:\n";
 
   let (v, _) = eval_string_env
-    {|df |> filter(\(row) row.group == "A") |> nrow|}
+    {|df |> filter($group == "A") |> nrow|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   (* group A: i where i mod 3 != 0 and i mod 2 != 0 -> odd and not divisible by 3 *)
@@ -57,7 +57,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
 
   (* Select subset of columns *)
   let (v, _) = eval_string_env
-    {|df |> select("id", "group") |> ncol|}
+    {|df |> select($id, $group) |> ncol|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
@@ -71,7 +71,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "Large Datasets — Group by with multiple groups:\n";
 
   let (v, _) = eval_string_env
-    {|df |> group_by("group") |> summarize("count", \(g) nrow(g))|}
+    {|df |> group_by($group) |> summarize($count = nrow($group))|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
@@ -85,7 +85,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "Large Datasets — Multi-stage pipeline on large data:\n";
 
   let (v, _) = eval_string_env
-    {|df |> filter(\(row) row.value > 100) |> select("id", "group") |> nrow|}
+    {|df |> filter($value > 100) |> select($id, $group) |> nrow|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   (* value > 100 means i * 10 > 100, i.e., i > 10, so rows 11-1000 = 990 rows *)
@@ -97,7 +97,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
 
   (* Mutate on large dataset *)
   let (v, _) = eval_string_env
-    {|df |> mutate("doubled", \(row) row.value * 2) |> ncol|}
+    {|df |> mutate($doubled = $value * 2) |> ncol|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "4" then begin
@@ -111,7 +111,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "Large Datasets — Arrange on large data:\n";
 
   let (v, _) = eval_string_env
-    {|df |> arrange("value", "desc") |> nrow|}
+    {|df |> arrange($value, "desc") |> nrow|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "1000" then begin
@@ -125,7 +125,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "Large Datasets — Grouped summarize with sum:\n";
 
   let (v, _) = eval_string_env
-    {|result = df |> group_by("group") |> summarize("total", \(g) sum(g.value)); result.total|}
+    {|result = df |> group_by($group) |> summarize($total = sum($value)); result.total|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   (* Just verify it produces a vector, not crash *)
@@ -159,7 +159,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
 
   (* group_by unique ids — 200 groups of 1 row each *)
   let (v, _) = eval_string_env
-    {|df2 |> group_by("id") |> summarize("count", \(g) nrow(g)) |> nrow|}
+    {|df2 |> group_by($id) |> summarize($count = nrow($id)) |> nrow|}
     env2 in
   let result = Ast.Utils.value_to_string v in
   if result = "200" then begin

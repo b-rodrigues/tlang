@@ -6,17 +6,15 @@ let register env =
       match args with
       | [VDataFrame df; col_val] | [VDataFrame df; col_val; VString "asc"] ->
           (match Utils.extract_column_name col_val with
-           | None -> make_error TypeError "arrange() expects a column name (string or $column syntax)"
+           | None -> make_error TypeError "arrange() expects a $column reference"
            | Some col_name ->
               if not (Arrow_table.has_column df.arrow_table col_name) then
                 make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
               else
-                (* Try native Arrow sort first (zero-copy, SIMD-accelerated) *)
                 (match Arrow_compute.sort_by_column df.arrow_table col_name true with
                  | Some new_table ->
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
                  | None ->
-                   (* Fall back to pure OCaml sort *)
                    let col = match Arrow_table.get_column df.arrow_table col_name with
                      | Some c -> c | None -> assert false in
                    let col_values = Arrow_bridge.column_to_values col in
@@ -37,17 +35,15 @@ let register env =
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
       | [VDataFrame df; col_val; VString "desc"] ->
           (match Utils.extract_column_name col_val with
-           | None -> make_error TypeError "arrange() expects a column name (string or $column syntax)"
+           | None -> make_error TypeError "arrange() expects a $column reference"
            | Some col_name ->
               if not (Arrow_table.has_column df.arrow_table col_name) then
                 make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
               else
-                (* Try native Arrow sort first (zero-copy, SIMD-accelerated) *)
                 (match Arrow_compute.sort_by_column df.arrow_table col_name false with
                  | Some new_table ->
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
                  | None ->
-                   (* Fall back to pure OCaml sort *)
                    let col = match Arrow_table.get_column df.arrow_table col_name with
                      | Some c -> c | None -> assert false in
                    let col_values = Arrow_bridge.column_to_values col in
@@ -69,7 +65,7 @@ let register env =
       | [VDataFrame _; _; VString dir] ->
           make_error ValueError (Printf.sprintf "arrange() direction must be \"asc\" or \"desc\", got \"%s\"" dir)
       | [VDataFrame _; _; _] ->
-          make_error TypeError "arrange() expects a column name (string or $column syntax)"
+          make_error TypeError "arrange() expects a $column reference"
       | [_; _] | [_; _; _] -> make_error TypeError "arrange() expects a DataFrame as first argument"
       | _ -> make_error ArityError "arrange() takes 2 or 3 arguments"
      ))

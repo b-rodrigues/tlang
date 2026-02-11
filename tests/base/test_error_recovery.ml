@@ -36,7 +36,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Summarize with function that produces error on some groups *)
   let (v, _) = eval_string_env
-    {|df |> group_by("group") |> summarize("result", \(g) sd(g.value))|}
+    {|df |> group_by($group) |> summarize($result = sd($value))|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   (* Each group has 2 values, so sd() should work for all groups *)

@@ -2,10 +2,10 @@
 -- Compares to: mtcars %>% group_by(cyl) %>% mutate(mpg_vs_cyl_avg = mpg - mean(mpg)) %>% ungroup()
 df = read_csv("tests/golden/data/mtcars.csv")
 -- Step 1: get group means via grouped mutate
-step1 = df |> group_by("cyl") |> mutate("cyl_mean_mpg", \(g) mean(g.mpg)) |> ungroup()
+step1 = df |> group_by($cyl) |> mutate($cyl_mean_mpg = mean($mpg)) |> ungroup()
 -- Step 2: compute difference with ungrouped mutate
-step2 = step1 |> mutate("mpg_vs_cyl_avg", \(row) row.mpg - row.cyl_mean_mpg)
+step2 = step1 |> mutate($mpg_vs_cyl_avg = $mpg - $cyl_mean_mpg)
 -- Step 3: drop intermediate column by selecting all original cols + result col
-result = step2 |> select("car_name", "mpg", "cyl", "disp", "hp", "drat", "wt", "qsec", "vs", "am", "gear", "carb", "mpg_vs_cyl_avg")
+result = step2 |> select($car_name, $mpg, $cyl, $disp, $hp, $drat, $wt, $qsec, $vs, $am, $gear, $carb, $mpg_vs_cyl_avg)
 write_csv(result, "tests/golden/t_outputs/mtcars_pipeline_groupby_mutate.csv")
 print("✓ group_by(cyl) %>% mutate(mpg_vs_cyl_avg = mpg - mean(mpg)) complete")

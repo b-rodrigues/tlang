@@ -383,7 +383,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Test 32: chained compute operations *)
   test "Compute: filter + select + arrange pipeline"
     (Printf.sprintf
-      {|read_csv("%s") |> filter(\(row) row.age >= 30) |> select("name", "age") |> arrange("age") |> \(d) d.name|}
+      {|read_csv("%s") |> filter($age >= 30) |> select($name, $age) |> arrange($age) |> \(d) d.name|}
       csv_compute)
     {|Vector["Alice", "Charlie"]|};
 
@@ -511,13 +511,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "Group-by + summarize (mean)"
     (Printf.sprintf
-      {|df = read_csv("%s"); df |> group_by("name") |> summarize("avg_score", \(d) mean(d.score)) |> \(d) d.avg_score|}
+      {|df = read_csv("%s"); df |> group_by($name) |> summarize($avg_score = mean($score)) |> \(d) d.avg_score|}
       csv_groupby)
     "Vector[92.5, 75.]";
 
   test "Group-by + summarize (sum via nrow)"
     (Printf.sprintf
-      {|df = read_csv("%s"); df |> group_by("name") |> summarize("n", \(d) nrow(d)) |> \(d) d.n|}
+      {|df = read_csv("%s"); df |> group_by($name) |> summarize($n = nrow($name)) |> \(d) d.n|}
       csv_groupby)
     "Vector[2, 2]";
 

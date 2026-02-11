@@ -61,7 +61,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
       in
       match named_args with
       (* Named arg syntax: mutate(df, $col = expr, ...) *)
-      | (_, VDataFrame df) :: rest when rest <> [] && List.exists (fun (n, _) -> n <> None) rest ->
+      | (_, VDataFrame df) :: rest when rest <> [] ->
           let rec apply_named_mutations current_df = function
             | [] -> VDataFrame current_df
             | (Some col_name, VVector vec) :: rest_mutations ->
@@ -73,22 +73,13 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                  | VDataFrame new_df -> apply_named_mutations new_df rest_mutations
                  | err -> err)
             | (None, _) :: _ ->
-                make_error TypeError "mutate() cannot mix named ($col = expr) and positional arguments in the same call"
+                make_error TypeError "mutate() expects $column = expr syntax"
             | _ ->
                 make_error TypeError "mutate() expects $column = expression pairs"
           in
           apply_named_mutations df rest
-      (* Positional syntax: mutate(df, col_name, fn_or_vector) *)
-      | (_, VDataFrame df) :: (_, col_val) :: (_, VVector vec) :: [] ->
-          (match Utils.extract_column_name col_val with
-           | None -> make_error TypeError "mutate() expects a string or $column column name as second argument"
-           | Some col_name -> apply_vector_mutation df col_name vec)
-      | (_, VDataFrame df) :: (_, col_val) :: (_, fn) :: [] ->
-          (match Utils.extract_column_name col_val with
-           | None -> make_error TypeError "mutate() expects a string or $column column name as second argument"
-           | Some col_name -> apply_mutation df col_name fn)
-      | (_, VDataFrame _) :: [_] -> make_error ArityError "mutate() requires a DataFrame, column name, and a function"
-      | [(_, _); (_, _); (_, _)] -> make_error TypeError "mutate() expects a DataFrame as first argument"
-      | _ -> make_error ArityError "mutate() takes a DataFrame and either $col = expr or (column_name, function) arguments"
+      | (_, VDataFrame _) :: [] -> make_error ArityError "mutate() requires at least one $column = expr pair"
+      | [(_, _); _; _] | [(_, _); _] -> make_error TypeError "mutate() expects a DataFrame as first argument"
+      | _ -> make_error ArityError "mutate() expects a DataFrame and $col = expr arguments"
     ))
     env

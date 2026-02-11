@@ -14,7 +14,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Filter to nonexistent category then group_by *)
   let (v, _) = eval_string_env
-    {|df |> filter(\(row) row.category == "nonexistent") |> group_by("category") |> summarize("count", \(g) nrow(g))|}
+    {|df |> filter($category == "nonexistent") |> group_by($category) |> summarize($count = nrow($category))|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
@@ -25,7 +25,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Filter to zero rows produces 0-row DataFrame *)
   let (v, _) = eval_string_env
-    {|df |> filter(\(row) row.category == "nonexistent") |> nrow|}
+    {|df |> filter($category == "nonexistent") |> nrow|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "0" then begin
@@ -49,7 +49,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Grouped summarize with mean(na_rm=true) on all-NA values *)
   let step_result = (try
     let (v, _) = eval_string_env
-      {|df_na |> group_by("name") |> summarize("mean_val", \(g) mean(g.value, na_rm = true))|}
+      {|df_na |> group_by($name) |> summarize($mean_val = mean($value))|}
       env_na in
     Ok v
   with e -> Error (Printexc.to_string e))
@@ -85,7 +85,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* group_by unique id, then summarize with sd — each group has 1 row *)
   let (v, _) = eval_string_env
-    {|df_single |> group_by("id") |> summarize("count", \(g) nrow(g))|}
+    {|df_single |> group_by($id) |> summarize($count = nrow($id))|}
     env_single in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
@@ -96,7 +96,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Check single-row group count values *)
   let (v, _) = eval_string_env
-    {|result = df_single |> group_by("id") |> summarize("count", \(g) nrow(g)); result.count|}
+    {|result = df_single |> group_by($id) |> summarize($count = nrow($id)); result.count|}
     env_single in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[1, 1, 1]" then begin
@@ -125,7 +125,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* group_by two columns *)
   let (v, _) = eval_string_env
-    {|df_multi |> group_by("dept", "role") |> summarize("count", \(g) nrow(g))|}
+    {|df_multi |> group_by($dept, $role) |> summarize($count = nrow($dept))|}
     env_multi in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
@@ -149,7 +149,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_gm) = eval_string_env (Printf.sprintf {|df_gm = read_csv("%s")|} csv_gm) env_gm in
 
   let (v, _) = eval_string_env
-    {|df_gm |> group_by("id") |> mutate("grp_size", \(g) nrow(g))|}
+    {|df_gm |> group_by($id) |> mutate($grp_size = nrow($id))|}
     env_gm in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
@@ -160,7 +160,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Check grouped mutate broadcasts correct values *)
   let (v, _) = eval_string_env
-    {|result = df_gm |> group_by("id") |> mutate("grp_size", \(g) nrow(g)); result.grp_size|}
+    {|result = df_gm |> group_by($id) |> mutate($grp_size = nrow($id)); result.grp_size|}
     env_gm in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[1, 1, 1]" then begin
@@ -176,7 +176,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Multiple aggregation pairs in a single summarize *)
   let (v, _) = eval_string_env
-    {|df |> group_by("category") |> summarize("count", \(g) nrow(g), "total", \(g) sum(g.value))|}
+    {|df |> group_by($category) |> summarize($count = nrow($category), $total = sum($value))|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
@@ -187,7 +187,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Ungrouped summarize on empty DataFrame *)
   let (v, _) = eval_string_env
-    {|df |> filter(\(row) row.category == "nonexistent") |> summarize("count", \(g) nrow(g))|}
+    {|df |> filter($category == "nonexistent") |> summarize($count = nrow($category))|}
     env0 in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin

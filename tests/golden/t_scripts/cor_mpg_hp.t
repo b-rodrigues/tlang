@@ -1,6 +1,6 @@
 -- Test: Simple correlation cor(mpg, hp)
 -- Compares to: R's cor(mtcars$mpg, mtcars$hp)
 df = read_csv("tests/golden/data/mtcars.csv")
-result = summarize(df, "correlation", \(d) cor(d.mpg, d.hp))
+result = summarize(df, $correlation = cor($mpg, $hp))
 write_csv(result, "tests/golden/t_outputs/cor_mpg_hp.csv")
 print("✓ cor(mpg, hp) complete")
