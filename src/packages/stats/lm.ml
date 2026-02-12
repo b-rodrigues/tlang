@@ -62,14 +62,22 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
       else VFloat result.sigma
     )));
   ] in
-  (* Return VDict with display_keys so it prints like the tidy DataFrame *)
+  (* Return VDict as a model object — prints formula + key stats *)
   VDict [
     ("_tidy_df", tidy_df);
     ("_model_data", model_data);
     ("_original_data", data_v);
-    ("_formula", formula_v);
+    ("formula", formula_v);
+    ("r_squared", VFloat result.r_squared);
+    ("adj_r_squared", VFloat result.adj_r_squared);
+    ("sigma", VFloat result.sigma);
+    ("nobs", VInt result.nobs);
     ("_display_keys", VList [
-      (None, VString "_tidy_df");
+      (None, VString "formula");
+      (None, VString "r_squared");
+      (None, VString "adj_r_squared");
+      (None, VString "sigma");
+      (None, VString "nobs");
     ]);
   ]
 

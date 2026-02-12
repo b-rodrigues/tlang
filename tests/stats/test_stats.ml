@@ -98,36 +98,63 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "type(model)" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = {|"Dict"|} then begin
-    incr pass_count; Printf.printf "  ✓ lm() returns a Dict (tidy model)\n"
+    incr pass_count; Printf.printf "  ✓ lm() returns a Dict (model object)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() returns a Dict (tidy model)\n    Expected: \"Dict\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ lm() returns a Dict (model object)\n    Expected: \"Dict\"\n    Got: %s\n" result
   end;
 
-  (* Access tidy DataFrame through _tidy_df *)
-  let (v, _) = eval_string_env "type(model._tidy_df)" env_lm in
+  (* Model object has accessible formula *)
+  let (v, _) = eval_string_env "model.formula" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "y ~ x" then begin
+    incr pass_count; Printf.printf "  ✓ model.formula shows formula\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ model.formula shows formula\n    Expected: y ~ x\n    Got: %s\n" result
+  end;
+
+  (* Model object has R² *)
+  let (v, _) = eval_string_env "model.r_squared" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "1." then begin
+    incr pass_count; Printf.printf "  ✓ model.r_squared = 1.0 (perfect fit)\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ model.r_squared = 1.0 (perfect fit)\n    Expected: 1.\n    Got: %s\n" result
+  end;
+
+  (* Model object has nobs *)
+  let (v, _) = eval_string_env "model.nobs" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  ✓ model.nobs = 5\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ model.nobs = 5\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  (* summary(model) returns a tidy DataFrame *)
+  let (v, _) = eval_string_env "type(summary(model))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = {|"DataFrame"|} then begin
-    incr pass_count; Printf.printf "  ✓ lm() _tidy_df is a DataFrame\n"
+    incr pass_count; Printf.printf "  ✓ summary(model) returns a DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() _tidy_df is a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ summary(model) returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
   end;
 
-  (* Check tidy DataFrame has correct columns *)
-  let (v, _) = eval_string_env "colnames(model._tidy_df)" env_lm in
+  (* summary() has correct columns *)
+  let (v, _) = eval_string_env "colnames(summary(model))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = {|["term", "estimate", "std_error", "statistic", "p_value"]|} then begin
-    incr pass_count; Printf.printf "  ✓ lm() tidy DataFrame has correct columns\n"
+    incr pass_count; Printf.printf "  ✓ summary() tidy DataFrame has correct columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() tidy DataFrame has correct columns\n    Expected: [\"term\", \"estimate\", \"std_error\", \"statistic\", \"p_value\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ summary() tidy DataFrame has correct columns\n    Expected: [\"term\", \"estimate\", \"std_error\", \"statistic\", \"p_value\"]\n    Got: %s\n" result
   end;
 
-  (* Check tidy DataFrame has 2 rows (intercept + x) *)
-  let (v, _) = eval_string_env "nrow(model._tidy_df)" env_lm in
+  (* summary() has 2 rows (intercept + x) *)
+  let (v, _) = eval_string_env "nrow(summary(model))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ lm() tidy DataFrame has 2 rows\n"
+    incr pass_count; Printf.printf "  ✓ summary() has 2 rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() tidy DataFrame has 2 rows\n    Expected: 2\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ summary() has 2 rows\n    Expected: 2\n    Got: %s\n" result
   end;
 
   (* Test fit_stats() *)

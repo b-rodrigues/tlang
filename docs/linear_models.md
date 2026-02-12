@@ -10,9 +10,10 @@ df = read_csv("housing.csv")
 
 -- Fit a multi-predictor linear model
 model = lm(data = df, formula = price ~ sqft + bedrooms)
+-- Prints: {`formula`: price ~ sqft + bedrooms, `r_squared`: 0.87, ...}
 
 -- Tidy coefficients table (like broom::tidy)
-model._tidy_df
+summary(model)
 -- # A DataFrame: 3 × 5
 --   term         estimate  std_error  statistic  p_value
 --   (Intercept)  12500.0   3200.5     3.906      0.0012
@@ -30,7 +31,7 @@ add_diagnostics(model, data = df)
 --   .fitted  .resid  .hat  .sigma  .cooksd  .std_resid
 ```
 
-## The Three Functions
+## The Four Functions
 
 ### `lm()` — Fit a Linear Model
 
@@ -42,11 +43,22 @@ model = lm(data = df, formula = y ~ x1 + x2)
 - `data` — a DataFrame containing the variables
 - `formula` — a formula specifying the model (e.g. `y ~ x1 + x2`)
 
-**Returns** a model object (Dict) containing:
-- `model._tidy_df` — a DataFrame of coefficient estimates with standard errors, t-statistics, and p-values
-- `model._model_data` — internal model diagnostics (used by `fit_stats()` and `add_diagnostics()`)
+**Returns** a model object with these accessible fields:
+- `model.formula` — the formula used
+- `model.r_squared` — R²
+- `model.adj_r_squared` — adjusted R²
+- `model.sigma` — residual standard error
+- `model.nobs` — number of observations
 
-The tidy DataFrame has these columns:
+Printing the model shows a summary of these fields. Use `summary()`, `fit_stats()`, and `add_diagnostics()` to get detailed output.
+
+### `summary()` — Tidy Coefficients Table
+
+```t
+summary(model)
+```
+
+Returns a DataFrame with one row per term:
 
 | Column | Description |
 |--------|-------------|
@@ -98,58 +110,43 @@ Returns the original DataFrame with six diagnostic columns appended:
 
 ## Full Walkthrough
 
-### 1. Prepare Data
+### 1. Prepare and Fit
 
 ```t
--- Inline CSV for demonstration
 df = read_csv("trees.csv")
--- Or create data directly:
--- df would have columns: Girth, Height, Volume
-```
-
-### 2. Fit the Model
-
-```t
 model = lm(data = df, formula = Volume ~ Girth + Height)
+-- Prints: {`formula`: Volume ~ Girth + Height, `r_squared`: 0.948, ...}
 ```
 
-### 3. Inspect Coefficients
+### 2. Inspect Coefficients
 
 ```t
--- The tidy coefficients table
-tidy = model._tidy_df
--- Access individual columns:
-tidy.term       -- ["(Intercept)", "Girth", "Height"]
-tidy.estimate   -- [-57.99, 4.71, 0.34]
-tidy.p_value    -- [0.0002, 0.0000, 0.0145]
+s = summary(model)
+s.term       -- ["(Intercept)", "Girth", "Height"]
+s.estimate   -- [-57.99, 4.71, 0.34]
+s.p_value    -- [0.0002, 0.0000, 0.0145]
 ```
 
-### 4. Check Model Fit
+### 3. Check Model Fit
 
 ```t
 gs = fit_stats(model)
 gs.r_squared      -- 0.948
 gs.adj_r_squared  -- 0.944
 gs.AIC            -- 176.9
-gs.sigma          -- 3.88
 ```
 
-### 5. Examine Diagnostics
+### 4. Examine Diagnostics
 
 ```t
 aug = add_diagnostics(model, data = df)
--- aug now has original columns plus .fitted, .resid, .hat, .sigma, .cooksd, .std_resid
-
--- Find influential observations (high Cook's distance)
+-- Find influential observations
 filter(aug, .cooksd > 0.5)
-
 -- Check for high-leverage points
 filter(aug, .hat > 0.3)
 ```
 
-### 6. Pipeline Integration
-
-All functions work naturally with T's pipe operator:
+### 5. Pipeline Integration
 
 ```t
 df |> lm(formula = Volume ~ Girth + Height) |> fit_stats
@@ -157,26 +154,17 @@ df |> lm(formula = Volume ~ Girth + Height) |> fit_stats
 
 ## Multi-Predictor Support
 
-T's `lm()` supports any number of predictors:
-
 ```t
--- Single predictor
-lm(data = df, formula = y ~ x)
-
--- Two predictors
-lm(data = df, formula = y ~ x1 + x2)
-
--- Many predictors
-lm(data = df, formula = y ~ x1 + x2 + x3 + x4)
+lm(data = df, formula = y ~ x)               -- single predictor
+lm(data = df, formula = y ~ x1 + x2)         -- two predictors
+lm(data = df, formula = y ~ x1 + x2 + x3)    -- many predictors
 ```
-
-The implementation uses Ordinary Least Squares (OLS) via the normal equations with Gaussian elimination and partial pivoting. P-values are computed from the t-distribution using a regularised incomplete beta function approximation.
 
 ## Comparison with R's broom Package
 
 | R (broom) | T equivalent |
 |-----------|-------------|
-| `broom::tidy(fit)` | `model._tidy_df` |
+| `broom::tidy(fit)` | `summary(model)` |
 | `broom::glance(fit)` | `fit_stats(model)` |
 | `broom::augment(fit, data)` | `add_diagnostics(model, data = df)` |
 
