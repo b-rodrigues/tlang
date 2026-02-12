@@ -84,7 +84,6 @@ T's package management philosophy is **radically different** from npm, PyPI, or 
 - ✅ Decentralized distribution model specified
 - ❌ **`t init package`** command not implemented
 - ❌ **`t init project`** command not implemented
-- ❌ **`t install`** command not implemented
 - ❌ **`t document`** documentation generator not implemented
 - ❌ **`t publish`** release helper not implemented
 
@@ -267,7 +266,6 @@ t search --tag statistics       # Filter by tag
 - [ ] `t init package` generates valid package structure
 - [ ] `t init project` generates valid project structure
 - [ ] Generated packages build with `nix develop`
-- [ ] `t install` correctly updates flake.nix
 - [ ] `t document` parses docstrings correctly
 - [ ] `t publish` creates valid git tags
 - [ ] `t search` queries package index successfully
@@ -336,25 +334,11 @@ pipeline {
 - Pros: No external dependencies, full control
 - Cons: More implementation work, OCaml GIL limitations
 
-**Option 2: Integrate Existing Engine (Snakemake)**
-- Generate Snakemake workflow from pipeline DAG
-- Leverage Snakemake's scheduler and parallelization
-- Pros: Mature, battle-tested, cluster support
-- Cons: External dependency, Python requirement
+**Option 2: Use Nix as the build engine**
+- Use nix as the build engine
+- Take rixpress as inspiration
 
-**Option 3: Integrate Existing Engine (Nextflow)**
-- Generate Nextflow pipeline from DAG
-- Leverage Nextflow's DataFlow execution
-- Pros: Container support, cloud-native
-- Cons: Groovy/Java dependency, learning curve
-
-**Option 4: Integrate Existing Engine (Dask)**
-- Convert pipeline to Dask task graph
-- Leverage Dask's distributed scheduling
-- Pros: Scalable, Python ecosystem
-- Cons: Python dependency, overhead
-
-**Recommendation**: Start with **Option 1 (Native OCaml)** for Beta, with extensible architecture allowing future integration with Snakemake/Nextflow for cluster/cloud execution. This provides immediate value while preserving integration options.
+**Recommendation**: Start with **Option 1 (Native OCaml)** for Beta, with extensible architecture allowing future integration with Nix. This provides immediate value while preserving integration options.
 
 **Implementation Notes**:
 - Use `Lwt` for lightweight concurrency
@@ -454,22 +438,6 @@ Summary:
 - Terminal UI with ANSI colors
 - JSON output mode for tooling
 
-##### e) Workflow Engine Integration (Optional)
-
-Export pipelines to existing engines:
-
-```bash
-# Export to Snakemake
-t export --snakemake analysis.t > Snakefile
-
-# Export to Nextflow
-t export --nextflow analysis.t > main.nf
-
-# Export to Make
-t export --make analysis.t > Makefile
-```
-
-**Why This Matters**: Allows T users to leverage mature workflow schedulers for cluster/cloud execution while keeping T as the primary language.
 
 **Implementation Notes**:
 - Parse pipeline DAG
