@@ -13,7 +13,7 @@ Name [my-pkg]: advanced-stats
 Author [User]: Alice
 License [MIT]: EUPL-1.2
 
-✓ Project 'advanced-stats' created successfully!
+✓ Package 'advanced-stats' created successfully!
 ```
 
 This creates a standard directory structure:
@@ -75,13 +75,8 @@ Example `tests/test-mean.t`:
 ```t
 import "src/stats.t"
 
-test "mean calculates average" {
-  assert(stats.mean([1, 2, 3]) == 2.0)
-}
-
-test "mean handles negative numbers" {
-  assert(stats.mean([-1, -1]) == -1.0)
-}
+assert(stats.mean([1, 2, 3]) == 2.0)
+assert(stats.mean([-1, -1]) == -1.0)
 ```
 
 Run all tests with:

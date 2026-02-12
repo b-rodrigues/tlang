@@ -218,8 +218,8 @@ let cmd_explain rest env =
 let cmd_test args =
   let verbose = List.mem "--verbose" args || List.mem "-v" args in
   let dir = Sys.getcwd () in
-  let _result = Test_discovery.run_suite ~verbose dir in
-  ()
+  let suite_result = Test_discovery.run_suite ~verbose dir in
+  if suite_result.failed > 0 then exit 1 else ()
 
 let cmd_doctor () =
   Package_doctor.run_doctor ()
@@ -268,6 +268,9 @@ let cmd_docs () =
       Documentation_manager.open_docs dir
 
 let recursive_files dir =
+  if not (Sys.file_exists dir && Sys.is_directory dir) then
+    []
+  else
   let rec walk acc d =
     let entries = Sys.readdir d in
     Array.fold_left (fun acc e ->
@@ -298,8 +301,17 @@ let cmd_doc args =
   
   if do_gen then begin
     Printf.printf "Generating Markdown in docs/reference...\n";
-    let out_dir = Filename.concat (Filename.concat dir "docs") "reference" in
-    ignore (Sys.command ("mkdir -p " ^ out_dir));
+    let ensure_dir path =
+      if Sys.file_exists path then
+        (if not (Sys.is_directory path) then
+          failwith (Printf.sprintf "%s exists and is not a directory" path))
+      else
+        Unix.mkdir path 0o755
+    in
+    let docs_dir = Filename.concat dir "docs" in
+    ensure_dir docs_dir;
+    let out_dir = Filename.concat docs_dir "reference" in
+    ensure_dir out_dir;
     let entries = Tdoc_registry.get_all () in
     List.iter (fun e ->
       let content = Tdoc_markdown.generate_function_doc e in

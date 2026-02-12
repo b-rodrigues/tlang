@@ -8,20 +8,49 @@ let run_command cmd : (string, string) result =
   try
     let (ch_in, ch_out, ch_err) = Unix.open_process_full cmd (Unix.environment ()) in
     close_out ch_out; (* Close stdin to the process *)
-    
+
     let out_buf = Buffer.create 1024 in
-    (try
-      while true do
-        Buffer.add_channel out_buf ch_in 1024
-      done;
-    with End_of_file -> ());
-    
     let err_buf = Buffer.create 1024 in
-    (try
-      while true do
-        Buffer.add_channel err_buf ch_err 1024
-      done;
-    with End_of_file -> ());
+    let buf = Bytes.create 4096 in
+
+    (* Drain stdout and stderr concurrently to avoid deadlock on full pipe buffers. *)
+    let fd_out = Unix.descr_of_in_channel ch_in in
+    let fd_err = Unix.descr_of_in_channel ch_err in
+
+    let rec drain out_open err_open =
+      if not out_open && not err_open then
+        ()
+      else
+        let read_fds =
+          [] |> (fun acc -> if out_open then fd_out :: acc else acc)
+             |> (fun acc -> if err_open then fd_err :: acc else acc)
+        in
+        let ready, _, _ = Unix.select read_fds [] [] (-1.) in
+        let out_open =
+          if out_open && List.mem fd_out ready then (
+            let n = input ch_in buf 0 (Bytes.length buf) in
+            if n = 0 then
+              false
+            else (
+              Buffer.add_subbytes out_buf buf 0 n;
+              true
+            )
+          ) else out_open
+        in
+        let err_open =
+          if err_open && List.mem fd_err ready then (
+            let n = input ch_err buf 0 (Bytes.length buf) in
+            if n = 0 then
+              false
+            else (
+              Buffer.add_subbytes err_buf buf 0 n;
+              true
+            )
+          ) else err_open
+        in
+        drain out_open err_open
+    in
+    drain true true;
 
     let status = Unix.close_process_full (ch_in, ch_out, ch_err) in
     match status with
@@ -30,7 +59,7 @@ let run_command cmd : (string, string) result =
         let err_msg = String.trim (Buffer.contents err_buf) in
         if err_msg <> "" then Error (Printf.sprintf "Command '%s' failed (exit %d): %s" cmd n err_msg)
         else Error (Printf.sprintf "Command '%s' failed with exit code %d" cmd n)
-    | _ -> Error (Printf.sprintf "Command '%s' falied unexpectedly" cmd)
+    | _ -> Error (Printf.sprintf "Command '%s' failed unexpectedly" cmd)
   with e -> Error (Printexc.to_string e)
 
 (** Check if git working directory is clean *)

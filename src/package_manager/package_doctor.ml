@@ -141,13 +141,13 @@ let run_doctor () =
   let issues = match nix_issue with Some i -> i :: issues | None -> issues in
 
   (* Check Documentation *)
-  let issues = 
+  let doc_issues = 
     match Documentation_manager.validate_docs dir with
-    | Ok () -> 
-         { level = Suggestion; message = "Documentation structure is valid."; suggestion = None } :: issues
+    | Ok () -> []
     | Error msg ->
-         { level = Warning; message = msg; suggestion = Some "Run `t docs` to debug or create docs/index.md" } :: issues
+         [{ level = Warning; message = msg; suggestion = Some "Run `t docs` to debug or create docs/index.md" }]
   in
+  let issues = doc_issues @ issues in
 
   if issues = [] then
     Printf.printf "\n✓ Everything looks good!\n"

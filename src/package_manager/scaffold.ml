@@ -104,7 +104,8 @@ let package_flake_nix = {|{
             echo "  t repl              - Start T REPL"
             echo "  t run <file>        - Run a T file"
             echo "  t test              - Run package tests"
-            echo "  t document .        - Generate documentation"
+            echo "  t doc --parse .     - Parse sources for documentation"
+            echo "  t doc --generate    - Generate documentation"
             echo ""
             echo "Source files: src/"
             echo "Tests: tests/"
@@ -190,18 +191,14 @@ let package_src_example = {|-- {{name}} — main source file
 --
 -- Add your T functions here.
 -- Each function should include documentation.
---
--- @doc
--- Example function
---
--- @description
--- A placeholder function that returns a greeting.
---
--- @param name A string with someone's name
--- @return A greeting string
--- @example
--- greet("world")
--- @end
+--# Example function
+--#
+--# A placeholder function that returns a greeting.
+--#
+--# @param name A string with someone's name
+--# @return A greeting string
+--# @example
+--#   greet("world")
 greet = \(name) -> "Hello, " + name + "!"
 |}
 
@@ -526,13 +523,15 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
     end
 
 (** Parse CLI flags for init commands.
-    Returns (name option, scaffold_options) *)
+    Returns scaffold_options or an error message. *)
 let parse_init_flags (args : string list) : (scaffold_options, string) result =
   let name = ref None in
   let author = ref "Your Name <email@example.com>" in
   let license = ref "EUPL-1.2" in
   let no_git = ref false in
   let force = ref false in
+  let show_help = ref false in
+  let error = ref None in
   let rec parse = function
     | [] -> ()
     | "--author" :: v :: rest -> author := v; parse rest
@@ -540,47 +539,49 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
     | "--no-git" :: rest -> no_git := true; parse rest
     | "--force" :: rest -> force := true; parse rest
     | "--interactive" :: rest -> parse rest (* Handled in repl.ml mainly, but we can flag it *)
-    | "--help" :: _ ->
-        Printf.printf "Usage: t init package|project <name> [options]\n\n";
-        Printf.printf "Options:\n";
-        Printf.printf "  --author <name>    Author name and email (default: \"Your Name <email@example.com>\")\n";
-        Printf.printf "  --license <id>     License identifier (default: EUPL-1.2)\n";
-        Printf.printf "  --no-git           Skip git init\n";
-        Printf.printf "  --force            Overwrite existing directory\n";
-        Printf.printf "  --help             Show this help\n";
-        Printf.printf "  --interactive      Prompt for options\n";
-        exit 0
+    | "--help" :: _ -> show_help := true
     | arg :: rest ->
-        if String.length arg > 0 && arg.[0] = '-' then begin
-          Printf.eprintf "Unknown option: %s\n" arg;
-          exit 1
-        end else begin
+        if String.length arg > 0 && arg.[0] = '-' then
+          error := Some (Printf.sprintf "Unknown option: %s" arg)
+        else begin
           (match !name with
            | None -> name := Some arg
-           | Some _ -> Printf.eprintf "Unexpected argument: %s\n" arg; exit 1);
+           | Some _ -> error := Some (Printf.sprintf "Unexpected argument: %s" arg));
           parse rest
         end
   in
   parse args;
-  match !name with
-  | Some n ->
-    Ok {
-      target_name = n;
-      author = !author;
-      license = !license;
-      no_git = !no_git;
-      force = !force;
-      interactive = List.mem "--interactive" args;
-    }
+  if !show_help then
+    Error "Usage: t init package|project <name> [options]\n\n\
+           Options:\n\
+           \  --author <name>    Author name and email (default: \"Your Name <email@example.com>\")\n\
+           \  --license <id>     License identifier (default: EUPL-1.2)\n\
+           \  --no-git           Skip git init\n\
+           \  --force            Overwrite existing directory\n\
+           \  --help             Show this help\n\
+           \  --interactive      Prompt for options"
+  else match !error with
+  | Some msg -> Error msg
   | None ->
-      if List.mem "--interactive" args then
-        Ok {
-          target_name = "";
-          author = !author;
-          license = !license;
-          no_git = !no_git;
-          force = !force;
-          interactive = true;
-        }
-      else
-        Error "Missing package/project name. Usage: t init package|project <name>"
+    match !name with
+    | Some n ->
+      Ok {
+        target_name = n;
+        author = !author;
+        license = !license;
+        no_git = !no_git;
+        force = !force;
+        interactive = List.mem "--interactive" args;
+      }
+    | None ->
+        if List.mem "--interactive" args then
+          Ok {
+            target_name = "";
+            author = !author;
+            license = !license;
+            no_git = !no_git;
+            force = !force;
+            interactive = true;
+          }
+        else
+          Error "Missing package/project name. Usage: t init package|project <name>"

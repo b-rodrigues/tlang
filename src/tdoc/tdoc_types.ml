@@ -44,45 +44,58 @@ let json_escape s =
     | '\n' -> Buffer.add_string buf "\\n"
     | '\r' -> Buffer.add_string buf "\\r"
     | '\t' -> Buffer.add_string buf "\\t"
+    | '\b' -> Buffer.add_string buf "\\b"
+    | '\012' (* form feed *) -> Buffer.add_string buf "\\f"
+    | c when Char.code c < 0x20 ->
+        (* Escape remaining ASCII control characters as \u00XX *)
+        Buffer.add_string buf (Printf.sprintf "\\u%04X" (Char.code c))
     | c -> Buffer.add_char buf c
   ) s;
   Buffer.contents buf
 
+let json_string (s : string) : string =
+  "\"" ^ json_escape s ^ "\""
+
+let json_option_string (s_opt : string option) : string =
+  match s_opt with
+  | Some s -> json_string s
+  | None -> "null"
+
 let param_to_json (p : param_doc) =
-  Printf.sprintf "{\"name\": \"%s\", \"type\": \"%s\", \"description\": \"%s\"}"
-    (json_escape p.name)
-    (json_escape (Option.value ~default:"" p.type_info))
-    (json_escape p.description)
+  Printf.sprintf "{\"name\": %s, \"type\": %s, \"description\": %s}"
+    (json_string p.name)
+    (json_option_string p.type_info)
+    (json_string p.description)
 
 let string_list_to_json l =
-  "[" ^ (String.concat ", " (List.map (fun s -> "\"" ^ json_escape s ^ "\"") l)) ^ "]"
+  "[" ^ (String.concat ", " (List.map json_string l)) ^ "]"
 
 let doc_entry_to_json entry =
   let params_json = "[" ^ (String.concat ", " (List.map param_to_json entry.params)) ^ "]" in
   let return_json = match entry.return_value with
-    | Some r -> Printf.sprintf "{\"type\": \"%s\", \"description\": \"%s\"}" 
-                  (json_escape (Option.value ~default:"" r.type_info)) 
-                  (json_escape r.description)
+    | Some r -> Printf.sprintf "{\"type\": %s, \"description\": %s}" 
+                  (json_option_string r.type_info) 
+                  (json_string r.description)
     | None -> "null"
   in
   let intent_json = match entry.intent with
-    | Some i -> Printf.sprintf "{\"purpose\": \"%s\", \"use_when\": \"%s\", \"alternatives\": \"%s\"}"
-                  (json_escape i.purpose) (json_escape i.use_when) 
-                  (json_escape (Option.value ~default:"" i.alternatives))
+    | Some i -> Printf.sprintf "{\"purpose\": %s, \"use_when\": %s, \"alternatives\": %s}"
+                  (json_string i.purpose) (json_string i.use_when) 
+                  (json_option_string i.alternatives)
     | None -> "null"
   in
   Printf.sprintf 
-    "{\"name\": \"%s\", \"brief\": \"%s\", \"full\": \"%s\", \"params\": %s, \"return\": %s, \"examples\": %s, \"see_also\": %s, \"family\": \"%s\", \"export\": %b, \"intent\": %s, \"package\": \"%s\", \"source\": \"%s\", \"line\": %d}"
-    (json_escape entry.name)
-    (json_escape entry.description_brief)
-    (json_escape entry.description_full)
+    "{\"name\": %s, \"brief\": %s, \"full\": %s, \"params\": %s, \"return\": %s, \"examples\": %s, \"see_also\": %s, \"family\": %s, \"export\": %b, \"intent\": %s, \"package\": %s, \"source\": %s, \"line\": %d}"
+    (json_string entry.name)
+    (json_string entry.description_brief)
+    (json_string entry.description_full)
     params_json
     return_json
     (string_list_to_json entry.examples)
     (string_list_to_json entry.see_also)
-    (json_escape (Option.value ~default:"" entry.family))
+    (json_option_string entry.family)
     entry.is_export
     intent_json
-    (json_escape (Option.value ~default:"" entry.package))
-    (json_escape entry.source_path)
+    (json_option_string entry.package)
+    (json_string entry.source_path)
     entry.line_number

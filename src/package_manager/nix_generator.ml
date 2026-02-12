@@ -61,7 +61,7 @@ let generate_project_flake
     t_version;
   if deps <> [] then begin
     Buffer.add_string buf "\n";
-    Buffer.add_string buf "    # T packages — synced from tproject.toml by 't install'\n";
+    Buffer.add_string buf "    # T packages — synced from tproject.toml by 't update'\n";
     List.iter (fun dep ->
       match git_url_to_flake_input dep with
       | Ok input ->
@@ -145,7 +145,7 @@ let generate_package_flake
     t_version;
   if deps <> [] then begin
     Buffer.add_string buf "\n";
-    Buffer.add_string buf "    # Package dependencies — synced from DESCRIPTION.toml by 't install'\n";
+    Buffer.add_string buf "    # Package dependencies — synced from DESCRIPTION.toml by 't update'\n";
     List.iter (fun dep ->
       match git_url_to_flake_input dep with
       | Ok input ->

@@ -24,13 +24,13 @@ let open_docs dir =
     Printf.eprintf "No documentation found to open (checked docs/index.md and README.md).\n"
   else
     let cmd = 
-      if Sys.os_type = "Win32" then Printf.sprintf "start %s" target
+      if Sys.os_type = "Win32" then Printf.sprintf "start \"\" %s" (Filename.quote target)
       else if Sys.os_type = "Unix" then
         (* Heuristic for Linux/macOS *)
         if Sys.command "which xdg-open > /dev/null 2>&1" = 0 then
-          Printf.sprintf "xdg-open %s" target
+          Printf.sprintf "xdg-open %s" (Filename.quote target)
         else if Sys.command "which open > /dev/null 2>&1" = 0 then
-          Printf.sprintf "open %s" target
+          Printf.sprintf "open %s" (Filename.quote target)
         else
           ""
       else ""

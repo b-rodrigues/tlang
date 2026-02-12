@@ -124,19 +124,29 @@ let parse_file filename =
       if !inside_block then begin
         (* End of block *)
         (* Try to infer name from the current line (which is the first line of code after the block) *)
-        let inferred_name = 
-          if starts_with trimmed "let " then
+        let inferred_name =
+          (* Normalize common prefixes like "export ", "pub ", "test " before inferring the name *)
+          let code_line =
+            let prefixes = ["export "; "pub "; "test "] in
+            List.fold_left
+              (fun acc prefix ->
+                if starts_with acc prefix then strip_prefix acc prefix else acc
+              )
+              trimmed
+              prefixes
+          in
+          if starts_with code_line "let " then
             try
-              let parts = String.split_on_char ' ' trimmed in
+              let parts = String.split_on_char ' ' code_line in
               List.nth parts 1
             with _ -> "unknown"
-          else if starts_with trimmed "fn " then
-             try
-               let parts = String.split_on_char ' ' trimmed in
-               let name_part = List.nth parts 1 in
-               (* Handle fn name(...) *)
-               List.hd (String.split_on_char '(' name_part)
-             with _ -> "unknown"
+          else if starts_with code_line "fn " then
+            try
+              let parts = String.split_on_char ' ' code_line in
+              let name_part = List.nth parts 1 in
+              (* Handle fn name(...) *)
+              List.hd (String.split_on_char '(' name_part)
+            with _ -> "unknown"
           else "unknown"
         in
         
