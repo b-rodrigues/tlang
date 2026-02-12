@@ -140,6 +140,15 @@ let run_doctor () =
   let nix_issue = check_nix_installation () in
   let issues = match nix_issue with Some i -> i :: issues | None -> issues in
 
+  (* Check Documentation *)
+  let issues = 
+    match Documentation_manager.validate_docs dir with
+    | Ok () -> 
+         { level = Suggestion; message = "Documentation structure is valid."; suggestion = None } :: issues
+    | Error msg ->
+         { level = Warning; message = msg; suggestion = Some "Run `t docs` to debug or create docs/index.md" } :: issues
+  in
+
   if issues = [] then
     Printf.printf "\n✓ Everything looks good!\n"
   else begin

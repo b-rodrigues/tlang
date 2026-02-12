@@ -111,6 +111,8 @@ let print_help () =
 
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  doctor            Check package configuration and health\n";
+  Printf.printf "  docs              Open package documentation\n";
+  Printf.printf "  update            Update dependencies (nix flake update)\n";
   Printf.printf "  publish           Draft a new release (tag + push)\n";
   Printf.printf "  --help, -h        Show this help message\n";
   Printf.printf "  --version, -v     Show version information\n";
@@ -143,19 +145,35 @@ let cmd_run filename env =
 
 let cmd_init_package args =
   match Scaffold.parse_init_flags args with
-  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+  | Error msg -> 
+      (* If no args provided, default to interactive *)
+      if args = [] then
+        let opts = Scaffold.interactive_init "" in
+        match Scaffold.scaffold_package opts with
+        | Ok () -> Printf.printf "Package %s initialized successfully.\n" opts.target_name
+        | Error e -> Printf.eprintf "Error: %s\n" e; exit 1
+      else (Printf.eprintf "Error: %s\n" msg; exit 1)
   | Ok opts ->
-    match Scaffold.scaffold_package opts with
-    | Ok () -> ()
-    | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+      let opts = if opts.interactive then Scaffold.interactive_init opts.target_name else opts in
+      match Scaffold.scaffold_package opts with
+      | Ok () -> Printf.printf "Package %s initialized successfully.\n" opts.target_name
+      | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
 let cmd_init_project args =
   match Scaffold.parse_init_flags args with
-  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+  | Error msg -> 
+      (* If no args provided, default to interactive *)
+      if args = [] then
+        let opts = Scaffold.interactive_init "" in
+        match Scaffold.scaffold_project opts with
+        | Ok () -> Printf.printf "Project %s initialized successfully.\n" opts.target_name
+        | Error e -> Printf.eprintf "Error: %s\n" e; exit 1
+      else (Printf.eprintf "Error: %s\n" msg; exit 1)
   | Ok opts ->
-    match Scaffold.scaffold_project opts with
-    | Ok () -> ()
-    | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+      let opts = if opts.interactive then Scaffold.interactive_init opts.target_name else opts in
+      match Scaffold.scaffold_project opts with
+      | Ok () -> Printf.printf "Project %s initialized successfully.\n" opts.target_name
+      | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
 let cmd_explain rest env =
   let is_json = List.mem "--json" rest in
@@ -237,6 +255,21 @@ let cmd_publish () =
                         | Ok () -> Printf.printf "✓ Tag %s pushed to remote.\n" tag
                   end else
                     Printf.printf "Aborted.\n"
+
+
+let cmd_docs () =
+  let dir = Sys.getcwd () in
+  match Documentation_manager.validate_docs dir with
+  | Ok () -> Documentation_manager.open_docs dir
+  | Error msg -> 
+      Printf.eprintf "Documentation check failed: %s\n" msg;
+      Printf.printf "Opening README as fallback...\n";
+      Documentation_manager.open_docs dir
+
+let cmd_update () =
+  match Update_manager.update_flake_lock () with
+  | Ok () -> Printf.printf "Dependencies updated successfully.\n"
+  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
 (* --- Interactive REPL --- *) 
 
@@ -331,7 +364,10 @@ let () =
   | _ :: "init" :: "project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
   | _ :: "doctor" :: _ -> cmd_doctor ()
+  | _ :: "docs" :: _ -> cmd_docs ()
+  | _ :: "update" :: _ -> cmd_update ()
   | _ :: "publish" :: _ -> cmd_publish ()
+
   | _ :: "init" :: _ ->
       Printf.eprintf "Usage: t init package|project <name> [options]\n";
       Printf.eprintf "Run 't init package --help' for more information.\n";

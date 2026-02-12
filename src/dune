@@ -47,7 +47,7 @@
    ; packages/explain
    intent_fields intent_get t_explain explain_json
    ; package_manager
-   package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager
+   package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager
  )
  (libraries menhirLib otoml unix str)
 )

@@ -426,4 +426,31 @@ min_version = "0.5.0"
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
     match res with Error _ -> true | Ok _ -> false);
 
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Documentation Manager:\n";
+
+  test_pm "validate_docs accepts valid structure" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-docs-valid" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s/docs" (Filename.quote dir)));
+    ignore (Sys.command (Printf.sprintf "touch %s/docs/index.md" (Filename.quote dir)));
+    let res = Documentation_manager.validate_docs dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    res = Ok ());
+
+  test_pm "validate_docs rejects missing docs dir" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-docs-missing" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let res = Documentation_manager.validate_docs dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    match res with Error _ -> true | Ok _ -> false);
+
+  test_pm "validate_docs rejects missing index.md" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-docs-noindex" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s/docs" (Filename.quote dir)));
+    let res = Documentation_manager.validate_docs dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    match res with Error _ -> true | Ok _ -> false);
+
   print_newline ()

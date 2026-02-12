@@ -36,6 +36,7 @@ type scaffold_options = {
   license : string;
   no_git : bool;
   force : bool;
+  interactive : bool;
 }
 
 (** Default scaffold options *)
@@ -45,6 +46,7 @@ let default_options name = {
   license = "EUPL-1.2";
   no_git = false;
   force = false;
+  interactive = false;
 }
 
 (** Default package config *)

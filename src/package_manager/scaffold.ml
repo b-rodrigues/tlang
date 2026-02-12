@@ -452,6 +452,33 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
       Ok ()
     end
 
+
+
+(* ================================================================ *)
+(* Interactive Prompts                                              *)
+(* ================================================================ *)
+
+let prompt_string label default =
+  Printf.printf "%s [%s]: " label default;
+  flush stdout;
+  let line = try read_line () with End_of_file -> "" in
+  if String.trim line = "" then default else String.trim line
+
+let interactive_init default_name =
+  Printf.printf "\nInitializing new T package/project...\n";
+  let name = if default_name = "" then prompt_string "Name" "my-pkg" else default_name in
+  let author = prompt_string "Author" (try Sys.getenv "USER" with Not_found -> "Anonymous") in
+  let license = prompt_string "License" "MIT" in
+  Printf.printf "\n";
+  {
+    target_name = name;
+    author = author;
+    license = license;
+    no_git = false;
+    force = false;
+    interactive = false; (* Already interactive *)
+  }
+
 (** Scaffold a new T project *)
 let scaffold_project (opts : scaffold_options) : (unit, string) result =
   match validate_name opts.target_name with
@@ -512,6 +539,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
     | "--license" :: v :: rest -> license := v; parse rest
     | "--no-git" :: rest -> no_git := true; parse rest
     | "--force" :: rest -> force := true; parse rest
+    | "--interactive" :: rest -> parse rest (* Handled in repl.ml mainly, but we can flag it *)
     | "--help" :: _ ->
         Printf.printf "Usage: t init package|project <name> [options]\n\n";
         Printf.printf "Options:\n";
@@ -520,6 +548,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
         Printf.printf "  --no-git           Skip git init\n";
         Printf.printf "  --force            Overwrite existing directory\n";
         Printf.printf "  --help             Show this help\n";
+        Printf.printf "  --interactive      Prompt for options\n";
         exit 0
     | arg :: rest ->
         if String.length arg > 0 && arg.[0] = '-' then begin
@@ -534,7 +563,6 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   in
   parse args;
   match !name with
-  | None -> Error "Missing package/project name. Usage: t init package|project <name>"
   | Some n ->
     Ok {
       target_name = n;
@@ -542,4 +570,17 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
       license = !license;
       no_git = !no_git;
       force = !force;
+      interactive = List.mem "--interactive" args;
     }
+  | None ->
+      if List.mem "--interactive" args then
+        Ok {
+          target_name = "";
+          author = !author;
+          license = !license;
+          no_git = !no_git;
+          force = !force;
+          interactive = true;
+        }
+      else
+        Error "Missing package/project name. Usage: t init package|project <name>"
