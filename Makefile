@@ -6,8 +6,8 @@
 # Main golden test target - runs all phases
 # Uses - prefix to continue on error for test execution steps
 golden: golden-setup golden-data golden-expected
-	-@$(MAKE) golden-run
-	-@$(MAKE) golden-compare
+	@$(MAKE) golden-run
+	@$(MAKE) golden-compare
 	@echo ""
 	@echo "✓ Golden test pipeline complete (check output above for any failures)"
 
@@ -33,16 +33,16 @@ golden-expected:
 	@Rscript tests/golden/generate_expected_window.R
 
 # Run T tests (T -> CSV)
-# Uses - prefix to continue even if some tests fail
+# Fail on error
 golden-run:
 	@echo "=== Running T test scripts ==="
-	-@./tests/golden/run_all_t_tests.sh
+	@./tests/golden/run_all_t_tests.sh
 
 # Compare T outputs vs R expected (testthat)
-# Uses - prefix to continue even if some comparisons fail
+# Fail on error
 golden-compare:
 	@echo "=== Comparing T outputs vs R expected ==="
-	-@Rscript tests/golden/test_golden_r.R
+	@Rscript tests/golden/test_golden_r.R
 
 # Clean generated files
 golden-clean:
@@ -53,10 +53,10 @@ golden-clean:
 	@echo "✓ Cleaned"
 
 # Quick check (assumes data and expected already generated)
-# Uses - prefix to continue even if tests fail
+# Fail on error
 golden-quick:
-	-@$(MAKE) golden-run
-	-@$(MAKE) golden-compare
+	@$(MAKE) golden-run
+	@$(MAKE) golden-compare
 	@echo ""
 	@echo "✓ Quick test complete (check output above for any failures)"
 

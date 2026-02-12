@@ -28,6 +28,8 @@ let register env =
           take_head_df arrow_table group_keys n
       | [VList []] -> make_error ValueError "head() called on empty list"
       | [VList ((_, v) :: _)] -> v
+      | [VVector arr] when Array.length arr > 0 -> arr.(0)
+      | [VVector _] -> make_error ValueError "head() called on empty vector"
       | [VNA _] -> make_error TypeError "Cannot call head() on NA"
       | [_] -> make_error TypeError "head() expects a DataFrame or List"
       | _ -> make_error ArityError "head() takes 1 or 2 arguments (collection, n)"

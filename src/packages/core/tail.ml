@@ -29,6 +29,9 @@ let register env =
           take_tail_df arrow_table group_keys n
       | [VList []] -> make_error ValueError "tail() called on empty list"
       | [VList (_ :: rest)] -> VList rest
+      | [VVector arr] when Array.length arr > 0 ->
+          VVector (Array.sub arr 1 (Array.length arr - 1))
+      | [VVector _] -> make_error ValueError "tail() called on empty vector"
       | [VNA _] -> make_error TypeError "Cannot call tail() on NA"
       | [_] -> make_error TypeError "tail() expects a DataFrame or List"
       | _ -> make_error ArityError "tail() takes 1 or 2 arguments (collection, n)"
