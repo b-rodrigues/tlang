@@ -142,7 +142,7 @@ analysis = pipeline {
   filtered = customers |> filter($age > 18)
   
   by_age = filtered
-    |> mutate($age_group, \(row) if (row.age < 30) "young" else "mature")
+    |> mutate($age_group = if ($age < 30) "young" else "mature")
     |> group_by($age_group)
     |> summarize($churn_rate = mean($churned))
   
