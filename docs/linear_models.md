@@ -1,5 +1,8 @@
 # Linear Models & Broom-Style Output
 
+> [!IMPORTANT]
+> **API Evolution Note**: This API is subject to change. In the long term, a generic `fit()` function will be introduced to support various model types. `lm()` will remain available as a convenience function for linear models.
+
 T provides `broom`-style model output for linear regression, making it easy to extract tidy coefficients, model-level statistics, and per-observation diagnostics — all as DataFrames ready for further analysis.
 
 ## Quick Example
