@@ -51,7 +51,7 @@ With all that said, this is a hobby project, 100% experimental, and made for fun
 
 What is currently missing:
 
-* No infrastructure for user-contributed packages.
+* **User-contributed packages**: This is currently a major focus of development. Infrastructure for creating, documenting, and distributing user packages is being implemented and will be available from the **Beta** release onwards.
 * No graphics or plotting library.
 * Only a subset of mathematical functions and dplyr-like verbs are implemented.
 * Only linear regression is available for statistical modeling.
@@ -211,7 +211,7 @@ Unlike general-purpose languages, T makes deliberate trade-offs to stay small, f
 
 ## Status
 
-**Alpha 0.1** — Syntax and semantics frozen. The language is functional and ready for exploratory use. Production use requires further testing and performance optimization.
+**Alpha 0.1** — Syntax and semantics frozen. The language is functional and ready for exploratory use. The current focus is on building the infrastructure for a robust, user-contributed package ecosystem, which is expected to be stable by the **Beta** release. Production use requires further testing and performance optimization.
 
 ## Project Structure
 

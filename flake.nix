@@ -63,6 +63,8 @@
             ocamlVersion.menhirLib
             # linenoise — lightweight readline alternative for REPL line editing and history
             ocamlVersion.linenoise
+            # otoml — TOML parsing library for package management (DESCRIPTION.toml, tproject.toml)
+            ocamlVersion.otoml
             # Arrow C++ — provides arrow.pc that arrow-glib depends on
             pkgs.arrow-cpp
             # Arrow C GLib — Apache Arrow columnar data library
@@ -131,6 +133,9 @@
 
             # Lightweight readline alternative for REPL line editing and history
             ocamlVersion.linenoise
+
+            # TOML parsing library for package management
+            ocamlVersion.otoml
 
             # 2. Enhanced Development Tools (Highly Recommended)
             # ----------------------------------------------------

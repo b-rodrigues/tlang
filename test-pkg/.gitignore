@@ -1,0 +1,14 @@
+# Build artifacts
+_build/
+result
+*.exe
+
+# Editor files
+*~
+.#*
+\#*#
+.merlin
+
+# OS files
+.DS_Store
+Thumbs.db
