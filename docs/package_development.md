@@ -92,13 +92,59 @@ $ t test
 
 ## 5. Documentation
 
-Documentation lives in `docs/`. The `docs/index.md` file is the entry point.
+T packages use **T-Doc**, a comment-based documentation system. Documentation lives in source files close to the code and is generated into Markdown.
+
+### Writing Documentation
+
+Use `--#` comments above your functions to document them.
+
+```t
+--# Calculate the square of a number.
+--#
+--# @param x :: Integer
+--#   The input number.
+--#
+--# @return :: Integer
+--#   The squared result.
+--#
+--# @example
+--#   square(4)
+--#   -- 16
+--#
+--# @export
+fn square(x) {
+  x * x
+}
+```
+
+**Supported Tags:**
+- `@param <name> :: <type> <description>`: Document a parameter.
+- `@return :: <type> <description>`: Document the return value.
+- `@example`: Start a code example block.
+- `@seealso <func1>, <func2>`: Link to related functions.
+- `@export`: Mark the function as public (only exported functions appear in docs).
+
+### Generating Documentation
+
+To generate the documentation files in `docs/reference/`:
+
+```bash
+$ t doc --parse --generate
+```
+
+This will:
+1.  Scan your `src/` directory for `--#` blocks.
+2.  Generate Markdown files for each function in `docs/reference/`.
+3.  Generate a `docs/reference/index.md` listing all exported functions.
+
+### Viewing Documentation
+
 You can view your documentation locally using:
 
 ```bash
 $ t docs
 ```
-This opens `docs/index.md` (or `README.md` if docs are missing) in your system viewer.
+This opens `docs/index.md` (or `README.md`) in your system viewer. You can link to your reference documentation from there.
 
 ## 6. Quality Control
 
