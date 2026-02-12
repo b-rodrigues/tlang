@@ -21,7 +21,7 @@
    test_error_recovery
    test_package_manager
  )
- (libraries t_lang menhirLib otoml unix)
+ (libraries t_lang menhirLib otoml unix str)
 )
 
 (rule

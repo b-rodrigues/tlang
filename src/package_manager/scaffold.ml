@@ -57,7 +57,7 @@ let package_flake_nix = {|{
     flake-utils.url = "github:numtide/flake-utils";
     t-lang.url = "github:b-rodrigues/tlang/v{{t_version}}";
     # Package dependencies as flake inputs
-    # (auto-added by 't install' from DESCRIPTION.toml)
+    # Add each dependency from DESCRIPTION.toml as a flake input here
   };
 
   outputs = { self, nixpkgs, flake-utils, t-lang }:
@@ -126,18 +126,14 @@ A brief description of what {{name}} does.
 
 ## Installation
 
-Add the following to your `tproject.toml`:
+Add the following to the `[dependencies]` section of your `tproject.toml`:
 
 ```toml
 [dependencies]
 {{name}} = { git = "https://github.com/username/{{name}}", tag = "v0.1.0" }
 ```
 
-Then run:
-
-```bash
-t install
-```
+Then run `nix develop` to enter the environment with the package available.
 
 ## Usage
 
@@ -244,8 +240,6 @@ let project_flake_nix = {|{
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/{{nixpkgs_date}}";
     flake-utils.url = "github:numtide/flake-utils";
     t-lang.url = "github:b-rodrigues/tlang/v{{t_version}}";
-
-    # T packages — auto-added by 't install' command from tproject.toml
   };
 
   # Configure cachix for R packages
@@ -263,10 +257,25 @@ let project_flake_nix = {|{
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        # Collect all T package dependencies
-        tPackages = [
-          # (auto-populated by 't install')
-        ];
+        # Read dependencies declaratively from tproject.toml
+        projectConfig = builtins.fromTOML (builtins.readFile ./tproject.toml);
+        deps = projectConfig.dependencies or {};
+
+        # Fetch each T package dependency using builtins.fetchGit
+        # Each dependency in tproject.toml has { git = "url", tag = "tag" }
+        fetchTPackage = name: spec:
+          let
+            src = builtins.fetchGit {
+              url = spec.git;
+              ref = "refs/tags/${spec.tag}";
+            };
+          in
+          # Import the package's flake and extract its default package
+          (import src { inherit system; }).packages.${system}.default or
+            # Fallback: use the source directly if no flake
+            src;
+
+        tPackages = builtins.attrValues (builtins.mapAttrs fetchTPackage deps);
       in
       {
         # Development environment
@@ -329,13 +338,19 @@ t repl
 
 ## Dependencies
 
-Dependencies are declared in `tproject.toml` and pinned via `flake.lock`.
+Dependencies are managed **declaratively** via `tproject.toml`.
 
 To add a new dependency:
 
-1. Add it to `tproject.toml`
-2. Run `t install`
-3. Commit both `tproject.toml` and `flake.lock`
+1. Add it to the `[dependencies]` section of `tproject.toml`:
+   ```toml
+   [dependencies]
+   my-pkg = { git = "https://github.com/user/my-pkg", tag = "v0.1.0" }
+   ```
+2. Run `nix develop` — the package is automatically fetched
+3. Commit `tproject.toml`
+
+No imperative install commands — `flake.nix` reads `tproject.toml` directly.
 
 ## License
 

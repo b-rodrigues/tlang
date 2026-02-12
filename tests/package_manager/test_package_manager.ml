@@ -277,4 +277,67 @@ min_version = "0.5.0"
     match Scaffold.parse_init_flags [] with
     | Error _ -> true | Ok _ -> false);
 
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Nix generator:\n";
+
+  let make_dep name url tag =
+    Package_types.{ dep_name = name; git_url = url; tag } in
+
+  test_pm "github URL to flake input" (fun () ->
+    match Nix_generator.git_url_to_flake_input
+      (make_dep "stats" "https://github.com/t-lang/stats" "v0.5.0") with
+    | Ok s -> s = "github:t-lang/stats/v0.5.0"
+    | Error _ -> false);
+
+  test_pm "gitlab URL to flake input" (fun () ->
+    match Nix_generator.git_url_to_flake_input
+      (make_dep "x" "https://gitlab.com/user/repo" "v1.0") with
+    | Ok s -> s = "gitlab:user/repo/v1.0"
+    | Error _ -> false);
+
+  test_pm "strip .git suffix from URL" (fun () ->
+    match Nix_generator.git_url_to_flake_input
+      (make_dep "x" "https://github.com/user/repo.git" "v1.0") with
+    | Ok s -> s = "github:user/repo/v1.0"
+    | Error _ -> false);
+
+  test_pm "generic git URL uses git+ prefix" (fun () ->
+    match Nix_generator.git_url_to_flake_input
+      (make_dep "x" "https://example.com/repo" "v1.0") with
+    | Ok s -> s = "git+https://example.com/repo?ref=v1.0"
+    | Error _ -> false);
+
+  test_pm "generate project flake with deps" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.5.0"
+      ~deps:[make_dep "stats" "https://github.com/t-lang/stats" "v0.5.0"] in
+    (* Check key parts are present *)
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "stats.url = \"github:t-lang/stats/v0.5.0\";"
+    && has "tPackages"
+    && has "stats.packages"
+    && has "t-lang.url"
+    && has "rstats-on-nix.cachix.org");
+
+  test_pm "generate project flake no deps" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"empty" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.5.0" ~deps:[] in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "t-lang.url" && not (has "tPackages"));
+
+  test_pm "generate package flake" (fun () ->
+    let flake = Nix_generator.generate_package_flake
+      ~package_name:"my-pkg" ~package_version:"0.2.0"
+      ~nixpkgs_date:"2026-02-10" ~t_version:"0.5.0" ~deps:[] in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "packages.default" && has "pname = \"t-my-pkg\""
+    && has "my-pkg" && has "version = \"0.2.0\"");
+
   print_newline ()
