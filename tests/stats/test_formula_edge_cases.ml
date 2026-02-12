@@ -14,7 +14,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* lm() with multi-variable formula rejects (currently single-var only) *)
   let csv_mv = "test_formula_edge_mv.csv" in
   let oc_mv = open_out csv_mv in
-  output_string oc_mv "y,x1,x2\n1,2,3\n4,5,6\n7,8,9\n10,11,12\n";
+  output_string oc_mv "y,x1,x2\n1,2,5\n4,5,3\n7,8,7\n10,11,2\n";
   close_out oc_mv;
 
   let env_mv = Eval.initial_env () in
@@ -22,15 +22,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let (v, _) = eval_string_env {|lm(data = df, formula = y ~ x1 + x2)|} env_mv in
   let result = Ast.Utils.value_to_string v in
-  (* lm currently only supports single-variable formulas *)
+  (* lm now supports multi-variable formulas *)
   let starts_with s prefix =
     String.length s >= String.length prefix &&
     String.sub s 0 (String.length prefix) = prefix
   in
-  if starts_with result "Error(" then begin
-    incr pass_count; Printf.printf "  ✓ lm() rejects multi-variable formula (single-var only)\n"
+  if not (starts_with result "Error(") then begin
+    incr pass_count; Printf.printf "  ✓ lm() accepts multi-variable formula\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() rejects multi-variable formula (single-var only)\n    Expected: Error\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ lm() accepts multi-variable formula\n    Expected: success\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_mv with _ -> ());
@@ -129,7 +129,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_perf) = eval_string_env (Printf.sprintf {|df_perf = read_csv("%s")|} csv_perf) env_perf in
   let (_, env_perf) = eval_string_env {|model = lm(data = df_perf, formula = y ~ x)|} env_perf in
 
-  let (v, _) = eval_string_env "model.r_squared" env_perf in
+  (* Access R² through _model_data *)
+  let (v, _) = eval_string_env "model._model_data.r_squared" env_perf in
   let result = Ast.Utils.value_to_string v in
   if result = "1." then begin
     incr pass_count; Printf.printf "  ✓ perfect fit has R²=1.0\n"
@@ -137,21 +138,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ perfect fit has R²=1.0\n    Expected: 1.\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "model.slope" env_perf in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ perfect fit slope=1.0\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ perfect fit slope=1.0\n    Expected: 1.\n    Got: %s\n" result
-  end;
-
-  let (v, _) = eval_string_env "model.intercept" env_perf in
-  let result = Ast.Utils.value_to_string v in
-  if result = "0." then begin
-    incr pass_count; Printf.printf "  ✓ perfect fit intercept=0.0\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ perfect fit intercept=0.0\n    Expected: 0.\n    Got: %s\n" result
-  end;
+  (* Access slope (estimate[1]) and intercept (estimate[0]) via _tidy_df *)
+  let (v, _) = eval_string_env "model._tidy_df.estimate" env_perf in
+  (match v with
+   | Ast.VVector arr when Array.length arr >= 2 ->
+     let slope_str = Ast.Utils.value_to_string arr.(1) in
+     let intercept_str = Ast.Utils.value_to_string arr.(0) in
+     (match float_of_string_opt slope_str with
+      | Some slope when Float.abs (slope -. 1.0) < 0.001 ->
+        incr pass_count; Printf.printf "  ✓ perfect fit slope=1.0\n"
+      | _ ->
+        incr fail_count; Printf.printf "  ✗ perfect fit slope=1.0\n    Expected: ~1.0\n    Got: %s\n" slope_str);
+     (match float_of_string_opt intercept_str with
+      | Some intercept when Float.abs intercept < 0.001 ->
+        incr pass_count; Printf.printf "  ✓ perfect fit intercept=0.0\n"
+      | _ ->
+        incr fail_count; Printf.printf "  ✗ perfect fit intercept=0.0\n    Expected: ~0.0\n    Got: %s\n" intercept_str)
+   | _ ->
+     incr fail_count; Printf.printf "  ✗ perfect fit slope=1.0\n    Could not extract estimates\n";
+     incr fail_count; Printf.printf "  ✗ perfect fit intercept=0.0\n    Could not extract estimates\n");
 
   (try Sys.remove csv_perf with _ -> ());
   print_newline ()

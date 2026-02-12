@@ -812,6 +812,8 @@ let initial_env () : environment =
   let env = Quantile.register env in
   let env = Cor.register env in
   let env = Lm.register env in
+  let env = Fit_stats.register env in
+  let env = Add_diagnostics.register env in
   let env = Min.register env in
   let env = Max.register env in
   (* Explain package *)

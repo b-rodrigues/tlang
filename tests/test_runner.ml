@@ -57,6 +57,7 @@ let () =
   Test_window.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_math.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_stats.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_broom_golden.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_explain_tests.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_cli.run_tests pass_count fail_count eval_string eval_string_env test;
 
