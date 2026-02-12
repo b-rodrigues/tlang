@@ -390,4 +390,40 @@ min_version = "0.5.0"
     List.exists (fun i -> let open Package_doctor in i.level = Error && 
                           String.contains i.message 'D' (* DESCRIPTION *)) issues);
 
+
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Release Manager:\n";
+
+  test_pm "get_package_version parses version" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-release-ver" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let ch = open_out (Filename.concat dir "DESCRIPTION.toml") in
+    output_string ch "[package]\nname = \"foo\"\nversion = \"1.2.3\"\ndescription=\"d\"\nauthors=[]\nlicense=\"MIT\"";
+    close_out ch;
+    let ver = Release_manager.get_package_version dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    ver = Ok "1.2.3");
+
+  test_pm "validate_changelog finds version entry" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-release-log" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let ch = open_out (Filename.concat dir "CHANGELOG.md") in
+    output_string ch "# Changelog\n\n## [1.2.3] - 2023-01-01\n\n- Initial release\n";
+    close_out ch;
+    let res = Release_manager.validate_changelog dir "1.2.3" in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    res = Ok ());
+
+  test_pm "validate_changelog fails on missing entry" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-release-nolog" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let ch = open_out (Filename.concat dir "CHANGELOG.md") in
+    output_string ch "# Changelog\n\n## [0.1.0]\n";
+    close_out ch;
+    let res = Release_manager.validate_changelog dir "1.2.3" in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    match res with Error _ -> true | Ok _ -> false);
+
   print_newline ()

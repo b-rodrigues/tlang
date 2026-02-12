@@ -111,6 +111,7 @@ let print_help () =
 
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  doctor            Check package configuration and health\n";
+  Printf.printf "  publish           Draft a new release (tag + push)\n";
   Printf.printf "  --help, -h        Show this help message\n";
   Printf.printf "  --version, -v     Show version information\n";
   Printf.printf "\nStandard packages (loaded by default):\n";
@@ -203,6 +204,39 @@ let cmd_test args =
 
 let cmd_doctor () =
   Package_doctor.run_doctor ()
+
+let cmd_publish () =
+  let dir = Sys.getcwd () in
+  match Release_manager.get_package_version dir with
+  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+  | Ok version ->
+      Printf.printf "Preparing to publish version %s...\n" version;
+      match Release_manager.validate_clean_git () with
+      | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+      | Ok () ->
+          match Release_manager.validate_tests_pass () with
+          | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+          | Ok () ->
+              match Release_manager.validate_changelog dir version with
+              | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+              | Ok () ->
+                  Printf.printf "\n✓ Validation complete.\n";
+                  Printf.printf "  - Git working directory is clean\n";
+                  Printf.printf "  - Tests pass\n";
+                  Printf.printf "  - CHANGELOG.md has entry for %s\n" version;
+                  Printf.printf "\nProceed to tag and push v%s? [y/N] " version;
+                  flush stdout;
+                  let response = try read_line () with End_of_file -> "n" in
+                  if String.lowercase_ascii response = "y" then begin
+                    match Release_manager.create_git_tag version with
+                    | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+                    | Ok tag ->
+                        Printf.printf "✓ Tag %s created locally.\n" tag;
+                        match Release_manager.push_git_tag tag with
+                        | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+                        | Ok () -> Printf.printf "✓ Tag %s pushed to remote.\n" tag
+                  end else
+                    Printf.printf "Aborted.\n"
 
 (* --- Interactive REPL --- *) 
 
@@ -297,6 +331,7 @@ let () =
   | _ :: "init" :: "project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
   | _ :: "doctor" :: _ -> cmd_doctor ()
+  | _ :: "publish" :: _ -> cmd_publish ()
   | _ :: "init" :: _ ->
       Printf.eprintf "Usage: t init package|project <name> [options]\n";
       Printf.eprintf "Run 't init package --help' for more information.\n";
