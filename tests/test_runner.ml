@@ -76,6 +76,9 @@ let () =
   Test_large_datasets.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_error_recovery.run_tests pass_count fail_count eval_string eval_string_env test;
 
+  (* Package manager tests *)
+  Test_package_manager.run_tests pass_count fail_count eval_string eval_string_env test;
+
   (* Summary *)
   let total = !pass_count + !fail_count in
   Printf.printf "=== Results: %d/%d passed ===\n" !pass_count total;
