@@ -106,6 +106,8 @@ let print_help () =
   Printf.printf "  repl              Start the interactive REPL\n";
   Printf.printf "  run <file.t>      Execute a T source file\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
+  Printf.printf "  init package <n>  Create a new T package\n";
+  Printf.printf "  init project <n>  Create a new T project\n";
   Printf.printf "  --help, -h        Show this help message\n";
   Printf.printf "  --version, -v     Show version information\n";
   Printf.printf "\nStandard packages (loaded by default):\n";
@@ -120,7 +122,9 @@ let print_help () =
   Printf.printf "\nExamples:\n";
   Printf.printf "  t repl\n";
   Printf.printf "  t run analysis.t\n";
-  Printf.printf "  t explain 'read_csv(\"data.csv\")'\n"
+  Printf.printf "  t explain 'read_csv(\"data.csv\")'\n";
+  Printf.printf "  t init package my-stats-pkg\n";
+  Printf.printf "  t init project my-analysis\n"
 
 let print_version () =
   Printf.printf "T language version %s\n" version
@@ -132,6 +136,22 @@ let cmd_run filename env =
       Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
   | Ast.VNull -> ()
   | v -> print_endline (Ast.Utils.value_to_string v)
+
+let cmd_init_package args =
+  match Scaffold.parse_init_flags args with
+  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+  | Ok opts ->
+    match Scaffold.scaffold_package opts with
+    | Ok () -> ()
+    | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+
+let cmd_init_project args =
+  match Scaffold.parse_init_flags args with
+  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+  | Ok opts ->
+    match Scaffold.scaffold_project opts with
+    | Ok () -> ()
+    | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
 let cmd_explain rest env =
   let is_json = List.mem "--json" rest in
@@ -260,6 +280,12 @@ let () =
   | _ :: "run" :: filename :: _ -> cmd_run filename env
   | _ :: "repl" :: _ -> cmd_repl env
   | _ :: "explain" :: rest -> cmd_explain rest env
+  | _ :: "init" :: "package" :: rest -> cmd_init_package rest
+  | _ :: "init" :: "project" :: rest -> cmd_init_project rest
+  | _ :: "init" :: _ ->
+      Printf.eprintf "Usage: t init package|project <name> [options]\n";
+      Printf.eprintf "Run 't init package --help' for more information.\n";
+      exit 1
   | _ :: "--help" :: _ | _ :: "-h" :: _ -> print_help ()
   | _ :: "--version" :: _ | _ :: "-v" :: _ -> print_version ()
   | [_] ->
