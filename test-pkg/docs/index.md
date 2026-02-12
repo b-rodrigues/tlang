@@ -1,0 +1,3 @@
+# test-pkg
+
+Package documentation.
