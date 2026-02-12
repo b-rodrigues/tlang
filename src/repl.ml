@@ -108,6 +108,9 @@ let print_help () =
   Printf.printf "  explain <expr>    Explain a value or expression\n";
   Printf.printf "  init package <n>  Create a new T package\n";
   Printf.printf "  init project <n>  Create a new T project\n";
+
+  Printf.printf "  test              Run tests in the current directory\n";
+  Printf.printf "  doctor            Check package configuration and health\n";
   Printf.printf "  --help, -h        Show this help message\n";
   Printf.printf "  --version, -v     Show version information\n";
   Printf.printf "\nStandard packages (loaded by default):\n";
@@ -192,7 +195,17 @@ let cmd_explain rest env =
         end
   end
 
-(* --- Interactive REPL --- *)
+let cmd_test args =
+  let verbose = List.mem "--verbose" args || List.mem "-v" args in
+  let dir = Sys.getcwd () in
+  let _result = Test_discovery.run_suite ~verbose dir in
+  ()
+
+let cmd_doctor () =
+  Package_doctor.run_doctor ()
+
+(* --- Interactive REPL --- *) 
+
 
 let cmd_repl env =
   Printf.printf "T, a reproducibility-first programming language for declarative\n";
@@ -282,6 +295,8 @@ let () =
   | _ :: "explain" :: rest -> cmd_explain rest env
   | _ :: "init" :: "package" :: rest -> cmd_init_package rest
   | _ :: "init" :: "project" :: rest -> cmd_init_project rest
+  | _ :: "test" :: rest -> cmd_test rest
+  | _ :: "doctor" :: _ -> cmd_doctor ()
   | _ :: "init" :: _ ->
       Printf.eprintf "Usage: t init package|project <name> [options]\n";
       Printf.eprintf "Run 't init package --help' for more information.\n";

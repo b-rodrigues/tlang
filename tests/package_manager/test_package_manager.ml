@@ -340,4 +340,54 @@ min_version = "0.5.0"
     has "packages.default" && has "pname = \"t-my-pkg\""
     && has "my-pkg" && has "version = \"0.2.0\"");
 
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Test Discovery:\n";
+
+  test_pm "discover_tests matches pattern" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-test-disc" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s/tests" (Filename.quote dir)));
+    let create f = 
+      let ch = open_out (Filename.concat dir ("tests/" ^ f)) in
+      close_out ch in
+    create "test-foo.t";
+    create "bar_test.t";
+    create "ignored.t";
+    create "test-nested.txt";
+    let found = Test_discovery.discover_tests (Filename.concat dir "tests") in
+    let base_names = List.map Filename.basename found in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    List.mem "test-foo.t" base_names && List.mem "bar_test.t" base_names &&
+    not (List.mem "ignored.t" base_names));
+
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Package Doctor:\n";
+
+  test_pm "validate_package_structure checks files" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-doctor-pkg" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s/src %s/tests" (Filename.quote dir) (Filename.quote dir)));
+    let create f = 
+      let ch = open_out (Filename.concat dir f) in
+      close_out ch in
+    create "DESCRIPTION.toml";
+    create "flake.nix";
+    create "README.md";
+    create "LICENSE";
+    create "src/main.t";
+    create "tests/test.t";
+    let issues = Package_doctor.validate_package_structure dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    issues = []); (* Should be empty if valid *)
+
+  test_pm "validate_package_structure detects missing config" (fun () ->
+    let dir = Filename.get_temp_dir_name () ^ "/t-doctor-bad" in
+    ignore (Sys.command (Printf.sprintf "mkdir -p %s" (Filename.quote dir)));
+    let issues = Package_doctor.validate_package_structure dir in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    List.exists (fun i -> let open Package_doctor in i.level = Error && 
+                          String.contains i.message 'D' (* DESCRIPTION *)) issues);
+
   print_newline ()

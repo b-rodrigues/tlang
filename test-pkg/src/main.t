@@ -1,0 +1,17 @@
+-- test-pkg — main source file
+--
+-- Add your T functions here.
+-- Each function should include documentation.
+--
+-- @doc
+-- Example function
+--
+-- @description
+-- A placeholder function that returns a greeting.
+--
+-- @param name A string with someone's name
+-- @return A greeting string
+-- @example
+-- greet("world")
+-- @end
+greet = \(name) -> "Hello, " + name + "!"
