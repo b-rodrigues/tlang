@@ -112,6 +112,7 @@ let print_help () =
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  doctor            Check package configuration and health\n";
   Printf.printf "  docs              Open package documentation\n";
+  Printf.printf "  doc               Generate documentation from source (--parse, --generate)\n";
   Printf.printf "  update            Update dependencies (nix flake update)\n";
   Printf.printf "  publish           Draft a new release (tag + push)\n";
   Printf.printf "  --help, -h        Show this help message\n";
@@ -266,6 +267,55 @@ let cmd_docs () =
       Printf.printf "Opening README as fallback...\n";
       Documentation_manager.open_docs dir
 
+let recursive_files dir =
+  let rec walk acc d =
+    let entries = Sys.readdir d in
+    Array.fold_left (fun acc e ->
+      let path = Filename.concat d e in
+      if Sys.is_directory path then walk acc path
+      else if Filename.check_suffix path ".ml" || Filename.check_suffix path ".t" then path :: acc
+      else acc
+    ) acc entries
+  in
+  walk [] dir
+
+let cmd_doc args =
+  let do_parse = List.mem "--parse" args || args = [] in
+  let do_gen = List.mem "--generate" args || args = [] in
+  let dir = Sys.getcwd () in
+  let src_dir = Filename.concat dir "src" in
+  
+  if do_parse then begin
+    Printf.printf "Parsing documentation from %s...\n" src_dir;
+    let files = recursive_files src_dir in
+    List.iter (fun f ->
+      let docs = Tdoc_parser.parse_file f in
+      List.iter Tdoc_registry.register docs
+    ) files;
+    Tdoc_registry.to_json_file (Filename.concat dir "docs.json"); (* Temp location *)
+    Printf.printf "Parsed %d functions.\n" (List.length (Tdoc_registry.get_all ()))
+  end;
+  
+  if do_gen then begin
+    Printf.printf "Generating Markdown in docs/reference...\n";
+    let out_dir = Filename.concat (Filename.concat dir "docs") "reference" in
+    ignore (Sys.command ("mkdir -p " ^ out_dir));
+    let entries = Tdoc_registry.get_all () in
+    List.iter (fun e ->
+      let content = Tdoc_markdown.generate_function_doc e in
+      let path = Filename.concat out_dir (e.name ^ ".md") in
+      let ch = open_out path in
+      output_string ch content;
+      close_out ch
+    ) entries;
+    (* Generate Index *)
+    let index_content = Tdoc_markdown.generate_index entries in
+    let ch = open_out (Filename.concat out_dir "index.md") in
+    output_string ch index_content;
+    close_out ch;
+    Printf.printf "Documentation generated in %s\n" out_dir
+  end
+
 let cmd_update () =
   match Update_manager.update_flake_lock () with
   | Ok () -> Printf.printf "Dependencies updated successfully.\n"
@@ -365,6 +415,7 @@ let () =
   | _ :: "test" :: rest -> cmd_test rest
   | _ :: "doctor" :: _ -> cmd_doctor ()
   | _ :: "docs" :: _ -> cmd_docs ()
+  | _ :: "doc" :: rest -> cmd_doc rest
   | _ :: "update" :: _ -> cmd_update ()
   | _ :: "publish" :: _ -> cmd_publish ()
 
