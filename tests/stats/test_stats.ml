@@ -94,44 +94,112 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p5_lm) env_lm in
   let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
 
+  (* lm() now returns a VDict with _tidy_df and _model_data *)
   let (v, _) = eval_string_env "type(model)" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = {|"Dict"|} then begin
-    incr pass_count; Printf.printf "  ✓ lm() returns a Dict\n"
+    incr pass_count; Printf.printf "  ✓ lm() returns a Dict (model object)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() returns a Dict\n    Expected: \"Dict\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ lm() returns a Dict (model object)\n    Expected: \"Dict\"\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "model.slope" env_lm in
+  (* Model object has accessible formula *)
+  let (v, _) = eval_string_env "model.formula" env_lm in
   let result = Ast.Utils.value_to_string v in
-  if result = "2." then begin
-    incr pass_count; Printf.printf "  ✓ lm() correct slope (2.0)\n"
+  if result = "y ~ x" then begin
+    incr pass_count; Printf.printf "  ✓ model.formula shows formula\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() correct slope (2.0)\n    Expected: 2.\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ model.formula shows formula\n    Expected: y ~ x\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "model.intercept" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "0." then begin
-    incr pass_count; Printf.printf "  ✓ lm() correct intercept (0.0)\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ lm() correct intercept (0.0)\n    Expected: 0.\n    Got: %s\n" result
-  end;
-
+  (* Model object has R² *)
   let (v, _) = eval_string_env "model.r_squared" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ lm() perfect R-squared (1.0)\n"
+    incr pass_count; Printf.printf "  ✓ model.r_squared = 1.0 (perfect fit)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() perfect R-squared (1.0)\n    Expected: 1.\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ model.r_squared = 1.0 (perfect fit)\n    Expected: 1.\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "model.n" env_lm in
+  (* Model object has nobs *)
+  let (v, _) = eval_string_env "model.nobs" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "5" then begin
-    incr pass_count; Printf.printf "  ✓ lm() correct observation count\n"
+    incr pass_count; Printf.printf "  ✓ model.nobs = 5\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() correct observation count\n    Expected: 5\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ model.nobs = 5\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  (* summary(model) returns a tidy DataFrame *)
+  let (v, _) = eval_string_env "type(summary(model))" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"DataFrame"|} then begin
+    incr pass_count; Printf.printf "  ✓ summary(model) returns a DataFrame\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ summary(model) returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+  end;
+
+  (* summary() has correct columns *)
+  let (v, _) = eval_string_env "colnames(summary(model))" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["term", "estimate", "std_error", "statistic", "p_value"]|} then begin
+    incr pass_count; Printf.printf "  ✓ summary() tidy DataFrame has correct columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ summary() tidy DataFrame has correct columns\n    Expected: [\"term\", \"estimate\", \"std_error\", \"statistic\", \"p_value\"]\n    Got: %s\n" result
+  end;
+
+  (* summary() has 2 rows (intercept + x) *)
+  let (v, _) = eval_string_env "nrow(summary(model))" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "2" then begin
+    incr pass_count; Printf.printf "  ✓ summary() has 2 rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ summary() has 2 rows\n    Expected: 2\n    Got: %s\n" result
+  end;
+
+  (* Test fit_stats() *)
+  let (v, _) = eval_string_env "type(fit_stats(model))" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"DataFrame"|} then begin
+    incr pass_count; Printf.printf "  ✓ fit_stats() returns a DataFrame\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ fit_stats() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "nrow(fit_stats(model))" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "1" then begin
+    incr pass_count; Printf.printf "  ✓ fit_stats() returns 1 row\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ fit_stats() returns 1 row\n    Expected: 1\n    Got: %s\n" result
+  end;
+
+  (* Test add_diagnostics() *)
+  let (v, _) = eval_string_env "type(add_diagnostics(model, data = df))" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"DataFrame"|} then begin
+    incr pass_count; Printf.printf "  ✓ add_diagnostics() returns a DataFrame\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ add_diagnostics() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "nrow(add_diagnostics(model, data = df))" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  ✓ add_diagnostics() preserves row count\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ add_diagnostics() preserves row count\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  (* Check add_diagnostics has diagnostic columns *)
+  let (v, _) = eval_string_env "colnames(add_diagnostics(model, data = df))" env_lm in
+  let result = Ast.Utils.value_to_string v in
+  let has_fitted = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string ".fitted") result 0 in true with Not_found -> false) in
+  let has_resid = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string ".resid") result 0 in true with Not_found -> false) in
+  if has_fitted && has_resid then begin
+    incr pass_count; Printf.printf "  ✓ add_diagnostics() adds .fitted and .resid columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ add_diagnostics() adds .fitted and .resid columns\n    Got columns: %s\n" result
   end;
 
   (* Formula type and printing tests *)

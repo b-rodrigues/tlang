@@ -35,26 +35,29 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_lm) env_lm in
   let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
 
-  (* slope should be 2.0 (y = 2x + 1) *)
-  let (v, _) = eval_string_env "model.slope" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "2." then begin
-    incr pass_count; Printf.printf "  ✓ lm() via bridge: correct slope (2.0)\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ lm() via bridge: correct slope\n    Expected: 2.\n    Got: %s\n" result
-  end;
-
-  (* intercept should be 1.0 *)
-  let (v, _) = eval_string_env "model.intercept" env_lm in
-  let result = Ast.Utils.value_to_string v in
-  if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ lm() via bridge: correct intercept (1.0)\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ lm() via bridge: correct intercept\n    Expected: 1.\n    Got: %s\n" result
-  end;
+  (* New lm() returns tidy model: check via _model_data *)
+  (* slope should be 2.0 (y = 2x + 1), accessed via tidy_df estimate[1] *)
+  let (v, _) = eval_string_env "model._tidy_df.estimate" env_lm in
+  (match v with
+   | Ast.VVector arr when Array.length arr >= 2 ->
+     let slope_str = Ast.Utils.value_to_string arr.(1) in
+     let intercept_str = Ast.Utils.value_to_string arr.(0) in
+     (match float_of_string_opt slope_str with
+      | Some slope when Float.abs (slope -. 2.0) < 0.001 ->
+        incr pass_count; Printf.printf "  ✓ lm() via bridge: correct slope (2.0)\n"
+      | _ ->
+        incr fail_count; Printf.printf "  ✗ lm() via bridge: correct slope\n    Expected: ~2.0\n    Got: %s\n" slope_str);
+     (match float_of_string_opt intercept_str with
+      | Some intercept when Float.abs (intercept -. 1.0) < 0.001 ->
+        incr pass_count; Printf.printf "  ✓ lm() via bridge: correct intercept (1.0)\n"
+      | _ ->
+        incr fail_count; Printf.printf "  ✗ lm() via bridge: correct intercept\n    Expected: ~1.0\n    Got: %s\n" intercept_str)
+   | _ ->
+     incr fail_count; Printf.printf "  ✗ lm() via bridge: correct slope\n    Could not extract estimates\n";
+     incr fail_count; Printf.printf "  ✗ lm() via bridge: correct intercept\n    Could not extract estimates\n");
 
   (* r_squared should be 1.0 for perfect linear data *)
-  let (v, _) = eval_string_env "model.r_squared" env_lm in
+  let (v, _) = eval_string_env "model._model_data.r_squared" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "1." then begin
     incr pass_count; Printf.printf "  ✓ lm() via bridge: perfect R-squared\n"

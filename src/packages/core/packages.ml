@@ -21,7 +21,7 @@ let core_package = {
 let stats_package = {
   name = "stats";
   description = "Statistical summaries and models";
-  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "min"; "max"];
+  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"];
 }
 
 let colcraft_package = {
