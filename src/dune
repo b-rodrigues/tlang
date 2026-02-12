@@ -46,8 +46,10 @@
    mean sd quantile cor lm min max
    ; packages/explain
    intent_fields intent_get t_explain explain_json
+   ; package_manager
+   package_types toml_parser template_engine scaffold
  )
- (libraries menhirLib)
+ (libraries menhirLib otoml unix)
 )
 
 (executable
