@@ -336,10 +336,31 @@ let cmd_update () =
 (* --- Interactive REPL --- *) 
 
 
+let get_nix_version () =
+  try
+    let ch = Unix.open_process_in "nix --version" in
+    let line = input_line ch in
+    match Unix.close_process_in ch with
+    | Unix.WEXITED 0 ->
+        let parts = String.split_on_char ' ' line in
+        let rec last = function
+          | [] -> ""
+          | [x] -> x
+          | _ :: xs -> last xs
+        in
+        Some (last parts)
+    | _ -> None
+  with _ -> None
+
 let cmd_repl env =
+  match get_nix_version () with
+  | None ->
+      Printf.eprintf "Nix not found! Install Nix to use T!\n";
+      exit 1
+  | Some nix_version ->
   Printf.printf "T, a reproducibility-first programming language for declarative\n";
   Printf.printf "data manipulation and statistical analysis.\n";
-  Printf.printf "Version %s\n" version;
+  Printf.printf "Version %s using Nix %s\n" version nix_version;
   Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
   Printf.printf "This software is in alpha and is entirely LLM-generated — caveat emptor.\n";
   Printf.printf "Website: https://tstats-project.org\n";

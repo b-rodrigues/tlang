@@ -55,7 +55,7 @@
 (executable
  (name repl)
  (modules repl)
- (libraries t_lang menhirLib linenoise)
+ (libraries t_lang menhirLib linenoise unix)
 )
 
 (menhir
