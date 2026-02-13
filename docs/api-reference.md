@@ -1346,13 +1346,47 @@ intent_get(i, "description")  -- "Customer analysis"
 | `<=` | Less or equal | `5 <= 5` → `true` |
 | `>=` | Greater or equal | `3 >= 2` → `true` |
 
-### Logical
+### Logical (Scalar Control Flow)
 
 | Operator | Description | Example |
 |----------|-------------|---------|
-| `and` | Logical AND | `true and true` → `true` |
-| `or` | Logical OR | `true or false` → `true` |
-| `not` | Logical NOT | `not false` → `true` |
+| `&&` | Logical AND (Short-circuit) | `true && false` → `false` |
+| `||` | Logical OR (Short-circuit) | `true || false` → `true` |
+| `!` | Logical NOT (Strict) | `!false` → `true` |
+
+### Bitwise / Boolean (Strict)
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `&` | Bitwise/Boolean AND | `true & false` → `false`, `3 & 1` → `1` |
+| `|` | Bitwise/Boolean OR | `true | false` → `true`, `3 | 1` → `3` |
+
+### Membership
+
+| Operator | Description | Logic |
+| :--- | :--- | :--- |
+| `in` | Check if element exists in list | `x in [a, b]` |
+
+**Examples**:
+```t
+1 in [1, 2, 3]       -- true
+4 in [1, 2, 3]       -- false
+[1, 4] in [1, 2, 3]  -- [true, false] (Broadcasting)
+```
+
+### Broadcasting
+
+Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
+
+| Operator | Description | Logic |
+| :--- | :--- | :--- |
+| `.+`, `.-`, `.*`, `./` | Element-wise Arithmetic | `[1, 2] .+ 1` -> `[2, 3]` |
+| `.==`, `.!=`, `.<`, `.>`, `.<=`, `.>=` | Element-wise Comparison | `[1, 2] .> 1` -> `[false, true]` |
+| `.&`, `.|` | Element-wise Logical/Bitwise | `[true, false] .& true` -> `[true, false]` |
+
+> [!NOTE]
+> `in` automatically broadcasts if the left-hand side is a list/vector. You do not need `.in`.
+
 
 ### Pipes
 

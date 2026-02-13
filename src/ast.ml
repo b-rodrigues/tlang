@@ -120,11 +120,13 @@ and expr =
   | BinOp of { op : binop; left : expr; right : expr }
   | UnOp of { op : unop; operand : expr }
   | DotAccess of { target : expr; field : string }
+  | BroadcastOp of { op : binop; left : expr; right : expr }
   | Block of expr list
   | PipelineDef of pipeline_node list
   | IntentDef of (string * expr) list
 
-and binop = Plus | Minus | Mul | Div | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | Pipe | MaybePipe | Formula
+and binop = Plus | Minus | Mul | Div | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
+  | In (* New: membership check *) | Pipe | MaybePipe | Formula
 and unop = Not | Neg
 and comp_clause = CFor of { var : symbol; iter : expr } | CFilter of expr
 
