@@ -3,7 +3,7 @@
 **T** is an experimental, reproducibility-first programming language for declarative data manipulation and statistical analysis. Inspired by R's tidyverse and OCaml's type discipline, T is designed for teams and researchers who want a small, focused, understandable language dedicated to data wrangling, statistics, and analysis—without general-purpose programming baggage.
 
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.1-orange.svg)](https://tstats-project.org)
+[![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.5-orange.svg)](https://tstats-project.org)
 
 The goal is not to create a clone of R’s tidyverse, but to design a new, strictly functional 
 programming language with deliberate constraints that make reproducibility a core design 
