@@ -224,27 +224,33 @@ let rec broadcast2 op v1 v2 =
 
   (* NDArray-Scalar *)
   | VNDArray arr, scalar ->
-      let out = Array.init (Array.length arr.data) (fun i ->
-        match eval_scalar_binop op (VFloat arr.data.(i)) scalar with
-        | VInt n -> float_of_int n
-        | VFloat f -> f
-        | _ -> nan
-      ) in
-      if Array.exists Float.is_nan out then
-        Error.type_error "NDArray operation requires numeric scalar values."
-      else VNDArray { shape = Array.copy arr.shape; data = out }
+      (match scalar with
+       | VError _ -> scalar
+       | _ ->
+           let out = Array.init (Array.length arr.data) (fun i ->
+             match eval_scalar_binop op (VFloat arr.data.(i)) scalar with
+             | VInt n -> float_of_int n
+             | VFloat f -> f
+             | _ -> nan
+           ) in
+           if Array.exists Float.is_nan out then
+             Error.type_error "NDArray operation requires numeric scalar values."
+           else VNDArray { shape = Array.copy arr.shape; data = out })
 
   (* Scalar-NDArray *)
   | scalar, VNDArray arr ->
-      let out = Array.init (Array.length arr.data) (fun i ->
-        match eval_scalar_binop op scalar (VFloat arr.data.(i)) with
-        | VInt n -> float_of_int n
-        | VFloat f -> f
-        | _ -> nan
-      ) in
-      if Array.exists Float.is_nan out then
-        Error.type_error "NDArray operation requires numeric scalar values."
-      else VNDArray { shape = Array.copy arr.shape; data = out }
+      (match scalar with
+       | VError _ -> scalar
+       | _ ->
+           let out = Array.init (Array.length arr.data) (fun i ->
+             match eval_scalar_binop op scalar (VFloat arr.data.(i)) with
+             | VInt n -> float_of_int n
+             | VFloat f -> f
+             | _ -> nan
+           ) in
+           if Array.exists Float.is_nan out then
+             Error.type_error "NDArray operation requires numeric scalar values."
+           else VNDArray { shape = Array.copy arr.shape; data = out })
 
   (* Scalar-Scalar *)
   | s1, s2 ->
