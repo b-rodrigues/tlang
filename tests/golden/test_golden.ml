@@ -12,17 +12,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Golden test 2: Pipeline with function composition *)
   test "golden: function pipeline"
-    "double = \\(x) x * 2\ninc = \\(x) x + 1\np = pipeline {\n  x = 5\n  y = x |> double\n  z = y |> inc\n}; p.z"
+    "double = \\(n) n * 2\ninc = \\(m) m + 1\np = pipeline {\n  x = 5\n  y = x |> double\n  z = y |> inc\n}; p.z"
     "11";
 
   (* Golden test 3: Pipeline with list operations *)
   test "golden: list pipeline"
-    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(x) x * x)\n  total = sum(squares)\n  count = length(data)\n}; p.total"
+    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; p.total"
     "55";
 
   (* Golden test 4: Pipeline node count *)
   test "golden: list pipeline count"
-    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(x) x * x)\n  total = sum(squares)\n  count = length(data)\n}; p.count"
+    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; p.count"
     "5";
 
   (* Golden test 5: Pipeline representation *)

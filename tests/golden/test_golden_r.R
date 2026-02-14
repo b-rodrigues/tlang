@@ -326,6 +326,114 @@ test_that("WINDOW CUMULATIVE: cumall and cumany", {
 })
 
 # ============================================================================
+# Test Suite 14: NDARRAY OPERATIONS
+# ============================================================================
+
+test_that("NDARRAY: create 1D array", {
+  compare_csvs("ndarray_1d")
+})
+
+test_that("NDARRAY: create 2D array (2x3)", {
+  compare_csvs("ndarray_2d_2x3")
+})
+
+test_that("NDARRAY: create 3D array (2x3x4)", {
+  compare_csvs("ndarray_3d_2x3x4")
+})
+
+test_that("NDARRAY: reshape 3x4", {
+  compare_csvs("ndarray_reshape_3x4")
+})
+
+test_that("NDARRAY: reshape to 2x6", {
+  compare_csvs("ndarray_reshape_2x6")
+})
+
+# ============================================================================
+# Test Suite 15: MATRIX MULTIPLICATION
+# ============================================================================
+
+test_that("MATMUL: 2x2 matrices", {
+  compare_csvs("matmul_2x2")
+})
+
+test_that("MATMUL: 2x3 × 3x2", {
+  compare_csvs("matmul_2x3_3x2")
+})
+
+test_that("MATMUL: with identity matrix", {
+  compare_csvs("matmul_identity")
+})
+
+test_that("MATMUL: chained multiplications", {
+  compare_csvs("matmul_chain")
+})
+
+test_that("MATMUL: operations on result", {
+  compare_csvs("matmul_then_add")
+})
+
+# ============================================================================
+# Test Suite 16: KRONECKER PRODUCT
+# ============================================================================
+
+test_that("KRON: 2x2 matrices", {
+  compare_csvs("kron_2x2")
+})
+
+test_that("KRON: 2x3 ⊗ 2x2", {
+  compare_csvs("kron_2x3_2x2")
+})
+
+test_that("KRON: with identity matrix", {
+  compare_csvs("kron_identity")
+})
+
+# ============================================================================
+# Test Suite 17: ELEMENT-WISE OPERATIONS
+# ============================================================================
+
+test_that("ELEMENTWISE: array + scalar", {
+  compare_csvs("ndarray_add_scalar")
+})
+
+test_that("ELEMENTWISE: array * scalar", {
+  compare_csvs("ndarray_mul_scalar")
+})
+
+test_that("ELEMENTWISE: array - scalar", {
+  compare_csvs("ndarray_sub_scalar")
+})
+
+test_that("ELEMENTWISE: array / scalar", {
+  compare_csvs("ndarray_div_scalar")
+})
+
+test_that("ELEMENTWISE: array + array", {
+  compare_csvs("ndarray_add_array")
+})
+
+test_that("ELEMENTWISE: array * array", {
+  compare_csvs("ndarray_mul_array")
+})
+
+# ============================================================================
+# Test Suite 18: COMPARISON OPERATIONS
+# ============================================================================
+
+test_that("COMPARISON: array > scalar", {
+  compare_csvs("ndarray_gt_scalar")
+})
+
+test_that("COMPARISON: array == scalar", {
+  compare_csvs("ndarray_eq_scalar")
+})
+
+test_that("COMPARISON: array <= scalar", {
+  compare_csvs("ndarray_le_scalar")
+})
+
+# ============================================================================
 # SUMMARY REPORT
 # ============================================================================
 

@@ -41,9 +41,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Core Semantics: Pipe operator edge cases:\n";
 
   test "pipe to identity" "42 |> \\(x) x" "42";
-  test "long pipe chain" "1 |> \\(x) x + 1 |> \\(x) x + 1 |> \\(x) x + 1" "4";
+  test "long pipe chain" "1 |> \\(n) n + 1 |> \\(m) m + 1 |> \\(p) p + 1" "4";
   test "pipe with list operations"
-    "[1, 2, 3] |> map(\\(x) x * 2) |> map(\\(x) x + 1) |> sum"
+    "[1, 2, 3] |> map(\\(n) n * 2) |> map(\\(m) m + 1) |> sum"
     "15";
   print_newline ();
 

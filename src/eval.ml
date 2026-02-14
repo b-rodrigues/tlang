@@ -29,14 +29,16 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
       }
   | ListLit items ->
       ListLit (List.map (fun (n, e) -> (n, desugar_nse_expr e)) items)
-  | DictLit pairs ->
-      DictLit (List.map (fun (k, e) -> (k, desugar_nse_expr e)) pairs)
+  | DictLit entries ->
+      DictLit (List.map (fun (k, v) -> (k, desugar_nse_expr v)) entries)
   | DotAccess { target; field } ->
       DotAccess { target = desugar_nse_expr target; field }
   | Block exprs ->
       Block (List.map desugar_nse_expr exprs)
-  (* Other expression types remain unchanged *)
-  | Value _ | Var _ | Lambda _ | ListComp _ | PipelineDef _ | IntentDef _ as e -> e
+  | _ -> expr
+
+(** Global flag to control warning output (e.g., for tests) *)
+let show_warnings = ref true
 
 (** Check if an expression uses NSE (contains $field references) *)
 let rec uses_nse (expr : Ast.expr) : bool =
@@ -224,27 +226,33 @@ let rec broadcast2 op v1 v2 =
 
   (* NDArray-Scalar *)
   | VNDArray arr, scalar ->
-      let out = Array.init (Array.length arr.data) (fun i ->
-        match eval_scalar_binop op (VFloat arr.data.(i)) scalar with
-        | VInt n -> float_of_int n
-        | VFloat f -> f
-        | _ -> nan
-      ) in
-      if Array.exists Float.is_nan out then
-        Error.type_error "NDArray operation requires numeric scalar values."
-      else VNDArray { shape = Array.copy arr.shape; data = out }
+      (match scalar with
+       | VError _ -> scalar
+       | _ ->
+           let out = Array.init (Array.length arr.data) (fun i ->
+             match eval_scalar_binop op (VFloat arr.data.(i)) scalar with
+             | VInt n -> float_of_int n
+             | VFloat f -> f
+             | _ -> nan
+           ) in
+           if Array.exists Float.is_nan out then
+             Error.type_error "NDArray operation requires numeric scalar values."
+           else VNDArray { shape = Array.copy arr.shape; data = out })
 
   (* Scalar-NDArray *)
   | scalar, VNDArray arr ->
-      let out = Array.init (Array.length arr.data) (fun i ->
-        match eval_scalar_binop op scalar (VFloat arr.data.(i)) with
-        | VInt n -> float_of_int n
-        | VFloat f -> f
-        | _ -> nan
-      ) in
-      if Array.exists Float.is_nan out then
-        Error.type_error "NDArray operation requires numeric scalar values."
-      else VNDArray { shape = Array.copy arr.shape; data = out }
+      (match scalar with
+       | VError _ -> scalar
+       | _ ->
+           let out = Array.init (Array.length arr.data) (fun i ->
+             match eval_scalar_binop op scalar (VFloat arr.data.(i)) with
+             | VInt n -> float_of_int n
+             | VFloat f -> f
+             | _ -> nan
+           ) in
+           if Array.exists Float.is_nan out then
+             Error.type_error "NDArray operation requires numeric scalar values."
+           else VNDArray { shape = Array.copy arr.shape; data = out })
 
   (* Scalar-Scalar *)
   | s1, s2 ->
@@ -773,7 +781,8 @@ let eval_statement (env : environment) (stmt : stmt) : value * environment =
         (make_error NameError msg, env)
       else
         let v = eval_expr env expr in
-        Printf.eprintf "Warning: overwriting variable '%s'\n" name;
+        if !show_warnings then
+          Printf.eprintf "Warning: overwriting variable '%s'\n" name;
         let new_env = Env.add name v env in
         (match v with
          | VError _ -> (v, new_env)

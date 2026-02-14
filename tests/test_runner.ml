@@ -4,6 +4,9 @@
 let pass_count = ref 0
 let fail_count = ref 0
 
+let () =
+  Eval.show_warnings := false
+
 let eval_string input =
   let env = Eval.initial_env () in
   let lexbuf = Lexing.from_string input in
