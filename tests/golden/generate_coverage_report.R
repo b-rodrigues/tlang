@@ -8,8 +8,8 @@ library(readr)
 expected_dir <- "tests/golden/expected"
 t_output_dir <- "tests/golden/t_outputs"
 
-expected_files <- list.files(expected_dir, pattern = "*.csv")
-t_output_files <- list.files(t_output_dir, pattern = "*.csv")
+expected_files <- list.files(expected_dir, pattern = "\\.csv$")
+t_output_files <- list.files(t_output_dir, pattern = "\\.csv$")
 
 coverage <- tibble(
   test_name = gsub(".csv$", "", expected_files)
