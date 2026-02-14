@@ -213,46 +213,69 @@ let rec broadcast2 op v1 v2 =
       if a1.shape <> a2.shape then
         Error.make_error ValueError "NDArray shapes must match for element-wise operations."
       else
+        let first_error = ref None in
         let out = Array.init (Array.length a1.data) (fun i ->
           match eval_scalar_binop op (VFloat a1.data.(i)) (VFloat a2.data.(i)) with
           | VInt n -> float_of_int n
           | VFloat f -> f
           | VBool b -> if b then 1.0 else 0.0
+          | (VError _ as err) ->
+              first_error := Some err;
+              nan
           | _ -> nan
         ) in
-        if Array.exists Float.is_nan out then
-          Error.type_error "NDArray element-wise operation produced non-numeric results."
-        else VNDArray { shape = Array.copy a1.shape; data = out }
+        match !first_error with
+        | Some err -> err
+        | None ->
+            if Array.exists Float.is_nan out then
+              Error.type_error "NDArray element-wise operation produced non-numeric results."
+            else VNDArray { shape = Array.copy a1.shape; data = out }
 
   (* NDArray-Scalar *)
   | VNDArray arr, scalar ->
       (match scalar with
        | VError _ -> scalar
        | _ ->
+           let first_error = ref None in
            let out = Array.init (Array.length arr.data) (fun i ->
              match eval_scalar_binop op (VFloat arr.data.(i)) scalar with
              | VInt n -> float_of_int n
              | VFloat f -> f
+             | VBool b -> if b then 1.0 else 0.0
+             | (VError _ as err) ->
+                 first_error := Some err;
+                 nan
              | _ -> nan
            ) in
-           if Array.exists Float.is_nan out then
-             Error.type_error "NDArray operation requires numeric scalar values."
-           else VNDArray { shape = Array.copy arr.shape; data = out })
+           match !first_error with
+           | Some err -> err
+           | None ->
+               if Array.exists Float.is_nan out then
+                 Error.type_error "NDArray operation requires numeric scalar values."
+               else VNDArray { shape = Array.copy arr.shape; data = out })
 
   (* Scalar-NDArray *)
   | scalar, VNDArray arr ->
       (match scalar with
        | VError _ -> scalar
        | _ ->
+           let first_error = ref None in
            let out = Array.init (Array.length arr.data) (fun i ->
              match eval_scalar_binop op scalar (VFloat arr.data.(i)) with
              | VInt n -> float_of_int n
              | VFloat f -> f
+             | VBool b -> if b then 1.0 else 0.0
+             | (VError _ as err) ->
+                 first_error := Some err;
+                 nan
              | _ -> nan
            ) in
-           if Array.exists Float.is_nan out then
-             Error.type_error "NDArray operation requires numeric scalar values."
-           else VNDArray { shape = Array.copy arr.shape; data = out })
+           match !first_error with
+           | Some err -> err
+           | None ->
+               if Array.exists Float.is_nan out then
+                 Error.type_error "NDArray operation requires numeric scalar values."
+               else VNDArray { shape = Array.copy arr.shape; data = out })
 
   (* Scalar-Scalar *)
   | s1, s2 ->
