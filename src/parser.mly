@@ -36,7 +36,7 @@ type param_info = { names: string list; has_variadic: bool }
 
 /* PRECEDENCE AND ASSOCIATIVITY (lowest to highest) */
 %left TILDE
-%left PIPE MAYBE_PIPE
+
 %left OR
 %left AND
 %left BITOR
@@ -47,7 +47,7 @@ type param_info = { names: string list; has_variadic: bool }
 %left DOT_PLUS DOT_MINUS
 %left STAR SLASH
 %left DOT_MUL DOT_DIV
-%nonassoc UMINUS UNOT
+
 
 /* ENTRY POINT */
 %start <Ast.program> program
