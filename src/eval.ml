@@ -224,12 +224,13 @@ let rec broadcast2 op v1 v2 =
               nan
           | _ -> nan
         ) in
-        match !first_error with
+        begin match !first_error with
         | Some err -> err
         | None ->
             if Array.exists Float.is_nan out then
               Error.type_error "NDArray element-wise operation produced non-numeric results."
             else VNDArray { shape = Array.copy a1.shape; data = out }
+        end
 
   (* NDArray-Scalar *)
   | VNDArray arr, scalar ->
