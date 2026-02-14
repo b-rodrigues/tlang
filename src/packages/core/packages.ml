@@ -33,7 +33,7 @@ let colcraft_package = {
 let math_package = {
   name = "math";
   description = "Pure numerical primitives";
-  functions = ["sqrt"; "abs"; "log"; "exp"; "pow"; "ndarray"; "shape"; "reshape"; "matmul"; "kron"];
+  functions = ["sqrt"; "abs"; "log"; "exp"; "pow"; "ndarray"; "shape"; "reshape"; "matmul"; "diag"; "inv"; "kron"];
 }
 
 let base_package = {

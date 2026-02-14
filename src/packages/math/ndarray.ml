@@ -136,6 +136,89 @@ let matrix_multiply args =
           VNDArray { shape = [|m; n|]; data = out }
   | _ -> Error.type_error "matmul expects two NDArrays."
 
+let diag args =
+  match args with
+  | [VNDArray arr] ->
+      if Array.length arr.shape = 1 then
+        let n = arr.shape.(0) in
+        let out = Array.make (n * n) 0.0 in
+        for i = 0 to n - 1 do
+          out.(i * n + i) <- arr.data.(i)
+        done;
+        VNDArray { shape = [|n; n|]; data = out }
+      else if Array.length arr.shape = 2 then
+        let rows = arr.shape.(0) and cols = arr.shape.(1) in
+        let d = min rows cols in
+        let out = Array.init d (fun i -> arr.data.(i * cols + i)) in
+        VNDArray { shape = [|d|]; data = out }
+      else
+        Error.make_error ValueError "diag expects a 1D or 2D NDArray."
+  | _ -> Error.type_error "diag expects an NDArray."
+
+let matrix_inverse args =
+  let eps = 1e-12 in
+  match args with
+  | [VNDArray arr] ->
+      if Array.length arr.shape <> 2 then
+        Error.make_error ValueError "inv expects a 2D NDArray."
+      else
+        let n = arr.shape.(0) and m = arr.shape.(1) in
+        if n <> m then
+          Error.make_error ValueError "inv expects a square matrix."
+        else
+          let aug = Array.make_matrix n (2 * n) 0.0 in
+          for i = 0 to n - 1 do
+            for j = 0 to n - 1 do
+              aug.(i).(j) <- arr.data.(i * n + j)
+            done;
+            aug.(i).(n + i) <- 1.0
+          done;
+          let singular = ref false in
+          for col = 0 to n - 1 do
+            let pivot_row = ref col in
+            let pivot_abs = ref (Float.abs aug.(col).(col)) in
+            for r = col + 1 to n - 1 do
+              let v = Float.abs aug.(r).(col) in
+              if v > !pivot_abs then begin
+                pivot_abs := v;
+                pivot_row := r
+              end
+            done;
+            if !pivot_abs < eps then
+              singular := true
+            else begin
+              if !pivot_row <> col then begin
+                let tmp = aug.(col) in
+                aug.(col) <- aug.(!pivot_row);
+                aug.(!pivot_row) <- tmp
+              end;
+              let pivot = aug.(col).(col) in
+              for c = 0 to (2 * n) - 1 do
+                aug.(col).(c) <- aug.(col).(c) /. pivot
+              done;
+              for r = 0 to n - 1 do
+                if r <> col then begin
+                  let factor = aug.(r).(col) in
+                  if Float.abs factor > 0.0 then
+                    for c = 0 to (2 * n) - 1 do
+                      aug.(r).(c) <- aug.(r).(c) -. factor *. aug.(col).(c)
+                    done
+                end
+              done
+            end
+          done;
+          if !singular then
+            Error.make_error ValueError "inv matrix is singular or ill-conditioned."
+          else
+            let out = Array.make (n * n) 0.0 in
+            for i = 0 to n - 1 do
+              for j = 0 to n - 1 do
+                out.(i * n + j) <- aug.(i).(n + j)
+              done
+            done;
+            VNDArray { shape = [|n; n|]; data = out }
+  | _ -> Error.type_error "inv expects an NDArray."
+
 let kron args =
   match args with
   | [VNDArray a; VNDArray b] ->
@@ -183,6 +266,10 @@ let register env =
       (make_builtin 1 (fun args _env -> data_of args)) env in
   let env = Env.add "matmul"
       (make_builtin 2 (fun args _env -> matrix_multiply args)) env in
+  let env = Env.add "diag"
+      (make_builtin 1 (fun args _env -> diag args)) env in
+  let env = Env.add "inv"
+      (make_builtin 1 (fun args _env -> matrix_inverse args)) env in
   let env = Env.add "kron"
       (make_builtin 2 (fun args _env -> kron args)) env in
   env

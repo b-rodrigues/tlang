@@ -390,7 +390,23 @@ test_that("KRON: with identity matrix", {
 })
 
 # ============================================================================
-# Test Suite 17: ELEMENT-WISE OPERATIONS
+# Test Suite 17: DIAG/INV OPERATIONS
+# ============================================================================
+
+test_that("DIAG: from vector", {
+  compare_csvs("diag_from_vector")
+})
+
+test_that("DIAG: from matrix", {
+  compare_csvs("diag_from_matrix")
+})
+
+test_that("INV: 2x2 matrix", {
+  compare_csvs("inv_2x2")
+})
+
+# ============================================================================
+# Test Suite 18: ELEMENT-WISE OPERATIONS
 # ============================================================================
 
 test_that("ELEMENTWISE: array + scalar", {
