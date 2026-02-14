@@ -1,5 +1,5 @@
 -- Test: Reshape array from 3x4 to 2x6
-arr = ndarray([[1,2,3,4],[5,6,7,8],[9,10,11,12]])
+arr = ndarray([[1, 7, 2, 8], [3, 9, 4, 10], [5, 11, 6, 12]])
 arr_reshaped = reshape(arr, [2, 6])
 s = shape(arr_reshaped)
 d = ndarray_data(arr_reshaped)
