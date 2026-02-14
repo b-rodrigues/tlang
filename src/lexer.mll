@@ -61,7 +61,6 @@ rule token = parse
   | '=' { EQUALS }   | "->" { ARROW }
   | "..." { DOTDOTDOT }
   | "?|>" { MAYBE_PIPE }
-  | "?|>" { MAYBE_PIPE }
   | "|>" { PIPE }
   (* Dotted operators *)
   | ".+"  { DOT_PLUS }
