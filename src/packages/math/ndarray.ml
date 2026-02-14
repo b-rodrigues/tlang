@@ -73,7 +73,11 @@ let ndarray_create args =
       (match infer_shape_and_flatten data with
        | Error e -> e
        | Ok (shape, flat) ->
-           VNDArray { shape = Array.of_list shape; data = Array.of_list flat })
+           let shape_arr = Array.of_list shape in
+           if Array.exists (fun d -> d <= 0) shape_arr then
+             Error.make_error ValueError "NDArray shape dimensions must be strictly positive."
+           else
+             VNDArray { shape = shape_arr; data = Array.of_list flat })
   | [data; shape_v] ->
       (match parse_shape shape_v with
        | None -> Error.type_error "ndarray(shape=...) expects shape as a List of positive Ints."
@@ -81,13 +85,16 @@ let ndarray_create args =
            (match infer_shape_and_flatten data with
             | Error e -> e
             | Ok (_, flat) ->
-                let expected = shape_product shape in
-                if expected <> List.length flat then
-                  Error.make_error ValueError
-                    (Printf.sprintf "Shape [%s] requires %d elements, got %d."
-                       (shape |> Array.to_list |> List.map string_of_int |> String.concat ", ")
-                       expected (List.length flat))
-                else VNDArray { shape; data = Array.of_list flat }))
+                (try
+                   let expected = shape_product shape in
+                   if expected <> List.length flat then
+                     Error.make_error ValueError
+                       (Printf.sprintf "Shape [%s] requires %d elements, got %d."
+                          (shape |> Array.to_list |> List.map string_of_int |> String.concat ", ")
+                          expected (List.length flat))
+                   else VNDArray { shape; data = Array.of_list flat }
+                 with Invalid_argument msg ->
+                   Error.make_error ValueError msg)))
   | _ -> Error.make_error ArityError "ndarray expects 1 or 2 arguments: ndarray(data[, shape])."
 
 let reshape args =
@@ -96,10 +103,13 @@ let reshape args =
       (match parse_shape shape_v with
        | None -> Error.type_error "reshape expects shape as a List of positive Ints."
        | Some shape ->
-           let expected = shape_product shape in
-           if expected <> Array.length arr.data then
-             Error.make_error ValueError "reshape target shape must preserve element count."
-           else VNDArray { shape; data = Array.copy arr.data })
+           (try
+              let expected = shape_product shape in
+              if expected <> Array.length arr.data then
+                Error.make_error ValueError "reshape target shape must preserve element count."
+              else VNDArray { shape; data = Array.copy arr.data }
+            with Invalid_argument msg ->
+              Error.make_error ValueError msg))
   | _ -> Error.type_error "reshape expects (NDArray, shape)."
 
 let matrix_multiply args =

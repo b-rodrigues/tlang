@@ -87,6 +87,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "ndarray broadcast add" "ndarray([1,2,3]) .+ 1" "NDArray(shape=[3], data=[2., 3., 4.])";
   
   (* Error case tests *)
+  test "ndarray with empty list" "ndarray([])" {|Error(ValueError: "NDArray shape dimensions must be strictly positive.")|};
   test "ndarray with NA values" "ndarray([1, NA, 3])" {|Error(TypeError: "NDArray cannot contain NA values. Handle missingness explicitly.")|};
   test "ndarray with non-numeric values" {|ndarray([1, "a", 3])|} {|Error(TypeError: "NDArray elements must be numeric.")|};
   test "ndarray with ragged lists" "ndarray([[1,2],[3]])" {|Error(ValueError: "Cannot create NDArray from ragged (non-rectangular) list.")|};
