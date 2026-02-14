@@ -77,4 +77,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "sqrt in pipe" "4 |> sqrt" "2.";
   test "exp and log roundtrip" "log(exp(1.0))" "1.";
   test "chained math" "pow(2, 10) |> sqrt" "32.";
+  print_newline ();
+
+  Printf.printf "Phase 5 — Math: NDArray operations:\n";
+  test "ndarray infer shape" "shape(ndarray([[1,2],[3,4]]))" "[2, 2]";
+  test "reshape" "shape(reshape(ndarray([1,2,3,4]), [2,2]))" "[2, 2]";
+  test "matmul" "matmul(ndarray([[1,2],[3,4]]), ndarray([[5,6],[7,8]]))" "NDArray(shape=[2, 2], data=[19., 22., 43., 50.])";
+  test "kron" "kron(ndarray([[1,2],[3,4]]), ndarray([[0,5],[6,7]]))" "NDArray(shape=[4, 4], data=[0., 5., 0., 10., 6., 7., 12., 14., 0., 15., 0., 20., 18., 21., 24., 28.])";
+  test "ndarray broadcast add" "ndarray([1,2,3]) .+ 1" "NDArray(shape=[3], data=[2., 3., 4.])";
   print_newline ()

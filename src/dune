@@ -41,7 +41,7 @@
    t_select t_filter mutate arrange group_by ungroup summarize
    window_rank window_offset window_cumulative
    ; packages/math
-   t_sqrt t_abs t_log t_exp pow
+   t_sqrt t_abs t_log t_exp pow ndarray
    ; packages/stats
    mean sd quantile cor lm fit_stats add_diagnostics summary min max
    ; packages/explain

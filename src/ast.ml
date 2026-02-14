@@ -44,6 +44,11 @@ and dataframe = {
   group_keys : string list;
 }
 
+and ndarray = {
+  shape : int array;
+  data : float array;
+}
+
 (** Phase 6: Intent block — structured metadata for LLM-native workflows *)
 and intent_block = {
   intent_fields : (string * string) list;  (* Key-value pairs of metadata *)
@@ -82,6 +87,7 @@ and value =
   | VList of (string option * value) list
   | VDict of (string * value) list
   | VVector of value array
+  | VNDArray of ndarray
   | VDataFrame of dataframe
   | VPipeline of pipeline_result
   (* Functional Types *)
@@ -192,7 +198,7 @@ module Utils = struct
     | VInt _ -> "Int" | VFloat _ -> "Float"
     | VBool _ -> "Bool" | VString _ -> "String"
     | VSymbol _ -> "Symbol" | VList _ -> "List" | VDict _ -> "Dict"
-    | VVector _ -> "Vector" | VDataFrame _ -> "DataFrame"
+    | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
     | VPipeline _ -> "Pipeline"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
@@ -230,6 +236,10 @@ module Utils = struct
     | VVector arr ->
         let items = Array.to_list arr |> List.map value_to_string in
         "Vector[" ^ String.concat ", " items ^ "]"
+    | VNDArray { shape; data } ->
+        let shape_s = shape |> Array.to_list |> List.map string_of_int |> String.concat ", " in
+        let data_s = data |> Array.to_list |> List.map string_of_float |> String.concat ", " in
+        Printf.sprintf "NDArray(shape=[%s], data=[%s])" shape_s data_s
     | VDataFrame { arrow_table; group_keys } ->
         let col_names = Arrow_table.column_names arrow_table in
         let base = Printf.sprintf "DataFrame(%d rows x %d cols: [%s])"

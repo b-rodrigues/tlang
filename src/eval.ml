@@ -206,10 +206,49 @@ let rec broadcast2 op v1 v2 =
   | scalar, VList l ->
       VList (List.map (fun (n, x) -> (n, broadcast2 op scalar x)) l)
 
+  (* NDArray-NDArray elementwise *)
+  | VNDArray a1, VNDArray a2 ->
+      if a1.shape <> a2.shape then
+        Error.make_error ValueError "NDArray shapes must match for element-wise operations."
+      else
+        let out = Array.init (Array.length a1.data) (fun i ->
+          match eval_scalar_binop op (VFloat a1.data.(i)) (VFloat a2.data.(i)) with
+          | VInt n -> float_of_int n
+          | VFloat f -> f
+          | VBool b -> if b then 1.0 else 0.0
+          | _ -> nan
+        ) in
+        if Array.exists Float.is_nan out then
+          Error.type_error "NDArray element-wise operation produced non-numeric results."
+        else VNDArray { shape = Array.copy a1.shape; data = out }
+
+  (* NDArray-Scalar *)
+  | VNDArray arr, scalar ->
+      let out = Array.init (Array.length arr.data) (fun i ->
+        match eval_scalar_binop op (VFloat arr.data.(i)) scalar with
+        | VInt n -> float_of_int n
+        | VFloat f -> f
+        | _ -> nan
+      ) in
+      if Array.exists Float.is_nan out then
+        Error.type_error "NDArray operation requires numeric scalar values."
+      else VNDArray { shape = Array.copy arr.shape; data = out }
+
+  (* Scalar-NDArray *)
+  | scalar, VNDArray arr ->
+      let out = Array.init (Array.length arr.data) (fun i ->
+        match eval_scalar_binop op scalar (VFloat arr.data.(i)) with
+        | VInt n -> float_of_int n
+        | VFloat f -> f
+        | _ -> nan
+      ) in
+      if Array.exists Float.is_nan out then
+        Error.type_error "NDArray operation requires numeric scalar values."
+      else VNDArray { shape = Array.copy arr.shape; data = out }
+
   (* Scalar-Scalar *)
   | s1, s2 ->
       eval_scalar_binop op s1 s2
-
 
 (** Extract variable names from a formula expression.
     Supports: x, x + y, x + y + z
@@ -944,6 +983,7 @@ let initial_env () : environment =
   let env = T_log.register env in
   let env = T_exp.register env in
   let env = Pow.register env in
+  let env = Ndarray.register env in
   (* Stats package *)
   let env = Mean.register env in
   let env = Sd.register env in
