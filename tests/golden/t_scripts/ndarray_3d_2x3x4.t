@@ -6,9 +6,9 @@ arr = ndarray([
 s = shape(arr)
 d = ndarray_data(arr)
 -- Output: shape and flattened data
-result = List(
-  shape = s |> map(\n -> string(n)) |> join(","),
-  data = d |> map(\n -> string(n)) |> join(", ")
-)
+result = [
+  shape: s |> map(\(n) -> string(n)) |> join(","),
+  data: d |> map(\(n) -> string(n)) |> join(", ")
+]
 write_csv(result, "tests/golden/t_outputs/ndarray_3d_2x3x4.csv")
 print("✓ ndarray 3D (2x3x4) complete")
