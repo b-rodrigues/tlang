@@ -95,7 +95,7 @@ let ndarray_create args =
                    else VNDArray { shape; data = Array.of_list flat }
                  with Invalid_argument msg ->
                    Error.make_error ValueError msg)))
-  | _ -> Error.make_error ArityError "ndarray expects 1 or 2 arguments: ndarray(data[, shape])."
+  | _ -> Error.make_error ArityError "Function `ndarray` takes 1 or 2 arguments."
 
 let reshape args =
   match args with
