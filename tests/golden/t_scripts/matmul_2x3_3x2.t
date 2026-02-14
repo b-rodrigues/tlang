@@ -1,6 +1,6 @@
 -- Test: Matrix multiplication 2x3 × 3x2
-a = ndarray([[1, 2, 3], [4, 5, 6]])
-b = ndarray([[1, 2], [3, 4], [5, 6]])
+a = ndarray([[1, 3, 5], [2, 4, 6]])
+b = ndarray([[1, 4], [2, 5], [3, 6]])
 c = matmul(a, b)
 s = shape(c)
 d = ndarray_data(c)

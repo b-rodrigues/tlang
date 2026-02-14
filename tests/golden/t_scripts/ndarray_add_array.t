@@ -1,6 +1,6 @@
 -- Test: Element-wise addition of two arrays
-arr1 = ndarray([[1, 2, 3], [4, 5, 6]])
-arr2 = ndarray([[10, 20, 30], [40, 50, 60]])
+arr1 = ndarray([[1, 3, 5], [2, 4, 6]])
+arr2 = ndarray([[10, 30, 50], [20, 40, 60]])
 result_arr = arr1 .+ arr2
 s = shape(result_arr)
 d = ndarray_data(result_arr)

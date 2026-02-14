@@ -1,6 +1,6 @@
 -- Test: Kronecker product 2x2
-a = ndarray([[1, 2], [3, 4]])
-b = ndarray([[0, 5], [6, 7]])
+a = ndarray([[1, 3], [2, 4]])
+b = ndarray([[0, 6], [5, 7]])
 c = kron(a, b)
 s = shape(c)
 d = ndarray_data(c)

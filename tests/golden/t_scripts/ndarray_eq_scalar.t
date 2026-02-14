@@ -1,5 +1,5 @@
 -- Test: Comparison operation == scalar
-arr = ndarray([[1, 2, 3], [4, 5, 6]])
+arr = ndarray([[1, 3, 5], [2, 4, 6]])
 result_arr = arr .== 4
 s = shape(result_arr)
 d = ndarray_data(result_arr)

@@ -1,5 +1,5 @@
 -- Test: Matrix multiplication with identity
-a = ndarray([[1, 2], [3, 4]])
+a = ndarray([[1, 3], [2, 4]])
 identity = ndarray([[1, 0], [0, 1]])
 c = matmul(a, identity)
 s = shape(c)
