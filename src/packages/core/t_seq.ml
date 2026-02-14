@@ -7,6 +7,6 @@ let register env =
       | [VInt a; VInt b] ->
           let items = List.init (b - a + 1) (fun i -> (None, VInt (a + i))) in
           VList items
-      | _ -> make_error TypeError "seq() takes exactly 2 Int arguments"
+      | _ -> Error.type_error "Function `seq` expects two Int arguments."
     ))
     env

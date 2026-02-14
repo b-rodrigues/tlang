@@ -8,7 +8,7 @@ let register env =
           VDict (List.map (fun (name, deps) ->
             (name, VList (List.map (fun d -> (None, VString d)) deps))
           ) p_deps)
-      | [_] -> make_error TypeError "pipeline_deps() expects a Pipeline"
-      | _ -> make_error ArityError "pipeline_deps() takes exactly 1 argument"
+      | [_] -> Error.type_error "Function `pipeline_deps` expects a Pipeline."
+      | _ -> Error.arity_error_named "pipeline_deps" ~expected:1 ~received:(List.length args)
     ))
     env

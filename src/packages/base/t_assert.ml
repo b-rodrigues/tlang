@@ -6,14 +6,14 @@ let register env =
       match args with
       | [v] ->
           if is_na_value v then
-            make_error AssertionError "Assertion received NA"
+            Error.make_error AssertionError "Assertion received NA."
           else if Utils.is_truthy v then VBool true
-          else make_error AssertionError "Assertion failed"
+          else Error.make_error AssertionError "Assertion failed."
       | [v; VString msg] ->
           if is_na_value v then
-            make_error AssertionError ("Assertion received NA: " ^ msg)
+            Error.make_error AssertionError ("Assertion received NA: " ^ msg ^ ".")
           else if Utils.is_truthy v then VBool true
-          else make_error AssertionError ("Assertion failed: " ^ msg)
-      | _ -> make_error ArityError "assert() takes 1 or 2 arguments"
+          else Error.make_error AssertionError ("Assertion failed: " ^ msg ^ ".")
+      | _ -> Error.make_error ArityError (Printf.sprintf "Function `assert` expects 1 or 2 arguments but received %d." (List.length args))
     ))
     env

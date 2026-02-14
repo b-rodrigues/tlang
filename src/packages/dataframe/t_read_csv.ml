@@ -13,7 +13,7 @@ let register ~parse_csv_string env =
         | _ -> false
       ) named_args in
       if bad_sep then
-        make_error TypeError "read_csv() separator must be a single character string"
+        Error.type_error "Function `read_csv` separator must be a single character string."
       else
       (* Extract named arguments *)
       let sep = List.fold_left (fun acc (name, v) ->
@@ -60,9 +60,9 @@ let register ~parse_csv_string env =
             in
             parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean content
           with
-          | Sys_error msg -> make_error FileError ("File Error: " ^ msg))
-      | [VNA _] -> make_error TypeError "read_csv() expects a String path, got NA"
-      | [_] -> make_error TypeError "read_csv() expects a String path"
-      | _ -> make_error ArityError "read_csv() takes exactly 1 positional argument (path)"
+          | Sys_error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
+      | [VNA _] -> Error.type_error "Function `read_csv` expects a String path, got NA."
+      | [_] -> Error.type_error "Function `read_csv` expects a String path."
+      | _ -> Error.make_error ArityError "Function `read_csv` takes exactly 1 positional argument (path)."
     ))
     env

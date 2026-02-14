@@ -1,11 +1,11 @@
 open Ast
 
 (** Helper: get values from a VVector or VList *)
-let to_value_array = function
+let to_value_array label = function
   | VVector arr -> Ok arr
   | VList items -> Ok (Array.of_list (List.map snd items))
-  | VNA _ -> Error (make_error TypeError "encountered NA value. Handle missingness explicitly.")
-  | _ -> Error (make_error TypeError "expects a Vector or List")
+  | VNA _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+  | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a Vector or List." label))
 
 let register env =
   (* lag(x) or lag(x, n): shift values forward, filling with NA *)
@@ -13,7 +13,7 @@ let register env =
     (make_builtin ~variadic:true 1 (fun args _env ->
       match args with
       | [arg] | [arg; VInt 1] ->
-        (match to_value_array arg with
+        (match to_value_array "lag" arg with
          | Error e -> e
          | Ok arr ->
            let n = Array.length arr in
@@ -25,7 +25,7 @@ let register env =
              done;
              VVector result)
       | [arg; VInt offset] when offset >= 0 ->
-        (match to_value_array arg with
+        (match to_value_array "lag" arg with
          | Error e -> e
          | Ok arr ->
            let n = Array.length arr in
@@ -36,9 +36,9 @@ let register env =
                result.(i) <- arr.(i - offset)
              done;
              VVector result)
-      | [_; VInt _] -> make_error ValueError "lag() offset must be non-negative"
-      | [_; _] -> make_error TypeError "lag() expects an integer offset"
-      | _ -> make_error ArityError "lag() takes 1 or 2 arguments"
+      | [_; VInt _] -> Error.value_error "Function `lag` offset must be non-negative."
+      | [_; _] -> Error.type_error "Function `lag` expects an integer offset."
+      | _ -> Error.make_error ArityError "Function `lag` takes 1 or 2 arguments."
     ))
     env
   in
@@ -47,7 +47,7 @@ let register env =
     (make_builtin ~variadic:true 1 (fun args _env ->
       match args with
       | [arg] | [arg; VInt 1] ->
-        (match to_value_array arg with
+        (match to_value_array "lead" arg with
          | Error e -> e
          | Ok arr ->
            let n = Array.length arr in
@@ -59,7 +59,7 @@ let register env =
              done;
              VVector result)
       | [arg; VInt offset] when offset >= 0 ->
-        (match to_value_array arg with
+        (match to_value_array "lead" arg with
          | Error e -> e
          | Ok arr ->
            let n = Array.length arr in
@@ -70,9 +70,9 @@ let register env =
                result.(i) <- arr.(i + offset)
              done;
              VVector result)
-      | [_; VInt _] -> make_error ValueError "lead() offset must be non-negative"
-      | [_; _] -> make_error TypeError "lead() expects an integer offset"
-      | _ -> make_error ArityError "lead() takes 1 or 2 arguments"
+      | [_; VInt _] -> Error.value_error "Function `lead` offset must be non-negative."
+      | [_; _] -> Error.type_error "Function `lead` expects an integer offset."
+      | _ -> Error.make_error ArityError "Function `lead` takes 1 or 2 arguments."
     ))
     env
   in

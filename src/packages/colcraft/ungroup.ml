@@ -6,7 +6,7 @@ let register env =
       match args with
       | [VDataFrame df] ->
           VDataFrame { df with group_keys = [] }
-      | [_] -> make_error TypeError "ungroup() expects a DataFrame as first argument"
-      | _ -> make_error ArityError "ungroup() takes exactly 1 argument"
+      | [_] -> Error.type_error "Function `ungroup` expects a DataFrame as first argument."
+      | _ -> Error.make_error ArityError "Function `ungroup` takes exactly 1 argument."
     ))
     env

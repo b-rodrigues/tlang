@@ -39,8 +39,8 @@ let register env =
           
           flush stdout;
           VNull
-      | [VNA _] -> make_error TypeError "glimpse() expects a DataFrame, got NA"
-      | [_] -> make_error TypeError "glimpse() expects a DataFrame"
-      | _ -> make_error ArityError "glimpse() takes exactly 1 argument"
+      | [VNA _] -> Error.type_error "Function `glimpse` expects a DataFrame, got NA."
+      | [_] -> Error.type_error "Function `glimpse` expects a DataFrame."
+      | _ -> Error.arity_error_named "glimpse" ~expected:1 ~received:(List.length args)
     ))
     env

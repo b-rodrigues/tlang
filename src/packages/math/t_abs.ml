@@ -14,12 +14,12 @@ let register env =
               match v with
               | VInt n -> result.(i) <- VInt (Int.abs n)
               | VFloat f -> result.(i) <- VFloat (Float.abs f)
-              | VNA _ -> had_error := Some (make_error TypeError "abs() encountered NA value. Handle missingness explicitly.")
-              | _ -> had_error := Some (make_error TypeError "abs() requires numeric values")
+              | VNA _ -> had_error := Some (Error.type_error "Function `abs` encountered NA value. Handle missingness explicitly.")
+              | _ -> had_error := Some (Error.type_error "Function `abs` requires numeric values.")
           ) arr;
           (match !had_error with Some e -> e | None -> VVector result)
-      | [VNA _] -> make_error TypeError "abs() encountered NA value. Handle missingness explicitly."
-      | [_] -> make_error TypeError "abs() expects a number or numeric Vector"
-      | _ -> make_error ArityError "abs() takes exactly 1 argument"
+      | [VNA _] -> Error.type_error "Function `abs` encountered NA value. Handle missingness explicitly."
+      | [_] -> Error.type_error "Function `abs` expects a number or numeric Vector."
+      | _ -> Error.arity_error_named "abs" ~expected:1 ~received:(List.length args)
     ))
     env

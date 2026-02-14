@@ -5,16 +5,16 @@ let register env =
     (make_builtin 1 (fun args _env ->
       match args with
       | [VError { code; _ }] -> VString (Utils.error_code_to_string code)
-      | [_] -> make_error TypeError "error_code() expects an Error value"
-      | _ -> make_error ArityError "error_code() takes exactly 1 argument"
+      | [_] -> Error.type_error "Function `error_code` expects an Error value."
+      | _ -> Error.arity_error_named "error_code" ~expected:1 ~received:(List.length args)
     ))
     env in
   let env = Env.add "error_message"
     (make_builtin 1 (fun args _env ->
       match args with
       | [VError { message; _ }] -> VString message
-      | [_] -> make_error TypeError "error_message() expects an Error value"
-      | _ -> make_error ArityError "error_message() takes exactly 1 argument"
+      | [_] -> Error.type_error "Function `error_message` expects an Error value."
+      | _ -> Error.arity_error_named "error_message" ~expected:1 ~received:(List.length args)
     ))
     env in
   let env = Env.add "error_context"
@@ -22,8 +22,8 @@ let register env =
       match args with
       | [VError { context; _ }] ->
           VDict context
-      | [_] -> make_error TypeError "error_context() expects an Error value"
-      | _ -> make_error ArityError "error_context() takes exactly 1 argument"
+      | [_] -> Error.type_error "Function `error_context` expects an Error value."
+      | _ -> Error.arity_error_named "error_context" ~expected:1 ~received:(List.length args)
     ))
     env in
   env

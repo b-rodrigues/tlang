@@ -13,7 +13,7 @@ let extract_floats_na label values =
       | VInt n -> result.(i) <- Some (float_of_int n)
       | VFloat f -> result.(i) <- Some f
       | VNA _ -> result.(i) <- None
-      | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+      | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
   done;
   match !had_error with Some e -> Error e | None -> Ok result
 
@@ -24,7 +24,7 @@ let to_float_array_na label = function
     let arr = Array.of_list (List.map snd items) in
     extract_floats_na label arr
   | VNA _ -> Ok [|None|]
-  | _ -> Error (make_error TypeError (label ^ "() expects a numeric Vector or List"))
+  | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a numeric Vector or List." label))
 
 (** Collect indices of non-NA positions and their float values *)
 let non_na_indices (nums : float option array) : (int * float) array =
@@ -66,7 +66,7 @@ let register env =
                result.(orig_idx) <- VInt (rank_minus_1 + 1)
              ) sorted;
              VVector result)
-      | _ -> make_error ArityError "row_number() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "row_number" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -101,7 +101,7 @@ let register env =
                done;
                VVector result
              end)
-      | _ -> make_error ArityError "min_rank() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "min_rank" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -135,7 +135,7 @@ let register env =
                done;
                VVector result
              end)
-      | _ -> make_error ArityError "dense_rank() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "dense_rank" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -171,7 +171,7 @@ let register env =
                done;
                VVector result
              end)
-      | _ -> make_error ArityError "cume_dist() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "cume_dist" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -215,7 +215,7 @@ let register env =
                ) min_ranks;
                VVector result
              end)
-      | _ -> make_error ArityError "percent_rank() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "percent_rank" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -257,9 +257,9 @@ let register env =
                VVector result
              end)
       | [_; VInt n] when n <= 0 ->
-        make_error ValueError "ntile() requires a positive number of tiles"
-      | [_; _] -> make_error TypeError "ntile() expects an integer as second argument"
-      | _ -> make_error ArityError "ntile() takes exactly 2 arguments"
+        Error.value_error "Function `ntile` requires a positive number of tiles."
+      | [_; _] -> Error.type_error "Function `ntile` expects an integer as second argument."
+      | _ -> Error.arity_error_named "ntile" ~expected:2 ~received:(List.length args)
     ))
     env
   in

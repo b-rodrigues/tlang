@@ -108,7 +108,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* sd of single value should return Error *)
   test "sd of single value"
     "sd([42])"
-    {|Error(ValueError: "sd() requires at least 2 values")|};
+    {|Error(ValueError: "Function `sd` requires at least 2 values.")|};
 
   (try Sys.remove csv_single with _ -> ());
   print_newline ();

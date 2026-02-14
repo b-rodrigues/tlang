@@ -15,7 +15,7 @@ let register env =
             | _ -> None
           in
           (match exp_f with
-           | None -> make_error TypeError "pow() expects a numeric exponent"
+           | None -> make_error TypeError "Function `pow` expects a numeric exponent."
            | Some e ->
              let result = Array.make (Array.length arr) VNull in
              let had_error = ref None in
@@ -24,12 +24,12 @@ let register env =
                  match v with
                  | VInt n -> result.(i) <- VFloat (Float.pow (float_of_int n) e)
                  | VFloat f -> result.(i) <- VFloat (Float.pow f e)
-                 | VNA _ -> had_error := Some (make_error TypeError "pow() encountered NA value. Handle missingness explicitly.")
-                 | _ -> had_error := Some (make_error TypeError "pow() requires numeric values")
+                 | VNA _ -> had_error := Some (make_error TypeError "Function `pow` encountered NA value. Handle missingness explicitly.")
+                 | _ -> had_error := Some (make_error TypeError "Function `pow` requires numeric values.")
              ) arr;
              (match !had_error with Some e -> e | None -> VVector result))
-      | [VNA _; _] | [_; VNA _] -> make_error TypeError "pow() encountered NA value. Handle missingness explicitly."
-      | [_; _] -> make_error TypeError "pow() expects numeric arguments"
-      | _ -> make_error ArityError "pow() takes exactly 2 arguments"
+      | [VNA _; _] | [_; VNA _] -> make_error TypeError "Function `pow` encountered NA value. Handle missingness explicitly."
+      | [_; _] -> make_error TypeError "Function `pow` expects numeric arguments."
+      | _ -> make_error ArityError "Function `pow` expects 2 arguments."
     ))
     env

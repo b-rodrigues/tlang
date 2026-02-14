@@ -16,8 +16,8 @@ let register env =
             match arr.(i) with
             | VInt n -> result.(i) <- float_of_int n
             | VFloat f -> result.(i) <- f
-            | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
-            | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
       in
@@ -30,12 +30,12 @@ let register env =
             | VInt n -> nums := float_of_int n :: !nums
             | VFloat f -> nums := f :: !nums
             | VNA _ -> ()
-            | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+            | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok (Array.of_list (List.rev !nums))
       in
       let compute_sd nums n =
-        if n < 2 then make_error ValueError "sd() requires at least 2 values"
+        if n < 2 then Error.value_error "Function `sd` requires at least 2 values."
         else
           let mean = Array.fold_left ( +. ) 0.0 nums /. float_of_int n in
           let sum_sq = Array.fold_left (fun acc x -> acc +. (x -. mean) *. (x -. mean)) 0.0 nums in
@@ -64,8 +64,8 @@ let register env =
             (match extract_nums_arr "sd" arr with
              | Error e -> e
              | Ok nums -> compute_sd nums (Array.length nums))
-      | Some (VNA _) -> make_error TypeError "sd() encountered NA value. Handle missingness explicitly."
-      | Some _ -> make_error TypeError "sd() expects a numeric List or Vector"
-      | None -> make_error ArityError "sd() takes exactly 1 argument"
+      | Some (VNA _) -> Error.type_error "Function `sd` encountered NA value. Handle missingness explicitly."
+      | Some _ -> Error.type_error "Function `sd` expects a numeric List or Vector."
+      | None -> Error.arity_error_named "sd" ~expected:1 ~received:(List.length args)
     ))
     env

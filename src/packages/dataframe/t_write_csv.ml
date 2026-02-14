@@ -19,9 +19,9 @@ let register ~write_csv_fn env =
       | [VDataFrame df; VString path] ->
           (match write_csv_fn ~sep df.arrow_table path with
           | Ok () -> VNull
-          | Error msg -> make_error FileError msg)
-      | [_; VString _] -> make_error TypeError "write_csv() expects a DataFrame as first argument"
-      | [VDataFrame _; _] -> make_error TypeError "write_csv() expects a String path as second argument"
-      | _ -> make_error ArityError "write_csv() takes exactly 2 positional arguments (dataframe, path)"
+          | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
+      | [_; VString _] -> Error.type_error "Function `write_csv` expects a DataFrame as first argument."
+      | [VDataFrame _; _] -> Error.type_error "Function `write_csv` expects a String path as second argument."
+      | _ -> Error.make_error ArityError "Function `write_csv` takes exactly 2 positional arguments (dataframe, path)."
     ))
     env

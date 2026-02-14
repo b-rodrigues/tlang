@@ -94,8 +94,8 @@ let register env =
       | [VString name] ->
           (match List.find_opt (fun p -> p.name = name) all_packages with
           | Some pkg -> package_to_value pkg
-          | None -> make_error KeyError (Printf.sprintf "Package '%s' not found" name))
-      | _ -> make_error TypeError "package_info() expects a string argument"
+          | None -> Error.make_error KeyError (Printf.sprintf "Package `%s` not found." name))
+      | _ -> Error.type_error "Function `package_info` expects a string argument."
     ))
     env
   in

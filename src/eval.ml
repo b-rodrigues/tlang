@@ -6,19 +6,6 @@ open Ast
 (* --- Error Construction Helpers --- *)
 
 (** Create a structured error value *)
-let make_error ?(context=[]) code message =
-  VError { code; message; context }
-
-(** Check if a value is an error *)
-let is_error_value = function VError _ -> true | _ -> false
-
-(** Check if a value is NA *)
-let is_na_value = function VNA _ -> true | _ -> false
-
-(* --- NSE (Non-Standard Evaluation) Helpers --- *)
-
-(** Transform an NSE expression like ($age > 30) into (fun row -> row.age > 30).
-    This recursively replaces ColumnRef nodes with DotAccess nodes. *)
 let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
   match expr with
   | ColumnRef field ->
@@ -79,7 +66,7 @@ let eval_scalar_binop op v1 v2 =
   | (_, _, VError _) -> v2
   (* Then handle NA *)
   | (_, VNA _, _) | (_, _, VNA _) ->
-      make_error TypeError "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
+      Error.type_error "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
   (* Arithmetic *)
   | (Plus, VInt a, VInt b) -> VInt (a + b)
   | (Plus, VFloat a, VFloat b) -> VFloat (a +. b)
@@ -97,12 +84,12 @@ let eval_scalar_binop op v1 v2 =
   | (Mul, VInt a, VFloat b) -> VFloat (float_of_int a *. b)
   | (Mul, VFloat a, VInt b) -> VFloat (a *. float_of_int b)
 
-  | (Div, VInt _, VInt 0) -> make_error DivisionByZero "Division by zero"
+  | (Div, VInt _, VInt 0) -> Error.division_by_zero ()
   | (Div, VInt a, VInt b) -> VFloat (float_of_int a /. float_of_int b)
-  | (Div, VFloat _, VFloat b) when b = 0.0 -> make_error DivisionByZero "Division by zero"
+  | (Div, VFloat _, VFloat b) when b = 0.0 -> Error.division_by_zero ()
   | (Div, VFloat a, VFloat b) -> VFloat (a /. b)
-  | (Div, VInt a, VFloat b) -> if b = 0.0 then make_error DivisionByZero "Division by zero" else VFloat (float_of_int a /. b)
-  | (Div, VFloat a, VInt b) -> if b = 0 then make_error DivisionByZero "Division by zero" else VFloat (a /. float_of_int b)
+  | (Div, VInt a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (float_of_int a /. b)
+  | (Div, VFloat a, VInt b) -> if b = 0 then Error.division_by_zero () else VFloat (a /. float_of_int b)
 
   (* Comparison *)
   | (Eq, VInt a, VFloat b) -> VBool (float_of_int a = b)
@@ -141,24 +128,37 @@ let eval_scalar_binop op v1 v2 =
 
   (* Error handling *)
   | (And, _, _) | (Or, _, _) ->
-      make_error GenericError "Internal Error: Short-circuit operators should not reach eval_scalar_binop"
+      Error.internal_error "Short-circuit operators should not reach eval_scalar_binop"
 
 
 
+
+  (* Improved Error Messages for Bitwise Ops *)
+  | (BitOr, _, _) | (BitAnd, _, _) as op_tuple ->
+      let (op, l, r) = op_tuple in
+      (* Check if we have a vector/list involved to give a helpful hint *)
+      let is_sequence v = match v with VList _ | VVector _ -> true | _ -> false in
+      
+      if is_sequence l || is_sequence r then
+        let op_str = if op = BitOr then "|" else "&" in
+        let elem_op_str = if op = BitOr then ".|" else ".&" in
+        let hint = Printf.sprintf "Use `%s` for element-wise boolean operations." elem_op_str in
+        Error.op_type_error_with_hint op_str "Bool" "Bool" hint
+      else
+        (* Fallback for other invalid types (e.g. 1 | "a") *)
+        let op_name = if op = BitOr then "|" else "&" in
+        Error.op_type_error op_name (Utils.type_name l) (Utils.type_name r)
 
   | (op, l, r) ->
       let op_name = match op with
-        | Plus -> "add" | Minus -> "subtract" | Mul -> "multiply" | Div -> "divide"
-        | Lt | Gt | LtEq | GtEq -> "compare" | Eq | NEq -> "compare"
-        | BitAnd -> "bitwise and" | BitOr -> "bitwise or"
-        | _ -> "apply operator to"
+        | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/"
+        | Lt -> "<" | Gt -> ">" | LtEq -> "<=" | GtEq -> ">=" | Eq -> "==" | NEq -> "!="
+        | BitAnd -> "&" | BitOr -> "|"
+        | _ -> "operator"
       in
-      let base_msg = Printf.sprintf "Cannot %s %s and %s" op_name (Utils.type_name l) (Utils.type_name r) in
-      let msg = match Ast.type_conversion_hint (Utils.type_name l) (Utils.type_name r) with
-        | Some hint -> base_msg ^ ". " ^ hint
-        | None -> base_msg
-      in
-      make_error TypeError msg
+      match Ast.type_conversion_hint (Utils.type_name l) (Utils.type_name r) with
+      | Some hint -> Error.op_type_error_with_hint op_name (Utils.type_name l) (Utils.type_name r) hint
+      | None -> Error.op_type_error op_name (Utils.type_name l) (Utils.type_name r)
 
 (** Broadcasting engine.
     Applies eval_scalar_binop across lists/vectors. *)
@@ -170,8 +170,10 @@ let rec broadcast2 op v1 v2 =
 
   (* List-List *)
   | VList l1, VList l2 ->
-      if List.length l1 <> List.length l2 then
-        make_error ValueError (Printf.sprintf "Broadcast requires equal-length lists (got %d and %d)" (List.length l1) (List.length l2))
+      let len1 = List.length l1 in
+      let len2 = List.length l2 in
+      if len1 <> len2 then
+        Error.broadcast_length_error len1 len2
       else
         let res = List.map2 (fun (n1, x) (n2, y) ->
           let name = match n1, n2 with Some s, _ -> Some s | _, Some s -> Some s | _ -> None in
@@ -181,8 +183,10 @@ let rec broadcast2 op v1 v2 =
 
   (* Vector-Vector *)
   | VVector arr1, VVector arr2 ->
-      if Array.length arr1 <> Array.length arr2 then
-        make_error ValueError (Printf.sprintf "Broadcast requires equal-length vectors (got %d and %d)" (Array.length arr1) (Array.length arr2))
+      let len1 = Array.length arr1 in
+      let len2 = Array.length arr2 in
+      if len1 <> len2 then
+        Error.broadcast_length_error len1 len2
       else
         VVector (Array.map2 (fun x y -> broadcast2 op x y) arr1 arr2)
 
@@ -258,7 +262,7 @@ let rec eval_expr (env : environment) (expr : Ast.expr) : value =
   | ListLit items -> eval_list_lit env items
   | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env e)) pairs)
   | DotAccess { target; field } -> eval_dot_access env target field
-  | ListComp _ -> make_error GenericError "List comprehensions are not yet implemented"
+  | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
   | Block exprs -> eval_block env exprs
   | PipelineDef nodes -> eval_pipeline env nodes
   | IntentDef pairs -> eval_intent env pairs
@@ -365,7 +369,7 @@ and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
   (* Topological sort *)
   match topo_sort nodes deps with
   | Error cycle_node ->
-    make_error ValueError (Printf.sprintf "Pipeline has a dependency cycle involving node '%s'" cycle_node)
+    Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
     (* Execute nodes in topological order *)
     let node_expr_map = List.map (fun (n : Ast.pipeline_node) -> (n.node_name, n.node_expr)) nodes in
@@ -377,9 +381,9 @@ and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
     ) ([], env) exec_order in
     let p_nodes = List.rev results in
     (* Check for errors in any node *)
-    match List.find_opt (fun (_, v) -> is_error_value v) p_nodes with
+    match List.find_opt (fun (_, v) -> Error.is_error_value v) p_nodes with
     | Some (name, err) ->
-      make_error ValueError (Printf.sprintf "Pipeline node '%s' failed: %s" name (Ast.Utils.value_to_string err))
+      Error.value_error (Printf.sprintf "Pipeline node `%s` failed: %s" name (Ast.Utils.value_to_string err))
     | None ->
       VPipeline {
         p_nodes;
@@ -394,7 +398,7 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
     (List.map (fun (name, expr) -> { Ast.node_name = name; node_expr = expr }) prev.p_exprs)
     prev.p_deps with
   | Error cycle_node ->
-    make_error ValueError (Printf.sprintf "Pipeline has a dependency cycle involving node '%s'" cycle_node)
+    Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
     let (results, _, _changed_set) = List.fold_left (fun (results, pipe_env, changed) name ->
       let expr = List.assoc name prev.p_exprs in
@@ -421,9 +425,9 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
       end
     ) ([], env, []) exec_order in
     let p_nodes = List.rev results in
-    match List.find_opt (fun (_, v) -> is_error_value v) p_nodes with
+    match List.find_opt (fun (_, v) -> Error.is_error_value v) p_nodes with
     | Some (name, err) ->
-      make_error ValueError (Printf.sprintf "Pipeline node '%s' failed: %s" name (Ast.Utils.value_to_string err))
+      Error.value_error (Printf.sprintf "Pipeline node `%s` failed: %s" name (Ast.Utils.value_to_string err))
     | None ->
       VPipeline {
         p_nodes;
@@ -471,7 +475,8 @@ and eval_dot_access env target_expr field =
               if has_column_prefix arrow_table compound
               then VDict [("__partial_dot_df__", df_val);
                           ("__partial_dot_prefix__", VString compound)]
-              else make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" compound))
+              else Error.index_error (0) (0) (* Placeholder as original did not have index info, using KeyError context *)
+                  |> fun _ -> Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." compound))
          | _ ->
            (* Check for partial dot-access on a plain dict with compound keys
               (e.g. row.Petal.Length where dict has key "Petal.Length").
@@ -491,7 +496,7 @@ and eval_dot_access env target_expr field =
                    String.length k > cpfx_len && String.sub k 0 cpfx_len = cpfx) orig_pairs
                  then VDict [("__partial_dot_dict__", VDict orig_pairs);
                              ("__partial_dot_prefix__", VString compound)]
-                 else make_error KeyError (Printf.sprintf "key '%s' not found in dict" compound))
+                 else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." compound))
             | _ ->
               (* Check if any keys have this field as a dotted prefix *)
               let pfx = field ^ "." in
@@ -500,11 +505,11 @@ and eval_dot_access env target_expr field =
                 String.length k > pfx_len && String.sub k 0 pfx_len = pfx) pairs
               then VDict [("__partial_dot_dict__", VDict pairs);
                           ("__partial_dot_prefix__", VString field)]
-              else make_error KeyError (Printf.sprintf "key '%s' not found in dict" field))))
+              else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." field))))
   | VList named_items ->
       (match List.find_opt (fun (name, _) -> name = Some field) named_items with
       | Some (_, v) -> v
-      | None -> make_error KeyError (Printf.sprintf "list has no named element '%s'" field))
+      | None -> Error.make_error KeyError (Printf.sprintf "List has no named element `%s`." field))
   | VDataFrame ({ arrow_table; _ } as df) ->
       (* Use column views for efficient access — avoids redundant copies
          when the column data is already available in the Arrow table. *)
@@ -516,18 +521,17 @@ and eval_dot_access env target_expr field =
          if has_column_prefix arrow_table field
          then VDict [("__partial_dot_df__", VDataFrame df);
                      ("__partial_dot_prefix__", VString field)]
-         else make_error KeyError (Printf.sprintf "column '%s' not found in DataFrame" field))
+         else Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." field))
   | VPipeline { p_nodes; _ } ->
       (match List.assoc_opt field p_nodes with
        | Some v -> v
-       | None -> make_error KeyError (Printf.sprintf "node '%s' not found in Pipeline" field))
+       | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
   | VError _ as e -> e
-  | VNA _ -> make_error TypeError "Cannot access field on NA"
-  | other -> make_error TypeError (Printf.sprintf "Cannot access field '%s' on %s" field (Utils.type_name other))
+  | VNA _ -> Error.type_error "Cannot access field on NA."
+  | other -> Error.type_error (Printf.sprintf "Cannot access field `%s` on %s." field (Utils.type_name other))
 
 and lambda_arity_error params args =
-  let sig_str = String.concat ", " params in
-  make_error ArityError (Printf.sprintf "Expected %d arguments (%s) but got %d" (List.length params) sig_str (List.length args))
+  Error.arity_error ~expected:(List.length params) ~received:(List.length args)
 
 and eval_call env fn_val raw_args =
   (* NSE auto-transformation: if an argument is a complex expression containing
@@ -551,7 +555,7 @@ and eval_call env fn_val raw_args =
       let named_args = List.map (fun (name, e) -> (name, eval_expr env e)) raw_args in
       let arg_count = List.length named_args in
       if not b_variadic && arg_count <> b_arity then
-        make_error ArityError (Printf.sprintf "Expected %d arguments but got %d" b_arity arg_count)
+        Error.arity_error ~expected:b_arity ~received:arg_count
       else
         b_func named_args env
 
@@ -586,15 +590,13 @@ and eval_call env fn_val raw_args =
        | Some fn -> eval_call env fn raw_args
        | None ->
          let names = List.map fst (Env.bindings env) in
-         let msg = match Ast.suggest_name s names with
-           | Some suggestion -> Printf.sprintf "'%s' is not defined. Did you mean '%s'?" s suggestion
-           | None -> Printf.sprintf "'%s' is not defined" s
-         in
-         make_error NameError msg)
+         match Ast.suggest_name s names with
+           | Some suggestion -> Error.name_error_with_suggestion s suggestion
+           | None -> Error.name_error s)
 
-  | VError _ -> make_error TypeError "Cannot call Error as a function"
-  | VNA _ -> make_error TypeError "Cannot call NA as a function"
-  | _ -> make_error TypeError (Printf.sprintf "Cannot call %s as a function" (Utils.type_name fn_val))
+  | VError _ -> Error.type_error "Cannot call Error as a function."
+  | VNA _ -> Error.type_error "Cannot call NA as a function."
+  | _ -> Error.not_callable_error (Utils.type_name fn_val)
 
 and eval_binop env op left right =
   (* Pipe is special: x |> f(y) becomes f(x, y), x |> f becomes f(x) *)
@@ -914,9 +916,9 @@ let initial_env () : environment =
           ) items in
           let cleaned = Clean_colnames.clean_names strs in
           VList (List.map (fun s -> (None, VString s)) cleaned)
-      | [VNA _] -> make_error TypeError "clean_colnames() expects a DataFrame or List, got NA"
-      | [_] -> make_error TypeError "clean_colnames() expects a DataFrame or List of strings"
-      | _ -> make_error ArityError "clean_colnames() takes exactly 1 argument"
+      | [VNA _] -> Error.type_error "Function `clean_colnames` expects a DataFrame or List.\nReceived NA."
+      | [_] -> Error.type_error "Function `clean_colnames` expects a DataFrame or List of strings."
+      | _ -> Error.arity_error_named "clean_colnames" ~expected:1 ~received:(List.length args)
     ))
     env
   in

@@ -14,12 +14,12 @@ let register env =
               match v with
               | VInt n -> result.(i) <- VFloat (Float.exp (float_of_int n))
               | VFloat f -> result.(i) <- VFloat (Float.exp f)
-              | VNA _ -> had_error := Some (make_error TypeError "exp() encountered NA value. Handle missingness explicitly.")
-              | _ -> had_error := Some (make_error TypeError "exp() requires numeric values")
+              | VNA _ -> had_error := Some (Error.type_error "Function `exp` encountered NA value. Handle missingness explicitly.")
+              | _ -> had_error := Some (Error.type_error "Function `exp` requires numeric values.")
           ) arr;
           (match !had_error with Some e -> e | None -> VVector result)
-      | [VNA _] -> make_error TypeError "exp() encountered NA value. Handle missingness explicitly."
-      | [_] -> make_error TypeError "exp() expects a number or numeric Vector"
-      | _ -> make_error ArityError "exp() takes exactly 1 argument"
+      | [VNA _] -> Error.type_error "Function `exp` encountered NA value. Handle missingness explicitly."
+      | [_] -> Error.type_error "Function `exp` expects a number or numeric Vector."
+      | _ -> Error.arity_error_named "exp" ~expected:1 ~received:(List.length args)
     ))
     env

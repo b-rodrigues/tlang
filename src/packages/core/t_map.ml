@@ -10,6 +10,6 @@ let register ~eval_call env =
             (name, result)
           ) items in
           VList mapped
-      | _ -> make_error TypeError "map() takes a List and a Function"
+      | _ -> Error.type_error "Function `map` expects a List and a Function."
     ))
     env

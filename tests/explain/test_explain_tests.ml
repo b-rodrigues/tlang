@@ -23,7 +23,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|{`a`: "hello", `b`: "world"}|};
   test "intent_fields on non-intent"
     "intent_fields(42)"
-    {|Error(TypeError: "intent_fields() expects an Intent value")|};
+    {|Error(TypeError: "Function `intent_fields` expects an Intent value.")|};
   print_newline ();
 
   Printf.printf "Phase 6 — Intent Get:\n";
@@ -32,10 +32,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|"test"|};
   test "intent_get missing field"
     {|i = intent { a: "1" }; intent_get(i, "b")|}
-    {|Error(KeyError: "Intent field 'b' not found")|};
+    {|Error(KeyError: "Intent field `b` not found.")|};
   test "intent_get on non-intent"
     {|intent_get(42, "x")|}
-    {|Error(TypeError: "intent_get() expects an Intent value as first argument")|};
+    {|Error(TypeError: "Function `intent_get` expects an Intent value as first argument.")|};
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: Scalars:\n";
@@ -206,7 +206,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Phase 6 — Explain: Arity:\n";
   test "explain no args"
     "explain()"
-    {|Error(ArityError: "Expected 1 arguments but got 0")|};
+    {|Error(ArityError: "Function expects 1 arguments but received 0.")|};
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: Pipeline Integration:\n";

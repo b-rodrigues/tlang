@@ -19,9 +19,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   
   (* Error propagation *)
   (* List construction is strict, so [1, 1/0] evaluates to Error before 'in' sees it. *)
-  test "find before error (strict list)" "1 in [1, 1/0]" {|Error(DivisionByZero: "Division by zero")|}; 
+  test "find before error (strict list)" "1 in [1, 1/0]" {|Error(DivisionByZero: "Division by zero.")|}; 
   (* 2 is not 1, then checks next. 2 == 1/0 is Error. Propagates. *)
-  test "error in list" "2 in [1, 1/0]" {|Error(DivisionByZero: "Division by zero")|}; 
+  test "error in list" "2 in [1, 1/0]" {|Error(DivisionByZero: "Division by zero.")|}; 
   
   (* NA handling *)
   test "find before NA" "1 in [1, NA]" "true"; 

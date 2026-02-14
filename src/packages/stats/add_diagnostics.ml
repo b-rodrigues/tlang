@@ -22,7 +22,7 @@ let register env =
         | None -> (match positional with _ :: v :: _ -> Some v | _ -> None)
       in
       match model_val with
-      | None -> make_error ArityError "add_diagnostics() missing required argument 'model'"
+      | None -> Error.make_error ArityError "Function `add_diagnostics` missing required argument 'model'."
       | Some (VDict pairs) ->
         (match List.assoc_opt "_model_data" pairs with
          | Some (VDict model) ->
@@ -36,7 +36,7 @@ let register env =
              | _ -> None
            in
            (match df with
-            | None -> make_error TypeError "add_diagnostics() requires a DataFrame for 'data'"
+            | None -> Error.type_error "Function `add_diagnostics` requires a DataFrame for 'data'."
             | Some data_df ->
               let nrows = Arrow_table.num_rows data_df.arrow_table in
               (* Extract diagnostic arrays from model_data *)
@@ -68,8 +68,8 @@ let register env =
                 (Arrow_table.FloatColumn std_resid_arr) in
               VDataFrame { arrow_table = table; group_keys = data_df.group_keys })
          | _ ->
-           make_error TypeError "add_diagnostics() expects a model returned by lm()")
+           Error.type_error "Function `add_diagnostics` expects a model returned by `lm`.")
       | Some _ ->
-        make_error TypeError "add_diagnostics() expects a model returned by lm()"
+        Error.type_error "Function `add_diagnostics` expects a model returned by `lm`."
     ))
     env

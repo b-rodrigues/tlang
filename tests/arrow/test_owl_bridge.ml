@@ -99,13 +99,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Arrow-Owl Bridge — error handling:\n";
   test "lm via bridge: missing column"
     (Printf.sprintf {|df = read_csv("%s"); lm(data = df, formula = y ~ z)|} csv_lm)
-    {|Error(KeyError: "Column 'z' not found in DataFrame")|};
+    {|Error(KeyError: "Column `z` not found in DataFrame.")|};
   test "lm via bridge: non-dataframe"
     {|lm(data = 42, formula = y ~ x)|}
-    {|Error(TypeError: "lm() 'data' must be a DataFrame")|};
+    {|Error(TypeError: "Function `lm` 'data' must be a DataFrame.")|};
   test "cor via bridge: NA value"
     "cor(NA, [1, 2, 3])"
-    {|Error(TypeError: "cor() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly.")|};
   print_newline ();
 
   (* Clean up test CSVs *)

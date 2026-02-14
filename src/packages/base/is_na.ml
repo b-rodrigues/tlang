@@ -6,6 +6,6 @@ let register env =
       match args with
       | [VNA _] -> VBool true
       | [_] -> VBool false
-      | _ -> make_error ArityError "is_na() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "is_na" ~expected:1 ~received:(List.length args)
     ))
     env

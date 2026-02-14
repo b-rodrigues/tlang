@@ -77,20 +77,21 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Core Semantics: Error invariants:\n";
 
   (* Error propagation through binary operations *)
-  test "error + value" "(1 / 0) + 5" {|Error(DivisionByZero: "Division by zero")|};
-  test "value + error" "5 + (1 / 0)" {|Error(DivisionByZero: "Division by zero")|};
-  test "error * error" "(1 / 0) * (1 / 0)" {|Error(DivisionByZero: "Division by zero")|};
+  test "error + value" "(1 / 0) + 5" {|Error(DivisionByZero: "Division by zero.")|};
+  test "value + error" "5 + (1 / 0)" {|Error(DivisionByZero: "Division by zero.")|};
+  test "error * error" "(1 / 0) * (1 / 0)" {|Error(DivisionByZero: "Division by zero.")|};
 
   (* Type errors *)
   (* Note: Hint tests might fail if error messages changed slightly, so checking exact output is brittle.
      But we expect TypeErrors, not DivisionByZero for type mismatches. *)
-  test "int + bool error" "1 + true" {|Error(TypeError: "Cannot add Int and Bool. Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values.")|};
-  test "bool * string error" {|true * "hello"|} {|Error(TypeError: "Cannot multiply Bool and String")|};
+  test "int + bool error" "1 + true" {|Error(TypeError: "Operator `+` expects Int and Bool.
+Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values.")|};
+  test "bool * string error" {|true * "hello"|} {|Error(TypeError: "Operator `*` expects Bool and String.")|};
 
   (* Name errors *)
   test "undefined variable" "undefined_var" "undefined_var";
-  test "undefined function call" "no_such_func(1)" {|Error(NameError: "'no_such_func' is not defined")|};
-  test "call non-function" "x = 42; x(1)" {|Error(TypeError: "Cannot call Int as a function")|};
+  test "undefined function call" "no_such_func(1)" {|Error(NameError: "Name `no_such_func` is not defined.")|};
+  test "call non-function" "x = 42; x(1)" {|Error(TypeError: "Value of type Int is not callable.")|};
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: NA invariants:\n";

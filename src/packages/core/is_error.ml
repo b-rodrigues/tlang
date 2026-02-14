@@ -6,6 +6,6 @@ let register env =
       match args with
       | [VError _] -> VBool true
       | [_] -> VBool false
-      | _ -> make_error ArityError "is_error() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "is_error" ~expected:1 ~received:(List.length args)
     ))
     env

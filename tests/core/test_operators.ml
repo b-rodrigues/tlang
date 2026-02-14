@@ -14,8 +14,8 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "Div Float" "10.0 / 2.0" "5.";
   
   (* Division by Zero *)
-  test "Div Zero Int" "1 / 0" {|Error(DivisionByZero: "Division by zero")|};
-  test "Div Zero Float" "1.0 / 0.0" {|Error(DivisionByZero: "Division by zero")|};
+  test "Div Zero Int" "1 / 0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "Div Zero Float" "1.0 / 0.0" {|Error(DivisionByZero: "Division by zero.")|};
 
   (* --- Comparison Operators --- *)
   Printf.printf "  Comparison:\n";
@@ -48,15 +48,15 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "BitAnd" "true & false" "false";
   test "BitOr" "true | false" "true";
   (* No short-circuiting *)
-  test "BitAnd No Short-circuit" "false & (1/0)" {|Error(DivisionByZero: "Division by zero")|}; 
-  test "BitOr No Short-circuit" "true | (1/0)" {|Error(DivisionByZero: "Division by zero")|};
+  test "BitAnd No Short-circuit" "false & (1/0)" {|Error(DivisionByZero: "Division by zero.")|}; 
+  test "BitOr No Short-circuit" "true | (1/0)" {|Error(DivisionByZero: "Division by zero.")|};
 
   (* --- Membership Operator --- *)
   Printf.printf "  Membership:\n";
   test "In List" "1 in [1, 2, 3]" "true";
   test "Not In List" "4 in [1, 2, 3]" "false";
   test "Vector In List" "[1, 4] in [1, 2, 3]" "[true, false]";
-  test "In Strict Error" "1 in [1, 1/0]" {|Error(DivisionByZero: "Division by zero")|};
+  test "In Strict Error" "1 in [1, 1/0]" {|Error(DivisionByZero: "Division by zero.")|};
 
   (* --- Broadcasting --- *)
   Printf.printf "  Broadcasting:\n";
@@ -67,7 +67,8 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "Broadcast BitAnd" "[true, false] .& true" "[true, false]";
 
   (* Broadcast Error *)
-  test "Broadcast Mismatch" "[1, 2] .+ [1, 2, 3]" {|Error(ValueError: "Broadcast requires equal-length lists (got 2 and 3)")|};
+  test "Broadcast Mismatch" "[1, 2] .+ [1, 2, 3]" {|Error(ValueError: "Broadcast requires lists of equal length.
+Left has length 2, right has length 3.")|};
 
   (* --- NA Propagation --- *)
   Printf.printf "  NA Propagation:\n";

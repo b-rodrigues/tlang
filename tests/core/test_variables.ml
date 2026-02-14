@@ -7,7 +7,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "reassignment with := works" "x = 1; x := 2; x" "2";
   test "assignment returns null" "x = 42" "null";
   test "assignment of error returns error" "x = mean([1, NA, 3])"
-    {|Error(TypeError: "mean() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly.")|};
   test ":= on undefined variable is error" "y := 5"
     {|Error(NameError: "Cannot overwrite 'y': variable not defined. Use '=' for first assignment.")|};
   print_newline ()

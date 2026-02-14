@@ -140,6 +140,6 @@ let register env =
             ("kind", VString "value");
             ("type", VString "Function");
           ]
-      | _ -> make_error ArityError "explain() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "explain" ~expected:1 ~received:(List.length args)
     ))
     env

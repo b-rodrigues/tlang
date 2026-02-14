@@ -6,19 +6,19 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Error in multi-stage pipe should propagate *)
   test "error propagates through pipe (division by zero)"
     {|1 / 0|}
-    {|Error(DivisionByZero: "Division by zero")|};
+    {|Error(DivisionByZero: "Division by zero.")|};
 
 
 
   (* Deep pipe: error at beginning should propagate *)
   test "name error propagates"
     {|undefined_func(1)|}
-    {|Error(NameError: "'undefined_func' is not defined")|};
+    {|Error(NameError: "Name `undefined_func` is not defined.")|};
 
   (* Calling error value should be error *)
   test "calling error value"
     {|x = 1 / 0; x(1)|}
-    {|Error(TypeError: "Cannot call Error as a function")|};
+    {|Error(TypeError: "Cannot call Error as a function.")|};
 
   print_newline ();
 
@@ -45,18 +45,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* Error propagation rules changed: arithmetic now propagates errors instead of TypeError *)
-  test "error value in arithmetic" "(1/0) + 1" "Error(DivisionByZero: \"Division by zero\")";
-  test "name error in arithmetic propagates" "undefined_var + 1" "Error(TypeError: \"Cannot add Symbol and Int\")";
+  test "error value in arithmetic" "(1/0) + 1" "Error(DivisionByZero: \"Division by zero.\")";
+  test "name error in arithmetic propagates" "undefined_var + 1" "Error(TypeError: \"Operator `+` expects Symbol and Int.\")";
 
-  test "calling error value as function" "(1/0)()" "Error(TypeError: \"Cannot call Error as a function\")";
+  test "calling error value as function" "(1/0)()" "Error(TypeError: \"Cannot call Error as a function.\")";
 
   Printf.printf "\nError Recovery — Multiple errors in expressions:\n";
   (* Left-to-right evaluation means first error encountered is returned/propagated *)
-  test "first error wins in addition" "(1/0) + (1/0)" "Error(DivisionByZero: \"Division by zero\")";
+  test "first error wins in addition" "(1/0) + (1/0)" "Error(DivisionByZero: \"Division by zero.\")";
 
   test "error in function arg"
     {|length(1 / 0)|}
-    {|Error(TypeError: "Cannot get length of Error")|};
+    {|Error(TypeError: "Cannot get length of Error.")|};
 
   (try Sys.remove csv_err with _ -> ());
   print_newline ();
@@ -81,7 +81,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "error_message on division by zero"
     {|error_message(1 / 0)|}
-    {|"Division by zero"|};
+    {|"Division by zero."|};
 
   print_newline ();
 
@@ -130,7 +130,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Select nonexistent column in pipeline *)
   test "select nonexistent in pipeline"
     (Printf.sprintf {|df = read_csv("%s"); df |> select($nonexistent)|} csv_pipe_err)
-    {|Error(KeyError: "Column(s) not found: nonexistent")|};
+    {|Error(KeyError: "Column(s) not found: nonexistent.")|};
 
   (try Sys.remove csv_pipe_err with _ -> ());
   print_newline ();
@@ -139,19 +139,19 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "sum with NA gives clear error"
     {|sum([1, NA, 3])|}
-    {|Error(TypeError: "sum() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly.")|};
 
   test "mean with NA gives clear error"
     {|mean([1, NA, 3])|}
-    {|Error(TypeError: "mean() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly.")|};
 
   test "head on NA returns error"
     {|head(NA)|}
-    {|Error(TypeError: "Cannot call head() on NA")|};
+    {|Error(TypeError: "Function `head` cannot be called on NA.")|};
 
   test "length on NA returns error"
     {|length(NA)|}
-    {|Error(TypeError: "Cannot get length of NA")|};
+    {|Error(TypeError: "Cannot get length of NA.")|};
 
   print_newline ();
 
@@ -163,14 +163,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "assert false with message"
     {|assert(false, "test failed")|}
-    {|Error(AssertionError: "Assertion failed: test failed")|};
+    {|Error(AssertionError: "Assertion failed: test failed.")|};
 
   test "assert NA"
     {|assert(NA)|}
-    {|Error(AssertionError: "Assertion received NA")|};
+    {|Error(AssertionError: "Assertion received NA.")|};
 
   test "assert NA with message"
     {|assert(NA, "value was missing")|}
-    {|Error(AssertionError: "Assertion received NA: value was missing")|};
+    {|Error(AssertionError: "Assertion received NA: value was missing.")|};
 
   print_newline ()

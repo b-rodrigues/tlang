@@ -76,30 +76,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Golden test: Cycle detection *)
   test "golden: cycle detection"
     "pipeline {\n  a = b\n  b = a\n}"
-    {|Error(ValueError: "Pipeline has a dependency cycle involving node 'a'")|};
+    {|Error(ValueError: "Pipeline has a dependency cycle involving node `a`.")|};
 
   (* Golden test: Node failure *)
   test "golden: node failure propagation"
     "pipeline {\n  a = 1 / 0\n  b = a + 1\n}"
-    {|Error(ValueError: "Pipeline node 'a' failed: Error(DivisionByZero: "Division by zero")")|};
+    {|Error(ValueError: "Pipeline node `a` failed: Error(DivisionByZero: "Division by zero.")")|};
 
   (* Golden test: Missing node access *)
   test "golden: missing node error"
     "p = pipeline {\n  x = 42\n}; p.missing"
-    {|Error(KeyError: "node 'missing' not found in Pipeline")|};
+    {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
 
   (* Golden test: Introspection on non-pipeline *)
   test "golden: pipeline_nodes type error"
     "pipeline_nodes(42)"
-    {|Error(TypeError: "pipeline_nodes() expects a Pipeline")|};
+    {|Error(TypeError: "Function `pipeline_nodes` expects a Pipeline.")|};
 
   test "golden: pipeline_run type error"
     "pipeline_run(42)"
-    {|Error(TypeError: "pipeline_run() expects a Pipeline")|};
+    {|Error(TypeError: "Function `pipeline_run` expects a Pipeline.")|};
 
   test "golden: pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "z")|}
-    {|Error(KeyError: "node 'z' not found in Pipeline")|};
+    {|Error(KeyError: "Node `z` not found in Pipeline.")|};
   print_newline ();
 
   Printf.printf "Phase 8 — Golden: Pipeline with Data:\n";
@@ -543,22 +543,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "golden na_rm: mean default errors on NA"
     {|mean([1, NA, 3])|}
-    {|Error(TypeError: "mean() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly.")|};
 
   test "golden na_rm: sum default errors on NA"
     {|sum([1, NA, 3])|}
-    {|Error(TypeError: "sum() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly.")|};
 
   test "golden na_rm: sd default errors on NA"
     {|sd([1, NA, 3])|}
-    {|Error(TypeError: "sd() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `sd` encountered NA value. Handle missingness explicitly.")|};
 
   test "golden na_rm: quantile default errors on NA"
     {|quantile([1, NA, 3], 0.5)|}
-    {|Error(TypeError: "quantile() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `quantile` encountered NA value. Handle missingness explicitly.")|};
 
   test "golden na_rm: cor default errors on NA"
     {|cor([1, NA, 3], [4, 5, 6])|}
-    {|Error(TypeError: "cor() encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly.")|};
 
   print_newline ()
