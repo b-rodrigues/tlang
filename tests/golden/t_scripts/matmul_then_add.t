@@ -10,5 +10,6 @@ result = [
   shape: s |> map(\(n) -> string(n)) |> join(","),
   data: d |> map(\(n) -> string(n)) |> join(", ")
 ]
-write_csv(result, "tests/golden/t_outputs/matmul_then_add.csv")
+df = dataframe([result])
+write_csv(df, "tests/golden/t_outputs/matmul_then_add.csv")
 print("✓ matmul then add complete")

@@ -954,6 +954,7 @@ let initial_env () : environment =
   let env = T_seq.register env in
   let env = T_map.register ~eval_call env in
   let env = Sum.register env in
+  let env = T_string.register env in
   (* Base package *)
   let env = T_assert.register env in
   let env = Is_na.register env in
@@ -961,6 +962,7 @@ let initial_env () : environment =
   let env = Error_mod.register env in
   let env = Error_utils.register env in
   (* Dataframe package *)
+  let env = T_dataframe.register env in
   let env = T_read_csv.register ~parse_csv_string:(fun ~sep ~skip_header ~skip_lines ~clean_colnames content -> parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames content) env in
   let env = T_write_csv.register ~write_csv_fn:(fun ~sep table path -> Arrow_io.write_csv ~sep table path) env in
   let env = Colnames.register env in

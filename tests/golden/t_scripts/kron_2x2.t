@@ -8,5 +8,6 @@ result = [
   shape: s |> map(\(n) -> string(n)) |> join(","),
   data: d |> map(\(n) -> string(n)) |> join(", ")
 ]
-write_csv(result, "tests/golden/t_outputs/kron_2x2.csv")
+df = dataframe([result])
+write_csv(df, "tests/golden/t_outputs/kron_2x2.csv")
 print("✓ kron 2x2 complete")

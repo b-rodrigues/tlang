@@ -7,5 +7,6 @@ result = [
   shape: s |> map(\(n) -> string(n)) |> join(","),
   data: d |> map(\(n) -> string(n)) |> join(", ")
 ]
-write_csv(result, "tests/golden/t_outputs/ndarray_1d.csv")
+df = dataframe([result])
+write_csv(df, "tests/golden/t_outputs/ndarray_1d.csv")
 print("✓ ndarray 1D complete")

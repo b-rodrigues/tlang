@@ -8,5 +8,6 @@ result = [
   shape: s |> map(\(n) -> string(n)) |> join(","),
   data: d |> map(\(n) -> string(n)) |> join(", ")
 ]
-write_csv(result, "tests/golden/t_outputs/matmul_2x3_3x2.csv")
+df = dataframe([result])
+write_csv(df, "tests/golden/t_outputs/matmul_2x3_3x2.csv")
 print("✓ matmul 2x3 × 3x2 complete")
