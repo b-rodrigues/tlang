@@ -262,7 +262,7 @@ See [Development Guide](docs/development.md) for details.
 
 We welcome contributions! Please see our [Contributing Guide](docs/contributing.md) for:
 
-- Code of conduct
+- [Code of Ethics](docs/code-of-ethics.md)
 - How to submit issues and pull requests
 - Coding standards
 - Testing requirements
