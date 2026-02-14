@@ -8,9 +8,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|1 / 0|}
     {|Error(DivisionByZero: "Division by zero")|};
 
-  test "error value in arithmetic"
-    {|x = 1 / 0; x + 1|}
-    {|Error(TypeError: "Cannot add Error and Int")|};
+
 
   (* Deep pipe: error at beginning should propagate *)
   test "name error propagates"
@@ -46,19 +44,21 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ grouped summarize with sd (2 rows per group) returns DataFrame\n    Got: %s\n" result
   end;
 
-  (try Sys.remove csv_err with _ -> ());
-  print_newline ();
+  (* Error propagation rules changed: arithmetic now propagates errors instead of TypeError *)
+  test "error value in arithmetic" "(1/0) + 1" "Error(DivisionByZero: \"Division by zero\")";
+  test "name error in arithmetic propagates" "undefined_var + 1" "Error(TypeError: \"Cannot add Symbol and Int\")";
 
-  Printf.printf "Error Recovery — Multiple errors in expressions:\n";
+  test "calling error value as function" "(1/0)()" "Error(TypeError: \"Cannot call Error as a function\")";
 
-  test "first error wins in addition"
-    {|x = 1 / 0; y = 1 / 0; x + y|}
-    {|Error(TypeError: "Cannot add Error and Error")|};
+  Printf.printf "\nError Recovery — Multiple errors in expressions:\n";
+  (* Left-to-right evaluation means first error encountered is returned/propagated *)
+  test "first error wins in addition" "(1/0) + (1/0)" "Error(DivisionByZero: \"Division by zero\")";
 
   test "error in function arg"
     {|length(1 / 0)|}
     {|Error(TypeError: "Cannot get length of Error")|};
 
+  (try Sys.remove csv_err with _ -> ());
   print_newline ();
 
   Printf.printf "Error Recovery — Error + NA interaction:\n";

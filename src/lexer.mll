@@ -36,9 +36,13 @@ rule token = parse
   | "false"     { FALSE }
   | "null"      { NULL }
   | "NA"        { NA }
-  | "and"       { AND }
-  | "or"        { OR }
-  | "not"       { NOT }
+  | "in"        { IN }
+
+  | "&&"        { AND }
+  | "||"        { OR }
+  | "&"         { BITAND }
+  | "|"         { BITOR } (* Note: PIPE is |> which is longer, so it should be fine *)
+  | "!"         { BANG }
 
   (* Literals — float must be tried before int *)
   | float as lxm { FLOAT (float_of_string lxm) }
@@ -58,6 +62,19 @@ rule token = parse
   | "..." { DOTDOTDOT }
   | "?|>" { MAYBE_PIPE }
   | "|>" { PIPE }
+  (* Dotted operators *)
+  | ".+"  { DOT_PLUS }
+  | ".-"  { DOT_MINUS }
+  | ".*"  { DOT_MUL }
+  | "./"  { DOT_DIV }
+  | ".==" { DOT_EQ }
+  | ".!=" { DOT_NEQ }
+  | ".<"  { DOT_LT }
+  | ".>"  { DOT_GT }
+  | ".<=" { DOT_LTE }
+  | ".>=" { DOT_GTE }
+  | ".&"  { DOT_BITAND }
+  | ".|"  { DOT_BITOR }
   | '+' { PLUS }     | '-' { MINUS }
   | '*' { STAR }     | '/' { SLASH }
   | "==" { EQ }      | "!=" { NEQ }

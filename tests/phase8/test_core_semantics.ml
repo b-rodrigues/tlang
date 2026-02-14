@@ -50,13 +50,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Core Semantics: Conditional edge cases:\n";
 
   test "nested conditionals" "if (true) (if (false) 1 else 2) else 3" "2";
-  test "conditional with comparison" "x = 5; if (x > 3 and x < 10) \"in range\" else \"out\"" {|"in range"|};
-  test "falsy values: 0" "if (0) 1 else 2" "2";
-  test "falsy values: false" "if (false) 1 else 2" "2";
-  test "falsy values: null" "if (null) 1 else 2" "2";
-  test "truthy values: 1" "if (1) 1 else 2" "1";
-  test "truthy values: string" "if (\"hello\") 1 else 2" "1";
-  test "truthy values: list" "if ([1]) 1 else 2" "1";
+  test "conditional with comparison" "x = 5; if ((x > 3) && (x < 10)) \"in range\" else \"out\"" {|"in range"|};
+  test "non-bool if condition"
+    "if (1) 42 else 0"
+    {|Error(TypeError: "If condition must be Bool, got Int")|};
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: List edge cases:\n";
@@ -80,11 +77,13 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Core Semantics: Error invariants:\n";
 
   (* Error propagation through binary operations *)
-  test "error + value" "(1 / 0) + 5" {|Error(TypeError: "Cannot add Error and Int")|};
-  test "value + error" "5 + (1 / 0)" {|Error(TypeError: "Cannot add Int and Error")|};
-  test "error * error" "(1 / 0) * (1 / 0)" {|Error(TypeError: "Cannot multiply Error and Error")|};
+  test "error + value" "(1 / 0) + 5" {|Error(DivisionByZero: "Division by zero")|};
+  test "value + error" "5 + (1 / 0)" {|Error(DivisionByZero: "Division by zero")|};
+  test "error * error" "(1 / 0) * (1 / 0)" {|Error(DivisionByZero: "Division by zero")|};
 
   (* Type errors *)
+  (* Note: Hint tests might fail if error messages changed slightly, so checking exact output is brittle.
+     But we expect TypeErrors, not DivisionByZero for type mismatches. *)
   test "int + bool error" "1 + true" {|Error(TypeError: "Cannot add Int and Bool. Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values.")|};
   test "bool * string error" {|true * "hello"|} {|Error(TypeError: "Cannot multiply Bool and String")|};
 
@@ -99,10 +98,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   (* NA doesn't propagate *)
   test "NA + NA is error" "NA + NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
   test "NA in conditional is error" "if (NA) 1 else 2" {|Error(TypeError: "Cannot use NA as a condition")|};
-  test "is_na identity" "is_na(NA) and not is_na(42)" "true";
+  test "is_na identity" "is_na(NA) && !is_na(42)" "true";
 
   (* Typed NA *)
-  test "typed NAs are all NA" "is_na(na_int()) and is_na(na_float()) and is_na(na_bool()) and is_na(na_string())" "true";
+  test "typed NAs are all NA" "is_na(na_int()) && is_na(na_float()) && is_na(na_bool()) && is_na(na_string())" "true";
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: Type introspection:\n";

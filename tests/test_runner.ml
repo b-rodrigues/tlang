@@ -38,6 +38,8 @@ let () =
   Test_arithmetic.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_comparisons.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_logical.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_in.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_operators.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_variables.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_functions.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_pipe.run_tests pass_count fail_count eval_string eval_string_env test;

@@ -27,6 +27,8 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
   | BinOp { op; left; right } ->
       (* Recursively transform both sides *)
       BinOp { op; left = desugar_nse_expr left; right = desugar_nse_expr right }
+  | BroadcastOp { op; left; right } ->
+      BroadcastOp { op; left = desugar_nse_expr left; right = desugar_nse_expr right }
   | UnOp { op; operand } ->
       UnOp { op; operand = desugar_nse_expr operand }
   | Call { fn; args } ->
@@ -54,6 +56,7 @@ let rec uses_nse (expr : Ast.expr) : bool =
   match expr with
   | ColumnRef _ -> true
   | BinOp { left; right; _ } -> uses_nse left || uses_nse right
+  | BroadcastOp { left; right; _ } -> uses_nse left || uses_nse right
   | UnOp { operand; _ } -> uses_nse operand
   | Call { fn; args } -> uses_nse fn || List.exists (fun (_, e) -> uses_nse e) args
   | IfElse { cond; then_; else_ } ->
@@ -64,7 +67,145 @@ let rec uses_nse (expr : Ast.expr) : bool =
   | Block exprs -> List.exists uses_nse exprs
   | _ -> false
 
-(* Forward declarations for mutual recursion *)
+(* --- Scalar and Broadcasting Logic --- *)
+
+(** Evaluate scalar binary operations.
+    Strictly handles scalar values (Int, Float, Bool, String).
+    Does NOT handle lists, vectors, or broadcasting. *)
+let eval_scalar_binop op v1 v2 =
+  match (op, v1, v2) with
+  (* Propagate errors first *)
+  | (_, VError _, _) -> v1
+  | (_, _, VError _) -> v2
+  (* Then handle NA *)
+  | (_, VNA _, _) | (_, _, VNA _) ->
+      make_error TypeError "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
+  (* Arithmetic *)
+  | (Plus, VInt a, VInt b) -> VInt (a + b)
+  | (Plus, VFloat a, VFloat b) -> VFloat (a +. b)
+  | (Plus, VInt a, VFloat b) -> VFloat (float_of_int a +. b)
+  | (Plus, VFloat a, VInt b) -> VFloat (a +. float_of_int b)
+  | (Plus, VString a, VString b) -> VString (a ^ b)
+
+  | (Minus, VInt a, VInt b) -> VInt (a - b)
+  | (Minus, VFloat a, VFloat b) -> VFloat (a -. b)
+  | (Minus, VInt a, VFloat b) -> VFloat (float_of_int a -. b)
+  | (Minus, VFloat a, VInt b) -> VFloat (a -. float_of_int b)
+
+  | (Mul, VInt a, VInt b) -> VInt (a * b)
+  | (Mul, VFloat a, VFloat b) -> VFloat (a *. b)
+  | (Mul, VInt a, VFloat b) -> VFloat (float_of_int a *. b)
+  | (Mul, VFloat a, VInt b) -> VFloat (a *. float_of_int b)
+
+  | (Div, VInt _, VInt 0) -> make_error DivisionByZero "Division by zero"
+  | (Div, VInt a, VInt b) -> VFloat (float_of_int a /. float_of_int b)
+  | (Div, VFloat _, VFloat b) when b = 0.0 -> make_error DivisionByZero "Division by zero"
+  | (Div, VFloat a, VFloat b) -> VFloat (a /. b)
+  | (Div, VInt a, VFloat b) -> if b = 0.0 then make_error DivisionByZero "Division by zero" else VFloat (float_of_int a /. b)
+  | (Div, VFloat a, VInt b) -> if b = 0 then make_error DivisionByZero "Division by zero" else VFloat (a /. float_of_int b)
+
+  (* Comparison *)
+  | (Eq, VInt a, VFloat b) -> VBool (float_of_int a = b)
+  | (Eq, VFloat a, VInt b) -> VBool (a = float_of_int b)
+  | (Eq, a, b) -> VBool (a = b)
+
+  | (NEq, VInt a, VFloat b) -> VBool (float_of_int a <> b)
+  | (NEq, VFloat a, VInt b) -> VBool (a <> float_of_int b)
+  | (NEq, a, b) -> VBool (a <> b)
+
+  | (Lt, VInt a, VInt b) -> VBool (a < b)
+  | (Lt, VFloat a, VFloat b) -> VBool (a < b)
+  | (Lt, VInt a, VFloat b) -> VBool (float_of_int a < b)
+  | (Lt, VFloat a, VInt b) -> VBool (a < float_of_int b)
+
+  | (Gt, VInt a, VInt b) -> VBool (a > b)
+  | (Gt, VFloat a, VFloat b) -> VBool (a > b)
+  | (Gt, VInt a, VFloat b) -> VBool (float_of_int a > b)
+  | (Gt, VFloat a, VInt b) -> VBool (a > float_of_int b)
+
+  | (LtEq, VInt a, VInt b) -> VBool (a <= b)
+  | (LtEq, VFloat a, VFloat b) -> VBool (a <= b)
+  | (LtEq, VInt a, VFloat b) -> VBool (float_of_int a <= b)
+  | (LtEq, VFloat a, VInt b) -> VBool (a <= float_of_int b)
+
+  | (GtEq, VInt a, VInt b) -> VBool (a >= b)
+  | (GtEq, VFloat a, VFloat b) -> VBool (a >= b)
+  | (GtEq, VInt a, VFloat b) -> VBool (float_of_int a >= b)
+  | (GtEq, VFloat a, VInt b) -> VBool (a >= float_of_int b)
+
+  (* Boolean / Bitwise *)
+  | (BitAnd, VInt a, VInt b) -> VInt (a land b)
+  | (BitOr, VInt a, VInt b) -> VInt (a lor b)
+  | (BitAnd, VBool a, VBool b) -> VBool (a && b)
+  | (BitOr, VBool a, VBool b) -> VBool (a || b)
+
+  (* Error handling *)
+  | (And, _, _) | (Or, _, _) ->
+      make_error GenericError "Internal Error: Short-circuit operators should not reach eval_scalar_binop"
+
+
+
+
+  | (op, l, r) ->
+      let op_name = match op with
+        | Plus -> "add" | Minus -> "subtract" | Mul -> "multiply" | Div -> "divide"
+        | Lt | Gt | LtEq | GtEq -> "compare" | Eq | NEq -> "compare"
+        | BitAnd -> "bitwise and" | BitOr -> "bitwise or"
+        | _ -> "apply operator to"
+      in
+      let base_msg = Printf.sprintf "Cannot %s %s and %s" op_name (Utils.type_name l) (Utils.type_name r) in
+      let msg = match Ast.type_conversion_hint (Utils.type_name l) (Utils.type_name r) with
+        | Some hint -> base_msg ^ ". " ^ hint
+        | None -> base_msg
+      in
+      make_error TypeError msg
+
+(** Broadcasting engine.
+    Applies eval_scalar_binop across lists/vectors. *)
+let rec broadcast2 op v1 v2 =
+  match v1, v2 with
+  (* Propagate errors *)
+  | VError _, _ -> v1
+  | _, VError _ -> v2
+
+  (* List-List *)
+  | VList l1, VList l2 ->
+      if List.length l1 <> List.length l2 then
+        make_error ValueError (Printf.sprintf "Broadcast requires equal-length lists (got %d and %d)" (List.length l1) (List.length l2))
+      else
+        let res = List.map2 (fun (n1, x) (n2, y) ->
+          let name = match n1, n2 with Some s, _ -> Some s | _, Some s -> Some s | _ -> None in
+          (name, broadcast2 op x y)
+        ) l1 l2 in
+        VList res
+
+  (* Vector-Vector *)
+  | VVector arr1, VVector arr2 ->
+      if Array.length arr1 <> Array.length arr2 then
+        make_error ValueError (Printf.sprintf "Broadcast requires equal-length vectors (got %d and %d)" (Array.length arr1) (Array.length arr2))
+      else
+        VVector (Array.map2 (fun x y -> broadcast2 op x y) arr1 arr2)
+
+  (* Vector-Scalar *)
+  | VVector arr, scalar ->
+      VVector (Array.map (fun x -> broadcast2 op x scalar) arr)
+
+  (* Scalar-Vector *)
+  | scalar, VVector arr ->
+      VVector (Array.map (fun x -> broadcast2 op scalar x) arr)
+
+  (* List-Scalar *)
+  | VList l, scalar ->
+      VList (List.map (fun (n, x) -> (n, broadcast2 op x scalar)) l)
+
+  (* Scalar-List *)
+  | scalar, VList l ->
+      VList (List.map (fun (n, x) -> (n, broadcast2 op scalar x)) l)
+
+  (* Scalar-Scalar *)
+  | s1, s2 ->
+      eval_scalar_binop op s1 s2
+
 
 (** Extract variable names from a formula expression.
     Supports: x, x + y, x + y + z
@@ -92,6 +233,10 @@ let rec eval_expr (env : environment) (expr : Ast.expr) : value =
       VSymbol ("$" ^ field)
 
   | BinOp { op; left; right } -> eval_binop env op left right
+  | BroadcastOp { op; left; right } ->
+      let v1 = eval_expr env left in
+      let v2 = eval_expr env right in
+      broadcast2 op v1 v2
   | UnOp { op; operand } -> eval_unop env op operand
 
   | IfElse { cond; then_; else_ } ->
@@ -99,7 +244,9 @@ let rec eval_expr (env : environment) (expr : Ast.expr) : value =
       (match cond_val with
        | VError _ as e -> e
        | VNA _ -> make_error TypeError "Cannot use NA as a condition"
-       | _ -> if Utils.is_truthy cond_val then eval_expr env then_ else eval_expr env else_)
+       | VBool true -> eval_expr env then_
+       | VBool false -> eval_expr env else_
+       | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
 
   | Call { fn; args } ->
       let fn_val = eval_expr env fn in
@@ -160,6 +307,7 @@ and free_vars (expr : Ast.expr) : string list =
     | DictLit pairs -> List.concat_map (fun (_, e) -> collect e) pairs
     | BinOp { left; right; _ } -> collect left @ collect right
     | UnOp { operand; _ } -> collect operand
+    | BroadcastOp { left; right; _ } -> collect left @ collect right
     | DotAccess { target; _ } -> collect target
     | Block exprs -> List.concat_map collect exprs
     | PipelineDef _ -> []
@@ -487,79 +635,66 @@ and eval_binop env op left right =
            let fn_val = eval_expr env right in
            eval_call env fn_val [(None, Value lval)]
       )
+
+  (* Logical (Short-circuiting) *)
+  | And ->
+      let lval = eval_expr env left in
+      (match lval with
+       | VBool false -> VBool false
+       | VBool true ->
+           let rval = eval_expr env right in
+           (match rval with
+            | VBool b -> VBool b
+            | _ -> make_error TypeError ("Right operand of && must be Bool, got " ^ Utils.type_name rval))
+       | _ -> make_error TypeError ("Left operand of && must be Bool, got " ^ Utils.type_name lval))
+  | Or ->
+      let lval = eval_expr env left in
+      (match lval with
+       | VBool true -> VBool true
+       | VBool false ->
+           let rval = eval_expr env right in
+           (match rval with
+            | VBool b -> VBool b
+            | _ -> make_error TypeError ("Right operand of || must be Bool, got " ^ Utils.type_name rval))
+       | _ -> make_error TypeError ("Left operand of || must be Bool, got " ^ Utils.type_name lval))
+  (* Membership Operator *)
+  | In ->
+      let lval = eval_expr env left in
+      let rval = eval_expr env right in
+      (match (lval, rval) with
+      | (VError _, _) -> lval
+      | (_, VError _) -> rval
+      | _ ->
+      (* Helper: check if item is in haystack (handling errors/NA) *)
+      let rec find_in item lst =
+        match lst with
+        | [] -> VBool false
+        | h :: t ->
+            let res = eval_scalar_binop Eq item h in
+            match res with
+            | VBool true -> VBool true
+            | VBool false -> find_in item t
+            | VError _ as err -> err
+            | _ -> find_in item t
+      in
+      (match rval with
+       | VList haystack ->
+           let haystack_vals = List.map snd haystack in
+           (match lval with
+            | VList needles ->
+                let res = List.map (fun (n, needle) ->
+                  (n, find_in needle haystack_vals)
+                ) needles in
+                VList res
+            | needle ->
+                find_in needle haystack_vals)
+       | _ -> make_error TypeError ("Right operand of 'in' must be a List, got " ^ Utils.type_name rval)))
+
+  (* All other binary operators *)
   | _ ->
   let lval = eval_expr env left in
   let rval = eval_expr env right in
-  (* Error values in arithmetic produce TypeError instead of propagating *)
-  (match (lval, rval) with
-  | (VError _, _) | (_, VError _) ->
-    let op_name = match op with
-      | Plus -> "add" | Minus -> "subtract" | Mul -> "multiply" | Div -> "divide"
-      | Lt | Gt | LtEq | GtEq -> "compare" | Eq | NEq -> "compare" | _ -> "apply operator to"
-    in
-    make_error TypeError (Printf.sprintf "Cannot %s %s and %s" op_name (Utils.type_name lval) (Utils.type_name rval))
-  (* NA does not propagate implicitly — operations with NA produce explicit errors *)
-  | (VNA _, _) | (_, VNA _) ->
-      make_error TypeError "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
-  | _ ->
-  match (op, lval, rval) with
-  (* Arithmetic *)
-  | (Plus, VInt a, VInt b) -> VInt (a + b)
-  | (Plus, VFloat a, VFloat b) -> VFloat (a +. b)
-  | (Plus, VInt a, VFloat b) -> VFloat (float_of_int a +. b)
-  | (Plus, VFloat a, VInt b) -> VFloat (a +. float_of_int b)
-  | (Plus, VString a, VString b) -> VString (a ^ b)
-  | (Minus, VInt a, VInt b) -> VInt (a - b)
-  | (Minus, VFloat a, VFloat b) -> VFloat (a -. b)
-  | (Minus, VInt a, VFloat b) -> VFloat (float_of_int a -. b)
-  | (Minus, VFloat a, VInt b) -> VFloat (a -. float_of_int b)
-  | (Mul, VInt a, VInt b) -> VInt (a * b)
-  | (Mul, VFloat a, VFloat b) -> VFloat (a *. b)
-  | (Mul, VInt a, VFloat b) -> VFloat (float_of_int a *. b)
-  | (Mul, VFloat a, VInt b) -> VFloat (a *. float_of_int b)
-  | (Div, VInt _, VInt 0) -> make_error DivisionByZero "Division by zero"
-  | (Div, VInt a, VInt b) -> VFloat (float_of_int a /. float_of_int b)
-  | (Div, VFloat _, VFloat b) when b = 0.0 -> make_error DivisionByZero "Division by zero"
-  | (Div, VFloat a, VFloat b) -> VFloat (a /. b)
-  | (Div, VInt a, VFloat b) -> if b = 0.0 then make_error DivisionByZero "Division by zero" else VFloat (float_of_int a /. b)
-  | (Div, VFloat a, VInt b) -> if b = 0 then make_error DivisionByZero "Division by zero" else VFloat (a /. float_of_int b)
-  (* Comparison - with cross-type int/float promotion *)
-  | (Eq, VInt a, VFloat b) -> VBool (float_of_int a = b)
-  | (Eq, VFloat a, VInt b) -> VBool (a = float_of_int b)
-  | (Eq, a, b) -> VBool (a = b)
-  | (NEq, VInt a, VFloat b) -> VBool (float_of_int a <> b)
-  | (NEq, VFloat a, VInt b) -> VBool (a <> float_of_int b)
-  | (NEq, a, b) -> VBool (a <> b)
-  | (Lt, VInt a, VInt b) -> VBool (a < b)
-  | (Lt, VFloat a, VFloat b) -> VBool (a < b)
-  | (Lt, VInt a, VFloat b) -> VBool (float_of_int a < b)
-  | (Lt, VFloat a, VInt b) -> VBool (a < float_of_int b)
-  | (Gt, VInt a, VInt b) -> VBool (a > b)
-  | (Gt, VFloat a, VFloat b) -> VBool (a > b)
-  | (Gt, VInt a, VFloat b) -> VBool (float_of_int a > b)
-  | (Gt, VFloat a, VInt b) -> VBool (a > float_of_int b)
-  | (LtEq, VInt a, VInt b) -> VBool (a <= b)
-  | (LtEq, VFloat a, VFloat b) -> VBool (a <= b)
-  | (LtEq, VInt a, VFloat b) -> VBool (float_of_int a <= b)
-  | (LtEq, VFloat a, VInt b) -> VBool (a <= float_of_int b)
-  | (GtEq, VInt a, VInt b) -> VBool (a >= b)
-  | (GtEq, VFloat a, VFloat b) -> VBool (a >= b)
-  | (GtEq, VInt a, VFloat b) -> VBool (float_of_int a >= b)
-  | (GtEq, VFloat a, VInt b) -> VBool (a >= float_of_int b)
-  (* Logical *)
-  | (And, a, b) -> VBool (Utils.is_truthy a && Utils.is_truthy b)
-  | (Or, a, b) -> VBool (Utils.is_truthy a || Utils.is_truthy b)
-  | (op, l, r) ->
-    let op_name = match op with
-      | Plus -> "add" | Minus -> "subtract" | Mul -> "multiply" | Div -> "divide"
-      | Lt | Gt | LtEq | GtEq -> "compare" | _ -> "apply operator to"
-    in
-    let base_msg = Printf.sprintf "Cannot %s %s and %s" op_name (Utils.type_name l) (Utils.type_name r) in
-    let msg = match Ast.type_conversion_hint (Utils.type_name l) (Utils.type_name r) with
-      | Some hint -> base_msg ^ ". " ^ hint
-      | None -> base_msg
-    in
-    make_error TypeError msg)
+  eval_scalar_binop op lval rval
 
 and eval_unop env op operand =
   let v = eval_expr env operand in
@@ -568,7 +703,8 @@ and eval_unop env op operand =
   | VNA _ -> make_error TypeError "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
   | _ ->
   match (op, v) with
-  | (Not, v) -> VBool (not (Utils.is_truthy v))
+  | (Not, VBool b) -> VBool (not b)
+  | (Not, other) -> make_error TypeError (Printf.sprintf "Operand of 'not' must be Bool, got %s" (Utils.type_name other))
   | (Neg, VInt i) -> VInt (-i)
   | (Neg, VFloat f) -> VFloat (-.f)
   | (Neg, other) -> make_error TypeError (Printf.sprintf "Cannot negate %s" (Utils.type_name other))

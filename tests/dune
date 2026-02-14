@@ -10,7 +10,7 @@
    test_dataframe test_pipeline test_colcraft test_window
    test_math test_stats test_broom_golden test_explain_tests
    test_cli
-   test_golden test_core_semantics
+   test_golden test_core_semantics test_in test_operators
    test_arrow_integration
    test_owl_bridge
    test_arrow_performance

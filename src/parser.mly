@@ -24,7 +24,11 @@ type param_info = { names: string list; has_variadic: bool }
 %token MAYBE_PIPE
 %token PLUS MINUS STAR SLASH
 %token EQ NEQ LT GT LTE GTE
-%token AND OR NOT
+%token BITAND BITOR
+%token AND OR BANG IN
+%token DOT_PLUS DOT_MINUS DOT_MUL DOT_DIV
+%token DOT_EQ DOT_NEQ DOT_LT DOT_GT DOT_LTE DOT_GTE
+%token DOT_BITAND DOT_BITOR
 %token TILDE
 %token LAMBDA (* \ character *)
 %token NEWLINE SEMICOLON
@@ -35,9 +39,14 @@ type param_info = { names: string list; has_variadic: bool }
 %left PIPE MAYBE_PIPE
 %left OR
 %left AND
-%nonassoc EQ NEQ LT GT LTE GTE
+%left BITOR
+%left BITAND
+%nonassoc EQ NEQ LT GT LTE GTE IN
+%nonassoc DOT_EQ DOT_NEQ DOT_LT DOT_GT DOT_LTE DOT_GTE
 %left PLUS MINUS
+%left DOT_PLUS DOT_MINUS
 %left STAR SLASH
+%left DOT_MUL DOT_DIV
 %nonassoc UMINUS UNOT
 
 /* ENTRY POINT */
@@ -105,9 +114,25 @@ or_expr:
   ;
 
 and_expr:
-  | e = cmp_expr { e }
-  | left = and_expr AND right = cmp_expr
+  | e = bit_or_expr { e }
+  | left = and_expr AND right = bit_or_expr
     { BinOp { op = And; left; right } }
+  ;
+
+bit_or_expr:
+  | e = bit_and_expr { e }
+  | left = bit_or_expr BITOR right = bit_and_expr
+    { BinOp { op = BitOr; left; right } }
+  | left = bit_or_expr DOT_BITOR right = bit_and_expr
+    { BroadcastOp { op = BitOr; left; right } }
+  ;
+
+bit_and_expr:
+  | e = cmp_expr { e }
+  | left = bit_and_expr BITAND right = cmp_expr
+    { BinOp { op = BitAnd; left; right } }
+  | left = bit_and_expr DOT_BITAND right = cmp_expr
+    { BroadcastOp { op = BitAnd; left; right } }
   ;
 
 cmp_expr:
@@ -118,24 +143,35 @@ cmp_expr:
   | left = add_expr GT right = add_expr  { BinOp { op = Gt; left; right } }
   | left = add_expr LTE right = add_expr { BinOp { op = LtEq; left; right } }
   | left = add_expr GTE right = add_expr { BinOp { op = GtEq; left; right } }
+  | left = add_expr DOT_EQ right = add_expr  { BroadcastOp { op = Eq; left; right } }
+  | left = add_expr DOT_NEQ right = add_expr { BroadcastOp { op = NEq; left; right } }
+  | left = add_expr DOT_LT right = add_expr  { BroadcastOp { op = Lt; left; right } }
+  | left = add_expr DOT_GT right = add_expr  { BroadcastOp { op = Gt; left; right } }
+  | left = add_expr DOT_LTE right = add_expr { BroadcastOp { op = LtEq; left; right } }
+  | left = add_expr DOT_GTE right = add_expr { BroadcastOp { op = GtEq; left; right } }
+  | left = add_expr IN right = add_expr { BinOp { op = In; left; right } }
   ;
 
 add_expr:
   | e = mul_expr { e }
   | left = add_expr PLUS right = mul_expr  { BinOp { op = Plus; left; right } }
   | left = add_expr MINUS right = mul_expr { BinOp { op = Minus; left; right } }
+  | left = add_expr DOT_PLUS right = mul_expr  { BroadcastOp { op = Plus; left; right } }
+  | left = add_expr DOT_MINUS right = mul_expr { BroadcastOp { op = Minus; left; right } }
   ;
 
 mul_expr:
   | e = unary_expr { e }
   | left = mul_expr STAR right = unary_expr  { BinOp { op = Mul; left; right } }
   | left = mul_expr SLASH right = unary_expr { BinOp { op = Div; left; right } }
+  | left = mul_expr DOT_MUL right = unary_expr  { BroadcastOp { op = Mul; left; right } }
+  | left = mul_expr DOT_DIV right = unary_expr { BroadcastOp { op = Div; left; right } }
   ;
 
 unary_expr:
   | e = postfix_expr { e }
   | MINUS e = unary_expr { UnOp { op = Neg; operand = e } }
-  | NOT e = unary_expr { UnOp { op = Not; operand = e } }
+  | BANG e = unary_expr { UnOp { op = Not; operand = e } }
   ;
 
 /* Function calls and dot access are postfix operations */
