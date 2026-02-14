@@ -41,11 +41,9 @@ jobs:
     
     - name: Run T test scripts
       run: nix develop --command make golden-run
-      continue-on-error: true
     
     - name: Compare outputs (testthat)
       run: nix develop --command make golden-compare
-      continue-on-error: true
     
     - name: Upload test results
       if: always()
