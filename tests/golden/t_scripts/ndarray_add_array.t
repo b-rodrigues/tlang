@@ -5,8 +5,8 @@ result_arr = arr1 .+ arr2
 s = shape(result_arr)
 d = ndarray_data(result_arr)
 result = List(
-  shape = s |> map(\x -> string(x)) |> join(","),
-  data = d |> map(\x -> string(x)) |> join(", ")
+  shape = s |> map(\n -> string(n)) |> join(","),
+  data = d |> map(\n -> string(n)) |> join(", ")
 )
 write_csv(result, "tests/golden/t_outputs/ndarray_add_array.csv")
 print("✓ ndarray add array complete")

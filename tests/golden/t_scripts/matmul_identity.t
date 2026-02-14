@@ -5,8 +5,8 @@ c = matmul(a, identity)
 s = shape(c)
 d = ndarray_data(c)
 result = List(
-  shape = s |> map(\x -> string(x)) |> join(","),
-  data = d |> map(\x -> string(x)) |> join(", ")
+  shape = s |> map(\n -> string(n)) |> join(","),
+  data = d |> map(\n -> string(n)) |> join(", ")
 )
 write_csv(result, "tests/golden/t_outputs/matmul_identity.csv")
 print("✓ matmul identity complete")
