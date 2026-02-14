@@ -26,7 +26,7 @@ save_array_output <- function(arr, name, operation) {
   # For 2D arrays (matrices), transpose to convert column-major to row-major
   # For 3D+ arrays, we need to reorder dimensions appropriately
   if (length(dims) == 2) {
-    # Transpose 2D array: R's [i,j] becomes T's [j,i] in memory
+    # Transpose: converts R's column-major [i,j] to row-major before flattening
     flat_data <- as.vector(t(arr))
   } else if (length(dims) == 3) {
     # For 3D arrays, we need to reorder from R's [i,j,k] to T's row-major
@@ -40,7 +40,7 @@ save_array_output <- function(arr, name, operation) {
   # Create output with shape and flattened data
   output_df <- tibble(
     shape = paste(dims, collapse = ","),
-    data = paste(flat_data, collapse = ",")
+    data = paste(flat_data, collapse = ", ")  # Match T's ', ' format
   )
   
   write_csv(output_df, filepath)
