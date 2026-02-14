@@ -166,6 +166,12 @@ let shape_of args =
   | [VNDArray arr] -> value_of_shape arr.shape
   | _ -> Error.type_error "shape expects an NDArray."
 
+let data_of args =
+  match args with
+  | [VNDArray arr] ->
+      VList (arr.data |> Array.to_list |> List.map (fun f -> (None, VFloat f)))
+  | _ -> Error.type_error "ndarray_data expects an NDArray."
+
 let register env =
   let env = Env.add "ndarray"
       (make_builtin ~variadic:true 1 (fun args _env -> ndarray_create args)) env in
@@ -173,6 +179,8 @@ let register env =
       (make_builtin 2 (fun args _env -> reshape args)) env in
   let env = Env.add "shape"
       (make_builtin 1 (fun args _env -> shape_of args)) env in
+  let env = Env.add "ndarray_data"
+      (make_builtin 1 (fun args _env -> data_of args)) env in
   let env = Env.add "matmul"
       (make_builtin 2 (fun args _env -> matrix_multiply args)) env in
   let env = Env.add "kron"

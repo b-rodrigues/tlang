@@ -21,13 +21,19 @@ save_array_output <- function(arr, name, operation) {
     dims <- length(arr)
   }
   
-  # Flatten array to vector (R uses column-major order, T uses row-major)
-  # We need to transpose or reorder to match T's row-major ordering
+  # Flatten array to vector
+  # R uses column-major order, T uses row-major order
+  # For 2D arrays (matrices), transpose to convert column-major to row-major
+  # For 3D+ arrays, we need to reorder dimensions appropriately
   if (length(dims) == 2) {
-    # For 2D arrays, transpose to convert column-major to row-major
+    # Transpose 2D array: R's [i,j] becomes T's [j,i] in memory
     flat_data <- as.vector(t(arr))
+  } else if (length(dims) == 3) {
+    # For 3D arrays, we need to reorder from R's [i,j,k] to T's row-major
+    # aperm(arr, c(3,2,1)) reverses the dimension order for proper flattening
+    flat_data <- as.vector(aperm(arr, c(3,2,1)))
   } else {
-    # For 1D or 3D+, flatten directly (will need special handling if needed)
+    # For 1D or higher dimensions, flatten directly
     flat_data <- as.vector(arr)
   }
   
@@ -60,9 +66,11 @@ arr_3d <- array(1:24, dim = c(2, 3, 4))
 save_array_output(arr_3d, "ndarray_3d_2x3x4", "array(1:24, dim=c(2,3,4))")
 
 # Test 1.4: Reshape operation
+# First create the original array
 arr_reshape <- array(1:12, dim = c(3, 4))
 save_array_output(arr_reshape, "ndarray_reshape_3x4", "array(1:12, dim=c(3,4))")
 
+# Reshape to 2x6: transpose first to get row-major order, then reshape
 arr_reshaped <- array(as.vector(t(arr_reshape)), dim = c(2, 6))
 save_array_output(arr_reshaped, "ndarray_reshape_2x6", "reshape(array(1:12, 3x4), dim=c(2,6))")
 

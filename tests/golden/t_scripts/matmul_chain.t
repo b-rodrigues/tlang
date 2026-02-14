@@ -6,9 +6,10 @@ c = ndarray([[1, 2], [3, 4]])
 temp = matmul(a, b)
 result_arr = matmul(temp, c)
 s = shape(result_arr)
+d = ndarray_data(result_arr)
 result = List(
   shape = s |> map(\x -> string(x)) |> join(","),
-  data = "150., 196., 366., 478."
+  data = d |> map(\x -> string(x)) |> join(", ")
 )
 write_csv(result, "tests/golden/t_outputs/matmul_chain.csv")
 print("✓ matmul chain complete")
