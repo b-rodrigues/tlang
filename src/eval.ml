@@ -219,7 +219,7 @@ let rec broadcast2 op v1 v2 =
           | VInt n -> float_of_int n
           | VFloat f -> f
           | VBool b -> if b then 1.0 else 0.0
-          | (VError _ as err) ->
+          | VError _ as err ->
               first_error := Some err;
               nan
           | _ -> nan
@@ -242,7 +242,7 @@ let rec broadcast2 op v1 v2 =
              | VInt n -> float_of_int n
              | VFloat f -> f
              | VBool b -> if b then 1.0 else 0.0
-             | (VError _ as err) ->
+             | VError _ as err ->
                  first_error := Some err;
                  nan
              | _ -> nan
@@ -265,7 +265,7 @@ let rec broadcast2 op v1 v2 =
              | VInt n -> float_of_int n
              | VFloat f -> f
              | VBool b -> if b then 1.0 else 0.0
-             | (VError _ as err) ->
+             | VError _ as err ->
                  first_error := Some err;
                  nan
              | _ -> nan
