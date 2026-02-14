@@ -51,12 +51,16 @@ T provides specific functions for matrix operations:
 
 - **`matmul(a, b)`**: Performs matrix multiplication between two 2D arrays.
 - **`kron(a, b)`**: Computes the Kronecker product of two 2D arrays.
+- **`diag(x)`**: For a 1D array, returns a square diagonal matrix; for a 2D array, extracts its main diagonal.
+- **`inv(a)`**: Computes the inverse of a square 2D array.
 
 ```t
 a = ndarray([[1, 2], [3, 4]])
 i = ndarray([[1, 0], [0, 1]])
 
 res = matmul(a, i) -- Returns 'a'
+main_diag = diag(a)  -- [1.0, 4.0]
+inverse = inv(a)     -- [[-2.0, 1.0], [1.5, -0.5]]
 ```
 
 ## Reshaping and Introspection

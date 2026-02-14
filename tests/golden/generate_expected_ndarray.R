@@ -184,4 +184,23 @@ save_array_output(mat_chain, "matmul_chain", "matmul(matmul(A, B), C)")
 mat_result_ops <- (mat_a %*% mat_b) + 100
 save_array_output(mat_result_ops, "matmul_then_add", "matmul(A, B) + 100")
 
+# ============================================================================
+# Test Suite 7: Diagonal and Inverse Operations
+# ============================================================================
+message("\n=== DIAG/INV OPERATIONS Tests ===")
+
+# Test 7.1: diag from vector -> diagonal matrix
+vec_diag <- diag(c(2, 3, 4))
+save_array_output(vec_diag, "diag_from_vector", "diag([2,3,4])")
+
+# Test 7.2: diag from matrix -> vector
+mat_for_diag <- matrix(c(1, 2, 3, 4), nrow = 2, ncol = 2, byrow = TRUE)
+mat_diag <- diag(mat_for_diag)
+save_array_output(mat_diag, "diag_from_matrix", "diag([[1,2],[3,4]])")
+
+# Test 7.3: inverse of 2x2 matrix
+mat_for_inv <- matrix(c(4, 7, 2, 6), nrow = 2, ncol = 2, byrow = TRUE)
+mat_inv <- solve(mat_for_inv)
+save_array_output(mat_inv, "inv_2x2", "inv([[4,7],[2,6]])")
+
 message("\n✅ All NDArray outputs generated!")

@@ -83,6 +83,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "ndarray infer shape" "shape(ndarray([[1,2],[3,4]]))" "[2, 2]";
   test "reshape" "shape(reshape(ndarray([1,2,3,4]), [2,2]))" "[2, 2]";
   test "matmul" "matmul(ndarray([[1,2],[3,4]]), ndarray([[5,6],[7,8]]))" "NDArray(shape=[2, 2], data=[19., 22., 43., 50.])";
+  test "diag from vector" "diag(ndarray([2,3,4]))" "NDArray(shape=[3, 3], data=[2., 0., 0., 0., 3., 0., 0., 0., 4.])";
+  test "diag from matrix" "diag(ndarray([[1,2],[3,4]]))" "NDArray(shape=[2], data=[1., 4.])";
+  test "inv 2x2" "inv(ndarray([[4,7],[2,6]]))" "NDArray(shape=[2, 2], data=[0.6, -0.7, -0.2, 0.4])";
   test "kron" "kron(ndarray([[1,2],[3,4]]), ndarray([[0,5],[6,7]]))" "NDArray(shape=[4, 4], data=[0., 5., 0., 10., 6., 7., 12., 14., 0., 15., 0., 20., 18., 21., 24., 28.])";
   test "ndarray broadcast add" "ndarray([1,2,3]) .+ 1" "NDArray(shape=[3], data=[2., 3., 4.])";
   
@@ -94,6 +97,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "matmul dimension mismatch" "matmul(ndarray([[1,2,3]]), ndarray([[1,2],[3,4]]))" {|Error(ValueError: "matmul inner dimensions must match.")|};
   test "matmul with non-2D arrays" "matmul(ndarray([1,2,3]), ndarray([4,5,6]))" {|Error(ValueError: "matmul expects two 2D NDArrays.")|};
   test "kron with non-2D arrays" "kron(ndarray([1,2]), ndarray([[1,2],[3,4]]))" {|Error(ValueError: "kron expects two 2D NDArrays.")|};
+  test "diag with non-1D/2D ndarray" "diag(ndarray([[[1,2],[3,4]]]))" {|Error(ValueError: "diag expects a 1D or 2D NDArray.")|};
+  test "inv non-square" "inv(ndarray([[1,2,3],[4,5,6]]))" {|Error(ValueError: "inv expects a square matrix.")|};
+  test "inv singular matrix" "inv(ndarray([[1,2],[2,4]]))" {|Error(ValueError: "inv matrix is singular or ill-conditioned.")|};
   test "reshape incompatible element count" "reshape(ndarray([1,2,3]), [2,2])" {|Error(ValueError: "reshape target shape must preserve element count.")|};
   test "shape with non-NDArray argument" "shape([1,2,3])" {|Error(TypeError: "shape expects an NDArray.")|};
   test "reshape with non-NDArray argument" "reshape([1,2,3], [3])" {|Error(TypeError: "reshape expects (NDArray, shape).")|};
