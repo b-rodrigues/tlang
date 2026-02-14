@@ -1,0 +1,16 @@
+-- Test: Chain matrix multiplications
+a = ndarray([[1, 3, 5], [2, 4, 6]])
+b = ndarray([[1, 4], [2, 5], [3, 6]])
+c = ndarray([[1, 3], [2, 4]])
+-- (2x3) × (3x2) = (2x2), then (2x2) × (2x2) = (2x2)
+temp = matmul(a, b)
+result_arr = matmul(temp, c)
+s = shape(result_arr)
+d = ndarray_data(result_arr)
+result = [
+  shape: s |> map(\(n) -> string(n)) |> join(","),
+  data: d |> map(\(n) -> string(n)) |> join(", ")
+]
+df = dataframe([result])
+write_csv(df, "tests/golden/t_outputs/matmul_chain.csv")
+print("✓ matmul chain complete")

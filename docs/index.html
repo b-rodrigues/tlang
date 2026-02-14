@@ -1,120 +1,145 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>T Programming Language</title>
 </head>
+
 <body bgcolor="#f5f5dc" text="#000000" link="#0000ee" vlink="#551a8b" alink="#ff0000">
 
   <center>
-    <h1><font face="Courier New">T — A Language for Tabular Data and Human–LLM Collaboration</font></h1>
+    <h1>
+      <font face="Courier New">T — A Language for Tabular Data and Human–LLM Collaboration</font>
+    </h1>
     <hr width="80%">
   </center>
 
   <font face="Courier New" size="3">
 
-  <p>
-    <b>T</b> is an experimental programming language for declarative, functional manipulation
-    of tabular data. Inspired by R’s tidyverse and OCaml’s semantic rigor, T is designed
-    to make data analysis <b>explicit, inspectable, and pipeline-oriented</b>.
-  </p>
+    <p>
+      <b>T</b> is an experimental programming language for declarative, functional manipulation
+      of tabular data. Inspired by R’s tidyverse and OCaml’s semantic rigor, T is designed
+      to make data analysis <b>explicit, inspectable, and pipeline-oriented</b>.
+    </p>
 
-  <p>
-    Unlike traditional scripting languages, T is built from the ground up to support
-    <b>human–LLM collaborative programming</b>, where humans specify intent and constraints,
-    and language tools (including LLMs) generate localized, mechanical code.
-  </p>
+    <p>
+      Unlike traditional scripting languages, T is built from the ground up to support
+      <b>human–LLM collaborative programming</b>, where humans specify intent and constraints,
+      and language tools (including LLMs) generate localized, mechanical code.
+    </p>
 
-  <p><b>Status:</b> Pre-alpha. Actively designed and implemented.</p>
+    <p><b>Status:</b> Pre-alpha. Actively designed and implemented.</p>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Documentation</font></h2>
-  
-  <h3><font face="Courier New">Getting Started</font></h3>
-  <ul>
-    <li><a href="getting-started.html">Getting Started Guide</a> — first steps with T</li>
-    <li><a href="installation.html">Installation Guide</a> — detailed setup with Nix</li>
-    <li><a href="language_overview.html">Language Overview</a> — types, syntax, functions, and standard library</li>
-  </ul>
-  
-  <h3><font face="Courier New">User Guides</font></h3>
-  <ul>
-    <li><a href="api-reference.html">API Reference</a> — complete function reference by package</li>
-    <li><a href="data_manipulation_examples.html">Data Manipulation Examples</a> — practical examples with core data verbs</li>
-    <li><a href="pipeline_tutorial.html">Pipeline Tutorial</a> — step-by-step guide to T's pipeline model</li>
-    <li><a href="examples.html">Comprehensive Examples</a> — real-world analysis patterns</li>
-    <li><a href="error-handling.html">Error Handling Guide</a> — error patterns and recovery strategies</li>
-  </ul>
-  
-  <h3><font face="Courier New">Advanced Topics</font></h3>
-  <ul>
-    <li><a href="reproducibility.html">Reproducibility Guide</a> — Nix integration and reproducible workflows</li>
-    <li><a href="llm-collaboration.html">LLM Collaboration</a> — intent blocks and AI-assisted development</li>
-    <li><a href="formulas.html">Statistical Formulas</a> — formula syntax for modeling</li>
-    <li><a href="performance.html">Performance</a> — Arrow backend and optimization</li>
-  </ul>
-  
-  <h3><font face="Courier New">Developer Resources</font></h3>
-  <ul>
-    <li><a href="architecture.html">Architecture</a> — language design and implementation</li>
-    <li><a href="contributing.html">Contributing Guide</a> — how to contribute to T</li>
-    <li><a href="development.html">Development Guide</a> — building, testing, and debugging</li>
-    <li><a href="package_development.html">Package Development Guide</a> — creating and publishing T packages</li>
-  </ul>
-  
-  <h3><font face="Courier New">Reference & Support</font></h3>
-  <ul>
-    <li><a href="faq.html">FAQ</a> — frequently asked questions</li>
-    <li><a href="troubleshooting.html">Troubleshooting</a> — common issues and solutions</li>
-    <li><a href="changelog.html">Changelog</a> — version history and roadmap</li>
-    <li><a href="code-of-ethics.md">Code of Ethics</a> — standards of conduct</li>
-  </ul>
+    <h2>
+      <font face="Courier New">Documentation</font>
+    </h2>
 
-  <hr>
+    <h3>
+      <font face="Courier New">Getting Started</font>
+    </h3>
+    <ul>
+      <li><a href="getting-started.html">Getting Started Guide</a> — first steps with T</li>
+      <li><a href="installation.html">Installation Guide</a> — detailed setup with Nix</li>
+      <li><a href="language_overview.html">Language Overview</a> — types, syntax, functions, and standard library</li>
+      <li><a href="arrays.html">Numerical Arrays</a> — tutorial on N-dimensional arrays and linear algebra</li>
 
-  <h2><font face="Courier New">Design Goals</font></h2>
-  <ul>
-    <li>Data analysis as explicit pipelines</li>
-    <li>First-class tabular data (DataFrame-centric)</li>
-    <li>Expression-oriented, functional style</li>
-    <li>Explicit semantics (no hidden rules, no implicit NA propagation)</li>
-    <li>Minimal OCaml core, extensible via packages</li>
-    <li>Deterministic execution and inspectable errors</li>
-    <li>REPL-first exploratory workflow</li>
-    <li>LLM-friendly structure and tooling</li>
-  </ul>
+    </ul>
 
-  <hr>
+    <h3>
+      <font face="Courier New">User Guides</font>
+    </h3>
+    <ul>
+      <li><a href="api-reference.html">API Reference</a> — complete function reference by package</li>
+      <li><a href="data_manipulation_examples.html">Data Manipulation Examples</a> — practical examples with core data
+        verbs</li>
+      <li><a href="pipeline_tutorial.html">Pipeline Tutorial</a> — step-by-step guide to T's pipeline model</li>
+      <li><a href="examples.html">Comprehensive Examples</a> — real-world analysis patterns</li>
+      <li><a href="error-handling.html">Error Handling Guide</a> — error patterns and recovery strategies</li>
+    </ul>
 
-  <h2><font face="Courier New">LLM-Native by Design</font></h2>
+    <h3>
+      <font face="Courier New">Advanced Topics</font>
+    </h3>
+    <ul>
+      <li><a href="reproducibility.html">Reproducibility Guide</a> — Nix integration and reproducible workflows</li>
+      <li><a href="llm-collaboration.html">LLM Collaboration</a> — intent blocks and AI-assisted development</li>
+      <li><a href="formulas.html">Statistical Formulas</a> — formula syntax for modeling</li>
+      <li><a href="performance.html">Performance</a> — Arrow backend and optimization</li>
+    </ul>
 
-  <p>
-    T treats large language models as <b>first-class collaborators</b>, not magic code generators.
-    The language and tooling are designed to make LLM-generated code:
-  </p>
+    <h3>
+      <font face="Courier New">Developer Resources</font>
+    </h3>
+    <ul>
+      <li><a href="architecture.html">Architecture</a> — language design and implementation</li>
+      <li><a href="contributing.html">Contributing Guide</a> — how to contribute to T</li>
+      <li><a href="development.html">Development Guide</a> — building, testing, and debugging</li>
+      <li><a href="package_development.html">Package Development Guide</a> — creating and publishing T packages</li>
+    </ul>
 
-  <ul>
-    <li>Local rather than global</li>
-    <li>Constrained rather than free-form</li>
-    <li>Inspectable rather than opaque</li>
-    <li>Correctable rather than brittle</li>
-  </ul>
+    <h3>
+      <font face="Courier New">Reference & Support</font>
+    </h3>
+    <ul>
+      <li><a href="faq.html">FAQ</a> — frequently asked questions</li>
+      <li><a href="troubleshooting.html">Troubleshooting</a> — common issues and solutions</li>
+      <li><a href="changelog.html">Changelog</a> — version history and roadmap</li>
+      <li><a href="code-of-ethics.md">Code of Ethics</a> — standards of conduct</li>
+    </ul>
 
-  <p>
-    Humans define intent, assumptions, and invariants. LLMs generate localized code.
-    T enforces semantics and correctness.
-  </p>
+    <hr>
 
-  <hr>
+    <h2>
+      <font face="Courier New">Design Goals</font>
+    </h2>
+    <ul>
+      <li>Data analysis as explicit pipelines</li>
+      <li>First-class tabular data (DataFrame-centric)</li>
+      <li>Expression-oriented, functional style</li>
+      <li>Explicit semantics (no hidden rules, no implicit NA propagation)</li>
+      <li>Minimal OCaml core, extensible via packages</li>
+      <li>Deterministic execution and inspectable errors</li>
+      <li>REPL-first exploratory workflow</li>
+      <li>LLM-friendly structure and tooling</li>
+    </ul>
 
-  <h2><font face="Courier New">Intent Blocks</font></h2>
+    <hr>
 
-  <p>
-    T supports <b>intent blocks</b>: structured comments that encode analytical goals,
-    assumptions, and checks in a machine-readable way.
-  </p>
+    <h2>
+      <font face="Courier New">LLM-Native by Design</font>
+    </h2>
 
-  <pre>
+    <p>
+      T treats large language models as <b>first-class collaborators</b>, not magic code generators.
+      The language and tooling are designed to make LLM-generated code:
+    </p>
+
+    <ul>
+      <li>Local rather than global</li>
+      <li>Constrained rather than free-form</li>
+      <li>Inspectable rather than opaque</li>
+      <li>Correctable rather than brittle</li>
+    </ul>
+
+    <p>
+      Humans define intent, assumptions, and invariants. LLMs generate localized code.
+      T enforces semantics and correctness.
+    </p>
+
+    <hr>
+
+    <h2>
+      <font face="Courier New">Intent Blocks</font>
+    </h2>
+
+    <p>
+      T supports <b>intent blocks</b>: structured comments that encode analytical goals,
+      assumptions, and checks in a machine-readable way.
+    </p>
+
+    <pre>
 -- intent:
 -- goal: "Estimate approval as a function of age and income"
 -- assumptions:
@@ -125,21 +150,23 @@
 --   - at least 100 observations per group
   </pre>
 
-  <p>
-    Intent blocks are preserved by tooling, version-controlled with code, and used
-    as stable regeneration boundaries for LLM-assisted workflows.
-  </p>
+    <p>
+      Intent blocks are preserved by tooling, version-controlled with code, and used
+      as stable regeneration boundaries for LLM-assisted workflows.
+    </p>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Pipelines</font></h2>
+    <h2>
+      <font face="Courier New">Pipelines</font>
+    </h2>
 
-  <p>
-    Pipelines are T’s core execution model. Each pipeline is a DAG of named nodes with
-    explicit dependencies, cacheable results, and inspectable outputs.
-  </p>
+    <p>
+      Pipelines are T’s core execution model. Each pipeline is a DAG of named nodes with
+      explicit dependencies, cacheable results, and inspectable outputs.
+    </p>
 
-  <pre>
+    <pre>
 pipeline analysis {
   raw = { read_csv("data.csv") }
 
@@ -154,55 +181,65 @@ pipeline analysis {
 }
   </pre>
 
-  <p>
-    Pipelines enable local reasoning, reproducibility, and safe regeneration of individual
-    steps without rewriting entire scripts.
-  </p>
+    <p>
+      Pipelines enable local reasoning, reproducibility, and safe regeneration of individual
+      steps without rewriting entire scripts.
+    </p>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Language Features</font></h2>
+    <h2>
+      <font face="Courier New">Language Features</font>
+    </h2>
 
-  <ul>
-    <li>R-style lambdas: <code>\(x) x + 1</code></li>
-    <li>Conditional pipe operator: <code>|></code> (short-circuits on error)</li>
-    <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
-    <li>Dollar-prefix NSE: <code>select($name, $age)</code>, <code>filter($age > 30)</code>, <code>summarize($total = sum($amount))</code></li>
-    <li>Named arguments: <code>lm(data = df, formula = y ~ x)</code></li>
-    <li>NA handling: <code>mean(data, na_rm = true)</code> — all aggregation functions support <code>na_rm</code></li>
-    <li>CSV I/O: <code>read_csv(path, sep = ";", skip_lines = 2)</code> and <code>write_csv(df, path, sep = ";")</code></li>
-    <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
-    <li>Python-style dictionaries: <code>{name: "Alice", age: 30}</code></li>
-    <li>Errors as values, not exceptions</li>
-    <li>Actionable error messages with name suggestions, type conversion hints, and function signatures</li>
-    <li>Explicit, typed missing values</li>
-  </ul>
+    <ul>
+      <li>R-style lambdas: <code>\(x) x + 1</code></li>
+      <li>Conditional pipe operator: <code>|></code> (short-circuits on error)</li>
+      <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
+      <li>Dollar-prefix NSE: <code>select($name, $age)</code>, <code>filter($age > 30)</code>,
+        <code>summarize($total = sum($amount))</code></li>
+      <li>Named arguments: <code>lm(data = df, formula = y ~ x)</code></li>
+      <li>NA handling: <code>mean(data, na_rm = true)</code> — all aggregation functions support <code>na_rm</code></li>
+      <li>CSV I/O: <code>read_csv(path, sep = ";", skip_lines = 2)</code> and
+        <code>write_csv(df, path, sep = ";")</code></li>
+      <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
+      <li>Python-style dictionaries: <code>{name: "Alice", age: 30}</code></li>
+      <li>Errors as values, not exceptions</li>
+      <li>Actionable error messages with name suggestions, type conversion hints, and function signatures</li>
+      <li>Explicit, typed missing values</li>
+    </ul>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Pipe Operators</font></h2>
+    <h2>
+      <font face="Courier New">Pipe Operators</font>
+    </h2>
 
-  <p>
-    T provides two pipe operators with different error-handling semantics:
-  </p>
+    <p>
+      T provides two pipe operators with different error-handling semantics:
+    </p>
 
-  <h3><font face="Courier New">Conditional Pipe: <code>|></code></font></h3>
-  <p>
-    The standard pipe passes the left-hand value as the first argument to the right-hand
-    function. If the left-hand value is an error, the pipeline <b>short-circuits</b> and
-    the error is returned without calling the function.
-  </p>
-  <pre>
+    <h3>
+      <font face="Courier New">Conditional Pipe: <code>|></code></font>
+    </h3>
+    <p>
+      The standard pipe passes the left-hand value as the first argument to the right-hand
+      function. If the left-hand value is an error, the pipeline <b>short-circuits</b> and
+      the error is returned without calling the function.
+    </p>
+    <pre>
 5 |> double                -- 10
 error("boom") |> double    -- Error (short-circuited)
   </pre>
 
-  <h3><font face="Courier New">Maybe-Pipe: <code>?|></code></font></h3>
-  <p>
-    The maybe-pipe <b>always</b> forwards the left-hand value — including errors —
-    to the right-hand function. This enables explicit error recovery patterns.
-  </p>
-  <pre>
+    <h3>
+      <font face="Courier New">Maybe-Pipe: <code>?|></code></font>
+    </h3>
+    <p>
+      The maybe-pipe <b>always</b> forwards the left-hand value — including errors —
+      to the right-hand function. This enables explicit error recovery patterns.
+    </p>
+    <pre>
 -- Recover from errors:
 handle = \(x) if (is_error(x)) "recovered" else x
 error("boom") ?|> handle           -- "recovered"
@@ -213,127 +250,146 @@ increment = \(x) x + 1
 error("fail") ?|> recovery |> increment  -- 1
   </pre>
 
-  <p>
-    Together, <code>|></code> and <code>?|></code> enable
-    <b>Railway-Oriented Programming</b> in T: errors flow through pipelines as
-    explicit values, and recovery logic is composable.
-  </p>
+    <p>
+      Together, <code>|></code> and <code>?|></code> enable
+      <b>Railway-Oriented Programming</b> in T: errors flow through pipelines as
+      explicit values, and recovery logic is composable.
+    </p>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Numerical Backend</font></h2>
+    <h2>
+      <font face="Courier New">Numerical Backend</font>
+    </h2>
 
-  <p>
-    T’s numerical stack is layered:
-  </p>
+    <p>
+      T’s numerical stack is layered:
+    </p>
 
-  <ul>
-    <li><b>Tabular layer:</b> Apache Arrow for columnar data and interoperability</li>
-    <li><b>Compute layer:</b> Owl for linear algebra, optimization, and statistics</li>
-    <li><b>Fallback layer:</b> Selective C bindings (e.g. LAPACK, GSL) when needed</li>
-  </ul>
+    <ul>
+      <li><b>Tabular layer:</b> Apache Arrow for columnar data and interoperability</li>
+      <li><b>Compute layer:</b> Owl for linear algebra, optimization, and statistics</li>
+      <li><b>Fallback layer:</b> Selective C bindings (e.g. LAPACK, GSL) when needed</li>
+    </ul>
 
-  <p>
-    This approach prioritizes fast development, explicit semantics, and safe defaults,
-    while leaving room for future performance upgrades.
-  </p>
+    <p>
+      This approach prioritizes fast development, explicit semantics, and safe defaults,
+      while leaving room for future performance upgrades.
+    </p>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Standard Packages</font></h2>
-  <ul>
-    <li><b>core</b>: functional utilities (<code>map</code>, <code>sum</code>, <code>seq</code>)</li>
-    <li><b>stats</b>: statistical primitives (<code>mean</code>, <code>sd</code>, <code>quantile</code>, <code>cor</code>, <code>lm</code>)</li>
-    <li><b>colcraft</b>: DataFrame operations (<code>select</code>, <code>filter</code>, <code>mutate</code>, <code>group_by</code>, <code>summarize</code>) and window functions (<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>, <code>lag</code>, <code>lead</code>, <code>cumsum</code>, etc.)</li>
-  </ul>
+    <h2>
+      <font face="Courier New">Standard Packages</font>
+    </h2>
+    <ul>
+      <li><b>core</b>: functional utilities (<code>map</code>, <code>sum</code>, <code>seq</code>)</li>
+      <li><b>stats</b>: statistical primitives (<code>mean</code>, <code>sd</code>, <code>quantile</code>,
+        <code>cor</code>, <code>lm</code>)</li>
+      <li><b>colcraft</b>: DataFrame operations (<code>select</code>, <code>filter</code>, <code>mutate</code>,
+        <code>group_by</code>, <code>summarize</code>) and window functions (<code>row_number</code>,
+        <code>min_rank</code>, <code>dense_rank</code>, <code>lag</code>, <code>lead</code>, <code>cumsum</code>, etc.)
+      </li>
+    </ul>
 
-  <p>
-    Packages are part of the standard library and loaded by default.
-    Each function lives in its own file.
-  </p>
+    <p>
+      Packages are part of the standard library and loaded by default.
+      Each function lives in its own file.
+    </p>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Missing Value Handling</font></h2>
+    <h2>
+      <font face="Courier New">Missing Value Handling</font>
+    </h2>
 
-  <p>
-    T uses explicit <code>NA</code> values with type tags. NA does <b>not</b> propagate
-    implicitly — operations on NA produce errors by default:
-  </p>
+    <p>
+      T uses explicit <code>NA</code> values with type tags. NA does <b>not</b> propagate
+      implicitly — operations on NA produce errors by default:
+    </p>
 
-  <pre>
+    <pre>
 mean([1, NA, 3])                   -- Error: NA encountered
 sum([1, NA, 3])                    -- Error: NA encountered
   </pre>
 
-  <p>
-    To skip NA values, use the <code>na_rm = true</code> parameter:
-  </p>
+    <p>
+      To skip NA values, use the <code>na_rm = true</code> parameter:
+    </p>
 
-  <pre>
+    <pre>
 mean([1, NA, 3], na_rm = true)     -- 2.0
 sum([1, NA, 3], na_rm = true)      -- 4
 sd([2, NA, 4, 9], na_rm = true)    -- 3.61
 cor(x, y, na_rm = true)            -- pairwise deletion
   </pre>
 
-  <p>
-    All aggregation functions (<code>mean</code>, <code>sum</code>, <code>sd</code>,
-    <code>quantile</code>, <code>cor</code>) support the <code>na_rm</code> parameter.
-  </p>
+    <p>
+      All aggregation functions (<code>mean</code>, <code>sum</code>, <code>sd</code>,
+      <code>quantile</code>, <code>cor</code>) support the <code>na_rm</code> parameter.
+    </p>
 
-  <h3><font face="Courier New">Window Functions and NA</font></h3>
+    <h3>
+      <font face="Courier New">Window Functions and NA</font>
+    </h3>
 
-  <p>
-    Window functions compute values across a set of rows without collapsing them.
-    All window functions handle NA gracefully:
-  </p>
+    <p>
+      Window functions compute values across a set of rows without collapsing them.
+      All window functions handle NA gracefully:
+    </p>
 
-  <ul>
-    <li><b>Ranking</b> (<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>,
+    <ul>
+      <li><b>Ranking</b> (<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>,
         <code>cume_dist</code>, <code>percent_rank</code>, <code>ntile</code>):
-        NA positions get NA rank; ranks computed only among non-NA values</li>
-    <li><b>Offset</b> (<code>lag</code>, <code>lead</code>):
+        NA positions get NA rank; ranks computed only among non-NA values
+      </li>
+      <li><b>Offset</b> (<code>lag</code>, <code>lead</code>):
         NA values pass through unchanged</li>
-    <li><b>Cumulative</b> (<code>cumsum</code>, <code>cummin</code>, <code>cummax</code>,
+      <li><b>Cumulative</b> (<code>cumsum</code>, <code>cummin</code>, <code>cummax</code>,
         <code>cummean</code>, <code>cumall</code>, <code>cumany</code>):
-        NA propagates to all subsequent values (matching R)</li>
-  </ul>
+        NA propagates to all subsequent values (matching R)
+      </li>
+    </ul>
 
-  <pre>
+    <pre>
 row_number([3, NA, 1])             -- Vector[2, NA, 1]
 cumsum([1, NA, 3])                 -- Vector[1, NA, NA]
 lag([1, NA, 3])                    -- Vector[NA, 1, NA]
   </pre>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Alpha Roadmap</font></h2>
+    <h2>
+      <font face="Courier New">Alpha Roadmap</font>
+    </h2>
 
-  <p>
-    The alpha version of T targets a complete, end-to-end workflow:
-  </p>
+    <p>
+      The alpha version of T targets a complete, end-to-end workflow:
+    </p>
 
-  <ul>
-    <li>Stable core syntax and interpreter</li>
-    <li>Arrow-backed DataFrames</li>
-    <li>DAG-based pipelines with caching</li>
-    <li>Core data verbs (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>summarize</code>)</li>
-    <li>Grouped operations (<code>group_by |> mutate</code>, <code>group_by |> summarize</code>)</li>
-    <li>Window functions with NA handling (<code>row_number</code>, <code>lag</code>, <code>lead</code>, <code>cumsum</code>, etc.)</li>
-    <li>Basic statistics and modeling with NA handling (<code>na_rm</code> parameter)</li>
-    <li>Intent blocks and tooling hooks</li>
-    <li>REPL and CLI</li>
-  </ul>
+    <ul>
+      <li>Stable core syntax and interpreter</li>
+      <li>Arrow-backed DataFrames</li>
+      <li>DAG-based pipelines with caching</li>
+      <li>Core data verbs (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>summarize</code>)</li>
+      <li>Grouped operations (<code>group_by |> mutate</code>, <code>group_by |> summarize</code>)</li>
+      <li>Window functions with NA handling (<code>row_number</code>, <code>lag</code>, <code>lead</code>,
+        <code>cumsum</code>, etc.)</li>
+      <li>Basic statistics and modeling with NA handling (<code>na_rm</code> parameter)</li>
+      <li>Intent blocks and tooling hooks</li>
+      <li>REPL and CLI</li>
+    </ul>
 
-  <p>
-    Performance tuning, GPUs, and distributed execution are explicitly out of scope for alpha.
-  </p>
+    <p>
+      Performance tuning, GPUs, and distributed execution are explicitly out of scope for alpha.
+    </p>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Project Structure</font></h2>
-  <pre>
+    <h2>
+      <font face="Courier New">Project Structure</font>
+    </h2>
+    <pre>
 .
 ├── flake.nix
 ├── ast.ml
@@ -349,35 +405,40 @@ lag([1, NA, 3])                    -- Vector[NA, 1, NA]
     └── colcraft/
   </pre>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Building</font></h2>
-  <pre>
+    <h2>
+      <font face="Courier New">Building</font>
+    </h2>
+    <pre>
 nix develop
 t repl
   </pre>
 
-  <hr>
+    <hr>
 
-  <h2><font face="Courier New">Contributing</font></h2>
+    <h2>
+      <font face="Courier New">Contributing</font>
+    </h2>
 
-  <p>
-    Contributions focus on clarity, explicit semantics, and small, reviewable changes.
-    Packages live in-repo during early development.
-  </p>
+    <p>
+      Contributions focus on clarity, explicit semantics, and small, reviewable changes.
+      Packages live in-repo during early development.
+    </p>
 
-  <hr>
+    <hr>
 
-  <p><b>License:</b> EUPL v1.2.</p>
+    <p><b>License:</b> EUPL v1.2.</p>
 
-  <center>
-    <hr width="60%">
-    <font size="2">
-      Best viewed with a sense of curiosity.<br>
-      <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </font>
-  </center>
+    <center>
+      <hr width="60%">
+      <font size="2">
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+      </font>
+    </center>
 
   </font>
 </body>
+
 </html>

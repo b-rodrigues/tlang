@@ -29,14 +29,16 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
       }
   | ListLit items ->
       ListLit (List.map (fun (n, e) -> (n, desugar_nse_expr e)) items)
-  | DictLit pairs ->
-      DictLit (List.map (fun (k, e) -> (k, desugar_nse_expr e)) pairs)
+  | DictLit entries ->
+      DictLit (List.map (fun (k, v) -> (k, desugar_nse_expr v)) entries)
   | DotAccess { target; field } ->
       DotAccess { target = desugar_nse_expr target; field }
   | Block exprs ->
       Block (List.map desugar_nse_expr exprs)
-  (* Other expression types remain unchanged *)
-  | Value _ | Var _ | Lambda _ | ListComp _ | PipelineDef _ | IntentDef _ as e -> e
+  | _ -> expr
+
+(** Global flag to control warning output (e.g., for tests) *)
+let show_warnings = ref true
 
 (** Check if an expression uses NSE (contains $field references) *)
 let rec uses_nse (expr : Ast.expr) : bool =
@@ -206,10 +208,79 @@ let rec broadcast2 op v1 v2 =
   | scalar, VList l ->
       VList (List.map (fun (n, x) -> (n, broadcast2 op scalar x)) l)
 
+  (* NDArray-NDArray elementwise *)
+  | VNDArray a1, VNDArray a2 ->
+      if a1.shape <> a2.shape then
+        Error.make_error ValueError "NDArray shapes must match for element-wise operations."
+      else
+        let first_error = ref None in
+        let out = Array.init (Array.length a1.data) (fun i ->
+          match eval_scalar_binop op (VFloat a1.data.(i)) (VFloat a2.data.(i)) with
+          | VInt n -> float_of_int n
+          | VFloat f -> f
+          | VBool b -> if b then 1.0 else 0.0
+          | VError _ as err ->
+              first_error := Some err;
+              nan
+          | _ -> nan
+        ) in
+        begin match !first_error with
+        | Some err -> err
+        | None ->
+            if Array.exists Float.is_nan out then
+              Error.type_error "NDArray element-wise operation produced non-numeric results."
+            else VNDArray { shape = Array.copy a1.shape; data = out }
+        end
+
+  (* NDArray-Scalar *)
+  | VNDArray arr, scalar ->
+      (match scalar with
+       | VError _ -> scalar
+       | _ ->
+           let first_error = ref None in
+           let out = Array.init (Array.length arr.data) (fun i ->
+             match eval_scalar_binop op (VFloat arr.data.(i)) scalar with
+             | VInt n -> float_of_int n
+             | VFloat f -> f
+             | VBool b -> if b then 1.0 else 0.0
+             | VError _ as err ->
+                 first_error := Some err;
+                 nan
+             | _ -> nan
+           ) in
+           match !first_error with
+           | Some err -> err
+           | None ->
+               if Array.exists Float.is_nan out then
+                 Error.type_error "NDArray operation requires numeric scalar values."
+               else VNDArray { shape = Array.copy arr.shape; data = out })
+
+  (* Scalar-NDArray *)
+  | scalar, VNDArray arr ->
+      (match scalar with
+       | VError _ -> scalar
+       | _ ->
+           let first_error = ref None in
+           let out = Array.init (Array.length arr.data) (fun i ->
+             match eval_scalar_binop op scalar (VFloat arr.data.(i)) with
+             | VInt n -> float_of_int n
+             | VFloat f -> f
+             | VBool b -> if b then 1.0 else 0.0
+             | VError _ as err ->
+                 first_error := Some err;
+                 nan
+             | _ -> nan
+           ) in
+           match !first_error with
+           | Some err -> err
+           | None ->
+               if Array.exists Float.is_nan out then
+                 Error.type_error "NDArray operation requires numeric scalar values."
+               else VNDArray { shape = Array.copy arr.shape; data = out })
+
   (* Scalar-Scalar *)
   | s1, s2 ->
       eval_scalar_binop op s1 s2
-
 
 (** Extract variable names from a formula expression.
     Supports: x, x + y, x + y + z
@@ -734,7 +805,8 @@ let eval_statement (env : environment) (stmt : stmt) : value * environment =
         (make_error NameError msg, env)
       else
         let v = eval_expr env expr in
-        Printf.eprintf "Warning: overwriting variable '%s'\n" name;
+        if !show_warnings then
+          Printf.eprintf "Warning: overwriting variable '%s'\n" name;
         let new_env = Env.add name v env in
         (match v with
          | VError _ -> (v, new_env)
@@ -882,6 +954,7 @@ let initial_env () : environment =
   let env = T_seq.register env in
   let env = T_map.register ~eval_call env in
   let env = Sum.register env in
+  let env = T_string.register env in
   (* Base package *)
   let env = T_assert.register env in
   let env = Is_na.register env in
@@ -889,6 +962,7 @@ let initial_env () : environment =
   let env = Error_mod.register env in
   let env = Error_utils.register env in
   (* Dataframe package *)
+  let env = T_dataframe.register env in
   let env = T_read_csv.register ~parse_csv_string:(fun ~sep ~skip_header ~skip_lines ~clean_colnames content -> parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames content) env in
   let env = T_write_csv.register ~write_csv_fn:(fun ~sep table path -> Arrow_io.write_csv ~sep table path) env in
   let env = Colnames.register env in
@@ -944,6 +1018,7 @@ let initial_env () : environment =
   let env = T_log.register env in
   let env = T_exp.register env in
   let env = Pow.register env in
+  let env = Ndarray.register env in
   (* Stats package *)
   let env = Mean.register env in
   let env = Sd.register env in

@@ -3,7 +3,14 @@
 # Run all T test scripts and generate output CSVs
 # Note: Does not use 'set -e' so all tests run even if some fail
 
-T_REPL="dune exec src/repl.exe --"
+if command -v dune &> /dev/null; then
+  T_REPL="dune exec src/repl.exe --"
+elif [ -x "./result/bin/t" ]; then
+  T_REPL="./result/bin/t"
+else
+  echo "Error: Neither 'dune' nor './result/bin/t' found. Please run 'nix build' or install dune."
+  exit 1
+fi
 SCRIPT_DIR="tests/golden/t_scripts"
 OUTPUT_DIR="tests/golden/t_outputs"
 

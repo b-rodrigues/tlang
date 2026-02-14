@@ -77,4 +77,33 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "sqrt in pipe" "4 |> sqrt" "2.";
   test "exp and log roundtrip" "log(exp(1.0))" "1.";
   test "chained math" "pow(2, 10) |> sqrt" "32.";
+  print_newline ();
+
+  Printf.printf "Phase 5 — Math: NDArray operations:\n";
+  test "ndarray infer shape" "shape(ndarray([[1,2],[3,4]]))" "[2, 2]";
+  test "reshape" "shape(reshape(ndarray([1,2,3,4]), [2,2]))" "[2, 2]";
+  test "matmul" "matmul(ndarray([[1,2],[3,4]]), ndarray([[5,6],[7,8]]))" "NDArray(shape=[2, 2], data=[19., 22., 43., 50.])";
+  test "kron" "kron(ndarray([[1,2],[3,4]]), ndarray([[0,5],[6,7]]))" "NDArray(shape=[4, 4], data=[0., 5., 0., 10., 6., 7., 12., 14., 0., 15., 0., 20., 18., 21., 24., 28.])";
+  test "ndarray broadcast add" "ndarray([1,2,3]) .+ 1" "NDArray(shape=[3], data=[2., 3., 4.])";
+  
+  (* Error case tests *)
+  test "ndarray with empty list" "ndarray([])" {|Error(ValueError: "NDArray shape dimensions must be strictly positive.")|};
+  test "ndarray with NA values" "ndarray([1, NA, 3])" {|Error(TypeError: "NDArray cannot contain NA values. Handle missingness explicitly.")|};
+  test "ndarray with non-numeric values" {|ndarray([1, "a", 3])|} {|Error(TypeError: "NDArray elements must be numeric.")|};
+  test "ndarray with ragged lists" "ndarray([[1,2],[3]])" {|Error(ValueError: "Cannot create NDArray from ragged (non-rectangular) list.")|};
+  test "matmul dimension mismatch" "matmul(ndarray([[1,2,3]]), ndarray([[1,2],[3,4]]))" {|Error(ValueError: "matmul inner dimensions must match.")|};
+  test "matmul with non-2D arrays" "matmul(ndarray([1,2,3]), ndarray([4,5,6]))" {|Error(ValueError: "matmul expects two 2D NDArrays.")|};
+  test "kron with non-2D arrays" "kron(ndarray([1,2]), ndarray([[1,2],[3,4]]))" {|Error(ValueError: "kron expects two 2D NDArrays.")|};
+  test "reshape incompatible element count" "reshape(ndarray([1,2,3]), [2,2])" {|Error(ValueError: "reshape target shape must preserve element count.")|};
+  test "shape with non-NDArray argument" "shape([1,2,3])" {|Error(TypeError: "shape expects an NDArray.")|};
+  test "reshape with non-NDArray argument" "reshape([1,2,3], [3])" {|Error(TypeError: "reshape expects (NDArray, shape).")|};
+  
+  (* Higher-dimensional array tests *)
+  test "ndarray 3d infer shape"
+    "shape(ndarray([[[1,2,3,4],[5,6,7,8],[9,10,11,12]],[[13,14,15,16],[17,18,19,20],[21,22,23,24]]]))"
+    "[2, 3, 4]";
+  test "reshape 3d"
+    "shape(reshape(ndarray([[[1,2,3,4],[5,6,7,8],[9,10,11,12]],[[13,14,15,16],[17,18,19,20],[21,22,23,24]]]), [3,2,4]))"
+    "[3, 2, 4]";
+  
   print_newline ()

@@ -31,6 +31,7 @@ golden-expected:
 	@Rscript tests/golden/generate_expected.R
 	@Rscript tests/golden/generate_expected_stats.R
 	@Rscript tests/golden/generate_expected_window.R
+	@Rscript tests/golden/generate_expected_ndarray.R
 
 # Run T tests (T -> CSV)
 # Fail on error

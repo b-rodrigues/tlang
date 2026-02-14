@@ -30,18 +30,18 @@
    ; core language
    ast lexer parser eval error
    ; packages/core
-   t_print t_type length head tail is_error t_seq t_map sum pretty_print packages
+   t_print t_type length head tail is_error t_seq t_map sum pretty_print packages t_string
    ; packages/base
    t_assert is_na na error_mod error_utils
    ; packages/dataframe
-   t_read_csv t_write_csv colnames nrow ncol clean_colnames glimpse
+   t_read_csv t_write_csv t_dataframe colnames nrow ncol clean_colnames glimpse
    ; packages/pipeline
    pipeline_nodes pipeline_deps pipeline_node pipeline_run
    ; packages/colcraft
    t_select t_filter mutate arrange group_by ungroup summarize
    window_rank window_offset window_cumulative
    ; packages/math
-   t_sqrt t_abs t_log t_exp pow
+   t_sqrt t_abs t_log t_exp pow ndarray
    ; packages/stats
    mean sd quantile cor lm fit_stats add_diagnostics summary min max
    ; packages/explain

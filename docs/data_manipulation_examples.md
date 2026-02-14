@@ -54,7 +54,28 @@ clean_colnames(["A.1", "A-1"])  -- ["a_1", "a_1_2"]
 
 Duplicate names after cleaning are disambiguated: the first occurrence stays unchanged, subsequent duplicates get `_2`, `_3`, etc.
 
+
 ---
+
+## Creating DataFrames
+
+You can create DataFrames manually from a list of rows using the `dataframe()` function. Each row can be a Dict or a named List.
+
+```t
+-- From a list of named Lists (idiomatic row constructor)
+df = dataframe([
+  [name: "Alice", age: 30, score: 88.5],
+  [name: "Bob",   age: 25, score: 92.0]
+])
+
+-- DataFrame(2 rows x 3 cols: [name, age, score])
+```
+
+This is particularly useful for:
+- Creating lookup tables
+- Writing test cases
+- Entering small datasets manually
+
 
 ## Saving Data
 

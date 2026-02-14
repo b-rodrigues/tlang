@@ -15,7 +15,7 @@ type package_info = {
 let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
-  functions = ["print"; "type"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"];
+  functions = ["print"; "type"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "string"];
 }
 
 let stats_package = {
@@ -33,7 +33,7 @@ let colcraft_package = {
 let math_package = {
   name = "math";
   description = "Pure numerical primitives";
-  functions = ["sqrt"; "abs"; "log"; "exp"; "pow"];
+  functions = ["sqrt"; "abs"; "log"; "exp"; "pow"; "ndarray"; "shape"; "reshape"; "matmul"; "kron"];
 }
 
 let base_package = {
@@ -45,7 +45,7 @@ let base_package = {
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
-  functions = ["read_csv"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"];
+  functions = ["dataframe"; "read_csv"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"];
 }
 
 let pipeline_package = {
