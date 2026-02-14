@@ -46,9 +46,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Error propagation rules changed: arithmetic now propagates errors instead of TypeError *)
   test "error value in arithmetic" "(1/0) + 1" "Error(DivisionByZero: \"Division by zero\")";
-  test "name error propagates" "undefined_var + 1" "Error(TypeError: \"Cannot add Symbol and Int\")";
+  test "name error in arithmetic propagates" "undefined_var + 1" "Error(TypeError: \"Cannot add Symbol and Int\")";
 
-  test "calling error value" "(1/0)()" "Error(TypeError: \"Cannot call Error as a function\")";
+  test "calling error value as function" "(1/0)()" "Error(TypeError: \"Cannot call Error as a function\")";
 
   Printf.printf "\nError Recovery — Multiple errors in expressions:\n";
   (* Left-to-right evaluation means first error encountered is returned/propagated *)

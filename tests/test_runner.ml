@@ -35,7 +35,6 @@ let () =
   Printf.printf "\n=== T Language Tests ===\n\n";
 
   (* Core tests *)
-  (* Core tests *)
   Test_arithmetic.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_comparisons.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_logical.run_tests pass_count fail_count eval_string eval_string_env test;
@@ -82,8 +81,6 @@ let () =
 
   (* Package manager tests *)
   Test_package_manager.run_tests pass_count fail_count eval_string eval_string_env test;
-
-
 
   (* Summary *)
   let total = !pass_count + !fail_count in

@@ -134,6 +134,8 @@ let eval_scalar_binop op v1 v2 =
   | (GtEq, VFloat a, VInt b) -> VBool (a >= float_of_int b)
 
   (* Boolean / Bitwise *)
+  | (BitAnd, VInt a, VInt b) -> VInt (a land b)
+  | (BitOr, VInt a, VInt b) -> VInt (a lor b)
   | (BitAnd, VBool a, VBool b) -> VBool (a && b)
   | (BitOr, VBool a, VBool b) -> VBool (a || b)
 
@@ -176,6 +178,21 @@ let rec broadcast2 op v1 v2 =
           (name, broadcast2 op x y)
         ) l1 l2 in
         VList res
+
+  (* Vector-Vector *)
+  | VVector arr1, VVector arr2 ->
+      if Array.length arr1 <> Array.length arr2 then
+        make_error ValueError (Printf.sprintf "Broadcast requires equal-length vectors (got %d and %d)" (Array.length arr1) (Array.length arr2))
+      else
+        VVector (Array.map2 (fun x y -> broadcast2 op x y) arr1 arr2)
+
+  (* Vector-Scalar *)
+  | VVector arr, scalar ->
+      VVector (Array.map (fun x -> broadcast2 op x scalar) arr)
+
+  (* Scalar-Vector *)
+  | scalar, VVector arr ->
+      VVector (Array.map (fun x -> broadcast2 op scalar x) arr)
 
   (* List-Scalar *)
   | VList l, scalar ->
