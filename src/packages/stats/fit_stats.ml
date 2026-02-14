@@ -33,8 +33,8 @@ let register env =
            let table = Arrow_table.create columns 1 in
            VDataFrame { arrow_table = table; group_keys = [] }
          | _ ->
-           make_error TypeError "fit_stats() expects a model returned by lm()")
+           Error.type_error "Function `fit_stats` expects a model returned by `lm`.")
       | _ ->
-        make_error TypeError "fit_stats() expects a model returned by lm()"
+        Error.type_error "Function `fit_stats` expects a model returned by `lm`."
     ))
     env

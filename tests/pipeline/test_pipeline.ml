@@ -30,7 +30,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
   let (v, _) = eval_string_env "p.nonexistent" env_p3 in
   let result = Ast.Utils.value_to_string v in
-  if result = {|Error(KeyError: "node 'nonexistent' not found in Pipeline")|} then begin
+  if result = {|Error(KeyError: "Node `nonexistent` not found in Pipeline.")|} then begin
     incr pass_count; Printf.printf "  ✓ missing pipeline node returns error\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ missing pipeline node returns error\n    Expected: Error(KeyError: ...)\n    Got: %s\n" result
@@ -79,10 +79,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "pipeline_nodes on non-pipeline"
     "pipeline_nodes(42)"
-    {|Error(TypeError: "pipeline_nodes() expects a Pipeline")|};
+    {|Error(TypeError: "Function `pipeline_nodes` expects a Pipeline.")|};
   test "pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
-    {|Error(KeyError: "node 'b' not found in Pipeline")|};
+    {|Error(KeyError: "Node `b` not found in Pipeline.")|};
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Re-run (Caching):\n";
@@ -105,7 +105,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "pipeline_run on non-pipeline"
     "pipeline_run(42)"
-    {|Error(TypeError: "pipeline_run() expects a Pipeline")|};
+    {|Error(TypeError: "Function `pipeline_run` expects a Pipeline.")|};
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with Pipes:\n";
@@ -126,10 +126,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Phase 3 — Pipeline Error Handling:\n";
   test "pipeline cycle detection"
     "pipeline {\n  a = b\n  b = a\n}"
-    {|Error(ValueError: "Pipeline has a dependency cycle involving node 'a'")|};
+    {|Error(ValueError: "Pipeline has a dependency cycle involving node `a`.")|};
   test "pipeline with error in node"
     "pipeline {\n  a = 1 / 0\n  b = a + 1\n}"
-    {|Error(ValueError: "Pipeline node 'a' failed: Error(DivisionByZero: "Division by zero")")|};
+    {|Error(ValueError: "Pipeline node `a` failed: Error(DivisionByZero: "Division by zero.")")|};
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with DataFrame:\n";

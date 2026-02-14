@@ -28,7 +28,7 @@
    arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
    arrow_owl_bridge
    ; core language
-   ast lexer parser eval
+   ast lexer parser eval error
    ; packages/core
    t_print t_type length head tail is_error t_seq t_map sum pretty_print packages
    ; packages/base

@@ -9,6 +9,6 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "operator precedence" "2 + 3 * 4" "14";
   test "parentheses" "(2 + 3) * 4" "20";
   test "unary minus" "0 - 5" "-5";
-  test "division by zero" "1 / 0" {|Error(DivisionByZero: "Division by zero")|};
+  test "division by zero" "1 / 0" {|Error(DivisionByZero: "Division by zero.")|};
   test "string concatenation" {|"hello" + " world"|} {|"hello world"|};
   print_newline ()

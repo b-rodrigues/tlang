@@ -8,9 +8,9 @@ let register env =
       | [VString s] -> VInt (String.length s)
       | [VDict pairs] -> VInt (List.length pairs)
       | [VVector arr] -> VInt (Array.length arr)
-      | [VNA _] -> make_error TypeError "Cannot get length of NA"
-      | [VError _] -> make_error TypeError "Cannot get length of Error"
-      | [_] -> make_error TypeError "length() expects a List, String, Dict, or Vector"
-      | _ -> make_error ArityError "length() takes exactly 1 argument"
+      | [VNA _] -> Error.type_error "Cannot get length of NA."
+      | [VError _] -> Error.type_error "Cannot get length of Error."
+      | [_] -> Error.type_error "Function `length` expects a List, String, Dict, or Vector."
+      | _ -> Error.arity_error_named "length" ~expected:1 ~received:(List.length args)
     ))
     env

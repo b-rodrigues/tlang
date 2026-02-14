@@ -100,8 +100,8 @@ let register env =
         | None -> (match positional with _ :: v :: _ -> Some v | _ -> None)
       in
       match (data_val, formula_val) with
-      | (None, _) -> make_error ArityError "lm() missing required argument 'data'"
-      | (_, None) -> make_error ArityError "lm() missing required argument 'formula'"
+      | (None, _) -> Error.make_error ArityError "Function `lm` missing required argument 'data'."
+      | (_, None) -> Error.make_error ArityError "Function `lm` missing required argument 'formula'."
       | (Some data_v, Some formula_v) ->
         match (data_v, formula_v) with
         | (VDataFrame df, VFormula { response; predictors; _ }) ->
@@ -110,13 +110,13 @@ let register env =
            | [y_col] ->
              (* Extract predictor variable names (supports multiple) *)
              if predictors = [] then
-               make_error ValueError "lm() right side of formula is empty"
+               Error.value_error "Function `lm` right side of formula is empty."
              else begin
                (* Verify response column exists *)
                (match Arrow_table.get_column df.arrow_table y_col with
                 | None ->
-                    make_error KeyError
-                      (Printf.sprintf "Column '%s' not found in DataFrame" y_col)
+                    Error.make_error KeyError
+                      (Printf.sprintf "Column `%s` not found in DataFrame." y_col)
                 | Some _ ->
                   (* Verify all predictor columns exist *)
                   let missing = List.find_opt (fun col ->
@@ -124,26 +124,26 @@ let register env =
                   ) predictors in
                   (match missing with
                    | Some col ->
-                       make_error KeyError
-                         (Printf.sprintf "Column '%s' not found in DataFrame" col)
+                       Error.make_error KeyError
+                         (Printf.sprintf "Column `%s` not found in DataFrame." col)
                    | None ->
                      let nrows = Arrow_table.num_rows df.arrow_table in
                      if nrows < 2 then
-                       make_error ValueError "lm() requires at least 2 observations"
+                       Error.value_error "Function `lm` requires at least 2 observations."
                      else
                        (* Extract numeric columns *)
                        (match Arrow_owl_bridge.numeric_column_to_owl df.arrow_table y_col with
                         | None ->
-                          make_error TypeError
-                            "lm() requires numeric columns without NA values"
+                          Error.type_error
+                            "Function `lm` requires numeric columns without NA values."
                         | Some y_view ->
                           let xs_result = List.fold_left (fun acc col ->
                             match acc with
                             | Error e -> Error e
                             | Ok xs_views ->
                               match Arrow_owl_bridge.numeric_column_to_owl df.arrow_table col with
-                              | None -> Error (make_error TypeError
-                                  (Printf.sprintf "lm() column '%s' must be numeric without NA values" col))
+                              | None -> Error (Error.type_error
+                                  (Printf.sprintf "Function `lm` column `%s` must be numeric without NA values." col))
                               | Some x_view -> Ok (xs_views @ [x_view])
                           ) (Ok []) predictors in
                           (match xs_result with
@@ -153,19 +153,19 @@ let register env =
                              let ys = y_view.arr in
                              (match Arrow_owl_bridge.linreg_multi xs_arrays ys predictors with
                               | None ->
-                                make_error ValueError
-                                  "lm() cannot fit model: design matrix is singular"
+                                Error.value_error
+                                  "Function `lm` cannot fit model: design matrix is singular."
                               | Some result ->
                                 build_model_value result formula_v data_v)))))
              end
            | [] ->
-               make_error ValueError "lm() left side of formula is empty"
+               Error.value_error "Function `lm` left side of formula is empty."
            | _ ->
-               make_error ValueError
-                 "lm() only supports single response variable")
+               Error.value_error
+                 "Function `lm` only supports single response variable.")
         | (VDataFrame _, _) ->
-            make_error TypeError "lm() 'formula' must be a Formula (use ~ operator)"
+            Error.type_error "Function `lm` 'formula' must be a Formula (use ~ operator)."
         | (_, _) ->
-            make_error TypeError "lm() 'data' must be a DataFrame"
+            Error.type_error "Function `lm` 'data' must be a DataFrame."
     ))
     env

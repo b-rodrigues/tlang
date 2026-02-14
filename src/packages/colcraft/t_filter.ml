@@ -72,8 +72,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
               | None ->
                 let new_table = Arrow_compute.filter df.arrow_table keep in
                 VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
-      | [VDataFrame _] -> make_error ArityError "filter() requires a DataFrame and a predicate function"
-      | [_; _] -> make_error TypeError "filter() expects a DataFrame as first argument"
-      | _ -> make_error ArityError "filter() takes exactly 2 arguments"
+      | [VDataFrame _] -> make_error ArityError "Function `filter` requires a DataFrame and a predicate function."
+      | [_; _] -> make_error TypeError "Function `filter` expects a DataFrame as first argument."
+      | _ -> make_error ArityError "Function `filter` takes exactly 2 arguments."
     ))
     env

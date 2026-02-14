@@ -23,8 +23,8 @@ let register env =
                  | VFloat acc -> VFloat (acc +. f)
                  | e -> e)
             | (_, VNA _) :: rest when na_rm -> add_all rest
-            | (_, VNA _) :: _ -> make_error TypeError "sum() encountered NA value. Handle missingness explicitly."
-            | _ -> make_error TypeError "sum() requires a list of numbers"
+            | (_, VNA _) :: _ -> Error.type_error "Function `sum` encountered NA value. Handle missingness explicitly."
+            | _ -> Error.type_error "Function `sum` requires a list of numbers."
           in
           add_all items
       | Some (VVector arr) ->
@@ -45,14 +45,14 @@ let register env =
                   end else
                     total_float := !total_float +. f
               | VNA _ when na_rm -> ()
-              | VNA _ -> had_error := Some (make_error TypeError "sum() encountered NA value. Handle missingness explicitly.")
-              | _ -> had_error := Some (make_error TypeError "sum() requires numeric values")
+              | VNA _ -> had_error := Some (Error.type_error "Function `sum` encountered NA value. Handle missingness explicitly.")
+              | _ -> had_error := Some (Error.type_error "Function `sum` requires numeric values.")
           done;
           (match !had_error with
            | Some e -> e
            | None -> if !is_float then VFloat !total_float else VInt !total_int)
-      | Some (VNA _) -> make_error TypeError "sum() encountered NA value. Handle missingness explicitly."
-      | Some _ -> make_error TypeError "sum() takes a List or Vector argument"
-      | None -> make_error ArityError "sum() takes exactly 1 argument"
+      | Some (VNA _) -> Error.type_error "Function `sum` encountered NA value. Handle missingness explicitly."
+      | Some _ -> Error.type_error "Function `sum` expects a List or Vector argument."
+      | None -> Error.arity_error_named "sum" ~expected:1 ~received:(List.length args)
     ))
     env

@@ -3,9 +3,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "sqrt of integer" "sqrt(4)" "2.";
   test "sqrt of float" "sqrt(2.0)" "1.41421356237";
   test "sqrt of 0" "sqrt(0)" "0.";
-  test "sqrt negative" "sqrt(-1)" {|Error(ValueError: "sqrt() is undefined for negative numbers")|};
-  test "sqrt NA" "sqrt(NA)" {|Error(TypeError: "sqrt() encountered NA value. Handle missingness explicitly.")|};
-  test "sqrt non-numeric" {|sqrt("hello")|} {|Error(TypeError: "sqrt() expects a number or numeric Vector")|};
+  test "sqrt negative" "sqrt(-1)" {|Error(ValueError: "Function `sqrt` is undefined for negative numbers.")|};
+  test "sqrt NA" "sqrt(NA)" {|Error(TypeError: "Function `sqrt` encountered NA value. Handle missingness explicitly.")|};
+  test "sqrt non-numeric" {|sqrt("hello")|} {|Error(TypeError: "Function `sqrt` expects a number or numeric Vector.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Math: abs():\n";
@@ -13,29 +13,29 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "abs of negative int" "abs(0 - 5)" "5";
   test "abs of negative float" "abs(0.0 - 3.14)" "3.14";
   test "abs of zero" "abs(0)" "0";
-  test "abs NA" "abs(NA)" {|Error(TypeError: "abs() encountered NA value. Handle missingness explicitly.")|};
+  test "abs NA" "abs(NA)" {|Error(TypeError: "Function `abs` encountered NA value. Handle missingness explicitly.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Math: log():\n";
   test "log of 1" "log(1)" "0.";
   test "log of positive float" "log(10)" "2.30258509299";
-  test "log of 0" "log(0)" {|Error(ValueError: "log() is undefined for non-positive numbers")|};
-  test "log of negative" "log(0 - 1)" {|Error(ValueError: "log() is undefined for non-positive numbers")|};
-  test "log NA" "log(NA)" {|Error(TypeError: "log() encountered NA value. Handle missingness explicitly.")|};
+  test "log of 0" "log(0)" {|Error(ValueError: "Function `log` is undefined for non-positive numbers.")|};
+  test "log of negative" "log(0 - 1)" {|Error(ValueError: "Function `log` is undefined for non-positive numbers.")|};
+  test "log NA" "log(NA)" {|Error(TypeError: "Function `log` encountered NA value. Handle missingness explicitly.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Math: exp():\n";
   test "exp of 0" "exp(0)" "1.";
   test "exp of 1" "exp(1)" "2.71828182846";
-  test "exp NA" "exp(NA)" {|Error(TypeError: "exp() encountered NA value. Handle missingness explicitly.")|};
+  test "exp NA" "exp(NA)" {|Error(TypeError: "Function `exp` encountered NA value. Handle missingness explicitly.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Math: pow():\n";
   test "pow integer" "pow(2, 3)" "8.";
   test "pow float base" "pow(4.0, 0.5)" "2.";
   test "pow zero exponent" "pow(5, 0)" "1.";
-  test "pow NA base" "pow(NA, 2)" {|Error(TypeError: "pow() encountered NA value. Handle missingness explicitly.")|};
-  test "pow NA exponent" "pow(2, NA)" {|Error(TypeError: "pow() encountered NA value. Handle missingness explicitly.")|};
+  test "pow NA base" "pow(NA, 2)" {|Error(TypeError: "Function `pow` encountered NA value. Handle missingness explicitly.")|};
+  test "pow NA exponent" "pow(2, NA)" {|Error(TypeError: "Function `pow` encountered NA value. Handle missingness explicitly.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Math: Vector operations:\n";

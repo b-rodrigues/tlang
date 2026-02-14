@@ -6,8 +6,8 @@ let register env =
       match args with
       | [VDataFrame { arrow_table; _ }] ->
           VList (List.map (fun name -> (None, VString name)) (Arrow_table.column_names arrow_table))
-      | [VNA _] -> make_error TypeError "colnames() expects a DataFrame, got NA"
-      | [_] -> make_error TypeError "colnames() expects a DataFrame"
-      | _ -> make_error ArityError "colnames() takes exactly 1 argument"
+      | [VNA _] -> Error.type_error "Function `colnames` expects a DataFrame, got NA."
+      | [_] -> Error.type_error "Function `colnames` expects a DataFrame."
+      | _ -> Error.arity_error_named "colnames" ~expected:1 ~received:(List.length args)
     ))
     env

@@ -11,7 +11,7 @@ let register ~eval_call env =
                (match explain_result with
                 | VError _ -> explain_result
                 | _ -> VString (Utils.value_to_string explain_result))
-           | None -> make_error GenericError "explain_json(): explain function not found in environment")
-      | _ -> make_error ArityError "explain_json() takes exactly 1 argument"
+           | None -> Error.make_error GenericError "Function `explain_json`: explain function not found in environment.")
+      | _ -> Error.arity_error_named "explain_json" ~expected:1 ~received:(List.length args)
     ))
     env

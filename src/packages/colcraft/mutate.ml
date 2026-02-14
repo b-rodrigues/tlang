@@ -67,8 +67,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
       let apply_vector_mutation df col_name vec =
         let nrows = Arrow_table.num_rows df.arrow_table in
         if Array.length vec <> nrows then
-          make_error ValueError
-            (Printf.sprintf "mutate() vector length %d does not match DataFrame row count %d"
+          Error.value_error
+            (Printf.sprintf "Function `mutate` vector length %d does not match DataFrame row count %d."
                (Array.length vec) nrows)
         else
           let arrow_col = Arrow_bridge.values_to_column vec in
@@ -89,11 +89,11 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                  | VDataFrame new_df -> apply_named_mutations new_df rest_mutations
                  | err -> err)
             | (None, _) :: _ ->
-                make_error TypeError "mutate() expects $column = expr syntax"
+                Error.type_error "Function `mutate` expects $column = expr syntax."
           in
           apply_named_mutations df rest
-      | (_, VDataFrame _) :: [] -> make_error ArityError "mutate() requires at least one $column = expr argument"
-      | [(_, _); _; _] | [(_, _); _] -> make_error TypeError "mutate() expects a DataFrame as first argument"
-      | _ -> make_error ArityError "mutate() expects a DataFrame and $col = expr arguments"
+      | (_, VDataFrame _) :: [] -> Error.make_error ArityError "Function `mutate` requires at least one $column = expr argument."
+      | [(_, _); _; _] | [(_, _); _] -> Error.type_error "Function `mutate` expects a DataFrame as first argument."
+      | _ -> Error.make_error ArityError "Function `mutate` expects a DataFrame and $col = expr arguments."
     ))
     env

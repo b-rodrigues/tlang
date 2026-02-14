@@ -27,6 +27,8 @@ type error_code =
   | AssertionError
   | FileError
   | ValueError
+  | MatchError
+  | SyntaxError
   | GenericError
 
 (** Structured error information *)
@@ -175,6 +177,8 @@ module Utils = struct
     | AssertionError -> "AssertionError"
     | FileError -> "FileError"
     | ValueError -> "ValueError"
+    | MatchError -> "MatchError"
+    | SyntaxError -> "SyntaxError"
     | GenericError -> "GenericError"
 
   let na_type_to_string = function
@@ -295,13 +299,13 @@ let suggest_name name candidates =
 let type_conversion_hint left_type right_type =
   match (left_type, right_type) with
   | ("String", "Int") | ("String", "Float") ->
-    Some "Hint: Strings cannot be used in arithmetic. Convert with int() or float() if available, or check your data types."
+    Some "Strings cannot be used in arithmetic. Convert with int() or float() if available, or check your data types."
   | ("Int", "String") | ("Float", "String") ->
-    Some "Hint: Cannot combine numbers with strings. Use string concatenation (+) with two strings."
+    Some "Cannot combine numbers with strings. Use string concatenation (+) with two strings."
   | ("Bool", "Int") | ("Bool", "Float") | ("Int", "Bool") | ("Float", "Bool") ->
-    Some "Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values."
+    Some "Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values."
   | ("List", "Int") | ("List", "Float") | ("Int", "List") | ("Float", "List") ->
-    Some "Hint: Use map() to apply arithmetic operations to each element of a list."
+    Some "Use map() to apply arithmetic operations to each element of a list."
   | _ -> None
 
 (** Create a structured error value *)

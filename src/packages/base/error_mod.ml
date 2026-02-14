@@ -4,7 +4,7 @@ let register env =
   Env.add "error"
     (make_builtin ~variadic:true 1 (fun args _env ->
       match args with
-      | [VString msg] -> make_error GenericError msg
+      | [VString msg] -> Error.make_error GenericError msg
       | [VString code_str; VString msg] ->
           let code = match code_str with
             | "TypeError" -> TypeError
@@ -18,7 +18,7 @@ let register env =
             | "ValueError" -> ValueError
             | _ -> GenericError
           in
-          make_error code msg
-      | _ -> make_error ArityError "error() takes 1 or 2 string arguments"
+          Error.make_error code msg
+      | _ -> Error.make_error ArityError (Printf.sprintf "Function `error` expects 1 or 2 string arguments but received %d." (List.length args))
     ))
     env

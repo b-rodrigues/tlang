@@ -6,10 +6,10 @@ let register env =
       match args with
       | [VDataFrame df; col_val] | [VDataFrame df; col_val; VString "asc"] ->
           (match Utils.extract_column_name col_val with
-           | None -> make_error TypeError "arrange() expects a $column reference"
+           | None -> Error.type_error "Function `arrange` expects a $column reference."
            | Some col_name ->
               if not (Arrow_table.has_column df.arrow_table col_name) then
-                make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
+                Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." col_name)
               else
                 (match Arrow_compute.sort_by_column df.arrow_table col_name true with
                  | Some new_table ->
@@ -35,10 +35,10 @@ let register env =
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
       | [VDataFrame df; col_val; VString "desc"] ->
           (match Utils.extract_column_name col_val with
-           | None -> make_error TypeError "arrange() expects a $column reference"
+           | None -> Error.type_error "Function `arrange` expects a $column reference."
            | Some col_name ->
               if not (Arrow_table.has_column df.arrow_table col_name) then
-                make_error KeyError (Printf.sprintf "Column '%s' not found in DataFrame" col_name)
+                Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." col_name)
               else
                 (match Arrow_compute.sort_by_column df.arrow_table col_name false with
                  | Some new_table ->
@@ -63,10 +63,10 @@ let register env =
                    let new_table = Arrow_compute.sort_by_indices df.arrow_table indices in
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }))
       | [VDataFrame _; _; VString dir] ->
-          make_error ValueError (Printf.sprintf "arrange() direction must be \"asc\" or \"desc\", got \"%s\"" dir)
+          Error.value_error (Printf.sprintf "Function `arrange` direction must be \"asc\" or \"desc\", got \"%s\"." dir)
       | [VDataFrame _; _; _] ->
-          make_error TypeError "arrange() expects a $column reference"
-      | [_; _] | [_; _; _] -> make_error TypeError "arrange() expects a DataFrame as first argument"
-      | _ -> make_error ArityError "arrange() takes 2 or 3 arguments"
+          Error.type_error "Function `arrange` expects a $column reference."
+      | [_; _] | [_; _; _] -> Error.type_error "Function `arrange` expects a DataFrame as first argument."
+      | _ -> Error.make_error ArityError "Function `arrange` takes 2 or 3 arguments."
      ))
      env

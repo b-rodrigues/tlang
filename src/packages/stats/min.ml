@@ -12,27 +12,27 @@ let register env =
             match arr.(i) with
             | VInt n -> result.(i) <- float_of_int n
             | VFloat f -> result.(i) <- f
-            | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
-            | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
       in
       match args with
-      | [VList []] -> make_error ValueError "min() called on empty list"
+      | [VList []] -> Error.value_error "Function `min` called on empty List."
       | [VList items] ->
           let arr = Array.of_list (List.map snd items) in
           (match extract_nums_arr "min" arr with
            | Error e -> e
            | Ok nums ->
              VFloat (Array.fold_left Float.min Float.infinity nums))
-      | [VVector arr] when Array.length arr = 0 -> make_error ValueError "min() called on empty vector"
+      | [VVector arr] when Array.length arr = 0 -> Error.value_error "Function `min` called on empty Vector."
       | [VVector arr] ->
           (match extract_nums_arr "min" arr with
            | Error e -> e
            | Ok nums ->
              VFloat (Array.fold_left Float.min Float.infinity nums))
-      | [VNA _] -> make_error TypeError "min() encountered NA value. Handle missingness explicitly."
-      | [_] -> make_error TypeError "min() expects a numeric List or Vector"
-      | _ -> make_error ArityError "min() takes exactly 1 argument"
+      | [VNA _] -> Error.type_error "Function `min` encountered NA value. Handle missingness explicitly."
+      | [_] -> Error.type_error "Function `min` expects a numeric List or Vector."
+      | _ -> Error.arity_error_named "min" ~expected:1 ~received:(List.length args)
     ))
     env

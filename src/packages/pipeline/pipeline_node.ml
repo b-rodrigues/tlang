@@ -7,9 +7,9 @@ let register env =
       | [VPipeline { p_nodes; _ }; VString name] ->
           (match List.assoc_opt name p_nodes with
            | Some v -> v
-           | None -> make_error KeyError (Printf.sprintf "node '%s' not found in Pipeline" name))
-      | [VPipeline _; _] -> make_error TypeError "pipeline_node() expects a String node name as second argument"
-      | [_; _] -> make_error TypeError "pipeline_node() expects a Pipeline as first argument"
-      | _ -> make_error ArityError "pipeline_node() takes exactly 2 arguments"
+           | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." name))
+      | [VPipeline _; _] -> Error.type_error "Function `pipeline_node` expects a String node name as second argument."
+      | [_; _] -> Error.type_error "Function `pipeline_node` expects a Pipeline as first argument."
+      | _ -> Error.arity_error_named "pipeline_node" ~expected:2 ~received:(List.length args)
     ))
     env

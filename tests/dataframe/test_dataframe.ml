@@ -34,13 +34,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "read_csv with missing file"
     {|read_csv("nonexistent_file.csv")|}
-    {|Error(FileError: "File Error: nonexistent_file.csv: No such file or directory")|};
+    {|Error(FileError: "File Error: nonexistent_file.csv: No such file or directory.")|};
   test "read_csv with non-string arg"
     "read_csv(42)"
-    {|Error(TypeError: "read_csv() expects a String path")|};
+    {|Error(TypeError: "Function `read_csv` expects a String path.")|};
   test "read_csv with NA arg"
     "read_csv(NA)"
-    {|Error(TypeError: "read_csv() expects a String path, got NA")|};
+    {|Error(TypeError: "Function `read_csv` expects a String path, got NA.")|};
   print_newline ();
 
   Printf.printf "Phase 2 — nrow() and ncol():\n";
@@ -62,13 +62,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "nrow on non-DataFrame"
     "nrow(42)"
-    {|Error(TypeError: "nrow() expects a DataFrame or vector")|};
+    {|Error(TypeError: "Function `nrow` expects a DataFrame or vector.")|};
   test "ncol on non-DataFrame"
     "ncol([1, 2, 3])"
-    {|Error(TypeError: "ncol() expects a DataFrame")|};
+    {|Error(TypeError: "Function `ncol` expects a DataFrame.")|};
   test "nrow on NA"
     "nrow(NA)"
-    {|Error(TypeError: "nrow() expects a DataFrame or vector, got NA")|};
+    {|Error(TypeError: "Function `nrow` expects a DataFrame or vector, got NA.")|};
   print_newline ();
 
   Printf.printf "Phase 2 — colnames():\n";
@@ -82,7 +82,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "colnames on non-DataFrame"
     {|colnames("hello")|}
-    {|Error(TypeError: "colnames() expects a DataFrame")|};
+    {|Error(TypeError: "Function `colnames` expects a DataFrame.")|};
   print_newline ();
 
   Printf.printf "Phase 2 — Column Access (dot notation):\n";
@@ -112,7 +112,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let (v, _) = eval_string_env "df.nonexistent" env in
   let result = Ast.Utils.value_to_string v in
-  if result = {|Error(KeyError: "column 'nonexistent' not found in DataFrame")|} then begin
+  if result = {|Error(KeyError: "Column `nonexistent` not found in DataFrame.")|} then begin
     incr pass_count; Printf.printf "  ✓ missing column returns error\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ missing column returns error\n    Expected: Error(KeyError: ...)\n    Got: %s\n" result
@@ -528,10 +528,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "read_csv separator bad type"
     {|read_csv("test_phase2.csv", separator = 42)|}
-    {|Error(TypeError: "read_csv() separator must be a single character string")|};
+    {|Error(TypeError: "Function `read_csv` separator must be a single character string.")|};
   test "read_csv separator too long"
     {|read_csv("test_phase2.csv", separator = "||")|}
-    {|Error(TypeError: "read_csv() separator must be a single character string")|};
+    {|Error(TypeError: "Function `read_csv` separator must be a single character string.")|};
   print_newline ();
 
   (* ================================================================= *)
@@ -664,10 +664,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "glimpse on non-DataFrame"
     "glimpse(42)"
-    {|Error(TypeError: "glimpse() expects a DataFrame")|};
+    {|Error(TypeError: "Function `glimpse` expects a DataFrame.")|};
   test "glimpse on NA"
     "glimpse(NA)"
-    {|Error(TypeError: "glimpse() expects a DataFrame, got NA")|};
+    {|Error(TypeError: "Function `glimpse` expects a DataFrame, got NA.")|};
   print_newline ();
 
   (* ================================================================= *)

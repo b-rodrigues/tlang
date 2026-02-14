@@ -17,7 +17,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|"List"|};
   test "package_info missing"
     {|package_info("nonexistent")|}
-    {|Error(KeyError: "Package 'nonexistent' not found")|};
+    {|Error(KeyError: "Package `nonexistent` not found.")|};
   test "package_info core"
     {|package_info("core").name|}
     {|"core"|};
@@ -29,7 +29,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|"math"|};
   test "package_info non-string"
     "package_info(42)"
-    {|Error(TypeError: "package_info() expects a string argument")|};
+    {|Error(TypeError: "Function `package_info` expects a string argument.")|};
   print_newline ();
 
   Printf.printf "Phase 7 — Pretty-print builtin:\n";

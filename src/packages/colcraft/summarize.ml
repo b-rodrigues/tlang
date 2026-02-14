@@ -26,13 +26,13 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
             | (Some name, fn) :: rest ->
                 parse_pairs ((name, fn) :: acc) rest
             | [] -> Ok (List.rev acc)
-            | _ -> Error (make_error TypeError "summarize() expects $column = expr syntax")
+            | _ -> Error (Error.type_error "Function `summarize` expects $column = expr syntax.")
           in
           (match parse_pairs [] rest_args with
            | Error e -> e
            | Ok pairs ->
              if pairs = [] then
-               make_error ArityError "summarize() requires at least one $column = expr argument"
+               Error.make_error ArityError "Function `summarize` requires at least one $column = expr argument."
              else if df.group_keys = [] then
                let result_cols = List.map (fun (name, fn) ->
                  let result = apply_aggregation env fn (VDataFrame df) in
@@ -86,6 +86,6 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                   let all_columns = key_result_cols @ summary_result_cols in
                   let arrow_table = Arrow_bridge.table_from_value_columns all_columns n_groups in
                   VDataFrame { arrow_table; group_keys = [] }))
-      | _ -> make_error TypeError "summarize() expects a DataFrame as first argument"
+      | _ -> Error.type_error "Function `summarize` expects a DataFrame as first argument."
     ))
     env

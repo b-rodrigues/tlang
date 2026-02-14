@@ -27,13 +27,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "select missing column"
     (Printf.sprintf {|df = read_csv("%s"); select(df, $nonexistent)|} csv_p4)
-    {|Error(KeyError: "Column(s) not found: nonexistent")|};
+    {|Error(KeyError: "Column(s) not found: nonexistent.")|};
   test "select non-column arg"
     (Printf.sprintf {|df = read_csv("%s"); select(df, 42)|} csv_p4)
-    {|Error(TypeError: "select() expects $column syntax")|};
+    {|Error(TypeError: "Function `select` expects $column syntax.")|};
   test "select non-dataframe"
     {|select(42, $name)|}
-    {|Error(TypeError: "select() expects a DataFrame as first argument")|};
+    {|Error(TypeError: "Function `select` expects a DataFrame as first argument.")|};
   test "select with pipe"
     (Printf.sprintf {|df = read_csv("%s"); df |> select($name, $score) |> ncol|} csv_p4)
     "2";
@@ -58,7 +58,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "filter non-dataframe"
     {|filter(42, \(x) true)|}
-    {|Error(TypeError: "filter() expects a DataFrame as first argument")|};
+    {|Error(TypeError: "Function `filter` expects a DataFrame as first argument.")|};
   print_newline ();
 
   Printf.printf "Phase 4 — mutate():\n";
@@ -81,10 +81,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "mutate non-dataframe"
     {|mutate(42, $x = 1)|}
-    {|Error(TypeError: "mutate() expects a DataFrame as first argument")|};
+    {|Error(TypeError: "Function `mutate` expects a DataFrame as first argument.")|};
   test "mutate missing column expr"
     (Printf.sprintf {|df = read_csv("%s"); mutate(df, 42)|} csv_p4)
-    {|Error(TypeError: "mutate() expects $column = expr syntax")|};
+    {|Error(TypeError: "Function `mutate` expects $column = expr syntax.")|};
   print_newline ();
 
   Printf.printf "Phase 4 — arrange():\n";
@@ -107,10 +107,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "arrange missing column"
     (Printf.sprintf {|df = read_csv("%s"); arrange(df, $nonexistent)|} csv_p4)
-    {|Error(KeyError: "Column 'nonexistent' not found in DataFrame")|};
+    {|Error(KeyError: "Column `nonexistent` not found in DataFrame.")|};
   test "arrange invalid direction"
     (Printf.sprintf {|df = read_csv("%s"); arrange(df, $age, "up")|} csv_p4)
-    {|Error(ValueError: "arrange() direction must be "asc" or "desc", got "up"")|};
+    {|Error(ValueError: "Function `arrange` direction must be "asc" or "desc", got "up".")|};
 
   print_newline ();
 
@@ -125,13 +125,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "group_by missing column"
     (Printf.sprintf {|df = read_csv("%s"); group_by(df, $nonexistent)|} csv_p4)
-    {|Error(KeyError: "Column(s) not found: nonexistent")|};
+    {|Error(KeyError: "Column(s) not found: nonexistent.")|};
   test "group_by non-column"
     (Printf.sprintf {|df = read_csv("%s"); group_by(df, 42)|} csv_p4)
-    {|Error(TypeError: "group_by() expects $column syntax")|};
+    {|Error(TypeError: "Function `group_by` expects $column syntax.")|};
   test "group_by no columns"
     (Printf.sprintf {|df = read_csv("%s"); group_by(df)|} csv_p4)
-    {|Error(ArityError: "group_by() requires at least one $column")|};
+    {|Error(ArityError: "Function `group_by` requires at least one $column.")|};
   print_newline ();
 
   Printf.printf "Phase 4 — ungroup():\n";
@@ -148,7 +148,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "DataFrame(5 rows x 4 cols: [name, age, score, dept])";
   test "ungroup non-dataframe"
     {|ungroup(42)|}
-    {|Error(TypeError: "ungroup() expects a DataFrame as first argument")|};
+    {|Error(TypeError: "Function `ungroup` expects a DataFrame as first argument.")|};
   print_newline ();
 
   Printf.printf "Phase 4 — summarize():\n";
@@ -185,7 +185,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "summarize non-dataframe"
     {|summarize(42, $x = 1)|}
-    {|Error(TypeError: "summarize() expects a DataFrame as first argument")|};
+    {|Error(TypeError: "Function `summarize` expects a DataFrame as first argument.")|};
   print_newline ();
 
   Printf.printf "Phase 4 — Pipeline Integration:\n";

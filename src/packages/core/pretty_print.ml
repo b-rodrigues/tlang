@@ -106,6 +106,6 @@ let register env =
       | [v] ->
           print_string (pretty_print_value v);
           VNull
-      | _ -> make_error ArityError "pretty_print() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "pretty_print" ~expected:1 ~received:(List.length args)
     ))
     env

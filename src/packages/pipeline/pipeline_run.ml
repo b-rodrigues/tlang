@@ -5,7 +5,7 @@ let register ~rerun_pipeline env =
     (make_builtin 1 (fun args env ->
       match args with
       | [VPipeline prev] -> rerun_pipeline env prev
-      | [_] -> make_error TypeError "pipeline_run() expects a Pipeline"
-      | _ -> make_error ArityError "pipeline_run() takes exactly 1 argument"
+      | [_] -> Error.type_error "Function `pipeline_run` expects a Pipeline."
+      | _ -> Error.arity_error_named "pipeline_run" ~expected:1 ~received:(List.length args)
     ))
     env

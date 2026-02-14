@@ -16,8 +16,8 @@ let register env =
             match arr.(i) with
             | VInt n -> result.(i) <- float_of_int n
             | VFloat f -> result.(i) <- f
-            | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
-            | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
       in
@@ -42,34 +42,34 @@ let register env =
           (match (to_arr v1, to_arr v2) with
            | (None, _) | (_, None) ->
                (match (v1, v2) with
-                | (VNA _, _) | (_, VNA _) -> make_error TypeError "cor() encountered NA value. Handle missingness explicitly."
-                | _ -> make_error TypeError "cor() expects two numeric Vectors or Lists")
+                | (VNA _, _) | (_, VNA _) -> Error.type_error "Function `cor` encountered NA value. Handle missingness explicitly."
+                | _ -> Error.type_error "Function `cor` expects two numeric Vectors or Lists.")
            | (Some arr1, Some arr2) ->
              if Array.length arr1 <> Array.length arr2 then
-               make_error ValueError "cor() requires vectors of equal length"
+               Error.value_error "Function `cor` requires vectors of equal length."
              else if na_rm then
                let (clean1, clean2) = pairwise_delete arr1 arr2 in
                if Array.length clean1 < 2 then
                  if Array.length clean1 = 0 then VNA NAFloat
-                 else make_error ValueError "cor() requires at least 2 non-NA pairs"
+                 else Error.value_error "Function `cor` requires at least 2 non-NA pairs."
                else
                  (match (extract_nums_arr "cor" clean1, extract_nums_arr "cor" clean2) with
                   | (Error e, _) | (_, Error e) -> e
                   | (Ok xs, Ok ys) ->
                     match Arrow_owl_bridge.pearson_cor xs ys with
                     | None ->
-                      make_error ValueError "cor() undefined: one or both vectors have zero variance"
+                      Error.value_error "Function `cor` undefined: one or both vectors have zero variance."
                     | Some r -> VFloat r)
              else if Array.length arr1 < 2 then
-               make_error ValueError "cor() requires at least 2 values"
+               Error.value_error "Function `cor` requires at least 2 values."
              else
                (match (extract_nums_arr "cor" arr1, extract_nums_arr "cor" arr2) with
                 | (Error e, _) | (_, Error e) -> e
                 | (Ok xs, Ok ys) ->
                   match Arrow_owl_bridge.pearson_cor xs ys with
                   | None ->
-                    make_error ValueError "cor() undefined: one or both vectors have zero variance"
+                    Error.value_error "Function `cor` undefined: one or both vectors have zero variance."
                   | Some r -> VFloat r))
-      | _ -> make_error ArityError "cor() takes exactly 2 arguments"
+      | _ -> Error.arity_error_named "cor" ~expected:2 ~received:(List.length args)
     ))
     env

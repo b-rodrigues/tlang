@@ -4,7 +4,7 @@ Thank you for your interest in contributing to T! This guide will help you get s
 
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
+- [Code of Ethics](#code-of-ethics)
 - [How Can I Contribute?](#how-can-i-contribute)
 - [Development Setup](#development-setup)
 - [Project Structure](#project-structure)
@@ -15,30 +15,10 @@ Thank you for your interest in contributing to T! This guide will help you get s
 
 ---
 
-## Code of Conduct
+## Code of Ethics
 
-### Our Pledge
-
-We are committed to providing a welcoming and inclusive environment for all contributors, regardless of background or identity.
-
-### Expected Behavior
-
-- Be respectful and considerate
-- Welcome newcomers and help them get started
-- Focus on constructive criticism
-- Accept responsibility for mistakes
-- Prioritize the community's well-being
-
-### Unacceptable Behavior
-
-- Harassment, discrimination, or exclusionary language
-- Personal attacks or insults
-- Trolling or inflammatory comments
-- Publishing others' private information
-
-### Enforcement
-
-Violations can be reported to the project maintainers. All complaints will be reviewed and investigated.
+This project follows a [Code of Ethics](code-of-ethics.md) adapted from the SQLite project.
+Please review it to understand the detailed ethical guidelines and expected behavior.
 
 ---
 

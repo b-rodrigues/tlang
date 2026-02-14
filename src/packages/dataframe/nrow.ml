@@ -6,8 +6,8 @@ let register env =
       match args with
       | [VDataFrame { arrow_table; _ }] -> VInt (Arrow_table.num_rows arrow_table)
       | [VVector v] -> VInt (Array.length v)
-      | [VNA _] -> make_error TypeError "nrow() expects a DataFrame or vector, got NA"
-      | [_] -> make_error TypeError "nrow() expects a DataFrame or vector"
-      | _ -> make_error ArityError "nrow() takes exactly 1 argument"
+      | [VNA _] -> Error.type_error "Function `nrow` expects a DataFrame or vector, got NA."
+      | [_] -> Error.type_error "Function `nrow` expects a DataFrame or vector."
+      | _ -> Error.arity_error_named "nrow" ~expected:1 ~received:(List.length args)
     ))
     env

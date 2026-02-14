@@ -10,8 +10,8 @@ let register env =
         (match List.assoc_opt "_tidy_df" pairs with
          | Some (VDataFrame _ as df) -> df
          | _ ->
-           make_error TypeError "summary() expects a model returned by lm()")
+           Error.type_error "Function `summary` expects a model returned by `lm`.")
       | _ ->
-        make_error TypeError "summary() expects a model returned by lm()"
+        Error.type_error "Function `summary` expects a model returned by `lm`."
     ))
     env

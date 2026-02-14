@@ -4,8 +4,8 @@ open Ast
 let to_value_array label = function
   | VVector arr -> Ok arr
   | VList items -> Ok (Array.of_list (List.map snd items))
-  | VNA _ -> Error (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
-  | _ -> Error (make_error TypeError (label ^ "() expects a Vector or List"))
+  | VNA _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+  | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a Vector or List." label))
 
 let register env =
   (* cumsum(x): cumulative sum; NA propagates to all subsequent values *)
@@ -44,10 +44,10 @@ let register env =
                        done;
                      result.(i) <- VFloat !running
                    | VNA _ -> na_seen := true; result.(i) <- VNA NAFloat
-                   | _ -> had_error := Some (make_error TypeError "cumsum() requires numeric values")
+                   | _ -> had_error := Some (Error.type_error "Function `cumsum` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))
-      | _ -> make_error ArityError "cumsum() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "cumsum" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -87,10 +87,10 @@ let register env =
                      done;
                      result.(i) <- VFloat !running
                    | VNA _ -> na_seen := true; result.(i) <- VNA NAFloat
-                   | _ -> had_error := Some (make_error TypeError "cummin() requires numeric values")
+                   | _ -> had_error := Some (Error.type_error "Function `cummin` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))
-      | _ -> make_error ArityError "cummin() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "cummin" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -130,10 +130,10 @@ let register env =
                      done;
                      result.(i) <- VFloat !running
                    | VNA _ -> na_seen := true; result.(i) <- VNA NAFloat
-                   | _ -> had_error := Some (make_error TypeError "cummax() requires numeric values")
+                   | _ -> had_error := Some (Error.type_error "Function `cummax` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))
-      | _ -> make_error ArityError "cummax() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "cummax" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -165,10 +165,10 @@ let register env =
                      running_sum := !running_sum +. f;
                      result.(i) <- VFloat (!running_sum /. float_of_int (i + 1))
                    | VNA _ -> na_seen := true; result.(i) <- VNA NAFloat
-                   | _ -> had_error := Some (make_error TypeError "cummean() requires numeric values")
+                   | _ -> had_error := Some (Error.type_error "Function `cummean` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))
-      | _ -> make_error ArityError "cummean() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "cummean" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -197,7 +197,7 @@ let register env =
                    result.(i) <- VBool !running
              done;
              VVector result)
-      | _ -> make_error ArityError "cumall() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "cumall" ~expected:1 ~received:(List.length args)
     ))
     env
   in
@@ -226,7 +226,7 @@ let register env =
                    result.(i) <- VBool !running
              done;
              VVector result)
-      | _ -> make_error ArityError "cumany() takes exactly 1 argument"
+      | _ -> Error.arity_error_named "cumany" ~expected:1 ~received:(List.length args)
     ))
     env
   in

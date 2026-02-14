@@ -105,16 +105,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "lm non-dataframe"
     {|lm(data = 42, formula = y ~ x)|}
-    {|Error(TypeError: "lm() 'data' must be a DataFrame")|};
+    {|Error(TypeError: "Function `lm` 'data' must be a DataFrame.")|};
   test "lm non-formula"
     {|lm(data = 42, formula = 42)|}
-    {|Error(TypeError: "lm() 'data' must be a DataFrame")|};
+    {|Error(TypeError: "Function `lm` 'data' must be a DataFrame.")|};
   test "lm missing data"
     {|lm(formula = y ~ x)|}
-    {|Error(ArityError: "lm() missing required argument 'data'")|};
+    {|Error(ArityError: "Function `lm` missing required argument 'data'.")|};
   test "lm missing formula"
     "lm(data = 42)"
-    {|Error(ArityError: "lm() missing required argument 'formula'")|};
+    {|Error(ArityError: "Function `lm` missing required argument 'formula'.")|};
 
   print_newline ();
 

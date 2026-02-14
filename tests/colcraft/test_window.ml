@@ -114,7 +114,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   (* Error cases for ranking *)
   test "ntile non-positive"
     {|ntile([1, 2, 3], 0)|}
-    {|Error(ValueError: "ntile() requires a positive number of tiles")|};
+    {|Error(ValueError: "Function `ntile` requires a positive number of tiles.")|};
   print_newline ();
 
   Printf.printf "Window Functions — Offset (lead/lag):\n";
@@ -147,10 +147,10 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   (* Error cases for offset *)
   test "lag negative offset"
     {|lag([1, 2, 3], -1)|}
-    {|Error(ValueError: "lag() offset must be non-negative")|};
+    {|Error(ValueError: "Function `lag` offset must be non-negative.")|};
   test "lead negative offset"
     {|lead([1, 2, 3], -1)|}
-    {|Error(ValueError: "lead() offset must be non-negative")|};
+    {|Error(ValueError: "Function `lead` offset must be non-negative.")|};
   print_newline ();
 
   Printf.printf "Window Functions — Cumulative:\n";
@@ -267,7 +267,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   (* Error cases for cumulative *)
   test "cummin with string"
     {|cummin(["a", "b"])|}
-    {|Error(TypeError: "cummin() requires numeric values")|};
+    {|Error(TypeError: "Function `cummin` requires numeric values.")|};
   print_newline ();
 
   (* Clean up *)

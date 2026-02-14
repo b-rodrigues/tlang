@@ -16,8 +16,8 @@ let register env =
             match arr.(i) with
             | VInt n -> result.(i) <- float_of_int n
             | VFloat f -> result.(i) <- f
-            | VNA _ -> had_error := Some (make_error TypeError (label ^ "() encountered NA value. Handle missingness explicitly."))
-            | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
       in
@@ -30,7 +30,7 @@ let register env =
             | VInt n -> nums := float_of_int n :: !nums
             | VFloat f -> nums := f :: !nums
             | VNA _ -> ()
-            | _ -> had_error := Some (make_error TypeError (label ^ "() requires numeric values"))
+            | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok (Array.of_list (List.rev !nums))
       in
@@ -42,7 +42,7 @@ let register env =
       in
       let compute_quantile nums p =
         let n = Array.length nums in
-        if n = 0 then make_error ValueError "quantile() called on empty data"
+        if n = 0 then Error.value_error "Function `quantile` called on empty data."
         else begin
           let sorted = Array.copy nums in
           Array.sort compare sorted;
@@ -56,7 +56,7 @@ let register env =
       match args with
       | [VVector arr; p_val] ->
           (match get_p p_val with
-           | None -> make_error ValueError "quantile() expects a probability between 0 and 1"
+           | None -> Error.value_error "Function `quantile` expects a probability between 0 and 1."
            | Some p ->
              if na_rm then
                (match extract_nums_arr_na_rm "quantile" arr with
@@ -69,7 +69,7 @@ let register env =
                 | Ok nums -> compute_quantile nums p))
       | [VList items; p_val] ->
           (match get_p p_val with
-           | None -> make_error ValueError "quantile() expects a probability between 0 and 1"
+           | None -> Error.value_error "Function `quantile` expects a probability between 0 and 1."
            | Some p ->
              let arr = Array.of_list (List.map snd items) in
              if na_rm then
@@ -81,8 +81,8 @@ let register env =
                (match extract_nums_arr "quantile" arr with
                 | Error e -> e
                 | Ok nums -> compute_quantile nums p))
-      | [VNA _; _] | [_; VNA _] -> make_error TypeError "quantile() encountered NA value. Handle missingness explicitly."
-      | [_; _] -> make_error TypeError "quantile() expects a numeric List or Vector as first argument"
-      | _ -> make_error ArityError "quantile() takes exactly 2 arguments"
+      | [VNA _; _] | [_; VNA _] -> Error.type_error "Function `quantile` encountered NA value. Handle missingness explicitly."
+      | [_; _] -> Error.type_error "Function `quantile` expects a numeric List or Vector as first argument."
+      | _ -> Error.arity_error_named "quantile" ~expected:2 ~received:(List.length args)
     ))
     env

@@ -147,10 +147,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   test "ntile negative tiles"
     {|ntile([1, 2, 3], -1)|}
-    {|Error(ValueError: "ntile() requires a positive number of tiles")|};
+    {|Error(ValueError: "Function `ntile` requires a positive number of tiles.")|};
   test "ntile zero tiles"
     {|ntile([1, 2, 3], 0)|}
-    {|Error(ValueError: "ntile() requires a positive number of tiles")|};
+    {|Error(ValueError: "Function `ntile` requires a positive number of tiles.")|};
   test "ntile on empty"
     {|ntile([], 3)|}
     "Vector[]";
