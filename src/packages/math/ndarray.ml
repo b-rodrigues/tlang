@@ -174,11 +174,12 @@ let matrix_inverse args =
             aug.(i).(n + i) <- 1.0
           done;
           let singular = ref false in
-          for col = 0 to n - 1 do
-            let pivot_row = ref col in
-            let pivot_abs = ref (Float.abs aug.(col).(col)) in
-            for r = col + 1 to n - 1 do
-              let v = Float.abs aug.(r).(col) in
+          let col = ref 0 in
+          while !col < n && not !singular do
+            let pivot_row = ref !col in
+            let pivot_abs = ref (Float.abs aug.(!col).(!col)) in
+            for r = !col + 1 to n - 1 do
+              let v = Float.abs aug.(r).(!col) in
               if v > !pivot_abs then begin
                 pivot_abs := v;
                 pivot_row := r
@@ -187,24 +188,25 @@ let matrix_inverse args =
             if !pivot_abs < eps then
               singular := true
             else begin
-              if !pivot_row <> col then begin
-                let tmp = aug.(col) in
-                aug.(col) <- aug.(!pivot_row);
+              if !pivot_row <> !col then begin
+                let tmp = aug.(!col) in
+                aug.(!col) <- aug.(!pivot_row);
                 aug.(!pivot_row) <- tmp
               end;
-              let pivot = aug.(col).(col) in
+              let pivot = aug.(!col).(!col) in
               for c = 0 to (2 * n) - 1 do
-                aug.(col).(c) <- aug.(col).(c) /. pivot
+                aug.(!col).(c) <- aug.(!col).(c) /. pivot
               done;
               for r = 0 to n - 1 do
-                if r <> col then begin
-                  let factor = aug.(r).(col) in
+                if r <> !col then begin
+                  let factor = aug.(r).(!col) in
                   if Float.abs factor > 0.0 then
                     for c = 0 to (2 * n) - 1 do
-                      aug.(r).(c) <- aug.(r).(c) -. factor *. aug.(col).(c)
+                      aug.(r).(c) <- aug.(r).(c) -. factor *. aug.(!col).(c)
                     done
                 end
-              done
+              done;
+              col := !col + 1
             end
           done;
           if !singular then
