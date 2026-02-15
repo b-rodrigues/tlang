@@ -177,11 +177,13 @@ let length_scalar args _env =
 let length_impl args env =
   match args with
   | [VVector arr] ->
-      (* Check if vector contains strings - if so, vectorize *)
+      (* Check if vector contains strings - if so, vectorize.
+         We check only the first element, assuming vectors are homogeneous.
+         Empty vectors return length 0 (handled by length_scalar). *)
       if Array.length arr > 0 && (match arr.(0) with VString _ -> true | _ -> false) then
         vectorize_unary length_scalar args env
       else
-        (* For non-string vectors, return the length of the vector *)
+        (* For non-string vectors (including empty vectors), return the length of the vector *)
         length_scalar args env
   | _ -> length_scalar args env
 
@@ -202,7 +204,8 @@ let length_impl args env =
 --#
 --# For a string, returns the number of characters. For a collection (List, Vector, Dict),
 --# returns the number of elements. When applied to a Vector of strings, it is vectorized
---# (returns the length of each string). For a Vector of other types, returns the vector length.
+--# (returns the length of each string). For a Vector of other types (including empty vectors),
+--# returns the vector length.
 --#
 --# @name length
 --# @param x :: String | List | Vector | Dict The input to measure.
