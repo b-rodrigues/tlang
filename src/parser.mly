@@ -3,8 +3,28 @@
 (* Menhir grammar for the T language — Phase 0 Alpha *)
 open Ast
 
+(* Custom exception for mixed bracket forms - avoids circular dependency with Parser.Error *)
+exception Mixed_bracket_form
+
 (* Helper to build a parameter record from parsing *)
 type param_info = { names: string list; has_variadic: bool }
+
+type bracket_item =
+  | BrExpr of Ast.expr
+  | BrPair of string * Ast.expr
+
+let build_bracket_literal (items : bracket_item list) : Ast.expr =
+  let rec loop saw_expr saw_pair dict_rev list_rev = function
+    | [] ->
+      if saw_expr && saw_pair then raise Mixed_bracket_form
+      else if saw_pair then DictLit (List.rev dict_rev)
+      else ListLit (List.rev list_rev)
+    | BrExpr e :: rest ->
+      loop true saw_pair dict_rev ((None, e) :: list_rev) rest
+    | BrPair (k, v) :: rest ->
+      loop saw_expr true ((k, v) :: dict_rev) list_rev rest
+  in
+  loop false false [] [] items
 %}
 
 /* TOKENS */
@@ -226,8 +246,7 @@ primary_expr:
   | col = COLUMN_REF { ColumnRef col }
   | id = any_ident { Var id }
   | LPAREN e = expr RPAREN { e }
-  | l = list_lit { l }
-  | d = dict_lit { d }
+  | b = bracket_lit { b }
   | l = lambda_expr { l }
   | i = if_expr { i }
   | p = pipeline_expr { p }
@@ -236,14 +255,7 @@ primary_expr:
   ;
 
 block_expr:
-  | LBRACE skip_sep stmts = nonempty_stmt_list RBRACE { Block stmts } 
-  ;
-
-/* Helper to ensure blocks contain at least one statement.
-   This avoids ambiguity with empty dict literals `{}`. */
-nonempty_stmt_list:
-  | s = statement skip_sep { [s] }
-  | s = statement sep skip_sep rest = stmt_list { s :: rest }
+  | LBRACE skip_sep stmts = stmt_list RBRACE { Block stmts }
   ;
 
 lambda_expr:
@@ -308,35 +320,22 @@ intent_field:
   | key = any_ident COLON value = expr { (key, value) }
   ;
 
-list_lit:
-  | LBRACK skip_sep items = list_items RBRACK
-    { ListLit items }
+bracket_lit:
+  | LBRACK skip_sep items = bracket_items RBRACK
+    { build_bracket_literal items }
+  | LBRACK skip_sep COLON skip_sep RBRACK
+    { DictLit [] }
   ;
 
-list_items:
+bracket_items:
   | { [] }
-  | i = named_item skip_sep { [i] }
-  | i = named_item COMMA skip_sep rest = list_items { i :: rest }
+  | i = bracket_item skip_sep { [i] }
+  | i = bracket_item COMMA skip_sep rest = bracket_items { i :: rest }
   ;
 
-named_item:
-  | e = expr { (None, e) }
-  | name = IDENT COLON e = expr { (Some name, e) }
-  ;
-
-dict_lit:
-  | LBRACE skip_sep pairs = dict_items RBRACE
-    { DictLit pairs }
-  ;
-
-dict_items:
-  | { [] }
-  | p = dict_pair skip_sep { [p] }
-  | p = dict_pair COMMA skip_sep rest = dict_items { p :: rest }
-  ;
-
-dict_pair:
-  | key = any_ident COLON value = expr { (key, value) }
+bracket_item:
+  | key = any_ident COLON value = expr { BrPair (key, value) }
+  | e = expr { BrExpr e }
   ;
 
 /* An identifier can be bare or backticked */
