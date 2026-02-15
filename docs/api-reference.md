@@ -20,6 +20,47 @@ Complete reference for all functions in T's standard library.
 
 ---
 
+## Core Syntax: Lists, Dictionaries, and Blocks
+
+These forms are **distinct and non-overlapping**:
+
+- `[a, b, c]` → List literal
+- `[key: value, ...]` → Dictionary literal
+- `{ ... }` → Block statement (control-flow/body syntax), **not** a dictionary
+
+### Bracket literal rule (`[...]`)
+
+When parsing a bracket literal, T applies this rule:
+
+1. Parse comma-separated top-level items.
+2. If **any** top-level item is `key: value`, the whole literal is treated as a dictionary.
+3. Otherwise, it is treated as a list.
+
+This means:
+
+```t
+[]                    -- empty List
+[1, 2, 3]             -- List
+[name: "alice"]      -- Dict
+[name: "alice", age: 32]  -- Dict
+```
+
+### Disallowed mixed forms
+
+A single bracket literal cannot mix dictionary entries and plain expressions:
+
+```t
+[name: "alice", 12]  -- Parse error
+[name:]               -- Parse error
+```
+
+### Braces are blocks
+
+`{ ... }` is reserved for block syntax (e.g., in control flow and pipeline/intent constructs).
+It is not used for general dictionary literals.
+
+---
+
 ## Core Package
 
 Fundamental functional programming utilities.
@@ -75,7 +116,7 @@ type(3.14)           -- "Float"
 type(true)           -- "Bool"
 type("hello")        -- "String"
 type([1, 2])         -- "List"
-type({x: 1})         -- "Dict"
+type([x: 1])         -- "Dict"
 type(NA)             -- "NA"
 type(error("x"))     -- "Error"
 type(df)             -- "DataFrame"
@@ -1406,7 +1447,7 @@ Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
 | `Bool` | `true`, `false` | Boolean values |
 | `String` | `"hello"` | Text strings |
 | `List` | `[1, 2, 3]` | Ordered collections |
-| `Dict` | `{x: 1, y: 2}` | Key-value maps |
+| `Dict` | `[x: 1, y: 2]` | Key-value maps |
 | `Vector` | Column data | Typed arrays (from DataFrames) |
 | `DataFrame` | Table data | First-class tabular data |
 | `Function` | `\(x) x + 1` | First-class functions |
