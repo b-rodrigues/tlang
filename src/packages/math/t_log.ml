@@ -6,8 +6,8 @@ open Ast
 --# Calculates the natural logarithm (base e) of x.
 --#
 --# @name log
---# @param x :: Number | Vector The input value (must be positive).
---# @return :: Float | Vector The natural logarithm.
+--# @param x :: Number | Vector | NDArray The input value (must be positive).
+--# @return :: Float | Vector | NDArray The natural logarithm.
 --# @example
 --#   log(2.71828)
 --#   -- Returns: ~1.0
@@ -41,8 +41,17 @@ let register env =
               | _ -> had_error := Some (Error.type_error "Function `log` requires numeric values.")
           ) arr;
           (match !had_error with Some e -> e | None -> VVector result)
+      | [VNDArray arr] ->
+          let result = Array.map (fun f ->
+            if f <= 0.0 then nan 
+            else Float.log f
+          ) arr.data in
+          if Array.exists Float.is_nan result then
+             Error.value_error "Function `log` encountered non-positive values in NDArray."
+          else
+             VNDArray { shape = arr.shape; data = result }
       | [VNA _] -> Error.type_error "Function `log` encountered NA value. Handle missingness explicitly."
-      | [_] -> Error.type_error "Function `log` expects a number or numeric Vector."
+      | [_] -> Error.type_error "Function `log` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "log" ~expected:1 ~received:(List.length args)
     ))
     env

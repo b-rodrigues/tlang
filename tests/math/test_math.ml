@@ -89,6 +89,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "kron" "kron(ndarray([[1,2],[3,4]]), ndarray([[0,5],[6,7]]))" "NDArray(shape=[4, 4], data=[0., 5., 0., 10., 6., 7., 12., 14., 0., 15., 0., 20., 18., 21., 24., 28.])";
   test "ndarray broadcast add" "ndarray([1,2,3]) .+ 1" "NDArray(shape=[3], data=[2., 3., 4.])";
   
+  (* Vectorized math function tests on NDArrays *)
+  test "sqrt on ndarray" "sqrt(ndarray([[4, 9], [16, 25]]))" "NDArray(shape=[2, 2], data=[2., 3., 4., 5.])";
+  test "abs on ndarray" "abs(ndarray([[-1, 2], [-3, 4]]))" "NDArray(shape=[2, 2], data=[1., 2., 3., 4.])";
+  test "log on ndarray" "log(ndarray([1, 10]))" "NDArray(shape=[2], data=[0., 2.30258509299])";
+  test "exp on ndarray" "exp(ndarray([0, 1]))" "NDArray(shape=[2], data=[1., 2.71828182846])";
+  test "pow on ndarray" "pow(ndarray([[1, 2], [3, 4]]), 2)" "NDArray(shape=[2, 2], data=[1., 4., 9., 16.])";
+  
   (* Error case tests *)
   test "ndarray with empty list" "ndarray([])" {|Error(ValueError: "NDArray shape dimensions must be strictly positive.")|};
   test "ndarray with NA values" "ndarray([1, NA, 3])" {|Error(TypeError: "NDArray cannot contain NA values. Handle missingness explicitly.")|};

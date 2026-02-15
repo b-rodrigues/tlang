@@ -6,8 +6,8 @@ open Ast
 --# Calculates e raised to the power of x.
 --#
 --# @name exp
---# @param x :: Number | Vector The exponent.
---# @return :: Float | Vector The result of e^x.
+--# @param x :: Number | Vector | NDArray The exponent.
+--# @return :: Float | Vector | NDArray The result of e^x.
 --# @example
 --#   exp(1)
 --#   -- Returns: 2.71828...
@@ -33,8 +33,11 @@ let register env =
               | _ -> had_error := Some (Error.type_error "Function `exp` requires numeric values.")
           ) arr;
           (match !had_error with Some e -> e | None -> VVector result)
+      | [VNDArray arr] ->
+          let result = Array.map Float.exp arr.data in
+          VNDArray { shape = arr.shape; data = result }
       | [VNA _] -> Error.type_error "Function `exp` encountered NA value. Handle missingness explicitly."
-      | [_] -> Error.type_error "Function `exp` expects a number or numeric Vector."
+      | [_] -> Error.type_error "Function `exp` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "exp" ~expected:1 ~received:(List.length args)
     ))
     env
