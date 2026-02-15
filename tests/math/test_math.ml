@@ -5,7 +5,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "sqrt of 0" "sqrt(0)" "0.";
   test "sqrt negative" "sqrt(-1)" {|Error(ValueError: "Function `sqrt` is undefined for negative numbers.")|};
   test "sqrt NA" "sqrt(NA)" {|Error(TypeError: "Function `sqrt` encountered NA value. Handle missingness explicitly.")|};
-  test "sqrt non-numeric" {|sqrt("hello")|} {|Error(TypeError: "Function `sqrt` expects a number or numeric Vector.")|};
+  test "sqrt non-numeric" {|sqrt("hello")|} {|Error(TypeError: "Function `sqrt` expects a number, numeric Vector, or NDArray.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Math: abs():\n";
