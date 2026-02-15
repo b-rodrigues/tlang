@@ -11,7 +11,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "int division" "7 / 2" "3.5";
   test "negative result" "3 - 10" "-7";
   test "multiply by zero" "42 * 0" "0";
-  test "string repeat via concat" {|"ha" + "ha" + "ha"|} {|"hahaha"|};
+  test "string repeat via concat error" {|"ha" + "ha" + "ha"|} {|Error(TypeError: "String concatenation with '+' is not supported. Use 'join([a, b], sep)' or 'paste(a, b, sep)' instead.")|};
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: Variable scoping:\n";

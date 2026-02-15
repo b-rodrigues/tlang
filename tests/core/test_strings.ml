@@ -8,7 +8,7 @@
    test: string -> string -> string -> unit
 *)
 
-let run_tests pass_count fail_count _eval_string _eval_string_env test =
+let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 7 — Core: String Operations:\n";
   
   Printf.printf "  Inspection:\n";
@@ -18,6 +18,8 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "length list" "length([1, 2, 3])" "3";
   test "length vector" "length(seq(1, 10))" "10";
   test "length vector of strings" "length([\"a\", \"bc\"])" "2";
+  test "nchar string" "nchar(\"hello\")" "5";
+  test "nchar vector" "nchar([\"a\", \"bc\"])" "[1, 2]";
   
   Printf.printf "  Substrings:\n";
   test "substring simple" "substring(\"hello\", 1, 3)" "\"el\"";
@@ -44,9 +46,9 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "to_lower" "to_lower(\"TEST\")" "\"test\"";
   
   Printf.printf "  Vectorization:\n";
-  test "to_upper vector" "to_upper([\"hello\", \"world\"])" "Vector[\"HELLO\", \"WORLD\"]";
-  test "substring vector" "substring([\"hello\", \"world\"], 1, 3)" "Vector[\"el\", \"or\"]";
-  test "contains vector scalar" "contains([\"hello\", \"help\"], \"lo\")" "Vector[true, false]";
+  test "to_upper vector" "to_upper([\"hello\", \"world\"])" "[\"HELLO\", \"WORLD\"]";
+  test "substring vector" "substring([\"hello\", \"world\"], 1, 3)" "[\"el\", \"or\"]";
+  test "contains vector scalar" "contains([\"hello\", \"help\"], \"lo\")" "[true, false]";
 
   test "join list" "join([\"a\", \"b\", \"c\"], \"-\")" "\"a-b-c\"";
   test "join vector" "join(seq(1, 3), \", \")" "\"1, 2, 3\"";

@@ -3,41 +3,57 @@ open Ast
 (* Helper: Unary Vectorization *)
 let vectorize_unary op args env =
   match args with
-  | [VVector arr] ->
-      VVector (Array.map (fun v -> 
+  | [Ast.VVector arr] ->
+      Ast.VVector (Array.map (fun v -> 
         match op [v] env with
-        | VError _ as e -> e
+        | Ast.VError _ as e -> e
         | res -> res
       ) arr)
+  | [Ast.VList items] ->
+      Ast.VList (List.map (fun (name, v) -> 
+        (name, match op [v] env with Ast.VError _ as e -> e | res -> res)
+      ) items)
   | _ -> op args env
 
 (* Helper: Binary Vectorization *)
 let vectorize_binary op args env =
   match args with
-  | [VVector arr1; VVector arr2] ->
+  | [Ast.VVector arr1; Ast.VVector arr2] ->
       if Array.length arr1 <> Array.length arr2 then
         Error.broadcast_length_error (Array.length arr1) (Array.length arr2)
       else
-        VVector (Array.map2 (fun v1 v2 -> op [v1; v2] env) arr1 arr2)
-  | [VVector arr1; val2] ->
-      VVector (Array.map (fun v1 -> op [v1; val2] env) arr1)
-  | [val1; VVector arr2] ->
-      VVector (Array.map (fun v2 -> op [val1; v2] env) arr2)
+        Ast.VVector (Array.map2 (fun v1 v2 -> op [v1; v2] env) arr1 arr2)
+  | [Ast.VVector arr1; val2] ->
+      Ast.VVector (Array.map (fun v1 -> op [v1; val2] env) arr1)
+  | [val1; Ast.VVector arr2] ->
+      Ast.VVector (Array.map (fun v2 -> op [val1; v2] env) arr2)
+  | [Ast.VList l1; Ast.VList l2] ->
+      if List.length l1 <> List.length l2 then
+        Error.broadcast_length_error (List.length l1) (List.length l2)
+      else
+        Ast.VList (List.map2 (fun (n1, v1) (n2, v2) ->
+          let name = match n1, n2 with Some s, _ -> Some s | _, Some s -> Some s | _ -> None in
+          (name, op [v1; v2] env)
+        ) l1 l2)
+  | [Ast.VList l1; val2] ->
+      Ast.VList (List.map (fun (n, v1) -> (n, op [v1; val2] env)) l1)
+  | [val1; Ast.VList l2] ->
+      Ast.VList (List.map (fun (n, v2) -> (n, op [val1; v2] env)) l2)
   | _ -> op args env
 
 (* Helper: Ternary Vectorization *)
 let vectorize_ternary op args env =
   match args with
-  | [VVector arr1; VVector arr2; VVector arr3] ->
-     (* Full broadcast logic is complex, for now assuming congruent shapes or scalars *)
-     let len = Array.length arr1 in
-     if Array.length arr2 <> len || Array.length arr3 <> len then
-       Error.value_error "Vector length mismatch in ternary operation."
-     else
-       VVector (Array.init len (fun i -> op [arr1.(i); arr2.(i); arr3.(i)] env))
-  | [VVector arr1; val2; val3] ->
-      VVector (Array.map (fun v1 -> op [v1; val2; val3] env) arr1)
-  (* Add other combinations as needed, e.g. substring(vec, scalar, scalar) is common *)
+  | [Ast.VVector arr1; Ast.VVector arr2; Ast.VVector arr3] ->
+      let len = Array.length arr1 in
+      if Array.length arr2 <> len || Array.length arr3 <> len then
+        Error.value_error "Vector length mismatch in ternary operation."
+      else
+        Ast.VVector (Array.init len (fun i -> op [arr1.(i); arr2.(i); arr3.(i)] env))
+  | [Ast.VVector arr1; val2; val3] ->
+      Ast.VVector (Array.map (fun v1 -> op [v1; val2; val3] env) arr1)
+  | [Ast.VList l1; val2; val3] ->
+      Ast.VList (List.map (fun (n, v1) -> (n, op [v1; val2; val3] env)) l1)
   | _ -> op args env
 
 (* Implementations *)
@@ -172,12 +188,18 @@ let length_scalar args _env =
   | [VList items] -> VInt (List.length items)
   | [VDict pairs] -> VInt (List.length pairs)
   | [VVector arr] -> VInt (Array.length arr)
+  | [VNA _] -> Error.type_error "Cannot get length of NA."
+  | [VError _] -> Error.type_error "Cannot get length of Error."
   | _ -> Error.type_error "length expects a collection (List, Vector, or Dict)."
 
-let length_impl args env =
-  (* length should always return the count of elements in a collection,
-     never vectorize. Use nchar for getting character counts of strings. *)
-  length_scalar args env
+let length_impl args env = length_scalar args env
+
+let nchar_scalar args _env =
+  match args with
+  | [VString s] -> VInt (String.length s)
+  | _ -> Error.type_error "nchar expects a string."
+
+let nchar_impl args env = vectorize_unary nchar_scalar args env
 
 (*
 --# Check if string is empty
@@ -187,6 +209,18 @@ let length_impl args env =
 --# @name is_empty
 --# @param s :: String The string to check.
 --# @return :: Bool True if empty, false otherwise.
+--# @family string
+--# @export
+*)
+
+(*
+--# Get character count
+--#
+--# Returns the number of characters in a string. Vectorized.
+--#
+--# @name nchar
+--# @param x :: String | Vector[String] The input string(s).
+--# @return :: Int | Vector[Int] The number of characters.
 --# @family string
 --# @export
 *)
@@ -366,6 +400,7 @@ let length_impl args env =
 let register env =
   let env = Env.add "is_empty" (make_builtin 1 is_empty_impl) env in
   let env = Env.add "length" (make_builtin 1 length_impl) env in
+  let env = Env.add "nchar" (make_builtin 1 nchar_impl) env in
   let env = Env.add "substring" (make_builtin 3 substring_impl) env in
   let env = Env.add "slice" (make_builtin 3 substring_impl) env in
   let env = Env.add "char_at" (make_builtin 2 char_at_impl) env in

@@ -6,7 +6,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "Add Int" "1 + 2" "3";
   test "Add Float" "1.5 + 2.5" "4.";
   test "Add Mixed" "1 + 2.5" "3.5";
-  test "Add String" "'a' + 'b'" {|"ab"|};
+  test "Add String error" {|"a" + "b"|} {|Error(TypeError: "String concatenation with '+' is not supported. Use 'join([a, b], sep)' or 'paste(a, b, sep)' instead.")|};
   test "Sub Int" "10 - 4" "6";
   test "Mul Int" "3 * 4" "12";
   test "Div Int" "10 / 2" "5.";

@@ -10,5 +10,5 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "parentheses" "(2 + 3) * 4" "20";
   test "unary minus" "0 - 5" "-5";
   test "division by zero" "1 / 0" {|Error(DivisionByZero: "Division by zero.")|};
-  test "string concatenation" {|"hello" + " world"|} {|"hello world"|};
+  test "string concatenation error" {|"hello" + " world"|} {|Error(TypeError: "String concatenation with '+' is not supported. Use 'join([a, b], sep)' or 'paste(a, b, sep)' instead.")|};
   print_newline ()

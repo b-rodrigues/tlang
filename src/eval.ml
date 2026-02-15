@@ -768,8 +768,12 @@ and eval_binop env op left right =
   | _ ->
   let lval = eval_expr env left in
   let rval = eval_expr env right in
-  match lval, rval with
-  | VNDArray _, _ | _, VNDArray _ -> broadcast2 op lval rval
+  match (op, lval, rval) with
+  | (Plus | Minus | Mul | Div | Lt | Gt | LtEq | GtEq | Eq | NEq), _, _ ->
+      (match lval, rval with
+       | VNDArray _, _ | _, VNDArray _
+       | Ast.VVector _, _ | _, Ast.VVector _ -> broadcast2 op lval rval
+       | _ -> eval_scalar_binop op lval rval)
   | _ -> eval_scalar_binop op lval rval
 
 and eval_unop env op operand =

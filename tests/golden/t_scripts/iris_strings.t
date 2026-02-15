@@ -4,7 +4,7 @@ result = df
   |> mutate(
     species_upper = to_upper($Species),
     species_lower = to_lower($Species),
-    len = length($Species),
+    len = nchar($Species),
     sub = substring($Species, 0, 3),
     joined = join($Species), -- Test join on column with default sep=""
     has_set = contains($Species, "set"),
