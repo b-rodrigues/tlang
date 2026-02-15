@@ -17,7 +17,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "length string" "length(\"hello\")" "5";
   test "length list" "length([1, 2, 3])" "3";
   test "length vector" "length(seq(1, 10))" "10";
-  test "length vector vectorized" "length([\"a\", \"bc\"])" "Vector[1, 2]";
+  test "length vector of strings" "length([\"a\", \"bc\"])" "2";
   
   Printf.printf "  Substrings:\n";
   test "substring simple" "substring(\"hello\", 1, 3)" "\"el\"";
