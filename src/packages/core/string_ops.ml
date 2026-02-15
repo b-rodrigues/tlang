@@ -168,11 +168,11 @@ let to_upper_impl args env = vectorize_unary to_upper_scalar args env
 
 let length_scalar args _env =
   match args with
-  | [VString s] -> VInt (String.length s)
+  | [VString _] -> Error.type_error "length does not work on strings. Use nchar() to get the number of characters in a string."
   | [VList items] -> VInt (List.length items)
   | [VDict pairs] -> VInt (List.length pairs)
   | [VVector arr] -> VInt (Array.length arr)
-  | _ -> Error.type_error "length expects a string or collection."
+  | _ -> Error.type_error "length expects a collection (List, Vector, or Dict)."
 
 let length_impl args env =
   (* length should always return the count of elements in a collection,
@@ -194,14 +194,13 @@ let length_impl args env =
 (*
 --# Get length
 --#
---# For a string, returns the number of characters. For a collection (List, Vector, Dict),
---# returns the number of elements. This function is NOT vectorized - it always returns
---# the count of elements in the collection. Use nchar() for getting character counts
---# of individual strings in a vectorized manner.
+--# Returns the number of elements in a collection (List, Vector, Dict).
+--# This function is NOT vectorized - it always returns the count of elements.
+--# For getting the number of characters in a string, use nchar() instead.
 --#
 --# @name length
---# @param x :: String | List | Vector | Dict The input to measure.
---# @return :: Int The length.
+--# @param x :: List | Vector | Dict The collection to measure.
+--# @return :: Int The number of elements.
 --# @family string
 --# @export
 *)
