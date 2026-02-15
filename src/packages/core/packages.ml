@@ -129,9 +129,52 @@ let register env =
     env
   in
   
+  (* Helper to keep named args *)
+  let make_builtin_named ?(variadic=false) arity func =
+    VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
+  in
+
   (* Register Boolean functions *)
+(*
+--# Vectorized if-else
+--#
+--# Vectorized conditional selection. Returns values from `true_val` or `false_val`
+--# depending on whether `condition` is true or false.
+--#
+--# @name ifelse
+--# @param condition :: Bool | Vector[Bool] The condition to check.
+--# @param true_val :: Any | Vector[Any] Value to return if condition is true.
+--# @param false_val :: Any | Vector[Any] Value to return if condition is false.
+--# @param missing :: Any (Optional) Value to return if condition is NA. Defaults to NA.
+--# @return :: Vector[Any] A vector of the same length as `condition`.
+--# @example
+--#   ifelse(x > 5, "High", "Low")
+--#   ifelse(x % 2 == 0, x, 0)
+--# @family boolean
+--# @export
+*)
   let env = Env.add "ifelse" (make_builtin ~variadic:true 3 T_boolean.ifelse) env in
-  let env = Env.add "case_when" (make_builtin_named ~variadic:true 0 (T_boolean.case_when Eval.eval_expr)) env in
+
+(*
+--# Vectorized case-when
+--#
+--# Evaluates a series of `condition ~ value` formulas sequentially.
+--# Returns the value corresponding to the first true condition for each element.
+--#
+--# @name casewhen
+--# @param ... :: Formula One or more formulas of the form `condition ~ value`.
+--# @param .default :: Any (Optional) Value to return if no condition matches. Defaults to NA.
+--# @return :: Vector[Any] A vector of the matched values.
+--# @example
+--#   casewhen(
+--#     x > 0 ~ "Positive",
+--#     x < 0 ~ "Negative",
+--#     .default = "Zero"
+--#   )
+--# @family boolean
+--# @export
+*)
+  let env = Env.add "casewhen" (make_builtin_named ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr)) env in
 
   env
 

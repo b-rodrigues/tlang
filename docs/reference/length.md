@@ -1,24 +1,14 @@
 # length
 
-Get the length of a collection
+Get length
 
-Returns the number of items in a List, Dict, Vector, or string.
+Returns the number of elements in a collection (List, Vector, Dict). This function is NOT vectorized - it always returns the count of elements. For getting the number of characters in a string, use nchar() instead.
 
 ## Parameters
 
-- **x** (`List`): | Dict | Vector | String The collection to measure.
+- **x** (`List`): | Vector | Dict The collection to measure.
 
 ## Returns
 
-The number of items.
-
-## Examples
-
-```t
-length([1, 2, 3])
--- Returns: 3
-
-length("hello")
--- Returns: 5
-```
+The number of elements.
 

@@ -43,23 +43,23 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* R: case_when(x < 0 ~ "Neg", x > 0 ~ "Pos") *)
   test "golden boolean: case_when basic"
-    {|x = [-5, 0, 5]; case_when(x < 0 ~ "Neg", x > 0 ~ "Pos", .default = "Zero")|}
+    {|x = [-5, 0, 5]; casewhen(x < 0 ~ "Neg", x > 0 ~ "Pos", .default = "Zero")|}
     {|Vector["Neg", "Zero", "Pos"]|};
 
-  (* R: case_when(x %% 2 == 0 ~ "Even", .default = "Odd") *)
+  (* R: casewhen(x %% 2 == 0 ~ "Even", .default = "Odd") *)
   (* Using % for modulo now that we added it *)
   test "golden boolean: case_when default"
-    {|x = [1, 2, 3, 4]; case_when(x % 2 == 0 ~ "Even", .default = "Odd")|}
+    {|x = [1, 2, 3, 4]; casewhen(x % 2 == 0 ~ "Even", .default = "Odd")|}
     {|Vector["Odd", "Even", "Odd", "Even"]|};
 
   (* R: case_when matching first condition *)
   test "golden boolean: case_when priority"
-    {|x = 10; case_when(x > 5 ~ "Gt5", x > 8 ~ "Gt8")|}
+    {|x = 10; casewhen(x > 5 ~ "Gt5", x > 8 ~ "Gt8")|}
     {|Vector["Gt5"]|};
 
   (* Type promotion in case_when *)
   test "golden boolean: case_when type promotion"
-    {|case_when(true ~ 1, false ~ 2.5)|}
+    {|casewhen(true ~ 1, false ~ 2.5)|}
     "Vector[1.]";
   
   print_newline ()

@@ -40,24 +40,7 @@ let cast_value target_type v =
 
 (* --- ifelse --- *)
 
-(*
---# Vectorized if-else
---#
---# Vectorized conditional selection. Returns values from `true_val` or `false_val`
---# depending on whether `condition` is true or false.
---#
---# @name ifelse
---# @param condition :: Bool | Vector[Bool] The condition to check.
---# @param true_val :: Any | Vector[Any] Value to return if condition is true.
---# @param false_val :: Any | Vector[Any] Value to return if condition is false.
---# @param missing :: Any (Optional) Value to return if condition is NA. Defaults to NA.
---# @return :: Vector[Any] A vector of the same length as `condition`.
---# @example
---#   ifelse(x > 5, "High", "Low")
---#   ifelse(x % 2 == 0, x, 0)
---# @family boolean
---# @export
-*)
+
 let ifelse (args : Ast.value list) _env =
   match args with
   | [condition; true_val; false_val] ->
@@ -146,7 +129,7 @@ let ifelse (args : Ast.value list) _env =
 (* --- case_when --- *)
 
 (* ... docs ... *)
-let case_when eval_func args env =
+let casewhen eval_func args env =
   (* 1. Parse Arguments: Separate formulas and options (.default) *)
   let rec parse_args formulas default_val inputs =
     match inputs with
@@ -166,7 +149,7 @@ let case_when eval_func args env =
   let (formulas, default_val) = parse_args [] (VNA NAGeneric) args in
   
   match formulas with
-  | [] -> VVector [||] (* Empty case_when *)
+  | [] -> VVector [||] (* Empty casewhen *)
   | _ ->
      (* 2. Evaluate Formulas in the Environment *)
      (* We need to evaluate LHS (cond) and RHS (value) for each formula.

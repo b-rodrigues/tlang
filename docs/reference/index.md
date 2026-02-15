@@ -7,6 +7,7 @@
 | [apropos](apropos.md) | Search for functions by keyword |
 | [arrange](arrange.md) | Arrange rows |
 | [assert](assert.md) | Assert Condition |
+| [casewhen](casewhen.md) | Vectorized case-when |
 | [cbind](cbind.md) | Column bind matrices |
 | [char_at](char_at.md) | Get character at index |
 | [colnames](colnames.md) | Get column names |
@@ -34,6 +35,7 @@
 | [group_by](group_by.md) | Group by columns |
 | [head](head.md) | Get the first n rows/items |
 | [help](help.md) | Display documentation for a function |
+| [ifelse](ifelse.md) | Vectorized if-else |
 | [index_of](index_of.md) | Find index of substring |
 | [intent_fields](intent_fields.md) | Get All Intent Fields |
 | [intent_get](intent_get.md) | Get Intent Field |
@@ -47,7 +49,7 @@
 | [lag](lag.md) | Lag values |
 | [last_index_of](last_index_of.md) | Find last index of substring |
 | [lead](lead.md) | Lead values |
-| [length](length.md) | Get the length of a collection |
+| [length](length.md) | Get length |
 | [lm](lm.md) | Linear Model |
 | [log](log.md) | Natural logarithm |
 | [map](map.md) | Map a function over a list |
@@ -62,6 +64,7 @@
 | [na_float](na_float.md) | Float NA |
 | [na_int](na_int.md) | Integer NA |
 | [na_string](na_string.md) | String NA |
+| [nchar](nchar.md) | Get character count |
 | [ncol](ncol.md) | Number of columns |
 | [ndarray](ndarray.md) | Create an N-dimensional array |
 | [ndarray_data](ndarray_data.md) | Get NDArray data |
