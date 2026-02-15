@@ -320,6 +320,8 @@ intent_field:
 bracket_lit:
   | LBRACK skip_sep items = bracket_items RBRACK
     { build_bracket_literal items }
+  | LBRACK skip_sep COLON skip_sep RBRACK
+    { DictLit [] }
   ;
 
 bracket_items:

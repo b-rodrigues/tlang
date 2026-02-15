@@ -40,6 +40,7 @@ This means:
 
 ```t
 []                    -- empty List
+[:]                   -- empty Dict
 [1, 2, 3]             -- List
 [name: "alice"]      -- Dict
 [name: "alice", age: 32]  -- Dict
@@ -58,6 +59,9 @@ A single bracket literal cannot mix dictionary entries and plain expressions:
 
 `{ ... }` is reserved for block syntax (e.g., in control flow and pipeline/intent constructs).
 It is not used for general dictionary literals.
+
+An empty brace block `{}` parses as an empty block (`Block []`) and evaluates to `null` at runtime.
+Braces are never used for dictionary literals; dictionaries always use the bracket (`[...]`) syntax described above.
 
 ---
 
