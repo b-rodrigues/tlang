@@ -201,7 +201,8 @@ let length_impl args env =
 --# Get length
 --#
 --# For a string, returns the number of characters. For a collection (List, Vector, Dict),
---# returns the number of elements. When applied to a Vector, it is vectorized.
+--# returns the number of elements. When applied to a Vector of strings, it is vectorized
+--# (returns the length of each string). For a Vector of other types, returns the vector length.
 --#
 --# @name length
 --# @param x :: String | List | Vector | Dict The input to measure.
