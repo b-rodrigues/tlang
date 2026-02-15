@@ -1,7 +1,7 @@
 open Ast
 
 let register env =
-  Env.add "dataframe"
+  let env = Env.add "dataframe"
     (make_builtin 1 (fun args _env ->
       match args with
       | [VList rows] ->
@@ -60,5 +60,86 @@ let register env =
                 | _ -> Error.type_error (Printf.sprintf "Function `dataframe` expects a list of Dicts (rows). First row is: %s" (Ast.Utils.value_to_string first_row_val))))
                 
       | _ -> Error.type_error (Printf.sprintf "Function `dataframe` expects a single argument (List of Dicts). Received: %s" (String.concat ", " (List.map Ast.Utils.value_to_string args)))
-    ))
-    env
+    )) env in
+  let env = Env.add "pull"
+      (make_builtin 2 (fun args _env ->
+        match args with
+        | [VDataFrame df; VString col_name] ->
+            (match Arrow_table.get_column df.arrow_table col_name with
+             | None -> Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." col_name)
+             | Some col ->
+                 match col with
+                 | Arrow_table.FloatColumn data ->
+                     VVector (Array.map (function Some f -> VFloat f | None -> VNA NAGeneric) data)
+                 | Arrow_table.IntColumn data ->
+                     VVector (Array.map (function Some i -> VInt i | None -> VNA NAGeneric) data)
+                 | Arrow_table.StringColumn data ->
+                     VVector (Array.map (function Some s -> VString s | None -> VNA NAGeneric) data)
+                 | Arrow_table.BoolColumn data ->
+                     VVector (Array.map (function Some b -> VBool b | None -> VNA NAGeneric) data)
+                 | Arrow_table.NullColumn n ->
+                     VVector (Array.make n (VNA NAGeneric)))
+        | _ -> Error.type_error "pull expects (DataFrame, column_name)."
+      )) env in
+  let env = Env.add "to_array"
+      (make_builtin ~variadic:true 1 (fun args _env ->
+        match args with
+        | [VDataFrame df] ->
+             (* Auto-select all numeric columns *)
+             let col_names = List.filter (fun name ->
+               match Arrow_table.get_column df.arrow_table name with
+               | Some (Arrow_table.FloatColumn _) 
+               | Some (Arrow_table.IntColumn _) -> true
+               | _ -> false
+             ) (Arrow_table.column_names df.arrow_table) in
+             
+             if col_names = [] then
+               Error.value_error "to_matrix: DataFrame has no numeric columns."
+             else
+               let nrows = Arrow_table.num_rows df.arrow_table in
+               let ncols = List.length col_names in
+               let data = Array.make (nrows * ncols) 0.0 in
+               
+               let rec process_columns idx = function
+                 | [] -> Ok ()
+                 | name :: rest ->
+                     match Arrow_owl_bridge.numeric_column_to_owl df.arrow_table name with
+                     | None -> Error (Error.type_error (Printf.sprintf "Column `%s` is not numeric or contains NAs." name))
+                     | Some view ->
+                         for i = 0 to nrows - 1 do
+                           data.(i * ncols + idx) <- view.arr.(i)
+                         done;
+                         process_columns (idx + 1) rest
+               in
+               (match try process_columns 0 col_names with Invalid_argument _ -> Error (Error.type_error "Invalid column list") with
+                | Ok () -> VNDArray { shape = [|nrows; ncols|]; data }
+                | Error e -> e)
+
+        | [VDataFrame df; VList cols] ->
+            let col_names = List.map (function 
+              | (_, VString s) -> s 
+              | _ -> raise (Invalid_argument "Column names must be strings")
+            ) cols in
+            let nrows = Arrow_table.num_rows df.arrow_table in
+            let ncols = List.length col_names in
+            let data = Array.make (nrows * ncols) 0.0 in
+            
+            let rec process_columns idx = function
+              | [] -> Ok ()
+              | name :: rest ->
+                  match Arrow_owl_bridge.numeric_column_to_owl df.arrow_table name with
+                  | None -> Error (Error.type_error (Printf.sprintf "Column `%s` is not numeric or contains NAs." name))
+                  | Some view ->
+                      for i = 0 to nrows - 1 do
+                        data.(i * ncols + idx) <- view.arr.(i)
+                      done;
+                      process_columns (idx + 1) rest
+            in
+            
+            (match try process_columns 0 col_names with Invalid_argument _ -> Error (Error.type_error "Invalid column list") with
+             | Ok () -> VNDArray { shape = [|nrows; ncols|]; data }
+             | Error e -> e)
+             
+        | _ -> Error.type_error "to_array expects (DataFrame, [column_names])."
+      )) env in
+  env

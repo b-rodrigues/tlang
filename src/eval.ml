@@ -767,7 +767,9 @@ and eval_binop env op left right =
   | _ ->
   let lval = eval_expr env left in
   let rval = eval_expr env right in
-  eval_scalar_binop op lval rval
+  match lval, rval with
+  | VNDArray _, _ | _, VNDArray _ -> broadcast2 op lval rval
+  | _ -> eval_scalar_binop op lval rval
 
 and eval_unop env op operand =
   let v = eval_expr env operand in
@@ -954,6 +956,7 @@ let initial_env () : environment =
   let env = T_seq.register env in
   let env = T_map.register ~eval_call env in
   let env = Sum.register env in
+  let env = T_get.register env in
   let env = T_string.register env in
   (* Base package *)
   let env = T_assert.register env in
@@ -1018,6 +1021,7 @@ let initial_env () : environment =
   let env = T_log.register env in
   let env = T_exp.register env in
   let env = Pow.register env in
+  let env = T_iota.register env in
   let env = Ndarray.register env in
   (* Stats package *)
   let env = Mean.register env in

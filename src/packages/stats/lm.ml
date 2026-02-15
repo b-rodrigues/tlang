@@ -62,11 +62,26 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
       else VFloat result.sigma
     )));
   ] in
+
+  (* Create coefficients dictionary *)
+  let coef_pairs = List.map2 (fun name value ->
+    (name, VFloat value)
+  ) result.term_names (Array.to_list result.coefficients) in
+  let coefficients_dict = VDict coef_pairs in
+
+  (* Create standard errors dictionary *)
+  let stderr_pairs = List.map2 (fun name value ->
+    (name, VFloat value)
+  ) result.term_names (Array.to_list result.std_errors) in
+  let std_errors_dict = VDict stderr_pairs in
+
   (* Return VDict as a model object — prints formula + key stats *)
   VDict [
     ("_tidy_df", tidy_df);
     ("_model_data", model_data);
     ("_original_data", data_v);
+    ("coefficients", coefficients_dict);
+    ("std_errors", std_errors_dict);
     ("formula", formula_v);
     ("r_squared", VFloat result.r_squared);
     ("adj_r_squared", VFloat result.adj_r_squared);
@@ -74,6 +89,8 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
     ("nobs", VInt result.nobs);
     ("_display_keys", VList [
       (None, VString "formula");
+      (None, VString "coefficients");
+      (None, VString "std_errors");
       (None, VString "r_squared");
       (None, VString "adj_r_squared");
       (None, VString "sigma");

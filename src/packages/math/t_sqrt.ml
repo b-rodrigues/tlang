@@ -26,8 +26,17 @@ let register env =
               | _ -> had_error := Some (Error.type_error "Function `sqrt` requires numeric values.")
           ) arr;
           (match !had_error with Some e -> e | None -> VVector result)
+      | [VNDArray arr] ->
+          let result = Array.map (fun f ->
+            if f < 0.0 then nan (* Use NaN for negative sqrt in NDArray to match typical vectorized behavior, or error? *)
+            else Float.sqrt f
+          ) arr.data in
+          if Array.exists Float.is_nan result then
+             Error.value_error "Function `sqrt` encountered negative values in NDArray."
+          else
+             VNDArray { shape = arr.shape; data = result }
       | [VNA _] -> Error.type_error "Function `sqrt` encountered NA value. Handle missingness explicitly."
-      | [_] -> Error.type_error "Function `sqrt` expects a number or numeric Vector."
+      | [_] -> Error.type_error "Function `sqrt` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "sqrt" ~expected:1 ~received:(List.length args)
     ))
     env

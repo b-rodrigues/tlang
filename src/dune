@@ -30,7 +30,7 @@
    ; core language
    ast lexer parser eval error
    ; packages/core
-   t_print t_type length head tail is_error t_seq t_map sum pretty_print packages t_string
+   t_print t_type length head tail is_error t_seq t_map sum pretty_print packages t_string t_get
    ; packages/base
    t_assert is_na na error_mod error_utils
    ; packages/dataframe
@@ -41,7 +41,7 @@
    t_select t_filter mutate arrange group_by ungroup summarize
    window_rank window_offset window_cumulative
    ; packages/math
-   t_sqrt t_abs t_log t_exp pow ndarray
+   t_sqrt t_abs t_log t_exp pow ndarray t_iota
    ; packages/stats
    mean sd quantile cor lm fit_stats add_diagnostics summary min max
    ; packages/explain

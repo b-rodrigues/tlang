@@ -62,6 +62,30 @@ let rec infer_shape_and_flatten (v : value) : (int list * float list, value) res
                      let child_shape = match shapes with [] -> [] | s :: _ -> s in
                      let flat = List.concat data_chunks in
                      Ok ((List.length elems) :: child_shape, flat))
+          | VVector arr ->
+               let elems = Array.to_list arr in
+               let rec gather shape_acc data_acc = function
+                 | [] -> Ok (List.rev shape_acc, List.rev data_acc)
+                 | hd :: tl ->
+                     (match infer_shape_and_flatten hd with
+                      | Error e -> Error e
+                      | Ok (shape, data) ->
+                          gather (shape :: shape_acc) (data :: data_acc) tl)
+               in
+               (match gather [] [] elems with
+                | Error e -> Error e
+                | Ok (shapes, data_chunks) ->
+                    let same_shape =
+                      match shapes with
+                      | [] -> true
+                      | s0 :: rest -> List.for_all ((=) s0) rest
+                    in
+                    if not same_shape then
+                      Error (Error.make_error ValueError "Cannot create NDArray from ragged (non-rectangular) vector.")
+                    else
+                      let child_shape = match shapes with [] -> [] | s :: _ -> s in
+                      let flat = List.concat data_chunks in
+                      Ok ((List.length elems) :: child_shape, flat))
           | _ -> Error (Error.type_error "NDArray elements must be numeric.")
 
 let value_of_shape shape =
@@ -274,4 +298,46 @@ let register env =
       (make_builtin 1 (fun args _env -> matrix_inverse args)) env in
   let env = Env.add "kron"
       (make_builtin 2 (fun args _env -> kron args)) env in
+  let env = Env.add "transpose"
+      (make_builtin 1 (fun args _env -> 
+        match args with
+        | [VNDArray arr] ->
+            if Array.length arr.shape <> 2 then
+              Error.make_error ValueError "transpose expects a 2D NDArray."
+            else
+              let rows = arr.shape.(0) and cols = arr.shape.(1) in
+              let out = Array.make (rows * cols) 0.0 in
+              for i = 0 to rows - 1 do
+                for j = 0 to cols - 1 do
+                  out.(j * rows + i) <- arr.data.(i * cols + j)
+                done
+              done;
+              VNDArray { shape = [|cols; rows|]; data = out }
+        | _ -> Error.type_error "transpose expects an NDArray."
+      )) env in
+  let env = Env.add "cbind"
+      (make_builtin 2 (fun args _env ->
+        match args with
+        | [VNDArray a; VNDArray b] ->
+            if Array.length a.shape <> 2 || Array.length b.shape <> 2 then
+              Error.make_error ValueError "cbind expects two 2D NDArrays."
+            else
+              let r1 = a.shape.(0) and c1 = a.shape.(1) in
+              let r2 = b.shape.(0) and c2 = b.shape.(1) in
+              if r1 <> r2 then
+                Error.make_error ValueError "cbind expects matrices with same number of rows."
+              else
+                let new_cols = c1 + c2 in
+                let out = Array.make (r1 * new_cols) 0.0 in
+                for i = 0 to r1 - 1 do
+                  for j = 0 to c1 - 1 do
+                    out.(i * new_cols + j) <- a.data.(i * c1 + j)
+                  done;
+                  for j = 0 to c2 - 1 do
+                    out.(i * new_cols + (c1 + j)) <- b.data.(i * c2 + j)
+                  done
+                done;
+                VNDArray { shape = [|r1; new_cols|]; data = out }
+        | _ -> Error.type_error "cbind expects two NDArrays."
+      )) env in
   env
