@@ -48,7 +48,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let oc_cor = open_out csv_p5_cor in
   output_string oc_cor "x,y,z,w\n1,2,6,1\n2,4,4,1\n3,6,2,1\n";
   close_out oc_cor;
-  let env_cor = Eval.initial_env () in
+  let env_cor = Packages.init_env () in
   let (_, env_cor) = eval_string_env (Printf.sprintf {|cdf = read_csv("%s")|} csv_p5_cor) env_cor in
 
   let (v, _) = eval_string_env "cor(cdf.x, cdf.y)" env_cor in
@@ -90,7 +90,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_lm "x,y\n1,2\n2,4\n3,6\n4,8\n5,10\n";
   close_out oc_lm;
 
-  let env_lm = Eval.initial_env () in
+  let env_lm = Packages.init_env () in
   let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p5_lm) env_lm in
   let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
 

@@ -64,7 +64,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   output_string oc "x1,x2,y\n8.3,70,10.3\n8.6,65,10.3\n8.8,63,10.2\n10.5,72,16.4\n10.7,81,18.8\n10.8,83,19.7\n11.0,66,15.6\n11.0,75,18.2\n11.1,80,22.6\n11.2,75,19.9\n";
   close_out oc;
 
-  let env = Eval.initial_env () in
+  let env = Packages.init_env () in
   let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_broom) env in
   let (_, env) = eval_string_env {|model = lm(data = df, formula = y ~ x1 + x2)|} env in
 

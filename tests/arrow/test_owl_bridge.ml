@@ -10,7 +10,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc "x,y,name,flag\n1,2.5,alice,true\n2,4.5,bob,true\n3,6.5,charlie,false\n";
   close_out oc;
 
-  let env = Eval.initial_env () in
+  let env = Packages.init_env () in
   let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_bridge) env in
 
   (* Test: bridge extracts int column as float array *)
@@ -31,7 +31,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_lm "x,y\n1,3\n2,5\n3,7\n4,9\n5,11\n";
   close_out oc_lm;
 
-  let env_lm = Eval.initial_env () in
+  let env_lm = Packages.init_env () in
   let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_lm) env_lm in
   let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
 
@@ -73,7 +73,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_cor "a,b,c\n1,10,6\n2,20,4\n3,30,2\n";
   close_out oc_cor;
 
-  let env_cor = Eval.initial_env () in
+  let env_cor = Packages.init_env () in
   let (_, env_cor) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_cor) env_cor in
 
   (* Perfect positive correlation *)

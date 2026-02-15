@@ -14,7 +14,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   done;
   close_out oc;
 
-  let env0 = Eval.initial_env () in
+  (* Initialize environment *)
+  let env0 = Packages.init_env () in
   let (_, env0) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_large) env0 in
 
   (* Verify row count *)
@@ -154,7 +155,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   done;
   close_out oc2;
 
-  let env2 = Eval.initial_env () in
+  let env2 = Packages.init_env () in
   let (_, env2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s")|} csv_many) env2 in
 
   (* group_by unique ids — 200 groups of 1 row each *)

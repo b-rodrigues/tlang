@@ -90,7 +90,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc7 "name,age,score\nAlice,30,95.5\nBob,NA,87.3\nCharlie,35,NA\n";
   close_out oc7;
 
-  let env_p6 = Eval.initial_env () in
+  let env_p6 = Packages.init_env () in
   let (_, env_p6) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p6) env_p6 in
   let (v, _) = eval_string_env "e = explain(df); e.kind" env_p6 in
   let result = Ast.Utils.value_to_string v in
@@ -170,7 +170,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: Pipeline:\n";
-  let (_, env_p6_pipe) = eval_string_env "p = pipeline {\n  x = 10\n  y = x + 5\n  z = y * 2\n}" (Eval.initial_env ()) in
+  let (_, env_p6_pipe) = eval_string_env "p = pipeline {\n  x = 10\n  y = x + 5\n  z = y * 2\n}" (Packages.init_env ()) in
   let (v, _) = eval_string_env "e = explain(p); e.kind" env_p6_pipe in
   let result = Ast.Utils.value_to_string v in
   if result = {|"pipeline"|} then begin
