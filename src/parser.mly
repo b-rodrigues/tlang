@@ -37,6 +37,7 @@ type param_info = { names: string list; has_variadic: bool }
 %token DOT_PLUS DOT_MINUS DOT_MUL DOT_DIV
 %token DOT_EQ DOT_NEQ DOT_LT DOT_GT DOT_LTE DOT_GTE
 %token DOT_BITAND DOT_BITOR
+%token DOT_PERCENT
 %token TILDE
 
 /* ... PRECEDENCE ... */
@@ -59,7 +60,7 @@ type param_info = { names: string list; has_variadic: bool }
 %left PLUS MINUS
 %left DOT_PLUS DOT_MINUS
 %left STAR SLASH PERCENT
-%left DOT_MUL DOT_DIV
+%left DOT_MUL DOT_DIV DOT_PERCENT
 
 
 
@@ -181,6 +182,7 @@ mul_expr:
   | left = mul_expr PERCENT right = unary_expr { BinOp { op = Mod; left; right } }
   | left = mul_expr DOT_MUL right = unary_expr  { BroadcastOp { op = Mul; left; right } }
   | left = mul_expr DOT_DIV right = unary_expr { BroadcastOp { op = Div; left; right } }
+  | left = mul_expr DOT_PERCENT right = unary_expr { BroadcastOp { op = Mod; left; right } }
   ;
 
 unary_expr:

@@ -801,7 +801,15 @@ and eval_binop env op left right =
       (match lval, rval with
        | VNDArray _, _ | _, VNDArray _
        | Ast.VVector _, _ | _, Ast.VVector _
-       | Ast.VList _, _ | _, Ast.VList _ -> broadcast2 op lval rval
+       | Ast.VList _, _ | _, Ast.VList _ -> 
+          let op_str = match op with
+            | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
+            | Lt -> "<" | Gt -> ">" | LtEq -> "<=" | GtEq -> ">=" | Eq -> "==" | NEq -> "!="
+            | _ -> "??"
+          in
+          let dot_op = "." ^ op_str in
+          let msg = Printf.sprintf "Operator '%s' is defined for scalars only.\nUse '%s' for element-wise (broadcast) operations." op_str dot_op in
+          Error.type_error msg
        | _ -> eval_scalar_binop op lval rval)
   | _ -> eval_scalar_binop op lval rval
 

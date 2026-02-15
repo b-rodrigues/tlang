@@ -43,13 +43,13 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* R: case_when(x < 0 ~ "Neg", x > 0 ~ "Pos") *)
   test "golden boolean: case_when basic"
-    {|x = [-5, 0, 5]; casewhen(x < 0 ~ "Neg", x > 0 ~ "Pos", .default = "Zero")|}
+    {|x = [-5, 0, 5]; casewhen(x .< 0 ~ "Neg", x .> 0 ~ "Pos", .default = "Zero")|}
     {|Vector["Neg", "Zero", "Pos"]|};
 
   (* R: casewhen(x %% 2 == 0 ~ "Even", .default = "Odd") *)
   (* Using % for modulo now that we added it *)
   test "golden boolean: case_when default"
-    {|x = [1, 2, 3, 4]; casewhen(x % 2 == 0 ~ "Even", .default = "Odd")|}
+    {|x = [1, 2, 3, 4]; casewhen(x .% 2 .== 0 ~ "Even", .default = "Odd")|}
     {|Vector["Odd", "Even", "Odd", "Even"]|};
 
   (* R: case_when matching first condition *)

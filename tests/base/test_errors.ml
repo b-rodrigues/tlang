@@ -43,7 +43,8 @@ Did you mean `mean`?")|};
   Printf.printf "Phase 4 — Error Message Quality (Type Conversion Hints):\n";
   test "int + bool shows hint" "1 + true" {|Error(TypeError: "Operator `+` expects Int and Bool.
 Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to branch on boolean values.")|};
-  test "list + int broadcasts" "[1, 2] + 3" "[4, 5]";
+  test "list + int strict error" "[1, 2] + 3" {|Error(TypeError: "Operator '+' is defined for scalars only.
+Use '.+' for element-wise (broadcast) operations.")|};
   test "string + int shows hint" {|"hello" + 1|} {|Error(TypeError: "Operator `+` expects String and Int.
 Hint: Strings cannot be used in arithmetic. Convert with int() or float() if available, or check your data types.")|};
   print_newline ();

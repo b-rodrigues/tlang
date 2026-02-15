@@ -75,6 +75,7 @@ rule token = parse
   | ".>=" { DOT_GTE }
   | ".&"  { DOT_BITAND }
   | ".|"  { DOT_BITOR }
+  | ".%"  { DOT_PERCENT }
   | '+' { PLUS }     | '-' { MINUS }
   | '*' { STAR }     | '/' { SLASH }
   | "==" { EQ }      | "!=" { NEQ }
