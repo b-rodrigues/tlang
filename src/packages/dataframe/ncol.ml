@@ -1,5 +1,19 @@
 open Ast
 
+(*
+--# Number of columns
+--#
+--# Returns the number of columns in a DataFrame.
+--#
+--# @name ncol
+--# @param df :: DataFrame The input DataFrame.
+--# @return :: Int The number of columns.
+--# @example
+--#   ncol(mtcars)
+--# @family dataframe
+--# @seealso nrow, colnames
+--# @export
+*)
 let register env =
   Env.add "ncol"
     (make_builtin 1 (fun args _env ->

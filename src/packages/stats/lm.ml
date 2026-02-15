@@ -98,6 +98,22 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
     ]);
   ]
 
+(*
+--# Linear Model
+--#
+--# Fits a linear regression model using Ordinary Least Squares (OLS).
+--#
+--# @name lm
+--# @param formula :: Formula The model formula (e.g., mpg ~ wt + hp).
+--# @param data :: DataFrame The data to use.
+--# @return :: Model A model object containing coefficients, residuals, and statistics.
+--# @example
+--#   model = lm(mpg ~ wt + hp, data: mtcars)
+--#   summary(model)
+--# @family stats
+--# @seealso summary, fit_stats, add_diagnostics
+--# @export
+*)
 let register env =
   Env.add "lm"
     (make_builtin_named ~variadic:true 0 (fun args _env ->

@@ -81,6 +81,19 @@ let package_to_value pkg =
   ]
 
 (** Register the packages() builtin *)
+(*
+--# List available packages
+--#
+--# Returns a list of all standard packages available in the environment.
+--#
+--# @name packages
+--# @return :: List[Dict] List of package metadata.
+--# @example
+--#   packages()
+--# @family core
+--# @seealso package_info
+--# @export
+*)
 let register env =
   let env = Env.add "packages"
     (make_builtin 0 (fun _args _env ->
@@ -88,6 +101,20 @@ let register env =
     ))
     env
   in
+(*
+--# Get package information
+--#
+--# Returns metadata for a specific package, including its description and functions.
+--#
+--# @name package_info
+--# @param name :: String The name of the package.
+--# @return :: Dict Package metadata.
+--# @example
+--#   package_info("stats")
+--# @family core
+--# @seealso packages
+--# @export
+*)
   let env = Env.add "package_info"
     (make_builtin 1 (fun args _env ->
       match args with

@@ -30,7 +30,7 @@
    ; core language
    ast lexer parser eval error
    ; packages/core
-   t_print t_type length head tail is_error t_seq t_map sum pretty_print packages t_string t_get
+   t_print t_type length head tail is_error t_seq t_map sum pretty_print packages t_string t_get help
    ; packages/base
    t_assert is_na na error_mod error_utils
    ; packages/dataframe
@@ -47,7 +47,9 @@
    ; packages/explain
    intent_fields intent_get t_explain explain_json
    ; package_manager
-   package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager tdoc_types tdoc_parser tdoc_registry tdoc_markdown
+   package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager 
+   ; tdoc
+   tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )
  (libraries menhirLib otoml unix str)
 )

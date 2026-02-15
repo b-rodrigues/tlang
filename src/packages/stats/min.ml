@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Minimum value
+--#
+--# Returns the minimum value in a vector or list.
+--#
+--# @name min
+--# @param x :: Vector | List The numeric data.
+--# @return :: Float The minimum value.
+--# @example
+--#   min([1, 2, 3])
+--#   -- Returns: 1.0
+--# @family stats
+--# @seealso max
+--# @export
+*)
 let register env =
   Env.add "min"
     (make_builtin 1 (fun args _env ->

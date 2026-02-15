@@ -1,5 +1,21 @@
 open Ast
 
+(*
+--# Standard Deviation
+--#
+--# Calculates the sample standard deviation of a numeric vector.
+--#
+--# @name sd
+--# @param x :: Vector | List The numeric data.
+--# @param na_rm :: Bool (Optional) logical. Should missing values be removed? Default is false.
+--# @return :: Float The standard deviation.
+--# @example
+--#   sd([1, 2, 3, 4, 5])
+--#   -- Returns: 1.5811...
+--# @family stats
+--# @seealso mean, var
+--# @export
+*)
 let register env =
   Env.add "sd"
     (make_builtin_named ~variadic:true 1 (fun named_args _env ->

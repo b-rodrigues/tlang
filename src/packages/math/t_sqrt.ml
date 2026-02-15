@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Square root
+--#
+--# Calculates the square root of x.
+--#
+--# @name sqrt
+--# @param x :: Number | Vector | NDArray The input value (must be non-negative).
+--# @return :: Float | Vector | NDArray The square root.
+--# @example
+--#   sqrt(16)
+--#   -- Returns: 4.0
+--# @family math
+--# @seealso pow
+--# @export
+*)
 let register env =
   Env.add "sqrt"
     (make_builtin 1 (fun args _env ->

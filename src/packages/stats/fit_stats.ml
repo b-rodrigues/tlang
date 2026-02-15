@@ -2,6 +2,20 @@ open Ast
 
 (** fit_stats(model) — returns a 1-row DataFrame of model-level statistics.
     Equivalent to broom::glance(). *)
+(*
+--# Model Fit Statistics
+--#
+--# Returns a one-row DataFrame containing model-level statistics (R-squared, AIC, etc.).
+--#
+--# @name fit_stats
+--# @param model :: Model The model object.
+--# @return :: DataFrame Model statistics.
+--# @example
+--#   fit_stats(model)
+--# @family stats
+--# @seealso lm, summary
+--# @export
+*)
 let register env =
   Env.add "fit_stats"
     (make_builtin 1 (fun args _env ->

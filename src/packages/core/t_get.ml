@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Get element by index
+--#
+--# Retrieves an element from a List, Vector, or NDArray at the specified index (0-based).
+--#
+--# @name get
+--# @param collection :: List | Vector | NDArray The collection to access.
+--# @param index :: Int The index to retrieve.
+--# @return :: Any The element at the index.
+--# @example
+--#   get([10, 20, 30], 1)
+--#   -- Returns: 20
+--# @family core
+--# @export
+*)
 let register env =
   Env.add "get"
     (make_builtin 2 (fun args _env ->

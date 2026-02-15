@@ -99,6 +99,20 @@ let pretty_print_value v =
   | other -> Utils.value_to_string other ^ "\n"
 
 (** Register pretty_print as a builtin function *)
+(*
+--# Pretty-print a value
+--#
+--# Prints a formatted representation of a value. DataFrames are printed as tables.
+--#
+--# @name pretty_print
+--# @param x :: Any The value to print.
+--# @return :: Null
+--# @example
+--#   pretty_print(df)
+--# @family core
+--# @seealso print
+--# @export
+*)
 let register env =
   Env.add "pretty_print"
     (make_builtin 1 (fun args _env ->

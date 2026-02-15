@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Select columns
+--#
+--# Selects specific columns from a DataFrame.
+--#
+--# @name select
+--# @param df :: DataFrame The input DataFrame.
+--# @param ... :: Symbol Variable number of column names (e.g., $col1, $col2).
+--# @return :: DataFrame The DataFrame with selected columns.
+--# @example
+--#   select(mtcars, $mpg, $wt)
+--# @family colcraft
+--# @seealso filter, mutate
+--# @export
+*)
 let register env =
   Env.add "select"
     (make_builtin ~variadic:true 1 (fun args _env ->

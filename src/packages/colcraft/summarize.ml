@@ -17,6 +17,22 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
     | VLambda _ | VBuiltin _ -> eval_call env fn [(None, Value arg)]
     | v -> v
   in
+  (*
+  --# Summarize data
+  --#
+  --# Aggregates a DataFrame to a single row (or one row per group).
+  --#
+  --# @name summarize
+  --# @param df :: DataFrame The input DataFrame.
+  --# @param ... :: KeywordArgs Aggregations as name = expression pairs.
+  --# @return :: DataFrame The summarized DataFrame.
+  --# @example
+  --#   summarize(mtcars, $mean_mpg = mean($mpg))
+  --#   summarize(group_by(mtcars, $cyl), $mean_hp = mean($hp))
+  --# @family colcraft
+  --# @seealso group_by, mutate
+  --# @export
+  *)
   Env.add "summarize"
     (make_builtin_named ~variadic:true 1 (fun named_args env ->
       match named_args with

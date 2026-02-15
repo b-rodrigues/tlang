@@ -23,3 +23,25 @@ let to_json_file filename =
 
 (* Simple JSON parser (very limited) would go here for loading *)
 (* For now, we only implement saving as loading is for the generation phase *)
+
+let load_from_json filename =
+  try
+    let ch = open_in filename in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    
+    let json = Tdoc_json.from_string content in
+    match json with
+    | Tdoc_json.JObject pairs ->
+        (match List.assoc_opt "docs" pairs with
+        | Some (Tdoc_json.JArray docs) ->
+            List.iter (fun doc_json ->
+              let entry = Tdoc_types.doc_entry_of_json doc_json in
+              register entry
+            ) docs
+        | _ -> Printf.eprintf "Warning: Invalid docs.json format (missing 'docs' array)\n")
+    | _ -> Printf.eprintf "Warning: Invalid docs.json format (not an object)\n"
+  with
+  | Sys_error msg -> Printf.eprintf "Warning: Could not load documentation: %s\n" msg
+  | Tdoc_json.Json_error msg -> Printf.eprintf "Warning: Failed to parse documentation: %s\n" msg
+  | _ -> Printf.eprintf "Warning: Unknown error loading documentation\n"

@@ -1,5 +1,23 @@
 open Ast
 
+(*
+--# Sum of numeric values
+--#
+--# Calculates the sum of values in a List or Vector.
+--#
+--# @name sum
+--# @param x :: List[Number] | Vector[Number] The collection to sum.
+--# @param na_rm :: Bool = false Remove NA values before summing.
+--# @return :: Number | NA The sum of values.
+--# @example
+--#   sum([1, 2, 3])
+--#   -- Returns: 6
+--#
+--#   sum([1, NA, 3], na_rm: true)
+--#   -- Returns: 4
+--# @family core
+--# @export
+*)
 let register env =
   Env.add "sum"
     (make_builtin_named ~variadic:true 1 (fun named_args _env ->

@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Natural logarithm
+--#
+--# Calculates the natural logarithm (base e) of x.
+--#
+--# @name log
+--# @param x :: Number | Vector The input value (must be positive).
+--# @return :: Float | Vector The natural logarithm.
+--# @example
+--#   log(2.71828)
+--#   -- Returns: ~1.0
+--# @family math
+--# @seealso exp
+--# @export
+*)
 let register env =
   Env.add "log"
     (make_builtin 1 (fun args _env ->

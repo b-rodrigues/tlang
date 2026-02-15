@@ -1,5 +1,19 @@
 open Ast
 
+(*
+--# Get column names
+--#
+--# Returns a list of column names in the DataFrame.
+--#
+--# @name colnames
+--# @param df :: DataFrame The input DataFrame.
+--# @return :: List[String] The column names.
+--# @example
+--#   colnames(mtcars)
+--# @family dataframe
+--# @seealso ncol, nrow
+--# @export
+*)
 let register env =
   Env.add "colnames"
     (make_builtin 1 (fun args _env ->

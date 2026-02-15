@@ -48,6 +48,18 @@ let argsort_pairs (pairs : (int * float) array) : (int * float) array =
   copy
 
 let register env =
+  (*
+  --# Row Number
+  --#
+  --# Returns the rank of the current row, breaking ties by index.
+  --#
+  --# @name row_number
+  --# @param x :: Vector The input vector.
+  --# @return :: Vector The ranks (1 to n).
+  --# @family colcraft
+  --# @seealso min_rank, dense_rank
+  --# @export
+  *)
   (* row_number(x): rank from 1..n among non-NA values, NA positions get NA *)
   let env = Env.add "row_number"
     (make_builtin 1 (fun args _env ->
@@ -70,6 +82,21 @@ let register env =
     ))
     env
   in
+  (*
+  --# Minimum Rank
+  --#
+  --# Assigns the minimum rank to ties, leaving gaps in ranks.
+  --#
+  --# @name min_rank
+  --# @param x :: Vector The input vector.
+  --# @return :: Vector The ranks.
+  --# @example
+  --#   min_rank([1, 2, 2, 4])
+  --#   -- Returns: [1, 2, 2, 4]
+  --# @family colcraft
+  --# @seealso dense_rank, row_number
+  --# @export
+  *)
   (* min_rank(x): ties get minimum rank, gaps after ties; NA positions get NA *)
   let env = Env.add "min_rank"
     (make_builtin 1 (fun args _env ->
@@ -105,6 +132,21 @@ let register env =
     ))
     env
   in
+  (*
+  --# Dense Rank
+  --#
+  --# Assigns ranks to unique values, with no gaps.
+  --#
+  --# @name dense_rank
+  --# @param x :: Vector The input vector.
+  --# @return :: Vector The ranks.
+  --# @example
+  --#   dense_rank([1, 2, 2, 4])
+  --#   -- Returns: [1, 2, 2, 3]
+  --# @family colcraft
+  --# @seealso min_rank
+  --# @export
+  *)
   (* dense_rank(x): ties get same rank, no gaps; NA positions get NA *)
   let env = Env.add "dense_rank"
     (make_builtin 1 (fun args _env ->
@@ -139,6 +181,18 @@ let register env =
     ))
     env
   in
+  (*
+  --# Cumulative Distribution
+  --#
+  --# Calculates the cumulative distribution function (proportion of values <= current).
+  --#
+  --# @name cume_dist
+  --# @param x :: Vector The input vector.
+  --# @return :: Vector The cumulative distribution (0 to 1).
+  --# @family colcraft
+  --# @seealso percent_rank
+  --# @export
+  *)
   (* cume_dist(x): proportion of non-NA values <= current value; NA positions get NA *)
   let env = Env.add "cume_dist"
     (make_builtin 1 (fun args _env ->
@@ -175,6 +229,18 @@ let register env =
     ))
     env
   in
+  (*
+  --# Percent Rank
+  --#
+  --# Calculates the proportional rank (0 to 1).
+  --#
+  --# @name percent_rank
+  --# @param x :: Vector The input vector.
+  --# @return :: Vector The percent rank.
+  --# @family colcraft
+  --# @seealso cume_dist
+  --# @export
+  *)
   (* percent_rank(x): (rank - 1) / (n - 1) among non-NA values; NA positions get NA *)
   let env = Env.add "percent_rank"
     (make_builtin 1 (fun args _env ->
@@ -219,6 +285,19 @@ let register env =
     ))
     env
   in
+  (*
+  --# N-tiles
+  --#
+  --# Divides the vector into n buckets.
+  --#
+  --# @name ntile
+  --# @param x :: Vector The input vector.
+  --# @param n :: Int Number of buckets.
+  --# @return :: Vector Bucket indices (1 to n).
+  --# @family colcraft
+  --# @seealso min_rank
+  --# @export
+  *)
   (* ntile(x, n): divide non-NA values into n approximately equal-sized groups; NA positions get NA *)
   (* Matches R's dplyr::ntile: first (len %% n) groups have (len / n + 1) elements,
      remaining groups have (len / n) elements. Assignment is based on rank. *)

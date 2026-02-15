@@ -2,6 +2,22 @@ open Ast
 
 let is_sep_name = function Some "separator" -> true | _ -> false
 
+(*
+--# Write CSV file
+--#
+--# Writes a DataFrame to a CSV file.
+--#
+--# @name write_csv
+--# @param df :: DataFrame The data to write.
+--# @param path :: String The output path.
+--# @param separator :: String (Optional) Field separator (default ",").
+--# @return :: Null
+--# @example
+--#   write_csv(df, "output.csv")
+--# @family dataframe
+--# @seealso read_csv
+--# @export
+*)
 let register ~write_csv_fn env =
   Env.add "write_csv"
     (make_builtin_named ~variadic:true 2 (fun named_args _env ->

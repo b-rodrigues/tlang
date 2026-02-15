@@ -1,5 +1,19 @@
 open Ast
 
+(*
+--# Glimpse DataFrame
+--#
+--# Prints a summary of the DataFrame structure, including dimensions, column names, types, and first few values.
+--#
+--# @name glimpse
+--# @param df :: DataFrame The input DataFrame.
+--# @return :: Null
+--# @example
+--#   glimpse(mtcars)
+--# @family dataframe
+--# @seealso colnames, str
+--# @export
+*)
 let register env =
   Env.add "glimpse"
     (make_builtin 1 (fun args _env ->

@@ -1,5 +1,19 @@
 open Ast
 
+(*
+--# Absolute value
+--#
+--# Returns the absolute value of a number or vector elements.
+--#
+--# @name abs
+--# @param x :: Number | Vector The input value.
+--# @return :: Number | Vector The absolute value.
+--# @example
+--#   abs(-5)
+--#   -- Returns: 5
+--# @family math
+--# @export
+*)
 let register env =
   Env.add "abs"
     (make_builtin 1 (fun args _env ->

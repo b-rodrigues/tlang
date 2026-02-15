@@ -1,6 +1,21 @@
 open Ast
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
+  (*
+  --# Create or modify columns
+  --#
+  --# Adds new columns or modifies existing ones.
+  --#
+  --# @name mutate
+  --# @param df :: DataFrame The input DataFrame.
+  --# @param ... :: KeywordArgs New columns as name = expression pairs.
+  --# @return :: DataFrame The modified DataFrame.
+  --# @example
+  --#   mutate(mtcars, $hp_per_wt = $hp / $wt)
+  --# @family colcraft
+  --# @seealso summarize, select
+  --# @export
+  *)
   Env.add "mutate"
     (make_builtin_named ~variadic:true 1 (fun named_args env ->
       (* Helper: apply a single mutation (col_name, fn) to a DataFrame *)

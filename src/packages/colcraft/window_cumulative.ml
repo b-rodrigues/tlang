@@ -8,6 +8,21 @@ let to_value_array label = function
   | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a Vector or List." label))
 
 let register env =
+  (*
+  --# Cumulative Sum
+  --#
+  --# Calculates the cumulative sum of a vector.
+  --#
+  --# @name cumsum
+  --# @param x :: Vector The input numeric vector.
+  --# @return :: Vector The cumulative sum.
+  --# @example
+  --#   cumsum([1, 2, 3])
+  --#   -- Returns: [1, 3, 6]
+  --# @family colcraft
+  --# @seealso sum, cummax, cummin
+  --# @export
+  *)
   (* cumsum(x): cumulative sum; NA propagates to all subsequent values *)
   let env = Env.add "cumsum"
     (make_builtin 1 (fun args _env ->
@@ -51,6 +66,21 @@ let register env =
     ))
     env
   in
+  (*
+  --# Cumulative Minimum
+  --#
+  --# Calculates the cumulative minimum of a vector.
+  --#
+  --# @name cummin
+  --# @param x :: Vector The input numeric vector.
+  --# @return :: Vector The cumulative minimum.
+  --# @example
+  --#   cummin([3, 2, 4, 1])
+  --#   -- Returns: [3, 2, 2, 1]
+  --# @family colcraft
+  --# @seealso min, cummax, cumsum
+  --# @export
+  *)
   (* cummin(x): cumulative minimum; NA propagates to all subsequent values *)
   let env = Env.add "cummin"
     (make_builtin 1 (fun args _env ->
@@ -94,6 +124,21 @@ let register env =
     ))
     env
   in
+  (*
+  --# Cumulative Maximum
+  --#
+  --# Calculates the cumulative maximum of a vector.
+  --#
+  --# @name cummax
+  --# @param x :: Vector The input numeric vector.
+  --# @return :: Vector The cumulative maximum.
+  --# @example
+  --#   cummax([1, 3, 2, 4])
+  --#   -- Returns: [1, 3, 3, 4]
+  --# @family colcraft
+  --# @seealso max, cummin, cumsum
+  --# @export
+  *)
   (* cummax(x): cumulative maximum; NA propagates to all subsequent values *)
   let env = Env.add "cummax"
     (make_builtin 1 (fun args _env ->
@@ -137,6 +182,21 @@ let register env =
     ))
     env
   in
+  (*
+  --# Cumulative Mean
+  --#
+  --# Calculates the cumulative mean of a vector.
+  --#
+  --# @name cummean
+  --# @param x :: Vector The input numeric vector.
+  --# @return :: Vector The cumulative mean.
+  --# @example
+  --#   cummean([1, 2, 3])
+  --#   -- Returns: [1.0, 1.5, 2.0]
+  --# @family colcraft
+  --# @seealso mean, cumsum
+  --# @export
+  *)
   (* cummean(x): cumulative mean; NA propagates to all subsequent values *)
   let env = Env.add "cummean"
     (make_builtin 1 (fun args _env ->
@@ -172,6 +232,21 @@ let register env =
     ))
     env
   in
+  (*
+  --# Cumulative All
+  --#
+  --# Calculates the cumulative logical AND of a vector.
+  --#
+  --# @name cumall
+  --# @param x :: Vector The input boolean vector.
+  --# @return :: Vector The cumulative AND.
+  --# @example
+  --#   cumall([true, true, false, true])
+  --#   -- Returns: [true, true, false, false]
+  --# @family colcraft
+  --# @seealso cumany
+  --# @export
+  *)
   (* cumall(x): cumulative logical AND; NA propagates to all subsequent values *)
   let env = Env.add "cumall"
     (make_builtin 1 (fun args _env ->
@@ -201,6 +276,21 @@ let register env =
     ))
     env
   in
+  (*
+  --# Cumulative Any
+  --#
+  --# Calculates the cumulative logical OR of a vector.
+  --#
+  --# @name cumany
+  --# @param x :: Vector The input boolean vector.
+  --# @return :: Vector The cumulative OR.
+  --# @example
+  --#   cumany([false, false, true, false])
+  --#   -- Returns: [false, false, true, true]
+  --# @family colcraft
+  --# @seealso cumall
+  --# @export
+  *)
   (* cumany(x): cumulative logical OR; NA propagates to all subsequent values *)
   let env = Env.add "cumany"
     (make_builtin 1 (fun args _env ->

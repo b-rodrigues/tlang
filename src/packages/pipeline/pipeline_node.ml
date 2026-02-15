@@ -1,5 +1,18 @@
 open Ast
 
+(*
+--# Get Pipeline Node
+--#
+--# Retrieves the value of a specific node in the pipeline.
+--#
+--# @name pipeline_node
+--# @param p :: Pipeline The pipeline.
+--# @param name :: String The node name.
+--# @return :: Any The value of the node.
+--# @family pipeline
+--# @seealso pipeline_nodes
+--# @export
+*)
 let register env =
   Env.add "pipeline_node"
     (make_builtin 2 (fun args _env ->

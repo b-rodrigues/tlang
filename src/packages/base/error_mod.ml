@@ -1,5 +1,21 @@
 open Ast
 
+(*
+--# Raise Error
+--#
+--# Raises a runtime error with a message and optional code.
+--#
+--# @name error
+--# @param message :: String The error message.
+--# @param code :: String (Optional) Error code (e.g., "ValueError").
+--# @return :: Error
+--# @example
+--#   error("Invalid input")
+--#   error("ValueError", "Must be positive")
+--# @family base
+--# @seealso assert, is_error
+--# @export
+*)
 let register env =
   Env.add "error"
     (make_builtin ~variadic:true 1 (fun args _env ->

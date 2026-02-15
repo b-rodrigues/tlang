@@ -2,6 +2,21 @@ open Ast
 
 (** add_diagnostics(model, data = df) — adds diagnostic columns to the data.
     Equivalent to broom::augment(). Adds columns prefixed with '.' *)
+(*
+--# Add Model Diagnostics
+--#
+--# augments the data with model diagnostic columns (residuals, fitted values, etc.).
+--#
+--# @name add_diagnostics
+--# @param model :: Model The model object.
+--# @param data :: DataFrame (Optional) The data to augment. Defaults to model data.
+--# @return :: DataFrame The data with added diagnostic columns.
+--# @example
+--#   df = add_diagnostics(model)
+--# @family stats
+--# @seealso lm
+--# @export
+*)
 let register env =
   Env.add "add_diagnostics"
     (make_builtin_named ~variadic:true 0 (fun args _env ->

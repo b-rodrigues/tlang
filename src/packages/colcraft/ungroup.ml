@@ -1,5 +1,19 @@
 open Ast
 
+(*
+--# Remove grouping
+--#
+--# Removes the grouping structure from a DataFrame.
+--#
+--# @name ungroup
+--# @param df :: DataFrame The input DataFrame.
+--# @return :: DataFrame An ungrouped DataFrame.
+--# @example
+--#   ungroup(df)
+--# @family colcraft
+--# @seealso group_by
+--# @export
+*)
 let register env =
   Env.add "ungroup"
     (make_builtin 1 (fun args _env ->

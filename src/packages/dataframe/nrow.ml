@@ -1,5 +1,19 @@
 open Ast
 
+(*
+--# Number of rows
+--#
+--# Returns the number of rows in a DataFrame or the length of a vector.
+--#
+--# @name nrow
+--# @param x :: DataFrame | Vector The input data.
+--# @return :: Int The number of rows/elements.
+--# @example
+--#   nrow(mtcars)
+--# @family dataframe
+--# @seealso ncol, length
+--# @export
+*)
 let register env =
   Env.add "nrow"
     (make_builtin 1 (fun args _env ->

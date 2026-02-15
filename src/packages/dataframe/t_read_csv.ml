@@ -2,6 +2,25 @@ open Ast
 
 let is_sep_name = function Some "separator" -> true | _ -> false
 
+(*
+--# Read CSV file
+--#
+--# Reads a CSV file into a DataFrame.
+--#
+--# @name read_csv
+--# @param path :: String Path or URL to the CSV file.
+--# @param separator :: String (Optional) Field separator (default ",").
+--# @param skip_header :: Bool (Optional) Skip proper header parsing? (default false).
+--# @param skip_lines :: Int (Optional) Number of lines to skip at start.
+--# @param clean_colnames :: Bool (Optional) Clean column names? (default false).
+--# @return :: DataFrame The loaded data.
+--# @example
+--#   df = read_csv("data.csv")
+--#   df = read_csv("data.csv", separator: ";")
+--# @family dataframe
+--# @seealso write_csv
+--# @export
+*)
 let register ~parse_csv_string env =
   Env.add "read_csv"
     (make_builtin_named ~variadic:true 1 (fun named_args _env ->
