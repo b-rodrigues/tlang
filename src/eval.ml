@@ -958,6 +958,7 @@ let initial_env () : environment =
   let env = Sum.register env in
   let env = T_get.register env in
   let env = T_string.register env in
+  let env = Help.register env in
   (* Base package *)
   let env = T_assert.register env in
   let env = Is_na.register env in

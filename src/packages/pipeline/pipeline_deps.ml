@@ -1,5 +1,17 @@
 open Ast
 
+(*
+--# List Node Dependencies
+--#
+--# Returns a dictionary mapping node names to their dependencies.
+--#
+--# @name pipeline_deps
+--# @param p :: Pipeline The pipeline.
+--# @return :: Dict The dependency graph.
+--# @family pipeline
+--# @seealso pipeline_nodes
+--# @export
+*)
 let register env =
   Env.add "pipeline_deps"
     (make_builtin 1 (fun args _env ->

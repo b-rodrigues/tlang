@@ -1,5 +1,17 @@
 open Ast
 
+(*
+--# Run Pipeline
+--#
+--# Re-executes a pipeline from start to finish.
+--#
+--# @name pipeline_run
+--# @param p :: Pipeline The pipeline to run.
+--# @return :: Pipeline The executed pipeline.
+--# @family pipeline
+--# @seealso pipeline_nodes
+--# @export
+*)
 let register ~rerun_pipeline env =
   Env.add "pipeline_run"
     (make_builtin 1 (fun args env ->

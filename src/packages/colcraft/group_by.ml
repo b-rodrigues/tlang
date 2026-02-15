@@ -1,5 +1,21 @@
 open Ast
 
+(*
+--# Group by columns
+--#
+--# Groups a DataFrame by one or more columns for subsequent aggregation.
+--#
+--# @name group_by
+--# @param df :: DataFrame The input DataFrame.
+--# @param ... :: Symbol Variable number of grouping columns.
+--# @return :: DataFrame The grouped DataFrame.
+--# @example
+--#   group_by(mtcars, $cyl)
+--#   group_by(mtcars, $cyl, $gear)
+--# @family colcraft
+--# @seealso summarize, ungroup
+--# @export
+*)
 let register env =
   Env.add "group_by"
     (make_builtin ~variadic:true 1 (fun args _env ->

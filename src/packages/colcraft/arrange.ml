@@ -1,5 +1,22 @@
 open Ast
 
+(*
+--# Arrange rows
+--#
+--# Sorts a DataFrame by a column. Use "desc" for descending order.
+--#
+--# @name arrange
+--# @param df :: DataFrame The input DataFrame.
+--# @param col :: Symbol The column to sort by.
+--# @param direction :: String (Optional) "asc" (default) or "desc".
+--# @return :: DataFrame The sorted DataFrame.
+--# @example
+--#   arrange(mtcars, $mpg)
+--#   arrange(mtcars, $mpg, "desc")
+--# @family colcraft
+--# @seealso filter, group_by
+--# @export
+*)
 let register env =
   Env.add "arrange"
     (make_builtin ~variadic:true 2 (fun args _env ->

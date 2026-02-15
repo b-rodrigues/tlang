@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Maximum value
+--#
+--# Returns the maximum value in a vector or list.
+--#
+--# @name max
+--# @param x :: Vector | List The numeric data.
+--# @return :: Float The maximum value.
+--# @example
+--#   max([1, 2, 3])
+--#   -- Returns: 3.0
+--# @family stats
+--# @seealso min
+--# @export
+*)
 let register env =
   Env.add "max"
     (make_builtin 1 (fun args _env ->

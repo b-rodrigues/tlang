@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Exponential function
+--#
+--# Calculates e raised to the power of x.
+--#
+--# @name exp
+--# @param x :: Number | Vector The exponent.
+--# @return :: Float | Vector The result of e^x.
+--# @example
+--#   exp(1)
+--#   -- Returns: 2.71828...
+--# @family math
+--# @seealso log, pow
+--# @export
+*)
 let register env =
   Env.add "exp"
     (make_builtin 1 (fun args _env ->

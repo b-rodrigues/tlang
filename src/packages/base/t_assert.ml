@@ -1,5 +1,21 @@
 open Ast
 
+(*
+--# Assert Condition
+--#
+--# Checks if a condition is true, raising an error if false.
+--#
+--# @name assert
+--# @param condition :: Bool The condition to check.
+--# @param message :: String (Optional) Custom error message.
+--# @return :: Bool True if successful.
+--# @example
+--#   assert(1 == 1)
+--#   assert(x > 0, "x must be positive")
+--# @family base
+--# @seealso error, is_error
+--# @export
+*)
 let register env =
   Env.add "assert"
     (make_builtin ~variadic:true 1 (fun args _env ->

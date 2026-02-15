@@ -1,5 +1,18 @@
 open Ast
 
+(*
+--# Get Intent Field
+--#
+--# Retrieves a field from an Intent object.
+--#
+--# @name intent_get
+--# @param intent :: Intent The intent object.
+--# @param key :: String The field name.
+--# @return :: String The field value.
+--# @family explain
+--# @seealso intent_fields
+--# @export
+*)
 let register env =
   Env.add "intent_get"
     (make_builtin 2 (fun args _env ->

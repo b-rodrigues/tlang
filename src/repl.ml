@@ -295,7 +295,11 @@ let cmd_doc args =
       let docs = Tdoc_parser.parse_file f in
       List.iter Tdoc_registry.register docs
     ) files;
-    Tdoc_registry.to_json_file (Filename.concat dir "docs.json"); (* Temp location *)
+    
+    let help_dir = Filename.concat dir "help" in
+    if not (Sys.file_exists help_dir) then Unix.mkdir help_dir 0o755;
+    
+    Tdoc_registry.to_json_file (Filename.concat help_dir "docs.json");
     Printf.printf "Parsed %d functions.\n" (List.length (Tdoc_registry.get_all ()))
   end;
   
@@ -366,6 +370,20 @@ let cmd_repl env =
   Printf.printf "Website: https://tstats-project.org\n";
   Printf.printf "Contributions are welcome!\n";
   Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
+  Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
+  
+  (* Try to load documentation *)
+  let docs_path = "help/docs.json" in
+  if Sys.file_exists docs_path then begin
+    Tdoc_registry.load_from_json docs_path
+  end else begin
+    (* Try alternate path or legacy location *)
+    let docs_path = "docs.json" in
+    if Sys.file_exists docs_path then begin
+      Tdoc_registry.load_from_json docs_path
+    end
+  end;
+
   flush stdout;
   let rec repl env =
     match LNoise.linenoise "T> " with

@@ -1,5 +1,23 @@
 open Ast
 
+(*
+--# Get the first n rows/items
+--#
+--# Returns the first n items from a List, Vector, or DataFrame.
+--# For DataFrames, it returns the top n rows.
+--#
+--# @name head
+--# @param data :: DataFrame | List | Vector The collection to slice.
+--# @param n :: Int = 5 Number of items to return.
+--# @return :: DataFrame | List | Vector A subset of the input containing the first n items.
+--# @example
+--#   head([1, 2, 3, 4, 5, 6], n: 3)
+--#   -- Returns: [1, 2, 3]
+--#
+--#   df |> head(n: 10)
+--# @family core
+--# @export
+*)
 let register env =
   Env.add "head"
     (make_builtin_named ~variadic:true 1 (fun named_args _env ->

@@ -1,5 +1,22 @@
 open Ast
 
+(*
+--# Get the length of a collection
+--#
+--# Returns the number of items in a List, Dict, Vector, or string.
+--#
+--# @name length
+--# @param x :: List | Dict | Vector | String The collection to measure.
+--# @return :: Int The number of items.
+--# @example
+--#   length([1, 2, 3])
+--#   -- Returns: 3
+--#
+--#   length("hello")
+--#   -- Returns: 5
+--# @family core
+--# @export
+*)
 let register env =
   Env.add "length"
     (make_builtin 1 (fun args _env ->

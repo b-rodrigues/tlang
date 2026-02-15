@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Print values to standard output
+--#
+--# Prints one or more values to stdout, separated by spaces, followed by a newline.
+--# Strings are printed without quotes.
+--#
+--# @name print
+--# @param ... :: Any Values to print.
+--# @return :: Null
+--# @example
+--#   print("Hello", "World")
+--#   -- Output: Hello World
+--# @family core
+--# @export
+*)
 (* Convert a value to a printable string (without quotes for strings) *)
 let value_to_print_string = function
   | VString s -> s  (* Print strings without quotes or escaping *)

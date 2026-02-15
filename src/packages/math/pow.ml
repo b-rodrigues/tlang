@@ -1,5 +1,21 @@
 open Ast
 
+(*
+--# Power function
+--#
+--# Calculates base raised to the power of exponent.
+--#
+--# @name pow
+--# @param base :: Number | Vector | NDArray The base.
+--# @param exponent :: Number The exponent.
+--# @return :: Number | Vector | NDArray The result of base ^ exponent.
+--# @example
+--#   pow(2, 3)
+--#   -- Returns: 8.0
+--# @family math
+--# @seealso sqrt, exp
+--# @export
+*)
 let register env =
   Env.add "pow"
     (make_builtin 2 (fun args _env ->

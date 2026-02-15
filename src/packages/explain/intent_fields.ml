@@ -1,5 +1,17 @@
 open Ast
 
+(*
+--# Get All Intent Fields
+--#
+--# Returns all fields of an Intent object as a dictionary.
+--#
+--# @name intent_fields
+--# @param intent :: Intent The intent object.
+--# @return :: Dict The intent fields.
+--# @family explain
+--# @seealso intent_get
+--# @export
+*)
 let register env =
   Env.add "intent_fields"
     (make_builtin 1 (fun args _env ->

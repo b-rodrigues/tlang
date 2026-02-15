@@ -28,6 +28,7 @@ let extract_comments filename =
 (* Parse a block of comment lines into a doc_entry *)
 (* This is a simplified state-machine parser *)
 let parse_block lines filename line_num =
+  let name_override = ref None in
   let brief = ref "" in
   let full = Buffer.create 1024 in
   let params = ref [] in
@@ -63,7 +64,15 @@ let parse_block lines filename line_num =
   in
 
   let add_return line =
-    return_val := Some { type_info = None; description = String.trim line }
+    let parts = String.split_on_char ' ' (String.trim line) |> List.filter (fun s -> s <> "") in
+    match parts with
+    | "::" :: type_info :: rest ->
+        let desc = String.concat " " rest in
+        return_val := Some { type_info = Some type_info; description = desc }
+    | _ ->
+        (* Check if line starts with :: without space or something? No, split handles it if space exists *)
+        (* Maybe the user wrote @return ::Type ... *)
+        return_val := Some { type_info = None; description = String.trim line }
   in
 
   List.iter (fun line ->
@@ -78,6 +87,7 @@ let parse_block lines filename line_num =
     else if starts_with clean_line "@family" then family := Some (String.trim (strip_prefix clean_line "@family"))
     else if starts_with clean_line "@export" then is_export := true
     else if starts_with clean_line "@intent" then current_tag := `Intent
+    else if starts_with clean_line "@name" then name_override := Some (String.trim (strip_prefix clean_line "@name"))
     else (
       (* Content continuation based on current tag *)
       match !current_tag with
@@ -91,7 +101,7 @@ let parse_block lines filename line_num =
   ) lines;
 
   {
-    name = "unknown"; (* Name is inferred from code usually *)
+    name = (match !name_override with Some n -> n | None -> "unknown");
     description_brief = !brief;
     description_full = String.trim (Buffer.contents full);
     params = List.rev !params;
@@ -151,7 +161,8 @@ let parse_file filename =
         in
         
         let doc = parse_block (List.rev !current_block) filename !start_line in
-        blocks := { doc with name = inferred_name } :: !blocks;
+        let final_name = if doc.name <> "unknown" then doc.name else inferred_name in
+        blocks := { doc with name = final_name } :: !blocks;
         current_block := [];
         inside_block := false
       end

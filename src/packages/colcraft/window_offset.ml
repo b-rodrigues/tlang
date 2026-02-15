@@ -8,6 +8,22 @@ let to_value_array label = function
   | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a Vector or List." label))
 
 let register env =
+  (*
+  --# Lag values
+  --#
+  --# Shifts a vector forward by n positions, filling with NA.
+  --#
+  --# @name lag
+  --# @param x :: Vector The input vector.
+  --# @param n :: Int (Optional) Number of positions to shift. Default is 1.
+  --# @return :: Vector The shifted vector.
+  --# @example
+  --#   lag([1, 2, 3])
+  --#   -- Returns: [NA, 1, 2]
+  --# @family colcraft
+  --# @seealso lead
+  --# @export
+  *)
   (* lag(x) or lag(x, n): shift values forward, filling with NA *)
   let env = Env.add "lag"
     (make_builtin ~variadic:true 1 (fun args _env ->
@@ -42,6 +58,22 @@ let register env =
     ))
     env
   in
+  (*
+  --# Lead values
+  --#
+  --# Shifts a vector backward by n positions, filling with NA.
+  --#
+  --# @name lead
+  --# @param x :: Vector The input vector.
+  --# @param n :: Int (Optional) Number of positions to shift. Default is 1.
+  --# @return :: Vector The shifted vector.
+  --# @example
+  --#   lead([1, 2, 3])
+  --#   -- Returns: [2, 3, NA]
+  --# @family colcraft
+  --# @seealso lag
+  --# @export
+  *)
   (* lead(x) or lead(x, n): shift values backward, filling with NA *)
   let env = Env.add "lead"
     (make_builtin ~variadic:true 1 (fun args _env ->

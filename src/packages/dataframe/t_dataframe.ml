@@ -1,6 +1,23 @@
 open Ast
 
 let register env =
+  (*
+  --# Create a DataFrame
+  --#
+  --# Constructs a DataFrame from a list of dictionaries (rows).
+  --#
+  --# @name dataframe
+  --# @param rows :: List[Dict] The data rows.
+  --# @return :: DataFrame The created DataFrame.
+  --# @example
+  --#   df = dataframe([
+  --#     {"a": 1, "b": 2},
+  --#     {"a": 3, "b": 4}
+  --#   ])
+  --# @family dataframe
+  --# @seealso read_csv
+  --# @export
+  *)
   let env = Env.add "dataframe"
     (make_builtin 1 (fun args _env ->
       match args with
@@ -61,6 +78,21 @@ let register env =
                 
       | _ -> Error.type_error (Printf.sprintf "Function `dataframe` expects a single argument (List of Dicts). Received: %s" (String.concat ", " (List.map Ast.Utils.value_to_string args)))
     )) env in
+  (*
+  --# Extract column as vector
+  --#
+  --# Extracts a single column from a DataFrame as a Vector.
+  --#
+  --# @name pull
+  --# @param df :: DataFrame The input DataFrame.
+  --# @param col :: String The column name.
+  --# @return :: Vector The column data.
+  --# @example
+  --#   pull(mtcars, "mpg")
+  --# @family dataframe
+  --# @seealso select
+  --# @export
+  *)
   let env = Env.add "pull"
       (make_builtin 2 (fun args _env ->
         match args with
@@ -81,6 +113,21 @@ let register env =
                      VVector (Array.make n (VNA NAGeneric)))
         | _ -> Error.type_error "pull expects (DataFrame, column_name)."
       )) env in
+  (*
+  --# Convert to NDArray
+  --#
+  --# Converts numeric columns of a DataFrame to a matrix (NDArray).
+  --#
+  --# @name to_array
+  --# @param df :: DataFrame The input DataFrame.
+  --# @param cols :: List[String] (Optional) Columns to include. Defaults to all numeric.
+  --# @return :: NDArray A 2D array of the data.
+  --# @example
+  --#   mat = to_array(mtcars)
+  --# @family dataframe
+  --# @seealso dataframe
+  --# @export
+  *)
   let env = Env.add "to_array"
       (make_builtin ~variadic:true 1 (fun args _env ->
         match args with

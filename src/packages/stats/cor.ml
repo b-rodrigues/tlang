@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Correlation
+--#
+--# Computes the Pearson correlation coefficient between two vectors.
+--#
+--# @name cor
+--# @param x :: Vector | List First numeric vector.
+--# @param y :: Vector | List Second numeric vector.
+--# @param na_rm :: Bool (Optional) Should missing values be removed? Default is false.
+--# @return :: Float The correlation coefficient (-1 to 1).
+--# @example
+--#   cor(mtcars["mpg"], mtcars["wt"])
+--# @family stats
+--# @export
+*)
 let register env =
   Env.add "cor"
     (make_builtin_named ~variadic:true 2 (fun named_args _env ->

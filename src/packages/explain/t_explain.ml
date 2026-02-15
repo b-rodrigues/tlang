@@ -1,5 +1,20 @@
 open Ast
 
+(*
+--# Explain Value
+--#
+--# Returns a dictionary describing the structure and content of a value.
+--#
+--# @name explain
+--# @param x :: Any The value to explain.
+--# @return :: Dict A structured description of the value.
+--# @example
+--#   explain(mtcars)
+--#   explain(1)
+--# @family explain
+--# @seealso type, str
+--# @export
+*)
 let register env =
   Env.add "explain"
     (make_builtin 1 (fun args _env ->

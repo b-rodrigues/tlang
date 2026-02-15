@@ -282,22 +282,140 @@ let data_of args =
   | _ -> Error.type_error "ndarray_data expects an NDArray."
 
 let register env =
+  (*
+  --# Create an N-dimensional array
+  --#
+  --# Creates a new NDArray from a list or vector of data, optionally specifying the shape.
+  --# If shape is not provided, it is inferred from the nested structure of the input list.
+  --#
+  --# @name ndarray
+  --# @param data :: List | Vector The data to populate the array. Can be nested lists.
+  --# @param shape :: List[Int] (Optional) The dimensions of the array.
+  --# @return :: NDArray The created N-dimensional array.
+  --# @example
+  --#   ndarray([1, 2, 3, 4], shape: [2, 2])
+  --#   ndarray([[1, 2], [3, 4]])
+  --# @family math
+  --# @seealso reshape, shape
+  --# @export
+  *)
   let env = Env.add "ndarray"
       (make_builtin ~variadic:true 1 (fun args _env -> ndarray_create args)) env in
+  (*
+  --# Reshape an NDArray
+  --#
+  --# Returns a new NDArray with the same data but different dimensions.
+  --# The total number of elements must remain the same.
+  --#
+  --# @name reshape
+  --# @param array :: NDArray The array to reshape.
+  --# @param shape :: List[Int] The new dimensions.
+  --# @return :: NDArray A new array with the specified shape.
+  --# @example
+  --#   reshape(arr, [4, 1])
+  --# @family math
+  --# @seealso ndarray, shape
+  --# @export
+  *)
   let env = Env.add "reshape"
       (make_builtin 2 (fun args _env -> reshape args)) env in
+  (*
+  --# Get NDArray dimensions
+  --#
+  --# Returns the shape of an NDArray as a list of integers.
+  --#
+  --# @name shape
+  --# @param array :: NDArray The array to inspect.
+  --# @return :: List[Int] The dimensions of the array.
+  --# @family math
+  --# @seealso ndarray, reshape
+  --# @export
+  *)
   let env = Env.add "shape"
       (make_builtin 1 (fun args _env -> shape_of args)) env in
+  (*
+  --# Get NDArray data
+  --#
+  --# Returns the flattened data of an NDArray as a list of floats.
+  --#
+  --# @name ndarray_data
+  --# @param array :: NDArray The array to inspect.
+  --# @return :: List[Float] The flat data.
+  --# @family math
+  --# @export
+  *)
   let env = Env.add "ndarray_data"
       (make_builtin 1 (fun args _env -> data_of args)) env in
+  (*
+  --# Matrix multiplication
+  --#
+  --# Performs matrix multiplication on two 2D NDArrays.
+  --#
+  --# @name matmul
+  --# @param a :: NDArray Left matrix.
+  --# @param b :: NDArray Right matrix.
+  --# @return :: NDArray The product of the two matrices.
+  --# @family math
+  --# @seealso inv, kron, diag
+  --# @export
+  *)
   let env = Env.add "matmul"
       (make_builtin 2 (fun args _env -> matrix_multiply args)) env in
+  (*
+  --# Create or extract diagonal
+  --#
+  --# If input is 1D, creates a diagonal matrix.
+  --# If input is 2D, extracts the diagonal elements.
+  --#
+  --# @name diag
+  --# @param x :: NDArray The input array.
+  --# @return :: NDArray The diagonal matrix or vector.
+  --# @family math
+  --# @seealso matmul
+  --# @export
+  *)
   let env = Env.add "diag"
       (make_builtin 1 (fun args _env -> diag args)) env in
+  (*
+  --# Matrix inverse
+  --#
+  --# Computes the multiplicative inverse of a square matrix.
+  --#
+  --# @name inv
+  --# @param matrix :: NDArray The matrix to invert.
+  --# @return :: NDArray The inverse matrix.
+  --# @family math
+  --# @seealso matmul
+  --# @export
+  *)
   let env = Env.add "inv"
       (make_builtin 1 (fun args _env -> matrix_inverse args)) env in
+  (*
+  --# Kronecker product
+  --#
+  --# Computes the Kronecker product of two matrices.
+  --#
+  --# @name kron
+  --# @param a :: NDArray First matrix.
+  --# @param b :: NDArray Second matrix.
+  --# @return :: NDArray The Kronecker product.
+  --# @family math
+  --# @seealso matmul
+  --# @export
+  *)
   let env = Env.add "kron"
       (make_builtin 2 (fun args _env -> kron args)) env in
+  (*
+  --# Transpose matrix
+  --#
+  --# Returns the transpose of a 2D NDArray.
+  --#
+  --# @name transpose
+  --# @param matrix :: NDArray The matrix to transpose.
+  --# @return :: NDArray The transposed matrix.
+  --# @family math
+  --# @export
+  *)
   let env = Env.add "transpose"
       (make_builtin 1 (fun args _env -> 
         match args with
@@ -315,6 +433,18 @@ let register env =
               VNDArray { shape = [|cols; rows|]; data = out }
         | _ -> Error.type_error "transpose expects an NDArray."
       )) env in
+  (*
+  --# Column bind matrices
+  --#
+  --# HELPER: Combines two matrices by columns.
+  --#
+  --# @name cbind
+  --# @param a :: NDArray First matrix.
+  --# @param b :: NDArray Second matrix.
+  --# @return :: NDArray The combined matrix.
+  --# @family math
+  --# @export
+  *)
   let env = Env.add "cbind"
       (make_builtin 2 (fun args _env ->
         match args with

@@ -1,5 +1,22 @@
 open Ast
 
+(*
+--# Quantiles
+--#
+--# Computes the quantile of a distribution at a specified probability.
+--#
+--# @name quantile
+--# @param x :: Vector | List The numeric data.
+--# @param probs :: Float The probability (0 to 1).
+--# @param na_rm :: Bool (Optional) Should missing values be removed? Default is false.
+--# @return :: Float The quantile value.
+--# @example
+--#   quantile(x, 0.5)
+--#   -- Returns median
+--# @family stats
+--# @seealso median, mean
+--# @export
+*)
 let register env =
   Env.add "quantile"
     (make_builtin_named ~variadic:true 2 (fun named_args _env ->
