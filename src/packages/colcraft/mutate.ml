@@ -60,6 +60,13 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
              let arrow_col = Arrow_bridge.values_to_column vec in
              let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
              VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+           | VError _ as e -> e
+           | res when not (is_na_value res) && (match res with VVector _ | VList _ | VNDArray _ -> false | _ -> true) ->
+             (* Broadcast scalar result *)
+             let vec = Array.make nrows res in
+             let arrow_col = Arrow_bridge.values_to_column vec in
+             let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
+             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
            | _ ->
              (* Fallback: apply fn row-by-row *)
              let new_col = Array.init nrows (fun i ->

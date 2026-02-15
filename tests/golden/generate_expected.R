@@ -287,5 +287,23 @@ special_vals %>%
 
 message("\n✅ All expected outputs generated!")
 message(sprintf("   Location: %s", normalizePath(output_dir)))
-message(sprintf("   Total files: %d", 
-                length(list.files(output_dir, pattern = "*.csv"))))
+
+# ============================================================================
+# Test Suite 9: STRING operations
+# ============================================================================
+message("\n=== STRING Tests ===")
+
+# Test 9.1: Basic string ops on Iris Species
+iris %>%
+  mutate(
+    species_upper = toupper(Species),
+    species_lower = tolower(Species),
+    len = nchar(Species),
+    sub = substr(Species, 1, 3),
+    joined = paste(Species, collapse = ""), 
+    has_set = grepl("set", Species),
+    rep_first = sub("s", "S", Species),
+    rep_all = gsub("s", "S", Species)
+  ) %>%
+  save_output("iris_strings", "String operations on Species")
+

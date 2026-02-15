@@ -74,7 +74,8 @@ let eval_scalar_binop op v1 v2 =
   | (Plus, VFloat a, VFloat b) -> VFloat (a +. b)
   | (Plus, VInt a, VFloat b) -> VFloat (float_of_int a +. b)
   | (Plus, VFloat a, VInt b) -> VFloat (a +. float_of_int b)
-  | (Plus, VString a, VString b) -> VString (a ^ b)
+  | (Plus, VString _, VString _) ->
+      Error.type_error "String concatenation with '+' is not supported. Use 'join([a, b], sep)' or 'paste(a, b, sep)' instead."
 
   | (Minus, VInt a, VInt b) -> VInt (a - b)
   | (Minus, VFloat a, VFloat b) -> VFloat (a -. b)
@@ -949,7 +950,6 @@ let initial_env () : environment =
   (* Core package *)
   let env = T_print.register env in
   let env = T_type.register env in
-  let env = Length.register env in
   let env = Head.register env in
   let env = Tail.register env in
   let env = Is_error.register env in
@@ -959,6 +959,7 @@ let initial_env () : environment =
   let env = T_get.register env in
   let env = T_string.register env in
   let env = Help.register env in
+  let env = String_ops.register env in
   (* Base package *)
   let env = T_assert.register env in
   let env = Is_na.register env in

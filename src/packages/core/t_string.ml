@@ -7,11 +7,13 @@ open Ast
 --#
 --# @name join
 --# @param items :: List | Vector The items to join.
---# @param sep :: String The separator string.
+--# @param sep :: String [Optional] The separator string. Defaults to "".
 --# @return :: String The joined string.
 --# @example
 --#   join(["a", "b", "c"], "-")
 --#   -- Returns: "a-b-c"
+--#   join(["a", "b", "c"])
+--#   -- Returns: "abc"
 --# @family core
 --# @seealso string
 --# @export
@@ -33,17 +35,25 @@ open Ast
 *)
 let register env =
   let env = Env.add "join"
-    (make_builtin 2 (fun args _env ->
+    (make_builtin ~variadic:true 1 (fun args _env ->
       match args with
+      | [VList items] ->
+          let strs = List.map (fun (_, v) -> Utils.value_to_raw_string v) items in
+          VString (String.concat "" strs)
       | [VList items; VString sep] ->
           let strs = List.map (fun (_, v) -> Utils.value_to_raw_string v) items in
           VString (String.concat sep strs)
+      | [VVector arr] ->
+          let strs = Array.map Utils.value_to_raw_string arr |> Array.to_list in
+          VString (String.concat "" strs)
       | [VVector arr; VString sep] ->
           let strs = Array.map Utils.value_to_raw_string arr |> Array.to_list in
           VString (String.concat sep strs)
-      | [val_; VString sep] ->
-          VString (Utils.value_to_raw_string val_ ^ sep) (* Single value fallback *)
-      | _ -> Error.type_error "Function `join` expects a List/Vector/Value and a separator String."
+      | [val_] ->
+          VString (Utils.value_to_raw_string val_)
+      | [val_; VString _] ->
+          VString (Utils.value_to_raw_string val_)
+      | _ -> Error.type_error "Function `join` expects (list/vector, [separator]) or (value, [separator])."
     ))
     env
   in
