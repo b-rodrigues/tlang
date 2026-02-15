@@ -201,7 +201,7 @@ let length_impl args env =
 --# @name length
 --# @param x :: List | Vector | Dict The collection to measure.
 --# @return :: Int The number of elements.
---# @family string
+--# @family core
 --# @export
 *)
 
