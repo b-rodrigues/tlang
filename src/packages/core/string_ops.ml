@@ -174,7 +174,16 @@ let length_scalar args _env =
   | [VVector arr] -> VInt (Array.length arr)
   | _ -> Error.type_error "length expects a string or collection."
 
-let length_impl args env = vectorize_unary length_scalar args env
+let length_impl args env =
+  match args with
+  | [VVector arr] ->
+      (* Check if vector contains strings - if so, vectorize *)
+      if Array.length arr > 0 && (match arr.(0) with VString _ -> true | _ -> false) then
+        vectorize_unary length_scalar args env
+      else
+        (* For non-string vectors, return the length of the vector *)
+        length_scalar args env
+  | _ -> length_scalar args env
 
 (*
 --# Check if string is empty
