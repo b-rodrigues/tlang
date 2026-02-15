@@ -69,7 +69,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   Printf.printf "Phase 8 — Core Semantics: Dict edge cases:\n";
 
-  test "empty dict" "{}" "{}";
+  test "empty block (is null)" "{}" "null";
   test "dict with computed values" "x = 10; {a: x, b: x * 2}" {|{`a`: 10, `b`: 20}|};
   test "nested dict" {|{outer: {inner: 42}}.outer.inner|} "42";
   print_newline ();

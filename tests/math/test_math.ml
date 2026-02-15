@@ -44,7 +44,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let oc_vec = open_out csv_p5_vec in
   output_string oc_vec "a,b,c\n1,2,-1\n4,3,2\n9,4,-3\n";
   close_out oc_vec;
-  let env_p5 = Eval.initial_env () in
+  let env_p5 = Packages.init_env () in
   let (_, env_p5) = eval_string_env (Printf.sprintf {|vdf = read_csv("%s")|} csv_p5_vec) env_p5 in
 
   let (v, _) = eval_string_env "sqrt(vdf.a)" env_p5 in

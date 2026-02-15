@@ -22,7 +22,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   Printf.printf "Phase 2 — read_csv():\n";
   (* Use shared env for multi-step DataFrame tests *)
-  let env = Eval.initial_env () in
+  let env = Packages.init_env () in
   let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env in
   let (v, _) = eval_string_env "type(df)" env in
   let result = Ast.Utils.value_to_string v in
@@ -237,7 +237,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   close_out oc7;
 
   (* Test read_csv with separator *)
-  let env5 = Eval.initial_env () in
+  let env5 = Packages.init_env () in
   let (_, env5) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = ";")|} csv_path_sep) env5 in
   let (v, _) = eval_string_env "nrow(df)" env5 in
   let result = Ast.Utils.value_to_string v in
@@ -256,7 +256,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* Test read_csv with skip_lines *)
-  let env6 = Eval.initial_env () in
+  let env6 = Packages.init_env () in
   let (_, env6) = eval_string_env (Printf.sprintf {|df = read_csv("%s", skip_lines = 2)|} csv_path_skip) env6 in
   let (v, _) = eval_string_env "nrow(df)" env6 in
   let result = Ast.Utils.value_to_string v in
@@ -275,7 +275,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* Test read_csv with skip_header *)
-  let env7 = Eval.initial_env () in
+  let env7 = Packages.init_env () in
   let (_, env7) = eval_string_env (Printf.sprintf {|df = read_csv("%s", skip_header = true)|} csv_path_noheader) env7 in
   let (v, _) = eval_string_env "nrow(df)" env7 in
   let result = Ast.Utils.value_to_string v in
@@ -298,7 +298,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Phase 5 — write_csv() optional arguments:\n";
 
   let csv_out_sep = "test_phase5_write_sep.csv" in
-  let env_w = Eval.initial_env () in
+  let env_w = Packages.init_env () in
   let (_, env_w) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_w in
   let (v, _) = eval_string_env (Printf.sprintf {|write_csv(df, "%s", separator = ";")|} csv_out_sep) env_w in
   let result = Ast.Utils.value_to_string v in
@@ -338,7 +338,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_s "growth%,MILLION\xe2\x82\xac,price$\n10,500,42\n";
   close_out oc_s;
 
-  let env_c1 = Eval.initial_env () in
+  let env_c1 = Packages.init_env () in
   let (_, env_c1) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_symbols) env_c1 in
   let (v, _) = eval_string_env "colnames(df)" env_c1 in
   let result = Ast.Utils.value_to_string v in
@@ -354,7 +354,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_p "A.1,foo---bar,hello world\n1,2,3\n";
   close_out oc_p;
 
-  let env_c2 = Eval.initial_env () in
+  let env_c2 = Packages.init_env () in
   let (_, env_c2) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_punct) env_c2 in
   let (v, _) = eval_string_env "colnames(df)" env_c2 in
   let result = Ast.Utils.value_to_string v in
@@ -370,7 +370,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_u "caf\xc3\xa9,na\xc3\xafve\n1,2\n";
   close_out oc_u;
 
-  let env_c3 = Eval.initial_env () in
+  let env_c3 = Packages.init_env () in
   let (_, env_c3) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_unicode) env_c3 in
   let (v, _) = eval_string_env "colnames(df)" env_c3 in
   let result = Ast.Utils.value_to_string v in
@@ -386,7 +386,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_co "A.1,A-1,A_1\n1,2,3\n";
   close_out oc_co;
 
-  let env_c4 = Eval.initial_env () in
+  let env_c4 = Packages.init_env () in
   let (_, env_c4) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_collide) env_c4 in
   let (v, _) = eval_string_env "colnames(df)" env_c4 in
   let result = Ast.Utils.value_to_string v in
@@ -402,7 +402,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_d "1st,2nd_col,normal\n1,2,3\n";
   close_out oc_d;
 
-  let env_c5 = Eval.initial_env () in
+  let env_c5 = Packages.init_env () in
   let (_, env_c5) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_digits) env_c5 in
   let (v, _) = eval_string_env "colnames(df)" env_c5 in
   let result = Ast.Utils.value_to_string v in
@@ -413,7 +413,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* Test clean_colnames = false preserves original names *)
-  let env_c6 = Eval.initial_env () in
+  let env_c6 = Packages.init_env () in
   let (_, env_c6) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = false)|} csv_path_punct) env_c6 in
   let (v, _) = eval_string_env "colnames(df)" env_c6 in
   let result = Ast.Utils.value_to_string v in
@@ -424,7 +424,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* Test standalone clean_colnames() on a DataFrame *)
-  let env_c7 = Eval.initial_env () in
+  let env_c7 = Packages.init_env () in
   let (_, env_c7) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path_punct) env_c7 in
   let (_, env_c7) = eval_string_env "df2 = clean_colnames(df)" env_c7 in
   let (v, _) = eval_string_env "colnames(df2)" env_c7 in
@@ -436,7 +436,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* Test standalone clean_colnames() on a List *)
-  let env_c8 = Eval.initial_env () in
+  let env_c8 = Packages.init_env () in
   let (v, _) = eval_string_env {|clean_colnames(["A.1", "A-1"])|} env_c8 in
   let result = Ast.Utils.value_to_string v in
   if result = {|["a_1", "a_1_2"]|} then begin
@@ -446,7 +446,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* Test idempotence: clean(clean(x)) == clean(x) *)
-  let env_c9 = Eval.initial_env () in
+  let env_c9 = Packages.init_env () in
   let (_, env_c9) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_symbols) env_c9 in
   let (_, env_c9) = eval_string_env "df2 = clean_colnames(df)" env_c9 in
   let (v1, _) = eval_string_env "colnames(df)" env_c9 in
@@ -470,7 +470,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_sa "name|age|score\nAlice|30|95.5\nBob|25|87.3\n";
   close_out oc_sa;
 
-  let env_sa = Eval.initial_env () in
+  let env_sa = Packages.init_env () in
   let (_, env_sa) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = "|")|} csv_path_sep_alias) env_sa in
   let (v, _) = eval_string_env "nrow(df)" env_sa in
   let result = Ast.Utils.value_to_string v in
@@ -498,7 +498,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test write_csv with separator alias *)
   let csv_out_sep_alias = "test_write_sep_alias.csv" in
-  let env_wsa = Eval.initial_env () in
+  let env_wsa = Packages.init_env () in
   let (_, env_wsa) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_wsa in
   let (v, _) = eval_string_env (Printf.sprintf {|write_csv(df, "%s", separator = ";")|} csv_out_sep_alias) env_wsa in
   let result = Ast.Utils.value_to_string v in
@@ -544,7 +544,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_ht "x,y\n1,a\n2,b\n3,c\n4,d\n5,e\n6,f\n7,g\n8,h\n";
   close_out oc_ht;
 
-  let env_ht = Eval.initial_env () in
+  let env_ht = Packages.init_env () in
   let (_, env_ht) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path_ht) env_ht in
 
   (* head default n=5 *)
@@ -651,7 +651,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* ================================================================= *)
   Printf.printf "Phase — glimpse():\n";
 
-  let env_gl = Eval.initial_env () in
+  let env_gl = Packages.init_env () in
   let (_, env_gl) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_gl in
 
   let (v, _) = eval_string_env "g = glimpse(df)" env_gl in
@@ -675,7 +675,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* ================================================================= *)
   Printf.printf "Phase — explain() compact display for DataFrames:\n";
 
-  let env_ex = Eval.initial_env () in
+  let env_ex = Packages.init_env () in
   let (_, env_ex) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_ex in
 
   (* Compact display should not contain schema, na_stats, example_rows *)
@@ -743,7 +743,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let url = "https://raw.githubusercontent.com/b-rodrigues/rixpress_demos/refs/heads/master/r_python_quarto/data/mtcars.csv" in
   (* Note: This test requires internet access *)
-  let env_url = Eval.initial_env () in
+  let env_url = Packages.init_env () in
   let (_, env_url) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = "|")|} url) env_url in
   
   let (v, _) = eval_string_env "nrow(df)" env_url in

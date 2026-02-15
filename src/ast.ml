@@ -129,21 +129,22 @@ and expr =
   | UnOp of { op : unop; operand : expr }
   | DotAccess of { target : expr; field : string }
   | BroadcastOp of { op : binop; left : expr; right : expr }
-  | Block of expr list
   | PipelineDef of pipeline_node list
   | IntentDef of (string * expr) list
 
-and binop = Plus | Minus | Mul | Div | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
+  | Block of stmt list
+
+and stmt =
+  | Expression of expr
+  | Assignment of { name : symbol; typ : typ option; expr : expr }
+  | Reassignment of { name : symbol; expr : expr }
+
+and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
   | In (* New: membership check *) | Pipe | MaybePipe | Formula
 and unop = Not | Neg
 and comp_clause = CFor of { var : symbol; iter : expr } | CFilter of expr
 
-type typ = TInt | TFloat | TBool | TString | TList | TDict | TDataFrame | TCustom of string
-
-type stmt =
-  | Expression of expr
-  | Assignment of { name : symbol; typ : typ option; expr : expr }
-  | Reassignment of { name : symbol; expr : expr }
+and typ = TInt | TFloat | TBool | TString | TList | TDict | TDataFrame | TCustom of string
 
 type program = stmt list
 

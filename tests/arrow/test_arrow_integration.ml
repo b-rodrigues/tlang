@@ -192,7 +192,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc "name,age,score\nAlice,30,95.5\nBob,25,87.3\nCharlie,35,92.1\n";
   close_out oc;
 
-  let env = Eval.initial_env () in
+  let env = Packages.init_env () in
   let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env in
 
   let (v, _) = eval_string_env "nrow(df)" env in
@@ -357,7 +357,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc2 "name,age,score\nCharlie,35,92.1\nAlice,30,95.5\nBob,25,87.3\n";
   close_out oc2;
 
-  let env_c = Eval.initial_env () in
+  let env_c = Packages.init_env () in
   let (_, env_c) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_compute) env_c in
 
   (* Test arrange ascending on native-backed table *)

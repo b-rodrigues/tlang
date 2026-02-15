@@ -46,7 +46,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|["x", "y"]|};
 
   (* Golden test 9: Pipeline introspection - deps *)
-  let env_g = Eval.initial_env () in
+  let env_g = Packages.init_env () in
   let (_, env_g) = eval_string_env "p = pipeline {\n  a = 1\n  b = 2\n  c = a + b\n}" env_g in
   let (v, _) = eval_string_env "pipeline_deps(p)" env_g in
   let result = Ast.Utils.value_to_string v in
@@ -110,7 +110,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc "name,value,category\nAlice,100,A\nBob,200,B\nCharlie,150,A\nDiana,300,B\nEve,250,A\n";
   close_out oc;
 
-  let env_gd = Eval.initial_env () in
+  let env_gd = Packages.init_env () in
   let (_, env_gd) = eval_string_env (Printf.sprintf
     {|p = pipeline {
   data = read_csv("%s")
@@ -169,7 +169,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   close_out oc;
 
   (* Test: read_csv -> write_csv -> read_csv roundtrip *)
-  let env_rw = Eval.initial_env () in
+  let env_rw = Packages.init_env () in
   let (_, env_rw) = eval_string_env (Printf.sprintf
     {|df = read_csv("%s")|} csv_golden_rw) env_rw in
   let csv_golden_out = "test_golden_rw_out.csv" in
@@ -215,7 +215,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: write empty DataFrame *)
   let csv_golden_empty = "test_golden_empty_rw.csv" in
-  let env_empty = Eval.initial_env () in
+  let env_empty = Packages.init_env () in
   let (_, env_empty) = eval_string_env (Printf.sprintf
     {|df = read_csv("%s")|} csv_golden_rw) env_empty in
   let (_, env_empty) = eval_string_env
@@ -238,7 +238,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let oc = open_out csv_golden_na_src in
   output_string oc "x,y\n1,hello\nNA,world\n3,NA\n";
   close_out oc;
-  let env_na = Eval.initial_env () in
+  let env_na = Packages.init_env () in
   let (_, env_na) = eval_string_env (Printf.sprintf
     {|df = read_csv("%s")|} csv_golden_na_src) env_na in
   let (_, env_na) = eval_string_env (Printf.sprintf

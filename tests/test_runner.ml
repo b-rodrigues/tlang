@@ -8,7 +8,7 @@ let () =
   Eval.show_warnings := false
 
 let eval_string input =
-  let env = Eval.initial_env () in
+  let env = Packages.init_env () in
   let lexbuf = Lexing.from_string input in
   let program = Parser.program Lexer.token lexbuf in
   let (result, _env) = Eval.eval_program program env in
@@ -70,6 +70,7 @@ let () =
 
   (* Phase 8: Stabilization tests *)
   Test_golden.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_boolean_golden.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_core_semantics.run_tests pass_count fail_count eval_string eval_string_env test;
 
   (* Arrow integration tests *)

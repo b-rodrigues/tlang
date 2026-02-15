@@ -57,7 +57,7 @@ let run_test_file (file : string) : test_result =
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
     (* Create fresh isolated environment for each test *)
-    let env = Eval.initial_env () in
+    let env = Packages.init_env () in
 
     (* Pre-load all .t files from src/ directory if it exists *)
     let src_dir = Filename.concat (Filename.dirname (Filename.dirname file)) "src" in

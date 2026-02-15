@@ -5,7 +5,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc6 "name,age,score,dept\nAlice,30,95.5,eng\nBob,25,87.3,sales\nCharlie,35,92.1,eng\nDiana,28,88.0,sales\nEve,32,91.5,eng\n";
   close_out oc6;
 
-  let env_p4 = Eval.initial_env () in
+  let env_p4 = Packages.init_env () in
   let (_, env_p4) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p4) env_p4 in
 
   Printf.printf "Phase 4 — select():\n";
@@ -296,7 +296,7 @@ df |> mutate($senior = $age >= 30)
   output_string oc_nas "37,7.4,76\n";
   close_out oc_nas;
 
-  let env_nas = Eval.initial_env () in
+  let env_nas = Packages.init_env () in
   let (_, env_nas) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_nas) env_nas in
 
   let step1_result = (try

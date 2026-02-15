@@ -17,7 +17,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_mv "y,x1,x2\n1,2,5\n4,5,3\n7,8,7\n10,11,2\n";
   close_out oc_mv;
 
-  let env_mv = Eval.initial_env () in
+  let env_mv = Packages.init_env () in
   let (_, env_mv) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_mv) env_mv in
 
   let (v, _) = eval_string_env {|lm(data = df, formula = y ~ x1 + x2)|} env_mv in
@@ -43,7 +43,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_na "y,x\n1,2\n3,\n5,6\n7,8\n";
   close_out oc_na;
 
-  let env_na = Eval.initial_env () in
+  let env_na = Packages.init_env () in
   let (_, env_na) = eval_string_env (Printf.sprintf {|df_na = read_csv("%s")|} csv_na) env_na in
 
   (* lm() should handle NA in columns *)
@@ -66,7 +66,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_zv "y,x\n1,5\n2,5\n3,5\n4,5\n";
   close_out oc_zv;
 
-  let env_zv = Eval.initial_env () in
+  let env_zv = Packages.init_env () in
   let (_, env_zv) = eval_string_env (Printf.sprintf {|df_zv = read_csv("%s")|} csv_zv) env_zv in
 
   let (v, _) = eval_string_env {|lm(data = df_zv, formula = y ~ x)|} env_zv in
@@ -87,7 +87,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_small "y,x\n1,2\n";
   close_out oc_small;
 
-  let env_small = Eval.initial_env () in
+  let env_small = Packages.init_env () in
   let (_, env_small) = eval_string_env (Printf.sprintf {|df_small = read_csv("%s")|} csv_small) env_small in
 
   let (v, _) = eval_string_env {|lm(data = df_small, formula = y ~ x)|} env_small in
@@ -125,7 +125,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_perf "y,x\n0,0\n1,1\n2,2\n3,3\n4,4\n";
   close_out oc_perf;
 
-  let env_perf = Eval.initial_env () in
+  let env_perf = Packages.init_env () in
   let (_, env_perf) = eval_string_env (Printf.sprintf {|df_perf = read_csv("%s")|} csv_perf) env_perf in
   let (_, env_perf) = eval_string_env {|model = lm(data = df_perf, formula = y ~ x)|} env_perf in
 

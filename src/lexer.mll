@@ -80,6 +80,7 @@ rule token = parse
   | "==" { EQ }      | "!=" { NEQ }
   | '<' { LT }       | '>' { GT }
   | "<=" { LTE }     | ">=" { GTE }
+  | '%' { PERCENT }
   | '~' { TILDE }
 
   (* Column references with $ prefix — must come before identifiers *)

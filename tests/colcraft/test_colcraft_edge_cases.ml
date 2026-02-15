@@ -7,7 +7,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc "name,category,value\nAlice,A,10\nBob,B,20\nCharlie,A,30\nDiana,B,40\nEve,A,50\n";
   close_out oc;
 
-  let env0 = Eval.initial_env () in
+  let env0 = Packages.init_env () in
   let (_, env0) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_edge) env0 in
 
   Printf.printf "Edge Cases — Empty Groups (filter to zero rows):\n";
@@ -43,7 +43,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_na "name,value\nA,\nB,\nA,\n";
   close_out oc_na;
 
-  let env_na = Eval.initial_env () in
+  let env_na = Packages.init_env () in
   let (_, env_na) = eval_string_env (Printf.sprintf {|df_na = read_csv("%s")|} csv_na) env_na in
 
   (* Grouped summarize with mean(na_rm=true) on all-NA values *)
@@ -80,7 +80,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_single "id,value\n1,10\n2,20\n3,30\n";
   close_out oc_single;
 
-  let env_single = Eval.initial_env () in
+  let env_single = Packages.init_env () in
   let (_, env_single) = eval_string_env (Printf.sprintf {|df_single = read_csv("%s")|} csv_single) env_single in
 
   (* group_by unique id, then summarize with sd — each group has 1 row *)
@@ -120,7 +120,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_multi "dept,role,salary\neng,senior,100\neng,junior,60\nsales,senior,90\nsales,junior,55\neng,senior,110\n";
   close_out oc_multi;
 
-  let env_multi = Eval.initial_env () in
+  let env_multi = Packages.init_env () in
   let (_, env_multi) = eval_string_env (Printf.sprintf {|df_multi = read_csv("%s")|} csv_multi) env_multi in
 
   (* group_by two columns *)
@@ -145,7 +145,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_gm "id,value\n1,10\n2,20\n3,30\n";
   close_out oc_gm;
 
-  let env_gm = Eval.initial_env () in
+  let env_gm = Packages.init_env () in
   let (_, env_gm) = eval_string_env (Printf.sprintf {|df_gm = read_csv("%s")|} csv_gm) env_gm in
 
   let (v, _) = eval_string_env

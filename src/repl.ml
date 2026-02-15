@@ -370,7 +370,6 @@ let cmd_repl env =
   Printf.printf "Website: https://tstats-project.org\n";
   Printf.printf "Contributions are welcome!\n";
   Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
-  Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
   
   (* Try to load documentation *)
   let docs_path = "help/docs.json" in
@@ -396,18 +395,24 @@ let cmd_repl env =
           if trimmed = ":quit" || trimmed = ":q" then
             print_endline "Exiting T REPL."
           else if trimmed = ":help" || trimmed = ":h" then begin
-            Printf.printf "REPL commands:\n";
+            Printf.printf "T language REPL commands:\n";
             Printf.printf "  :quit, :q     Exit the REPL\n";
-            Printf.printf "  :help, :h     Show this help\n";
-            Printf.printf "  :version      Show version\n";
-            Printf.printf "  :packages     List loaded packages\n";
-            Printf.printf "\nMulti-line input:\n";
-            Printf.printf "  Expressions with unclosed (, [, { or trailing |>\n";
-            Printf.printf "  automatically continue on the next line.\n\n";
+            Printf.printf "  :help, :h     Show this help message\n";
+            Printf.printf "  :version      Show T language and Nix versions\n";
+            Printf.printf "  :packages     List all currently loaded packages\n\n";
+            
+            Printf.printf "Resources:\n";
+            Printf.printf "  Website:      https://tstats-project.org/\n";
+            Printf.printf "  Bugs/Issues:  https://github.com/b-rodrigues/tlang/issues\n\n";
+
+            Printf.printf "Multi-line input:\n";
+            Printf.printf "  Expressions with unclosed (, [, { or trailing |> automatically continue on the next line.\n\n";
+            flush stdout;
             repl env
           end
           else if trimmed = ":version" then begin
             Printf.printf "T language version %s\n" version;
+            flush stdout;
             repl env
           end
           else if trimmed = ":packages" then begin
@@ -415,6 +420,7 @@ let cmd_repl env =
               Printf.printf "  %-12s  %s\n" pkg.name pkg.description
             ) Packages.all_packages;
             print_newline ();
+            flush stdout;
             repl env
           end
           else begin
@@ -456,7 +462,7 @@ let cmd_repl env =
 
 let () =
   let args = Array.to_list Sys.argv in
-  let env = Eval.initial_env () in
+  let env = Packages.init_env () in
   match args with
   | _ :: "run" :: filename :: _ -> cmd_run filename env
   | _ :: "repl" :: _ -> cmd_repl env

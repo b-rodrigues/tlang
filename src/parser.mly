@@ -22,7 +22,15 @@ type param_info = { names: string list; has_variadic: bool }
 %token COMMA COLON COLON_EQ DOT EQUALS ARROW DOTDOTDOT
 %token PIPE
 %token MAYBE_PIPE
-%token PLUS MINUS STAR SLASH
+%token PLUS MINUS STAR SLASH PERCENT
+
+/* ... */
+
+
+
+/* ... */
+
+
 %token EQ NEQ LT GT LTE GTE
 %token BITAND BITOR
 %token AND OR BANG IN
@@ -30,6 +38,11 @@ type param_info = { names: string list; has_variadic: bool }
 %token DOT_EQ DOT_NEQ DOT_LT DOT_GT DOT_LTE DOT_GTE
 %token DOT_BITAND DOT_BITOR
 %token TILDE
+
+/* ... PRECEDENCE ... */
+
+
+
 %token LAMBDA (* \ character *)
 %token NEWLINE SEMICOLON
 %token EOF
@@ -45,8 +58,9 @@ type param_info = { names: string list; has_variadic: bool }
 %nonassoc DOT_EQ DOT_NEQ DOT_LT DOT_GT DOT_LTE DOT_GTE
 %left PLUS MINUS
 %left DOT_PLUS DOT_MINUS
-%left STAR SLASH
-%left DOT_MUL DOT_DIV
+%left STAR SLASH PERCENT
+%left DOT_MUL DOT_DIV Mod
+
 
 
 /* ENTRY POINT */
@@ -164,6 +178,7 @@ mul_expr:
   | e = unary_expr { e }
   | left = mul_expr STAR right = unary_expr  { BinOp { op = Mul; left; right } }
   | left = mul_expr SLASH right = unary_expr { BinOp { op = Div; left; right } }
+  | left = mul_expr PERCENT right = unary_expr { BinOp { op = Mod; left; right } }
   | left = mul_expr DOT_MUL right = unary_expr  { BroadcastOp { op = Mul; left; right } }
   | left = mul_expr DOT_DIV right = unary_expr { BroadcastOp { op = Div; left; right } }
   ;
@@ -193,6 +208,7 @@ arg:
   | e = expr { (None, e) }
   | name = IDENT COLON e = expr { (Some name, e) }
   | name = IDENT EQUALS e = expr { (Some name, e) }
+  | DOT name = IDENT EQUALS e = expr { (Some ("." ^ name), e) }
   | col = COLUMN_REF EQUALS e = expr { (Some col, e) }
   ;
 
@@ -214,6 +230,11 @@ primary_expr:
   | i = if_expr { i }
   | p = pipeline_expr { p }
   | n = intent_expr { n }
+  | b = block_expr { b }
+  ;
+
+block_expr:
+  | LBRACE skip_sep stmts = stmt_list RBRACE { Block stmts } 
   ;
 
 lambda_expr:

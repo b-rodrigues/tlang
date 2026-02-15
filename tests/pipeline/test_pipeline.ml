@@ -12,7 +12,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Node Access:\n";
-  let env_p3 = Eval.initial_env () in
+  let env_p3 = Packages.init_env () in
   let (_, env_p3) = eval_string_env "p = pipeline {\n  x = 10\n  y = 20\n  total = x + y\n}" env_p3 in
   let (v, _) = eval_string_env "p.x" env_p3 in
   let result = Ast.Utils.value_to_string v in
@@ -145,7 +145,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   rows = data |> nrow
   cols = data |> ncol
   names = data |> colnames
-}|} csv_p3) (Eval.initial_env ()) in
+}|} csv_p3) (Packages.init_env ()) in
   let (v, _) = eval_string_env "p.rows" env_p3_df in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin

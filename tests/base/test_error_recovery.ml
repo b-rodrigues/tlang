@@ -29,7 +29,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc "name,group,value\nAlice,A,10\nBob,B,20\nCharlie,A,30\nDiana,B,0\n";
   close_out oc;
 
-  let env0 = Eval.initial_env () in
+  let env0 = Packages.init_env () in
   let (_, env0) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_err) env0 in
 
   (* Summarize with function that produces error on some groups *)
@@ -108,7 +108,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc2 "name,value\nAlice,10\nBob,20\nCharlie,30\n";
   close_out oc2;
 
-  let env_pipe = Eval.initial_env () in
+  let env_pipe = Packages.init_env () in
   let (_, env_pipe) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_pipe_err) env_pipe in
 
   (* Error in filter predicate propagation *)

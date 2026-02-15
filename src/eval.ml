@@ -33,9 +33,16 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
       DictLit (List.map (fun (k, v) -> (k, desugar_nse_expr v)) entries)
   | DotAccess { target; field } ->
       DotAccess { target = desugar_nse_expr target; field }
-  | Block exprs ->
-      Block (List.map desugar_nse_expr exprs)
+  | Block stmts ->
+      (* We need to desugar inside statements too *)
+      Block (List.map desugar_nse_stmt stmts)
   | _ -> expr
+
+and desugar_nse_stmt stmt =
+  match stmt with
+  | Expression e -> Expression (desugar_nse_expr e)
+  | Assignment { name; typ; expr } -> Assignment { name; typ; expr = desugar_nse_expr expr }
+  | Reassignment { name; expr } -> Reassignment { name; expr = desugar_nse_expr expr }
 
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
@@ -53,8 +60,14 @@ let rec uses_nse (expr : Ast.expr) : bool =
   | ListLit items -> List.exists (fun (_, e) -> uses_nse e) items
   | DictLit pairs -> List.exists (fun (_, e) -> uses_nse e) pairs
   | DotAccess { target; _ } -> uses_nse target
-  | Block exprs -> List.exists uses_nse exprs
+  | Block stmts -> List.exists uses_nse_stmt stmts
   | _ -> false
+
+and uses_nse_stmt stmt =
+  match stmt with
+  | Expression e -> uses_nse e
+  | Assignment { expr; _ } -> uses_nse expr
+  | Reassignment { expr; _ } -> uses_nse expr
 
 (* --- Scalar and Broadcasting Logic --- *)
 
@@ -93,6 +106,11 @@ let eval_scalar_binop op v1 v2 =
   | (Div, VFloat a, VFloat b) -> VFloat (a /. b)
   | (Div, VInt a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (float_of_int a /. b)
   | (Div, VFloat a, VInt b) -> if b = 0 then Error.division_by_zero () else VFloat (a /. float_of_int b)
+
+  | (Mod, VInt a, VInt b) -> if b = 0 then Error.division_by_zero () else VInt (a mod b)
+  | (Mod, VFloat a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (mod_float a b)
+  | (Mod, VInt a, VFloat b) -> if b = 0.0 then Error.division_by_zero () else VFloat (mod_float (float_of_int a) b)
+  | (Mod, VFloat a, VInt b) -> if b = 0 then Error.division_by_zero () else VFloat (mod_float a (float_of_int b))
 
   (* Comparison *)
   | (Eq, VInt a, VFloat b) -> VBool (float_of_int a = b)
@@ -335,16 +353,21 @@ let rec eval_expr (env : environment) (expr : Ast.expr) : value =
   | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env e)) pairs)
   | DotAccess { target; field } -> eval_dot_access env target field
   | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
-  | Block exprs -> eval_block env exprs
+  | Block stmts -> eval_block env stmts
   | PipelineDef nodes -> eval_pipeline env nodes
   | IntentDef pairs -> eval_intent env pairs
 
-and eval_block env = function
-  | [] -> VNull
-  | [e] -> eval_expr env e
-  | e :: rest ->
-      let _ = eval_expr env e in
-      eval_block env rest
+and eval_block env stmts =
+  let rec loop env = function
+    | [] -> VNull
+    | [stmt] -> 
+        let (v, _) = eval_statement env stmt in
+        v
+    | stmt :: rest ->
+        let (_, new_env) = eval_statement env stmt in
+        loop new_env rest
+  in
+  loop env stmts
 
 (* --- Phase 6: Intent Block Evaluation --- *)
 
@@ -385,9 +408,14 @@ and free_vars (expr : Ast.expr) : string list =
     | UnOp { operand; _ } -> collect operand
     | BroadcastOp { left; right; _ } -> collect left @ collect right
     | DotAccess { target; _ } -> collect target
-    | Block exprs -> List.concat_map collect exprs
+    | Block stmts -> List.concat_map collect_stmt stmts
     | PipelineDef _ -> []
     | IntentDef pairs -> List.concat_map (fun (_, e) -> collect e) pairs
+
+  and collect_stmt = function
+    | Expression e -> collect e
+    | Assignment { expr; _ } -> collect expr
+    | Reassignment { expr; _ } -> collect expr
   in
   let vars = collect expr in
   List.sort_uniq String.compare vars
@@ -769,10 +797,11 @@ and eval_binop env op left right =
   let lval = eval_expr env left in
   let rval = eval_expr env right in
   match (op, lval, rval) with
-  | (Plus | Minus | Mul | Div | Lt | Gt | LtEq | GtEq | Eq | NEq), _, _ ->
+  | (Plus | Minus | Mul | Div | Mod | Lt | Gt | LtEq | GtEq | Eq | NEq), _, _ ->
       (match lval, rval with
        | VNDArray _, _ | _, VNDArray _
-       | Ast.VVector _, _ | _, Ast.VVector _ -> broadcast2 op lval rval
+       | Ast.VVector _, _ | _, Ast.VVector _
+       | Ast.VList _, _ | _, Ast.VList _ -> broadcast2 op lval rval
        | _ -> eval_scalar_binop op lval rval)
   | _ -> eval_scalar_binop op lval rval
 
@@ -791,7 +820,7 @@ and eval_unop env op operand =
 
 (* --- Statement & Program Evaluation --- *)
 
-let eval_statement (env : environment) (stmt : stmt) : value * environment =
+and eval_statement (env : environment) (stmt : stmt) : value * environment =
   match stmt with
   | Expression e ->
       let v = eval_expr env e in
@@ -828,227 +857,7 @@ let make_builtin ?(variadic=false) arity func =
 let make_builtin_named ?(variadic=false) arity func =
   VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
 
-(* --- Phase 2: Arrow-Backed CSV Parser --- *)
-
-(** Split a CSV line into fields, handling quoted fields *)
-let parse_csv_line ?(sep=',') (line : string) : string list =
-  let len = String.length line in
-  let buf = Buffer.create 64 in
-  let fields = ref [] in
-  let i = ref 0 in
-  let in_quotes = ref false in
-  while !i < len do
-    let c = line.[!i] in
-    if !in_quotes then begin
-      if c = '"' then begin
-        if !i + 1 < len && line.[!i + 1] = '"' then begin
-          Buffer.add_char buf '"';
-          i := !i + 2
-        end else begin
-          in_quotes := false;
-          i := !i + 1
-        end
-      end else begin
-        Buffer.add_char buf c;
-        i := !i + 1
-      end
-    end else begin
-      if c = '"' then begin
-        in_quotes := true;
-        i := !i + 1
-      end else if c = sep then begin
-        fields := Buffer.contents buf :: !fields;
-        Buffer.clear buf;
-        i := !i + 1
-      end else begin
-        Buffer.add_char buf c;
-        i := !i + 1
-      end
-    end
-  done;
-  fields := Buffer.contents buf :: !fields;
-  List.rev !fields
-
-(** Try to parse a string as a typed value (Int, Float, Bool, NA, or String) *)
-let parse_csv_value (s : string) : value =
-  let trimmed = String.trim s in
-  if trimmed = "" || trimmed = "NA" || trimmed = "na" || trimmed = "N/A" then
-    VNA NAGeneric
-  else
-    match int_of_string_opt trimmed with
-    | Some n -> VInt n
-    | None ->
-      match float_of_string_opt trimmed with
-      | Some f -> VFloat f
-      | None ->
-        match String.lowercase_ascii trimmed with
-        | "true" -> VBool true
-        | "false" -> VBool false
-        | _ -> VString trimmed
-
-(** Split a string into lines, handling \r\n and \n *)
-let split_lines (s : string) : string list =
-  let lines = String.split_on_char '\n' s in
-  List.map (fun line ->
-    if String.length line > 0 && line.[String.length line - 1] = '\r' then
-      String.sub line 0 (String.length line - 1)
-    else
-      line
-  ) lines
-
-(** Parse a CSV string into an Arrow-backed DataFrame *)
-let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) ?(clean_colnames=false) (content : string) : value =
-  let lines = split_lines content in
-  (* Remove trailing empty lines *)
-  let lines = List.filter (fun l -> String.trim l <> "") lines in
-  (* Skip the first N lines *)
-  let rec drop n lst = if n <= 0 then lst else match lst with [] -> [] | _ :: rest -> drop (n - 1) rest in
-  let lines = drop skip_lines lines in
-  match lines with
-  | [] -> VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
-  | first_line :: rest_lines ->
-      let headers, data_lines =
-        if skip_header then
-          (* No header row: generate column names V1, V2, ... *)
-          let ncols = List.length (parse_csv_line ~sep first_line) in
-          let headers = List.init ncols (fun i -> Printf.sprintf "V%d" (i + 1)) in
-          (headers, lines)
-        else
-          (parse_csv_line ~sep first_line, rest_lines)
-      in
-      (* Apply column name cleaning if requested *)
-      let headers =
-        if clean_colnames then Clean_colnames.clean_names headers
-        else headers
-      in
-      let ncols = List.length headers in
-      let data_rows = List.map (parse_csv_line ~sep) data_lines in
-      (* Validate column count consistency *)
-      let valid_rows = List.filter (fun row -> List.length row = ncols) data_rows in
-      let nrows = List.length valid_rows in
-      if nrows = 0 && List.length data_rows > 0 then
-        make_error ValueError
-          (Printf.sprintf "CSV Error: Row column counts do not match header (expected %d columns)" ncols)
-      else
-        (* Convert rows to array for O(1) access *)
-        let rows_arr = Array.of_list valid_rows in
-        (* Build column arrays using per-cell type inference for backward compatibility *)
-        let value_columns = List.mapi (fun col_idx name ->
-          let col_data = Array.init nrows (fun row_idx ->
-            let row = rows_arr.(row_idx) in
-            parse_csv_value (List.nth row col_idx)
-          ) in
-          (name, col_data)
-        ) headers in
-        (* Convert to Arrow table via bridge *)
-        let arrow_table = Arrow_bridge.table_from_value_columns value_columns nrows in
-        VDataFrame { arrow_table; group_keys = [] }
-
-
-(* --- Load All Packages --- *)
-(* Each package module provides a `register` function that adds its builtins to the environment. *)
-(* Modules that need eval_call or rerun_pipeline receive them as labeled parameters. *)
-
-let initial_env () : environment =
-  let env = Env.empty in
-  (* Core package *)
-  let env = T_print.register env in
-  let env = T_type.register env in
-  let env = Head.register env in
-  let env = Tail.register env in
-  let env = Is_error.register env in
-  let env = T_seq.register env in
-  let env = T_map.register ~eval_call env in
-  let env = Sum.register env in
-  let env = T_get.register env in
-  let env = T_string.register env in
-  let env = Help.register env in
-  let env = String_ops.register env in
-  (* Base package *)
-  let env = T_assert.register env in
-  let env = Is_na.register env in
-  let env = Na.register env in
-  let env = Error_mod.register env in
-  let env = Error_utils.register env in
-  (* Dataframe package *)
-  let env = T_dataframe.register env in
-  let env = T_read_csv.register ~parse_csv_string:(fun ~sep ~skip_header ~skip_lines ~clean_colnames content -> parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames content) env in
-  let env = T_write_csv.register ~write_csv_fn:(fun ~sep table path -> Arrow_io.write_csv ~sep table path) env in
-  let env = Colnames.register env in
-  let env = Nrow.register env in
-  let env = Ncol.register env in
-  let env = Glimpse.register env in
-  (* clean_colnames as a standalone function on DataFrames *)
-  let env = Env.add "clean_colnames"
-    (make_builtin 1 (fun args _env ->
-      match args with
-      | [VDataFrame { arrow_table; group_keys }] ->
-          let old_names = Arrow_table.column_names arrow_table in
-          let new_names = Clean_colnames.clean_names old_names in
-          let columns = List.map2 (fun old_name new_name ->
-            match Arrow_table.get_column arrow_table old_name with
-            | Some col -> (new_name, col)
-            | None -> (new_name, Arrow_table.NullColumn (Arrow_table.num_rows arrow_table))
-          ) old_names new_names in
-          let nrows = Arrow_table.num_rows arrow_table in
-          let new_table = Arrow_table.create columns nrows in
-          VDataFrame { arrow_table = new_table; group_keys }
-      | [VList items] ->
-          let strs = List.map (fun (_, v) ->
-            match v with VString s -> s | _ -> Ast.Utils.value_to_string v
-          ) items in
-          let cleaned = Clean_colnames.clean_names strs in
-          VList (List.map (fun s -> (None, VString s)) cleaned)
-      | [VNA _] -> Error.type_error "Function `clean_colnames` expects a DataFrame or List.\nReceived NA."
-      | [_] -> Error.type_error "Function `clean_colnames` expects a DataFrame or List of strings."
-      | _ -> Error.arity_error_named "clean_colnames" ~expected:1 ~received:(List.length args)
-    ))
-    env
-  in
-  (* Pipeline package *)
-  let env = Pipeline_nodes.register env in
-  let env = Pipeline_deps.register env in
-  let env = Pipeline_node.register env in
-  let env = Pipeline_run.register ~rerun_pipeline env in
-  (* Colcraft package *)
-  let env = T_select.register env in
-  let env = T_filter.register ~eval_call ~eval_expr ~uses_nse ~desugar_nse_expr env in
-  let env = Mutate.register ~eval_call ~eval_expr ~uses_nse ~desugar_nse_expr env in
-  let env = Arrange.register env in
-  let env = Group_by.register env in
-  let env = Ungroup.register env in
-  let env = Summarize.register ~eval_call ~eval_expr ~uses_nse ~desugar_nse_expr env in
-  let env = Window_rank.register env in
-  let env = Window_offset.register env in
-  let env = Window_cumulative.register env in
-  (* Math package *)
-  let env = T_sqrt.register env in
-  let env = T_abs.register env in
-  let env = T_log.register env in
-  let env = T_exp.register env in
-  let env = Pow.register env in
-  let env = T_iota.register env in
-  let env = Ndarray.register env in
-  (* Stats package *)
-  let env = Mean.register env in
-  let env = Sd.register env in
-  let env = Quantile.register env in
-  let env = Cor.register env in
-  let env = Lm.register env in
-  let env = Fit_stats.register env in
-  let env = Add_diagnostics.register env in
-  let env = Summary.register env in
-  let env = Min.register env in
-  let env = Max.register env in
-  (* Explain package *)
-  let env = Intent_fields.register env in
-  let env = Intent_get.register env in
-  let env = T_explain.register env in
-  let env = Explain_json.register ~eval_call env in
-  (* Phase 7: Pretty-print and packages *)
-  let env = Pretty_print.register env in
-  let env = Packages.register env in
-  env
+(* Builtins *)
 
 let eval_program (program : program) (env : environment) : value * environment =
   let rec go env = function
