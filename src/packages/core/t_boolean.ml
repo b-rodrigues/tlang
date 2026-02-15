@@ -54,33 +54,43 @@ let ifelse (args : Ast.value list) _env =
         | _ -> 1
       in
 
-      (* 2. Helper to get value at index i (with recycling) *)
-      let get_at v i =
+      (* 2. Helper to build accessor functions for values (with recycling) *)
+      let make_getter v =
         match v with
-        | VVector arr -> if Array.length arr = 0 then VNull else arr.(i mod Array.length arr)
-        | VList l -> 
-            let n = List.length l in
-            if n = 0 then VNull else snd (List.nth l (i mod n))
-        | VNDArray { data; _ } -> 
+        | VVector arr ->
+            let n = Array.length arr in
+            (fun i -> if n = 0 then VNull else arr.(i mod n))
+        | VList l ->
+            let arr = Array.of_list (List.map snd l) in
+            let n = Array.length arr in
+            (fun i -> if n = 0 then VNull else arr.(i mod n))
+        | VNDArray { data; _ } ->
             let n = Array.length data in
-            if n = 0 then VNull else VFloat data.(i mod n)
-        | _ -> v (* Scalar repeats *)
+            (fun i -> if n = 0 then VNull else VFloat data.(i mod n))
+        | _ ->
+            (* Scalar repeats *)
+            (fun _ -> v)
       in
+
+      let get_condition = make_getter condition in
+      let get_true = make_getter true_val in
+      let get_false = make_getter false_val in
+      let get_missing = make_getter missing_val in
       
       (* 3. Determine Common Type for Output *)
-      let sample_t = get_at true_val 0 in
-      let sample_f = get_at false_val 0 in
-      let sample_m = get_at missing_val 0 in
+      let sample_t = get_true 0 in
+      let sample_f = get_false 0 in
+      let sample_m = get_missing 0 in
       let target_type = common_type [sample_t; sample_f; sample_m] in
 
       (* 4. Construct Result Vector *)
       let result = Array.init len (fun i ->
-        let cond_v = get_at condition i in
+        let cond_v = get_condition i in
         match cond_v with
-        | VBool true -> cast_value target_type (get_at true_val i)
-        | VBool false -> cast_value target_type (get_at false_val i)
-        | VNA _ -> cast_value target_type (get_at missing_val i)
-        | VNull -> cast_value target_type (get_at missing_val i) (* Treat null as missing in logic *)
+        | VBool true -> cast_value target_type (get_true i)
+        | VBool false -> cast_value target_type (get_false i)
+        | VNA _ -> cast_value target_type (get_missing i)
+        | VNull -> cast_value target_type (get_missing i) (* Treat null as missing in logic *)
         | _ -> VError { code = TypeError; message = "Condition must be logical"; context = [] }
       ) in
       
@@ -198,6 +208,23 @@ let casewhen eval_func args env =
      let rep_values = List.map get_rep_value potential_values in
      let target_type = common_type rep_values in
      
+     (* Pre-convert VLists to arrays for efficient indexing *)
+     let make_indexable v =
+       match v with
+       | VList l -> 
+           let arr = Array.of_list (List.map snd l) in
+           let n = Array.length arr in
+           (`Array arr, n)
+       | VVector arr -> (`Vector arr, Array.length arr)
+       | _ -> (`Scalar v, 1)
+     in
+     
+     let indexed_cases = List.map (fun (cond, value) ->
+       (make_indexable cond, make_indexable value)
+     ) evaluated_cases in
+     
+     let indexed_default = make_indexable default_val in
+     
      (* 5. Construct Result *)
      let result = Array.init len (fun i ->
        (* Find first matching case *)
@@ -206,25 +233,26 @@ let casewhen eval_func args env =
          | [] -> 
              (* No match found, use default *)
              (* Handle recycling for default value *)
-             let def = match default_val with 
-               | VVector arr -> if Array.length arr = 0 then VNull else arr.(i mod Array.length arr)
-               | _ -> default_val 
+             let def = match indexed_default with
+               | (`Array arr, n) -> if n = 0 then VNull else arr.(i mod n)
+               | (`Vector arr, n) -> if n = 0 then VNull else arr.(i mod n)
+               | (`Scalar v, _) -> v
              in
              def
-         | (cond, value) :: rest ->
+         | ((cond_idx, cond_len), (value_idx, value_len)) :: rest ->
              (* Get condition value at i *)
-             let c = match cond with
-               | VVector arr -> if Array.length arr = 0 then VNull else arr.(i mod Array.length arr)
-               | VList l -> if List.length l = 0 then VNull else snd (List.nth l (i mod List.length l))
-               | _ -> cond
+             let c = match cond_idx with
+               | `Array arr -> if cond_len = 0 then VNull else arr.(i mod cond_len)
+               | `Vector arr -> if cond_len = 0 then VNull else arr.(i mod cond_len)
+               | `Scalar v -> v
              in
              match c with
              | VBool true ->
                  (* Get result value at i *)
-                 let v = match value with
-                   | VVector arr -> if Array.length arr = 0 then VNull else arr.(i mod Array.length arr)
-                   | VList l -> if List.length l = 0 then VNull else snd (List.nth l (i mod List.length l))
-                   | _ -> value
+                 let v = match value_idx with
+                   | `Array arr -> if value_len = 0 then VNull else arr.(i mod value_len)
+                   | `Vector arr -> if value_len = 0 then VNull else arr.(i mod value_len)
+                   | `Scalar v -> v
                  in
                  v
              | VBool false -> find_match rest
@@ -234,7 +262,7 @@ let casewhen eval_func args env =
              | other -> VError { code = TypeError; message = "Condition must be logical, got " ^ Utils.type_name other; context = [] }
        
        in
-       let v = find_match evaluated_cases in
+       let v = find_match indexed_cases in
        match v with 
        | VError _ -> v 
        | _ -> cast_value target_type v
