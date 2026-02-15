@@ -5,7 +5,7 @@
  (modules
    test_runner
    test_arithmetic test_comparisons test_logical test_variables
-   test_functions test_pipe test_ifelse test_lists test_dicts test_builtins
+   test_functions test_strings test_pipe test_ifelse test_lists test_dicts test_builtins
    test_na test_errors
    test_dataframe test_pipeline test_colcraft test_window
    test_math test_stats test_broom_golden test_explain_tests

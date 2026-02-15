@@ -51,17 +51,23 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
              Falls back to row-by-row if result isn't a VVector/VList of correct length. *)
           let whole_result = eval_call env fn [(None, Value (VDataFrame df))] in
           (match whole_result with
-           | VVector vec when Array.length vec = nrows ->
-             let arrow_col = Arrow_bridge.values_to_column vec in
-             let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
-             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
-           | VList items when List.length items = nrows ->
-             let vec = Array.of_list (List.map snd items) in
-             let arrow_col = Arrow_bridge.values_to_column vec in
-             let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
-             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
-           | _ ->
-             (* Fallback: apply fn row-by-row *)
+            | VVector vec when Array.length vec = nrows ->
+              let arrow_col = Arrow_bridge.values_to_column vec in
+              let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
+              VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+            | VList items when List.length items = nrows ->
+              let vec = Array.of_list (List.map snd items) in
+              let arrow_col = Arrow_bridge.values_to_column vec in
+              let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
+              VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+            | res when not (is_na_value res) && (match res with VVector _ | VList _ | VNDArray _ | VError _ -> false | _ -> true) ->
+              (* Broadcast scalar result *)
+              let vec = Array.make nrows res in
+              let arrow_col = Arrow_bridge.values_to_column vec in
+              let new_table = Arrow_compute.add_column df.arrow_table col_name arrow_col in
+              VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
+            | _ ->
+              (* Fallback: apply fn row-by-row (handles VError or mismatched lengths) *)
              let new_col = Array.init nrows (fun i ->
                let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
                eval_call env fn [(None, Value row_dict)]
