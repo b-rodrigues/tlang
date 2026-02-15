@@ -3,6 +3,9 @@
 (* Menhir grammar for the T language — Phase 0 Alpha *)
 open Ast
 
+(* Custom exception for mixed bracket forms - avoids circular dependency with Parser.Error *)
+exception Mixed_bracket_form
+
 (* Helper to build a parameter record from parsing *)
 type param_info = { names: string list; has_variadic: bool }
 
@@ -13,7 +16,7 @@ type bracket_item =
 let build_bracket_literal (items : bracket_item list) : Ast.expr =
   let rec loop saw_expr saw_pair dict_rev list_rev = function
     | [] ->
-      if saw_expr && saw_pair then raise Parser.Error
+      if saw_expr && saw_pair then raise Mixed_bracket_form
       else if saw_pair then DictLit (List.rev dict_rev)
       else ListLit (List.rev list_rev)
     | BrExpr e :: rest ->
@@ -320,6 +323,8 @@ intent_field:
 bracket_lit:
   | LBRACK skip_sep items = bracket_items RBRACK
     { build_bracket_literal items }
+  | LBRACK skip_sep COLON skip_sep RBRACK
+    { DictLit [] }
   ;
 
 bracket_items:
