@@ -59,7 +59,7 @@ type param_info = { names: string list; has_variadic: bool }
 %left PLUS MINUS
 %left DOT_PLUS DOT_MINUS
 %left STAR SLASH PERCENT
-%left DOT_MUL DOT_DIV Mod
+%left DOT_MUL DOT_DIV
 
 
 
@@ -234,7 +234,14 @@ primary_expr:
   ;
 
 block_expr:
-  | LBRACE skip_sep stmts = stmt_list RBRACE { Block stmts } 
+  | LBRACE skip_sep stmts = nonempty_stmt_list RBRACE { Block stmts } 
+  ;
+
+/* Helper to ensure blocks contain at least one statement.
+   This avoids ambiguity with empty dict literals `{}`. */
+nonempty_stmt_list:
+  | s = statement skip_sep { [s] }
+  | s = statement sep skip_sep rest = stmt_list { s :: rest }
   ;
 
 lambda_expr:

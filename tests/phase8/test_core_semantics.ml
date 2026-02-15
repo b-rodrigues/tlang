@@ -12,6 +12,14 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "negative result" "3 - 10" "-7";
   test "multiply by zero" "42 * 0" "0";
   test "string repeat via concat error" {|"ha" + "ha" + "ha"|} {|Error(TypeError: "String concatenation with '+' is not supported. Use 'join([a, b], sep)' or 'paste(a, b, sep)' instead.")|};
+  
+  (* Modulo operator tests *)
+  test "modulo basic" "10 % 3" "1";
+  test "modulo by zero (int)" "10 % 0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "modulo by zero (float)" "10.5 % 0.0" {|Error(DivisionByZero: "Division by zero.")|};
+  test "modulo negative operands" "(-10) % 3" "-1";
+  test "modulo float" "10.5 % 3.0" "1.5";
+  test "modulo mixed types" "10 % 3.0" "1.";
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: Variable scoping:\n";
@@ -69,7 +77,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   Printf.printf "Phase 8 — Core Semantics: Dict edge cases:\n";
 
-  test "empty block (is null)" "{}" "null";
+  (* NOTE: Empty braces "{}" parse as an empty dictionary.
+     Block expressions require at least one statement to distinguish from dicts. *)
+  test "empty dict" "{}" {|{}|};
   test "dict with computed values" "x = 10; {a: x, b: x * 2}" {|{`a`: 10, `b`: 20}|};
   test "nested dict" {|{outer: {inner: 42}}.outer.inner|} "42";
   print_newline ();
