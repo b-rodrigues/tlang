@@ -41,9 +41,9 @@
    t_select t_filter mutate arrange group_by ungroup summarize
    window_rank window_offset window_cumulative
    ; packages/math
-   t_sqrt t_abs t_log t_exp pow ndarray t_iota
+   t_sqrt t_abs t_log t_exp pow ndarray t_iota round floor ceiling ceil trunc sign signif sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh
    ; packages/stats
-   mean sd quantile cor lm fit_stats add_diagnostics summary min max
+   mean sd quantile cor lm fit_stats add_diagnostics summary min max median var cov range iqr scale standardize normalize mad skewness kurtosis mode cv fivenum trimmed_mean winsorize huber_loss
    ; packages/explain
    intent_fields intent_get t_explain explain_json
    ; package_manager

@@ -81,6 +81,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly.")|};
 
   (try Sys.remove csv_p5_cor with _ -> ());
+  Printf.printf "Phase 5 — Stats: extended stats():\n";
+  test "median basic" "median([1, 2, 10])" "2.";
+  test "var basic" "var([1, 2, 3, 4, 5])" "2.5";
+  test "cov basic" "cov([1, 2, 3], [2, 4, 6])" "2.";
+  test "range basic" "range([3, 1, 9, 2])" "Vector[1., 9.]";
+  test "iqr basic" "iqr([1, 2, 3, 4, 5])" "2.";
+  test "mad basic" "mad([1, 1, 2, 2, 4, 6, 9])" "1.4826";
+  test "cv basic" "cv([1, 2, 3, 4])" "0.516397779494";
+  test "fivenum basic" "fivenum([1, 2, 3, 4, 5])" "Vector[1., 2., 3., 4., 5.]";
+  test "trimmed mean" "trimmed_mean([1, 2, 100, 101], 0.25)" "51.";
+  test "winsorize" "winsorize([1, 2, 3, 100], 0.25)" "Vector[1.75, 2., 3., 27.25]";
+  test "huber loss scalar" "huber_loss(3, 1.5)" "3.375";
+  test "scale" "scale([1, 2, 3])" "Vector[-1., 0., 1.]";
+  test "normalize" "normalize([10, 20, 30])" "Vector[0., 0.5, 1.]";
+  print_newline ();
+
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: lm():\n";

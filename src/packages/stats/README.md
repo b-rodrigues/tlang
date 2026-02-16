@@ -16,6 +16,22 @@ Statistical summaries and models.
 | `add_diagnostics(model, data)` | Augment data with diagnostics (like `broom::augment`) |
 | `min(x)` | Minimum value |
 | `max(x)` | Maximum value |
+| `median(x, na_rm = false)` | Median value |
+| `var(x, na_rm = false)` | Sample variance |
+| `cov(x, y, na_rm = false)` | Sample covariance |
+| `range(x, na_rm = false)` | Min/max as a length-2 vector |
+| `iqr(x, na_rm = false)` | Interquartile range |
+| `mad(x, na_rm = false)` | Median absolute deviation (scaled) |
+| `skewness(x, na_rm = false)` | Distribution skewness |
+| `kurtosis(x, na_rm = false)` | Excess kurtosis |
+| `mode(x)` | Most frequent value |
+| `cv(x, na_rm = false)` | Coefficient of variation (sd / mean) |
+| `fivenum(x, na_rm = false)` | Five-number summary |
+| `trimmed_mean(x, trim)` | Mean after trimming both tails |
+| `winsorize(x, limits)` | Cap tails by quantile limits |
+| `huber_loss(x, delta)` | Robust Huber loss |
+| `scale(x)` / `standardize(x)` | z-score standardization |
+| `normalize(x)` | Min-max scaling to [0,1] |
 
 ## Examples
 
