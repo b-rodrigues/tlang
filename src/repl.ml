@@ -107,17 +107,15 @@ let repl_display_value v =
           | Some (Ast.VString name), Some (Ast.VString description), Some (Ast.VList fns) ->
               (* Require that all function entries are strings; otherwise,
                  do not treat this value as package metadata. *)
-              let all_strings, fn_names =
-                List.fold_right
-                  (fun (_, item) (ok, acc) ->
-                     if not ok then (false, acc)
-                     else match item with
-                       | Ast.VString fn_name -> (true, fn_name :: acc)
-                       | _ -> (false, acc))
-                  fns
-                  (true, [])
+              let fn_names =
+                List.filter_map (fun (_, item) ->
+                  match item with
+                  | Ast.VString fn_name -> Some fn_name
+                  | _ -> None
+                ) fns
               in
-              if all_strings then
+              (* Only treat as package metadata if ALL items were strings *)
+              if List.length fn_names = List.length fns then
                 Some (name, description, fn_names)
               else
                 None
