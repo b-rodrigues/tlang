@@ -15,6 +15,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "package_info stats functions"
     {|type(package_info("stats").functions)|}
     {|"List"|};
+  test "package_info colcraft functions are expanded"
+    {|length(package_info("colcraft").functions) > 7|}
+    "true";
   test "package_info missing"
     {|package_info("nonexistent")|}
     {|Error(KeyError: "Package `nonexistent` not found.")|};

@@ -89,6 +89,22 @@ let is_incomplete input =
 
 (** Pretty-print a value for REPL display *)
 let repl_display_value v =
+  let package_info_of_value = function
+    | Ast.VDict pairs ->
+        let lookup key = List.assoc_opt key pairs in
+        (match lookup "name", lookup "description", lookup "functions" with
+        | Some (Ast.VString name), Some (Ast.VString description), Some (Ast.VList fns) ->
+            let fn_names =
+              List.filter_map (fun (_, item) ->
+                match item with
+                | Ast.VString fn_name -> Some fn_name
+                | _ -> None
+              ) fns
+            in
+            Some (name, description, fn_names)
+        | _ -> None)
+    | _ -> None
+  in
   match v with
   | Ast.VNull -> ()
   | Ast.VError _ ->
@@ -97,7 +113,14 @@ let repl_display_value v =
   | Ast.VDataFrame _ | Ast.VPipeline _ ->
       print_string (Pretty_print.pretty_print_value v);
       flush stdout
-  | v -> print_endline (Ast.Utils.value_to_string v)
+  | v ->
+      (match package_info_of_value v with
+      | Some (name, description, functions) ->
+          Printf.printf "\n  %s\n\n  %s\n\n  Functions (%d):\n"
+            name description (List.length functions);
+          List.iter (fun fn_name -> Printf.printf "    - %s\n" fn_name) functions;
+          print_newline ()
+      | None -> print_endline (Ast.Utils.value_to_string v))
 
 (* --- CLI Commands --- *)
 
