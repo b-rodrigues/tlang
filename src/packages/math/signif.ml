@@ -44,8 +44,12 @@ let register env =
     in
     match args with
     | [x; VInt digits] when digits > 0 -> map_numeric_unary ~fname:"signif" (fun v -> signif_f v digits) [x]
+    | [_; VInt _] -> Error.value_error "Function `signif` expects positive integer digits."
     | [x; VFloat d] when d > 0.0 ->
         let digits = int_of_float d in
-        map_numeric_unary ~fname:"signif" (fun v -> signif_f v digits) [x]
-    | [_; _] -> Error.value_error "Function `signif` expects positive digits."
+        if float_of_int digits = d && digits > 0 then
+          map_numeric_unary ~fname:"signif" (fun v -> signif_f v digits) [x]
+        else
+          Error.value_error "Function `signif` expects positive integer digits."
+    | [_; _] -> Error.value_error "Function `signif` expects positive integer digits."
     | _ -> Error.arity_error_named "signif" ~expected:2 ~received:(List.length args))) env

@@ -40,22 +40,6 @@ let numeric_values ~label ~na_rm v =
       in
       go [] vals
 
-let quantile xs p =
-  let arr = Array.of_list xs in
-  let n = Array.length arr in
-  if n = 0 then None
-  else (
-    Array.sort compare arr;
-    let h = p *. float_of_int (n - 1) in
-    let lo = int_of_float (Float.floor h) in
-    let hi = min (lo + 1) (n - 1) in
-    let frac = h -. float_of_int lo in
-    Some (arr.(lo) +. frac *. (arr.(hi) -. arr.(lo))))
-
-let mean xs =
-  let n = List.length xs in
-  if n = 0 then None else Some (List.fold_left ( +. ) 0.0 xs /. float_of_int n)
-
 let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 
 let register env =

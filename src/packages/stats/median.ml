@@ -52,12 +52,6 @@ let quantile xs p =
     let frac = h -. float_of_int lo in
     Some (arr.(lo) +. frac *. (arr.(hi) -. arr.(lo))))
 
-let mean xs =
-  let n = List.length xs in
-  if n = 0 then None else Some (List.fold_left ( +. ) 0.0 xs /. float_of_int n)
-
-let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
-
 let register env =
   Env.add "median" (make_builtin_named ~name:"median" ~variadic:true 1 (fun named_args _ ->
     let na_rm = has_na_rm named_args in
