@@ -96,13 +96,20 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
                         | _ -> 1
                       in
 
+                      (* Pre-convert VLists to arrays to avoid repeated conversions in the loop *)
+                      let normalize_for_indexing v =
+                        match v with
+                        | VList l -> VVector (Array.of_list (List.map snd l))
+                        | _ -> v
+                      in
+                      let condition_normalized = normalize_for_indexing condition in
+                      let true_val_normalized = normalize_for_indexing true_val in
+                      let false_val_normalized = normalize_for_indexing false_val in
+                      let missing_val_normalized = normalize_for_indexing missing_val in
+
                       let get_at v i =
                         match v with
                         | VVector arr ->
-                            let n = Array.length arr in
-                            if n = 0 then VNull else arr.(i mod n)
-                        | VList l ->
-                            let arr = Array.of_list (List.map snd l) in
                             let n = Array.length arr in
                             if n = 0 then VNull else arr.(i mod n)
                         | VNDArray { data; _ } ->
@@ -112,9 +119,9 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
                       in
 
                       let inferred_target_type =
-                        let sample_t = get_at true_val 0 in
-                        let sample_f = get_at false_val 0 in
-                        let sample_m = get_at missing_val 0 in
+                        let sample_t = get_at true_val_normalized 0 in
+                        let sample_f = get_at false_val_normalized 0 in
+                        let sample_m = get_at missing_val_normalized 0 in
                         common_type [sample_t; sample_f; sample_m]
                       in
                       let target_type_or_err =
@@ -130,12 +137,12 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
                       | Error err -> err
                       | Ok target_type ->
                           let result = Array.init len (fun i ->
-                            let cond_v = get_at condition i in
+                            let cond_v = get_at condition_normalized i in
                             match cond_v with
-                            | VBool true -> cast_value target_type (get_at true_val i)
-                            | VBool false -> cast_value target_type (get_at false_val i)
-                            | VNA _ -> cast_value target_type (get_at missing_val i)
-                            | VNull -> cast_value target_type (get_at missing_val i)
+                            | VBool true -> cast_value target_type (get_at true_val_normalized i)
+                            | VBool false -> cast_value target_type (get_at false_val_normalized i)
+                            | VNA _ -> cast_value target_type (get_at missing_val_normalized i)
+                            | VNull -> cast_value target_type (get_at missing_val_normalized i)
                             | _ -> VError { code = TypeError; message = "Condition must be logical"; context = [] }
                           ) in
                           (match Array.find_opt Error.is_error_value result with

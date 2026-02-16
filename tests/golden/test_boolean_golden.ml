@@ -41,6 +41,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|ifelse([true, false, NA], 1, 0, 999)|}
     "Vector[1, 0, 999]";
 
+  test "golden boolean: ifelse explicit missing named"
+    {|ifelse([true, false, NA], 1, 0, missing = 999)|}
+    "Vector[1, 0, 999]";
+
   test "golden boolean: ifelse out_type cast to string"
     {|ifelse([true, false], 1, 0, out_type = "String")|}
     {|Vector["1", "0"]|};
