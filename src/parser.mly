@@ -7,7 +7,8 @@ open Ast
 exception Mixed_bracket_form
 
 (* Helper to build a parameter record from parsing *)
-type param_info = { names: string list; has_variadic: bool }
+type parsed_param = string * Ast.typ option
+type param_info = { params: parsed_param list; has_variadic: bool }
 
 type bracket_item =
   | BrExpr of Ast.expr
@@ -259,28 +260,100 @@ block_expr:
   ;
 
 lambda_expr:
-  | LAMBDA LPAREN p = params RPAREN body = expr
-    { Lambda { params = p.names; variadic = p.has_variadic; body; env = None } }
-  | FUNCTION LPAREN p = params RPAREN body = expr
-    { Lambda { params = p.names; variadic = p.has_variadic; body; env = None } }
-  | LAMBDA LPAREN p = params RPAREN ARROW body = expr
-    { Lambda { params = p.names; variadic = p.has_variadic; body; env = None } }
+  | LAMBDA g = generic_params_opt LPAREN p = params RPAREN body = expr
+    {
+      (* Untyped lambda: no return annotation, body is any expression *)
+      let names = List.map fst p.params in
+      let param_types = List.map snd p.params in
+      Lambda {
+        params = names;
+        param_types;
+        return_type = None;
+        generic_params = g;
+        variadic = p.has_variadic;
+        body;
+        env = None;
+      }
+    }
+  | LAMBDA g = generic_params_opt LPAREN p = params RPAREN ARROW rt = typ body = block_expr
+    {
+      (* Typed lambda: return annotation present, body must be a block to avoid ambiguity *)
+      let names = List.map fst p.params in
+      let param_types = List.map snd p.params in
+      Lambda {
+        params = names;
+        param_types;
+        return_type = Some rt;
+        generic_params = g;
+        variadic = p.has_variadic;
+        body;
+        env = None;
+      }
+    }
+  | FUNCTION g = generic_params_opt LPAREN p = params RPAREN body = expr
+    {
+      (* Untyped function: no return annotation *)
+      let names = List.map fst p.params in
+      let param_types = List.map snd p.params in
+      Lambda {
+        params = names;
+        param_types;
+        return_type = None;
+        generic_params = g;
+        variadic = p.has_variadic;
+        body;
+        env = None;
+      }
+    }
+  | FUNCTION g = generic_params_opt LPAREN p = params RPAREN ARROW rt = typ body = block_expr
+    {
+      (* Typed function: return annotation present, body must be a block *)
+      let names = List.map fst p.params in
+      let param_types = List.map snd p.params in
+      Lambda {
+        params = names;
+        param_types;
+        return_type = Some rt;
+        generic_params = g;
+        variadic = p.has_variadic;
+        body;
+        env = None;
+      }
+    }
+  ;
+
+
+
+/* Optional generic parameters like <T, U> */
+generic_params_opt:
+  | { [] }
+  | LT gs = generic_param_list GT { gs }
+  ;
+
+generic_param_list:
+  | g = IDENT skip_sep { [g] }
+  | g = IDENT COMMA skip_sep rest = generic_param_list { g :: rest }
   ;
 
 /* Helper for parsing parameter lists with optional variadic `...` */
 params:
-  | (* empty *) { { names = []; has_variadic = false } }
+  | (* empty *) { { params = []; has_variadic = false } }
   | ps = param_list
-    { { names = ps; has_variadic = false } }
+    { { params = ps; has_variadic = false } }
   | ps = param_list COMMA skip_sep DOTDOTDOT
-    { { names = ps; has_variadic = true } }
+    { { params = ps; has_variadic = true } }
   | DOTDOTDOT
-    { { names = []; has_variadic = true } }
+    { { params = []; has_variadic = true } }
   ;
 
 param_list:
-  | id = any_ident skip_sep { [id] }
-  | id = any_ident COMMA skip_sep rest = param_list { id :: rest }
+  | p = param skip_sep { [p] }
+  | p = param COMMA skip_sep rest = param_list { p :: rest }
+  ;
+
+param:
+  | id = any_ident { (id, None) }
+  | id = any_ident COLON t = typ { (id, Some t) }
   ;
 
 if_expr:
@@ -352,9 +425,25 @@ typ:
     | "Float" -> TFloat
     | "Bool" -> TBool
     | "String" -> TString
-    | "List" -> TList
-    | "Dict" -> TDict
-    | "DataFrame" -> TDataFrame
+    | "Null" -> TNull
+    | "List" -> TList None
+    | "Dict" -> TDict (None, None)
+    | "Tuple" -> TTuple []
+    | "DataFrame" -> TDataFrame None
+    | other when String.length other = 1 && Char.uppercase_ascii other.[0] = other.[0] -> TVar other
     | other -> TCustom other
   }
+  | id = IDENT LBRACK ts = type_args RBRACK {
+    match id, ts with
+    | "List", [t] -> TList (Some t)
+    | "Dict", [k; v] -> TDict (Some k, Some v)
+    | "Tuple", _ -> TTuple ts
+    | "DataFrame", [schema] -> TDataFrame (Some schema)
+    | other, _ -> TCustom other
+  }
+  ;
+
+type_args:
+  | t = typ skip_sep { [t] }
+  | t = typ COMMA skip_sep rest = type_args { t :: rest }
   ;

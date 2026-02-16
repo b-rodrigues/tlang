@@ -21,6 +21,7 @@
    test_error_recovery
    test_package_manager
    test_scalar_strictness
+   test_typing_mode
  )
  (libraries t_lang menhirLib otoml unix str)
 )

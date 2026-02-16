@@ -17,11 +17,13 @@ let () =
 
 (* --- Parsing and Evaluation --- *)
 
-let parse_and_eval env input =
+let parse_and_eval mode env input =
   let lexbuf = Lexing.from_string input in
   try
     let program = Parser.program Lexer.token lexbuf in
-    Eval.eval_program program env
+    match Typecheck.validate_program ~mode program with
+    | Error msg -> (Ast.VError { code = Ast.TypeError; message = msg; context = [] }, env)
+    | Ok () -> Eval.eval_program program env
   with
   | Lexer.SyntaxError msg ->
       (Ast.VError { code = Ast.GenericError; message = "Syntax Error: " ^ msg; context = [] }, env)
@@ -33,12 +35,12 @@ let parse_and_eval env input =
       in
       (Ast.VError { code = Ast.GenericError; message = msg; context = [] }, env)
 
-let run_file filename env =
+let run_file mode filename env =
   try
     let ch = open_in filename in
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
-    parse_and_eval env content
+    parse_and_eval mode env content
   with
   | Sys_error msg -> (Ast.VError { code = Ast.FileError; message = "File Error: " ^ msg; context = [] }, env)
 
@@ -105,6 +107,7 @@ let print_help () =
   Printf.printf "Commands:\n";
   Printf.printf "  repl              Start the interactive REPL\n";
   Printf.printf "  run <file.t>      Execute a T source file\n";
+  Printf.printf "  --mode <m>        Type-check mode: repl (default) or strict\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
   Printf.printf "  init package <n>  Create a new T package\n";
   Printf.printf "  init project <n>  Create a new T project\n";
@@ -136,8 +139,8 @@ let print_help () =
 let print_version () =
   Printf.printf "T language version %s\n" version
 
-let cmd_run filename env =
-  let (result, _env) = run_file filename env in
+let cmd_run mode filename env =
+  let (result, _env) = run_file mode filename env in
   match result with
   | Ast.VError { code; message; _ } ->
       Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
@@ -176,21 +179,21 @@ let cmd_init_project args =
       | Ok () -> Printf.printf "Project %s initialized successfully.\n" opts.target_name
       | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
-let cmd_explain rest env =
+let cmd_explain mode rest env =
   let is_json = List.mem "--json" rest in
   let expr_parts = List.filter (fun s -> s <> "--json") rest in
   let expr_str = String.concat " " expr_parts in
   if expr_str = "" then begin
     Printf.eprintf "Usage: t explain <expression> [--json]\n"; exit 1
   end else begin
-    let (result, env') = parse_and_eval env expr_str in
+    let (result, env') = parse_and_eval mode env expr_str in
     match result with
     | Ast.VError { code; message; _ } ->
         Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
     | _ ->
         let explain_expr = Printf.sprintf "explain(__explain_target__)" in
         let env'' = Ast.Env.add "__explain_target__" result env' in
-        let (explain_result, _) = parse_and_eval env'' explain_expr in
+        let (explain_result, _) = parse_and_eval mode env'' explain_expr in
         if is_json then
           print_endline (Ast.Utils.value_to_string explain_result)
         else begin
@@ -356,7 +359,7 @@ let get_nix_version () =
     | _ -> None
   with _ -> None
 
-let cmd_repl env =
+let cmd_repl mode env =
   match get_nix_version () with
   | None ->
       Printf.eprintf "Nix not found! Install Nix to use T!\n";
@@ -450,7 +453,7 @@ let cmd_repl env =
             let full_input = read_multiline trimmed in
             ignore (LNoise.history_add full_input);
             ignore (LNoise.history_save ~filename:history_file);
-            let (result, new_env) = parse_and_eval env full_input in
+            let (result, new_env) = parse_and_eval mode env full_input in
             repl_display_value result;
             repl new_env
           end
@@ -461,12 +464,29 @@ let cmd_repl env =
 (* --- Entry Point --- *)
 
 let () =
-  let args = Array.to_list Sys.argv in
+  let raw_args = Array.to_list Sys.argv in
+  let rec extract_mode acc = function
+    | [] -> (List.rev acc, Typecheck.Repl)
+    | "--mode" :: [] ->
+        Printf.eprintf "Missing value for --mode. Use --mode repl|strict\n";
+        exit 1
+    | "--mode" :: m :: rest ->
+        (match Typecheck.mode_of_string m with
+         | Some mode -> (List.rev_append acc rest, mode)
+         | None ->
+             Printf.eprintf "Invalid mode '%s'. Use --mode repl|strict\n" m;
+             exit 1)
+    | x :: xs -> extract_mode (x :: acc) xs
+  in
+  let args, mode = extract_mode [] raw_args in
   let env = Packages.init_env () in
   match args with
-  | _ :: "run" :: filename :: _ -> cmd_run filename env
-  | _ :: "repl" :: _ -> cmd_repl env
-  | _ :: "explain" :: rest -> cmd_explain rest env
+  | _ :: "run" :: filename :: _ ->
+      (* Default to Strict mode for scripts, but allow --mode to override *)
+      let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
+      cmd_run script_mode filename env
+  | _ :: "repl" :: _ -> cmd_repl mode env
+  | _ :: "explain" :: rest -> cmd_explain mode rest env
   | _ :: "init" :: "package" :: rest -> cmd_init_package rest
   | _ :: "init" :: "project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
@@ -484,9 +504,9 @@ let () =
   | _ :: "--version" :: _ | _ :: "-v" :: _ -> print_version ()
   | [_] ->
       (* No arguments: start the REPL (default behavior) *)
-      cmd_repl env
+      cmd_repl mode env
   | _ :: unknown :: _ ->
       Printf.eprintf "Unknown command: %s\n" unknown;
       Printf.eprintf "Run 't --help' for usage information.\n";
       exit 1
-  | [] -> cmd_repl env
+  | [] -> cmd_repl mode env
