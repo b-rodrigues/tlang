@@ -71,6 +71,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "true";
   print_newline ();
 
+
+  Printf.printf "Phase 8 — Golden: Stats/Math parity (R baselines):\n";
+  (* Baselines computed from R:
+     var(c(1,2,3,4,5)) = 2.5
+     cov(c(1,2,3), c(2,4,6)) = 2
+     median(c(1,2,10)) = 2
+     iqr(c(1,2,3,4,5)) = 2
+     round(pi, 2) = 3.14
+  *)
+  test "golden r: var" "var([1,2,3,4,5])" "2.5";
+  test "golden r: cov" "cov([1,2,3], [2,4,6])" "2.";
+  test "golden r: median" "median([1,2,10])" "2.";
+  test "golden r: iqr" "iqr([1,2,3,4,5])" "2.";
+  test "golden r: round" "round(3.14159265359, digits = 2)" "3.14";
+  print_newline ();
+
   Printf.printf "Phase 8 — Golden: Pipeline Error Baselines:\n";
 
   (* Golden test: Cycle detection *)

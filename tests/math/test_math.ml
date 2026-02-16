@@ -79,6 +79,20 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "chained math" "pow(2, 10) |> sqrt" "32.";
   print_newline ();
 
+  Printf.printf "Phase 5 — Math: extended math():\n";
+  test "round digits" "round(3.14159, digits = 2)" "3.14";
+  test "floor" "floor(3.9)" "3.";
+  test "ceiling" "ceiling(3.1)" "4.";
+  test "ceil alias" "ceil(3.1)" "4.";
+  test "trunc" "trunc(0.0 - 3.9)" "-3.";
+  test "sign" "sign(0.0 - 5)" "-1.";
+  test "signif" "signif(1234.567, 3)" "1230.";
+  test "sin" "sin(0)" "0.";
+  test "cos" "cos(0)" "1.";
+  test "atan2" "atan2(1, 1)" "0.785398163397";
+  test "sinh" "sinh(0)" "0.";
+  print_newline ();
+
   Printf.printf "Phase 5 — Math: NDArray operations:\n";
   test "ndarray infer shape" "shape(ndarray([[1,2],[3,4]]))" "[2, 2]";
   test "reshape" "shape(reshape(ndarray([1,2,3,4]), [2,2]))" "[2, 2]";

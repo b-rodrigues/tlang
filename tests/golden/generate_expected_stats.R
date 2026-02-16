@@ -121,3 +121,16 @@ write_csv(quantiles, file.path(output_dir, "quantiles_mpg.csv"))
 message("✓ Quantiles for mpg")
 
 message("\n✅ All statistical outputs generated!")
+
+# Test Suite 11: Extended descriptive functions
+message("\n=== EXTENDED STATS Tests ===")
+
+extended_stats <- tibble(
+  median_1_2_10 = median(c(1, 2, 10)),
+  var_1_to_5 = var(c(1, 2, 3, 4, 5)),
+  cov_linear = cov(c(1, 2, 3), c(2, 4, 6)),
+  iqr_1_to_5 = IQR(c(1, 2, 3, 4, 5)),
+  round_pi_2 = round(pi, 2)
+)
+write_csv(extended_stats, file.path(output_dir, "extended_stats_basics.csv"))
+message("✓ Extended stats baseline set")
