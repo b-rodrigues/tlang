@@ -40,10 +40,10 @@ add = \(x, y) x + y
 
 ### Typed lambda
 
-When a return type annotation is present, the body must be a block (`{ ... }`) to avoid parser ambiguity.
+Return type annotation is included inside the parameter parentheses.
 
 ```t
-add_int = \(x: Int, y: Int) -> Int { x + y }
+add_int = \(x: Int, y: Int -> Int) (x + y)
 ```
 
 ### Generic typed lambda
@@ -51,8 +51,8 @@ add_int = \(x: Int, y: Int) -> Int { x + y }
 Generic type variables must be declared explicitly with `<...>`.
 
 ```t
-id = \<T>(x: T) -> T { x }
-pair = \<A, B>(x: A, y: B) -> Tuple[A, B] { [x, y] }
+id = \<T>(x: T -> T) x
+pair = \<A, B>(x: A, y: B -> Tuple[A, B]) [x, y]
 ```
 
 ## Type annotation forms currently parsed
