@@ -34,6 +34,15 @@ let map_numeric_unary ~fname f = function
   | args -> Error.arity_error_named fname ~expected:1 ~received:(List.length args)
 
 let register env =
+  let apply_round digits named_args =
+    let args =
+      List.filter (fun (n, _) -> n <> Some "digits") named_args
+      |> List.map snd
+    in
+    let factor = Float.pow 10.0 (float_of_int digits) in
+    let rf x = Float.round (x *. factor) /. factor in
+    map_numeric_unary ~fname:"round" rf args
+  in
   Env.add "round"
     (make_builtin_named ~name:"round" ~variadic:true 1 (fun named_args _env ->
       (* Reject unknown named arguments and enforce that `digits` is an integer. *)
@@ -55,25 +64,9 @@ let register env =
             List.find_opt (fun (n, _) -> n = Some "digits") named_args
           in
           (match digits_opt with
-           | Some (_, VInt n) ->
-               let digits = n in
-               let args =
-                 List.filter (fun (n, _) -> n <> Some "digits") named_args
-                 |> List.map snd
-               in
-               let factor = Float.pow 10.0 (float_of_int digits) in
-               let rf x = Float.round (x *. factor) /. factor in
-               map_numeric_unary ~fname:"round" rf args
+           | Some (_, VInt n) -> apply_round n named_args
            | Some _ ->
                Error.type_error
                  "Function `round` expects the `digits` argument to be an integer."
-           | None ->
-               let digits = 0 in
-               let args =
-                 List.filter (fun (n, _) -> n <> Some "digits") named_args
-                 |> List.map snd
-               in
-               let factor = Float.pow 10.0 (float_of_int digits) in
-               let rf x = Float.round (x *. factor) /. factor in
-               map_numeric_unary ~fname:"round" rf args)))
+           | None -> apply_round 0 named_args)))
     env
