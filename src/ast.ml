@@ -142,6 +142,7 @@ and stmt =
   | Expression of expr
   | Assignment of { name : symbol; typ : typ option; expr : expr }
   | Reassignment of { name : symbol; expr : expr }
+  | Import of string
 
 and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
   | In (* New: membership check *) | Pipe | MaybePipe | Formula

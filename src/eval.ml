@@ -43,6 +43,7 @@ and desugar_nse_stmt stmt =
   | Expression e -> Expression (desugar_nse_expr e)
   | Assignment { name; typ; expr } -> Assignment { name; typ; expr = desugar_nse_expr expr }
   | Reassignment { name; expr } -> Reassignment { name; expr = desugar_nse_expr expr }
+  | Import _ -> stmt
 
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
@@ -68,6 +69,7 @@ and uses_nse_stmt stmt =
   | Expression e -> uses_nse e
   | Assignment { expr; _ } -> uses_nse expr
   | Reassignment { expr; _ } -> uses_nse expr
+  | Import _ -> false
 
 (* --- Scalar and Broadcasting Logic --- *)
 
@@ -416,6 +418,7 @@ and free_vars (expr : Ast.expr) : string list =
     | Expression e -> collect e
     | Assignment { expr; _ } -> collect expr
     | Reassignment { expr; _ } -> collect expr
+    | Import _ -> []
   in
   let vars = collect expr in
   List.sort_uniq String.compare vars
@@ -895,19 +898,29 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         (match v with
          | VError _ -> (v, new_env)
          | _ -> (VNull, new_env))
+  | Import filename ->
+      (try
+        let ch = open_in filename in
+        let content = really_input_string ch (in_channel_length ch) in
+        close_in ch;
+        let lexbuf = Lexing.from_string content in
+        (try
+          let program = Parser.program Lexer.token lexbuf in
+          let (_v, new_env) = eval_program program env in
+          (VNull, new_env)
+        with
+        | Lexer.SyntaxError msg ->
+            (make_error GenericError (Printf.sprintf "Import syntax error in '%s': %s" filename msg), env)
+        | Parser.Error ->
+            let pos = Lexing.lexeme_start_p lexbuf in
+            let msg = Printf.sprintf "Import parse error in '%s' at line %d, column %d"
+              filename pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
+            (make_error GenericError msg, env))
+      with
+      | Sys_error msg ->
+          (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
 
-(* --- Built-in Functions --- *)
-
-let make_builtin ?name ?(variadic=false) arity func =
-  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env -> func (List.map snd named_args) env) }
-
-let make_builtin_named ?name ?(variadic=false) arity func =
-  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic; b_func = func }
-
-(* Builtins *)
-
-let eval_program (program : program) (env : environment) : value * environment =
+and eval_program (program : program) (env : environment) : value * environment =
   let rec go env = function
     | [] -> (VNull, env)
     | [stmt] -> eval_statement env stmt
@@ -918,3 +931,12 @@ let eval_program (program : program) (env : environment) : value * environment =
          | _ -> go new_env rest)
   in
   go env program
+
+(* --- Built-in Functions --- *)
+
+let make_builtin ?name ?(variadic=false) arity func =
+  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
+             b_func = (fun named_args env -> func (List.map snd named_args) env) }
+
+let make_builtin_named ?name ?(variadic=false) arity func =
+  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic; b_func = func }

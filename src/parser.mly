@@ -30,7 +30,7 @@ let build_bracket_literal (items : bracket_item list) : Ast.expr =
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE FUNCTION PIPELINE INTENT TRUE FALSE NULL NA
+%token IF ELSE IMPORT FUNCTION PIPELINE INTENT TRUE FALSE NULL NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -122,6 +122,7 @@ statement:
     { Assignment { name; typ = Some t; expr = e } }
   | name = any_ident COLON_EQ e = expr
     { Reassignment { name; expr = e } }
+  | IMPORT s = STRING { Import s }
   | e = expr { Expression e }
   ;
 
