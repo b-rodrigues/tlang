@@ -200,6 +200,54 @@ let nchar_scalar args _env =
   | _ -> Error.type_error "nchar expects a string."
 
 let nchar_impl args env = vectorize_unary nchar_scalar args env
+ 
+let sprintf_impl args _env =
+  match args with
+  | VString fmt :: vals ->
+      let len = String.length fmt in
+      let res = Buffer.create len in
+      let rec go i items =
+        if i >= len then
+          VString (Buffer.contents res)
+        else if fmt.[i] = '%' then
+          if i + 1 >= len then
+            Error.value_error "Incomplete format specifier at end of string."
+          else
+            match fmt.[i+1] with
+            | '%' -> Buffer.add_char res '%'; go (i + 2) items
+            | 's' | 'd' | 'f' ->
+                (match items with
+                 | v :: rest ->
+                     Buffer.add_string res (Ast.Utils.value_to_raw_string v);
+                     go (i + 2) rest
+                 | [] -> Error.value_error "Not enough arguments for format string.")
+            | c -> Error.value_error (Printf.sprintf "Unsupported format specifier: %%%c. Supported: %%s, %%d, %%f, %%%%" c)
+        else (
+          Buffer.add_char res fmt.[i];
+          go (i + 1) items
+        )
+      in
+      go 0 vals
+  | _ -> Error.type_error "sprintf expects a format string as the first argument."
+
+(*
+--# Format a string
+--#
+--# Formats a string using C-style format specifiers.
+--# Supports %s (string), %d (integer), %f (float), and %% (literal %).
+--#
+--# @name sprintf
+--# @param fmt :: String The format string.
+--# @param ... :: Any Values to substitute in the format string.
+--# @return :: String The formatted string.
+--# @example
+--#   sprintf("Hello, %s!", "world")
+--#   -- Returns: "Hello, world!"
+--#   sprintf("Value: %d", 42)
+--#   -- Returns: "Value: 42"
+--# @family string
+--# @export
+*)
 
 (*
 --# Check if string is empty
@@ -413,4 +461,5 @@ let register env =
   let env = Env.add "replace_first" (make_builtin ~name:"replace_first" 3 replace_first_impl) env in
   let env = Env.add "to_lower" (make_builtin ~name:"to_lower" 1 to_lower_impl) env in
   let env = Env.add "to_upper" (make_builtin ~name:"to_upper" 1 to_upper_impl) env in
+  let env = Env.add "sprintf" (make_builtin ~name:"sprintf" ~variadic:true 1 sprintf_impl) env in
   env

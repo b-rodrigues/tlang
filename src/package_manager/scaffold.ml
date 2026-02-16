@@ -189,17 +189,22 @@ Thumbs.db
 
 let package_src_example = {|-- {{name}} — main source file
 --
--- Add your T functions here.
--- Each function should include documentation.
---# Example function
+-- Add your T functions here. Each function should include T-Doc comments
+-- starting with --# to be picked up by the documentation generator.
+
+--# Greet someone
 --#
---# A placeholder function that returns a greeting.
+--# A placeholder function that returns a friendly greeting.
 --#
---# @param name A string with someone's name
---# @return A greeting string
+--# @name greet
+--# @param name :: String The name of the person to greet.
+--# @return :: String A greeting message.
 --# @example
 --#   greet("world")
-greet = \(name) -> "Hello, " + name + "!"
+--#   -- Returns: "Hello, world!"
+--#
+--# @export
+greet = \(name: String -> String) sprintf("Hello, %s!", name)
 |}
 
 let package_test_example = {|-- tests/test-{{name}}.t
@@ -465,7 +470,7 @@ let interactive_init default_name =
   Printf.printf "\nInitializing new T package/project...\n";
   let name = if default_name = "" then prompt_string "Name" "my-pkg" else default_name in
   let author = prompt_string "Author" (try Sys.getenv "USER" with Not_found -> "Anonymous") in
-  let license = prompt_string "License" "MIT" in
+  let license = prompt_string "License [EUPL-1.2, GPL-3.0-or-later, MIT] (visit https://spdx.org/licenses/ for all licenses)" "EUPL-1.2" in
   Printf.printf "\n";
   {
     target_name = name;
