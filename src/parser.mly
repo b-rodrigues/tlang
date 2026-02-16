@@ -260,29 +260,61 @@ block_expr:
   ;
 
 lambda_expr:
-  | LAMBDA LPAREN p = params RPAREN rt = return_annotation body = expr
+  | LAMBDA g = generic_params_opt LPAREN p = params RPAREN body = expr
     {
+      (* Untyped lambda: no return annotation, body is any expression *)
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
       Lambda {
         params = names;
         param_types;
-        return_type = rt;
-        generic_params = [];
+        return_type = None;
+        generic_params = g;
         variadic = p.has_variadic;
         body;
         env = None;
       }
     }
-  | FUNCTION LPAREN p = params RPAREN rt = return_annotation body = expr
+  | LAMBDA g = generic_params_opt LPAREN p = params RPAREN ARROW rt = typ body = block_expr
     {
+      (* Typed lambda: return annotation present, body must be a block to avoid ambiguity *)
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
       Lambda {
         params = names;
         param_types;
-        return_type = rt;
-        generic_params = [];
+        return_type = Some rt;
+        generic_params = g;
+        variadic = p.has_variadic;
+        body;
+        env = None;
+      }
+    }
+  | FUNCTION g = generic_params_opt LPAREN p = params RPAREN body = expr
+    {
+      (* Untyped function: no return annotation *)
+      let names = List.map fst p.params in
+      let param_types = List.map snd p.params in
+      Lambda {
+        params = names;
+        param_types;
+        return_type = None;
+        generic_params = g;
+        variadic = p.has_variadic;
+        body;
+        env = None;
+      }
+    }
+  | FUNCTION g = generic_params_opt LPAREN p = params RPAREN ARROW rt = typ body = block_expr
+    {
+      (* Typed function: return annotation present, body must be a block *)
+      let names = List.map fst p.params in
+      let param_types = List.map snd p.params in
+      Lambda {
+        params = names;
+        param_types;
+        return_type = Some rt;
+        generic_params = g;
         variadic = p.has_variadic;
         body;
         env = None;
@@ -291,9 +323,16 @@ lambda_expr:
   ;
 
 
-return_annotation:
-  | { None }
-  | ARROW t = typ { Some t }
+
+/* Optional generic parameters like <T, U> */
+generic_params_opt:
+  | { [] }
+  | LT gs = generic_param_list GT { gs }
+  ;
+
+generic_param_list:
+  | g = IDENT skip_sep { [g] }
+  | g = IDENT COMMA skip_sep rest = generic_param_list { g :: rest }
   ;
 
 /* Helper for parsing parameter lists with optional variadic `...` */
