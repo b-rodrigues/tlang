@@ -77,11 +77,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   Printf.printf "Phase 8 — Core Semantics: Dict edge cases:\n";
 
-  (* NOTE: Empty braces "{}" parse as an empty dictionary.
-     Block expressions require at least one statement to distinguish from dicts. *)
-  test "empty dict" "{}" {|{}|};
-  test "dict with computed values" "x = 10; {a: x, b: x * 2}" {|{`a`: 10, `b`: 20}|};
-  test "nested dict" {|{outer: {inner: 42}}.outer.inner|} "42";
+  (* NOTE: Empty braces "{}" parse as a block expression.
+     Dictionaries use "[:]". *)
+  test "empty dict" "[:]" {|{}|};
+  test "dict with computed values" "x = 10; [a: x, b: x * 2]" {|{`a`: 10, `b`: 20}|};
+  test "nested dict" {| [outer: [inner: 42]].outer.inner|} "42";
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: Error invariants:\n";

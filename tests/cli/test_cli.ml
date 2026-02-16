@@ -49,7 +49,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "[1,\n2,\n3]"
     "[1, 2, 3]";
   test "dict with internal newline"
-    "{x: 1,\ny: 2}"
+    "[x: 1,\ny: 2]"
     {|{`x`: 1, `y`: 2}|};
   test "function call with newline in args"
     "add = \\(a, b) a + b\nadd(3,\n5)"
