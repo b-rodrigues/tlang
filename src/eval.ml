@@ -659,30 +659,70 @@ and eval_call env fn_val raw_args =
       else
         b_func named_args env
 
-  | VLambda { params; variadic = _; body; env = Some closure_env; _ } ->
+  | VLambda { params; param_types; return_type; variadic = _; body; env = Some closure_env; _ } ->
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
       if List.length params <> List.length args then
         lambda_arity_error params args
       else
-        let call_env =
-          List.fold_left2
-            (fun current_env name value -> Env.add name value current_env)
-            closure_env params args
-        in
-        eval_expr call_env body
+        (* Runtime Type Check: Arguments *)
+        let type_errors = List.filter_map (fun (v, t_opt) ->
+          match t_opt with
+          | Some t when not (Ast.is_compatible v t) ->
+              let expected = Ast.Utils.typ_to_string t in
+              let got = Ast.Utils.type_name v in
+              Some (Printf.sprintf "Expected %s, got %s" expected got)
+          | _ -> None
+        ) (List.combine args param_types) in
 
-  | VLambda { params; variadic = _; body; env = None; _ } ->
+        if type_errors <> [] then
+          Error.type_error (String.concat "; " type_errors)
+        else
+          let call_env =
+            List.fold_left2
+              (fun current_env name value -> Env.add name value current_env)
+              closure_env params args
+          in
+          let result = eval_expr call_env body in
+          (* Runtime Type Check: Return Value *)
+          (match return_type with
+           | Some t when not (Error.is_error_value result) && not (Ast.is_compatible result t) ->
+               let expected = Ast.Utils.typ_to_string t in
+               let got = Ast.Utils.type_name result in
+               Error.type_error (Printf.sprintf "Function returned %s, but expected %s" got expected)
+           | _ -> result)
+
+  | VLambda { params; param_types; return_type; variadic = _; body; env = None; _ } ->
       (* Lambda without closure — use current env *)
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
       if List.length params <> List.length args then
         lambda_arity_error params args
       else
-        let call_env =
-          List.fold_left2
-            (fun current_env name value -> Env.add name value current_env)
-            env params args
-        in
-        eval_expr call_env body
+        (* Runtime Type Check: Arguments *)
+        let type_errors = List.filter_map (fun (v, t_opt) ->
+          match t_opt with
+          | Some t when not (Ast.is_compatible v t) ->
+              let expected = Ast.Utils.typ_to_string t in
+              let got = Ast.Utils.type_name v in
+              Some (Printf.sprintf "Expected %s, got %s" expected got)
+          | _ -> None
+        ) (List.combine args param_types) in
+
+        if type_errors <> [] then
+          Error.type_error (String.concat "; " type_errors)
+        else
+          let call_env =
+            List.fold_left2
+              (fun current_env name value -> Env.add name value current_env)
+              env params args
+          in
+          let result = eval_expr call_env body in
+          (* Runtime Type Check: Return Value *)
+          (match return_type with
+           | Some t when not (Error.is_error_value result) && not (Ast.is_compatible result t) ->
+               let expected = Ast.Utils.typ_to_string t in
+               let got = Ast.Utils.type_name result in
+               Error.type_error (Printf.sprintf "Function returned %s, but expected %s" got expected)
+           | _ -> result)
 
   | VSymbol s ->
       (* Try to look up the symbol in the env — might be a function name *)

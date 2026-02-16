@@ -15,6 +15,23 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     "add = \\(x, y) x + y; add(2, 3)"
     "5";
 
+  (* Runtime type checking for annotated lambdas *)
+  test "typed lambda enforces argument types at runtime"
+    "f = \\(x: Int -> Int) x; f(1.1)"
+    {|Error(TypeError: "Expected Int, got Float")|};
+
+  test "typed lambda enforces return type at runtime"
+    "f = \\(x: Int -> Int) 1.1; f(1)"
+    {|Error(TypeError: "Function returned Float, but expected Int")|};
+
+  test "typed lambda allows NA even if type is annotated"
+    "f = \\(x: Int -> Int) x; f(NA)"
+    "NA";
+
+  test "typed lambda allows Int for Float (widening)"
+    "f = \\(x: Float -> Float) x; f(1)"
+    "1";
+
   let report name ok =
     if ok then begin
       incr pass_count;

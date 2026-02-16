@@ -210,6 +210,24 @@ module Utils = struct
     | NAString -> "String"
     | NAGeneric -> ""
 
+  let rec typ_to_string = function
+    | TInt -> "Int"
+    | TFloat -> "Float"
+    | TBool -> "Bool"
+    | TString -> "String"
+    | TNull -> "Null"
+    | TList None -> "List"
+    | TList (Some t) -> "List[" ^ typ_to_string t ^ "]"
+    | TDict (None, None) -> "Dict"
+    | TDict (Some k, Some v) -> "Dict[" ^ typ_to_string k ^ ", " ^ typ_to_string v ^ "]"
+    | TDict (Some k, None) -> "Dict[" ^ typ_to_string k ^ ", _]"
+    | TDict (None, Some v) -> "Dict[_, " ^ typ_to_string v ^ "]"
+    | TTuple ts -> "Tuple[" ^ (String.concat ", " (List.map typ_to_string ts)) ^ "]"
+    | TDataFrame None -> "DataFrame"
+    | TDataFrame (Some schema) -> "DataFrame[" ^ typ_to_string schema ^ "]"
+    | TVar s -> s
+    | TCustom s -> s
+
   let type_name = function
     | VInt _ -> "Int" | VFloat _ -> "Float"
     | VBool _ -> "Bool" | VString _ -> "String"
@@ -368,3 +386,41 @@ let is_error_value = function VError _ -> true | _ -> false
 
 (** Check if a value is NA *)
 let is_na_value = function VNA _ -> true | _ -> false
+
+(** Runtime type compatibility check.
+    Checks if a value matches a given type specification. *)
+let rec is_compatible (v : value) (t : typ) : bool =
+  match v, t with
+  | _, TVar _ -> true (* Generics match anything at runtime for now *)
+  | VInt _, TInt -> true
+  | VFloat _, TFloat -> true
+  | VBool _, TBool -> true
+  | VString _, TString -> true
+  | VNull, TNull -> true
+  | VNA _, _ -> true (* NA is compatible with any type (it's a special bottom/missing value) *)
+  
+  | VList _, TList None -> true
+  | VList items, TList (Some et) ->
+      List.for_all (fun (_, ev) -> is_compatible ev et) items
+  
+  | VDict _, TDict (None, None) -> true
+  | VDict pairs, TDict (Some kt, Some vt) ->
+      List.for_all (fun (k, v) -> 
+        is_compatible (VString k) kt && is_compatible v vt
+      ) pairs
+
+  | VList items, TTuple ts ->
+      List.length items = List.length ts &&
+      List.for_all2 (fun (_, ev) et -> is_compatible ev et) items ts
+  
+  | VVector _, TList _ -> true (* Treat Vectors as compatible with List types for runtime checks *)
+  | VNDArray _, TCustom "NDArray" -> true
+  | VDataFrame _, TDataFrame _ -> true
+  
+  | VLambda _, TCustom "Function" -> true
+  | VBuiltin _, TCustom "Function" -> true
+
+  (* Relaxed numeric matching: Int can often be used where Float is expected in T *)
+  | VInt _, TFloat -> true
+
+  | _ -> false
