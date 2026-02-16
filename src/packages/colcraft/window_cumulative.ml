@@ -189,17 +189,25 @@ let register env =
   --#
   --# @name cummean
   --# @param x :: Vector The input numeric vector.
+  --# @param na_rm :: Bool = false Remove NA values before computation.
   --# @return :: Vector The cumulative mean.
   --# @example
   --#   cummean([1, 2, 3])
   --#   -- Returns: [1.0, 1.5, 2.0]
+  --#
+  --#   cummean([1, NA, 3], na_rm: true)
+  --#   -- Returns: [1.0, 1.0, 2.0]
   --# @family colcraft
   --# @seealso mean, cumsum
   --# @export
   *)
-  (* cummean(x): cumulative mean; NA propagates to all subsequent values *)
+  (* cummean(x, na_rm=false): cumulative mean *)
   let env = Env.add "cummean"
-    (make_builtin ~name:"cummean" 1 (fun args _env ->
+    (make_builtin_named ~name:"cummean" ~variadic:true 1 (fun named_args _env ->
+      let na_rm = List.exists (fun (name, v) ->
+        name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
+      ) named_args in
+      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
       match args with
       | [arg] ->
         (match to_value_array "cummean" arg with
@@ -210,21 +218,30 @@ let register env =
            else
              let result = Array.make n (VNA NAFloat) in
              let running_sum = ref 0.0 in
+             let running_count = ref 0 in
              let na_seen = ref false in
              let had_error = ref None in
              for i = 0 to n - 1 do
                if !had_error = None then
-                 if !na_seen then
+                 if not na_rm && !na_seen then
                    result.(i) <- VNA NAFloat
                  else
                    match arr.(i) with
                    | VInt x ->
                      running_sum := !running_sum +. float_of_int x;
-                     result.(i) <- VFloat (!running_sum /. float_of_int (i + 1))
+                     incr running_count;
+                     result.(i) <- VFloat (!running_sum /. float_of_int !running_count)
                    | VFloat f ->
                      running_sum := !running_sum +. f;
-                     result.(i) <- VFloat (!running_sum /. float_of_int (i + 1))
-                   | VNA _ -> na_seen := true; result.(i) <- VNA NAFloat
+                     incr running_count;
+                     result.(i) <- VFloat (!running_sum /. float_of_int !running_count)
+                   | VNA _ -> 
+                     if na_rm then 
+                       result.(i) <- if !running_count = 0 then VNA NAFloat else VFloat (!running_sum /. float_of_int !running_count)
+                     else (
+                       na_seen := true; 
+                       result.(i) <- VNA NAFloat
+                     )
                    | _ -> had_error := Some (Error.type_error "Function `cummean` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))

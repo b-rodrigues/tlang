@@ -53,20 +53,31 @@ let rec help_impl args _env =
           else output in
 
           print_endline output;
+          flush stdout;
           VNull
       | None ->
           Printf.printf "No documentation found for '%s'.\n" name;
+          flush stdout;
           VNull)
   | [VSymbol name] ->
       (* Support help(mean) as well as help("mean") *)
       help_impl [VString name] _env
-  | [VBuiltin _] ->
-      (* User passed the function value itself. Ideally we'd need reverse lookup or metadata attached to values. *)
-      (* For now, explain we need the name. *)
-      Printf.printf "Please provide the function name as a string or symbol, e.g. help(\"mean\") or help(mean).\n";
+  | [VBuiltin b] ->
+      (match b.b_name with
+      | Some name -> help_impl [VString name] _env
+      | None ->
+          Printf.printf "This builtin function is unnamed and has no documentation.\n";
+          flush stdout;
+          VNull)
+  | [VLambda _] ->
+      Printf.printf "Help is currently only available for standard library functions.\n";
+      Printf.printf "This is a user-defined function (lambda).\n";
+      flush stdout;
       VNull
+  | [v] ->
+      Error.type_error (Printf.sprintf "help expects a function name or value, got %s" (Utils.type_name v))
   | _ ->
-      Error.type_error "help expects a function name (String or Symbol)."
+      Error.arity_error_named "help" ~expected:1 ~received:(List.length args)
 
 (*
 --# Search for functions by keyword
@@ -108,13 +119,15 @@ let apropos_impl args _env =
         contains name_low query_low || contains desc_low query_low
       ) all_docs in
 
-      if matches = [] then
-        Printf.printf "No documents found matching '%s'.\n" query
-      else begin
+      if matches = [] then begin
+        Printf.printf "No documents found matching '%s'.\n" query;
+        flush stdout
+      end else begin
         Printf.printf "Found %d matches:\n" (List.length matches);
         List.iter (fun (doc : Tdoc_types.doc_entry) ->
           Printf.printf "  %-20s %s\n" doc.name doc.description_brief
-        ) matches
+        ) matches;
+        flush stdout
       end;
       VNull
   | _ ->
