@@ -15,7 +15,7 @@ open Ast
 *)
 let register env =
   Env.add "intent_get"
-    (make_builtin 2 (fun args _env ->
+    (make_builtin ~name:"intent_get" 2 (fun args _env ->
       match args with
       | [VIntent { intent_fields }; VString key] ->
           (match List.assoc_opt key intent_fields with

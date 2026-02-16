@@ -18,7 +18,7 @@ open Ast
 *)
 let register env =
   Env.add "group_by"
-    (make_builtin ~variadic:true 1 (fun args _env ->
+    (make_builtin ~name:"group_by" ~variadic:true 1 (fun args _env ->
       match args with
       | VDataFrame df :: key_args ->
           let key_names = List.map (fun v ->

@@ -34,7 +34,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
   --# @export
   *)
   Env.add "summarize"
-    (make_builtin_named ~variadic:true 1 (fun named_args env ->
+    (make_builtin_named ~name:"summarize" ~variadic:true 1 (fun named_args env ->
       match named_args with
       | (_, VDataFrame df) :: rest_args ->
           (* Parse named args: summarize(df, $total = sum($amount), ...) *)

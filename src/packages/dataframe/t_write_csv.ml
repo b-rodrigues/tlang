@@ -20,7 +20,7 @@ let is_sep_name = function Some "separator" -> true | _ -> false
 *)
 let register ~write_csv_fn env =
   Env.add "write_csv"
-    (make_builtin_named ~variadic:true 2 (fun named_args _env ->
+    (make_builtin_named ~name:"write_csv" ~variadic:true 2 (fun named_args _env ->
       (* Extract named arguments *)
       let sep = List.fold_left (fun acc (name, v) ->
         match name, v with

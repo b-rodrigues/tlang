@@ -17,7 +17,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
   --# @export
   *)
   Env.add "mutate"
-    (make_builtin_named ~variadic:true 1 (fun named_args env ->
+    (make_builtin_named ~name:"mutate" ~variadic:true 1 (fun named_args env ->
       (* Helper: apply a single mutation (col_name, fn) to a DataFrame *)
       let apply_mutation df col_name fn =
         let nrows = Arrow_table.num_rows df.arrow_table in

@@ -14,7 +14,7 @@ open Ast
 *)
 let register env =
   Env.add "intent_fields"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"intent_fields" 1 (fun args _env ->
       match args with
       | [VIntent { intent_fields }] ->
           VDict (List.map (fun (k, v) -> (k, VString v)) intent_fields)

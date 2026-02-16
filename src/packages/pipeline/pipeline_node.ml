@@ -15,7 +15,7 @@ open Ast
 *)
 let register env =
   Env.add "pipeline_node"
-    (make_builtin 2 (fun args _env ->
+    (make_builtin ~name:"pipeline_node" 2 (fun args _env ->
       match args with
       | [VPipeline { p_nodes; _ }; VString name] ->
           (match List.assoc_opt name p_nodes with

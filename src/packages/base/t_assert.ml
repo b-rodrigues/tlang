@@ -18,7 +18,7 @@ open Ast
 *)
 let register env =
   Env.add "assert"
-    (make_builtin ~variadic:true 1 (fun args _env ->
+    (make_builtin ~name:"assert" ~variadic:true 1 (fun args _env ->
       match args with
       | [v] ->
           if is_na_value v then

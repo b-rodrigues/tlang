@@ -16,7 +16,7 @@ open Ast
 *)
 let register env =
   Env.add "glimpse"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"glimpse" 1 (fun args _env ->
       match args with
       | [VDataFrame { arrow_table; _ }] ->
           let nrows = Arrow_table.num_rows arrow_table in

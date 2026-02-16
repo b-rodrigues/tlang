@@ -62,7 +62,7 @@ let register env =
   *)
   (* row_number(x): rank from 1..n among non-NA values, NA positions get NA *)
   let env = Env.add "row_number"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"row_number" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_float_array_na "row_number" arg with
@@ -99,7 +99,7 @@ let register env =
   *)
   (* min_rank(x): ties get minimum rank, gaps after ties; NA positions get NA *)
   let env = Env.add "min_rank"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"min_rank" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_float_array_na "min_rank" arg with
@@ -149,7 +149,7 @@ let register env =
   *)
   (* dense_rank(x): ties get same rank, no gaps; NA positions get NA *)
   let env = Env.add "dense_rank"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"dense_rank" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_float_array_na "dense_rank" arg with
@@ -195,7 +195,7 @@ let register env =
   *)
   (* cume_dist(x): proportion of non-NA values <= current value; NA positions get NA *)
   let env = Env.add "cume_dist"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"cume_dist" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_float_array_na "cume_dist" arg with
@@ -243,7 +243,7 @@ let register env =
   *)
   (* percent_rank(x): (rank - 1) / (n - 1) among non-NA values; NA positions get NA *)
   let env = Env.add "percent_rank"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"percent_rank" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_float_array_na "percent_rank" arg with
@@ -302,7 +302,7 @@ let register env =
   (* Matches R's dplyr::ntile: first (len %% n) groups have (len / n + 1) elements,
      remaining groups have (len / n) elements. Assignment is based on rank. *)
   let env = Env.add "ntile"
-    (make_builtin 2 (fun args _env ->
+    (make_builtin ~name:"ntile" 2 (fun args _env ->
       match args with
       | [arg; VInt num_tiles] when num_tiles > 0 ->
         (match to_float_array_na "ntile" arg with

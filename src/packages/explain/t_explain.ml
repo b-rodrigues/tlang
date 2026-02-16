@@ -17,7 +17,7 @@ open Ast
 *)
 let register env =
   Env.add "explain"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"explain" 1 (fun args _env ->
       match args with
       | [VInt _] | [VFloat _] | [VBool _] | [VString _] ->
           let v = List.hd args in

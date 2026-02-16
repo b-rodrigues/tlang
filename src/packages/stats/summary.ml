@@ -18,7 +18,7 @@ open Ast
 *)
 let register env =
   Env.add "summary"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"summary" 1 (fun args _env ->
       match args with
       | [VDict pairs] ->
         (match List.assoc_opt "_tidy_df" pairs with

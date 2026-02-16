@@ -115,7 +115,7 @@ let pretty_print_value v =
 *)
 let register env =
   Env.add "pretty_print"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"pretty_print" 1 (fun args _env ->
       match args with
       | [v] ->
           print_string (pretty_print_value v);

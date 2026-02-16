@@ -19,7 +19,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "dataframe"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"dataframe" 1 (fun args _env ->
       match args with
       | [VList rows] ->
           (match rows with
@@ -94,7 +94,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "pull"
-      (make_builtin 2 (fun args _env ->
+      (make_builtin ~name:"pull" 2 (fun args _env ->
         match args with
         | [VDataFrame df; VString col_name] ->
             (match Arrow_table.get_column df.arrow_table col_name with
@@ -129,7 +129,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "to_array"
-      (make_builtin ~variadic:true 1 (fun args _env ->
+      (make_builtin ~name:"to_array" ~variadic:true 1 (fun args _env ->
         match args with
         | [VDataFrame df] ->
              (* Auto-select all numeric columns *)

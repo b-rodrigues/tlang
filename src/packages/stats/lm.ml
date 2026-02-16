@@ -116,7 +116,7 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
 *)
 let register env =
   Env.add "lm"
-    (make_builtin_named ~variadic:true 0 (fun args _env ->
+    (make_builtin_named ~name:"lm" ~variadic:true 0 (fun args _env ->
       let named = List.filter_map (fun (n, v) ->
         match n with Some name -> Some (name, v) | None -> None
       ) args in

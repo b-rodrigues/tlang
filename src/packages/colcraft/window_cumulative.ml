@@ -25,7 +25,7 @@ let register env =
   *)
   (* cumsum(x): cumulative sum; NA propagates to all subsequent values *)
   let env = Env.add "cumsum"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"cumsum" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_value_array "cumsum" arg with
@@ -83,7 +83,7 @@ let register env =
   *)
   (* cummin(x): cumulative minimum; NA propagates to all subsequent values *)
   let env = Env.add "cummin"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"cummin" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_value_array "cummin" arg with
@@ -141,7 +141,7 @@ let register env =
   *)
   (* cummax(x): cumulative maximum; NA propagates to all subsequent values *)
   let env = Env.add "cummax"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"cummax" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_value_array "cummax" arg with
@@ -199,7 +199,7 @@ let register env =
   *)
   (* cummean(x): cumulative mean; NA propagates to all subsequent values *)
   let env = Env.add "cummean"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"cummean" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_value_array "cummean" arg with
@@ -249,7 +249,7 @@ let register env =
   *)
   (* cumall(x): cumulative logical AND; NA propagates to all subsequent values *)
   let env = Env.add "cumall"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"cumall" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_value_array "cumall" arg with
@@ -293,7 +293,7 @@ let register env =
   *)
   (* cumany(x): cumulative logical OR; NA propagates to all subsequent values *)
   let env = Env.add "cumany"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"cumany" 1 (fun args _env ->
       match args with
       | [arg] ->
         (match to_value_array "cumany" arg with

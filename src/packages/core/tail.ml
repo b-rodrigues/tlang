@@ -20,7 +20,7 @@ open Ast
 *)
 let register env =
   Env.add "tail"
-    (make_builtin_named ~variadic:true 1 (fun named_args _env ->
+    (make_builtin_named ~name:"tail" ~variadic:true 1 (fun named_args _env ->
       (* Extract named arguments *)
       let n_named = List.fold_left (fun acc (name, v) ->
         match name, v with

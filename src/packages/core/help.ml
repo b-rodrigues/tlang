@@ -121,6 +121,6 @@ let apropos_impl args _env =
       Error.type_error "apropos expects a query string."
 
 let register env =
-  let env = Env.add "help" (make_builtin 1 help_impl) env in
-  let env = Env.add "apropos" (make_builtin 1 apropos_impl) env in
+  let env = Env.add "help" (make_builtin ~name:"help" 1 help_impl) env in
+  let env = Env.add "apropos" (make_builtin ~name:"apropos" 1 apropos_impl) env in
   env

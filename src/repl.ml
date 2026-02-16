@@ -496,6 +496,7 @@ let () =
   in
   let args, mode = extract_mode [] raw_args in
   let env = Packages.init_env () in
+  Packages.ensure_docs_loaded ();
   match args with
   | _ :: "run" :: filename :: _ ->
       (* Default to Strict mode for scripts, but allow --mode to override *)

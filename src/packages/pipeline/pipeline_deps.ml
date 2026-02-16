@@ -14,7 +14,7 @@ open Ast
 *)
 let register env =
   Env.add "pipeline_deps"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"pipeline_deps" 1 (fun args _env ->
       match args with
       | [VPipeline { p_deps; _ }] ->
           VDict (List.map (fun (name, deps) ->

@@ -22,7 +22,7 @@ let value_to_print_string = function
 
 let register env =
   Env.add "print"
-    (make_builtin ~variadic:true 1 (fun args _env ->
+    (make_builtin ~name:"print" ~variadic:true 1 (fun args _env ->
       List.iter (fun v -> print_string (value_to_print_string v); print_char ' ') args;
       print_newline ();
       VNull

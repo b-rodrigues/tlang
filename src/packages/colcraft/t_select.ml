@@ -17,7 +17,7 @@ open Ast
 *)
 let register env =
   Env.add "select"
-    (make_builtin ~variadic:true 1 (fun args _env ->
+    (make_builtin ~name:"select" ~variadic:true 1 (fun args _env ->
       match args with
       | VDataFrame df :: col_args ->
           let col_names = List.map (fun v ->

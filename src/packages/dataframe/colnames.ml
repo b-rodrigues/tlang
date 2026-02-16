@@ -16,7 +16,7 @@ open Ast
 *)
 let register env =
   Env.add "colnames"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"colnames" 1 (fun args _env ->
       match args with
       | [VDataFrame { arrow_table; _ }] ->
           VList (List.map (fun name -> (None, VString name)) (Arrow_table.column_names arrow_table))

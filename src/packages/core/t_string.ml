@@ -35,7 +35,7 @@ open Ast
 *)
 let register env =
   let env = Env.add "join"
-    (make_builtin ~variadic:true 1 (fun args _env ->
+    (make_builtin ~name:"join" ~variadic:true 1 (fun args _env ->
       match args with
       | [VList items] ->
           let strs = List.map (fun (_, v) -> Utils.value_to_raw_string v) items in
@@ -58,7 +58,7 @@ let register env =
     env
   in
   let env = Env.add "string"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"string" 1 (fun args _env ->
       match args with
       | [v] -> VString (Utils.value_to_raw_string v)
       | _ -> Error.type_error "Function `string` expects a single argument."

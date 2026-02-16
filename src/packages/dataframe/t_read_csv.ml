@@ -159,7 +159,7 @@ let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) ?(clean_col
 *)
 let register env =
   Env.add "read_csv"
-    (make_builtin_named ~variadic:true 1 (fun named_args _env ->
+    (make_builtin_named ~name:"read_csv" ~variadic:true 1 (fun named_args _env ->
       (* Validate sep/separator parameter if provided *)
       let bad_sep = List.exists (fun (name, v) ->
         match name, v with

@@ -19,7 +19,7 @@ open Ast
 *)
 let register env =
   Env.add "add_diagnostics"
-    (make_builtin_named ~variadic:true 0 (fun args _env ->
+    (make_builtin_named ~name:"add_diagnostics" ~variadic:true 0 (fun args _env ->
       let named = List.filter_map (fun (n, v) ->
         match n with Some name -> Some (name, v) | None -> None
       ) args in

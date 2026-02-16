@@ -18,7 +18,7 @@ open Ast
 *)
 let register env =
   Env.add "error"
-    (make_builtin ~variadic:true 1 (fun args _env ->
+    (make_builtin ~name:"error" ~variadic:true 1 (fun args _env ->
       match args with
       | [VString msg] -> Error.make_error GenericError msg
       | [VString code_str; VString msg] ->

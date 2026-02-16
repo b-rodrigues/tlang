@@ -14,7 +14,7 @@ open Ast
 *)
 let register ~rerun_pipeline env =
   Env.add "pipeline_run"
-    (make_builtin 1 (fun args env ->
+    (make_builtin ~name:"pipeline_run" 1 (fun args env ->
       match args with
       | [VPipeline prev] -> rerun_pipeline env prev
       | [_] -> Error.type_error "Function `pipeline_run` expects a Pipeline."

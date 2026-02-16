@@ -398,19 +398,19 @@ let nchar_impl args env = vectorize_unary nchar_scalar args env
 *)
 
 let register env =
-  let env = Env.add "is_empty" (make_builtin 1 is_empty_impl) env in
-  let env = Env.add "length" (make_builtin 1 length_impl) env in
-  let env = Env.add "nchar" (make_builtin 1 nchar_impl) env in
-  let env = Env.add "substring" (make_builtin 3 substring_impl) env in
-  let env = Env.add "slice" (make_builtin 3 substring_impl) env in
-  let env = Env.add "char_at" (make_builtin 2 char_at_impl) env in
-  let env = Env.add "index_of" (make_builtin 2 index_of_impl) env in
-  let env = Env.add "last_index_of" (make_builtin 2 last_index_of_impl) env in
-  let env = Env.add "contains" (make_builtin 2 contains_impl) env in
-  let env = Env.add "starts_with" (make_builtin 2 starts_with_impl) env in
-  let env = Env.add "ends_with" (make_builtin 2 ends_with_impl) env in
-  let env = Env.add "replace" (make_builtin 3 replace_impl) env in
-  let env = Env.add "replace_first" (make_builtin 3 replace_first_impl) env in
-  let env = Env.add "to_lower" (make_builtin 1 to_lower_impl) env in
-  let env = Env.add "to_upper" (make_builtin 1 to_upper_impl) env in
+  let env = Env.add "is_empty" (make_builtin ~name:"is_empty" 1 is_empty_impl) env in
+  let env = Env.add "length" (make_builtin ~name:"length" 1 length_impl) env in
+  let env = Env.add "nchar" (make_builtin ~name:"nchar" 1 nchar_impl) env in
+  let env = Env.add "substring" (make_builtin ~name:"substring" 3 substring_impl) env in
+  let env = Env.add "slice" (make_builtin ~name:"slice" 3 substring_impl) env in
+  let env = Env.add "char_at" (make_builtin ~name:"char_at" 2 char_at_impl) env in
+  let env = Env.add "index_of" (make_builtin ~name:"index_of" 2 index_of_impl) env in
+  let env = Env.add "last_index_of" (make_builtin ~name:"last_index_of" 2 last_index_of_impl) env in
+  let env = Env.add "contains" (make_builtin ~name:"contains" 2 contains_impl) env in
+  let env = Env.add "starts_with" (make_builtin ~name:"starts_with" 2 starts_with_impl) env in
+  let env = Env.add "ends_with" (make_builtin ~name:"ends_with" 2 ends_with_impl) env in
+  let env = Env.add "replace" (make_builtin ~name:"replace" 3 replace_impl) env in
+  let env = Env.add "replace_first" (make_builtin ~name:"replace_first" 3 replace_first_impl) env in
+  let env = Env.add "to_lower" (make_builtin ~name:"to_lower" 1 to_lower_impl) env in
+  let env = Env.add "to_upper" (make_builtin ~name:"to_upper" 1 to_upper_impl) env in
   env

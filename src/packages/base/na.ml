@@ -13,7 +13,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "na"
-    (make_builtin 0 (fun _args _env -> VNA NAGeneric))
+    (make_builtin ~name:"na" 0 (fun _args _env -> VNA NAGeneric))
     env in
   (*
   --# Boolean NA
@@ -27,7 +27,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "na_bool"
-    (make_builtin 0 (fun _args _env -> VNA NABool))
+    (make_builtin ~name:"na_bool" 0 (fun _args _env -> VNA NABool))
     env in
   (*
   --# Integer NA
@@ -41,7 +41,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "na_int"
-    (make_builtin 0 (fun _args _env -> VNA NAInt))
+    (make_builtin ~name:"na_int" 0 (fun _args _env -> VNA NAInt))
     env in
   (*
   --# Float NA
@@ -55,7 +55,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "na_float"
-    (make_builtin 0 (fun _args _env -> VNA NAFloat))
+    (make_builtin ~name:"na_float" 0 (fun _args _env -> VNA NAFloat))
     env in
   (*
   --# String NA
@@ -69,6 +69,6 @@ let register env =
   --# @export
   *)
   let env = Env.add "na_string"
-    (make_builtin 0 (fun _args _env -> VNA NAString))
+    (make_builtin ~name:"na_string" 0 (fun _args _env -> VNA NAString))
     env in
   env

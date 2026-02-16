@@ -17,7 +17,7 @@ open Ast
 *)
 let register ~eval_call env =
   Env.add "map"
-    (make_builtin 2 (fun args env ->
+    (make_builtin ~name:"map" 2 (fun args env ->
       match args with
       | [VList items; fn] ->
           let mapped = List.map (fun (name, v) ->

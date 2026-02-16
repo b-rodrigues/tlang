@@ -16,7 +16,7 @@ open Ast
 *)
 let register env =
   Env.add "ungroup"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"ungroup" 1 (fun args _env ->
       match args with
       | [VDataFrame df] ->
           VDataFrame { df with group_keys = [] }

@@ -17,7 +17,7 @@ open Ast
 *)
 let register env =
   Env.add "max"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"max" 1 (fun args _env ->
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in

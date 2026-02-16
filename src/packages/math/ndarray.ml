@@ -300,7 +300,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "ndarray"
-      (make_builtin ~variadic:true 1 (fun args _env -> ndarray_create args)) env in
+      (make_builtin ~name:"ndarray" ~variadic:true 1 (fun args _env -> ndarray_create args)) env in
   (*
   --# Reshape an NDArray
   --#
@@ -318,7 +318,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "reshape"
-      (make_builtin 2 (fun args _env -> reshape args)) env in
+      (make_builtin ~name:"reshape" 2 (fun args _env -> reshape args)) env in
   (*
   --# Get NDArray dimensions
   --#
@@ -332,7 +332,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "shape"
-      (make_builtin 1 (fun args _env -> shape_of args)) env in
+      (make_builtin ~name:"shape" 1 (fun args _env -> shape_of args)) env in
   (*
   --# Get NDArray data
   --#
@@ -345,7 +345,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "ndarray_data"
-      (make_builtin 1 (fun args _env -> data_of args)) env in
+      (make_builtin ~name:"ndarray_data" 1 (fun args _env -> data_of args)) env in
   (*
   --# Matrix multiplication
   --#
@@ -360,7 +360,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "matmul"
-      (make_builtin 2 (fun args _env -> matrix_multiply args)) env in
+      (make_builtin ~name:"matmul" 2 (fun args _env -> matrix_multiply args)) env in
   (*
   --# Create or extract diagonal
   --#
@@ -375,7 +375,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "diag"
-      (make_builtin 1 (fun args _env -> diag args)) env in
+      (make_builtin ~name:"diag" 1 (fun args _env -> diag args)) env in
   (*
   --# Matrix inverse
   --#
@@ -389,7 +389,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "inv"
-      (make_builtin 1 (fun args _env -> matrix_inverse args)) env in
+      (make_builtin ~name:"inv" 1 (fun args _env -> matrix_inverse args)) env in
   (*
   --# Kronecker product
   --#
@@ -404,7 +404,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "kron"
-      (make_builtin 2 (fun args _env -> kron args)) env in
+      (make_builtin ~name:"kron" 2 (fun args _env -> kron args)) env in
   (*
   --# Transpose matrix
   --#
@@ -417,7 +417,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "transpose"
-      (make_builtin 1 (fun args _env -> 
+      (make_builtin ~name:"transpose" 1 (fun args _env -> 
         match args with
         | [VNDArray arr] ->
             if Array.length arr.shape <> 2 then
@@ -446,7 +446,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "cbind"
-      (make_builtin 2 (fun args _env ->
+      (make_builtin ~name:"cbind" 2 (fun args _env ->
         match args with
         | [VNDArray a; VNDArray b] ->
             if Array.length a.shape <> 2 || Array.length b.shape <> 2 then

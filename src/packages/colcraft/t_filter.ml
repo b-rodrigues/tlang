@@ -58,7 +58,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
   --# @export
   *)
   Env.add "filter"
-    (make_builtin 2 (fun args env ->
+    (make_builtin ~name:"filter" 2 (fun args env ->
       match args with
       | [VDataFrame df; fn] ->
           (* Try vectorized path first for simple predicates *)

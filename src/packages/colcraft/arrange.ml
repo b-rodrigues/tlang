@@ -19,7 +19,7 @@ open Ast
 *)
 let register env =
   Env.add "arrange"
-    (make_builtin ~variadic:true 2 (fun args _env ->
+    (make_builtin ~name:"arrange" ~variadic:true 2 (fun args _env ->
       match args with
       | [VDataFrame df; col_val] | [VDataFrame df; col_val; VString "asc"] ->
           (match Utils.extract_column_name col_val with

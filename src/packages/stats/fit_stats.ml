@@ -18,7 +18,7 @@ open Ast
 *)
 let register env =
   Env.add "fit_stats"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"fit_stats" 1 (fun args _env ->
       match args with
       | [VDict pairs] ->
         (match List.assoc_opt "_model_data" pairs with

@@ -147,7 +147,7 @@ let package_to_value pkg =
 *)
 let register env =
   let env = Env.add "packages"
-    (make_builtin 0 (fun _args _env ->
+    (make_builtin ~name:"packages" 0 (fun _args _env ->
       VList (List.map (fun pkg -> (None, package_to_value pkg)) all_packages)
     ))
     env
@@ -167,7 +167,7 @@ let register env =
 --# @export
 *)
   let env = Env.add "package_info"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"package_info" 1 (fun args _env ->
       match args with
       | [VString name] ->
           (match List.find_opt (fun p -> p.name = name) all_packages with
@@ -203,7 +203,7 @@ let register env =
 --# @family boolean
 --# @export
 *)
-  let env = Env.add "ifelse" (make_builtin_named ~variadic:true 3 T_boolean.ifelse) env in
+  let env = Env.add "ifelse" (make_builtin_named ~name:"ifelse" ~variadic:true 3 T_boolean.ifelse) env in
 
 (*
 --# Vectorized case-when
@@ -224,7 +224,7 @@ let register env =
 --# @family boolean
 --# @export
 *)
-  let env = Env.add "casewhen" (make_builtin_named ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr)) env in
+  let env = Env.add "casewhen" (make_builtin_named ~name:"casewhen" ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr)) env in
 
   env
 
@@ -259,9 +259,21 @@ let init_env () =
   let env = Nrow.register env in
   let env = Ncol.register env in
   let env = Glimpse.register env in
-  (* clean_colnames as a standalone function on DataFrames *)
+(*
+--# Clean DataFrame Column Names
+--#
+--# Standardizes column names using a snake_case convention. Removes special
+--# characters and handles duplicates.
+--#
+--# @name clean_colnames
+--# @param x :: DataFrame | List[String] The object with names to clean.
+--# @return :: DataFrame | List[String] The object with cleaned names.
+--# @family dataframe
+--# @seealso colnames
+--# @export
+*)
   let env = Env.add "clean_colnames"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"clean_colnames" 1 (fun args _env ->
       match args with
       | [VDataFrame { arrow_table; group_keys }] ->
           let old_names = Arrow_table.column_names arrow_table in

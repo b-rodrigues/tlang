@@ -26,7 +26,7 @@ let register env =
   *)
   (* lag(x) or lag(x, n): shift values forward, filling with NA *)
   let env = Env.add "lag"
-    (make_builtin ~variadic:true 1 (fun args _env ->
+    (make_builtin ~name:"lag" ~variadic:true 1 (fun args _env ->
       match args with
       | [arg] | [arg; VInt 1] ->
         (match to_value_array "lag" arg with
@@ -76,7 +76,7 @@ let register env =
   *)
   (* lead(x) or lead(x, n): shift values backward, filling with NA *)
   let env = Env.add "lead"
-    (make_builtin ~variadic:true 1 (fun args _env ->
+    (make_builtin ~name:"lead" ~variadic:true 1 (fun args _env ->
       match args with
       | [arg] | [arg; VInt 1] ->
         (match to_value_array "lead" arg with

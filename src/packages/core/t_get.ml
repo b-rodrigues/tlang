@@ -17,7 +17,7 @@ open Ast
 *)
 let register env =
   Env.add "get"
-    (make_builtin 2 (fun args _env ->
+    (make_builtin ~name:"get" 2 (fun args _env ->
       match args with
       | [VList items; VInt i] ->
           let len = List.length items in

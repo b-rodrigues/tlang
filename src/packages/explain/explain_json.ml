@@ -14,7 +14,7 @@ open Ast
 *)
 let register ~eval_call env =
   Env.add "explain_json"
-    (make_builtin 1 (fun args env ->
+    (make_builtin ~name:"explain_json" 1 (fun args env ->
       match args with
       | [v] ->
           (match Env.find_opt "explain" env with
