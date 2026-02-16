@@ -17,7 +17,7 @@ open Ast
 *)
 let register env =
   Env.add "exp"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"exp" 1 (fun args _env ->
       match args with
       | [VInt n] -> VFloat (Float.exp (float_of_int n))
       | [VFloat f] -> VFloat (Float.exp f)

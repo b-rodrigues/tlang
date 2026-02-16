@@ -103,6 +103,7 @@ and value =
   | VFormula of formula_spec
 
 and builtin = {
+  b_name: string option;
   b_arity: int;
   b_variadic: bool;
   b_func: ((string option * value) list -> value Env.t -> value);
@@ -373,13 +374,13 @@ let make_error ?(context=[]) code message =
   VError { code; message; context }
 
 (** Create a builtin function value (wraps func to strip arg names) *)
-let make_builtin ?(variadic=false) arity func =
-  VBuiltin { b_arity = arity; b_variadic = variadic;
+let make_builtin ?name ?(variadic=false) arity func =
+  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
              b_func = (fun named_args env -> func (List.map snd named_args) env) }
 
 (** Create a builtin function value that receives named args *)
-let make_builtin_named ?(variadic=false) arity func =
-  VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
+let make_builtin_named ?name ?(variadic=false) arity func =
+  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic; b_func = func }
 
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false

@@ -18,7 +18,7 @@ open Ast
 *)
 let register env =
   Env.add "sd"
-    (make_builtin_named ~variadic:true 1 (fun named_args _env ->
+    (make_builtin_named ~name:"sd" ~variadic:true 1 (fun named_args _env ->
       let na_rm = List.exists (fun (name, v) ->
         name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
       ) named_args in

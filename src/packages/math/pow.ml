@@ -18,7 +18,7 @@ open Ast
 *)
 let register env =
   Env.add "pow"
-    (make_builtin 2 (fun args _env ->
+    (make_builtin ~name:"pow" 2 (fun args _env ->
       match args with
       | [VInt b; VInt e] -> VFloat (Float.pow (float_of_int b) (float_of_int e))
       | [VFloat b; VInt e] -> VFloat (Float.pow b (float_of_int e))

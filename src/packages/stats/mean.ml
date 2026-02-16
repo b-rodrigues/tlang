@@ -27,7 +27,7 @@ open Ast
 *)
 let register env =
   Env.add "mean"
-    (make_builtin_named ~variadic:true 1 (fun named_args _env ->
+    (make_builtin_named ~name:"mean" ~variadic:true 1 (fun named_args _env ->
       (* Extract na_rm flag from named arguments *)
       let na_rm = List.exists (fun (name, v) ->
         name = Some "na_rm" && (match v with VBool true -> true | _ -> false)

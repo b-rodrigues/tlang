@@ -30,7 +30,7 @@
    ; core language
    ast lexer parser eval typecheck error
    ; packages/core
-   t_print t_type head tail is_error t_seq t_map sum pretty_print packages t_string t_get help string_ops t_boolean
+   t_print t_type args head tail is_error t_seq t_map sum pretty_print packages t_string t_get help string_ops t_boolean
    ; packages/base
    t_assert is_na na error_mod error_utils
    ; packages/dataframe

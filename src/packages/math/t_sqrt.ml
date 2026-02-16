@@ -17,7 +17,7 @@ open Ast
 *)
 let register env =
   Env.add "sqrt"
-    (make_builtin 1 (fun args _env ->
+    (make_builtin ~name:"sqrt" 1 (fun args _env ->
       match args with
       | [VInt n] ->
           if n < 0 then Error.value_error "Function `sqrt` is undefined for negative numbers."

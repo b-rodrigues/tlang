@@ -64,7 +64,7 @@ let package_functions pkg =
 let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures, strings";
-  functions = ["print"; "type"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "string"; "get";
+  functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "string"; "get";
                "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
                "ifelse"; "case_when"];
 }
@@ -179,8 +179,8 @@ let register env =
   in
   
   (* Helper to keep named args *)
-  let make_builtin_named ?(variadic=false) arity func =
-    VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
+  let make_builtin_named ?name ?(variadic=false) arity func =
+    VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic; b_func = func }
   in
 
   (* Register Boolean functions *)
@@ -234,6 +234,7 @@ let init_env () =
   (* Core package *)
   let env = T_print.register env in
   let env = T_type.register env in
+  let env = Args.register env in
   let env = Head.register env in
   let env = Tail.register env in
   let env = Is_error.register env in

@@ -651,7 +651,7 @@ and eval_call env fn_val raw_args =
   in
   let raw_args = transform_nse_args raw_args in
   match fn_val with
-  | VBuiltin { b_arity; b_variadic; b_func } ->
+  | VBuiltin { b_arity; b_variadic; b_func; _ } ->
       let named_args = List.map (fun (name, e) -> (name, eval_expr env e)) raw_args in
       let arg_count = List.length named_args in
       if not b_variadic && arg_count <> b_arity then
@@ -898,12 +898,12 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
 
 (* --- Built-in Functions --- *)
 
-let make_builtin ?(variadic=false) arity func =
-  VBuiltin { b_arity = arity; b_variadic = variadic;
+let make_builtin ?name ?(variadic=false) arity func =
+  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
              b_func = (fun named_args env -> func (List.map snd named_args) env) }
 
-let make_builtin_named ?(variadic=false) arity func =
-  VBuiltin { b_arity = arity; b_variadic = variadic; b_func = func }
+let make_builtin_named ?name ?(variadic=false) arity func =
+  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic; b_func = func }
 
 (* Builtins *)
 
