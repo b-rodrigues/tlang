@@ -644,7 +644,7 @@ and eval_call env fn_val raw_args =
       | _ when uses_nse expr ->
           (* Complex expression with NSE → wrap in lambda *)
           let desugared = desugar_nse_expr expr in
-          (name, Lambda { params = ["row"]; variadic = false;
+          (name, Lambda { params = ["row"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
                           body = desugared; env = None })
       | _ -> (name, expr)
     ) args
@@ -659,7 +659,7 @@ and eval_call env fn_val raw_args =
       else
         b_func named_args env
 
-  | VLambda { params; variadic = _; body; env = Some closure_env } ->
+  | VLambda { params; variadic = _; body; env = Some closure_env; _ } ->
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
       if List.length params <> List.length args then
         lambda_arity_error params args
@@ -671,7 +671,7 @@ and eval_call env fn_val raw_args =
         in
         eval_expr call_env body
 
-  | VLambda { params; variadic = _; body; env = None } ->
+  | VLambda { params; variadic = _; body; env = None; _ } ->
       (* Lambda without closure — use current env *)
       let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
       if List.length params <> List.length args then

@@ -110,6 +110,9 @@ and builtin = {
 
 and lambda = {
   params : symbol list;
+  param_types : typ option list;
+  return_type : typ option;
+  generic_params : string list;
   variadic : bool;
   body : expr;
   env : value Env.t option;
@@ -144,7 +147,18 @@ and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | 
 and unop = Not | Neg
 and comp_clause = CFor of { var : symbol; iter : expr } | CFilter of expr
 
-and typ = TInt | TFloat | TBool | TString | TList | TDict | TDataFrame | TCustom of string
+and typ =
+  | TInt
+  | TFloat
+  | TBool
+  | TString
+  | TNull
+  | TList of typ option
+  | TDict of typ option * typ option
+  | TTuple of typ list
+  | TDataFrame of typ option
+  | TVar of string
+  | TCustom of string
 
 type program = stmt list
 

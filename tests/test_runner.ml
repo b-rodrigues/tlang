@@ -44,6 +44,7 @@ let () =
   Test_in.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_operators.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_scalar_strictness.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_typing_mode.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_bitwise_error.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_variables.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_functions.run_tests pass_count fail_count eval_string eval_string_env test;
