@@ -8,8 +8,8 @@ result_arr = matmul(temp, c)
 s = shape(result_arr)
 d = ndarray_data(result_arr)
 result = [
-  shape: s |> map(\(n) -> string(n)) |> join(","),
-  data: d |> map(\(n) -> string(n)) |> join(", ")
+  shape: s |> map(\(n) string(n)) |> join(","),
+  data: d |> map(\(n) string(n)) |> join(", ")
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/matmul_chain.csv")

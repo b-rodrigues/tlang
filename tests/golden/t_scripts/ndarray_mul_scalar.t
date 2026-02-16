@@ -4,8 +4,8 @@ result_arr = arr .* 2
 s = shape(result_arr)
 d = ndarray_data(result_arr)
 result = [
-  shape: s |> map(\(n) -> string(n)) |> join(","),
-  data: d |> map(\(n) -> string(n)) |> join(", ")
+  shape: s |> map(\(n) string(n)) |> join(","),
+  data: d |> map(\(n) string(n)) |> join(", ")
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_mul_scalar.csv")
