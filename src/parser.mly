@@ -262,22 +262,7 @@ block_expr:
 lambda_expr:
   | LAMBDA g = generic_params_opt LPAREN p = params RPAREN body = expr
     {
-      let names = List.map fst p.params in
-      let param_types = List.map snd p.params in
-      Lambda {
-        params = names;
-        param_types;
-        return_type = None;
-        generic_params = g;
-        variadic = p.has_variadic;
-        body;
-        env = None;
-      }
-    }
-  | LAMBDA g = generic_params_opt LPAREN p = params RPAREN ARROW body = expr
-    {
-      (* This handles untyped lambdas with an arrow. 
-         Menhir will prefer the typed version below if it matches (IDENT {). *)
+      (* Untyped lambda: no return annotation, body is any expression *)
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
       Lambda {
@@ -292,6 +277,7 @@ lambda_expr:
     }
   | LAMBDA g = generic_params_opt LPAREN p = params RPAREN ARROW rt = typ body = block_expr
     {
+      (* Typed lambda: return annotation present, body must be a block to avoid ambiguity *)
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
       Lambda {
@@ -306,20 +292,7 @@ lambda_expr:
     }
   | FUNCTION g = generic_params_opt LPAREN p = params RPAREN body = expr
     {
-      let names = List.map fst p.params in
-      let param_types = List.map snd p.params in
-      Lambda {
-        params = names;
-        param_types;
-        return_type = None;
-        generic_params = g;
-        variadic = p.has_variadic;
-        body;
-        env = None;
-      }
-    }
-  | FUNCTION g = generic_params_opt LPAREN p = params RPAREN ARROW body = expr
-    {
+      (* Untyped function: no return annotation *)
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
       Lambda {
@@ -334,6 +307,7 @@ lambda_expr:
     }
   | FUNCTION g = generic_params_opt LPAREN p = params RPAREN ARROW rt = typ body = block_expr
     {
+      (* Typed function: return annotation present, body must be a block *)
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
       Lambda {
