@@ -471,11 +471,15 @@ let interactive_init default_name =
   let name = if default_name = "" then prompt_string "Name" "my-pkg" else default_name in
   let author = prompt_string "Author" (try Sys.getenv "USER" with Not_found -> "Anonymous") in
   let license = prompt_string "License [EUPL-1.2, GPL-3.0-or-later, MIT] (visit https://spdx.org/licenses/ for all licenses)" "EUPL-1.2" in
+  let t = Unix.gmtime (Unix.gettimeofday ()) in
+  let today = Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday in
+  let nixpkgs_date = prompt_string "Nixpkgs date (rstats-on-nix branch)" today in
   Printf.printf "\n";
   {
     target_name = name;
     author = author;
     license = license;
+    nixpkgs_date = nixpkgs_date;
     no_git = false;
     force = false;
     interactive = false; (* Already interactive *)
@@ -533,6 +537,9 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   let name = ref None in
   let author = ref "Your Name <email@example.com>" in
   let license = ref "EUPL-1.2" in
+  let t = Unix.gmtime (Unix.gettimeofday ()) in
+  let today = Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday in
+  let nixpkgs_date = ref today in
   let no_git = ref false in
   let force = ref false in
   let show_help = ref false in
@@ -541,6 +548,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
     | [] -> ()
     | "--author" :: v :: rest -> author := v; parse rest
     | "--license" :: v :: rest -> license := v; parse rest
+    | "--nixpkgs-date" :: v :: rest -> nixpkgs_date := v; parse rest
     | "--no-git" :: rest -> no_git := true; parse rest
     | "--force" :: rest -> force := true; parse rest
     | "--interactive" :: rest -> parse rest (* Handled in repl.ml mainly, but we can flag it *)
@@ -561,6 +569,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
            Options:\n\
            \  --author <name>    Author name and email (default: \"Your Name <email@example.com>\")\n\
            \  --license <id>     License identifier (default: EUPL-1.2)\n\
+           \  --nixpkgs-date <YYYY-MM-DD>  Nixpkgs branch date (default: today)\n\
            \  --no-git           Skip git init\n\
            \  --force            Overwrite existing directory\n\
            \  --help             Show this help\n\
@@ -574,6 +583,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
         target_name = n;
         author = !author;
         license = !license;
+        nixpkgs_date = !nixpkgs_date;
         no_git = !no_git;
         force = !force;
         interactive = List.mem "--interactive" args;
@@ -584,9 +594,11 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
             target_name = "";
             author = !author;
             license = !license;
+            nixpkgs_date = !nixpkgs_date;
             no_git = !no_git;
             force = !force;
             interactive = true;
           }
         else
           Error "Missing package/project name. Usage: t init package|project <name>"
+

@@ -34,20 +34,25 @@ type scaffold_options = {
   target_name : string;
   author : string;
   license : string;
+  nixpkgs_date : string;
   no_git : bool;
   force : bool;
   interactive : bool;
 }
 
 (** Default scaffold options *)
-let default_options name = {
-  target_name = name;
-  author = "Your Name <email@example.com>";
-  license = "EUPL-1.2";
-  no_git = false;
-  force = false;
-  interactive = false;
-}
+let default_options name =
+  let t = Unix.gmtime (Unix.gettimeofday ()) in
+  let today = Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday in
+  {
+    target_name = name;
+    author = "Your Name <email@example.com>";
+    license = "EUPL-1.2";
+    nixpkgs_date = today;
+    no_git = false;
+    force = false;
+    interactive = false;
+  }
 
 (** Default package config *)
 let default_package_config name = {
