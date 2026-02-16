@@ -120,8 +120,6 @@ quantiles <- tibble(
 write_csv(quantiles, file.path(output_dir, "quantiles_mpg.csv"))
 message("✓ Quantiles for mpg")
 
-message("\n✅ All statistical outputs generated!")
-
 # Test Suite 11: Extended descriptive functions
 message("\n=== EXTENDED STATS Tests ===")
 
@@ -134,3 +132,5 @@ extended_stats <- tibble(
 )
 write_csv(extended_stats, file.path(output_dir, "extended_stats_basics.csv"))
 message("✓ Extended stats baseline set")
+
+message("\n✅ All statistical outputs generated!")

@@ -13,12 +13,6 @@ open Ast
 --# @export
 *)
 
-let has_na_rm named_args =
-  List.exists (fun (name, v) -> name = Some "na_rm" && match v with VBool true -> true | _ -> false) named_args
-
-let strip_na_rm named_args =
-  List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd
-
 let numeric_values ~label ~na_rm v =
   let vals =
     match v with
@@ -39,24 +33,6 @@ let numeric_values ~label ~na_rm v =
         | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
       in
       go [] vals
-
-let quantile xs p =
-  let arr = Array.of_list xs in
-  let n = Array.length arr in
-  if n = 0 then None
-  else (
-    Array.sort compare arr;
-    let h = p *. float_of_int (n - 1) in
-    let lo = int_of_float (Float.floor h) in
-    let hi = min (lo + 1) (n - 1) in
-    let frac = h -. float_of_int lo in
-    Some (arr.(lo) +. frac *. (arr.(hi) -. arr.(lo))))
-
-let mean xs =
-  let n = List.length xs in
-  if n = 0 then None else Some (List.fold_left ( +. ) 0.0 xs /. float_of_int n)
-
-let vecf xs = VVector (Array.of_list (List.map (fun x -> VFloat x) xs))
 
 let register env =
   Env.add "trimmed_mean" (make_builtin ~name:"trimmed_mean" 2 (fun args _ ->

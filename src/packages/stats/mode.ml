@@ -7,7 +7,7 @@ open Ast
 --#
 --# @name mode
 --# @param x :: Vector | List Input values.
---# @return :: Number | Vector Computed result (scalar or vectorized).
+--# @return :: Any The most frequent value from the input (or NA if empty).
 --# @family stats
 --# @export
 *)
