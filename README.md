@@ -116,6 +116,7 @@ See [Installation Guide](docs/installation.md) for detailed setup instructions.
 
 - **[Getting Started](docs/getting-started.md)** — First steps with T
 - **[Language Overview](docs/language_overview.md)** — Types, syntax, and core concepts
+- **[Type System](docs/type-system.md)** — REPL vs strict mode, typed lambdas, and current limitations
 - **[API Reference](docs/api-reference.md)** — Complete function reference
 - **[Data Manipulation](docs/data_manipulation_examples.md)** — Practical examples with data verbs
 - **[Pipeline Tutorial](docs/pipeline_tutorial.md)** — Step-by-step guide to pipelines
@@ -176,6 +177,29 @@ df |> filter($age > 30) |> select($name, $salary)
 mean([1, NA, 3])              -- Error: NA encountered
 mean([1, NA, 3], na_rm = true) -- 2.0 (explicit handling)
 ```
+
+### Type System (Alpha)
+
+T now includes an early type-system layer focused on function signatures and mode-dependent validation:
+
+- `--mode repl` keeps exploration flexible and does not enforce top-level annotations.
+- `--mode strict` enforces typed top-level function signatures.
+- `t run file.t` defaults to `strict` mode (unless `--mode repl` is explicitly passed).
+
+Current typed lambda syntax:
+
+```t
+-- Untyped lambda (expression body)
+add = \(x, y) x + y
+
+-- Typed lambda (return type requires a block body)
+add_int = \(x: Int, y: Int) -> Int { x + y }
+
+-- Generic typed lambda (type variables must be declared)
+id = \<T>(x: T) -> T { x }
+```
+
+See [docs/type-system.md](docs/type-system.md) for details on what is implemented today and what is still planned.
 
 ### Data Verbs
 
