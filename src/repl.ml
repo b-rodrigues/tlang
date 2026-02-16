@@ -91,18 +91,35 @@ let is_incomplete input =
 let repl_display_value v =
   let package_info_of_value = function
     | Ast.VDict pairs ->
-        let lookup key = List.assoc_opt key pairs in
-        (match lookup "name", lookup "description", lookup "functions" with
-        | Some (Ast.VString name), Some (Ast.VString description), Some (Ast.VList fns) ->
-            let fn_names =
-              List.filter_map (fun (_, item) ->
-                match item with
-                | Ast.VString fn_name -> Some fn_name
-                | _ -> None
-              ) fns
-            in
-            Some (name, description, fn_names)
-        | _ -> None)
+        (* Only treat as package metadata if it has exactly the expected keys
+           and the [functions] entry is a list of strings. *)
+        let keys = List.map fst pairs in
+        let expected_keys = [ "name"; "description"; "functions" ] in
+        let has_only_expected_keys =
+          List.length keys = List.length expected_keys
+          && List.for_all (fun k -> List.mem k expected_keys) keys
+        in
+        if not has_only_expected_keys then
+          None
+        else
+          let lookup key = List.assoc_opt key pairs in
+          match lookup "name", lookup "description", lookup "functions" with
+          | Some (Ast.VString name), Some (Ast.VString description), Some (Ast.VList fns) ->
+              (* Require that all function entries are strings; otherwise,
+                 do not treat this value as package metadata. *)
+              let fn_names =
+                List.filter_map (fun (_, item) ->
+                  match item with
+                  | Ast.VString fn_name -> Some fn_name
+                  | _ -> None
+                ) fns
+              in
+              (* Only treat as package metadata if ALL items were strings *)
+              if List.length fn_names = List.length fns then
+                Some (name, description, fn_names)
+              else
+                None
+          | _ -> None
     | _ -> None
   in
   match v with
