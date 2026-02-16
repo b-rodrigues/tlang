@@ -192,11 +192,11 @@ Current typed lambda syntax:
 -- Untyped lambda (expression body)
 add = \(x, y) x + y
 
--- Typed lambda (return type requires a block body)
-add_int = \(x: Int, y: Int) -> Int { x + y }
+-- Typed lambda (return type in parentheses)
+add_int = \(x: Int, y: Int -> Int) (x + y)
 
 -- Generic typed lambda (type variables must be declared)
-id = \<T>(x: T) -> T { x }
+id = \<T>(x: T -> T) x
 ```
 
 See [docs/type-system.md](docs/type-system.md) for details on what is implemented today and what is still planned.

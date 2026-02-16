@@ -25,7 +25,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     
   test "golden boolean: ifelse scalar condition"
     {|ifelse(true, [1, 2], [3, 4])|}
-    "Vector[1]";
+    "1";
+
+  test "golden boolean: ifelse scalar return type matches branch type"
+    {|ifelse(4 > 5, 1, 0)|}
+    "0";
 
   (* Type promotion: Int + Float -> Float *)
   test "golden boolean: ifelse type promotion"
@@ -36,6 +40,14 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "golden boolean: ifelse explicit missing"
     {|ifelse([true, false, NA], 1, 0, 999)|}
     "Vector[1, 0, 999]";
+
+  test "golden boolean: ifelse out_type cast to string"
+    {|ifelse([true, false], 1, 0, out_type = "String")|}
+    {|Vector["1", "0"]|};
+
+  test "golden boolean: ifelse out_type cast scalar"
+    {|ifelse(true, 1, 0, out_type = "Float")|}
+    "1.";
 
   (* ===================================================================== *)
   (* case_when() Golden Tests                                              *)

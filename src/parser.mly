@@ -8,7 +8,7 @@ exception Mixed_bracket_form
 
 (* Helper to build a parameter record from parsing *)
 type parsed_param = string * Ast.typ option
-type param_info = { params: parsed_param list; has_variadic: bool }
+type param_info = { params: parsed_param list; has_variadic: bool; return_type: Ast.typ option }
 
 type bracket_item =
   | BrExpr of Ast.expr
@@ -262,28 +262,12 @@ block_expr:
 lambda_expr:
   | LAMBDA g = generic_params_opt LPAREN p = params RPAREN body = expr
     {
-      (* Untyped lambda: no return annotation, body is any expression *)
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
       Lambda {
         params = names;
         param_types;
-        return_type = None;
-        generic_params = g;
-        variadic = p.has_variadic;
-        body;
-        env = None;
-      }
-    }
-  | LAMBDA g = generic_params_opt LPAREN p = params RPAREN ARROW rt = typ body = block_expr
-    {
-      (* Typed lambda: return annotation present, body must be a block to avoid ambiguity *)
-      let names = List.map fst p.params in
-      let param_types = List.map snd p.params in
-      Lambda {
-        params = names;
-        param_types;
-        return_type = Some rt;
+        return_type = p.return_type;
         generic_params = g;
         variadic = p.has_variadic;
         body;
@@ -292,28 +276,12 @@ lambda_expr:
     }
   | FUNCTION g = generic_params_opt LPAREN p = params RPAREN body = expr
     {
-      (* Untyped function: no return annotation *)
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
       Lambda {
         params = names;
         param_types;
-        return_type = None;
-        generic_params = g;
-        variadic = p.has_variadic;
-        body;
-        env = None;
-      }
-    }
-  | FUNCTION g = generic_params_opt LPAREN p = params RPAREN ARROW rt = typ body = block_expr
-    {
-      (* Typed function: return annotation present, body must be a block *)
-      let names = List.map fst p.params in
-      let param_types = List.map snd p.params in
-      Lambda {
-        params = names;
-        param_types;
-        return_type = Some rt;
+        return_type = p.return_type;
         generic_params = g;
         variadic = p.has_variadic;
         body;
@@ -335,15 +303,20 @@ generic_param_list:
   | g = IDENT COMMA skip_sep rest = generic_param_list { g :: rest }
   ;
 
-/* Helper for parsing parameter lists with optional variadic `...` */
+/* Helper for parsing parameter lists with optional variadic `...` and optional return type code `-> Type` */
 params:
-  | (* empty *) { { params = []; has_variadic = false } }
+  | p = params_raw { { params = p.params; has_variadic = p.has_variadic; return_type = None } }
+  | p = params_raw ARROW rt = typ { { params = p.params; has_variadic = p.has_variadic; return_type = Some rt } }
+  ;
+
+params_raw:
+  | (* empty *) { { params = []; has_variadic = false; return_type = None } }
   | ps = param_list
-    { { params = ps; has_variadic = false } }
+    { { params = ps; has_variadic = false; return_type = None } }
   | ps = param_list COMMA skip_sep DOTDOTDOT
-    { { params = ps; has_variadic = true } }
+    { { params = ps; has_variadic = true; return_type = None } }
   | DOTDOTDOT
-    { { params = []; has_variadic = true } }
+    { { params = []; has_variadic = true; return_type = None } }
   ;
 
 param_list:
