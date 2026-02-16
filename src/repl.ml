@@ -467,6 +467,9 @@ let () =
   let raw_args = Array.to_list Sys.argv in
   let rec extract_mode acc = function
     | [] -> (List.rev acc, Typecheck.Repl)
+    | "--mode" :: [] ->
+        Printf.eprintf "Missing value for --mode. Use --mode repl|strict\n";
+        exit 1
     | "--mode" :: m :: rest ->
         (match Typecheck.mode_of_string m with
          | Some mode -> (List.rev_append acc rest, mode)
@@ -478,7 +481,10 @@ let () =
   let args, mode = extract_mode [] raw_args in
   let env = Packages.init_env () in
   match args with
-  | _ :: "run" :: filename :: _ -> cmd_run mode filename env
+  | _ :: "run" :: filename :: _ ->
+      (* Default to Strict mode for scripts, but allow --mode to override *)
+      let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
+      cmd_run script_mode filename env
   | _ :: "repl" :: _ -> cmd_repl mode env
   | _ :: "explain" :: rest -> cmd_explain mode rest env
   | _ :: "init" :: "package" :: rest -> cmd_init_package rest
