@@ -53,7 +53,7 @@ let documented_functions_for_package pkg_name =
     match doc.family with
     | Some family -> List.mem family families && doc.is_export
     | None -> false)
-  |> List.map (fun doc -> doc.name)
+  |> List.map (fun (doc : Tdoc_types.doc_entry) -> doc.name)
   |> dedup_sort_strings
 
 let package_functions pkg =
