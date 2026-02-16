@@ -11,6 +11,55 @@ type package_info = {
   functions : string list;
 }
 
+let docs_loaded : unit Lazy.t =
+  lazy (
+    let docs_paths = ["help/docs.json"; "docs.json"] in
+    let loaded_paths =
+      List.filter_map (fun path ->
+        if Sys.file_exists path then begin
+          Tdoc_registry.load_from_json path;
+          Some path
+        end else
+          None
+      ) docs_paths
+    in
+    match loaded_paths with
+    | [] ->
+        prerr_endline "Documentation: no docs.json found in help/docs.json or docs.json; proceeding without documentation."
+    | paths ->
+        List.iter (fun path ->
+          Printf.fprintf stderr "Documentation: loaded from %s\n" path
+        ) paths
+  )
+
+let ensure_docs_loaded () =
+  Lazy.force docs_loaded
+
+let package_families = function
+  | "core" -> ["core"; "string"; "boolean"]
+  | "stats" -> ["stats"; "descriptive-statistics"]
+  | "base" | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" as pkg -> [pkg]
+  | _ -> []
+
+let dedup_sort_strings xs =
+  xs
+  |> List.sort_uniq String.compare
+
+let documented_functions_for_package pkg_name =
+  ensure_docs_loaded ();
+  let families = package_families pkg_name in
+  Tdoc_registry.get_all ()
+  |> List.filter (fun (doc : Tdoc_types.doc_entry) ->
+    match doc.family with
+    | Some family -> List.mem family families && doc.is_export
+    | None -> false)
+  |> List.map (fun (doc : Tdoc_types.doc_entry) -> doc.name)
+  |> dedup_sort_strings
+
+let package_functions pkg =
+  let documented = documented_functions_for_package pkg.name in
+  dedup_sort_strings (documented @ pkg.functions)
+
 (** Standard package definitions *)
 let core_package = {
   name = "core";
@@ -79,7 +128,7 @@ let package_to_value pkg =
   VDict [
     ("name", VString pkg.name);
     ("description", VString pkg.description);
-    ("functions", VList (List.map (fun f -> (None, VString f)) pkg.functions));
+    ("functions", VList (List.map (fun f -> (None, VString f)) (package_functions pkg)));
   ]
 
 (** Register the packages() builtin *)

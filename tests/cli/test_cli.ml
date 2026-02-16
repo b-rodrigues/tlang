@@ -15,6 +15,14 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "package_info stats functions"
     {|type(package_info("stats").functions)|}
     {|"List"|};
+  (* The colcraft_package statically defines 7 core functions:
+     select, filter, mutate, arrange, group_by, ungroup, summarize.
+     This test asserts that the documented/expanded functions list
+     contains more entries than that static baseline.
+     NOTE: Keep this list in sync with colcraft_package definition in packages.ml *)
+  test "package_info colcraft functions are expanded"
+    {|length(package_info("colcraft").functions) > 7|}
+    "true";
   test "package_info missing"
     {|package_info("nonexistent")|}
     {|Error(KeyError: "Package `nonexistent` not found.")|};

@@ -89,15 +89,31 @@ let is_incomplete input =
 
 (** Pretty-print a value for REPL display *)
 let repl_display_value v =
+  let maybe_package_info v =
+    match v with
+    | Ast.VDict pairs ->
+        let lookup key = List.assoc_opt key pairs in
+        (match lookup "name", lookup "description", lookup "functions" with
+        | Some (Ast.VString name), Some (Ast.VString description), Some (Ast.VList fns) ->
+            let fn_names = List.filter_map (function (_, Ast.VString s) -> Some s | _ -> None) fns in
+            if List.length fn_names = List.length fns then Some (name, description, fn_names)
+            else None
+        | _ -> None)
+    | _ -> None
+  in
   match v with
   | Ast.VNull -> ()
-  | Ast.VError _ ->
+  | Ast.VError _ | Ast.VDataFrame _ | Ast.VPipeline _ ->
       print_string (Pretty_print.pretty_print_value v);
       flush stdout
-  | Ast.VDataFrame _ | Ast.VPipeline _ ->
-      print_string (Pretty_print.pretty_print_value v);
-      flush stdout
-  | v -> print_endline (Ast.Utils.value_to_string v)
+  | other ->
+      (match maybe_package_info other with
+      | Some (name, description, functions) ->
+          Printf.printf "\n  %s\n\n  %s\n\n  Functions (%d):\n"
+            name description (List.length functions);
+          List.iter (fun fn_name -> Printf.printf "    - %s\n" fn_name) functions;
+          print_newline ()
+      | None -> print_endline (Ast.Utils.value_to_string other))
 
 (* --- CLI Commands --- *)
 

@@ -27,6 +27,13 @@
 )
 
 (rule
+ (target docs.json)
+ (deps ../help/docs.json)
+ (action (copy %{deps} %{target}))
+)
+
+(rule
  (alias runtest)
+ (deps docs.json)
  (action (run ./test_runner.exe))
 )

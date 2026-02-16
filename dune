@@ -1,4 +1,4 @@
-(dirs src tests)
+(dirs src tests help)
 
 (alias
  (name default)
