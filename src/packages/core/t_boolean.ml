@@ -40,100 +40,109 @@ let cast_value target_type v =
 
 (* --- ifelse --- *)
 
+let normalize_type_name = function
+  | "int" | "integer" | "Int" | "Integer" -> Some "Int"
+  | "float" | "double" | "numeric" | "Float" | "Double" | "Numeric" -> Some "Float"
+  | "string" | "str" | "character" | "String" | "Str" | "Character" -> Some "String"
+  | "bool" | "boolean" | "logical" | "Bool" | "Boolean" | "Logical" -> Some "Bool"
+  | _ -> None
 
-let ifelse (args : Ast.value list) _env =
-  match args with
-  | [condition; true_val; false_val] ->
-      let missing_val = VNA NAGeneric in (* Default missing *)
-      
-      (* 1. Determine Output Length from Condition *)
-      let len = match condition with
-        | VVector arr -> Array.length arr
-        | VList l -> List.length l
-        | VNDArray { shape; _ } -> Array.fold_left ( * ) 1 shape (* Flat size *)
-        | _ -> 1
-      in
 
-      (* 2. Helper to build accessor functions for values (with recycling) *)
-      let make_getter v =
-        match v with
-        | VVector arr ->
-            let n = Array.length arr in
-            (fun i -> if n = 0 then VNull else arr.(i mod n))
-        | VList l ->
-            let arr = Array.of_list (List.map snd l) in
-            let n = Array.length arr in
-            (fun i -> if n = 0 then VNull else arr.(i mod n))
-        | VNDArray { data; _ } ->
-            let n = Array.length data in
-            (fun i -> if n = 0 then VNull else VFloat data.(i mod n))
-        | _ ->
-            (* Scalar repeats *)
-            (fun _ -> v)
-      in
+let ifelse (named_args : (string option * Ast.value) list) _env =
+  let positional_args = List.filter_map (function None, v -> Some v | _ -> None) named_args in
+  let named_value name =
+    List.find_opt (fun (n, _) -> n = Some name) named_args |> Option.map snd
+  in
+  let unexpected_named =
+    List.filter_map (function
+      | Some "missing", _ | Some "out_type", _ | None, _ -> None
+      | Some name, _ -> Some name
+    ) named_args
+  in
+  match unexpected_named with
+  | name :: _ -> Error.type_error (Printf.sprintf "ifelse: unexpected named argument `%s`." name)
+  | [] ->
+      (match positional_args with
+      | condition :: true_val :: false_val :: extras ->
+          let parsed_extras =
+            match extras with
+            | [] -> Ok (None, None)
+            | [missing] -> Ok (Some missing, None)
+            | [missing; out_type] -> Ok (Some missing, Some out_type)
+            | _ ->
+                let received = List.length positional_args in
+                Error (Error.type_error (Printf.sprintf "ifelse: expected at most 5 positional args, got %d" received))
+          in
+          (match parsed_extras with
+          | Error err -> err
+          | Ok (positional_missing, positional_out_type) ->
+              (match positional_out_type, named_value "out_type" with
+              | Some _, Some _ -> Error.type_error "ifelse: `out_type` was provided both positionally and by name."
+              | _ ->
+                  (match positional_missing, named_value "missing" with
+                  | Some _, Some _ -> Error.type_error "ifelse: `missing` was provided both positionally and by name."
+                  | _ ->
+                      let missing_val =
+                        match positional_missing with
+                        | Some v -> v
+                        | None -> (match named_value "missing" with Some v -> v | None -> VNA NAGeneric)
+                      in
+                      let out_type_arg = match positional_out_type with Some v -> Some v | None -> named_value "out_type" in
 
-      let get_condition = make_getter condition in
-      let get_true = make_getter true_val in
-      let get_false = make_getter false_val in
-      let get_missing = make_getter missing_val in
-      
-      (* 3. Determine Common Type for Output *)
-      let sample_t = get_true 0 in
-      let sample_f = get_false 0 in
-      let sample_m = get_missing 0 in
-      let target_type = common_type [sample_t; sample_f; sample_m] in
+                      let len = match condition with
+                        | VVector arr -> Array.length arr
+                        | VList l -> List.length l
+                        | VNDArray { shape; _ } -> Array.fold_left ( * ) 1 shape
+                        | _ -> 1
+                      in
 
-      (* 4. Construct Result Vector *)
-      let result = Array.init len (fun i ->
-        let cond_v = get_condition i in
-        match cond_v with
-        | VBool true -> cast_value target_type (get_true i)
-        | VBool false -> cast_value target_type (get_false i)
-        | VNA _ -> cast_value target_type (get_missing i)
-        | VNull -> cast_value target_type (get_missing i) (* Treat null as missing in logic *)
-        | _ -> VError { code = TypeError; message = "Condition must be logical"; context = [] }
-      ) in
-      
-      (* 5. Check for errors in result *)
-      (match Array.find_opt Error.is_error_value result with
-      | Some err -> err
-      | None -> VVector result)
+                      let get_at v i =
+                        match v with
+                        | VVector arr ->
+                            let n = Array.length arr in
+                            if n = 0 then VNull else arr.(i mod n)
+                        | VList l ->
+                            let arr = Array.of_list (List.map snd l) in
+                            let n = Array.length arr in
+                            if n = 0 then VNull else arr.(i mod n)
+                        | VNDArray { data; _ } ->
+                            let n = Array.length data in
+                            if n = 0 then VNull else VFloat data.(i mod n)
+                        | _ -> v
+                      in
 
-  | [condition; true_val; false_val; missing_val] ->
-        (* Explicit missing value support *)
-        let len = match condition with
-        | VVector arr -> Array.length arr
-        | VList l -> List.length l
-        | VNDArray { shape; _ } -> Array.fold_left ( * ) 1 shape
-        | _ -> 1
-        in
-        let get_at v i =
-          match v with
-          | VVector arr -> if Array.length arr = 0 then VNull else arr.(i mod Array.length arr)
-          | VList l -> let n = List.length l in if n = 0 then VNull else snd (List.nth l (i mod n))
-          | VNDArray { data; _ } -> let n = Array.length data in if n = 0 then VNull else VFloat data.(i mod n)
-          | _ -> v
-        in
-        let sample_t = get_at true_val 0 in
-        let sample_f = get_at false_val 0 in
-        let sample_m = get_at missing_val 0 in
-        let target_type = common_type [sample_t; sample_f; sample_m] in
-  
-        let result = Array.init len (fun i ->
-          let cond_v = get_at condition i in
-          match cond_v with
-          | VBool true -> cast_value target_type (get_at true_val i)
-          | VBool false -> cast_value target_type (get_at false_val i)
-          | VNA _ -> cast_value target_type (get_at missing_val i)
-          | VNull -> cast_value target_type (get_at missing_val i)
-          | _ -> VError { code = TypeError; message = "Condition must be logical"; context = [] }
-        ) in
-  
-        (match Array.find_opt Error.is_error_value result with
-        | Some err -> err
-        | None -> VVector result)
-
-  | _ -> Error.arity_error ~expected:3 ~received:(List.length args) (* Note: Variadic/Optional args handling is manual here *)
+                      let inferred_target_type =
+                        let sample_t = get_at true_val 0 in
+                        let sample_f = get_at false_val 0 in
+                        let sample_m = get_at missing_val 0 in
+                        common_type [sample_t; sample_f; sample_m]
+                      in
+                      let target_type_or_err =
+                        match out_type_arg with
+                        | None -> Ok inferred_target_type
+                        | Some (VString s) ->
+                            (match normalize_type_name s with
+                            | Some t -> Ok t
+                            | None -> Error (Error.type_error "ifelse: `out_type` must be one of Int, Float, String, or Bool."))
+                        | Some _ -> Error (Error.type_error "ifelse: `out_type` must be a string.")
+                      in
+                      match target_type_or_err with
+                      | Error err -> err
+                      | Ok target_type ->
+                          let result = Array.init len (fun i ->
+                            let cond_v = get_at condition i in
+                            match cond_v with
+                            | VBool true -> cast_value target_type (get_at true_val i)
+                            | VBool false -> cast_value target_type (get_at false_val i)
+                            | VNA _ -> cast_value target_type (get_at missing_val i)
+                            | VNull -> cast_value target_type (get_at missing_val i)
+                            | _ -> VError { code = TypeError; message = "Condition must be logical"; context = [] }
+                          ) in
+                          (match Array.find_opt Error.is_error_value result with
+                          | Some err -> err
+                          | None when len = 1 -> result.(0)
+                          | None -> VVector result))))
+      | _ -> Error.arity_error_named "ifelse" ~expected:3 ~received:(List.length positional_args))
 
 
 (* --- case_when --- *)
