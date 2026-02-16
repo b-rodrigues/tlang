@@ -146,14 +146,15 @@ let register env =
 --# @param true_val :: Any | Vector[Any] Value to return if condition is true.
 --# @param false_val :: Any | Vector[Any] Value to return if condition is false.
 --# @param missing :: Any (Optional) Value to return if condition is NA. Defaults to NA.
---# @return :: Vector[Any] A vector of the same length as `condition`.
+--# @param out_type :: String (Optional) Force-cast output values to Int, Float, String, or Bool.
+--# @return :: Any | Vector[Any] A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
 --# @example
 --#   ifelse(x > 5, "High", "Low")
 --#   ifelse(x % 2 == 0, x, 0)
 --# @family boolean
 --# @export
 *)
-  let env = Env.add "ifelse" (make_builtin ~variadic:true 3 T_boolean.ifelse) env in
+  let env = Env.add "ifelse" (make_builtin_named ~variadic:true 3 T_boolean.ifelse) env in
 
 (*
 --# Vectorized case-when
