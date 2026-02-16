@@ -14,19 +14,22 @@ type package_info = {
 let docs_loaded : unit Lazy.t =
   lazy (
     let docs_paths = ["help/docs.json"; "docs.json"] in
-    let any_loaded =
-      List.fold_left (fun acc path ->
+    let loaded_paths =
+      List.filter_map (fun path ->
         if Sys.file_exists path then begin
           Tdoc_registry.load_from_json path;
-          true
+          Some path
         end else
-          acc
-      ) false docs_paths
+          None
+      ) docs_paths
     in
-    if any_loaded then
-      prerr_endline "Documentation: loaded docs from available docs.json files."
-    else
-      prerr_endline "Documentation: no docs.json found in expected locations; proceeding without documentation."
+    match loaded_paths with
+    | [] ->
+        prerr_endline "Documentation: no docs.json found in help/docs.json or docs.json; proceeding without documentation."
+    | paths ->
+        List.iter (fun path ->
+          Printf.fprintf stderr "Documentation: loaded from %s\n" path
+        ) paths
   )
 
 let ensure_docs_loaded () =
