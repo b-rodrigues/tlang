@@ -496,6 +496,108 @@ let () =
   in
   let args, mode = extract_mode [] raw_args in
   let env = Packages.init_env () in
+  (* Register interactive CLI wrappers — must be here (not in packages.ml)
+     to avoid dependency cycles with Test_discovery *)
+  let env = Ast.Env.add "t_run"
+    (Ast.VBuiltin { b_name = Some "t_run"; b_arity = 1; b_variadic = false;
+      b_func = (fun named_args env ->
+        match List.map snd named_args with
+        | [Ast.VString filename] ->
+            (try
+              let ch = open_in filename in
+              let content = really_input_string ch (in_channel_length ch) in
+              close_in ch;
+              let lexbuf = Lexing.from_string content in
+              (try
+                let program = Parser.program Lexer.token lexbuf in
+                let (v, _new_env) = Eval.eval_program program env in
+                (match v with
+                 | Ast.VError _ -> v
+                 | _ -> Printf.printf "Ran %s successfully.\n" filename; flush stdout; Ast.VNull)
+              with
+              | Lexer.SyntaxError msg ->
+                  Ast.VError { code = Ast.GenericError; message = Printf.sprintf "Syntax error in '%s': %s" filename msg; context = [] }
+              | Parser.Error ->
+                  let pos = Lexing.lexeme_start_p lexbuf in
+                  Ast.VError { code = Ast.GenericError;
+                    message = Printf.sprintf "Parse error in '%s' at line %d, column %d" filename pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol);
+                    context = [] })
+            with
+            | Sys_error msg ->
+                Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_run failed: %s" msg; context = [] })
+        | _ -> Ast.VError { code = Ast.TypeError; message = "t_run expects a file path string."; context = [] })
+    })
+    env
+  in
+  let env = Ast.Env.add "t_test"
+    (Ast.VBuiltin { b_name = Some "t_test"; b_arity = 0; b_variadic = false;
+      b_func = (fun _named_args _env ->
+        let dir = Sys.getcwd () in
+        let suite_result = Test_discovery.run_suite ~verbose:false dir in
+        if suite_result.failed > 0 then
+          Ast.VError { code = Ast.GenericError; message = Printf.sprintf "%d test(s) failed." suite_result.failed; context = [] }
+        else begin
+          Printf.printf "All %d test(s) passed.\n" suite_result.passed;
+          flush stdout;
+          Ast.VNull
+        end)
+    })
+    env
+  in
+  let env = Ast.Env.add "t_doc"
+    (Ast.VBuiltin { b_name = Some "t_doc"; b_arity = 1; b_variadic = false;
+      b_func = (fun named_args _env ->
+        match List.map snd named_args with
+        | [Ast.VString "parse"] ->
+            let dir = Sys.getcwd () in
+            let src_dir = Filename.concat dir "src" in
+            Printf.printf "Parsing documentation from %s...\n" src_dir;
+            let files = recursive_files src_dir in
+            List.iter (fun f ->
+              let docs = Tdoc_parser.parse_file f in
+              List.iter Tdoc_registry.register docs
+            ) files;
+            let help_dir = Filename.concat dir "help" in
+            if not (Sys.file_exists help_dir) then Unix.mkdir help_dir 0o755;
+            Tdoc_registry.to_json_file (Filename.concat help_dir "docs.json");
+            Printf.printf "Parsed %d functions.\n" (List.length (Tdoc_registry.get_all ()));
+            flush stdout;
+            Ast.VNull
+        | [Ast.VString "generate"] ->
+            let dir = Sys.getcwd () in
+            Printf.printf "Generating Markdown in docs/reference...\n";
+            let ensure_dir path =
+              if Sys.file_exists path then
+                (if not (Sys.is_directory path) then
+                  failwith (Printf.sprintf "%s exists and is not a directory" path))
+              else
+                Unix.mkdir path 0o755
+            in
+            let docs_dir = Filename.concat dir "docs" in
+            ensure_dir docs_dir;
+            let out_dir = Filename.concat docs_dir "reference" in
+            ensure_dir out_dir;
+            let entries = Tdoc_registry.get_all () in
+            List.iter (fun (e : Tdoc_types.doc_entry) ->
+              let content = Tdoc_markdown.generate_function_doc e in
+              let path = Filename.concat out_dir (e.name ^ ".md") in
+              let ch = open_out path in
+              output_string ch content;
+              close_out ch
+            ) entries;
+            let index_content = Tdoc_markdown.generate_index entries in
+            let ch = open_out (Filename.concat out_dir "index.md") in
+            output_string ch index_content;
+            close_out ch;
+            Printf.printf "Documentation generated in %s\n" out_dir;
+            flush stdout;
+            Ast.VNull
+        | [Ast.VString other] ->
+            Ast.VError { code = Ast.ValueError; message = Printf.sprintf "t_doc expects \"parse\" or \"generate\", got \"%s\"." other; context = [] }
+        | _ -> Ast.VError { code = Ast.TypeError; message = "t_doc expects a string argument: \"parse\" or \"generate\"."; context = [] })
+    })
+    env
+  in
   Packages.ensure_docs_loaded ();
   match args with
   | _ :: "run" :: filename :: _ ->
