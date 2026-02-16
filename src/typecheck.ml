@@ -41,7 +41,6 @@ let validate_lambda name (l : lambda) =
         name (String.concat ", " used_vars))
     else
       (* Check that all used type variables are declared *)
-      let declared = List.sort String.compare l.generic_params in
       let undeclared = List.filter (fun v -> not (List.mem v l.generic_params)) used_vars in
       if undeclared <> [] then
         Error (Printf.sprintf "Strict mode: top-level function '%s' uses undeclared type variables: %s"
