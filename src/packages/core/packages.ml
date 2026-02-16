@@ -11,16 +11,26 @@ type package_info = {
   functions : string list;
 }
 
-let docs_loaded = ref false
+let docs_loaded : unit Lazy.t =
+  lazy (
+    let docs_paths = ["help/docs.json"; "docs.json"] in
+    let any_loaded =
+      List.fold_left (fun acc path ->
+        if Sys.file_exists path then begin
+          Tdoc_registry.load_from_json path;
+          true
+        end else
+          acc
+      ) false docs_paths
+    in
+    if any_loaded then
+      prerr_endline "Documentation: loaded docs from available docs.json files."
+    else
+      prerr_endline "Documentation: no docs.json found in expected locations; proceeding without documentation."
+  )
 
 let ensure_docs_loaded () =
-  if not !docs_loaded then begin
-    let docs_paths = ["help/docs.json"; "docs.json"] in
-    List.iter (fun path ->
-      if Sys.file_exists path then Tdoc_registry.load_from_json path
-    ) docs_paths;
-    docs_loaded := true
-  end
+  Lazy.force docs_loaded
 
 let package_families = function
   | "core" -> ["core"; "string"; "boolean"]
@@ -38,17 +48,14 @@ let documented_functions_for_package pkg_name =
   Tdoc_registry.get_all ()
   |> List.filter (fun (doc : Tdoc_types.doc_entry) ->
     match doc.family with
-    | Some family -> List.mem family families
+    | Some family -> List.mem family families && doc.is_export
     | None -> false)
   |> List.map (fun doc -> doc.name)
   |> dedup_sort_strings
 
 let package_functions pkg =
   let documented = documented_functions_for_package pkg.name in
-  if documented = [] then
-    dedup_sort_strings pkg.functions
-  else
-    dedup_sort_strings (documented @ pkg.functions)
+  dedup_sort_strings (documented @ pkg.functions)
 
 (** Standard package definitions *)
 let core_package = {
