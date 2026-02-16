@@ -110,10 +110,10 @@ let repl_display_value v =
               let all_strings, fn_names =
                 List.fold_right
                   (fun (_, item) (ok, acc) ->
-                     match item with
-                     | Ast.VString fn_name when ok -> (true, fn_name :: acc)
-                     | Ast.VString _ -> (false, acc)
-                     | _ -> (false, acc))
+                     if not ok then (false, acc)
+                     else match item with
+                       | Ast.VString fn_name -> (true, fn_name :: acc)
+                       | _ -> (false, acc))
                   fns
                   (true, [])
               in
