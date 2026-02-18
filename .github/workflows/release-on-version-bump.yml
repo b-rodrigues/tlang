@@ -1,0 +1,79 @@
+name: Release on Version Bump
+
+on:
+  workflow_run:
+    workflows: ["golden-test"]
+    types:
+      - completed
+
+jobs:
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from flake.nix
+        id: version
+        run: |
+          VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' flake.nix)
+          echo "Detected version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Determine prerelease flag
+        id: prerelease
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$VERSION" == *"-"* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists. Exiting."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Create source tarball
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          git archive --format=tar.gz --prefix=tlang-${{ steps.version.outputs.version }}/ \
+            -o tlang-${{ steps.version.outputs.version }}.tar.gz "$TAG"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          prerelease: ${{ steps.prerelease.outputs.prerelease }}
+          files: |
+            tlang-${{ steps.version.outputs.version }}.tar.gz
+          generate_release_notes: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v22
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build and push to cache
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          nix build .#tlang --quiet
+          cachix push rstats-on-nix result
