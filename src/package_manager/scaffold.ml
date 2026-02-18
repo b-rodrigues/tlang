@@ -27,6 +27,101 @@ let git_init dir =
   if code <> 0 then
     Printf.eprintf "Warning: git init failed (exit code %d)\n" code
 
+let default_tlang_tag = "v0.5.0"
+
+let starts_with ~prefix s =
+  let lp = String.length prefix in
+  String.length s >= lp && String.sub s 0 lp = prefix
+
+let ends_with ~suffix s =
+  let ls = String.length suffix in
+  let l = String.length s in
+  l >= ls && String.sub s (l - ls) ls = suffix
+
+let split_on_char c s =
+  let rec loop i j acc =
+    if j = String.length s then
+      List.rev (String.sub s i (j - i) :: acc)
+    else if s.[j] = c then
+      loop (j + 1) (j + 1) (String.sub s i (j - i) :: acc)
+    else
+      loop i (j + 1) acc
+  in
+  loop 0 0 []
+
+let parse_semver tag =
+  let without_v =
+    if starts_with ~prefix:"v" tag then String.sub tag 1 (String.length tag - 1)
+    else tag
+  in
+  let parse_component s =
+    let rec scan i =
+      if i < String.length s && s.[i] >= '0' && s.[i] <= '9' then scan (i + 1)
+      else i
+    in
+    let n = scan 0 in
+    if n = 0 then None else int_of_string_opt (String.sub s 0 n)
+  in
+  match split_on_char '.' without_v with
+  | [major; minor; patch] ->
+      begin match parse_component major, parse_component minor, parse_component patch with
+      | Some ma, Some mi, Some pa -> Some (ma, mi, pa)
+      | _ -> None
+      end
+  | _ -> None
+
+let compare_semver (a_ma, a_mi, a_pa) (b_ma, b_mi, b_pa) =
+  match compare a_ma b_ma with
+  | 0 ->
+      begin match compare a_mi b_mi with
+      | 0 -> compare a_pa b_pa
+      | c -> c
+      end
+  | c -> c
+
+let latest_tlang_tag () =
+  let cmd = "git ls-remote --tags https://github.com/b-rodrigues/tlang.git" in
+  let ic = Unix.open_process_in cmd in
+  let rec read_tags acc =
+    match input_line ic with
+    | line ->
+        begin match String.split_on_char '\t' line with
+        | [_sha; refname] when starts_with ~prefix:"refs/tags/" refname ->
+            let tag = String.sub refname 10 (String.length refname - 10) in
+            if starts_with ~prefix:"v" tag && not (ends_with ~suffix:"^{}" tag) then
+              read_tags (tag :: acc)
+            else
+              read_tags acc
+        | _ -> read_tags acc
+        end
+    | exception End_of_file -> List.rev acc
+  in
+  let tags = read_tags [] in
+  let _ = Unix.close_process_in ic in
+  let versioned_tags =
+    List.fold_left
+      (fun acc tag ->
+         match parse_semver tag with
+         | Some semver -> (semver, tag) :: acc
+         | None -> acc)
+      []
+      tags
+  in
+  match versioned_tags with
+  | [] -> default_tlang_tag
+  | (semver, tag) :: rest ->
+      let _, latest_tag =
+        List.fold_left
+          (fun (best_semver, best_tag) (candidate_semver, candidate_tag) ->
+             if compare_semver candidate_semver best_semver > 0 then
+               (candidate_semver, candidate_tag)
+             else
+               (best_semver, best_tag))
+          (semver, tag)
+          rest
+      in
+      latest_tag
+
 (* ================================================================ *)
 (* Package Templates                                                *)
 (* ================================================================ *)
@@ -55,7 +150,7 @@ let package_flake_nix = {|{
   inputs = {
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/{{nixpkgs_date}}";
     flake-utils.url = "github:numtide/flake-utils";
-    t-lang.url = "github:b-rodrigues/tlang/v{{t_version}}";
+    t-lang.url = "github:b-rodrigues/tlang/{{tlang_tag}}";
     # Package dependencies as flake inputs
     # Add each dependency from DESCRIPTION.toml as a flake input here
   };
@@ -241,7 +336,7 @@ let project_flake_nix = {|{
     # Pin to a specific date for reproducibility
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/{{nixpkgs_date}}";
     flake-utils.url = "github:numtide/flake-utils";
-    t-lang.url = "github:b-rodrigues/tlang/v{{t_version}}";
+    t-lang.url = "github:b-rodrigues/tlang/{{tlang_tag}}";
   };
 
   # Configure cachix for R packages
@@ -398,6 +493,10 @@ print("Hello from {{name}}!")
 (* Scaffolding Logic                                                *)
 (* ================================================================ *)
 
+let resolve_tlang_tag () =
+  try latest_tlang_tag () with
+  | _ -> default_tlang_tag
+
 (** Scaffold a new T package *)
 let scaffold_package (opts : scaffold_options) : (unit, string) result =
   match validate_name opts.target_name with
@@ -408,7 +507,8 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
     if Sys.file_exists dir && not opts.force then
       Error (Printf.sprintf "Directory '%s' already exists. Use --force to overwrite." dir)
     else begin
-      let ctx = Template_engine.context_of_options opts in
+      let tlang_tag = resolve_tlang_tag () in
+      let ctx = ("tlang_tag", tlang_tag) :: Template_engine.context_of_options opts in
       let sub = Template_engine.substitute ctx in
       (* Create directory structure *)
       create_dir dir;
@@ -495,7 +595,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
     if Sys.file_exists dir && not opts.force then
       Error (Printf.sprintf "Directory '%s' already exists. Use --force to overwrite." dir)
     else begin
-      let ctx = Template_engine.context_of_options opts in
+      let tlang_tag = resolve_tlang_tag () in
+      let ctx = ("tlang_tag", tlang_tag) :: Template_engine.context_of_options opts in
       let sub = Template_engine.substitute ctx in
       (* Create directory structure *)
       create_dir dir;
@@ -601,4 +702,3 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
           }
         else
           Error "Missing package/project name. Usage: t init package|project <name>"
-
