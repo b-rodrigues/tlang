@@ -51,8 +51,6 @@ let sanitize_tag tag =
   in
   if check 0 then tag else default_tlang_tag
 
-
-
 (* Parse a semantic version tag.
    This parser handles basic semver tags (vX.Y.Z or X.Y.Z) but does NOT handle
    pre-release versions (e.g., "v1.0.0-alpha") or build metadata (e.g., "v1.0.0+build123").
@@ -114,13 +112,9 @@ let latest_tlang_tag () =
        Printf.eprintf
          "Warning: command `%s` exited with code %d; using default tlang tag %s if needed.\n%!"
          cmd code default_tlang_tag
-   | Unix.WSIGNALED signal ->
+   | Unix.WSIGNALED signal | Unix.WSTOPPED signal ->
        Printf.eprintf
          "Warning: command `%s` was terminated by signal %d; using default tlang tag %s if needed.\n%!"
-         cmd signal default_tlang_tag
-   | Unix.WSTOPPED signal ->
-       Printf.eprintf
-         "Warning: command `%s` was stopped by signal %d; using default tlang tag %s if needed.\n%!"
          cmd signal default_tlang_tag);
   let versioned_tags =
     List.fold_left
@@ -529,7 +523,7 @@ let resolve_tlang_tag () =
         try latest_tlang_tag () with
         | exn ->
             prerr_endline
-              ("[warning] Failed to resolve latest tlang tag, using default: "
+              ("Warning: Failed to resolve latest tlang tag, using default: "
                ^ Printexc.to_string exn);
             default_tlang_tag
       in
