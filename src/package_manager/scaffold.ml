@@ -141,7 +141,7 @@ repository = ""
 
 [t]
 # Minimum T language version required
-min_version = "{{t_version}}"
+min_version = "{{tlang_tag}}"
 |}
 
 let package_flake_nix = {|{
@@ -326,7 +326,7 @@ description = "A T data analysis project"
 
 [t]
 # Minimum T language version required
-min_version = "{{t_version}}"
+min_version = "{{tlang_tag}}"
 |}
 
 let project_flake_nix = {|{
