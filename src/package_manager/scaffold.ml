@@ -27,6 +27,119 @@ let git_init dir =
   if code <> 0 then
     Printf.eprintf "Warning: git init failed (exit code %d)\n" code
 
+let default_tlang_tag = "v0.5.0"
+
+(* Strip the "v" prefix from a tag to get a plain version number. *)
+let strip_v_prefix tag =
+  if String.starts_with ~prefix:"v" tag then
+    String.sub tag 1 (String.length tag - 1)
+  else
+    tag
+
+(* Validate and sanitize a tag string to ensure it only contains safe characters.
+   This prevents potential code injection when the tag is used in templates.
+   Only allows alphanumeric characters, dots, hyphens, and the "v" prefix. *)
+let sanitize_tag tag =
+  let is_safe_char c =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+    (c >= '0' && c <= '9') || c = '.' || c = '-' || c = 'v'
+  in
+  let rec check i =
+    if i >= String.length tag then true
+    else if is_safe_char tag.[i] then check (i + 1)
+    else false
+  in
+  if check 0 then tag else default_tlang_tag
+
+(* Parse a semantic version tag.
+   This parser handles basic semver tags (vX.Y.Z or X.Y.Z) but does NOT handle
+   pre-release versions (e.g., "v1.0.0-alpha") or build metadata (e.g., "v1.0.0+build123").
+   Tags with hyphens or plus signs will be silently ignored.
+   See https://semver.org/spec/v2.0.0.html for the full semver specification. *)
+let parse_semver tag =
+  let without_v =
+    if String.starts_with ~prefix:"v" tag then String.sub tag 1 (String.length tag - 1)
+    else tag
+  in
+  let parse_component s =
+    let rec scan i =
+      if i < String.length s && s.[i] >= '0' && s.[i] <= '9' then scan (i + 1)
+      else i
+    in
+    let n = scan 0 in
+    if n = 0 then None else int_of_string_opt (String.sub s 0 n)
+  in
+  match String.split_on_char '.' without_v with
+  | [major; minor; patch] ->
+      begin match parse_component major, parse_component minor, parse_component patch with
+      | Some ma, Some mi, Some pa -> Some (ma, mi, pa)
+      | _ -> None
+      end
+  | _ -> None
+
+let compare_semver (a_ma, a_mi, a_pa) (b_ma, b_mi, b_pa) =
+  match compare a_ma b_ma with
+  | 0 ->
+      begin match compare a_mi b_mi with
+      | 0 -> compare a_pa b_pa
+      | c -> c
+      end
+  | c -> c
+
+let latest_tlang_tag () =
+  let cmd = "git ls-remote --tags https://github.com/b-rodrigues/tlang.git" in
+  let ic = Unix.open_process_in cmd in
+  let rec read_tags acc =
+    match input_line ic with
+    | line ->
+        begin match String.split_on_char '\t' line with
+        | [_sha; refname] when String.starts_with ~prefix:"refs/tags/" refname ->
+            let prefix_len = String.length "refs/tags/" in
+            let tag = String.sub refname prefix_len (String.length refname - prefix_len) in
+            if String.starts_with ~prefix:"v" tag && not (String.ends_with ~suffix:"^{}" tag) then
+              read_tags (tag :: acc)
+            else
+              read_tags acc
+        | _ -> read_tags acc
+        end
+    | exception End_of_file -> List.rev acc
+  in
+  let tags = read_tags [] in
+  let status = Unix.close_process_in ic in
+  (match status with
+   | Unix.WEXITED 0 -> ()
+   | Unix.WEXITED code ->
+       Printf.eprintf
+         "Warning: command `%s` exited with code %d; using default tlang tag %s if needed.\n%!"
+         cmd code default_tlang_tag
+   | Unix.WSIGNALED signal | Unix.WSTOPPED signal ->
+       Printf.eprintf
+         "Warning: command `%s` was terminated by signal %d; using default tlang tag %s if needed.\n%!"
+         cmd signal default_tlang_tag);
+  let versioned_tags =
+    List.fold_left
+      (fun acc tag ->
+         match parse_semver tag with
+         | Some semver -> (semver, tag) :: acc
+         | None -> acc)
+      []
+      tags
+  in
+  match versioned_tags with
+  | [] -> default_tlang_tag
+  | (semver, tag) :: rest ->
+      let _, latest_tag =
+        List.fold_left
+          (fun (best_semver, best_tag) (candidate_semver, candidate_tag) ->
+             if compare_semver candidate_semver best_semver > 0 then
+               (candidate_semver, candidate_tag)
+             else
+               (best_semver, best_tag))
+          (semver, tag)
+          rest
+      in
+      latest_tag
+
 (* ================================================================ *)
 (* Package Templates                                                *)
 (* ================================================================ *)
@@ -46,7 +159,7 @@ repository = ""
 
 [t]
 # Minimum T language version required
-min_version = "{{t_version}}"
+min_version = "{{tlang_version}}"
 |}
 
 let package_flake_nix = {|{
@@ -55,7 +168,7 @@ let package_flake_nix = {|{
   inputs = {
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/{{nixpkgs_date}}";
     flake-utils.url = "github:numtide/flake-utils";
-    t-lang.url = "github:b-rodrigues/tlang/v{{t_version}}";
+    t-lang.url = "github:b-rodrigues/tlang/{{tlang_tag}}";
     # Package dependencies as flake inputs
     # Add each dependency from DESCRIPTION.toml as a flake input here
   };
@@ -231,7 +344,7 @@ description = "A T data analysis project"
 
 [t]
 # Minimum T language version required
-min_version = "{{t_version}}"
+min_version = "{{tlang_version}}"
 |}
 
 let project_flake_nix = {|{
@@ -241,7 +354,7 @@ let project_flake_nix = {|{
     # Pin to a specific date for reproducibility
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/{{nixpkgs_date}}";
     flake-utils.url = "github:numtide/flake-utils";
-    t-lang.url = "github:b-rodrigues/tlang/v{{t_version}}";
+    t-lang.url = "github:b-rodrigues/tlang/{{tlang_tag}}";
   };
 
   # Configure cachix for R packages
@@ -398,6 +511,26 @@ print("Hello from {{name}}!")
 (* Scaffolding Logic                                                *)
 (* ================================================================ *)
 
+(* Cache the resolved tlang tag for the duration of the process to avoid
+   repeated network calls to latest_tlang_tag on every scaffold operation. *)
+let resolved_tlang_tag_cache : string option ref = ref None
+
+let resolve_tlang_tag () =
+  match !resolved_tlang_tag_cache with
+  | Some tag -> tag
+  | None ->
+      let tag =
+        try latest_tlang_tag () with
+        | exn ->
+            prerr_endline
+              ("Warning: Failed to resolve latest tlang tag, using default: "
+               ^ Printexc.to_string exn);
+            default_tlang_tag
+      in
+      let sanitized_tag = sanitize_tag tag in
+      resolved_tlang_tag_cache := Some sanitized_tag;
+      sanitized_tag
+
 (** Scaffold a new T package *)
 let scaffold_package (opts : scaffold_options) : (unit, string) result =
   match validate_name opts.target_name with
@@ -408,7 +541,12 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
     if Sys.file_exists dir && not opts.force then
       Error (Printf.sprintf "Directory '%s' already exists. Use --force to overwrite." dir)
     else begin
-      let ctx = Template_engine.context_of_options opts in
+      let tlang_tag = resolve_tlang_tag () in
+      let tlang_version = strip_v_prefix tlang_tag in
+      let ctx = [
+        ("tlang_tag", tlang_tag);
+        ("tlang_version", tlang_version)
+      ] @ Template_engine.context_of_options opts in
       let sub = Template_engine.substitute ctx in
       (* Create directory structure *)
       create_dir dir;
@@ -495,7 +633,12 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
     if Sys.file_exists dir && not opts.force then
       Error (Printf.sprintf "Directory '%s' already exists. Use --force to overwrite." dir)
     else begin
-      let ctx = Template_engine.context_of_options opts in
+      let tlang_tag = resolve_tlang_tag () in
+      let tlang_version = strip_v_prefix tlang_tag in
+      let ctx = [
+        ("tlang_tag", tlang_tag);
+        ("tlang_version", tlang_version)
+      ] @ Template_engine.context_of_options opts in
       let sub = Template_engine.substitute ctx in
       (* Create directory structure *)
       create_dir dir;
@@ -601,4 +744,3 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
           }
         else
           Error "Missing package/project name. Usage: t init package|project <name>"
-
