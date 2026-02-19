@@ -9,9 +9,9 @@ You can create a new package interactively using the `t init package` command.
 ```bash
 $ t init package
 Initializing new T package/project...
-Name [my-pkg]: advanced-stats
+Name [my_package]: advanced-stats
 Author [User]: Alice
-License [MIT]: EUPL-1.2
+License [EUPL-1.2]: EUPL-1.2
 
 ✓ Package 'advanced-stats' created successfully!
 ```
@@ -34,13 +34,15 @@ Dependencies are declared in `DESCRIPTION.toml`. To add a dependency on another 
 my-lib = { git = "https://github.com/user/my-lib", tag = "v1.0.0" }
 ```
 
-After modifying dependencies, run `t update` to refresh your environment:
+After modifying dependencies, run `t update` to sync your `flake.nix` and lock file:
 
 ```bash
 $ t update
+Syncing 1 dependency(ies) from DESCRIPTION.toml → flake.nix...
+Running nix flake update...
 ```
 
-Then re-enter the development shell:
+This regenerates `flake.nix` so new dependencies appear as proper flake inputs, then locks them. After updating, re-enter the development shell:
 
 ```bash
 $ nix develop
@@ -48,22 +50,30 @@ $ nix develop
 
 ## 3. Writing Code
 
-Write your T code in `src/`. For example, `src/stats.t`:
+Write your T code in `src/`. For example, `src/stats_helpers.t`:
 
 ```t
-# src/stats.t
-export fn mean(x) {
-  sum(x) / length(x)
+-- src/stats_helpers.t
+
+-- Public by default — importers can use this
+weighted_mean = \(x, w) sum(x .* w) / sum(w)
+
+--# Internal helper, not for public use.
+--# @private
+_validate_weights = \(w) {
+  assert(length(w) > 0)
 }
 ```
+
+All top-level bindings in your package are **public by default**. To hide an internal helper, add `@private` to its T-Doc block.
 
 You can test your code interactively in the REPL:
 
 ```bash
 $ t repl
-T> import "src/stats.t"
-T> stats.mean([1, 2, 3])
-2.0
+T> import "src/stats_helpers.t"
+T> weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
+1.7
 ```
 
 ## 4. Testing
@@ -117,7 +127,9 @@ fn square(x) {
 - `@return :: <type> <description>`: Document the return value.
 - `@example`: Start a code example block.
 - `@seealso <func1>, <func2>`: Link to related functions.
-- `@export`: Mark the function as public (only exported functions appear in docs).
+- `@family <name>`: Group related functions together.
+- `@private`: Mark the function as private — it will not be visible to importers.
+- `@export`: Explicitly mark as public (this is the default, so usually not needed).
 
 ### Generating Documentation
 
@@ -175,3 +187,27 @@ Proceed to tag and push v0.1.0? [y/N] y
 ```
 
 This will run your tests, verify the changelog, and push a git tag to your repository.
+
+## 8. How Others Import Your Package
+
+Once published, other packages or projects can depend on yours by adding it to their `DESCRIPTION.toml` or `tproject.toml`:
+
+```toml
+[dependencies]
+advanced-stats = { git = "https://github.com/user/advanced-stats", tag = "v0.1.0" }
+```
+
+Then in their T code, they can import your package:
+
+```t
+-- Import everything (all public functions)
+import advanced_stats
+
+-- Import only specific functions
+import advanced_stats[weighted_mean]
+
+-- Import with aliases
+import advanced_stats[wmean=weighted_mean]
+```
+
+Functions marked with `@private` in your package are not visible to importers.
