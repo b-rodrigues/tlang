@@ -36,7 +36,7 @@ let parse_block lines filename line_num =
   let examples = ref [] in
   let see_also = ref [] in
   let family = ref None in
-  let is_export = ref false in
+  let is_export = ref true in
   let intent = ref None in
   let current_tag = ref `Brief in
   
@@ -86,6 +86,7 @@ let parse_block lines filename line_num =
     )
     else if starts_with clean_line "@family" then family := Some (String.trim (strip_prefix clean_line "@family"))
     else if starts_with clean_line "@export" then is_export := true
+    else if starts_with clean_line "@private" then is_export := false
     else if starts_with clean_line "@intent" then current_tag := `Intent
     else if starts_with clean_line "@name" then name_override := Some (String.trim (strip_prefix clean_line "@name"))
     else (

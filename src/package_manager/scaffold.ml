@@ -347,78 +347,9 @@ description = "A T data analysis project"
 min_version = "{{tlang_version}}"
 |}
 
-let project_flake_nix = {|{
-  description = "{{name}} — a T data analysis project";
-
-  inputs = {
-    # Pin to a specific date for reproducibility
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs/{{nixpkgs_date}}";
-    flake-utils.url = "github:numtide/flake-utils";
-    t-lang.url = "github:b-rodrigues/tlang/{{tlang_tag}}";
-  };
-
-  # Configure cachix for R packages
-  nixConfig = {
-    extra-substituters = [
-      "https://rstats-on-nix.cachix.org"
-    ];
-    extra-trusted-public-keys = [
-      "rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
-    ];
-  };
-
-  outputs = { self, nixpkgs, flake-utils, t-lang }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-
-        # Read dependencies declaratively from tproject.toml
-        projectConfig = builtins.fromTOML (builtins.readFile ./tproject.toml);
-        deps = projectConfig.dependencies or {};
-
-        # Fetch each T package dependency using builtins.fetchGit
-        # Each dependency in tproject.toml has { git = "url", tag = "tag" }
-        fetchTPackage = name: spec:
-          let
-            src = builtins.fetchGit {
-              url = spec.git;
-              ref = "refs/tags/${spec.tag}";
-            };
-          in
-          # Import the package's flake and extract its default package
-          (import src { inherit system; }).packages.${system}.default or
-            # Fallback: use the source directly if no flake
-            src;
-
-        tPackages = builtins.attrValues (builtins.mapAttrs fetchTPackage deps);
-      in
-      {
-        # Development environment
-        devShells.default = pkgs.mkShell {
-          buildInputs = [
-            t-lang.packages.${system}.default
-          ] ++ tPackages;
-
-          shellHook = ''
-            echo "=================================================="
-            echo "T Project: {{name}}"
-            echo "=================================================="
-            echo ""
-            echo "Available commands:"
-            echo "  t repl              - Start T REPL"
-            echo "  t run <file>        - Run a T file"
-            echo "  t test              - Run tests"
-            echo ""
-            echo "Source files: src/"
-            echo "Data: data/"
-            echo "Outputs: outputs/"
-            echo ""
-          '';
-        };
-      }
-    );
-}
-|}
+(* project_flake_nix is generated dynamically by Nix_generator.generate_project_flake
+   to ensure dependencies are declared as proper flake inputs (locked in flake.lock)
+   rather than fetched via builtins.fetchGit which fails in pure evaluation mode. *)
 
 let project_readme = {|# {{name}}
 
@@ -604,9 +535,9 @@ let prompt_string label default =
   let line = try read_line () with End_of_file -> "" in
   if String.trim line = "" then default else String.trim line
 
-let interactive_init default_name =
+let interactive_init ?(placeholder="my_package") default_name =
   Printf.printf "\nInitializing new T package/project...\n";
-  let name = if default_name = "" then prompt_string "Name" "my-pkg" else default_name in
+  let name = if default_name = "" then prompt_string "Name" placeholder else default_name in
   let author = prompt_string "Author" (try Sys.getenv "USER" with Not_found -> "Anonymous") in
   let license = prompt_string "License [EUPL-1.2, GPL-3.0-or-later, MIT] (visit https://spdx.org/licenses/ for all licenses)" "EUPL-1.2" in
   let t = Unix.gmtime (Unix.gettimeofday ()) in
@@ -648,7 +579,12 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       create_dir (Filename.concat dir "tests");
       (* Write files from templates *)
       write_file (Filename.concat dir "tproject.toml") (sub project_tproject_toml);
-      write_file (Filename.concat dir "flake.nix") (sub project_flake_nix);
+      let flake_content = Nix_generator.generate_project_flake
+        ~project_name:opts.target_name
+        ~nixpkgs_date:opts.nixpkgs_date
+        ~t_version:tlang_version
+        ~deps:[] in
+      write_file (Filename.concat dir "flake.nix") flake_content;
       write_file (Filename.concat dir "README.md") (sub project_readme);
       write_file (Filename.concat dir ".gitignore") project_gitignore;
       write_file (Filename.concat dir "src/analysis.t") (sub project_analysis_example);

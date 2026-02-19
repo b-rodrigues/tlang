@@ -43,7 +43,7 @@ and desugar_nse_stmt stmt =
   | Expression e -> Expression (desugar_nse_expr e)
   | Assignment { name; typ; expr } -> Assignment { name; typ; expr = desugar_nse_expr expr }
   | Reassignment { name; expr } -> Reassignment { name; expr = desugar_nse_expr expr }
-  | Import _ -> stmt
+  | Import _ | ImportPackage _ | ImportFrom _ -> stmt
 
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
@@ -69,7 +69,7 @@ and uses_nse_stmt stmt =
   | Expression e -> uses_nse e
   | Assignment { expr; _ } -> uses_nse expr
   | Reassignment { expr; _ } -> uses_nse expr
-  | Import _ -> false
+  | Import _ | ImportPackage _ | ImportFrom _ -> false
 
 (* --- Scalar and Broadcasting Logic --- *)
 
@@ -418,7 +418,7 @@ and free_vars (expr : Ast.expr) : string list =
     | Expression e -> collect e
     | Assignment { expr; _ } -> collect expr
     | Reassignment { expr; _ } -> collect expr
-    | Import _ -> []
+    | Import _ | ImportPackage _ | ImportFrom _ -> []
   in
   let vars = collect expr in
   List.sort_uniq String.compare vars
@@ -919,6 +919,14 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
       with
       | Sys_error msg ->
           (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
+  | ImportPackage pkg_name ->
+      (match Package_loader.load_package ~do_eval_program:eval_program pkg_name env with
+       | Ok new_env -> (VNull, new_env)
+       | Error msg -> (make_error FileError msg, env))
+  | ImportFrom { package; names } ->
+      (match Package_loader.load_package_selective ~do_eval_program:eval_program package names env with
+       | Ok new_env -> (VNull, new_env)
+       | Error msg -> (make_error FileError msg, env))
 
 and eval_program (program : program) (env : environment) : value * environment =
   let rec go env = function

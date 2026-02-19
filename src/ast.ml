@@ -143,6 +143,13 @@ and stmt =
   | Assignment of { name : symbol; typ : typ option; expr : expr }
   | Reassignment of { name : symbol; expr : expr }
   | Import of string
+  | ImportPackage of string
+  | ImportFrom of { package: string; names: import_spec list }
+
+and import_spec = {
+  import_name: string;
+  import_alias: string option;
+}
 
 and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
   | In (* New: membership check *) | Pipe | MaybePipe | Formula

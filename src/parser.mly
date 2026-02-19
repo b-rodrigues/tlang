@@ -123,7 +123,21 @@ statement:
   | name = any_ident COLON_EQ e = expr
     { Reassignment { name; expr = e } }
   | IMPORT s = STRING { Import s }
+  | IMPORT id = any_ident LBRACK skip_sep names = import_name_list RBRACK
+    { ImportFrom { package = id; names } }
+  | IMPORT id = any_ident { ImportPackage id }
   | e = expr { Expression e }
+  ;
+
+import_name_list:
+  | n = import_name skip_sep { [n] }
+  | n = import_name COMMA skip_sep rest = import_name_list { n :: rest }
+  ;
+
+import_name:
+  | name = any_ident { { import_name = name; import_alias = None } }
+  | alias = any_ident EQUALS name = any_ident
+    { { import_name = name; import_alias = Some alias } }
   ;
 
 expr:

@@ -156,6 +156,7 @@ let print_version () =
   Printf.printf "T language version %s\n" version
 
 let cmd_run mode filename env =
+  Packages.ensure_docs_loaded ();
   let (result, _env) = run_file mode filename env in
   match result with
   | Ast.VError { code; message; _ } ->
@@ -184,18 +185,19 @@ let cmd_init_project args =
   | Error msg -> 
       (* If no args provided, default to interactive *)
       if args = [] then
-        let opts = Scaffold.interactive_init "" in
+        let opts = Scaffold.interactive_init ~placeholder:"my_project" "" in
         match Scaffold.scaffold_project opts with
         | Ok () -> Printf.printf "Project %s initialized successfully.\n" opts.target_name
         | Error e -> Printf.eprintf "Error: %s\n" e; exit 1
       else (Printf.eprintf "Error: %s\n" msg; exit 1)
   | Ok opts ->
-      let opts = if opts.interactive then Scaffold.interactive_init opts.target_name else opts in
+      let opts = if opts.interactive then Scaffold.interactive_init ~placeholder:"my_project" opts.target_name else opts in
       match Scaffold.scaffold_project opts with
       | Ok () -> Printf.printf "Project %s initialized successfully.\n" opts.target_name
       | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
 let cmd_explain mode rest env =
+  Packages.ensure_docs_loaded ();
   let is_json = List.mem "--json" rest in
   let expr_parts = List.filter (fun s -> s <> "--json") rest in
   let expr_str = String.concat " " expr_parts in
@@ -376,6 +378,7 @@ let get_nix_version () =
   with _ -> None
 
 let cmd_repl mode env =
+  Packages.ensure_docs_loaded ();
   match get_nix_version () with
   | None ->
       Printf.eprintf "Nix not found! Install Nix to use T!\n";
@@ -598,7 +601,7 @@ let () =
     })
     env
   in
-  Packages.ensure_docs_loaded ();
+
   match args with
   | _ :: "run" :: filename :: _ ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
