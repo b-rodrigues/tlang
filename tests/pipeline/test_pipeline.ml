@@ -110,16 +110,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   Printf.printf "Pipeline Build and Artifact I/O:\n";
   test "build_pipeline returns output path"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}; out = build_pipeline(p); if (is_error(out)) true else starts_with(out, \"/nix/store/\")"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) true else starts_with(out, \"/nix/store/\")\nok"
     "true";
   test "read_node reads serialized artifact"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}; out = build_pipeline(p); if (is_error(out)) error_code(read_node(\"b\")) == \"FileError\" else read_node(\"b\") == 3"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(read_node(\"b\")) == \"FileError\") else (read_node(\"b\") == 3)\nok"
     "true";
   test "load_node loads serialized artifact"
-    "p = pipeline {\n  a = 10\n  b = a + 5\n}; out = build_pipeline(p); if (is_error(out)) error_code(load_node(\"b\")) == \"FileError\" else load_node(\"b\") == 15"
+    "p = pipeline {\n  a = 10\n  b = a + 5\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(load_node(\"b\")) == \"FileError\") else (load_node(\"b\") == 15)\nok"
     "true";
   test "read_node missing key"
-    "p = pipeline {\n  a = 1\n}; out = build_pipeline(p); if (is_error(out)) error_code(read_node(\"missing\")) == \"FileError\" else error_code(read_node(\"missing\")) == \"KeyError\""
+    "p = pipeline {\n  a = 1\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(read_node(\"missing\")) == \"FileError\") else (error_code(read_node(\"missing\")) == \"KeyError\")\nok"
     "true";
   print_newline ();
 
