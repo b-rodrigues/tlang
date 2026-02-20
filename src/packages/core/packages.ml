@@ -94,7 +94,7 @@ let math_package = {
 let base_package = {
   name = "base";
   description = "Assertions, NA handling, and error utilities";
-  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_message"; "error_context"];
+  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_message"; "error_context"; "serialize"; "deserialize"];
 }
 
 let dataframe_package = {
@@ -106,7 +106,7 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"];
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "read_node"; "load_node"];
 }
 
 let explain_package = {
@@ -255,6 +255,8 @@ let init_env () =
   let env = Na.register env in
   let env = Error_mod.register env in
   let env = Error_utils.register env in
+  let env = Serialize.register env in
+  let env = Deserialize.register env in
   (* Dataframe package *)
   let env = T_dataframe.register env in
   let env = T_read_csv.register env in
@@ -307,6 +309,9 @@ let init_env () =
   let env = Pipeline_deps.register env in
   let env = Pipeline_node.register env in
   let env = Pipeline_run.register ~rerun_pipeline:Eval.rerun_pipeline env in
+  let env = Build_pipeline.register env in
+  let env = Read_node.register env in
+  let env = Load_node.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call ~eval_expr:Eval.eval_expr ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
