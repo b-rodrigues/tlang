@@ -108,7 +108,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(TypeError: "Function `pipeline_run` expects a Pipeline.")|};
   print_newline ();
 
-  Printf.printf "Phase 3 — Pipeline Build and Artifact I/O:\n";
+  Printf.printf "Pipeline Build and Artifact I/O:\n";
   test "build_pipeline returns output path"
     "p = pipeline {\n  a = 1\n  b = a + 2\n}; out = build_pipeline(p); starts_with(out, \"/nix/store/\") || out == \".t_pipeline_artifacts\""
     "true";
@@ -123,7 +123,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(KeyError: "Node `missing` not found in pipeline registry.")|};
   print_newline ();
 
-  Printf.printf "Phase 3 — Serialization Builtins:\n";
+  Printf.printf "Serialization Builtins:\n";
   test "serialize and deserialize roundtrip"
     {|serialize([1, 2, 3], "test_roundtrip.tobj"); deserialize("test_roundtrip.tobj")|}
     "[1, 2, 3]";

@@ -3,7 +3,7 @@ open Ast
 (*
 --# Load Pipeline Node Artifact
 --#
---# Loads a node artifact by name. In expression context this returns the node value.
+--# Loads a node artifact by name. Currently this is an alias of `read_node`.
 --#
 --# @name load_node
 --# @param name :: String The node name.

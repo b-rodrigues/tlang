@@ -73,7 +73,7 @@ let emit_node (name, expr) deps =
   let deps_load =
     deps
     |> List.map (fun d ->
-      Printf.sprintf "      %s = deserialize(os.getenv(\"T_NODE_%s\") + \"/artifact.tobj\")" d d)
+      Printf.sprintf "      %s = deserialize(\"${T_NODE_%s}/artifact.tobj\")" d d)
     |> String.concat "\n"
   in
   let expr_s = unparse_expr expr in
@@ -82,7 +82,7 @@ let emit_node (name, expr) deps =
     name = "%s";
     buildInputs = [ t_lang_env %s ];
     buildCommand = ''
-%s      cat << 'EOF' > node_script.t
+%s      cat << EOF > node_script.t
 %s
       %s = %s
       serialize(%s, "$out/artifact.tobj")

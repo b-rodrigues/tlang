@@ -88,12 +88,16 @@ let read_registry path =
       let len = in_channel_length ic in
       let raw = really_input_string ic len in
       close_in ic;
-      let re = Str.regexp "\"\\([^\"]+\\)\"[ \n\r\t]*:[ \n\r\t]*\"\\([^\"]*\\)\"" in
+      (* Matches flat JSON object entries of the form:
+         "node_name": "artifact_path", with escaped quotes/backslashes supported. *)
+      let re =
+        Str.regexp
+          "\"\\(\\([^\"\\\\]\\|\\\\.\\)+\\)\"[ \n\r\t]*:[ \n\r\t]*\"\\(\\([^\"\\\\]\\|\\\\.\\)*\\)\"" in
       let rec collect pos acc =
         try
           let _ = Str.search_forward re raw pos in
           let name = Str.matched_group 1 raw |> json_unescape in
-          let node_path = Str.matched_group 2 raw |> json_unescape in
+          let node_path = Str.matched_group 3 raw |> json_unescape in
           collect (Str.match_end ()) ((name, node_path) :: acc)
         with Not_found -> List.rev acc
       in

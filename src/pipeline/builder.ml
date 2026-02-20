@@ -67,21 +67,29 @@ let build_pipeline (p : Ast.pipeline_result) =
   | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
   | Ok () ->
       if command_exists "nix-build" then
-        (match run_command_capture "nix-build pipeline.nix --no-out-link --print-out-paths 2>/dev/null" with
+        (match run_command_capture
+                 (Printf.sprintf "nix-build %s --no-out-link --print-out-paths 2>/dev/null" pipeline_nix_path) with
          | Ok (Unix.WEXITED 0, out_path) when out_path <> "" ->
-             let registry =
-               List.map (fun (name, _) ->
-                 (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
-               ) p.p_nodes
-             in
-             (match write_registry registry with
-             | Ok () -> Ok out_path
-             | Error msg -> Error ("Failed to write registry: " ^ msg))
-         | _ ->
+              let registry =
+                List.map (fun (name, _) ->
+                  (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
+                ) p.p_nodes
+              in
+              (match write_registry registry with
+              | Ok () -> Ok out_path
+              | Error msg -> Error ("Failed to write registry: " ^ msg))
+         | Ok (Unix.WEXITED 0, "") ->
              (match materialize_local_artifacts p with
              | Error msg -> Error ("Failed to materialize local artifacts: " ^ msg)
              | Ok registry ->
                  (match write_registry registry with
+                 | Ok () -> Ok local_artifact_dir
+                 | Error msg -> Error ("Failed to write registry: " ^ msg)))
+         | _ ->
+              (match materialize_local_artifacts p with
+              | Error msg -> Error ("Failed to materialize local artifacts: " ^ msg)
+              | Ok registry ->
+                  (match write_registry registry with
                  | Ok () -> Ok local_artifact_dir
                  | Error msg -> Error ("Failed to write registry: " ^ msg))))
       else
