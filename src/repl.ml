@@ -44,6 +44,41 @@ let run_file mode filename env =
   with
   | Sys_error msg -> (Ast.VError { code = Ast.FileError; message = "File Error: " ^ msg; context = [] }, env)
 
+(* --- Pipeline Detection --- *)
+
+(** Recursively check if an expression contains a call to build_pipeline *)
+let rec expr_has_build_pipeline = function
+  | Ast.Call { fn = Ast.Var "build_pipeline"; _ } -> true
+  | Ast.Call { fn; args; _ } ->
+      expr_has_build_pipeline fn ||
+      List.exists (fun (_, e) -> expr_has_build_pipeline e) args
+  | Ast.BinOp { left; right; _ } | Ast.BroadcastOp { left; right; _ } ->
+      expr_has_build_pipeline left || expr_has_build_pipeline right
+  | Ast.IfElse { cond; then_; else_ } ->
+      expr_has_build_pipeline cond ||
+      expr_has_build_pipeline then_ ||
+      expr_has_build_pipeline else_
+  | Ast.Lambda { body; _ } -> expr_has_build_pipeline body
+  | Ast.ListLit items -> List.exists (fun (_, e) -> expr_has_build_pipeline e) items
+  | Ast.DictLit pairs -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
+  | Ast.UnOp { operand; _ } -> expr_has_build_pipeline operand
+  | Ast.DotAccess { target; _ } -> expr_has_build_pipeline target
+  | Ast.Block stmts -> List.exists stmt_has_build_pipeline stmts
+  | Ast.PipelineDef nodes ->
+      List.exists (fun (n : Ast.pipeline_node) -> expr_has_build_pipeline n.node_expr) nodes
+  | Ast.ListComp { expr; _ } -> expr_has_build_pipeline expr
+  | Ast.IntentDef pairs -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
+  | _ -> false
+
+and stmt_has_build_pipeline = function
+  | Ast.Expression e -> expr_has_build_pipeline e
+  | Ast.Assignment { expr; _ } -> expr_has_build_pipeline expr
+  | Ast.Reassignment { expr; _ } -> expr_has_build_pipeline expr
+  | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ -> false
+
+let program_has_build_pipeline (program : Ast.program) =
+  List.exists stmt_has_build_pipeline program
+
 (* --- Multi-line Input Detection --- *)
 
 (** Count unmatched opening brackets/parens/braces in a string *)
@@ -155,8 +190,26 @@ let print_help () =
 let print_version () =
   Printf.printf "T language version %s\n" version
 
-let cmd_run mode filename env =
+let cmd_run ?(unsafe=false) mode filename env =
   Packages.ensure_docs_loaded ();
+  (* Gate: non-interactive execution requires build_pipeline() unless --unsafe *)
+  if not unsafe then begin
+    try
+      let ch = open_in filename in
+      let content = really_input_string ch (in_channel_length ch) in
+      close_in ch;
+      let lexbuf = Lexing.from_string content in
+      (try
+        let program = Parser.program Lexer.token lexbuf in
+        if not (program_has_build_pipeline program) then begin
+          Printf.eprintf "Error: non-interactive execution requires a pipeline.\n";
+          Printf.eprintf "Scripts run with `t run` must call `build_pipeline()`.\n";
+          Printf.eprintf "Use the REPL for interactive exploration, or pass --unsafe to override.\n";
+          exit 1
+        end
+      with _ -> ())  (* If parsing fails here, let the actual run_file handle the error *)
+    with _ -> ()  (* If file open fails, let run_file handle it *)
+  end;
   let (result, _env) = run_file mode filename env in
   match result with
   | Ast.VError { code; message; _ } ->
@@ -602,11 +655,14 @@ let () =
     env
   in
 
+  (* Extract --unsafe flag *)
+  let unsafe = List.mem "--unsafe" raw_args in
+  let args = if unsafe then List.filter (fun s -> s <> "--unsafe") args else args in
   match args with
   | _ :: "run" :: filename :: _ ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
       let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
-      cmd_run script_mode filename env
+      cmd_run ~unsafe script_mode filename env
   | _ :: "repl" :: _ -> cmd_repl mode env
   | _ :: "explain" :: rest -> cmd_explain mode rest env
   | _ :: "init" :: "package" :: rest -> cmd_init_package rest
