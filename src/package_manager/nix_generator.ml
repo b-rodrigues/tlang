@@ -111,7 +111,7 @@ let generate_project_flake
     Buffer.add_string buf "            export T_PACKAGE_PATH=\"";
     List.iteri (fun i dep ->
       if i > 0 then Buffer.add_char buf ':';
-      Printf.bprintf buf "${%s}/lib/t/packages" (nix_safe_name dep.dep_name)
+      Printf.bprintf buf "${%s.packages.${system}.default}/lib/t/packages" (nix_safe_name dep.dep_name)
     ) deps;
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
@@ -181,7 +181,6 @@ let generate_package_flake
   Printf.bprintf buf "          version = \"%s\";\n" package_version;
   Buffer.add_string buf "          src = ./.;\n\n";
   Buffer.add_string buf "          buildInputs = [\n";
-  Buffer.add_string buf "            t-lang.packages.${system}.default\n";
   List.iter (fun dep ->
     Printf.bprintf buf "            %s.packages.${system}.default\n"
       (nix_safe_name dep.dep_name)
@@ -189,7 +188,10 @@ let generate_package_flake
   Buffer.add_string buf "          ];\n\n";
   Buffer.add_string buf "          installPhase = ''\n";
   Printf.bprintf buf "            mkdir -p $out/lib/t/packages/%s\n" package_name;
-  Printf.bprintf buf "            cp -r src/* $out/lib/t/packages/%s/\n" package_name;
+  Printf.bprintf buf "            cp -r src $out/lib/t/packages/%s/\n" package_name;
+  Buffer.add_string buf "            if [ -d \"help\" ]; then\n";
+  Printf.bprintf buf "              cp -r help $out/lib/t/packages/%s/\n" package_name;
+  Buffer.add_string buf "            fi\n";
   Buffer.add_string buf "          '';\n\n";
   Buffer.add_string buf "          meta = {\n";
   Printf.bprintf buf "            description = \"%s — a T package\";\n" package_name;
@@ -210,7 +212,7 @@ let generate_package_flake
     Buffer.add_string buf "            export T_PACKAGE_PATH=\"";
     List.iteri (fun i dep ->
       if i > 0 then Buffer.add_char buf ':';
-      Printf.bprintf buf "${%s}/lib/t/packages" (nix_safe_name dep.dep_name)
+      Printf.bprintf buf "${%s.packages.${system}.default}/lib/t/packages" (nix_safe_name dep.dep_name)
     ) deps;
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
