@@ -1,5 +1,3 @@
-open Ast
-
 let ensure_parent_dir path =
   let dir = Filename.dirname path in
   let rec ensure d =
