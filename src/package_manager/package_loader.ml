@@ -66,7 +66,7 @@ let eval_package_sources
     : (Ast.environment, string) result =
   let files = package_source_files pkg_dir in
   if files = [] then
-    Error (Printf.sprintf "Package directory '%s' has no source files in src/" pkg_dir)
+    Error (Printf.sprintf "Package directory '%s' has no valid src/ directory or it is empty" pkg_dir)
   else
     try
       let pkg_env = List.fold_left (fun env file ->
