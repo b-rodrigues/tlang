@@ -240,7 +240,128 @@ p.nonexistent
 
 ---
 
-## 11. Using explain() with Pipelines
+## 11. Building Pipelines
+
+Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts, use `build_pipeline()`:
+
+```t
+p = pipeline {
+  data = read_csv("sales.csv")
+  total = sum(data.$amount)
+}
+
+build_pipeline(p)
+```
+
+`build_pipeline(p)` does the following:
+
+1. Generates a `pipeline.nix` file with one Nix derivation per node
+2. Runs `nix-build` to materialize each node as a serialized artifact in the Nix store
+3. Writes a local registry (`.t_pipeline_registry.json`) mapping node names to artifact paths
+4. Returns the Nix store output path (e.g. `/nix/store/...`)
+
+### Reading built artifacts
+
+After building, use `read_node()` or `load_node()` to retrieve materialized values:
+
+```t
+read_node("total")   -- reads the serialized artifact for "total"
+load_node("total")   -- same as read_node, loads the artifact
+```
+
+These functions look up the node in the local registry and deserialize the artifact.
+
+---
+
+## 12. Execution Modes
+
+T enforces a clear separation between interactive and non-interactive execution:
+
+### Non-interactive (`t run`)
+
+Scripts executed with `t run` **must** call `build_pipeline()`. This ensures that non-interactive execution always produces reproducible Nix artifacts.
+
+```bash
+# ✅ This works — script defines and builds a pipeline
+$ t run my_pipeline.t
+
+# ❌ This is rejected — script doesn't call build_pipeline()
+$ t run my_script.t
+# Error: non-interactive execution requires a pipeline.
+# Scripts run with `t run` must call `build_pipeline()`.
+# Use the REPL for interactive exploration, or pass --unsafe to override.
+```
+
+A valid pipeline script looks like:
+
+```t
+-- my_pipeline.t
+p = pipeline {
+  data = read_csv("input.csv")
+  result = data |> filter($value > 0) |> summarize(total = sum($value))
+}
+
+build_pipeline(p)
+```
+
+### Interactive (REPL)
+
+The REPL is **unrestricted** — you can run any T code line by line, whether or not it involves pipelines:
+
+```bash
+$ t repl
+T> x = 1 + 2
+T> print(x)
+3
+T> p = pipeline { a = 10 }
+T> p.a
+10
+```
+
+---
+
+## 13. Using Imports in Pipelines
+
+When a pipeline is built with `build_pipeline()`, each node runs inside a **Nix sandbox** — an isolated build environment. Import statements from your script are **automatically propagated** into each sandbox, so imported packages and functions are available to all nodes.
+
+```t
+-- my_analysis.t
+import my_stats
+import data_utils[read_clean, normalize]
+
+p = pipeline {
+  raw = read_csv("data.csv")
+  clean = read_clean(raw)              -- uses imported function
+  normed = normalize(clean)            -- uses imported function
+  result = weighted_mean(normed.$x, normed.$w)  -- uses imported function
+}
+
+build_pipeline(p)
+```
+
+When `build_pipeline(p)` generates the Nix derivation for each node, it prepends the import statements:
+
+```t
+-- Generated node_script.t (inside Nix sandbox)
+import my_stats
+import data_utils[read_clean, normalize]
+raw = deserialize("$T_NODE_raw/artifact.tobj")
+result = weighted_mean(raw.$x, raw.$w)
+serialize(result, "$out/artifact.tobj")
+```
+
+All three import forms are supported:
+
+| Syntax | Effect |
+|---|---|
+| `import "src/helpers.t"` | Import a local file |
+| `import my_stats` | Import all public functions from a package |
+| `import my_stats[foo, bar]` | Import specific functions |
+| `import my_stats[wm=weighted_mean]` | Import with aliases |
+
+---
+
+## 14. Using explain() with Pipelines
 
 The `explain()` function provides structured metadata about pipelines:
 
