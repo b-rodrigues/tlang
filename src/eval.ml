@@ -314,6 +314,9 @@ let rec extract_formula_vars (expr : Ast.expr) : string list =
   | Value (VInt 1) -> []  (* Intercept term: y ~ x + 1 *)
   | _ -> []  (* Unsupported formula syntax *)
 
+(* Module-level mutable ref to track accumulated imports for pipeline propagation *)
+let current_imports : Ast.stmt list ref = ref []
+
 let rec eval_expr (env : environment) (expr : Ast.expr) : value =
   match expr with
   | Value v -> v
@@ -492,6 +495,7 @@ and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
         p_nodes;
         p_exprs = node_expr_map;
         p_deps = deps;
+        p_imports = !current_imports;
       }
 
 (** Re-run a pipeline, skipping nodes whose dependencies haven't changed *)
@@ -536,6 +540,7 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
         p_nodes;
         p_exprs = prev.p_exprs;
         p_deps = prev.p_deps;
+        p_imports = prev.p_imports;
       }
 
 and eval_list_lit env items =
@@ -907,6 +912,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         (try
           let program = Parser.program Lexer.token lexbuf in
           let (_v, new_env) = eval_program program env in
+          current_imports := !current_imports @ [Import filename];
           (VNull, new_env)
         with
         | Lexer.SyntaxError msg ->
@@ -921,11 +927,15 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
           (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
   | ImportPackage pkg_name ->
       (match Package_loader.load_package ~do_eval_program:eval_program pkg_name env with
-       | Ok new_env -> (VNull, new_env)
+       | Ok new_env ->
+           current_imports := !current_imports @ [ImportPackage pkg_name];
+           (VNull, new_env)
        | Error msg -> (make_error FileError msg, env))
   | ImportFrom { package; names } ->
       (match Package_loader.load_package_selective ~do_eval_program:eval_program package names env with
-       | Ok new_env -> (VNull, new_env)
+       | Ok new_env ->
+           current_imports := !current_imports @ [ImportFrom { package; names }];
+           (VNull, new_env)
        | Error msg -> (make_error FileError msg, env))
 
 and eval_program (program : program) (env : environment) : value * environment =

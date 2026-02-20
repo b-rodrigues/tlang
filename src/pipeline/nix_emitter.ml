@@ -22,7 +22,7 @@ let op_to_string = function
   | Formula -> "~"
 
 let shell_single_quote s =
-  "'" ^ String.concat "'\"'\"'" (String.split_on_char '\'' s) ^ "'"
+  "'" ^ String.concat "'\"\\'\"'" (String.split_on_char '\'' s) ^ "'"
 
 let rec unparse_expr = function
   | Value v -> Ast.Utils.value_to_string v
@@ -66,12 +66,30 @@ let rec unparse_expr = function
   | PipelineDef _ | IntentDef _ | ListComp _ | Block _ ->
       "null"
 
-let emit_node (name, expr) deps =
+let unparse_import_stmt = function
+  | Ast.Import filename -> Printf.sprintf "import \"%s\"" filename
+  | Ast.ImportPackage pkg -> Printf.sprintf "import %s" pkg
+  | Ast.ImportFrom { package; names } ->
+      let name_strs = List.map (fun (s : Ast.import_spec) ->
+        match s.import_alias with
+        | Some alias -> Printf.sprintf "%s=%s" alias s.import_name
+        | None -> s.import_name
+      ) names in
+      Printf.sprintf "import %s[%s]" package (String.concat ", " name_strs)
+  | _ -> ""
+
+let emit_node (name, expr) deps import_lines =
   let deps_inputs = String.concat " " deps in
   let deps_exports =
     deps
     |> List.map (fun d -> Printf.sprintf "      export T_NODE_%s=${%s}\n" d d)
     |> String.concat ""
+  in
+  let imports_echo =
+    import_lines
+    |> List.map (fun line ->
+      Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote line))
+    |> String.concat "\n"
   in
   let deps_script_lines =
     deps
@@ -89,23 +107,28 @@ let emit_node (name, expr) deps =
 %s      cat << EOF > node_script.t
 EOF
 %s
-      cat << 'EOF' >> node_script.t
+%s
+      cat <<'EOF' >> node_script.t
       %s = %s
       serialize(%s, "$out/artifact.tobj")
 EOF
       mkdir -p $out
-      t run node_script.t
+      t run --unsafe node_script.t
     '';
   };
-|} name name deps_inputs deps_exports deps_script_lines name expr_s name
+|} name name deps_inputs deps_exports imports_echo deps_script_lines name expr_s name
 
 let emit_pipeline (p : Ast.pipeline_result) =
+  let import_lines = List.filter_map (fun stmt ->
+    let s = unparse_import_stmt stmt in
+    if s = "" then None else Some s
+  ) p.p_imports in
   let node_names = List.map fst p.p_exprs in
   let nodes =
     p.p_exprs
     |> List.map (fun (name, expr) ->
       let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-      emit_node (name, expr) deps)
+      emit_node (name, expr) deps import_lines)
     |> String.concat "\n"
   in
   let final_copy =

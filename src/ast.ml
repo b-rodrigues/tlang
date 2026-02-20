@@ -65,6 +65,7 @@ and pipeline_result = {
   p_nodes : (string * value) list;           (* Cached node results *)
   p_exprs : (string * expr) list;            (* Original expressions *)
   p_deps  : (string * string list) list;     (* Dependency graph *)
+  p_imports : stmt list;                     (* Import statements to propagate into Nix sandboxes *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)

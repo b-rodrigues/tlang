@@ -28,7 +28,7 @@ for script in "$SCRIPT_DIR"/*.t; do
   echo -n "Running: $test_name ... "
   
   # Run the script and capture output
-  output=$($T_REPL run "$script" 2>&1 || true)
+  output=$($T_REPL run --unsafe "$script" 2>&1 || true)
   
   # Check if test was skipped (contains "not yet implemented")
   if echo "$output" | grep -q "not yet implemented"; then
