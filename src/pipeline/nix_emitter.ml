@@ -21,8 +21,10 @@ let op_to_string = function
   | MaybePipe -> "?|>"
   | Formula -> "~"
 
+let shell_single_quote s =
+  "'" ^ String.concat "'\"'\"'" (String.split_on_char '\'' s) ^ "'"
+
 let rec unparse_expr = function
-  | Value (VString s) -> "\"" ^ String.escaped s ^ "\""
   | Value v -> Ast.Utils.value_to_string v
   | Var s -> s
   | ColumnRef c -> "$" ^ c
@@ -74,7 +76,8 @@ let emit_node (name, expr) deps =
   let deps_script_lines =
     deps
     |> List.map (fun d ->
-      Printf.sprintf "      echo '%s = deserialize(\"'$T_NODE_%s'/artifact.tobj\")' >> node_script.t" d d)
+      let line = Printf.sprintf "%s = deserialize(\"$T_NODE_%s/artifact.tobj\")" d d in
+      Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote line))
     |> String.concat "\n"
   in
   let expr_s = unparse_expr expr in
