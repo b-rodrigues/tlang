@@ -142,6 +142,14 @@ Version history and roadmap for the T programming language.
 - Golden tests (T vs R comparison)
 - Example-based tests
 
+### Package Management & Flakes (Bug fixes)
+
+✅ **Implemented**:
+- `T_PACKAGE_PATH` flake configurations export the exact built derivations rather than raw source maps
+- Packages dynamically bundle the local `src/` and `help/` directories instead of silently failing context
+- `t-lang` compiler successfully stripped out of packages' default recursive `buildInputs` dependencies
+- `help()` UX fallback bypasses closures gracefully by searching locally bound environment lambda variables
+
 ### Documentation
 
 ✅ **Implemented** (this release):
