@@ -69,11 +69,18 @@ let rec help_impl args _env =
           Printf.printf "This builtin function is unnamed and has no documentation.\n";
           flush stdout;
           VNull)
-  | [VLambda _] ->
-      Printf.printf "Help is currently only available for standard library functions.\n";
-      Printf.printf "This is a user-defined function (lambda).\n";
-      flush stdout;
-      VNull
+  | [VLambda _ as lam] ->
+      let found_name =
+        Ast.Env.fold (fun k k_val acc ->
+          if acc = None && k_val == lam then Some k else acc
+        ) _env None
+      in
+      (match found_name with
+      | Some name -> help_impl [VString name] _env
+      | None ->
+          Printf.printf "No documentation found for this anonymous function.\n";
+          flush stdout;
+          VNull)
   | [v] ->
       Error.type_error (Printf.sprintf "help expects a function name or value, got %s" (Utils.type_name v))
   | _ ->

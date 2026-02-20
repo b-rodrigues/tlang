@@ -186,13 +186,15 @@ let package_flake_nix = {|{
           src = ./.;
 
           buildInputs = [
-            t-lang.packages.${system}.default
             # Add package dependencies here
           ];
 
           installPhase = ''
             mkdir -p $out/lib/t/packages/{{name}}
-            cp -r src/* $out/lib/t/packages/{{name}}/
+            cp -r src $out/lib/t/packages/{{name}}/
+            if [ -d "help" ]; then
+              cp -r help $out/lib/t/packages/{{name}}/
+            fi
           '';
 
           meta = {
@@ -486,6 +488,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
       create_dir (Filename.concat dir "examples");
       create_dir (Filename.concat dir "docs");
       create_dir (Filename.concat dir "docs/reference");
+      create_dir (Filename.concat dir "help");
       (* Write files from templates *)
       write_file (Filename.concat dir "DESCRIPTION.toml") (sub package_description_toml);
       write_file (Filename.concat dir "flake.nix") (sub package_flake_nix);

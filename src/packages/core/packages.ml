@@ -17,8 +17,12 @@ let docs_loaded : unit Lazy.t =
     let loaded_paths =
       List.filter_map (fun path ->
         if Sys.file_exists path then begin
-          Tdoc_registry.load_from_json path;
-          Some path
+          try
+            Tdoc_registry.load_from_json path;
+            Some path
+          with _ ->
+            prerr_endline (Printf.sprintf "Documentation: failed to parse %s" path);
+            None
         end else
           None
       ) docs_paths

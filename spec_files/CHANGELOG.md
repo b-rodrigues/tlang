@@ -107,3 +107,10 @@ All notable changes to the T programming language are documented here.
 - `write_csv()` now supports optional `separator` parameter for custom delimiters
 - Roundtrip tests: read_csv → write_csv → read_csv with default and custom separators
 - Tests for writing empty DataFrames and DataFrames with NA values
+
+### Package Management & REPL Fixes
+- `T_PACKAGE_PATH` flake export correctly points to the built Nix derivation instead of raw source flakes.
+- Generated packages no longer incorrectly include `t-lang` as a direct `buildInputs` build dependency.
+- Package installation strictly bundles and requires the `src/` directory for robust evaluation.
+- Fixed a bug where `help()` incorrectly guards against package functions by dynamically inspecting the environment to find variable bindings for lambdas.
+- `help/docs.json` documentation indexing is bundled automatically during `nix` package installations.
