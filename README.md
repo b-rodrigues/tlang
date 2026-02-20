@@ -62,6 +62,46 @@ You guessed it, I welcome contributions!
 
 ## Quick Start
 
+T is distributed via Nix, which is currently the only supported installation method.
+
+Start by launching a temporary shell that provides the `t` executable:
+
+```bash
+nix shell github:b-rodrigues/tlang
+```
+
+This drops you into an ephemeral environment with `t` available on your `PATH`.  
+You can now bootstrap a new project:
+
+```bash
+t init my_t_project
+```
+
+You will be prompted to enter basic project information.
+
+When finished, leave the temporary shell:
+
+```bash
+exit
+```
+
+This creates a new directory (e.g. `my_t_project/`) containing the necessary project files.  
+The most important file is:
+
+```
+tproject.toml
+```
+
+This file declares your project's dependencies. Dependencies must be explicitly listed here, as they are used by the project-specific flake to provide a fully reproducible environment.
+
+You can now start working on your project by editing:
+
+```
+src/analysis.t
+```
+
+You are free to rename this file or add additional source files as needed.
+
 ```t
 -- Load data
 df = read_csv("data.csv", clean_colnames = true)
