@@ -124,6 +124,10 @@ let generate_project_flake
   Buffer.add_string buf "            echo \"  t run <file>        - Run a T file\"\n";
   Buffer.add_string buf "            echo \"  t test              - Run tests\"\n";
   Buffer.add_string buf "            echo \"\"\n";
+  Buffer.add_string buf "            echo \"To add dependencies:\"\n";
+  Buffer.add_string buf "            echo \"  * Add them to tproject.toml\"\n";
+  Buffer.add_string buf "            echo \"  * Run 't update' to sync flake.nix\"\n";
+  Buffer.add_string buf "            echo \"\"\n";
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";
@@ -200,17 +204,30 @@ let generate_package_flake
       (nix_safe_name dep.dep_name)
   ) deps;
   Buffer.add_string buf "          ];\n";
+  Buffer.add_string buf "\n";
+  Buffer.add_string buf "          shellHook = ''\n";
   if deps <> [] then begin
-    Buffer.add_string buf "\n";
-    Buffer.add_string buf "          shellHook = ''\n";
     Buffer.add_string buf "            export T_PACKAGE_PATH=\"";
     List.iteri (fun i dep ->
       if i > 0 then Buffer.add_char buf ':';
       Printf.bprintf buf "${%s}/lib/t/packages" (nix_safe_name dep.dep_name)
     ) deps;
-    Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n";
-    Buffer.add_string buf "          '';\n"
+    Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
+  Printf.bprintf buf "            echo \"==================================================\"\n";
+  Printf.bprintf buf "            echo \"T Package: %s\"\n" package_name;
+  Printf.bprintf buf "            echo \"==================================================\"\n";
+  Buffer.add_string buf "            echo \"\"\n";
+  Buffer.add_string buf "            echo \"Available commands:\"\n";
+  Buffer.add_string buf "            echo \"  t repl              - Start T REPL\"\n";
+  Buffer.add_string buf "            echo \"  t run <file>        - Run a T file\"\n";
+  Buffer.add_string buf "            echo \"  t test              - Run tests\"\n";
+  Buffer.add_string buf "            echo \"\"\n";
+  Buffer.add_string buf "            echo \"To add dependencies:\"\n";
+  Buffer.add_string buf "            echo \"  * Add them to DESCRIPTION.toml\"\n";
+  Buffer.add_string buf "            echo \"  * Run 't update' to sync flake.nix\"\n";
+  Buffer.add_string buf "            echo \"\"\n";
+  Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";
   Buffer.add_string buf "    );\n";
