@@ -113,7 +113,7 @@ let generate_project_flake
       if i > 0 then Buffer.add_char buf ':';
       Printf.bprintf buf "${%s}/lib/t/packages" (nix_safe_name dep.dep_name)
     ) deps;
-    Buffer.add_string buf ":${T_PACKAGE_PATH:-}\"\n"
+    Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
   Printf.bprintf buf "            echo \"==================================================\"\n";
   Printf.bprintf buf "            echo \"T Project: %s\"\n" project_name;
@@ -208,7 +208,7 @@ let generate_package_flake
       if i > 0 then Buffer.add_char buf ':';
       Printf.bprintf buf "${%s}/lib/t/packages" (nix_safe_name dep.dep_name)
     ) deps;
-    Buffer.add_string buf ":${T_PACKAGE_PATH:-}\"\n";
+    Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n";
     Buffer.add_string buf "          '';\n"
   end;
   Buffer.add_string buf "        };\n";
