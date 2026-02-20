@@ -2,7 +2,6 @@ open Ast
 
 let pipeline_nix_path = "pipeline.nix"
 let pipeline_registry_path = ".t_pipeline_registry.json"
-let local_artifact_dir = ".t_pipeline_artifacts"
 
 let write_file path content =
   try
@@ -31,33 +30,6 @@ let run_command_capture cmd =
   with exn ->
     Error (Printexc.to_string exn)
 
-let ensure_local_node_dir node =
-  let root = local_artifact_dir in
-  let node_dir = Filename.concat root node in
-  if not (Sys.file_exists root) then Unix.mkdir root 0o755;
-  if not (Sys.file_exists node_dir) then Unix.mkdir node_dir 0o755;
-  node_dir
-
-let materialize_local_artifacts (p : Ast.pipeline_result) =
-  try
-    let entries =
-      p.p_nodes
-      |> List.map (fun (name, value) ->
-        let node_dir = ensure_local_node_dir name in
-        let artifact_path = Filename.concat node_dir "artifact.tobj" in
-        match Serialization.serialize_to_file artifact_path value with
-        | Ok () -> Ok (name, artifact_path)
-        | Error msg -> Error msg)
-    in
-    let rec collect acc = function
-      | [] -> Ok (List.rev acc)
-      | Ok x :: xs -> collect (x :: acc) xs
-      | Error e :: _ -> Error e
-    in
-    collect [] entries
-  with exn ->
-    Error (Printexc.to_string exn)
-
 let write_registry entries =
   Serialization.write_registry pipeline_registry_path entries
 
@@ -66,39 +38,26 @@ let build_pipeline (p : Ast.pipeline_result) =
   match write_file pipeline_nix_path nix_content with
   | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
   | Ok () ->
-      if command_exists "nix-build" then
-        (match run_command_capture
-                 (Printf.sprintf "nix-build %s --no-out-link --print-out-paths 2>/dev/null" pipeline_nix_path) with
-         | Ok (Unix.WEXITED 0, out_path) when out_path <> "" ->
-              let registry =
-                List.map (fun (name, _) ->
-                  (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
-                ) p.p_nodes
-              in
-              (match write_registry registry with
-              | Ok () -> Ok out_path
-              | Error msg -> Error ("Failed to write registry: " ^ msg))
-         | Ok (Unix.WEXITED 0, "") ->
-             (match materialize_local_artifacts p with
-             | Error msg -> Error ("Failed to materialize local artifacts: " ^ msg)
-             | Ok registry ->
-                 (match write_registry registry with
-                 | Ok () -> Ok local_artifact_dir
-                 | Error msg -> Error ("Failed to write registry: " ^ msg)))
-         | _ ->
-              (match materialize_local_artifacts p with
-              | Error msg -> Error ("Failed to materialize local artifacts: " ^ msg)
-              | Ok registry ->
-                  (match write_registry registry with
-                 | Ok () -> Ok local_artifact_dir
-                 | Error msg -> Error ("Failed to write registry: " ^ msg))))
+      if not (command_exists "nix-build") then
+        Error "build_pipeline requires `nix-build` to be available."
       else
-        match materialize_local_artifacts p with
-        | Error msg -> Error ("Failed to materialize local artifacts: " ^ msg)
-        | Ok registry ->
+        match run_command_capture
+                (Printf.sprintf "nix-build %s --no-out-link --print-out-paths 2>&1" pipeline_nix_path) with
+        | Ok (Unix.WEXITED 0, out_path) when out_path <> "" ->
+            let registry =
+              List.map (fun (name, _) ->
+                (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
+              ) p.p_nodes
+            in
             (match write_registry registry with
-            | Ok () -> Ok local_artifact_dir
+            | Ok () -> Ok out_path
             | Error msg -> Error ("Failed to write registry: " ^ msg))
+        | Ok (Unix.WEXITED 0, _) ->
+            Error "nix-build succeeded but did not return an output path."
+        | Ok (_, output) ->
+            Error (Printf.sprintf "nix-build failed: %s" output)
+        | Error msg ->
+            Error (Printf.sprintf "Failed to run nix-build: %s" msg)
 
 let read_node name =
   match Serialization.read_registry pipeline_registry_path with

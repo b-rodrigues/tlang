@@ -110,7 +110,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   Printf.printf "Pipeline Build and Artifact I/O:\n";
   test "build_pipeline returns output path"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}; out = build_pipeline(p); starts_with(out, \"/nix/store/\") || out == \".t_pipeline_artifacts\""
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}; out = build_pipeline(p); starts_with(out, \"/nix/store/\")"
     "true";
   test "read_node reads serialized artifact"
     "p = pipeline {\n  a = 1\n  b = a + 2\n}; build_pipeline(p); read_node(\"b\")"

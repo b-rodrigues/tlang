@@ -22,6 +22,7 @@ let op_to_string = function
   | Formula -> "~"
 
 let rec unparse_expr = function
+  | Value (VString s) -> "\"" ^ String.escaped s ^ "\""
   | Value v -> Ast.Utils.value_to_string v
   | Var s -> s
   | ColumnRef c -> "$" ^ c
@@ -70,10 +71,10 @@ let emit_node (name, expr) deps =
     |> List.map (fun d -> Printf.sprintf "      export T_NODE_%s=${%s}\n" d d)
     |> String.concat ""
   in
-  let deps_load =
+  let deps_script_lines =
     deps
     |> List.map (fun d ->
-      Printf.sprintf "      %s = deserialize(\"${T_NODE_%s}/artifact.tobj\")" d d)
+      Printf.sprintf "      echo '%s = deserialize(\"'$T_NODE_%s'/artifact.tobj\")' >> node_script.t" d d)
     |> String.concat "\n"
   in
   let expr_s = unparse_expr expr in
@@ -83,7 +84,9 @@ let emit_node (name, expr) deps =
     buildInputs = [ t_lang_env %s ];
     buildCommand = ''
 %s      cat << EOF > node_script.t
+EOF
 %s
+      cat << 'EOF' >> node_script.t
       %s = %s
       serialize(%s, "$out/artifact.tobj")
 EOF
@@ -91,7 +94,7 @@ EOF
       t run node_script.t
     '';
   };
-|} name name deps_inputs deps_exports deps_load name expr_s name
+|} name name deps_inputs deps_exports deps_script_lines name expr_s name
 
 let emit_pipeline (p : Ast.pipeline_result) =
   let node_names = List.map fst p.p_exprs in
