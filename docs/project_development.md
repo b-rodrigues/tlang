@@ -23,7 +23,7 @@ This creates the following structure:
 
 - **tproject.toml**: Project metadata and dependencies.
 - **flake.nix**: Reproducible environment definition (managed automatically).
-- **src/**: Your analysis scripts (e.g., `analysis.t`).
+- **src/**: Your analysis scripts (e.g., `pipeline.t`).
 - **data/**: Data files.
 - **README.md**: Project documentation.
 
@@ -102,29 +102,29 @@ All functions in a package are **public by default**. Package authors can mark i
 
 ## 5. Writing Analysis Scripts
 
-Write your analysis in `src/`. For example, `src/analysis.t`:
+Write your analysis in `src/`. For example, `src/pipeline.t`:
 
 ```t
 import my_stats
 import data_utils[read_clean]
 
--- Load and clean data
-data = read_csv("data/housing.csv")
-clean = read_clean(data)
+p = pipeline {
+  data = read_csv("data/housing.csv")
+  clean = read_clean(data)
+  avg_price = mean(clean.$price)
+  price_by_area = clean |>
+    group_by($area) |>
+    summarize(avg=mean($price), sd=sd($price))
+}
 
--- Analyze
-avg_price = mean(clean.$price)
-price_by_area = clean |>
-  group_by($area) |>
-  summarize(avg=mean($price), sd=sd($price))
-
+build_pipeline(p)
 print(price_by_area)
 ```
 
 Run your script:
 
 ```bash
-$ t run src/analysis.t
+$ t run src/pipeline.t
 ```
 
 Or use the REPL for interactive exploration:
@@ -138,7 +138,7 @@ $ t repl
 You can add tests in `tests/` following the same conventions as packages:
 
 ```t
--- tests/test-analysis.t
+-- tests/test-pipeline.t
 import my_stats
 
 result = weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
@@ -165,7 +165,7 @@ Anyone can reproduce your environment:
 $ git clone https://github.com/user/housing-analysis
 $ cd housing-analysis
 $ nix develop
-$ t run src/analysis.t
+$ t run src/pipeline.t
 ```
 
 The same T version, same package versions, same R packages, and same system libraries are used every time.

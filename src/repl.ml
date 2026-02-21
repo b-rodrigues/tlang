@@ -182,7 +182,7 @@ let print_help () =
   Printf.printf "  explain           Value introspection and intent blocks\n";
   Printf.printf "\nExamples:\n";
   Printf.printf "  t repl\n";
-  Printf.printf "  t run analysis.t\n";
+  Printf.printf "  t run pipeline.t\n";
   Printf.printf "  t explain 'read_csv(\"data.csv\")'\n";
   Printf.printf "  t init package my-stats-pkg\n";
   Printf.printf "  t init project my-analysis\n"

@@ -368,7 +368,7 @@ nix develop
 2. Run the analysis:
 
 ```bash
-t run src/analysis.t
+t run src/pipeline.t
 ```
 
 3. Start the interactive REPL:
@@ -424,20 +424,23 @@ outputs/
 Thumbs.db
 |}
 
-let project_analysis_example = {|-- {{name}} — main analysis script
+let project_pipeline_example = {|-- {{name}} — main pipeline script
 --
--- Run with: t run src/analysis.t
+-- Run with: t run src/pipeline.t
 
--- Load your data
--- data = read_csv("data/dataset.csv")
+-- import my_stats
+-- import data_utils[read_clean, normalize]
 
--- Analyse
--- result = data |> filter($column > 0) |> summarize(mean = mean($column))
+-- p = pipeline {
+--   raw = read_csv("data/dataset.csv")
+--   clean = read_clean(raw)              -- uses imported function
+--   normed = normalize(clean)            -- uses imported function
+--   result = weighted_mean(normed.$x, normed.$w)  -- uses imported function
+-- }
 
--- Save results
--- write_csv(result, "outputs/result.csv")
+-- build_pipeline(p)
 
-print("Hello from {{name}}!")
+print("Hello from {{name}} pipeline!")
 |}
 
 (* ================================================================ *)
@@ -590,7 +593,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       write_file (Filename.concat dir "flake.nix") flake_content;
       write_file (Filename.concat dir "README.md") (sub project_readme);
       write_file (Filename.concat dir ".gitignore") project_gitignore;
-      write_file (Filename.concat dir "src/analysis.t") (sub project_analysis_example);
+      write_file (Filename.concat dir "src/pipeline.t") (sub project_pipeline_example);
       (* Git init *)
       if not opts.no_git then git_init dir;
       (* Success message *)
@@ -601,7 +604,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       Printf.printf "  ├── README.md\n";
       Printf.printf "  ├── .gitignore\n";
       Printf.printf "  ├── src/\n";
-      Printf.printf "  │   └── analysis.t\n";
+      Printf.printf "  │   └── pipeline.t\n";
       Printf.printf "  ├── data/\n";
       Printf.printf "  ├── outputs/\n";
       Printf.printf "  └── tests/\n";
@@ -609,7 +612,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       Printf.printf "  cd %s\n" dir;
       Printf.printf "  nix develop           # Enter reproducible environment\n";
       Printf.printf "  t repl                # Start the REPL\n";
-      Printf.printf "  t run src/analysis.t  # Run the analysis\n";
+      Printf.printf "  t run src/pipeline.t  # Run the pipeline\n";
       Ok ()
     end
 
