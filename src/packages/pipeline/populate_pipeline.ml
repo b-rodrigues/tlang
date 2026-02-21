@@ -27,4 +27,4 @@ let register env =
     | Ok out -> VString out
     | Error msg -> Error.make_error FileError msg
   in
-  Env.add "populate_pipeline" (make_builtin_named ~name:"populate_pipeline" 1 populate_fn) env
+  Env.add "populate_pipeline" (make_builtin_named ~name:"populate_pipeline" 2 populate_fn) env
