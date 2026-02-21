@@ -102,7 +102,7 @@ let emit_node (name, expr) deps import_lines =
   Printf.sprintf {|
   %s = stdenv.mkDerivation {
     name = "%s";
-    buildInputs = [ t_lang_env %s ];
+    buildInputs = t_lang_env ++ [ %s ];
     buildCommand = ''
 %s      cat << EOF > node_script.t
 EOF
@@ -148,7 +148,7 @@ rec {
 %s
   pipeline_output = stdenv.mkDerivation {
     name = "pipeline_output";
-    buildInputs = [ t_lang_env %s ];
+    buildInputs = t_lang_env ++ [ %s ];
     buildCommand = ''
       mkdir -p $out
 %s
