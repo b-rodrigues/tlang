@@ -33,7 +33,7 @@ assert(type(avg_hp) == "Float", join(["avg_hp_6cyl should be Float, got ", type(
 print(join(["avg_hp_6cyl = ", avg_hp, " OK"]))
 
 -- 6. Time-travel: read from a specific log
-first_log = get(logs, 1)
+first_log = get(logs, 0)
 print(join(["Testing time-travel with log: ", first_log]))
 avg2 = read_node("avg_mpg", which_log=first_log)
 assert(avg == avg2, "Time-travel read should match latest read")

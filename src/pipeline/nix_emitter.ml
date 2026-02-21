@@ -94,8 +94,7 @@ let emit_node (name, expr) deps import_lines =
   let deps_script_lines =
     deps
     |> List.map (fun d ->
-      let line = Printf.sprintf "%s = deserialize(\"$T_NODE_%s/artifact.tobj\")" d d in
-      Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote line))
+      Printf.sprintf "      echo \"%s = deserialize(\\\"$T_NODE_%s/artifact.tobj\\\")\" >> node_script.t" d d)
     |> String.concat "\n"
   in
   let expr_s = unparse_expr expr in
@@ -104,14 +103,16 @@ let emit_node (name, expr) deps import_lines =
     name = "%s";
     buildInputs = t_lang_env ++ [ %s ];
     buildCommand = ''
+      cp -r ${../.}/* . || true
+      chmod -R u+w .
 %s      cat << EOF > node_script.t
 EOF
 %s
 %s
       cat <<'EOF' >> node_script.t
       %s = %s
-      serialize(%s, "$out/artifact.tobj")
 EOF
+      echo "      serialize(%s, \"$out/artifact.tobj\")" >> node_script.t
       mkdir -p $out
       t run --unsafe node_script.t
     '';

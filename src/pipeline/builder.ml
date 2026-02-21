@@ -60,7 +60,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     Error "build_pipeline requires `nix-build` to be available."
   else
     match run_command_capture
-            (Printf.sprintf "nix-build %s --no-out-link 2>&1" (Filename.quote pipeline_nix_path)) with
+            (Printf.sprintf "nix-build %s -A pipeline_output --no-out-link 2>&1" (Filename.quote pipeline_nix_path)) with
     | Ok (Unix.WEXITED 0, output) when output <> "" ->
         (* nix-build --no-out-link prints one store path per derivation.
            The last line is the top-level (pipeline_output) derivation. *)
