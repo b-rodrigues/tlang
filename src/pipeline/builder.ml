@@ -1,7 +1,8 @@
 open Ast
 
-let pipeline_nix_path = "pipeline.nix"
-let pipeline_registry_path = ".t_pipeline_registry.json"
+let pipeline_dir = "_pipeline"
+let pipeline_nix_path = Filename.concat pipeline_dir "pipeline.nix"
+let dag_path = Filename.concat pipeline_dir "dag.json"
 
 let write_file path content =
   try
@@ -30,47 +31,153 @@ let run_command_capture cmd =
   with exn ->
     Error (Printexc.to_string exn)
 
-let write_registry entries =
-  Serialization.write_registry pipeline_registry_path entries
+let ensure_pipeline_dir () =
+  if not (Sys.file_exists pipeline_dir) then
+    Unix.mkdir pipeline_dir 0o755
 
-let build_pipeline (p : Ast.pipeline_result) =
-  let nix_content = Nix_emitter.emit_pipeline p in
-  match write_file pipeline_nix_path nix_content with
-  | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
+let write_dag (p : Ast.pipeline_result) =
+  let nodes_json =
+    List.map (fun (name, _) ->
+      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+      let entries = [
+        ("node_name", "\"" ^ Serialization.json_escape name ^ "\"");
+        ("depends", Serialization.json_list deps)
+      ] in
+      Serialization.json_dict entries
+    ) p.p_exprs
+  in
+  let dag_json = "[\n" ^ (String.concat ",\n" nodes_json) ^ "\n]" in
+  write_file dag_path dag_json
+
+let get_timestamp () =
+  let tm = Unix.localtime (Unix.time ()) in
+  Printf.sprintf "%04d%02d%02d_%02d%02d%02d"
+    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+    tm.tm_hour tm.tm_min tm.tm_sec
+
+let build_pipeline_internal (p : Ast.pipeline_result) =
+  if not (command_exists "nix-build") then
+    Error "build_pipeline requires `nix-build` to be available."
+  else
+    match run_command_capture
+            (Printf.sprintf "nix-build %s --no-out-link 2>&1" (Filename.quote pipeline_nix_path)) with
+    | Ok (Unix.WEXITED 0, output) when output <> "" ->
+        (* nix-build --no-out-link prints one store path per derivation.
+           The last line is the top-level (pipeline_output) derivation. *)
+        let lines = String.split_on_char '\n' (String.trim output) in
+        let out_path = List.nth lines (List.length lines - 1) in
+        let timestamp = get_timestamp () in
+        let hash = try
+          let parts = String.split_on_char '-' (Filename.basename out_path) in
+          List.hd parts
+        with _ -> "no_hash"
+        in
+        let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
+        let log_path = Filename.concat pipeline_dir log_name in
+        let registry =
+          List.map (fun (name, _) ->
+            (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
+          ) p.p_exprs
+        in
+        let log_entries =
+          List.map (fun (name, path) ->
+            Serialization.json_dict [
+              ("node", "\"" ^ Serialization.json_escape name ^ "\"");
+              ("path", "\"" ^ Serialization.json_escape path ^ "\"");
+              ("success", "true")
+            ]
+          ) registry
+        in
+        let log_json = Serialization.json_dict [
+          ("timestamp", "\"" ^ timestamp ^ "\"");
+          ("hash", "\"" ^ hash ^ "\"");
+          ("out_path", "\"" ^ out_path ^ "\"");
+          ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
+        ] in
+        (match write_file log_path log_json with
+        | Ok () -> Ok out_path
+        | Error msg -> Error ("Failed to write build log: " ^ msg))
+    | Ok (Unix.WEXITED 0, _) ->
+        Error "nix-build succeeded but did not return an output path."
+    | Ok (_, output) ->
+        Error (Printf.sprintf "nix-build failed: %s" output)
+    | Error msg ->
+        Error (Printf.sprintf "Failed to run nix-build: %s" msg)
+
+let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
+  ensure_pipeline_dir ();
+  match write_dag p with
+  | Error msg -> Error ("Failed to write dag.json: " ^ msg)
   | Ok () ->
-      if not (command_exists "nix-build") then
-        Error "build_pipeline requires `nix-build` to be available."
-      else
-        match run_command_capture
-                (Printf.sprintf "nix-build %s --no-out-link --print-out-paths 2>&1" (Filename.quote pipeline_nix_path)) with
-        | Ok (Unix.WEXITED 0, out_path) when out_path <> "" ->
-            let registry =
-              List.map (fun (name, _) ->
-                (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
-              ) p.p_nodes
-            in
-            (match write_registry registry with
-            | Ok () -> Ok out_path
-            | Error msg -> Error ("Failed to write registry: " ^ msg))
-        | Ok (Unix.WEXITED 0, _) ->
-            Error "nix-build succeeded but did not return an output path."
-        | Ok (_, output) ->
-            Error (Printf.sprintf "nix-build failed: %s" output)
-        | Error msg ->
-            Error (Printf.sprintf "Failed to run nix-build: %s" msg)
+      let nix_content = Nix_emitter.emit_pipeline p in
+      match write_file pipeline_nix_path nix_content with
+      | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
+      | Ok () ->
+          if build then build_pipeline_internal p
+          else Ok (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir)
 
-let read_node name =
-  match Serialization.read_registry pipeline_registry_path with
-  | Error _ ->
+let list_logs () =
+  if not (Sys.file_exists pipeline_dir) then []
+  else
+    Sys.readdir pipeline_dir
+    |> Array.to_list
+    |> List.filter (fun f ->
+      Filename.check_suffix f ".json"
+      && String.starts_with ~prefix:"build_log_" f)
+    |> List.sort (fun a b -> compare b a) (* Newest first *)
+
+let inspect_pipeline () =
+  let logs = list_logs () in
+  VList (List.map (fun f -> (None, VString f)) logs)
+
+let read_log path =
+  try
+    let ic = open_in path in
+    let len = in_channel_length ic in
+    let raw = really_input_string ic len in
+    close_in ic;
+    (* Very basic regex for log items *)
+    let re_node = Str.regexp "\"node\": \"\\([^\"]+\\)\"" in
+    let re_path = Str.regexp "\"path\": \"\\([^\"]+\\)\"" in
+    let rec collect pos acc =
+      try
+        let _ = Str.search_forward re_node raw pos in
+        let node = Str.matched_group 1 raw in
+        let next_pos = Str.match_end () in
+        let _ = Str.search_forward re_path raw next_pos in
+        let path = Str.matched_group 1 raw in
+        collect (Str.match_end ()) ((node, path) :: acc)
+      with Not_found -> List.rev acc
+    in
+    Ok (collect 0 [])
+  with exn -> Error (Printexc.to_string exn)
+
+let read_node ?which_log name =
+  let logs = list_logs () in
+  let log_file =
+    match which_log with
+    | None -> (match logs with [] -> None | l :: _ -> Some l)
+    | Some pattern ->
+        List.find_opt (fun l ->
+          try let _ = Str.search_forward (Str.regexp pattern) l 0 in true
+          with Not_found -> false
+        ) logs
+  in
+  match log_file with
+  | None ->
+      let suffix = match which_log with
+        | Some pat -> " matching \"" ^ pat ^ "\""
+        | None -> ""
+      in
       Error.make_error FileError
-        (Printf.sprintf "Pipeline registry `%s` not found. Run `build_pipeline(p)` first." pipeline_registry_path)
-  | Ok entries ->
-      (match List.assoc_opt name entries with
-      | None ->
-          Error.make_error KeyError (Printf.sprintf "Node `%s` not found in pipeline registry." name)
-      | Some path ->
-          (match Serialization.deserialize_from_file path with
-          | Ok v -> v
-          | Error msg ->
-              Error.make_error FileError
-                (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name path msg)))
+        (Printf.sprintf "No build logs found in `_pipeline/`%s. Run `populate_pipeline(p, build=true)` first." suffix)
+  | Some f ->
+      match read_log (Filename.concat pipeline_dir f) with
+      | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read log `%s`: %s" f msg)
+      | Ok entries ->
+          (match List.assoc_opt name entries with
+          | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in build log `%s`." name f)
+          | Some path ->
+              (match Serialization.deserialize_from_file path with
+              | Ok v -> v
+              | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name path msg)))

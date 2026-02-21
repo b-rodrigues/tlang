@@ -140,13 +140,15 @@ let emit_pipeline (p : Ast.pipeline_result) =
 { pkgs ? import <nixpkgs> {} }:
 let
   stdenv = pkgs.stdenv;
-  t_lang_env = pkgs.stdenv;
+  # Use local env.nix if it exists, otherwise fallback to stdenv
+  env = if builtins.pathExists ./env.nix then import ./env.nix { inherit pkgs; } else { buildInputs = []; };
+  t_lang_env = env.buildInputs or [];
 in
 rec {
 %s
   pipeline_output = stdenv.mkDerivation {
     name = "pipeline_output";
-    buildInputs = [ %s ];
+    buildInputs = [ t_lang_env %s ];
     buildCommand = ''
       mkdir -p $out
 %s
