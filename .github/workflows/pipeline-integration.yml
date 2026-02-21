@@ -31,7 +31,7 @@ jobs:
         skipPush: true
 
     - name: Build T
-      run: nix develop --command dune build
+      run: nix build .#default
 
     - name: Download mtcars data
       run: |
@@ -39,10 +39,9 @@ jobs:
         wget -q -O data/mtcars.csv \
           https://raw.githubusercontent.com/b-rodrigues/rixpress_demos/refs/heads/master/basic_r/data/mtcars.csv
 
-
     - name: Run pipeline build
       run: |
-        nix develop --command ./_build/default/src/repl.exe run tests/pipeline/test_pipeline_e2e.t
+        ./result/bin/t run tests/pipeline/test_pipeline_e2e.t
 
     - name: Verify pipeline artifacts
       run: |
@@ -56,7 +55,7 @@ jobs:
         ls _pipeline/build_log_* 2>/dev/null || echo "No build logs found"
         echo ""
         echo "=== Running verification script ==="
-        nix develop --command ./_build/default/src/repl.exe run tests/pipeline/verify_pipeline_e2e.t --unsafe
+        ./result/bin/t run tests/pipeline/verify_pipeline_e2e.t --unsafe
 
     - name: Upload pipeline artifacts
       if: always()
