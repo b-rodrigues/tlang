@@ -16,14 +16,22 @@ open Ast
 *)
 let register env =
   let read_fn named_args _env =
-    let name = match List.assoc_opt "name" (List.map (fun (k, v) -> (match k with Some s -> s | None -> "name"), v) named_args) with
-      | Some (VString s) -> s
-      | _ -> (match List.hd named_args with (_, VString s) -> s | _ -> failwith "Expected string name")
+    let get_arg name pos default named_args =
+      match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
+      | Some v -> v
+      | None ->
+          let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
+          if List.length positionals >= pos then List.nth positionals (pos - 1)
+          else default
     in
-    let which_log = match List.assoc_opt "which_log" (List.map (fun (k, v) -> (match k with Some s -> s | None -> "which_log"), v) named_args) with
-      | Some (VString s) -> Some s
+    let name = match get_arg "name" 1 (VString "") named_args with
+      | VString s -> s
+      | _ -> failwith "Expected string name"
+    in
+    let which_log = match get_arg "which_log" 2 VNull named_args with
+      | VString s -> Some s
       | _ -> None
     in
     Builder.read_node ?which_log name
   in
-  Env.add "read_node" (make_builtin_named ~name:"read_node" 1 read_fn) env
+  Env.add "read_node" (make_builtin_named ~name:"read_node" ~variadic:true 1 read_fn) env
