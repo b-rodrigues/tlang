@@ -104,8 +104,48 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     | Error msg ->
         Error (Printf.sprintf "Failed to run nix-build: %s" msg)
 
+let env_nix_path = Filename.concat pipeline_dir "env.nix"
+
+(** Extract the Nix store derivation path from a binary path.
+    e.g. /nix/store/abc123-t-lang-0.5.0/bin/t -> /nix/store/abc123-t-lang-0.5.0 *)
+let nix_store_path_of_executable () =
+  (* Resolve the real path of the running executable *)
+  let exe = try Unix.readlink "/proc/self/exe" with _ -> Sys.executable_name in
+  if String.length exe > 11 && String.sub exe 0 11 = "/nix/store/" then
+    (* Strip everything after the store hash-name, i.e. /nix/store/<hash-name>/... *)
+    let rest = String.sub exe 11 (String.length exe - 11) in
+    match String.index_opt rest '/' with
+    | Some i -> Some (String.sub exe 0 (11 + i))
+    | None -> Some exe
+  else
+    None
+
+let write_env_nix () =
+  match nix_store_path_of_executable () with
+  | Some store_path ->
+      let content = Printf.sprintf {|{ pkgs ? import <nixpkgs> {} }:
+let
+  t-lang = builtins.storePath "%s";
+in
+{
+  buildInputs = [ t-lang ];
+}
+|} store_path
+      in
+      ignore (write_file env_nix_path content)
+  | None ->
+      (* Not running from a Nix store — write a no-op env.nix *)
+      let content = {|{ pkgs ? import <nixpkgs> {} }:
+{
+  buildInputs = [];
+}
+|}
+      in
+      ignore (write_file env_nix_path content)
+
 let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
   ensure_pipeline_dir ();
+  write_env_nix ();
   match write_dag p with
   | Error msg -> Error ("Failed to write dag.json: " ^ msg)
   | Ok () ->

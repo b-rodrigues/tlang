@@ -39,31 +39,6 @@ jobs:
         wget -q -O data/mtcars.csv \
           https://raw.githubusercontent.com/b-rodrigues/rixpress_demos/refs/heads/master/basic_r/data/mtcars.csv
 
-    - name: Create env.nix for pipeline sandbox
-      run: |
-        # Make the locally built T binary available inside nix-build sandboxes
-        T_BIN=$(nix develop --command which t 2>/dev/null || echo "")
-        if [ -z "$T_BIN" ]; then
-          # Fallback: build from flake and use that path
-          T_STORE=$(nix build .# --no-link --print-out-paths 2>/dev/null || echo "")
-          cat > env.nix << 'ENVEOF'
-        { pkgs ? import <nixpkgs> {} }:
-        {
-          buildInputs = [];
-        }
-        ENVEOF
-        else
-          T_STORE=$(dirname $(dirname "$T_BIN"))
-          cat > env.nix << ENVEOF
-        { pkgs ? import <nixpkgs> {} }:
-        let
-          t-lang = builtins.storePath "$T_STORE";
-        in
-        {
-          buildInputs = [ t-lang ];
-        }
-        ENVEOF
-        fi
 
     - name: Run pipeline build
       run: |
