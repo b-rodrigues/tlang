@@ -49,6 +49,7 @@ let run_file mode filename env =
 (** Recursively check if an expression contains a call to build_pipeline *)
 let rec expr_has_build_pipeline = function
   | Ast.Call { fn = Ast.Var "build_pipeline"; _ } -> true
+  | Ast.Call { fn = Ast.Var "populate_pipeline"; _ } -> true
   | Ast.Call { fn; args; _ } ->
       expr_has_build_pipeline fn ||
       List.exists (fun (_, e) -> expr_has_build_pipeline e) args

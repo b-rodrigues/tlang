@@ -19,4 +19,4 @@ p = pipeline {
   avg_hp_6cyl = six_cyl.hp |> mean
 }
 
-build_pipeline(p)
+populate_pipeline(p, build=true)
