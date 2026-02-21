@@ -199,7 +199,7 @@ min_version = "0.5.0"
         Sys.file_exists dir
         && Sys.file_exists (Filename.concat dir "tproject.toml")
         && Sys.file_exists (Filename.concat dir "flake.nix")
-        && Sys.file_exists (Filename.concat dir "src/analysis.t")
+        && Sys.file_exists (Filename.concat dir "src/pipeline.t")
         && Sys.is_directory (Filename.concat dir "data")
         && Sys.is_directory (Filename.concat dir "outputs")
         && Sys.is_directory (Filename.concat dir "tests")
