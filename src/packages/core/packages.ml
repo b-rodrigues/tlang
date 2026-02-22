@@ -106,7 +106,7 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "load_node"];
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "load_node"; "trace_nodes"];
 }
 
 let explain_package = {
@@ -314,6 +314,7 @@ let init_env () =
   let env = Inspect_pipeline.register env in
   let env = Read_node.register env in
   let env = Load_node.register env in
+  let env = Trace_nodes.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call ~eval_expr:Eval.eval_expr ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
