@@ -49,6 +49,7 @@ let run_file mode filename env =
 (** Recursively check if an expression contains a call to build_pipeline *)
 let rec expr_has_build_pipeline = function
   | Ast.Call { fn = Ast.Var "build_pipeline"; _ } -> true
+  | Ast.Call { fn = Ast.Var "populate_pipeline"; _ } -> true
   | Ast.Call { fn; args; _ } ->
       expr_has_build_pipeline fn ||
       List.exists (fun (_, e) -> expr_has_build_pipeline e) args
@@ -203,7 +204,7 @@ let cmd_run ?(unsafe=false) mode filename env =
         let program = Parser.program Lexer.token lexbuf in
         if not (program_has_build_pipeline program) then begin
           Printf.eprintf "Error: non-interactive execution requires a pipeline.\n";
-          Printf.eprintf "Scripts run with `t run` must call `build_pipeline()`.\n";
+          Printf.eprintf "Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.\n";
           Printf.eprintf "Use the REPL for interactive exploration, or pass --unsafe to override.\n";
           exit 1
         end

@@ -102,3 +102,13 @@ let read_registry path =
       Ok (collect 0 [])
   with exn ->
     Error (Printexc.to_string exn)
+
+let json_list items =
+  "[" ^ (String.concat ", " (List.map (fun s -> "\"" ^ json_escape s ^ "\"") items)) ^ "]"
+
+let json_dict pairs =
+  "{\n" ^
+  (String.concat ",\n" (List.map (fun (k, v) ->
+    Printf.sprintf "  \"%s\": %s" (json_escape k) v
+  ) pairs)) ^
+  "\n}"

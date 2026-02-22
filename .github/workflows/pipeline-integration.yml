@@ -1,0 +1,60 @@
+name: Pipeline Integration Test
+
+on:
+  push:
+    branches: [ main, develop, pipeline ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  pipeline-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v24
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v13
+      with:
+        name: rstats-on-nix
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        skipPush: true
+
+    - name: Build T
+      run: nix build .#default
+
+    - name: Run pipeline build
+      run: |
+        ./result/bin/t run tests/pipeline/test_pipeline_e2e.t
+
+    - name: Verify pipeline artifacts
+      run: |
+        echo "=== _pipeline/ contents ==="
+        ls -la _pipeline/
+        echo ""
+        echo "=== dag.json ==="
+        cat _pipeline/dag.json
+        echo ""
+        echo "=== Build logs ==="
+        ls _pipeline/build_log_* 2>/dev/null || echo "No build logs found"
+        echo ""
+        echo "=== Running verification script ==="
+        ./result/bin/t run tests/pipeline/verify_pipeline_e2e.t --unsafe
+
+    - name: Upload pipeline artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pipeline-artifacts
+        path: _pipeline/
+        retention-days: 7
