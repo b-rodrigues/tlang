@@ -65,6 +65,8 @@
             ocamlVersion.linenoise
             # otoml — TOML parsing library for package management (DESCRIPTION.toml, tproject.toml)
             ocamlVersion.otoml
+            ocamlVersion.lsp
+            ocamlVersion.jsonrpc
             # Arrow C++ — provides arrow.pc that arrow-glib depends on
             pkgs.arrow-cpp
             # Arrow C GLib — Apache Arrow columnar data library
@@ -136,6 +138,8 @@
 
             # TOML parsing library for package management
             ocamlVersion.otoml
+            ocamlVersion.lsp
+            ocamlVersion.jsonrpc
 
             # 2. Enhanced Development Tools (Highly Recommended)
             # ----------------------------------------------------
