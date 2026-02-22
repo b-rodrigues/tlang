@@ -32,9 +32,17 @@ let read_file path =
     Ok content
   with Sys_error msg -> Error msg
 
-(** Detect whether the current directory is a project or package,
-    parse its TOML config and dependencies, regenerate flake.nix,
-    then run 'nix flake update' to lock inputs. *)
+(*
+--# Update Dependencies
+--#
+--# Regenerates the `flake.nix` file from the current TOML configuration and runs `nix flake update`
+--# to lock dependencies to their latest versions within the specified tags.
+--#
+--# @name update_flake_lock
+--# @return :: Result[Unit] Ok(()) or an error message.
+--# @family package_manager
+--# @export
+*)
 let update_flake_lock () =
   let dir = Sys.getcwd () in
   let tproject_path = Filename.concat dir "tproject.toml" in

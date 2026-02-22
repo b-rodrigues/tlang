@@ -16,13 +16,15 @@
 | [atan2](atan2.md) | Two-argument arctangent |
 | [atanh](atanh.md) | Inverse hyperbolic tangent |
 | [build_pipeline](build_pipeline.md) | Build Pipeline Artifacts |
-| [build_pipeline_internal](build_pipeline_internal.md) | Internal Build Logic |
+| [build_pipeline_internal](build_pipeline_internal.md) | Build Pipeline Internally |
+| [case_when](case_when.md) | Vectorized Case-When |
 | [casewhen](casewhen.md) | Vectorized case-when |
 | [cbind](cbind.md) | Column bind matrices |
 | [ceil](ceil.md) | Ceiling alias |
 | [ceiling](ceiling.md) | Ceiling function |
 | [char_at](char_at.md) | Get character at index |
 | [clean_colnames](clean_colnames.md) | Clean DataFrame Column Names |
+| [clean_names](clean_names.md) | Clean Column Names |
 | [colnames](colnames.md) | Get column names |
 | [contains](contains.md) | Check if string contains substring |
 | [cor](cor.md) | Correlation |
@@ -63,7 +65,7 @@
 | [head](head.md) | Get the first n rows/items |
 | [help](help.md) | Display documentation for a function |
 | [huber_loss](huber_loss.md) | Huber loss |
-| [ifelse](ifelse.md) | Vectorized if-else |
+| [ifelse](ifelse.md) | Vectorized If-Else |
 | [index_of](index_of.md) | Find index of substring |
 | [inspect_pipeline](inspect_pipeline.md) | Inspect Pipeline Logs |
 | [intent_fields](intent_fields.md) | Get All Intent Fields |
@@ -110,6 +112,7 @@
 | [ntile](ntile.md) | N-tiles |
 | [package_info](package_info.md) | Get package information |
 | [packages](packages.md) | List available packages |
+| [parse_file](parse_file.md) | Parse T-Doc Comments |
 | [percent_rank](percent_rank.md) | Percent Rank |
 | [pipeline_deps](pipeline_deps.md) | List Node Dependencies |
 | [pipeline_node](pipeline_node.md) | Get Pipeline Node |
@@ -131,6 +134,9 @@
 | [reshape](reshape.md) | Reshape an NDArray |
 | [round](round.md) | Round values |
 | [row_number](row_number.md) | Row Number |
+| [run_doctor](run_doctor.md) | Run Package/Project Doctor |
+| [scaffold_package](scaffold_package.md) | Scaffold a new T package |
+| [scaffold_project](scaffold_project.md) | Scaffold a new T project |
 | [scale](scale.md) | Scale values |
 | [sd](sd.md) | Standard Deviation |
 | [select](select.md) | Select columns |
@@ -153,6 +159,9 @@
 | [sum](sum.md) | Sum of numeric values |
 | [summarize](summarize.md) | Summarize data |
 | [summary](summary.md) | Model Summary |
+| [t_doc](t_doc.md) | Generate Documentation |
+| [t_run](t_run.md) | Run a T script |
+| [t_test](t_test.md) | Run tests |
 | [tail](tail.md) | Get the last n rows/items |
 | [tan](tan.md) | Tangent |
 | [tanh](tanh.md) | Hyperbolic tangent |
@@ -166,6 +175,7 @@
 | [type](type.md) | Get the type name of a value |
 | [ungroup](ungroup.md) | Remove grouping |
 | [unparse_expr](unparse_expr.md) | Expression Unparser (Nix context) |
+| [update_flake_lock](update_flake_lock.md) | Update Dependencies |
 | [var](var.md) | Variance |
 | [winsorize](winsorize.md) | Winsorize values |
 | [write_csv](write_csv.md) | Write CSV file |

@@ -40,6 +40,24 @@ let cast_value target_type v =
 
 (* --- ifelse --- *)
 
+(*
+--# Vectorized If-Else
+--#
+--# Evaluates a condition and returns values from `true_val` or `false_val` depending on the condition.
+--# Supports missing value handling via the `missing` argument.
+--#
+--# @name ifelse
+--# @param condition :: Vector[Bool] The logical condition to evaluate.
+--# @param true_val :: Any Expected return value when condition is true.
+--# @param false_val :: Any Expected return value when condition is false.
+--# @param missing :: Any (Optional) Value to return when condition is NA.
+--# @param out_type :: String (Optional) Explicit output type casting.
+--# @return :: Vector A vector of the resulting values.
+--# @example
+--#   ifelse([true, false, NA], "Yes", "No", missing: "Unknown")
+--# @family core
+--# @export
+*)
 let normalize_type_name = function
   | "int" | "integer" | "Int" | "Integer" -> Some "Int"
   | "float" | "double" | "numeric" | "Float" | "Double" | "Numeric" -> Some "Float"
@@ -145,9 +163,19 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
       | _ -> Error.arity_error_named "ifelse" ~expected:3 ~received:(List.length positional_args))
 
 
-(* --- case_when --- *)
-
-(* ... docs ... *)
+(*
+--# Vectorized Case-When
+--#
+--# Evaluates multiple conditions and returns the corresponding value for the first true condition.
+--# Similar to SQL's CASE WHEN. Conditions are provided as formulas `condition ~ value`.
+--#
+--# @name case_when
+--# @param .default :: Any (Optional) Default value if no condition is met.
+--# @param ... :: Formula Conditions and their corresponding return values.
+--# @return :: Vector A vector of the resulting values.
+--# @family core
+--# @export
+*)
 let casewhen eval_func args env =
   (* 1. Parse Arguments: Separate formulas and options (.default) *)
   let rec parse_args formulas default_val inputs =

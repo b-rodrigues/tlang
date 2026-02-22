@@ -1,14 +1,14 @@
 # build_pipeline_internal
 
-Internal Build Logic
+Build Pipeline Internally
 
-Executes `nix-build` to materialize the pipeline. Records build logs and store paths for traceability.
+Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path of the result and saves a build log with an exact mapping of node names to artifact paths in the Nix store.
 
 ## Parameters
 
-- **p** (`Pipeline`): The pipeline result from evaluation.
+- **p** (`PipelineResult`): The pipeline AST structure.
 
 ## Returns
 
-String] The store path on success, or an error message.
+The output Nix store path or an error string.
 

@@ -467,7 +467,18 @@ let resolve_tlang_tag () =
       resolved_tlang_tag_cache := Some sanitized_tag;
       sanitized_tag
 
-(** Scaffold a new T package *)
+(*
+--# Scaffold a new T package
+--#
+--# Generates the directory structure and boilerplate files for a new T language package.
+--# Creates a `DESCRIPTION.toml`, `flake.nix`, `README.md`, and an initial test setup.
+--#
+--# @name scaffold_package
+--# @param opts :: ScaffoldOptions The options provided via CLI (name, author, license, etc.).
+--# @return :: Result[Unit] Ok(()) or an error message.
+--# @family package_manager
+--# @export
+*)
 let scaffold_package (opts : scaffold_options) : (unit, string) result =
   match validate_name opts.target_name with
   | Error msg -> Error msg
@@ -560,7 +571,18 @@ let interactive_init ?(placeholder="my_package") default_name =
     interactive = false; (* Already interactive *)
   }
 
-(** Scaffold a new T project *)
+(*
+--# Scaffold a new T project
+--#
+--# Generates the directory structure and boilerplate files for a new T data analysis project.
+--# Creates a `tproject.toml`, `flake.nix`, and sets up `data/`, `outputs/`, and `src/` directories.
+--#
+--# @name scaffold_project
+--# @param opts :: ScaffoldOptions The options provided via CLI.
+--# @return :: Result[Unit] Ok(()) or an error message.
+--# @family package_manager
+--# @export
+*)
 let scaffold_project (opts : scaffold_options) : (unit, string) result =
   match validate_name opts.target_name with
   | Error msg -> Error msg

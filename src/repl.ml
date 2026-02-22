@@ -565,6 +565,20 @@ let () =
   let env = Packages.init_env () in
   (* Register interactive CLI wrappers — must be here (not in packages.ml)
      to avoid dependency cycles with Test_discovery *)
+(*
+--# Run a T script
+--#
+--# Evaluates a T script file and imports its definitions into the current environment.
+--# Useful for interactive development to reload module files.
+--#
+--# @name t_run
+--# @param filename :: String The path to the T file to execute.
+--# @return :: Null
+--# @example
+--#   t_run("src/my_script.t")
+--# @family repl
+--# @export
+*)
   let env = Ast.Env.add "t_run"
     (Ast.VBuiltin { b_name = Some "t_run"; b_arity = 1; b_variadic = false;
       b_func = (fun named_args env_ref ->
@@ -598,6 +612,17 @@ let () =
     })
     env
   in
+(*
+--# Run tests
+--#
+--# Runs the test suite for the current package.
+--# Wraps the CLI `t test` command for use within the REPL.
+--#
+--# @name t_test
+--# @return :: Null Returns Null on success, or an Error if tests fail.
+--# @family repl
+--# @export
+*)
   let env = Ast.Env.add "t_test"
     (Ast.VBuiltin { b_name = Some "t_test"; b_arity = 0; b_variadic = false;
       b_func = (fun _named_args _env_ref ->
@@ -613,6 +638,21 @@ let () =
     })
     env
   in
+(*
+--# Generate Documentation
+--#
+--# Documentation tools. Call with "parse" to extract docs from `src/`,
+--# or "generate" to output markdown files to `docs/reference/`.
+--#
+--# @name t_doc
+--# @param command :: String Either "parse" or "generate".
+--# @return :: Null
+--# @example
+--#   t_doc("parse")
+--#   t_doc("generate")
+--# @family repl
+--# @export
+*)
   let env = Ast.Env.add "t_doc"
     (Ast.VBuiltin { b_name = Some "t_doc"; b_arity = 1; b_variadic = false;
       b_func = (fun named_args _env_ref ->

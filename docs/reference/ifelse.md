@@ -1,25 +1,24 @@
 # ifelse
 
-Vectorized if-else
+Vectorized If-Else
 
-Vectorized conditional selection. Returns values from `true_val` or `false_val` depending on whether `condition` is true or false.
+Evaluates a condition and returns values from `true_val` or `false_val` depending on the condition. Supports missing value handling via the `missing` argument.
 
 ## Parameters
 
-- **condition** (`Bool`): | Vector[Bool] The condition to check.
-- **true_val** (`Any`): | Vector[Any] Value to return if condition is true.
-- **false_val** (`Any`): | Vector[Any] Value to return if condition is false.
-- **missing** (`Any`): (Optional) Value to return if condition is NA. Defaults to NA.
-- **out_type** (`String`): (Optional) Force-cast output values to Int, Float, String, or Bool.
+- **condition** (`Vector[Bool]`): The logical condition to evaluate.
+- **true_val** (`Any`): Expected return value when condition is true.
+- **false_val** (`Any`): Expected return value when condition is false.
+- **missing** (`Any`): (Optional) Value to return when condition is NA.
+- **out_type** (`String`): (Optional) Explicit output type casting.
 
 ## Returns
 
-| Vector[Any] A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
+A vector of the resulting values.
 
 ## Examples
 
 ```t
-ifelse(x > 5, "High", "Low")
-ifelse(x % 2 == 0, x, 0)
+ifelse([true, false, NA], "Yes", "No", missing: "Unknown")
 ```
 

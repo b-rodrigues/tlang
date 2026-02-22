@@ -208,6 +208,18 @@ let read_csv_local (path : string) : (Arrow_table.t, string) result =
   else
     read_csv_fallback path
 
+(*
+--# Read a CSV file
+--#
+--# Reads a CSV file from a local path or URL into an Arrow table.
+--# Supports automatic column type inference.
+--#
+--# @name read_csv
+--# @param path :: String The path or URL to the CSV file.
+--# @return :: Result[Table] The loaded Arrow table or an error.
+--# @family arrow_io
+--# @export
+*)
 let read_csv (path : string) : (Arrow_table.t, string) result =
   if is_url path then
     match download_url path with
@@ -239,6 +251,19 @@ let value_to_csv_field ~sep = function
   | _ -> ""
 
 (** Write an Arrow table to a CSV file *)
+(*
+--# Write Table to CSV
+--#
+--# Writes an Arrow table to a CSV file.
+--#
+--# @name write_csv
+--# @param table :: Table The table to write.
+--# @param path :: String The output file path.
+--# @param sep :: String (Optional) The column separator, defaults to ",".
+--# @return :: Result[Unit] Ok(()) or an error.
+--# @family arrow_io
+--# @export
+*)
 let write_csv ?(sep=",") (table : Arrow_table.t) (path : string) : (unit, string) result =
   try
     let ch = open_out path in

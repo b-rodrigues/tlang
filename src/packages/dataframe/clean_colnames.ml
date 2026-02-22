@@ -167,9 +167,19 @@ let clean_one (name : string) : string =
 (* Collision resolution                                                   *)
 (* ===================================================================== *)
 
-(** Clean a list of column names, resolving duplicates deterministically.
-    - Empty results are replaced with col_1, col_2, …
-    - Duplicates are disambiguated: first occurrence unchanged, then _2, _3, … *)
+(*
+--# Clean Column Names
+--#
+--# Normalizes a list of strings to be safe, consistent column names.
+--# Converts symbols (like €) to text, strips diacritics, lowers the case,
+--# replaces non-alphanumeric characters with underscores, and resolves duplicates.
+--#
+--# @name clean_names
+--# @param names :: Vector[String] The column names to clean.
+--# @return :: Vector[String] The cleaned column names.
+--# @family dataframe
+--# @export
+*)
 let clean_names (names : string list) : string list =
   (* Apply single-name cleaning *)
   let cleaned = List.map clean_one names in

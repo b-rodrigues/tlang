@@ -1,6 +1,19 @@
 open Ast
 open Builder_utils
 
+(*
+--# Build Pipeline Internally
+--#
+--# Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store
+--# path of the result and saves a build log with an exact mapping of node names
+--# to artifact paths in the Nix store.
+--#
+--# @name build_pipeline_internal
+--# @param p :: PipelineResult The pipeline AST structure.
+--# @return :: Result[String] The output Nix store path or an error string.
+--# @family pipeline
+--# @export
+*)
 let build_pipeline_internal (p : Ast.pipeline_result) =
   if not (command_exists "nix-build") then
     Error "build_pipeline requires `nix-build` to be available."

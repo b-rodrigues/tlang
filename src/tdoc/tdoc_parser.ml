@@ -117,7 +117,18 @@ let parse_block lines filename line_num =
     line_number = line_num;
   }
 
-(* Scan a file for T-Doc blocks *)
+(*
+--# Parse T-Doc Comments
+--#
+--# Scans a source file and extracts all T-Doc documentation blocks (lines starting with `--#`).
+--# Parses the tags (`@name`, `@param`, `@return`, etc.) into structured documentation entries.
+--#
+--# @name parse_file
+--# @param filename :: String The path to the source file to parse.
+--# @return :: List[DocEntry] A list of parsed documentation entries.
+--# @family tdoc
+--# @export
+*)
 let parse_file filename =
   let lines = extract_comments filename in
   let blocks = ref [] in

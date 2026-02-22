@@ -113,6 +113,17 @@ let check_nix_installation () =
     }
   else None
 
+(*
+--# Run Package/Project Doctor
+--#
+--# Validates the structure of a T package or project, checking for required files, directories,
+--# valid Nix configuration, and ensuring proper documentation setup.
+--#
+--# @name run_doctor
+--# @return :: Unit Prints the validation results to the console.
+--# @family package_manager
+--# @export
+*)
 let run_doctor () =
   let dir = Sys.getcwd () in
   Printf.printf "Running T Doctor in %s...\n\n" dir;
