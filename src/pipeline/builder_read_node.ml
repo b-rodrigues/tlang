@@ -1,4 +1,5 @@
 (* src/pipeline/builder_read_node.ml *)
+open Ast
 open Builder_utils
 open Builder_logs
 
