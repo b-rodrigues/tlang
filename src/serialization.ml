@@ -9,6 +9,16 @@ let ensure_parent_dir path =
   in
   ensure dir
 
+(*
+--# Binary Serialization
+--#
+--# Serializes any T value to a file using OCaml's Marshal module.
+--#
+--# @name serialize_to_file
+--# @param path :: String Destination file path.
+--# @param value :: Any The T value to serialize.
+--# @return :: Result[Null, String] Ok or error.
+*)
 let serialize_to_file path value =
   try
     ensure_parent_dir path;
@@ -19,6 +29,15 @@ let serialize_to_file path value =
   with exn ->
     Error (Printexc.to_string exn)
 
+(*
+--# Binary Deserialization
+--#
+--# Reads a serialized T value from a file.
+--#
+--# @name deserialize_from_file
+--# @param path :: String Source file path.
+--# @return :: Result[Any, String] Value or error.
+*)
 let deserialize_from_file path =
   try
     let ic = open_in_bin path in
@@ -28,6 +47,15 @@ let deserialize_from_file path =
   with exn ->
     Error (Printexc.to_string exn)
 
+(*
+--# JSON String Escaper
+--#
+--# Escapes special characters for JSON compatibility.
+--#
+--# @name json_escape
+--# @param s :: String The string to escape.
+--# @return :: String The escaped string.
+*)
 let json_escape s =
   let b = Buffer.create (String.length s + 8) in
   String.iter (function
@@ -40,6 +68,15 @@ let json_escape s =
   ) s;
   Buffer.contents b
 
+(*
+--# JSON String Unescaper
+--#
+--# Decodes escaped characters from a JSON string.
+--#
+--# @name json_unescape
+--# @param s :: String The escaped string.
+--# @return :: String The literal string.
+*)
 let json_unescape s =
   let b = Buffer.create (String.length s) in
   let rec loop i =
@@ -62,6 +99,16 @@ let json_unescape s =
   loop 0;
   Buffer.contents b
 
+(*
+--# Registry Maintenance (Writer)
+--#
+--# Writes a flat JSON object mapping node names to artifact paths.
+--#
+--# @name write_registry
+--# @param path :: String Destination file.
+--# @param entries :: List[(String, String)] Name-path pairs.
+--# @return :: Result[Null, String] Status.
+*)
 let write_registry path entries =
   try
     let oc = open_out path in
@@ -78,6 +125,15 @@ let write_registry path entries =
   with exn ->
     Error (Printexc.to_string exn)
 
+(*
+--# Registry Maintenance (Reader)
+--#
+--# Parses a registry JSON file back into a list of name-path pairs.
+--#
+--# @name read_registry
+--# @param path :: String Source file.
+--# @return :: Result[List[(String, String)], String] Entries or error.
+*)
 let read_registry path =
   try
     if not (Sys.file_exists path) then Error "Registry file not found."
