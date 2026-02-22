@@ -293,8 +293,15 @@ module Utils = struct
         else Printf.sprintf "%s grouped by [%s]" base (String.concat ", " group_keys)
     | VPipeline { p_nodes; _ } ->
         let node_names = List.map fst p_nodes in
-        Printf.sprintf "Pipeline(%d nodes: [%s])"
-          (List.length p_nodes) (String.concat ", " node_names)
+        let base = Printf.sprintf "Pipeline(%d nodes: [%s])"
+          (List.length p_nodes) (String.concat ", " node_names) in
+        let errors = List.filter_map (fun (name, v) ->
+          match v with
+          | VError err -> Some (Printf.sprintf "\n  - `%s` failed: %s" name err.message)
+          | _ -> None
+        ) p_nodes in
+        if errors = [] then base
+        else base ^ "\nErrors:" ^ (String.concat "" errors)
     | VLambda { params; variadic; _ } ->
         let dots = if variadic then ", ..." else "" in
         "\\(" ^ String.concat ", " params ^ dots ^ ") -> <function>"

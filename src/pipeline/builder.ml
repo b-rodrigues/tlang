@@ -162,7 +162,7 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
           if build then build_pipeline_internal p
           else Ok (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir)
 
-let list_logs () =
+let get_logs () =
   if not (Sys.file_exists pipeline_dir) then []
   else
     Sys.readdir pipeline_dir
@@ -171,10 +171,6 @@ let list_logs () =
       Filename.check_suffix f ".json"
       && String.starts_with ~prefix:"build_log_" f)
     |> List.sort (fun a b -> compare b a) (* Newest first *)
-
-let inspect_pipeline () =
-  let logs = list_logs () in
-  VList (List.map (fun f -> (None, VString f)) logs)
 
 let read_log path =
   try
@@ -198,8 +194,76 @@ let read_log path =
     Ok (collect 0 [])
   with exn -> Error (Printexc.to_string exn)
 
+let inspect_pipeline ?which_log () =
+  let logs = get_logs () in
+  let log_file_result =
+    match which_log with
+    | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
+    | Some pattern ->
+        (try
+          Ok (List.find_opt (fun l ->
+            try let _ = Str.search_forward (Str.regexp pattern) l 0 in true
+            with Not_found -> false
+          ) logs)
+        with Failure msg ->
+          Error msg)
+  in
+  match log_file_result with
+  | Error msg ->
+      Error.type_error (Printf.sprintf "inspect_pipeline: invalid regex pattern for 'which_log': %s" msg)
+  | Ok None ->
+      Error.make_error FileError "No build logs found in `_pipeline/`."
+  | Ok (Some f) ->
+      match read_log (Filename.concat pipeline_dir f) with
+      | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read log `%s`: %s" f msg)
+      | Ok entries ->
+          let nrows = List.length entries in
+          let arr_derivations = Array.init nrows (fun i -> let (n,_) = List.nth entries i in Some n) in
+          let arr_success = Array.init nrows (fun _ -> Some true) in
+          let arr_path = Array.init nrows (fun i -> let (_,p) = List.nth entries i in Some p) in
+          let arr_output = Array.init nrows (fun i -> let (n,_) = List.nth entries i in Some n) in
+          let columns = [
+            ("derivation", Arrow_table.StringColumn arr_derivations);
+            ("build_success", Arrow_table.BoolColumn arr_success);
+            ("path", Arrow_table.StringColumn arr_path);
+            ("output", Arrow_table.StringColumn arr_output);
+          ] in
+          let arrow_table = Arrow_table.create columns nrows in
+          Ast.VDataFrame { arrow_table; group_keys = [] }
+
+let list_logs () =
+  let logs = get_logs () in
+  let nrows = List.length logs in
+  let arr_filename = Array.init nrows (fun i -> Some (List.nth logs i)) in
+  let arr_mtime = Array.init nrows (fun i ->
+    let f = List.nth logs i in
+    let path = Filename.concat pipeline_dir f in
+    let stats = Unix.stat path in
+    let tm = Unix.localtime stats.Unix.st_mtime in
+    Some (Printf.sprintf "%04d-%02d-%02d %02d:%02d:%02d"
+      (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec)
+  ) in
+  let arr_size = Array.init nrows (fun i ->
+    let f = List.nth logs i in
+    let path = Filename.concat pipeline_dir f in
+    let stats = Unix.stat path in
+    (* Keep 2 decimal places *)
+    let raw_kb = float_of_int stats.Unix.st_size /. 1024.0 in
+    let size_kb = Float.round (raw_kb *. 100.0) /. 100.0 in
+    Some size_kb
+  ) in
+  let columns = [
+    ("filename", Arrow_table.StringColumn arr_filename);
+    ("modification_time", Arrow_table.StringColumn arr_mtime);
+    ("size_kb", Arrow_table.FloatColumn arr_size);
+  ] in
+  let arrow_table = Arrow_table.create columns nrows in
+  Ast.VDataFrame { arrow_table; group_keys = [] }
+
+
+
 let read_node ?which_log name =
-  let logs = list_logs () in
+  let logs = get_logs () in
   let log_file_result =
     match which_log with
     | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
