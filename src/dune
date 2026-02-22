@@ -30,7 +30,8 @@
    ; core language
     ast lexer parser eval typecheck error serialization
     ; pipeline compiler
-    nix_emitter builder
+    nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter
+    builder_utils builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder
    ; packages/core
    t_print t_type args head tail is_error t_seq t_map sum pretty_print packages t_string t_get help string_ops t_boolean
     ; packages/base
