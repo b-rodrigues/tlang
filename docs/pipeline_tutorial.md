@@ -301,11 +301,21 @@ T keeps a history of your builds in `_pipeline/`. This enables **Time Travel** â
 
 ### Inspecting logs
 
-Use `inspect_pipeline()` to see available build logs:
+### Inspecting logs
+Use `list_pipelines()` to see available build logs:
 
 ```t
-logs = inspect_pipeline()
+logs = list_pipelines()
 -- ["build_log_20260221_143022_abc123.json", ...]
+```
+
+Use `inspect_pipeline()` to view the build status of a specific pipeline as a DataFrame (defaults to the latest):
+
+```t
+inspect_pipeline()
+-- DataFrame(5 rows x 4 cols: [derivation, build_success, path, output])
+
+inspect_pipeline(which_log = "20260221_143022")
 ```
 
 ### Reading from a specific build

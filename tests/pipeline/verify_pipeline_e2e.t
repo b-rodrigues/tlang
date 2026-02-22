@@ -4,7 +4,7 @@
 -- Verifies that the pipeline infrastructure produced correct artifacts.
 
 -- 1. Check that build logs exist
-logs = inspect_pipeline()
+logs = list_pipelines()
 assert(length(logs) > 0, "Expected at least one build log")
 print(join(["Found", length(logs), "build log(s)"], " "))
 
@@ -41,6 +41,6 @@ print("Time-travel read matches — OK")
 
 -- 7. Verify _pipeline/ structure
 assert(length(logs) >= 1, "Should have at least 1 build log")
-print(join(["inspect_pipeline() returned", length(logs), "log(s)"], " "))
+print(join(["list_pipelines() returned", length(logs), "log(s)"], " "))
 
 print("\nAll pipeline integration checks passed!")
