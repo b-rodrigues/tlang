@@ -30,7 +30,8 @@
    ; core language
     ast lexer parser eval typecheck error serialization
     ; pipeline compiler
-    nix_emitter builder
+    nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter
+    builder_utils builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder
    ; packages/core
    t_print t_type args head tail is_error t_seq t_map sum pretty_print packages t_string t_get help string_ops t_boolean
     ; packages/base
@@ -38,7 +39,7 @@
    ; packages/dataframe
    t_read_csv t_write_csv t_dataframe colnames nrow ncol clean_colnames glimpse
     ; packages/pipeline
-    pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node load_node
+    pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node
    ; packages/colcraft
    t_select t_filter mutate arrange group_by ungroup summarize
    window_rank window_offset window_cumulative

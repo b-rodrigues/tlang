@@ -9,7 +9,7 @@ open Ast
 --# @param p :: Pipeline The pipeline to build.
 --# @return :: String The output path (Nix store path or local fallback directory).
 --# @family pipeline
---# @seealso read_node, load_node
+--# @seealso read_node
 --# @export
 *)
 let register env =

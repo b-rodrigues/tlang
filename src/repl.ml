@@ -557,7 +557,7 @@ let () =
      to avoid dependency cycles with Test_discovery *)
   let env = Ast.Env.add "t_run"
     (Ast.VBuiltin { b_name = Some "t_run"; b_arity = 1; b_variadic = false;
-      b_func = (fun named_args env ->
+      b_func = (fun named_args env_ref ->
         match List.map snd named_args with
         | [Ast.VString filename] ->
             (try
@@ -567,10 +567,12 @@ let () =
               let lexbuf = Lexing.from_string content in
               (try
                 let program = Parser.program Lexer.token lexbuf in
-                let (v, _new_env) = Eval.eval_program program env in
+                let (v, new_env) = Eval.eval_program program !env_ref in
                 (match v with
                  | Ast.VError _ -> v
-                 | _ -> Printf.printf "Ran %s successfully.\n" filename; flush stdout; Ast.VNull)
+                 | _ -> 
+                     env_ref := new_env;
+                     Printf.printf "Ran %s successfully.\n" filename; flush stdout; Ast.VNull)
               with
               | Lexer.SyntaxError msg ->
                   Ast.VError { code = Ast.GenericError; message = Printf.sprintf "Syntax error in '%s': %s" filename msg; context = [] }
@@ -588,7 +590,7 @@ let () =
   in
   let env = Ast.Env.add "t_test"
     (Ast.VBuiltin { b_name = Some "t_test"; b_arity = 0; b_variadic = false;
-      b_func = (fun _named_args _env ->
+      b_func = (fun _named_args _env_ref ->
         let dir = Sys.getcwd () in
         let suite_result = Test_discovery.run_suite ~verbose:false dir in
         if suite_result.failed > 0 then
@@ -603,7 +605,7 @@ let () =
   in
   let env = Ast.Env.add "t_doc"
     (Ast.VBuiltin { b_name = Some "t_doc"; b_arity = 1; b_variadic = false;
-      b_func = (fun named_args _env ->
+      b_func = (fun named_args _env_ref ->
         match List.map snd named_args with
         | [Ast.VString "parse"] ->
             let dir = Sys.getcwd () in

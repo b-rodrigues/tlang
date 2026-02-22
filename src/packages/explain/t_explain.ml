@@ -150,10 +150,29 @@ let register env =
             ("error_code", VString (Utils.error_code_to_string code));
             ("error_message", VString message);
           ]
-      | [VLambda _] | [VBuiltin _] ->
+      | [VSymbol s] ->
+          VDict [
+            ("kind", VString "symbol");
+            ("name", VString s);
+            ("hint", VString "This is a bare symbol/name. It might be an undefined variable or a column reference.");
+          ]
+      | [VFormula { response; predictors; _ }] ->
+          VDict [
+            ("kind", VString "formula");
+            ("response", VList (List.map (fun s -> (None, VString s)) response));
+            ("predictors", VList (List.map (fun s -> (None, VString s)) predictors));
+          ]
+      | [VBuiltin _] | [VLambda _] ->
           VDict [
             ("kind", VString "value");
             ("type", VString "Function");
+          ]
+      | [_] ->
+          let v = List.hd args in
+          VDict [
+            ("kind", VString "value");
+            ("type", VString (Utils.type_name v));
+            ("hint", VString "Internal structure not exposed for this type.");
           ]
       | _ -> Error.arity_error_named "explain" ~expected:1 ~received:(List.length args)
     ))

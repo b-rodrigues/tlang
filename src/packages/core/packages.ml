@@ -106,7 +106,7 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "load_node"; "trace_nodes"];
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "trace_nodes"];
 }
 
 let explain_package = {
@@ -184,7 +184,8 @@ let register env =
   
   (* Helper to keep named args *)
   let make_builtin_named ?name ?(variadic=false) arity func =
-    VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic; b_func = func }
+    VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
+               b_func = (fun named_args env_ref -> func named_args !env_ref) }
   in
 
   (* Register Boolean functions *)
@@ -228,7 +229,7 @@ let register env =
 --# @family boolean
 --# @export
 *)
-  let env = Env.add "casewhen" (make_builtin_named ~name:"casewhen" ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr)) env in
+  let env = Env.add "casewhen" (make_builtin_named ~name:"casewhen" ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr_immutable)) env in
 
   env
 
@@ -243,7 +244,7 @@ let init_env () =
   let env = Tail.register env in
   let env = Is_error.register env in
   let env = T_seq.register env in
-  let env = T_map.register ~eval_call:Eval.eval_call env in
+  let env = T_map.register ~eval_call:Eval.eval_call_immutable env in
   let env = Sum.register env in
   let env = T_get.register env in
   let env = T_string.register env in
@@ -308,21 +309,20 @@ let init_env () =
   let env = Pipeline_nodes.register env in
   let env = Pipeline_deps.register env in
   let env = Pipeline_node.register env in
-  let env = Pipeline_run.register ~rerun_pipeline:Eval.rerun_pipeline env in
+  let env = Pipeline_run.register ~rerun_pipeline:(fun env prev -> Eval.rerun_pipeline (ref env) prev) env in
   let env = Build_pipeline.register env in
   let env = Populate_pipeline.register env in
   let env = Inspect_pipeline.register env in
   let env = Read_node.register env in
-  let env = Load_node.register env in
   let env = Trace_nodes.register env in
   (* Colcraft package *)
   let env = T_select.register env in
-  let env = T_filter.register ~eval_call:Eval.eval_call ~eval_expr:Eval.eval_expr ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
-  let env = Mutate.register ~eval_call:Eval.eval_call ~eval_expr:Eval.eval_expr ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
+  let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
+  let env = Mutate.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
   let env = Arrange.register env in
   let env = Group_by.register env in
   let env = Ungroup.register env in
-  let env = Summarize.register ~eval_call:Eval.eval_call ~eval_expr:Eval.eval_expr ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
+  let env = Summarize.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
   let env = Window_rank.register env in
   let env = Window_offset.register env in
   let env = Window_cumulative.register env in
@@ -386,7 +386,7 @@ let init_env () =
   let env = Intent_fields.register env in
   let env = Intent_get.register env in
   let env = T_explain.register env in
-  let env = Explain_json.register ~eval_call:Eval.eval_call env in
+  let env = Explain_json.register ~eval_call:Eval.eval_call_immutable env in
   (* Phase 7: Pretty-print and packages *)
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in
