@@ -33,8 +33,8 @@ let register env =
              let which_log = Some s in
              Builder.read_node ?which_log name
          | _ ->
-             Error.type_error "load_node: expected 'which_log' to be a string when provided")
+             Error.type_error "load_node: expected String or Null for argument 'which_log'")
     | _ ->
-        Error.type_error "load_node: expected 'name' to be a string"
+        Error.type_error "load_node: expected String for argument 'name'"
   in
   Env.add "load_node" (make_builtin_named ~name:"load_node" ~variadic:true 1 load_fn) env

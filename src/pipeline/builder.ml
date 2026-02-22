@@ -200,31 +200,29 @@ let read_log path =
 
 let read_node ?which_log name =
   let logs = list_logs () in
-  let log_file =
+  let log_file_result =
     match which_log with
-    | None -> (match logs with [] -> None | l :: _ -> Some l)
+    | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
     | Some pattern ->
         (try
-          List.find_opt (fun l ->
+          Ok (List.find_opt (fun l ->
             try let _ = Str.search_forward (Str.regexp pattern) l 0 in true
             with Not_found -> false
-          ) logs
+          ) logs)
         with Failure msg ->
-          (* Invalid regex pattern *)
-          Some ("__invalid_regex__:" ^ msg))
+          Error msg)
   in
-  match log_file with
-  | Some s when String.length s > 18 && String.sub s 0 18 = "__invalid_regex__:" ->
-      let msg = String.sub s 18 (String.length s - 18) in
+  match log_file_result with
+  | Error msg ->
       Error.type_error (Printf.sprintf "read_node: invalid regex pattern for 'which_log': %s" msg)
-  | None ->
+  | Ok None ->
       let suffix = match which_log with
         | Some pat -> " matching \"" ^ pat ^ "\""
         | None -> ""
       in
       Error.make_error FileError
         (Printf.sprintf "No build logs found in `_pipeline/`%s. Run `populate_pipeline(p, build=true)` first." suffix)
-  | Some f ->
+  | Ok (Some f) ->
       match read_log (Filename.concat pipeline_dir f) with
       | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read log `%s`: %s" f msg)
       | Ok entries ->
