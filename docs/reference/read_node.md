@@ -15,5 +15,5 @@ The deserialized value.
 
 ## See Also
 
-[inspect_pipeline](inspect_pipeline.md), [load_node](load_node.md), [build_pipeline](build_pipeline.md)
+[inspect_pipeline](inspect_pipeline.md), [build_pipeline](build_pipeline.md)
 

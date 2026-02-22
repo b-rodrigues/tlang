@@ -85,7 +85,6 @@
 | [length](length.md) | Get length |
 | [list_logs](list_logs.md) | List Pipeline Logs |
 | [lm](lm.md) | Linear Model |
-| [load_node](load_node.md) | Load Pipeline Node Artifact |
 | [log](log.md) | Natural logarithm |
 | [mad](mad.md) | Median absolute deviation |
 | [map](map.md) | Map a function over a list |
