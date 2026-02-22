@@ -486,17 +486,12 @@ and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
       ((name, v) :: results, new_env)
     ) ([], env) exec_order in
     let p_nodes = List.rev results in
-    (* Check for errors in any node *)
-    match List.find_opt (fun (_, v) -> Error.is_error_value v) p_nodes with
-    | Some (name, err) ->
-      Error.value_error (Printf.sprintf "Pipeline node `%s` failed: %s" name (Ast.Utils.value_to_string err))
-    | None ->
-      VPipeline {
-        p_nodes;
-        p_exprs = node_expr_map;
-        p_deps = deps;
-        p_imports = !current_imports;
-      }
+    VPipeline {
+      p_nodes;
+      p_exprs = node_expr_map;
+      p_deps = deps;
+      p_imports = !current_imports;
+    }
 
 (** Re-run a pipeline, skipping nodes whose dependencies haven't changed *)
 and rerun_pipeline env (prev : Ast.pipeline_result) : value =
@@ -532,16 +527,12 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
       end
     ) ([], env, []) exec_order in
     let p_nodes = List.rev results in
-    match List.find_opt (fun (_, v) -> Error.is_error_value v) p_nodes with
-    | Some (name, err) ->
-      Error.value_error (Printf.sprintf "Pipeline node `%s` failed: %s" name (Ast.Utils.value_to_string err))
-    | None ->
-      VPipeline {
-        p_nodes;
-        p_exprs = prev.p_exprs;
-        p_deps = prev.p_deps;
-        p_imports = prev.p_imports;
-      }
+    VPipeline {
+      p_nodes;
+      p_exprs = prev.p_exprs;
+      p_deps = prev.p_deps;
+      p_imports = prev.p_imports;
+    }
 
 and eval_list_lit env items =
     let evaluated_items = List.map (fun (name, e) ->

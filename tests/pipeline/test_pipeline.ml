@@ -150,7 +150,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(ValueError: "Pipeline has a dependency cycle involving node `a`.")|};
   test "pipeline with error in node"
     "pipeline {\n  a = 1 / 0\n  b = a + 1\n}"
-    {|Error(ValueError: "Pipeline node `a` failed: Error(DivisionByZero: "Division by zero.")")|};
+    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Division by zero.\n  - `b` failed: Division by zero.";
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with DataFrame:\n";
