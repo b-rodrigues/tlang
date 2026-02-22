@@ -28,7 +28,7 @@
    arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
    arrow_owl_bridge
    ; core language
-    ast lexer parser eval typecheck error serialization
+    ast lexer parser eval typecheck error serialization semantic_type symbol_table completion analyzer
     ; pipeline compiler
     nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter
     builder_utils builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder
@@ -68,3 +68,8 @@
 )
 
 (ocamllex lexer)
+(executable
+ (name lsp_server)
+ (modules lsp_server)
+ (libraries t_lang lsp jsonrpc unix)
+)

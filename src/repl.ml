@@ -459,6 +459,15 @@ let cmd_repl mode env =
     end
   end;
 
+  let scope = Symbol_table.create_scope () in
+  Symbol_table.register_keywords scope;
+  Symbol_table.populate_from_env scope env;
+
+  LNoise.set_completion_callback (fun buffer completions ->
+    let matches = Completion.complete scope ~buffer ~cursor:(String.length buffer) in
+    List.iter (LNoise.add_completion completions) matches
+  );
+
   flush stdout;
   let rec repl env =
     match LNoise.linenoise "T> " with
@@ -527,6 +536,7 @@ let cmd_repl mode env =
             ignore (LNoise.history_add full_input);
             ignore (LNoise.history_save ~filename:history_file);
             let (result, new_env) = parse_and_eval mode env full_input in
+            Symbol_table.populate_from_env scope new_env;
             repl_display_value result;
             repl new_env
           end
