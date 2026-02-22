@@ -45,7 +45,7 @@ let value_to_semantic_type = function
   | Ast.VString _ -> Some Semantic_type.TString
   | Ast.VDataFrame { arrow_table; group_keys } ->
       let col_names = Arrow_table.column_names arrow_table in
-      let cols = List.map (fun name -> { Semantic_type.name; col_typ = Semantic_type.TUnknown }) col_names in
+      let cols = List.map (fun name -> Semantic_type.{ name; col_typ = Semantic_type.TUnknown }) col_names in
       if group_keys = [] then Some (Semantic_type.TDataFrame cols)
       else Some (Semantic_type.TGroupedDataFrame (cols, group_keys))
   | Ast.VLambda { params; _ } ->

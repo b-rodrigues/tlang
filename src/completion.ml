@@ -39,20 +39,28 @@ let extract_prefix buffer cursor =
 
 
 let complete scope ~buffer ~cursor =
-  (* 1. Check for member completion: ident. *)
-  let member_match = 
-    let find_dot i =
-      if i < 0 then None
-      else if buffer.[i] = '.' then
-        let start = ref (i - 1) in
-        while !start >= 0 && is_ident_char buffer.[!start] do
-          start := !start - 1
-        done;
-        let ident = String.sub buffer (!start + 1) (i - !start - 1) in
-        if ident <> "" then Some ident else None
+  if is_inside_comment_or_string buffer cursor then []
+  else begin
+  (* 1. Check for member completion: ident[.member_prefix] *)
+  let member_match =
+    (* Scan back ident chars from cursor to find member prefix after a dot *)
+    let mstart = ref (cursor - 1) in
+    while !mstart >= 0 && is_ident_char buffer.[!mstart] do
+      mstart := !mstart - 1
+    done;
+    (* !mstart now points to the character before the member prefix *)
+    if !mstart >= 0 && buffer.[!mstart] = '.' then begin
+      let dot_pos = !mstart in
+      let member_prefix = String.sub buffer (dot_pos + 1) (cursor - dot_pos - 1) in
+      (* Extract ident before the dot *)
+      let istart = ref (dot_pos - 1) in
+      while !istart >= 0 && is_ident_char buffer.[!istart] do
+        istart := !istart - 1
+      done;
+      let ident = String.sub buffer (!istart + 1) (dot_pos - !istart - 1) in
+      if ident <> "" then Some (ident, member_prefix, dot_pos + 1)
       else None
-    in
-    if cursor > 0 && buffer.[cursor-1] = '.' then find_dot (cursor-1) else None
+    end else None
   in
 
   (* 2. Check for function argument hints: ident( *)
@@ -72,11 +80,16 @@ let complete scope ~buffer ~cursor =
   in
 
   match member_match with
-  | Some ident ->
+  | Some (ident, member_prefix, member_start) ->
       (match lookup scope ident with
       | Some { typ = Some (Semantic_type.TDataFrame cols); _ }
       | Some { typ = Some (Semantic_type.TGroupedDataFrame (cols, _)); _ } ->
-          List.map (fun (c : Semantic_type.column) -> ident ^ "." ^ c.name) cols
+          let buf_prefix = String.sub buffer 0 member_start in
+          List.filter_map (fun (c : Semantic_type.column) ->
+            if String.starts_with ~prefix:member_prefix c.name then
+              Some (buf_prefix ^ c.name)
+            else None
+          ) cols
       | _ -> [])
   | None ->
     (match function_match with
@@ -90,9 +103,11 @@ let complete scope ~buffer ~cursor =
         let prefix = extract_prefix buffer cursor in
         if prefix = "" then []
         else
+          let buf_prefix = String.sub buffer 0 (cursor - String.length prefix) in
           all scope
           |> List.filter (fun s -> String.starts_with ~prefix s.name)
-          |> List.map (fun s -> s.name)
+          |> List.map (fun s -> buf_prefix ^ s.name)
           |> List.sort_uniq String.compare)
+  end
 
 

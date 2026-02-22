@@ -3,9 +3,9 @@ library(jsonlite)
 # Function to send JSON message
 send_msg <- function(con, msg) {
   body <- toJSON(msg, auto_unbox = TRUE)
-  header <- sprintf("Content-Length: %d\r\n\r\n", nchar(body))
-  cat(header, file = con)
-  cat(body, file = con)
+  header <- sprintf("Content-Length: %d\r\n\r\n", nchar(body, type = "bytes"))
+  cat(header, file = con, sep = "")
+  cat(body, file = con, sep = "")
   flush(con)
 }
 
@@ -13,27 +13,55 @@ send_msg <- function(con, msg) {
 receive_msg <- function(con) {
   line <- readLines(con, n = 1)
   if (length(line) == 0 || !grepl("^Content-Length:", line)) return(NULL)
-  
+
   len <- as.integer(sub("Content-Length: ", "", line))
-  
-  # Skip headers
-  while(readLines(con, n = 1) != "") {}
-  
+
+  # Skip blank separator line
+  while (nchar(readLines(con, n = 1)) > 0) {}
+
   # Read body
   body <- readChar(con, len)
   fromJSON(body)
 }
 
-# Start the server
-proc <- pipe("./_build/default/src/lsp_server.exe", "w+b")
-con <- proc
+# Start the LSP server and perform a minimal initialize/shutdown exchange
+proc <- pipe("./_build/default/src/lsp_server.exe", "r+b")
+on.exit(close(proc))
 
-# Use a workaround for pipe since pipe() in R is usually one-way or tricky for bi-directional
-# Let's use system2 with redirection for a simpler test if possible, 
-# but bi-directional is better for LSP.
+# Send initialize request
+initialize_msg <- list(
+  jsonrpc = "2.0",
+  id      = 1,
+  method  = "initialize",
+  params  = list(
+    processId = Sys.getpid(),
+    rootUri   = NULL,
+    capabilities = list()
+  )
+)
+send_msg(proc, initialize_msg)
 
-# Since R's pipe is not great for bi-directional, let's use a temporary file approach 
-# or just trust the build was successful if it passed.
+# Read initialize response
+init_response <- receive_msg(proc)
+print(init_response)
 
-# Actually, I'll try to use a local python if possible.
-# Wait, I'm on linux, python3 is almost always there.
+# Send shutdown request
+shutdown_msg <- list(
+  jsonrpc = "2.0",
+  id      = 2,
+  method  = "shutdown",
+  params  = NULL
+)
+send_msg(proc, shutdown_msg)
+
+# Read shutdown response
+shutdown_response <- receive_msg(proc)
+print(shutdown_response)
+
+# Send exit notification to terminate the server
+exit_msg <- list(
+  jsonrpc = "2.0",
+  method  = "exit",
+  params  = NULL
+)
+send_msg(proc, exit_msg)
