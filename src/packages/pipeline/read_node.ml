@@ -11,7 +11,7 @@ open Ast
 --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
 --# @return :: Any The deserialized value.
 --# @family pipeline
---# @seealso build_pipeline, load_node, inspect_pipeline
+--# @seealso build_pipeline, inspect_pipeline
 --# @export
 *)
 let register env =
