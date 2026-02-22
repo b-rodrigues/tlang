@@ -9,6 +9,8 @@ on:
 jobs:
   pipeline-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout repository
