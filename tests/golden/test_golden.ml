@@ -97,7 +97,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Golden test: Node failure *)
   test "golden: node failure propagation"
     "pipeline {\n  a = 1 / 0\n  b = a + 1\n}"
-    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Division by zero.\n  - `b` failed: Division by zero.";
+    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Division by zero.\n  - `b` failed: Upstream error: Division by zero.";
 
   (* Golden test: Missing node access *)
   test "golden: missing node error"

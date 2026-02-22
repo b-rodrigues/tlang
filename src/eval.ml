@@ -481,7 +481,24 @@ and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
     let node_expr_map = List.map (fun (n : Ast.pipeline_node) -> (n.node_name, n.node_expr)) nodes in
     let (results, _) = List.fold_left (fun (results, pipe_env) name ->
       let expr = List.assoc name node_expr_map in
-      let v = eval_expr pipe_env expr in
+      let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
+      let upstream_err_opt = List.find_opt (fun d -> 
+         match Env.find_opt d pipe_env with
+         | Some (VError _) -> true
+         | _ -> false) node_deps in
+      let v = match upstream_err_opt with
+        | Some failed_dep -> 
+            (match Env.find_opt failed_dep pipe_env with
+             | Some (VError err) -> 
+                 let msg = if String.starts_with ~prefix:"Upstream error: " err.message then
+                     err.message
+                 else
+                     "Upstream error: " ^ err.message
+                 in
+                 Ast.VError { err with message = msg }
+             | _ -> eval_expr pipe_env expr)
+        | None -> eval_expr pipe_env expr
+      in
       let new_env = Env.add name v pipe_env in
       ((name, v) :: results, new_env)
     ) ([], env) exec_order in
@@ -516,7 +533,23 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
         old_val <> prev_val
       ) external_deps in
       if deps_changed || external_changed then begin
-        let v = eval_expr pipe_env expr in
+        let upstream_err_opt = List.find_opt (fun d -> 
+           match Env.find_opt d pipe_env with
+           | Some (VError _) -> true
+           | _ -> false) node_deps in
+        let v = match upstream_err_opt with
+          | Some failed_dep -> 
+              (match Env.find_opt failed_dep pipe_env with
+               | Some (VError err) -> 
+                   let msg = if String.starts_with ~prefix:"Upstream error: " err.message then
+                       err.message
+                   else
+                       "Upstream error: " ^ err.message
+                   in
+                   Ast.VError { err with message = msg }
+               | _ -> eval_expr pipe_env expr)
+          | None -> eval_expr pipe_env expr
+        in
         let new_env = Env.add name v pipe_env in
         ((name, v) :: results, new_env, name :: changed)
       end else begin
