@@ -240,9 +240,9 @@ p.nonexistent
 
 ---
 
-## 11. Building Pipelines
+## 11. Materializing Pipelines
 
-Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts, use `build_pipeline()`:
+Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts, use `populate_pipeline()` with the `build = true` argument:
 
 ```t
 p = pipeline {
@@ -250,15 +250,18 @@ p = pipeline {
   total = sum(data.$amount)
 }
 
-build_pipeline(p)
+populate_pipeline(p, build = true)
 ```
 
-`build_pipeline(p)` does the following:
+`populate_pipeline(p, build = true)` is the primary command for materializing a pipeline. It does the following:
 
-1. Generates a `pipeline.nix` file with one Nix derivation per node
-2. Runs `nix-build` to materialize each node as a serialized artifact in the Nix store
-3. Writes a local registry (`.t_pipeline_registry.json`) mapping node names to artifact paths
-4. Returns the Nix store output path (e.g. `/nix/store/...`)
+1. **Populates** the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
+2. **Generates** a Nix expression with one derivation per node.
+3. **Triggers** a Nix build to materialize each node as a serialized artifact.
+4. **Records** the build in a timestamped log file (`_pipeline/build_log_YYYYMMdd_HHmmss_hash.json`).
+
+> [!NOTE]
+> `build_pipeline(p)` is available as a shorthand for `populate_pipeline(p, build = true)`.
 
 ### Reading built artifacts
 
@@ -269,26 +272,74 @@ read_node("total")   -- reads the serialized artifact for "total"
 load_node("total")   -- same as read_node, loads the artifact
 ```
 
-These functions look up the node in the local registry and deserialize the artifact.
+These functions look up the node in the **latest build log** and deserialize the artifact.
 
 ---
 
-## 12. Execution Modes
+## 12. Orchestrating with populate_pipeline()
+
+For more control over the build process, T provides `populate_pipeline()`. This function prepares the pipeline infrastructure without necessarily triggering the Nix build immediately.
+
+```t
+populate_pipeline(p)                -- Prepares _pipeline/ only
+populate_pipeline(p, build = true)  -- Same as build_pipeline(p)
+```
+
+### The `_pipeline/` directory
+
+T maintains a persistent state directory for your pipeline. When you populate or build, T creates:
+
+- **`_pipeline/pipeline.nix`**: The generated Nix expression for your pipeline nodes.
+- **`_pipeline/dag.json`**: A machine-readable dependency graph of your pipeline.
+- **`_pipeline/build_log_*.json`**: History of previous successful builds.
+
+---
+
+## 13. Build Logs and Time Travel
+
+T keeps a history of your builds in `_pipeline/`. This enables **Time Travel** — the ability to read artifacts from specific past versions of your pipeline.
+
+### Inspecting logs
+
+Use `inspect_pipeline()` to see available build logs:
+
+```t
+logs = inspect_pipeline()
+-- ["build_log_20260221_143022_abc123.json", ...]
+```
+
+### Reading from a specific build
+
+Pass the `which_log` argument to `read_node()` to specify which build to read from. You can pass a regex pattern or a specific filename:
+
+```t
+-- Read the latest version (default)
+val = read_node("result")
+
+-- Read from a specific historical build
+val_old = read_node("result", which_log = "20260221_143022")
+```
+
+This ensures that even as you update your code and data, you can always recover and compare results from previous runs.
+
+---
+
+## 14. Execution Modes
 
 T enforces a clear separation between interactive and non-interactive execution:
 
 ### Non-interactive (`t run`)
 
-Scripts executed with `t run` **must** call `build_pipeline()`. This ensures that non-interactive execution always produces reproducible Nix artifacts.
+Scripts executed with `t run` **must** call `populate_pipeline()` (or `build_pipeline()`). This ensures that non-interactive execution always produces reproducible Nix artifacts.
 
 ```bash
-# ✅ This works — script defines and builds a pipeline
+# ✅ This works — script defines and populates a pipeline
 $ t run my_pipeline.t
 
-# ❌ This is rejected — script doesn't call build_pipeline()
+# ❌ This is rejected — script doesn't call populate_pipeline()
 $ t run my_script.t
 # Error: non-interactive execution requires a pipeline.
-# Scripts run with `t run` must call `build_pipeline()`.
+# Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.
 # Use the REPL for interactive exploration, or pass --unsafe to override.
 ```
 
@@ -301,7 +352,7 @@ p = pipeline {
   result = data |> filter($value > 0) |> summarize(total = sum($value))
 }
 
-build_pipeline(p)
+populate_pipeline(p, build = true)
 ```
 
 ### Interactive (REPL)
@@ -320,7 +371,7 @@ T> p.a
 
 ---
 
-## 13. Using Imports in Pipelines
+## 15. Using Imports in Pipelines
 
 When a pipeline is built with `build_pipeline()`, each node runs inside a **Nix sandbox** — an isolated build environment. Import statements from your script are **automatically propagated** into each sandbox, so imported packages and functions are available to all nodes.
 
@@ -361,7 +412,7 @@ All three import forms are supported:
 
 ---
 
-## 14. Using explain() with Pipelines
+## 16. Using explain() with Pipelines
 
 The `explain()` function provides structured metadata about pipelines:
 
