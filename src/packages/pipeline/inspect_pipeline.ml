@@ -36,10 +36,10 @@ let register env =
   --#
   --# Lists all available build logs in the `_pipeline/` directory.
   --#
-  --# @name list_pipelines
-  --# @return :: List[String] A list of build log filenames, newest first.
+  --# @name list_logs
+  --# @return :: DataFrame A DataFrame of build log files with their modification times and sizes.
   --# @family pipeline
   --# @export
   *)
-  let env = Env.add "list_pipelines" (make_builtin ~name:"list_pipelines" 0 (fun _args _env -> Builder.list_pipelines ())) env in
+  let env = Env.add "list_logs" (make_builtin ~name:"list_logs" 0 (fun _args _env -> Builder.list_logs ())) env in
   env

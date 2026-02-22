@@ -300,13 +300,11 @@ T maintains a persistent state directory for your pipeline. When you populate or
 T keeps a history of your builds in `_pipeline/`. This enables **Time Travel** — the ability to read artifacts from specific past versions of your pipeline.
 
 ### Inspecting logs
-
-### Inspecting logs
-Use `list_pipelines()` to see available build logs:
+Use `list_logs()` to see available build logs:
 
 ```t
-logs = list_pipelines()
--- ["build_log_20260221_143022_abc123.json", ...]
+logs = list_logs()
+-- DataFrame of build logs with filename, modification_time, and size_kb
 ```
 
 Use `inspect_pipeline()` to view the build status of a specific pipeline as a DataFrame (defaults to the latest):

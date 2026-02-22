@@ -162,7 +162,7 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
           if build then build_pipeline_internal p
           else Ok (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir)
 
-let list_logs () =
+let get_logs () =
   if not (Sys.file_exists pipeline_dir) then []
   else
     Sys.readdir pipeline_dir
@@ -195,7 +195,7 @@ let read_log path =
   with exn -> Error (Printexc.to_string exn)
 
 let inspect_pipeline ?which_log () =
-  let logs = list_logs () in
+  let logs = get_logs () in
   let log_file_result =
     match which_log with
     | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
@@ -231,14 +231,39 @@ let inspect_pipeline ?which_log () =
           let arrow_table = Arrow_table.create columns nrows in
           Ast.VDataFrame { arrow_table; group_keys = [] }
 
-let list_pipelines () =
-  let logs = list_logs () in
-  Ast.VList (List.map (fun f -> (None, Ast.VString f)) logs)
+let list_logs () =
+  let logs = get_logs () in
+  let nrows = List.length logs in
+  let arr_filename = Array.init nrows (fun i -> Some (List.nth logs i)) in
+  let arr_mtime = Array.init nrows (fun i ->
+    let f = List.nth logs i in
+    let path = Filename.concat pipeline_dir f in
+    let stats = Unix.stat path in
+    let tm = Unix.localtime stats.Unix.st_mtime in
+    Some (Printf.sprintf "%04d-%02d-%02d %02d:%02d:%02d"
+      (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday tm.tm_hour tm.tm_min tm.tm_sec)
+  ) in
+  let arr_size = Array.init nrows (fun i ->
+    let f = List.nth logs i in
+    let path = Filename.concat pipeline_dir f in
+    let stats = Unix.stat path in
+    (* Keep 2 decimal places *)
+    let raw_kb = float_of_int stats.Unix.st_size /. 1024.0 in
+    let size_kb = Float.round (raw_kb *. 100.0) /. 100.0 in
+    Some size_kb
+  ) in
+  let columns = [
+    ("filename", Arrow_table.StringColumn arr_filename);
+    ("modification_time", Arrow_table.StringColumn arr_mtime);
+    ("size_kb", Arrow_table.FloatColumn arr_size);
+  ] in
+  let arrow_table = Arrow_table.create columns nrows in
+  Ast.VDataFrame { arrow_table; group_keys = [] }
 
 
 
 let read_node ?which_log name =
-  let logs = list_logs () in
+  let logs = get_logs () in
   let log_file_result =
     match which_log with
     | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
