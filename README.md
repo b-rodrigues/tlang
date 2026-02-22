@@ -1,6 +1,8 @@
 # T Programming Language
 
-**T** is an experimental, reproducibility-first programming language for declarative data manipulation and statistical analysis. Inspired by R's tidyverse and OCaml's type discipline, T is designed for teams and researchers who want a small, focused, understandable language dedicated to data wrangling, statistics, and analysis—without general-purpose programming baggage.
+**T** is an experimental, **reproducibility- and pipeline-first** programming language for declarative data manipulation and statistical analysis. Built on the foundation of **Nix**, T is designed from the ground up to ensure that every analysis is a strictly defined, reproducible workflow. 
+
+Inspired by R's tidyverse and OCaml's type discipline, T provides a small, focused core for data wrangling, but its true strength lies in its **mandatory pipeline architecture**.
 
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
 [![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.5-orange.svg)](https://tstats-project.org)
@@ -30,16 +32,38 @@ intentionally reimplemented. However, this is a conscious UX choice, not an arch
 the hood, T is grounded in a strictly functional core, reproducibility through Nix, and a different
 execution and packaging model altogether.
 
-Another deliberate “limitation” is that non-interactive scripts must be defined as pipelines. This 
-constraint is intended to prevent the accumulation of ad hoc, spaghetti-style scripts in production 
-contexts. The workflow model is explicit: exploratory work can be messy and iterative, but once 
-stabilized, it should be transformed (potentially with the help of an LLM) into a well-structured, 
-declarative pipeline.
+### Pipelines are Mandatory
 
-I am still evaluating which pipeline engine to adopt. One possibility is to rely on Nix for this
-layer as well, following the same approach I used for my R package *rixpress*. This would further 
-consolidate reproducibility and execution semantics within a single, coherent system rather than 
-introducing an additional orchestration framework.
+In T, non-interactive execution requires a pipeline. This is a deliberate design choice to eliminate ad-hoc, "spaghetti" scripts that plague data science projects. While the REPL allows for messy, iterative exploration, any script intended for production or sharing must be declared as a `pipeline`. 
+
+This constraint ensures that your stabilization phase—moving from REPL to script—is an intentional act of documentation and architectural design.
+
+### The Power of Polyglot Pipelines (Roadmap)
+
+T does not attempt to reinvent the wheel for every statistical model or machine learning algorithm. Instead, it aims to be the **ultimate orchestration layer**. Because T uses Nix for build automation, future versions will allow you to define nodes using different languages within the same pipeline:
+
+- **Seamless Polyglotism**: Define an R node for data cleaning, a Python node for deep learning, and a Julia node for heavy simulation—all in one file.
+- **Zero-Config Object Transfer**: Transparently pass data frames and objects between languages without manual serialization boilerplate.
+- **Nix-Powered Sandboxing**: Each node runs in a pristine, reproducible environment where dependencies are guaranteed to be present.
+
+By using Nix as the engine, T provides a level of orchestration and reproducibility that general-purpose languages simply cannot match.
+
+### A Modern Package Ecosystem
+
+T is designed to be highly extensible. Users can easily create and share their own packages to add new functionality. Following the language's core philosophy, the package ecosystem is built entirely on Nix:
+
+- **Environment-as-Code**: Every T package includes its own Nix flake. This means that a developer can simply run `nix develop` within a package's directory to get a fully configured development environment with all necessary tools (compilers, libraries, and dependencies) pre-installed.
+- **Conflict-Free Dependency Management**: Since each package is isolated via Nix, you can use different versions of the same shared library in different packages without "dependency hell."
+
+### But why not just use R or Python with Nix?
+
+A valid question is: "Why not just use R or Python with Nix and a build automation tool?" The answer lies in human behavior and the limits of discipline.
+
+Existing languages like R and Python have "bolted-on" reproducibility solutions. While tools like `rix` (for R) or `poetry2nix` (for Python) are excellent, they remain optional, ad-hoc interventions. In practice, unless a team has extreme discipline and high technical overhead, these solutions are often used inconsistently, late in the development cycle, or not at all.
+
+T’s goal is to **force the usage of Nix from the very first line of code**. By providing a language where Nix isn't an option but the fundamental environment and distribution engine, we eliminate the need for ad-hoc discipline. A tool that leaves the user no choice but to be reproducible is the cleanest, most reliable way to ensure that "it works on my machine" actually means it will work on yours.
+
+Furthermore, this coherence and mandatory declarative structure makes things significantly easier for Large Language Models (LLMs). As AI writes more of our analysis code, having a language with a small, focused core and a strictly declarative pipeline model reduces the "hallucination surface" and ensures that LLM-generated analysis is as reproducible and robust as human-written code.
 
 Why “T”? The name is a nod to lineage and a bit of humor. R is a GPL-licensed 
 reimplementation of S, and since T draws heavy inspiration from R, I thought calling it "T" would be
@@ -51,10 +75,11 @@ With all that said, this is a hobby project, 100% experimental, and made for fun
 
 What is currently missing:
 
+* **Polyglot Nodes (R, Python, Julia)**: This is the most significant missing feature. The ability to define nodes in other languages is not yet implemented. Once this is in place, many other limitations (like graphics and advanced statistical modeling) will be resolved by leveraging existing ecosystems.
+* **Graphics and Plotting**: There is no native plotting library yet. Plots will be generated by R (ggplot2), Python (matplotlib), or Julia nodes in the future.
+* **Comprehensive Statistics**: Only linear regression is currently implemented. More complex modeling will become available via R or Python nodes.
 * **User-contributed packages**: This is currently a major focus of development. Infrastructure for creating, documenting, and distributing user packages is being implemented and will be available from the **Beta** release onwards.
-* No graphics or plotting library.
 * Only a subset of mathematical functions and dplyr-like verbs are implemented.
-* Only linear regression is available for statistical modeling.
 * No random number generators.
 * Only CSV files can be read and written.
 
@@ -62,7 +87,7 @@ You guessed it, I welcome contributions!
 
 ## Quick Start
 
-T is distributed via Nix, which is currently the only supported installation method.
+T is distributed exclusively via Nix. Because Nix is mandatory for T's reproducibility and pipeline architecture, it is the only supported installation method and will remain so.
 
 Start by launching a temporary shell that provides the `t` executable:
 
@@ -119,13 +144,13 @@ model = lm(data = df, formula = salary ~ age)
 
 ## Key Features
 
-- **🔒 Perfect Reproducibility**: Every project is a Nix flake with pinned dependencies
-- **📊 DataFrame-First**: First-class tabular data with Arrow backend, NSE column references (`$name`)
-- **🔄 Pipeline-Oriented**: DAG-based computation with automatic dependency resolution
-- **🤖 LLM-Native**: Intent blocks for structured AI collaboration
-- **⚡ Explicit Semantics**: No silent failures, no implicit NA propagation
-- **🔧 Functional**: Immutable values, closures, higher-order functions
-- **📈 Statistical**: Built-in functions for data analysis and modeling
+- **🔒 Reproducibility-First**: Built on Nix flakes for bit-for-bit identical results across machines.
+- **🔄 Mandatory Pipelines**: DAG-based computation is the only way to run scripts, preventing spaghetti code.
+- **📦 Extensible Ecosystem**: User-contributed packages leverage Nix to provide isolated, zero-config development environments.
+- **🌍 Polyglot Roadmap**: Designed to orchestrate R, Python, and Julia nodes with seamless data transfer.
+- **📊 DataFrame Core**: High-performance tabular data with Apache Arrow backend and NSE syntax.
+- **🤖 LLM-Native**: Intent blocks and structured metadata for auditable AI-assisted development.
+- **🔧 Functional Core**: Immutable values, closures, and explicit NA handling for predictable logic.
 
 ## Installation
 
@@ -273,9 +298,13 @@ T is built on three core principles:
 
 Unlike general-purpose languages, T makes deliberate trade-offs to stay small, focused, and predictable for data analysis workflows.
 
+### The Native Scope Challenge
+
+The biggest challenge in developing T is deciding exactly what should be included natively in the language core and what should be left to polyglot nodes. For now, a basic set of mathematical functions and `dplyr`-like data verbs are implemented. It is likely that the native core of T will remain focused, providing the essentials for data wrangling, descriptive statistics, and linear regression, while encouraging users to reach for the broader R, Python, and Julia ecosystems for more specialized tasks.
+
 ## Status
 
-**Alpha 0.1** — Syntax and semantics frozen. The language is functional and ready for exploratory use. The current focus is on building the infrastructure for a robust, user-contributed package ecosystem, which is expected to be stable by the **Beta** release. Production use requires further testing and performance optimization.
+**Alpha 0.5** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with mandatory pipeline execution for non-interactive scripts. Current development focuses on the **polyglot engine** to enable R, Python, and Julia nodes, alongside a robust **Nix-powered package ecosystem**. While ready for exploratory use, production use is currently discouraged as optimizations and the inter-language FFI are still being refined.
 
 ## Project Structure
 
