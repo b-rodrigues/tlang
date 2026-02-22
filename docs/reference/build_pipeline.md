@@ -14,5 +14,5 @@ The output path (Nix store path or local fallback directory).
 
 ## See Also
 
-[load_node](load_node.md), [read_node](read_node.md)
+[read_node](read_node.md)
 

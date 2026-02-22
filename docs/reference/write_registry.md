@@ -7,9 +7,9 @@ Writes a flat JSON object mapping node names to artifact paths.
 ## Parameters
 
 - **path** (`String`): Destination file.
-- **entries** (`List[(String,`): String)] Name-path pairs.
+- **entries** (`List[(String, String)]`): Name-path pairs.
 
 ## Returns
 
-String] Status.
+`Result[Null, String]` Status.
 
