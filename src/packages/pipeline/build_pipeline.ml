@@ -17,7 +17,7 @@ let register env =
     (make_builtin ~name:"build_pipeline" 1 (fun args _env ->
       match args with
       | [VPipeline p] ->
-          (match Builder.populate_pipeline ~build:true p with
+          (match Builder.build_pipeline p with
           | Ok out_path -> VString out_path
           | Error msg -> Error.make_error FileError msg)
       | [_] -> Error.type_error "Function `build_pipeline` expects a Pipeline."

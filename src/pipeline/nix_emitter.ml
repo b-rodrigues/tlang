@@ -94,26 +94,24 @@ let emit_node (name, expr) deps import_lines =
   let deps_script_lines =
     deps
     |> List.map (fun d ->
-      Printf.sprintf "      echo \"%s = deserialize(\\\"$T_NODE_%s/artifact.tobj\\\")\" >> node_script.t" d d)
+      let line = Printf.sprintf "%s = deserialize(\"$T_NODE_%s/artifact.tobj\")" d d in
+      Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote line))
     |> String.concat "\n"
   in
   let expr_s = unparse_expr expr in
   Printf.sprintf {|
   %s = stdenv.mkDerivation {
     name = "%s";
-    buildInputs = t_lang_env ++ [ %s ];
-    src = sources;
+    buildInputs = [ t_lang_env %s ];
     buildCommand = ''
-      cp -r $src/* . || true
-      chmod -R u+w .
 %s      cat << EOF > node_script.t
 EOF
 %s
 %s
       cat <<'EOF' >> node_script.t
       %s = %s
+      serialize(%s, "$out/artifact.tobj")
 EOF
-      echo "      serialize(%s, \"$out/artifact.tobj\")" >> node_script.t
       mkdir -p $out
       t run --unsafe node_script.t
     '';
@@ -142,21 +140,13 @@ let emit_pipeline (p : Ast.pipeline_result) =
 { pkgs ? import <nixpkgs> {} }:
 let
   stdenv = pkgs.stdenv;
-  # Use local env.nix if it exists, otherwise fallback to empty buildInputs
-  env = if builtins.pathExists ./env.nix then import ./env.nix { inherit pkgs; } else { buildInputs = []; };
-  t_lang_env = env.buildInputs or [];
-  # Filter out _pipeline/, .git/, and other non-source directories
-  sources = builtins.filterSource
-    (path: type:
-      let baseName = builtins.baseNameOf path;
-      in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv"))
-    ./..;
+  t_lang_env = pkgs.stdenv;
 in
 rec {
 %s
   pipeline_output = stdenv.mkDerivation {
     name = "pipeline_output";
-    buildInputs = t_lang_env ++ [ %s ];
+    buildInputs = [ %s ];
     buildCommand = ''
       mkdir -p $out
 %s
