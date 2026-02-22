@@ -17,22 +17,30 @@ let register env =
   let populate_fn named_args _env =
     let get_arg name pos default named_args =
       match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
-      | Some v -> v
+      | Some v -> (true, v)
       | None ->
           let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
-          if List.length positionals >= pos then List.nth positionals (pos - 1)
-          else default
+          if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
+          else (false, default)
     in
-    let p = match get_arg "p" 1 VNull named_args with
-      | VPipeline p -> p
-      | _ -> failwith "Expected Pipeline"
-    in
-    let build = match get_arg "build" 2 (VBool false) named_args with
-      | VBool b -> b
-      | _ -> false
-    in
-    match Builder.populate_pipeline ~build p with
-    | Ok out -> VString out
-    | Error msg -> Error.make_error FileError msg
+    match get_arg "p" 1 VNull named_args with
+    | (_, VPipeline p) ->
+        let (build_provided, build_val) = get_arg "build" 2 (VBool false) named_args in
+        let build_result =
+          match build_val with
+          | VBool b -> Ok b
+          | _ when build_provided ->
+              Error (Error.type_error "Function `populate_pipeline` expects `build` to be a Bool.")
+          | _ ->
+              Ok false
+        in
+        (match build_result with
+         | Error e -> e
+         | Ok build ->
+             match Builder.populate_pipeline ~build p with
+             | Ok out -> VString out
+             | Error msg -> Error.make_error FileError msg)
+    | _ ->
+        Error.type_error "Function `populate_pipeline` expects a Pipeline."
   in
   Env.add "populate_pipeline" (make_builtin_named ~name:"populate_pipeline" ~variadic:true 1 populate_fn) env

@@ -9,6 +9,8 @@ on:
 jobs:
   pipeline-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout repository
@@ -32,12 +34,6 @@ jobs:
 
     - name: Build T
       run: nix build .#default
-
-    - name: Download mtcars data
-      run: |
-        mkdir -p data
-        wget -q -O data/mtcars.csv \
-          https://raw.githubusercontent.com/b-rodrigues/rixpress_demos/refs/heads/master/basic_r/data/mtcars.csv
 
     - name: Run pipeline build
       run: |

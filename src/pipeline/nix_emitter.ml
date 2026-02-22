@@ -102,8 +102,9 @@ let emit_node (name, expr) deps import_lines =
   %s = stdenv.mkDerivation {
     name = "%s";
     buildInputs = t_lang_env ++ [ %s ];
+    src = sources;
     buildCommand = ''
-      cp -r ${../.}/* . || true
+      cp -r $src/* . || true
       chmod -R u+w .
 %s      cat << EOF > node_script.t
 EOF
@@ -141,9 +142,15 @@ let emit_pipeline (p : Ast.pipeline_result) =
 { pkgs ? import <nixpkgs> {} }:
 let
   stdenv = pkgs.stdenv;
-  # Use local env.nix if it exists, otherwise fallback to stdenv
+  # Use local env.nix if it exists, otherwise fallback to empty buildInputs
   env = if builtins.pathExists ./env.nix then import ./env.nix { inherit pkgs; } else { buildInputs = []; };
   t_lang_env = env.buildInputs or [];
+  # Filter out _pipeline/, .git/, and other non-source directories
+  sources = builtins.filterSource
+    (path: type:
+      let baseName = builtins.baseNameOf path;
+      in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv"))
+    ./..;
 in
 rec {
 %s

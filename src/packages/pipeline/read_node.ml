@@ -24,14 +24,17 @@ let register env =
           if List.length positionals >= pos then List.nth positionals (pos - 1)
           else default
     in
-    let name = match get_arg "name" 1 (VString "") named_args with
-      | VString s -> s
-      | _ -> failwith "Expected string name"
-    in
-    let which_log = match get_arg "which_log" 2 VNull named_args with
-      | VString s -> Some s
-      | _ -> None
-    in
-    Builder.read_node ?which_log name
+    match get_arg "name" 1 (VString "") named_args with
+    | VString name ->
+        (match get_arg "which_log" 2 VNull named_args with
+         | VNull ->
+             Builder.read_node name
+         | VString s ->
+             let which_log = Some s in
+             Builder.read_node ?which_log name
+         | _ ->
+             Error.type_error "read_node: expected String or Null for argument 'which_log'")
+    | _ ->
+        Error.type_error "read_node: expected String for argument 'name'"
   in
   Env.add "read_node" (make_builtin_named ~name:"read_node" ~variadic:true 1 read_fn) env

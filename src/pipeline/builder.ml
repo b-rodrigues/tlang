@@ -62,41 +62,47 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     match run_command_capture
             (Printf.sprintf "nix-build %s -A pipeline_output --no-out-link 2>&1" (Filename.quote pipeline_nix_path)) with
     | Ok (Unix.WEXITED 0, output) when output <> "" ->
-        (* nix-build --no-out-link prints one store path per derivation.
-           The last line is the top-level (pipeline_output) derivation. *)
+        (* Filter output lines to find the Nix store path.
+           Only lines starting with /nix/store/ are valid store paths. *)
         let lines = String.split_on_char '\n' (String.trim output) in
-        let out_path = List.nth lines (List.length lines - 1) in
-        let timestamp = get_timestamp () in
-        let hash = try
-          let parts = String.split_on_char '-' (Filename.basename out_path) in
-          List.hd parts
-        with _ -> "no_hash"
-        in
-        let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
-        let log_path = Filename.concat pipeline_dir log_name in
-        let registry =
-          List.map (fun (name, _) ->
-            (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
-          ) p.p_exprs
-        in
-        let log_entries =
-          List.map (fun (name, path) ->
-            Serialization.json_dict [
-              ("node", "\"" ^ Serialization.json_escape name ^ "\"");
-              ("path", "\"" ^ Serialization.json_escape path ^ "\"");
-              ("success", "true")
-            ]
-          ) registry
-        in
-        let log_json = Serialization.json_dict [
-          ("timestamp", "\"" ^ timestamp ^ "\"");
-          ("hash", "\"" ^ hash ^ "\"");
-          ("out_path", "\"" ^ out_path ^ "\"");
-          ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
-        ] in
-        (match write_file log_path log_json with
-        | Ok () -> Ok out_path
-        | Error msg -> Error ("Failed to write build log: " ^ msg))
+        let store_paths = List.filter (fun l ->
+          String.length l > 11 && String.sub l 0 11 = "/nix/store/"
+        ) lines in
+        (match store_paths with
+        | [] -> Error "nix-build succeeded but did not return a store path."
+        | _ ->
+            let out_path = List.nth store_paths (List.length store_paths - 1) in
+            let timestamp = get_timestamp () in
+            let hash = try
+              let parts = String.split_on_char '-' (Filename.basename out_path) in
+              List.hd parts
+            with _ -> "no_hash"
+            in
+            let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
+            let log_path = Filename.concat pipeline_dir log_name in
+            let registry =
+              List.map (fun (name, _) ->
+                (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
+              ) p.p_exprs
+            in
+            let log_entries =
+              List.map (fun (name, path) ->
+                Serialization.json_dict [
+                  ("node", "\"" ^ Serialization.json_escape name ^ "\"");
+                  ("path", "\"" ^ Serialization.json_escape path ^ "\"");
+                  ("success", "true")
+                ]
+              ) registry
+            in
+            let log_json = Serialization.json_dict [
+              ("timestamp", "\"" ^ timestamp ^ "\"");
+              ("hash", "\"" ^ hash ^ "\"");
+              ("out_path", "\"" ^ out_path ^ "\"");
+              ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
+            ] in
+            (match write_file log_path log_json with
+            | Ok () -> Ok out_path
+            | Error msg -> Error ("Failed to write build log: " ^ msg)))
     | Ok (Unix.WEXITED 0, _) ->
         Error "nix-build succeeded but did not return an output path."
     | Ok (_, output) ->
@@ -125,10 +131,10 @@ let write_env_nix () =
   | Some store_path ->
       let content = Printf.sprintf {|{ pkgs ? import <nixpkgs> {} }:
 let
-  t-lang = builtins.storePath "%s";
+  t_lang = builtins.storePath "%s";
 in
 {
-  buildInputs = [ t-lang ];
+  buildInputs = [ t_lang ];
 }
 |} store_path
       in
@@ -194,24 +200,29 @@ let read_log path =
 
 let read_node ?which_log name =
   let logs = list_logs () in
-  let log_file =
+  let log_file_result =
     match which_log with
-    | None -> (match logs with [] -> None | l :: _ -> Some l)
+    | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
     | Some pattern ->
-        List.find_opt (fun l ->
-          try let _ = Str.search_forward (Str.regexp pattern) l 0 in true
-          with Not_found -> false
-        ) logs
+        (try
+          Ok (List.find_opt (fun l ->
+            try let _ = Str.search_forward (Str.regexp pattern) l 0 in true
+            with Not_found -> false
+          ) logs)
+        with Failure msg ->
+          Error msg)
   in
-  match log_file with
-  | None ->
+  match log_file_result with
+  | Error msg ->
+      Error.type_error (Printf.sprintf "read_node: invalid regex pattern for 'which_log': %s" msg)
+  | Ok None ->
       let suffix = match which_log with
         | Some pat -> " matching \"" ^ pat ^ "\""
         | None -> ""
       in
       Error.make_error FileError
         (Printf.sprintf "No build logs found in `_pipeline/`%s. Run `populate_pipeline(p, build=true)` first." suffix)
-  | Some f ->
+  | Ok (Some f) ->
       match read_log (Filename.concat pipeline_dir f) with
       | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read log `%s`: %s" f msg)
       | Ok entries ->

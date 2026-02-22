@@ -339,7 +339,7 @@ $ t run my_pipeline.t
 # ❌ This is rejected — script doesn't call populate_pipeline()
 $ t run my_script.t
 # Error: non-interactive execution requires a pipeline.
-# Scripts run with `t run` must call `populate_pipeline(p, build=true)`.
+# Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.
 # Use the REPL for interactive exploration, or pass --unsafe to override.
 ```
 
