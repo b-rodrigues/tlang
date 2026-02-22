@@ -4,20 +4,39 @@ open Lsp.Types
 
 module Transport = struct
   let read_message () =
-    try
+    (* Read all header lines until blank line, then extract Content-Length
+       regardless of header order, per LSP/message framing conventions. *)
+    let rec read_headers acc =
       let line = input_line stdin in
-      if String.starts_with ~prefix:"Content-Length:" line then
-        let len_str = String.trim (String.sub line 15 (String.length line - 15)) in
-        let len = int_of_string len_str in
-        let rec skip_to_body () =
-          let l = input_line stdin in
-          if String.trim l = "" then () else skip_to_body ()
-        in
-        skip_to_body ();
-        let body = really_input_string stdin len in
-        Some (Yojson.Safe.from_string body)
-      else None
-    with _ -> None
+      if String.trim line = "" then List.rev acc
+      else read_headers (line :: acc)
+    in
+    let rec find_content_length = function
+      | [] -> None
+      | line :: rest -> (
+          match String.index_opt line ':' with
+          | None -> find_content_length rest
+          | Some idx ->
+              let name =
+                String.sub line 0 idx |> String.trim |> String.lowercase_ascii
+              in
+              if name = "content-length" then
+                let value =
+                  String.sub line (idx + 1) (String.length line - idx - 1)
+                  |> String.trim
+                in
+                (try Some (int_of_string value) with Failure _ -> None)
+              else find_content_length rest)
+    in
+    try
+      let headers = read_headers [] in
+      match find_content_length headers with
+      | None -> None
+      | Some len ->
+          let body = really_input_string stdin len in
+          Some (Yojson.Safe.from_string body)
+    with
+    | End_of_file | Failure _ | Yojson.Json_error _ -> None
 
   let write_message (json : Yojson.Safe.t) =
     let body = Yojson.Safe.to_string json in
@@ -99,6 +118,9 @@ module Server = struct
             (match params.contentChanges with
             | [change] -> update_document server params.textDocument.uri change.text
             | _ -> ())
+        | "textDocument/didClose" ->
+            let params = DidCloseTextDocumentParams.t_of_yojson (params_to_yojson notif.params) in
+            Hashtbl.remove server.documents params.textDocument.uri
         | _ -> ())
     | Request req ->
         (match req.method_ with

@@ -1,4 +1,4 @@
-(* src/t_type.ml *)
+(* src/semantic_type.ml *)
 
 type column = {
   name : string;

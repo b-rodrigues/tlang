@@ -4,21 +4,21 @@ import time
 
 def send(proc, msg):
     s = json.dumps(msg)
-    header = f"Content-Length: {len(s)}\r\n\r\n"
-    proc.stdin.write(header.encode('ascii'))
-    proc.stdin.write(s.encode('ascii'))
+    header = f"Content-Length: {len(s.encode('utf-8'))}\r\n\r\n"
+    proc.stdin.write(header.encode('utf-8'))
+    proc.stdin.write(s.encode('utf-8'))
     proc.stdin.flush()
 
 def receive(proc):
-    line = proc.stdout.readline().decode('ascii')
+    line = proc.stdout.readline().decode('utf-8')
     if not line.startswith("Content-Length:"): 
         print(f"Unexpected line: {line}")
         return None
     length = int(line[15:].strip())
     while True:
-        l = proc.stdout.readline().decode('ascii').strip()
+        l = proc.stdout.readline().decode('utf-8').strip()
         if l == "": break
-    body = proc.stdout.read(length).decode('ascii')
+    body = proc.stdout.read(length).decode('utf-8')
     return json.loads(body)
 
 proc = subprocess.Popen(["./_build/default/src/lsp_server.exe"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
