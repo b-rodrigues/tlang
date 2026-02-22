@@ -35,6 +35,8 @@ let register env =
             | _ -> GenericError
           in
           Error.make_error code msg
+      | [_] -> Error.type_error "Function `error` expects a String message."
+      | [_; _] -> Error.type_error "Function `error` expects (String code, String message)."
       | _ -> Error.make_error ArityError (Printf.sprintf "Function `error` expects 1 or 2 string arguments but received %d." (List.length args))
     ))
     env

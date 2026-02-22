@@ -114,7 +114,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           in
           apply_named_mutations df rest
       | (_, VDataFrame _) :: [] -> Error.make_error ArityError "Function `mutate` requires at least one $column = expr argument."
-      | [(_, _); _; _] | [(_, _); _] -> Error.type_error "Function `mutate` expects a DataFrame as first argument."
-      | _ -> Error.make_error ArityError "Function `mutate` expects a DataFrame and $col = expr arguments."
+      | _ :: _ -> Error.type_error "Function `mutate` expects a DataFrame as first argument."
+      | [] -> Error.make_error ArityError "Function `mutate` expects a DataFrame and $col = expr arguments."
     ))
     env

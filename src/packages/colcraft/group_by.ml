@@ -37,7 +37,7 @@ let register env =
                Error.make_error ArityError "Function `group_by` requires at least one $column."
              else
                VDataFrame { df with group_keys = names })
-      | [_] -> Error.type_error "Function `group_by` expects a DataFrame as first argument."
+      | _ :: _ -> Error.type_error "Function `group_by` expects a DataFrame as first argument."
       | _ -> Error.make_error ArityError "Function `group_by` requires a DataFrame and at least one $column."
      ))
      env

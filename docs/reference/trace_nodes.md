@@ -19,5 +19,6 @@ Returns invisibly. Prints to the console.
 ```t
 p = pipeline { x = 1; y = x + 1 }
 trace_nodes(p)
+trace_nodes(p, "y")
 ```
 

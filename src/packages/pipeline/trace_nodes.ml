@@ -13,6 +13,7 @@ open Ast
 --# @example
 --#   p = pipeline { x = 1; y = x + 1 }
 --#   trace_nodes(p)
+--#   trace_nodes(p, "y")
 --# @family pipeline
 --# @export
 *)
@@ -31,10 +32,21 @@ let register env =
         let (_, target_val) = get_arg "name" 2 VNull in
         let (_, trans_val) = get_arg "transitive" 3 (VBool true) in
         
-        let target = match target_val with VString s -> Some s | VNull -> None | _ -> None in
-        let transitive = match trans_val with VBool b -> b | _ -> true in
+        let target_res = match target_val with 
+          | VString s -> Ok (Some s) 
+          | VNull -> Ok None 
+          | v -> Error (Error.type_error (Printf.sprintf "Function `trace_nodes` expects a String for 'name', got %s." (Utils.type_name v))) 
+        in
+        let trans_res = match trans_val with 
+          | VBool b -> Ok b 
+          | VNull -> Ok true 
+          | v -> Error (Error.type_error (Printf.sprintf "Function `trace_nodes` expects a Bool for 'transitive', got %s." (Utils.type_name v))) 
+        in
         
-        let deps_map = p.p_deps in
+        begin match target_res, trans_res with
+        | Error e, _ | _, Error e -> e
+        | Ok target, Ok transitive ->
+          let deps_map = p.p_deps in
         let all_names = List.map fst deps_map in
         
         (* Reverse map: child -> list of parents that depend on child *)
@@ -131,6 +143,7 @@ let register env =
         end;
         flush stdout;
         VNull
+        end
     | _ -> Error.type_error "Function `trace_nodes` expects a Pipeline as its first argument."
   in
   Env.add "trace_nodes" (make_builtin_named ~name:"trace_nodes" ~variadic:true 1 trace_fn) env

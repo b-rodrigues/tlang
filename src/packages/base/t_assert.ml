@@ -30,6 +30,7 @@ let register env =
             Error.make_error AssertionError ("Assertion received NA: " ^ msg ^ ".")
           else if Utils.is_truthy v then VBool true
           else Error.make_error AssertionError ("Assertion failed: " ^ msg ^ ".")
+      | [_; other] -> Error.type_error (Printf.sprintf "Function `assert` expects a String as its second argument, got %s." (Utils.type_name other))
       | _ -> Error.make_error ArityError (Printf.sprintf "Function `assert` expects 1 or 2 arguments but received %d." (List.length args))
     ))
     env
