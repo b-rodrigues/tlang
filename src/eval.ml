@@ -317,11 +317,11 @@ let rec extract_formula_vars (expr : Ast.expr) : string list =
 (* Module-level mutable ref to track accumulated imports for pipeline propagation *)
 let current_imports : Ast.stmt list ref = ref []
 
-let rec eval_expr (env : environment) (expr : Ast.expr) : value =
+let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   match expr with
   | Value v -> v
   | Var s ->
-      (match Env.find_opt s env with
+      (match Env.find_opt s !env_ref with
       | Some v -> v
       | None -> VSymbol s) (* Return bare words as Symbols for future NSE *)
   
@@ -331,55 +331,57 @@ let rec eval_expr (env : environment) (expr : Ast.expr) : value =
          with "$" to distinguish it from regular symbols. *)
       VSymbol ("$" ^ field)
 
-  | BinOp { op; left; right } -> eval_binop env op left right
+  | BinOp { op; left; right } -> eval_binop env_ref op left right
   | BroadcastOp { op; left; right } ->
-      let v1 = eval_expr env left in
-      let v2 = eval_expr env right in
+      let v1 = eval_expr env_ref left in
+      let v2 = eval_expr env_ref right in
       broadcast2 op v1 v2
-  | UnOp { op; operand } -> eval_unop env op operand
+  | UnOp { op; operand } -> eval_unop env_ref op operand
 
   | IfElse { cond; then_; else_ } ->
-      let cond_val = eval_expr env cond in
+      let cond_val = eval_expr env_ref cond in
       (match cond_val with
        | VError _ as e -> e
        | VNA _ -> make_error TypeError "Cannot use NA as a condition"
-       | VBool true -> eval_expr env then_
-       | VBool false -> eval_expr env else_
+       | VBool true -> eval_expr env_ref then_
+       | VBool false -> eval_expr env_ref else_
        | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
 
   | Call { fn; args } ->
-      let fn_val = eval_expr env fn in
-      eval_call env fn_val args
+      let fn_val = eval_expr env_ref fn in
+      eval_call env_ref fn_val args
 
-  | Lambda l -> VLambda { l with env = Some env } (* Capture the current environment *)
+  | Lambda l -> VLambda { l with env = Some !env_ref } (* Capture the current environment *)
 
   (* Structural expressions *)
-  | ListLit items -> eval_list_lit env items
-  | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env e)) pairs)
-  | DotAccess { target; field } -> eval_dot_access env target field
+  | ListLit items -> eval_list_lit env_ref items
+  | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env_ref e)) pairs)
+  | DotAccess { target; field } -> eval_dot_access env_ref target field
   | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
-  | Block stmts -> eval_block env stmts
-  | PipelineDef nodes -> eval_pipeline env nodes
-  | IntentDef pairs -> eval_intent env pairs
+  | Block stmts -> eval_block env_ref stmts
+  | PipelineDef nodes -> eval_pipeline env_ref nodes
+  | IntentDef pairs -> eval_intent env_ref pairs
 
-and eval_block env stmts =
-  let rec loop env = function
+and eval_block env_ref stmts =
+  let rec loop () = function
     | [] -> VNull
     | [stmt] -> 
-        let (v, _) = eval_statement env stmt in
+        let (v, new_env) = eval_statement !env_ref stmt in
+        env_ref := new_env;
         v
     | stmt :: rest ->
-        let (_, new_env) = eval_statement env stmt in
-        loop new_env rest
+        let (_, new_env) = eval_statement !env_ref stmt in
+        env_ref := new_env;
+        loop () rest
   in
-  loop env stmts
+  loop () stmts
 
 (* --- Phase 6: Intent Block Evaluation --- *)
 
 (** Evaluate an intent block definition *)
-and eval_intent env pairs =
+and eval_intent env_ref pairs =
   let evaluated = List.map (fun (k, e) ->
-    let v = eval_expr env e in
+    let v = eval_expr env_ref e in
     match v with
     | VString s -> Ok (k, s)
     | VError _ -> Error v
@@ -464,7 +466,7 @@ and topo_sort (nodes : Ast.pipeline_node list) (deps : (string * string list) li
   | Ok () -> Ok (List.rev !order)
 
 (** Evaluate a pipeline definition *)
-and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
+and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
   let node_names = List.map (fun n -> n.Ast.node_name) nodes in
   (* Compute dependencies: only consider references to other node names *)
   let deps = List.map (fun (n : Ast.pipeline_node) ->
@@ -479,16 +481,16 @@ and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
   | Ok exec_order ->
     (* Execute nodes in topological order *)
     let node_expr_map = List.map (fun (n : Ast.pipeline_node) -> (n.node_name, n.node_expr)) nodes in
-    let (results, _) = List.fold_left (fun (results, pipe_env) name ->
+    let (results, _) = List.fold_left (fun (results, current_env_ref) name ->
       let expr = List.assoc name node_expr_map in
       let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
       let upstream_err_opt = List.find_opt (fun d -> 
-         match Env.find_opt d pipe_env with
+         match Env.find_opt d !current_env_ref with
          | Some (VError _) -> true
          | _ -> false) node_deps in
       let v = match upstream_err_opt with
         | Some failed_dep -> 
-            (match Env.find_opt failed_dep pipe_env with
+            (match Env.find_opt failed_dep !current_env_ref with
              | Some (VError err) -> 
                  let msg = if String.starts_with ~prefix:"Upstream error: " err.message then
                      err.message
@@ -496,12 +498,12 @@ and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
                      "Upstream error: " ^ err.message
                  in
                  Ast.VError { err with message = msg }
-             | _ -> eval_expr pipe_env expr)
-        | None -> eval_expr pipe_env expr
+             | _ -> eval_expr current_env_ref expr)
+        | None -> eval_expr current_env_ref expr
       in
-      let new_env = Env.add name v pipe_env in
-      ((name, v) :: results, new_env)
-    ) ([], env) exec_order in
+      current_env_ref := Env.add name v !current_env_ref;
+      ((name, v) :: results, current_env_ref)
+    ) ([], ref !env_ref) exec_order in
     let p_nodes = List.rev results in
     VPipeline {
       p_nodes;
@@ -511,7 +513,7 @@ and eval_pipeline env (nodes : Ast.pipeline_node list) : value =
     }
 
 (** Re-run a pipeline, skipping nodes whose dependencies haven't changed *)
-and rerun_pipeline env (prev : Ast.pipeline_result) : value =
+and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
   match topo_sort
     (List.map (fun (name, expr) -> { Ast.node_name = name; node_expr = expr }) prev.p_exprs)
@@ -519,7 +521,7 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
-    let (results, _, _changed_set) = List.fold_left (fun (results, pipe_env, changed) name ->
+    let (results, _, _changed_set) = List.fold_left (fun (results, current_env_ref, changed) name ->
       let expr = List.assoc name prev.p_exprs in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
       (* A node needs re-evaluation if any of its dependencies changed *)
@@ -528,18 +530,18 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
       let fv = free_vars expr in
       let external_deps = List.filter (fun v -> not (List.mem v node_names)) fv in
       let external_changed = List.exists (fun v ->
-        let old_val = Env.find_opt v env in
+        let old_val = Env.find_opt v !env_ref in
         let prev_val = match List.assoc_opt v prev.p_nodes with Some x -> Some x | None -> None in
         old_val <> prev_val
       ) external_deps in
       if deps_changed || external_changed then begin
         let upstream_err_opt = List.find_opt (fun d -> 
-           match Env.find_opt d pipe_env with
+           match Env.find_opt d !current_env_ref with
            | Some (VError _) -> true
            | _ -> false) node_deps in
         let v = match upstream_err_opt with
           | Some failed_dep -> 
-              (match Env.find_opt failed_dep pipe_env with
+              (match Env.find_opt failed_dep !current_env_ref with
                | Some (VError err) -> 
                    let msg = if String.starts_with ~prefix:"Upstream error: " err.message then
                        err.message
@@ -547,18 +549,18 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
                        "Upstream error: " ^ err.message
                    in
                    Ast.VError { err with message = msg }
-               | _ -> eval_expr pipe_env expr)
-          | None -> eval_expr pipe_env expr
+               | _ -> eval_expr current_env_ref expr)
+          | None -> eval_expr current_env_ref expr
         in
-        let new_env = Env.add name v pipe_env in
-        ((name, v) :: results, new_env, name :: changed)
+        current_env_ref := Env.add name v !current_env_ref;
+        ((name, v) :: results, current_env_ref, name :: changed)
       end else begin
         (* Reuse cached value *)
         let cached = List.assoc name prev.p_nodes in
-        let new_env = Env.add name cached pipe_env in
-        ((name, cached) :: results, new_env, changed)
+        current_env_ref := Env.add name cached !current_env_ref;
+        ((name, cached) :: results, current_env_ref, changed)
       end
-    ) ([], env, []) exec_order in
+    ) ([], ref !env_ref, []) exec_order in
     let p_nodes = List.rev results in
     VPipeline {
       p_nodes;
@@ -567,9 +569,9 @@ and rerun_pipeline env (prev : Ast.pipeline_result) : value =
       p_imports = prev.p_imports;
     }
 
-and eval_list_lit env items =
+and eval_list_lit env_ref items =
     let evaluated_items = List.map (fun (name, e) ->
-        match eval_expr env e with
+        match eval_expr env_ref e with
         | VError _ as err -> (name, err)
         | v -> (name, v)
     ) items in
@@ -578,8 +580,8 @@ and eval_list_lit env items =
     | None -> VList evaluated_items
 
 
-and eval_dot_access env target_expr field =
-  let target_val = eval_expr env target_expr in
+and eval_dot_access env_ref target_expr field =
+  let target_val = eval_expr env_ref target_expr in
   (* Helper: check if any column name in the table starts with the given prefix *)
   let has_column_prefix arrow_table prefix =
     let pfx = prefix ^ "." in
@@ -665,7 +667,7 @@ and eval_dot_access env target_expr field =
 and lambda_arity_error params args =
   Error.arity_error ~expected:(List.length params) ~received:(List.length args)
 
-and eval_call env fn_val raw_args =
+and eval_call env_ref fn_val raw_args =
   (* NSE auto-transformation: if an argument is a complex expression containing
      ColumnRef nodes (not a bare ColumnRef), wrap it in a lambda \(row) <desugared>
      before evaluation. Bare ColumnRef stays as-is (evaluates to VSymbol). *)
@@ -684,15 +686,15 @@ and eval_call env fn_val raw_args =
   let raw_args = transform_nse_args raw_args in
   match fn_val with
   | VBuiltin { b_arity; b_variadic; b_func; _ } ->
-      let named_args = List.map (fun (name, e) -> (name, eval_expr env e)) raw_args in
+      let named_args = List.map (fun (name, e) -> (name, eval_expr env_ref e)) raw_args in
       let arg_count = List.length named_args in
       if not b_variadic && arg_count <> b_arity then
         Error.arity_error ~expected:b_arity ~received:arg_count
       else
-        b_func named_args env
+        b_func named_args env_ref
 
   | VLambda { params; param_types; return_type; variadic = _; body; env = Some closure_env; _ } ->
-      let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
+      let args = List.map (fun (_, e) -> eval_expr env_ref e) raw_args in
       if List.length params <> List.length args then
         lambda_arity_error params args
       else
@@ -714,7 +716,8 @@ and eval_call env fn_val raw_args =
               (fun current_env name value -> Env.add name value current_env)
               closure_env params args
           in
-          let result = eval_expr call_env body in
+          let call_env_ref = ref call_env in
+          let result = eval_expr call_env_ref body in
           (* Runtime Type Check: Return Value *)
           (match return_type with
            | Some t when not (Error.is_error_value result) && not (Ast.is_compatible result t) ->
@@ -725,7 +728,7 @@ and eval_call env fn_val raw_args =
 
   | VLambda { params; param_types; return_type; variadic = _; body; env = None; _ } ->
       (* Lambda without closure — use current env *)
-      let args = List.map (fun (_, e) -> eval_expr env e) raw_args in
+      let args = List.map (fun (_, e) -> eval_expr env_ref e) raw_args in
       if List.length params <> List.length args then
         lambda_arity_error params args
       else
@@ -745,9 +748,10 @@ and eval_call env fn_val raw_args =
           let call_env =
             List.fold_left2
               (fun current_env name value -> Env.add name value current_env)
-              env params args
+              !env_ref params args
           in
-          let result = eval_expr call_env body in
+          let call_env_ref = ref call_env in
+          let result = eval_expr call_env_ref body in
           (* Runtime Type Check: Return Value *)
           (match return_type with
            | Some t when not (Error.is_error_value result) && not (Ast.is_compatible result t) ->
@@ -758,10 +762,10 @@ and eval_call env fn_val raw_args =
 
   | VSymbol s ->
       (* Try to look up the symbol in the env — might be a function name *)
-      (match Env.find_opt s env with
-       | Some fn -> eval_call env fn raw_args
+      (match Env.find_opt s !env_ref with
+       | Some fn -> eval_call env_ref fn raw_args
        | None ->
-         let names = List.map fst (Env.bindings env) in
+         let names = List.map fst (Env.bindings !env_ref) in
          match Ast.suggest_name s names with
            | Some suggestion -> Error.name_error_with_suggestion s suggestion
            | None -> Error.name_error s)
@@ -770,7 +774,7 @@ and eval_call env fn_val raw_args =
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
 
-and eval_binop env op left right =
+and eval_binop env_ref op left right =
   (* Pipe is special: x |> f(y) becomes f(x, y), x |> f becomes f(x) *)
   match op with
   | Formula ->
@@ -784,57 +788,57 @@ and eval_binop env op left right =
         raw_rhs = right;
       }
   | Pipe ->
-      let lval = eval_expr env left in
+      let lval = eval_expr env_ref left in
       (match lval with
        | VError _ as e -> e
        | _ ->
          match right with
          | Call { fn; args } ->
              (* Insert pipe value as first argument *)
-             let fn_val = eval_expr env fn in
-             eval_call env fn_val ((None, Value lval) :: args)
+             let fn_val = eval_expr env_ref fn in
+             eval_call env_ref fn_val ((None, Value lval) :: args)
          | _ ->
              (* RHS is a bare function name or expression *)
-             let fn_val = eval_expr env right in
-             eval_call env fn_val [(None, Value lval)]
+             let fn_val = eval_expr env_ref right in
+             eval_call env_ref fn_val [(None, Value lval)]
       )
   | MaybePipe ->
-      let lval = eval_expr env left in
+      let lval = eval_expr env_ref left in
       (* Unconditional pipe — always forward, even errors *)
       (match right with
        | Call { fn; args } ->
-           let fn_val = eval_expr env fn in
-           eval_call env fn_val ((None, Value lval) :: args)
+           let fn_val = eval_expr env_ref fn in
+           eval_call env_ref fn_val ((None, Value lval) :: args)
        | _ ->
-           let fn_val = eval_expr env right in
-           eval_call env fn_val [(None, Value lval)]
+           let fn_val = eval_expr env_ref right in
+           eval_call env_ref fn_val [(None, Value lval)]
       )
 
   (* Logical (Short-circuiting) *)
   | And ->
-      let lval = eval_expr env left in
+      let lval = eval_expr env_ref left in
       (match lval with
        | VBool false -> VBool false
        | VBool true ->
-           let rval = eval_expr env right in
+           let rval = eval_expr env_ref right in
            (match rval with
             | VBool b -> VBool b
             | _ -> make_error TypeError ("Right operand of && must be Bool, got " ^ Utils.type_name rval))
        | _ -> make_error TypeError ("Left operand of && must be Bool, got " ^ Utils.type_name lval))
   | Or ->
-      let lval = eval_expr env left in
+      let lval = eval_expr env_ref left in
       (match lval with
        | VBool true -> VBool true
        | VBool false ->
-           let rval = eval_expr env right in
+           let rval = eval_expr env_ref right in
            (match rval with
             | VBool b -> VBool b
             | _ -> make_error TypeError ("Right operand of || must be Bool, got " ^ Utils.type_name rval))
        | _ -> make_error TypeError ("Left operand of || must be Bool, got " ^ Utils.type_name lval))
   (* Membership Operator *)
   | In ->
-      let lval = eval_expr env left in
-      let rval = eval_expr env right in
+      let lval = eval_expr env_ref left in
+      let rval = eval_expr env_ref right in
       (match (lval, rval) with
       | (VError _, _) -> lval
       | (_, VError _) -> rval
@@ -866,8 +870,8 @@ and eval_binop env op left right =
 
   (* All other binary operators *)
   | _ ->
-  let lval = eval_expr env left in
-  let rval = eval_expr env right in
+  let lval = eval_expr env_ref left in
+  let rval = eval_expr env_ref right in
   match (op, lval, rval) with
   | (Plus | Minus | Mul | Div | Mod | Lt | Gt | LtEq | GtEq | Eq | NEq), _, _ ->
       (match lval, rval with
@@ -885,8 +889,8 @@ and eval_binop env op left right =
        | _ -> eval_scalar_binop op lval rval)
   | _ -> eval_scalar_binop op lval rval
 
-and eval_unop env op operand =
-  let v = eval_expr env operand in
+and eval_unop env_ref op operand =
+  let v = eval_expr env_ref operand in
   match v with VError _ as e -> e | _ ->
   match v with
   | VNA _ -> make_error TypeError "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
@@ -903,15 +907,17 @@ and eval_unop env op operand =
 and eval_statement (env : environment) (stmt : stmt) : value * environment =
   match stmt with
   | Expression e ->
-      let v = eval_expr env e in
-      (v, env)
+      let env_ref = ref env in
+      let v = eval_expr env_ref e in
+      (v, !env_ref)
   | Assignment { name; expr; _ } ->
       if Env.mem name env then
         let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite." name in
         (make_error NameError msg, env)
       else
-        let v = eval_expr env expr in
-        let new_env = Env.add name v env in
+        let env_ref = ref env in
+        let v = eval_expr env_ref expr in
+        let new_env = Env.add name v !env_ref in
         (match v with
          | VError _ -> (v, new_env)
          | _ -> (VNull, new_env))
@@ -920,10 +926,11 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         let msg = Printf.sprintf "Cannot overwrite '%s': variable not defined. Use '=' for first assignment." name in
         (make_error NameError msg, env)
       else
-        let v = eval_expr env expr in
+        let env_ref = ref env in
+        let v = eval_expr env_ref expr in
         if !show_warnings then
           Printf.eprintf "Warning: overwriting variable '%s'\n" name;
-        let new_env = Env.add name v env in
+        let new_env = Env.add name v !env_ref in
         (match v with
          | VError _ -> (v, new_env)
          | _ -> (VNull, new_env))
@@ -978,7 +985,14 @@ and eval_program (program : program) (env : environment) : value * environment =
 
 let make_builtin ?name ?(variadic=false) arity func =
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env -> func (List.map snd named_args) env) }
+             b_func = (fun named_args env_ref -> func (List.map snd named_args) !env_ref) }
 
 let make_builtin_named ?name ?(variadic=false) arity func =
-  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic; b_func = func }
+  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
+             b_func = (fun named_args env_ref -> func named_args !env_ref) }
+
+let eval_call_immutable env fn_val raw_args =
+  eval_call (ref env) fn_val raw_args
+
+let eval_expr_immutable env expr =
+  eval_expr (ref env) expr

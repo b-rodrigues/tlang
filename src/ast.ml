@@ -107,7 +107,7 @@ and builtin = {
   b_name: string option;
   b_arity: int;
   b_variadic: bool;
-  b_func: ((string option * value) list -> value Env.t -> value);
+  b_func: ((string option * value) list -> value Env.t ref -> value);
 }
 
 and lambda = {
@@ -392,11 +392,12 @@ let make_error ?(context=[]) code message =
 (** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?name ?(variadic=false) arity func =
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env -> func (List.map snd named_args) env) }
+             b_func = (fun named_args env_ref -> func (List.map snd named_args) !env_ref) }
 
 (** Create a builtin function value that receives named args *)
 let make_builtin_named ?name ?(variadic=false) arity func =
-  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic; b_func = func }
+  VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
+             b_func = (fun named_args env_ref -> func named_args !env_ref) }
 
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false
