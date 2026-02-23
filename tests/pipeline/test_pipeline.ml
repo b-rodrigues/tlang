@@ -180,4 +180,31 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ pipeline with DataFrame ncol\n    Expected: 2\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p3 with _ -> ());
+  print_newline ();
+
+  Printf.printf "Phase 3 — Explicit Node Configuration (cross-runtime):\n";
+  let explicit_node_code = {|
+p_cross = pipeline {
+  a = 10
+  b = node(command = a * 2, runtime = R, serializer = write_rds, deserializer = read_rds, functions = "my_utils.R")
+  c = node(command = b + 1, runtime = Python, serializer = write_pkl, deserializer = read_pkl, functions = ["my_utils.py", "my_serializer.py"])
+}
+  |} in
+  let (_, env_cross) = eval_string_env explicit_node_code (Packages.init_env ()) in
+  let (v_cross, _) = eval_string_env "pipeline_nodes(p_cross)" env_cross in
+  let cross_nodes = Ast.Utils.value_to_string v_cross in
+  if cross_nodes = "[\"a\", \"b\", \"c\"]" then begin
+    incr pass_count; Printf.printf "  ✓ pipeline implicit and explicit nodes parsed\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline explicit nodes failed\n    Got: %s\n" cross_nodes
+  end;
+
+  (* Verify that explain indicates the different nodes *)
+  let (v_explain, _) = eval_string_env "explain(p_cross).node_count" env_cross in
+  if Ast.Utils.value_to_string v_explain = "3" then begin
+    incr pass_count; Printf.printf "  ✓ cross-runtime node count correct\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ cross-runtime node count failed\n"
+  end;
+
   print_newline ()

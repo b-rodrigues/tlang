@@ -61,6 +61,7 @@ and pipeline_node = {
   node_runtime : string;      (* e.g. "T", "R", "Python" *)
   node_serializer : expr;     (* Function or "default" symbol *)
   node_deserializer : expr;   (* Function or "default" symbol *)
+  node_functions : expr list; (* List of string literals for files containing functions *)
 }
 
 (** Phase 3: Pipeline result with cached values and dependency info *)
@@ -72,6 +73,7 @@ and pipeline_result = {
   p_runtimes : (string * string) list;       (* Map node name -> runtime *)
   p_serializers : (string * expr) list;      (* Map node name -> serializer expr *)
   p_deserializers : (string * expr) list;    (* Map node name -> deserializer expr *)
+  p_functions : (string * expr list) list;   (* Map node name -> function files *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)

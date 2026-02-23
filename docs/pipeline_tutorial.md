@@ -285,6 +285,36 @@ populate_pipeline(p, build = true)
 > [!NOTE]
 > `build_pipeline(p)` is available as a shorthand for `populate_pipeline(p, build = true)`.
 
+### Foreign runtimes and explicit serialization
+
+When defining nodes that execute in foreign runtimes like `R` or `Python`, or when you need custom logic to save an artifact, you use the `node()` function:
+
+```t
+p = pipeline {
+  raw_data = read_csv("raw.csv") # defaults to T runtime
+  
+  # Delegate to R runtime
+  cleaned = node(
+    command = process(raw_data), 
+    runtime = R, 
+    serializer = write_rds, 
+    deserializer = read_rds,
+    functions = "utils.R" # file to be sourced before execution
+  )
+
+  # Delegate to Python runtime
+  model = node(
+    command = train(cleaned),
+    runtime = Python,
+    serializer = write_pkl,
+    deserializer = read_pkl,
+    functions = ["utils.py", "serializers.py"] # multiple files can be provided
+  )
+}
+```
+
+The string values provided in `functions` correspond to local files that will be correctly injected into the Nix isolation sandbox and sourced/executed before the `command` runs.
+
 ### Reading built artifacts
 
 After building, use `read_node()` or `load_node()` to retrieve materialized values:
