@@ -29,7 +29,7 @@ let
   # that builtins.getFlake accepts.
   flake  = builtins.getFlake (toString ../.);
   pkgs   = flake.inputs.nixpkgs.legacyPackages.${system};
-  tBin   = flake.inputs.t-lang.packages.${system}.default;
+  tBin   = (flake.inputs.t-lang or flake).packages.${system}.default;
   stdenv = pkgs.stdenv;
 
   # Filter out _pipeline/, .git/, and other non-source directories

@@ -1,0 +1,27 @@
+Documentation: loaded from help/docs.json
+Error(FileError): nix-build failed: error:
+       … while calling the 'derivationStrict' builtin
+         at «nix-internal»/derivation-internal.nix:37:12:
+           36|
+           37|   strict = derivationStrict drvAttrs;
+             |            ^
+           38|
+
+       … while evaluating derivation 'pipeline_output'
+         whose name attribute is located at /nix/store/x7ramp3169j0q2p5hd8hvkyns9jawlaq-source/pkgs/stdenv/generic/make-derivation.nix:536:13
+
+       … while evaluating attribute 'buildCommand' of derivation 'pipeline_output'
+         at /home/brodriguesco/projects/tlang/_pipeline/pipeline.nix:133:5:
+          132|     buildInputs = [ tBin mtcars avg_mpg sd_mpg six_cyl avg_hp_6cyl ];
+          133|     buildCommand = ''
+             |     ^
+          134|       mkdir -p $out
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: attribute 't-lang' missing
+       at /home/brodriguesco/projects/tlang/_pipeline/pipeline.nix:10:12:
+            9|   pkgs   = flake.inputs.nixpkgs.legacyPackages.${system};
+           10|   tBin   = flake.inputs.t-lang.packages.${system}.default;
+             |            ^
+           11|   stdenv = pkgs.stdenv;
