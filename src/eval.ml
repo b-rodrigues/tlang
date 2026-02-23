@@ -505,10 +505,15 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
                    | Some expr -> [expr]
                    | None -> []
                  in
-                 Ok { n with node_expr = command; node_runtime = runtime; node_serializer = serializer; node_deserializer = deserializer; node_functions = functions })
+                 let includes = match List.assoc_opt (Some "include") args with
+                   | Some (ListLit items) -> List.map snd items
+                   | Some expr -> [expr]
+                   | None -> []
+                 in
+                 Ok { n with node_expr = command; node_runtime = runtime; node_serializer = serializer; node_deserializer = deserializer; node_functions = functions; node_includes = includes })
     | _ ->
         (* Bare syntax: default to T runtime and 'default' serialization *)
-        Ok { n with node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default"; node_functions = [] }
+        Ok { n with node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default"; node_functions = []; node_includes = [] }
   in
 
   let rec desugar_all acc = function
@@ -591,13 +596,14 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
       p_serializers = List.map (fun n -> (n.node_name, n.node_serializer)) desugared_nodes;
       p_deserializers = List.map (fun n -> (n.node_name, n.node_deserializer)) desugared_nodes;
       p_functions = List.map (fun n -> (n.node_name, n.node_functions)) desugared_nodes;
+      p_includes = List.map (fun n -> (n.node_name, n.node_includes)) desugared_nodes;
     }
 
 (** Re-run a pipeline, skipping nodes whose dependencies haven't changed *)
 and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
   match topo_sort
-    (List.map (fun (name, expr) -> { Ast.node_name = name; node_expr = expr; node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default"; node_functions = [] }) prev.p_exprs)
+    (List.map (fun (name, expr) -> { Ast.node_name = name; node_expr = expr; node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default"; node_functions = []; node_includes = [] }) prev.p_exprs)
     prev.p_deps with
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
@@ -651,6 +657,7 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
       p_serializers = prev.p_serializers;
       p_deserializers = prev.p_deserializers;
       p_functions = prev.p_functions;
+      p_includes = prev.p_includes;
     }
 
 and eval_list_lit env_ref items =

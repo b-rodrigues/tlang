@@ -13,6 +13,7 @@ When a pipeline is built by Nix (`populate_pipeline(p, build = true)`), the argu
 - **serializer** (`Symbol`, Optional): A function to overwrite the output artifact writing mechanism. Default: `default`.
 - **deserializer** (`Symbol`, Optional): A function to override the artifact reading mechanism when depending on upstream nodes. Mandatory when depending on an upstream node with a different `runtime` value. Default: `default`.
 - **functions** (`String` or `List[String]`, Optional): File paths containing custom code / functions to execute and inject before running the `command`. Used usually when `serializer` and `deserializer` are custom functions defined outside the standard environment.
+- **include** (`String` or `List[String]`, Optional): Additional file paths to copy into the sandbox alongside the source code. Does not execute these natively.
 
 ## Returns
 
@@ -28,7 +29,8 @@ p = pipeline {
     command = build_model(y),
     runtime = R,
     deserializer = read_feather,
-    functions = ["my_utils.R"]
+    functions = ["my_utils.R"],
+    include = "config.yml"
   )
 }
 ```

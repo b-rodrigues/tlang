@@ -2,7 +2,7 @@
 open Nix_utils
 open Nix_unparse
 
-let emit_node (name, expr) deps import_lines runtime serializer deserializer functions =
+let emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes =
   let ext, extra_input = match runtime with
     | "R" -> "R", "r-env"
     | "Python" -> "py", "py-env"
@@ -26,13 +26,20 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   
   let ser_s = unparse_expr serializer in
   let des_s = unparse_expr deserializer in
-  let funcs = List.map (function Ast.VString s -> s | _ -> "") (List.map (Eval.eval_expr (ref (Ast.Env.empty))) functions) in
-  let funcs = List.filter (fun s -> s <> "") funcs in
+  let eval_string_list lst =
+    lst
+    |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
+    |> List.map (function Ast.VString s -> s | _ -> "")
+    |> List.filter (fun s -> s <> "")
+  in
+  let funcs = eval_string_list functions in
+  let incs = eval_string_list includes in
+  let all_files = funcs @ incs in
   
-  let src_block = match funcs with
+  let src_block = match all_files with
     | [] -> "    src = sources;"
     | _ ->
-        let files = String.concat " " (List.map (fun f -> "./" ^ f) funcs) in
+        let files = String.concat " " (List.map (fun f -> "./" ^ f) all_files) in
         Printf.sprintf {|    src = pkgs.lib.fileset.toSource {
       root = ./.;
       fileset = pkgs.lib.fileset.unions [ %s ];

@@ -62,6 +62,7 @@ and pipeline_node = {
   node_serializer : expr;     (* Function or "default" symbol *)
   node_deserializer : expr;   (* Function or "default" symbol *)
   node_functions : expr list; (* List of string literals for files containing functions *)
+  node_includes : expr list;  (* List of string literals for additional files to include in sandbox *)
 }
 
 (** Phase 3: Pipeline result with cached values and dependency info *)
@@ -74,6 +75,7 @@ and pipeline_result = {
   p_serializers : (string * expr) list;      (* Map node name -> serializer expr *)
   p_deserializers : (string * expr) list;    (* Map node name -> deserializer expr *)
   p_functions : (string * expr list) list;   (* Map node name -> function files *)
+  p_includes : (string * expr list) list;    (* Map node name -> included files *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)

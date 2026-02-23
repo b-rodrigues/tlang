@@ -16,7 +16,8 @@ let emit_pipeline (p : Ast.pipeline_result) =
       let serializer = List.assoc name p.p_serializers in
       let deserializer = List.assoc name p.p_deserializers in
       let functions = match List.assoc_opt name p.p_functions with Some f -> f | None -> [] in
-      emit_node (name, expr) deps import_lines runtime serializer deserializer functions)
+      let includes = match List.assoc_opt name p.p_includes with Some f -> f | None -> [] in
+      emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes)
     |> String.concat "\n"
   in
   let final_copy =

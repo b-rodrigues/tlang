@@ -187,7 +187,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 p_cross = pipeline {
   a = 10
   b = node(command = a * 2, runtime = R, serializer = write_rds, deserializer = read_rds, functions = "my_utils.R")
-  c = node(command = b + 1, runtime = Python, serializer = write_pkl, deserializer = read_pkl, functions = ["my_utils.py", "my_serializer.py"])
+  c = node(command = b + 1, runtime = Python, serializer = write_pkl, deserializer = read_pkl, functions = ["my_utils.py", "my_serializer.py"], include = "data.csv")
 }
   |} in
   let (_, env_cross) = eval_string_env explicit_node_code (Packages.init_env ()) in
