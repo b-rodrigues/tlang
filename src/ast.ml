@@ -58,6 +58,9 @@ and intent_block = {
 and pipeline_node = {
   node_name : string;
   node_expr : expr;
+  node_runtime : string;      (* e.g. "T", "R", "Python" *)
+  node_serializer : expr;     (* Function or "default" symbol *)
+  node_deserializer : expr;   (* Function or "default" symbol *)
 }
 
 (** Phase 3: Pipeline result with cached values and dependency info *)
@@ -65,7 +68,10 @@ and pipeline_result = {
   p_nodes : (string * value) list;           (* Cached node results *)
   p_exprs : (string * expr) list;            (* Original expressions *)
   p_deps  : (string * string list) list;     (* Dependency graph *)
-  p_imports : stmt list;                     (* Import statements to propagate into Nix sandboxes *)
+  p_imports : stmt list;                     (* Import statements to propagate *)
+  p_runtimes : (string * string) list;       (* Map node name -> runtime *)
+  p_serializers : (string * expr) list;      (* Map node name -> serializer expr *)
+  p_deserializers : (string * expr) list;    (* Map node name -> deserializer expr *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)

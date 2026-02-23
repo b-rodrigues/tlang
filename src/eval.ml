@@ -468,21 +468,92 @@ and topo_sort (nodes : Ast.pipeline_node list) (deps : (string * string list) li
 (** Evaluate a pipeline definition *)
 and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
   let node_names = List.map (fun n -> n.Ast.node_name) nodes in
-  (* Compute dependencies: only consider references to other node names *)
+
+  (* Desugar nodes into full pipeline_node structures with defaults *)
+  let desugar_node (n : Ast.pipeline_node) : (Ast.pipeline_node, value) result =
+    match n.node_expr with
+    | Call { fn = Var "node"; args } ->
+        let command_res = match List.assoc_opt (Some "command") args with
+          | Some c -> Ok c
+          | None -> (match List.filter (fun (name, _) -> name = None) args with
+                     | [(_, c)] -> Ok c
+                     | _ -> Error (Error.make_error Ast.TypeError "node() requires exactly one positional 'command' argument or a named 'command' argument."))
+        in
+        (match command_res with
+         | Error err -> Error err
+         | Ok command ->
+             let runtime_res = match List.assoc_opt (Some "runtime") args with
+               | Some (Var r) -> Ok r
+               | Some v ->
+                   let ev = eval_expr env_ref v in
+                   Error (Error.make_error Ast.TypeError (Printf.sprintf "node() 'runtime' must be an identifier (T, R, Python, Julia), got %s" (Utils.value_to_string ev)))
+               | None -> Ok "T"
+             in
+             match runtime_res with
+             | Error err -> Error err
+             | Ok runtime ->
+                 let serializer = match List.assoc_opt (Some "serializer") args with
+                   | Some s -> s
+                   | None -> Var "default"
+                 in
+                 let deserializer = match List.assoc_opt (Some "deserializer") args with
+                   | Some d -> d
+                   | None -> Var "default"
+                 in
+                 Ok { n with node_expr = command; node_runtime = runtime; node_serializer = serializer; node_deserializer = deserializer })
+    | _ ->
+        (* Bare syntax: default to T runtime and 'default' serialization *)
+        Ok { n with node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default" }
+  in
+
+  let rec desugar_all acc = function
+    | [] -> Ok (List.rev acc)
+    | node :: rest ->
+        (match desugar_node node with
+         | Error err -> Error err
+         | Ok n_desugared -> desugar_all (n_desugared :: acc) rest)
+  in
+
+  match desugar_all [] nodes with
+  | Error err -> err
+  | Ok desugared_nodes ->
+  
+  (* Compute dependencies based on the 'command' part of the desugared node *)
   let deps = List.map (fun (n : Ast.pipeline_node) ->
     let fv = free_vars n.node_expr in
     let node_deps = List.filter (fun v -> List.mem v node_names) fv in
     (n.node_name, node_deps)
-  ) nodes in
+  ) desugared_nodes in
+
+  (* Validation: Cross-runtime dependencies must have explicit deserializer *)
+  let runtime_mapping = List.map (fun n -> (n.node_name, n.node_runtime)) desugared_nodes in
+  let validation_errors = List.filter_map (fun n ->
+    let my_runtime = n.node_runtime in
+    let my_deps = List.assoc n.node_name deps in
+    let offenders = List.filter (fun dname ->
+      let dep_runtime = List.assoc dname runtime_mapping in
+      dep_runtime <> my_runtime && n.node_deserializer = Var "default"
+    ) my_deps in
+    if offenders <> [] then
+      Some (Printf.sprintf "Node `%s` (%s) depends on nodes with different runtimes (%s) but uses default deserializer. Please specify an explicit deserializer."
+              n.node_name my_runtime (String.concat ", " offenders))
+    else None
+  ) desugared_nodes in
+
+  if validation_errors <> [] then
+    Error.make_error Ast.TypeError (String.concat "\n" validation_errors)
+  else
+
   (* Topological sort *)
-  match topo_sort nodes deps with
+  match topo_sort desugared_nodes deps with
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
     (* Execute nodes in topological order *)
-    let node_expr_map = List.map (fun (n : Ast.pipeline_node) -> (n.node_name, n.node_expr)) nodes in
+    let node_map = List.map (fun (n : Ast.pipeline_node) -> (n.node_name, n)) desugared_nodes in
     let (results, _) = List.fold_left (fun (results, current_env_ref) name ->
-      let expr = List.assoc name node_expr_map in
+      let n = List.assoc name node_map in
+      let expr = n.node_expr in
       let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
       let upstream_err_opt = List.find_opt (fun d -> 
          match Env.find_opt d !current_env_ref with
@@ -504,19 +575,23 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
       current_env_ref := Env.add name v !current_env_ref;
       ((name, v) :: results, current_env_ref)
     ) ([], ref !env_ref) exec_order in
+
     let p_nodes = List.rev results in
     VPipeline {
       p_nodes;
-      p_exprs = node_expr_map;
+      p_exprs = List.map (fun n -> (n.node_name, n.node_expr)) desugared_nodes;
       p_deps = deps;
       p_imports = !current_imports;
+      p_runtimes = List.map (fun n -> (n.node_name, n.node_runtime)) desugared_nodes;
+      p_serializers = List.map (fun n -> (n.node_name, n.node_serializer)) desugared_nodes;
+      p_deserializers = List.map (fun n -> (n.node_name, n.node_deserializer)) desugared_nodes;
     }
 
 (** Re-run a pipeline, skipping nodes whose dependencies haven't changed *)
 and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
   match topo_sort
-    (List.map (fun (name, expr) -> { Ast.node_name = name; node_expr = expr }) prev.p_exprs)
+    (List.map (fun (name, expr) -> { Ast.node_name = name; node_expr = expr; node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default" }) prev.p_exprs)
     prev.p_deps with
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
@@ -561,12 +636,14 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
         ((name, cached) :: results, current_env_ref, changed)
       end
     ) ([], ref !env_ref, []) exec_order in
-    let p_nodes = List.rev results in
     VPipeline {
-      p_nodes;
+      p_nodes = List.rev results;
       p_exprs = prev.p_exprs;
       p_deps = prev.p_deps;
       p_imports = prev.p_imports;
+      p_runtimes = prev.p_runtimes;
+      p_serializers = prev.p_serializers;
+      p_deserializers = prev.p_deserializers;
     }
 
 and eval_list_lit env_ref items =

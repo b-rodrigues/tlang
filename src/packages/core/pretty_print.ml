@@ -71,12 +71,16 @@ let pretty_print_error { code; message; context } =
   Buffer.contents buf
 
 (** Pretty-print a pipeline *)
-let pretty_print_pipeline { p_nodes; p_deps; _ } =
+let pretty_print_pipeline { p_nodes; p_deps; p_runtimes; _ } =
   let buf = Buffer.create 256 in
   Buffer.add_string buf (Printf.sprintf "Pipeline (%d nodes):\n" (List.length p_nodes));
   List.iter (fun (name, v) ->
     let deps = match List.assoc_opt name p_deps with
       | Some d when d <> [] -> Printf.sprintf " [depends: %s]" (String.concat ", " d)
+      | _ -> ""
+    in
+    let runtime = match List.assoc_opt name p_runtimes with
+      | Some r when r <> "T" -> Printf.sprintf " [%s]" r
       | _ -> ""
     in
     let val_str = match v with
@@ -85,7 +89,7 @@ let pretty_print_pipeline { p_nodes; p_deps; _ } =
             (Arrow_table.num_rows arrow_table) (Arrow_table.num_columns arrow_table)
       | _ -> Utils.value_to_string v
     in
-    Buffer.add_string buf (Printf.sprintf "  %s = %s%s\n" name val_str deps)
+    Buffer.add_string buf (Printf.sprintf "  %s = %s%s%s\n" name val_str runtime deps)
   ) p_nodes;
   Buffer.contents buf
 
