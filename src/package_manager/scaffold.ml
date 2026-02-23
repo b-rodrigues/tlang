@@ -344,6 +344,19 @@ description = "A T data analysis project"
 # Example:
 # stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
 
+[r-dependencies]
+# R packages this project depends on
+# Example:
+# packages = ["dplyr", "ggplot2"]
+packages = []
+
+[py-dependencies]
+# Python packages this project depends on
+version = "python311"
+# Example:
+# packages = ["pandas", "numpy"]
+packages = []
+
 [t]
 # Minimum T language version required
 min_version = "{{tlang_version}}"
@@ -611,7 +624,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         ~project_name:opts.target_name
         ~nixpkgs_date:opts.nixpkgs_date
         ~t_version:tlang_version
-        ~deps:[] in
+        ~deps:[] () in
       write_file (Filename.concat dir "flake.nix") flake_content;
       write_file (Filename.concat dir "README.md") (sub project_readme);
       write_file (Filename.concat dir ".gitignore") project_gitignore;

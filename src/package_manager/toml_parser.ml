@@ -60,6 +60,9 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_name = name;
         proj_description = get_string_opt toml ["project"; "description"] ~default:"";
         proj_dependencies = parse_dependencies toml;
+        proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
+        proj_py_dependencies = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[];
+        proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python311";
         proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.5.0";
       }
   with
@@ -102,6 +105,13 @@ let serialize_tproject_toml (cfg : project_config) : string =
       dep.dep_name dep.git_url dep.tag
   ) cfg.proj_dependencies;
   Buffer.add_char buf '\n';
+  Buffer.add_string buf "[r-dependencies]\n";
+  Printf.bprintf buf "packages = [%s]\n\n"
+    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_r_dependencies));
+  Buffer.add_string buf "[py-dependencies]\n";
+  Printf.bprintf buf "version = %S\n" cfg.proj_py_version;
+  Printf.bprintf buf "packages = [%s]\n\n"
+    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_py_dependencies));
   Buffer.add_string buf "[t]\n";
   Printf.bprintf buf "min_version = %S\n" cfg.proj_min_t_version;
   Buffer.contents buf

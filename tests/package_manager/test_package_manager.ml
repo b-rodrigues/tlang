@@ -131,6 +131,13 @@ description = "Test project"
 
 [dependencies]
 
+[r-dependencies]
+packages = ["dplyr", "tidyr"]
+
+[py-dependencies]
+version = "python310"
+packages = ["pandas"]
+
 [t]
 min_version = "0.5.0"
 |} in
@@ -139,6 +146,9 @@ min_version = "0.5.0"
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg -> cfg.proj_name = "my-project"
                 && cfg.proj_description = "Test project"
+                && cfg.proj_r_dependencies = ["dplyr"; "tidyr"]
+                && cfg.proj_py_version = "python310"
+                && cfg.proj_py_dependencies = ["pandas"]
     | Error _ -> false);
 
   test_pm "serialize and re-parse package config" (fun () ->
@@ -146,6 +156,16 @@ min_version = "0.5.0"
     let toml_str = Toml_parser.serialize_description_toml cfg in
     match Toml_parser.parse_description_toml toml_str with
     | Ok cfg2 -> cfg2.name = "roundtrip" && cfg2.version = "0.1.0"
+    | Error _ -> false);
+
+  test_pm "serialize and re-parse project config" (fun () ->
+    let cfg0 = Package_types.default_project_config "roundtrip-proj" in
+    let cfg = { cfg0 with proj_r_dependencies = ["foo"]; proj_py_dependencies = ["bar"] } in
+    let toml_str = Toml_parser.serialize_tproject_toml cfg in
+    match Toml_parser.parse_tproject_toml toml_str with
+    | Ok cfg2 -> cfg2.proj_name = "roundtrip-proj" 
+                 && cfg2.proj_r_dependencies = ["foo"]
+                 && cfg2.proj_py_dependencies = ["bar"]
     | Error _ -> false);
 
   print_newline ();
@@ -313,7 +333,7 @@ min_version = "0.5.0"
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
       ~t_version:"0.5.0"
-      ~deps:[make_dep "stats" "https://github.com/t-lang/stats" "v0.5.0"] in
+      ~deps:[make_dep "stats" "https://github.com/t-lang/stats" "v0.5.0"] () in
     (* Check key parts are present *)
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -326,7 +346,7 @@ min_version = "0.5.0"
   test_pm "generate project flake no deps" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"empty" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.5.0" ~deps:[] in
+      ~t_version:"0.5.0" ~deps:[] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
     has "t-lang.url" && not (has "tPackages"));
