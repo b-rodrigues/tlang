@@ -50,23 +50,23 @@ jobs:
         cd my_t_project
         
         # 4. Configure Project dependencies
-        cat > tproject.toml <<'TOML'
-[project]
-name = "my_t_project"
-description = "A multi-language T data analysis project"
-
-[dependencies]
-
-[r-dependencies]
-packages = ["dplyr", "readr"]
-
-[py-dependencies]
-version = "python314"
-packages = ["pandas"]
-
-[t]
-min_version = "0.5.0"
-TOML
+        printf '%s\n' \
+          '[project]' \
+          'name = "my_t_project"' \
+          'description = "A multi-language T data analysis project"' \
+          '' \
+          '[dependencies]' \
+          '' \
+          '[r-dependencies]' \
+          'packages = ["dplyr", "readr"]' \
+          '' \
+          '[py-dependencies]' \
+          'version = "python314"' \
+          'packages = ["pandas"]' \
+          '' \
+          '[t]' \
+          'min_version = "0.5.0"' \
+          > tproject.toml
 
         # 5. Debug Project Configuration BEFORE sync
         echo "=== tproject.toml ==="
