@@ -61,8 +61,7 @@ let generate_project_flake
   Printf.bprintf buf "    nixpkgs.url = \"github:rstats-on-nix/nixpkgs/%s\";\n"
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
-  Printf.bprintf buf "    t-lang.url = \"github:b-rodrigues/tlang/v%s\";\n"
-    t_version;
+  let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
   if deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "    # T packages — synced from tproject.toml by 't update'\n";
@@ -179,7 +178,7 @@ let generate_package_flake
   Printf.bprintf buf "    nixpkgs.url = \"github:rstats-on-nix/nixpkgs/%s\";\n"
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
-  Printf.bprintf buf "    t-lang.url = \"github:b-rodrigues/tlang/v%s\";\n"
+  let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
     t_version;
   if deps <> [] then begin
     Buffer.add_string buf "\n";

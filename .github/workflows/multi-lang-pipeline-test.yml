@@ -33,9 +33,11 @@ jobs:
         skipPush: true
 
     - name: Initialize and Run Multi-Language Pipeline
+      env:
+        TLANG_FLAKE_URL: git+file://${{ github.workspace }}
       run: |
-        # 1. Build T from current commit first (we need the binary)
-        nix build .#default
+        # 1. Build T from current commit first (we need the binary with our fix)
+        nix build .#default --accept-flake-config
         TLANG_BIN=$(pwd)/result/bin/t
         
         # 2. Create a clean workspace outside the git repo
@@ -44,7 +46,6 @@ jobs:
         cd pipeline_test_workspace
         
         # 3. Initialize a new project
-        # Using the freshly built binary directly
         $TLANG_BIN init project my_t_project --no-git
         cd my_t_project
         
@@ -67,17 +68,21 @@ jobs:
         min_version = "0.5.0"
         EOF
 
-        # 5. Update flake.nix to use the current commit of this repo
-        # Note: ${{ github.workspace }} is the root of the checkout
-        sed -i 's|t-lang.url = "github:b-rodrigues/tlang/[^"]*";|t-lang.url = "git+file://${{ github.workspace }}";|' flake.nix
-        
+        # 5. Debug Project Configuration BEFORE sync
         echo "=== tproject.toml ==="
         cat tproject.toml
         echo ""
-        echo "=== flake.nix ==="
+        echo "=== flake.nix (initial) ==="
         cat flake.nix
         
-        # 6. Prepare Glue Scripts and Data
+        # 6. Sync dependencies and point t-lang to our local checkout
+        # The TLANG_FLAKE_URL env var ensures t-lang.url points to our local repo
+        $TLANG_BIN update
+        
+        echo "=== flake.nix (after update) ==="
+        cat flake.nix
+        
+        # 7. Prepare Glue Scripts and Data
         cp ${{ github.workspace }}/tests/pipeline/multi_lang_pipeline.t .
         cp ${{ github.workspace }}/tests/pipeline/iolib.R .
         cp ${{ github.workspace }}/tests/pipeline/iolib.py .
@@ -91,16 +96,15 @@ jobs:
         echo "--- multi_lang_pipeline.t ---"
         cat multi_lang_pipeline.t
 
-        # 7. Sync and Run
-        $TLANG_BIN update
-        nix develop --command $TLANG_BIN run multi_lang_pipeline.t
+        # 8. Run the pipeline
+        nix develop --command $TLANG_BIN run multi_lang_pipeline.t --accept-flake-config
 
     - name: Verify Results in T REPL
       run: |
         TLANG_BIN=$(pwd)/result/bin/t
         cd ../pipeline_test_workspace/my_t_project
         echo "=== Inspecting artifacts via T REPL ==="
-        nix develop --command $TLANG_BIN --unsafe <<'EOF'
+        nix develop --accept-flake-config --command $TLANG_BIN --unsafe <<'EOF'
         print("--- Node: summary_r ---")
         read_node("summary_r") |> print
         print("\n--- Node: summary_py ---")
