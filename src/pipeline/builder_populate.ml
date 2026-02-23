@@ -1,7 +1,6 @@
 (* src/pipeline/builder_populate.ml *)
 open Builder_utils
 open Builder_write_dag
-open Builder_nix_store
 open Builder_internal
 
 let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
