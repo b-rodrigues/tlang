@@ -107,6 +107,7 @@
 | [ncol](ncol.md) | Number of columns |
 | [ndarray](ndarray.md) | Create an N-dimensional array |
 | [ndarray_data](ndarray_data.md) | Get NDArray data |
+| [node](node.md) | Configure a Pipeline Node |
 | [normalize](normalize.md) | Normalize values |
 | [nrow](nrow.md) | Number of rows |
 | [ntile](ntile.md) | N-tiles |

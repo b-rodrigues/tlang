@@ -34,7 +34,29 @@ Pipeline(3 nodes: [x, y, total])
 
 ---
 
-## 2. Automatic Dependency Resolution
+## 2. Explicit Node Configuration
+
+In addition to bare assignments, you can explicitly configure nodes using the `node()` function. This lets you define the execution environment (like the `runtime`) and custom serialization methods for when a pipeline is materialized by Nix:
+
+```t
+p = pipeline {
+  data = node(command = read_csv("data.csv"), runtime = T)
+  
+  -- Running a Python node that requires a custom deserializer 
+  -- if dependent on a T node (Python and R support coming soon in v2)
+  model = node(
+    command = build_model(data), 
+    runtime = Python,
+    deserializer = read_parquet
+  )
+}
+```
+
+Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, you must specify an explicit `deserializer`.
+
+---
+
+## 3. Automatic Dependency Resolution
 
 Nodes can be declared in **any order**. T automatically resolves dependencies:
 

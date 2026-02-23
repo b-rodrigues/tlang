@@ -12,7 +12,10 @@ let emit_pipeline (p : Ast.pipeline_result) =
     p.p_exprs
     |> List.map (fun (name, expr) ->
       let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-      emit_node (name, expr) deps import_lines)
+      let runtime = List.assoc name p.p_runtimes in
+      let serializer = List.assoc name p.p_serializers in
+      let deserializer = List.assoc name p.p_deserializers in
+      emit_node (name, expr) deps import_lines runtime serializer deserializer)
     |> String.concat "\n"
   in
   let final_copy =
