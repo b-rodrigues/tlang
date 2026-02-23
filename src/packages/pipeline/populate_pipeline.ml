@@ -10,6 +10,9 @@ open Ast
 --# @param p :: Pipeline The pipeline to populate.
 --# @param build :: Bool (Optional) Whether to trigger the Nix build immediately. Defaults to false.
 --# @return :: String A status message or the output path if build=true.
+--# @note `populate_pipeline` performs several validation checks before generating the Nix files:
+--#   - **File Existence**: Verifies that all files specified in `functions` or `include` arguments of any node actually exist on the file system.
+--#   - **Custom Function Warning**: Issues a warning to `stderr` if a node uses a custom `serializer` or `deserializer` but does not provide any companion `functions` files.
 --# @family pipeline
 --# @export
 *)

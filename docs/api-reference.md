@@ -1214,7 +1214,7 @@ cumany([false, true, false]) -- Vector[false, true, true]
 
 Pipeline introspection and management.
 
-### `node(command, runtime = "T", serializer = "default", deserializer = "default")`
+### `node(command, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -1223,6 +1223,9 @@ Configure execution settings such as the runtime and custom serialized methods f
 - `runtime` (optional) — The runtime environment (`T`, `R`, `Python`). Default: `T`.
 - `serializer` (optional) — Write artifact overriding mechanism.
 - `deserializer` (optional) — Read artifact overriding mechanism.
+- `functions` (optional) — Code files to source before execution.
+- `include` (optional) — Additional files to bring into the sandbox.
+- `noop` (optional) — Whether to skip execution and generate a stub.
 
 **Returns:** The evaluated return value of the node `command`.
 
@@ -1230,6 +1233,12 @@ Configure execution settings such as the runtime and custom serialized methods f
 ```t
 p = pipeline {
   y = node(command = x + 5, runtime = T)
+  z = node(
+    command = build_model(y),
+    runtime = R,
+    functions = ["utils.R"],
+    include = "config.yml"
+  )
 }
 ```
 

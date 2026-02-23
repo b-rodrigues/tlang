@@ -2,7 +2,14 @@
 open Nix_utils
 open Nix_unparse
 
-let emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes =
+let emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes noop =
+  if noop then
+    Printf.sprintf {|
+  %s = pkgs.runCommand "%s" {} ''
+    mkdir -p $out
+    echo "Build skipped for %s" > $out/NOOPBUILD
+  '';|} name name name
+  else
   let ext, extra_input = match runtime with
     | "R" -> "R", "r-env"
     | "Python" -> "py", "py-env"

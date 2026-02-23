@@ -285,36 +285,6 @@ populate_pipeline(p, build = true)
 > [!NOTE]
 > `build_pipeline(p)` is available as a shorthand for `populate_pipeline(p, build = true)`.
 
-### Foreign runtimes and explicit serialization
-
-When defining nodes that execute in foreign runtimes like `R` or `Python`, or when you need custom logic to save an artifact, you use the `node()` function:
-
-```t
-p = pipeline {
-  raw_data = read_csv("raw.csv") # defaults to T runtime
-  
-  # Delegate to R runtime
-  cleaned = node(
-    command = process(raw_data), 
-    runtime = R, 
-    serializer = write_rds, 
-    deserializer = read_rds,
-    functions = "utils.R" # file to be sourced before execution
-  )
-
-  # Delegate to Python runtime
-  model = node(
-    command = train(cleaned),
-    runtime = Python,
-    serializer = write_pkl,
-    deserializer = read_pkl,
-    functions = ["utils.py", "serializers.py"] # multiple files can be provided
-  )
-}
-```
-
-The string values provided in `functions` correspond to local files that will be correctly injected into the Nix isolation sandbox and sourced/executed before the `command` runs.
-
 ### Reading built artifacts
 
 After building, use `read_node()` or `load_node()` to retrieve materialized values:
@@ -497,6 +467,32 @@ e.node_count  -- 3
 3. **Use pipes within nodes**: Combine pipeline structure with pipe operator for readability
 4. **Inspect before consuming**: Use `pipeline_nodes()` and `pipeline_deps()` to understand pipeline structure
 5. **Build incrementally**: Start with data loading, add transformations one node at a time
+
+---
+
+## 14. Skipping Nodes
+
+You can explicitly skip a node (and by extension, all nodes that depend on it) by passing the `noop = true` argument to the `node()` function.
+
+```t
+p = pipeline {
+  raw_data = read_csv("raw.csv")
+  
+  # This node and its dependencies won't trigger a heavy Nix build
+  expensive_model = node(
+    command = train(raw_data), 
+    runtime = R,
+    noop = true
+  )
+
+  # This node depends on expensive_model, therefore it becomes a noop as well
+  report = node(command = generate_report(expensive_model), runtime = R)
+}
+
+populate_pipeline(p, build = true)
+```
+
+In a Nix sandbox context, `noop` generates a lightweight stub instead of a real build derivation.
 
 ---
 
