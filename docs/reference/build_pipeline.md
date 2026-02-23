@@ -2,7 +2,7 @@
 
 Build Pipeline Artifacts
 
-Builds a pipeline to `pipeline.nix` and records node artifacts in a local registry.
+Builds a pipeline to `_pipeline/pipeline.nix` and records node artifacts in a local registry.
 
 ## Parameters
 

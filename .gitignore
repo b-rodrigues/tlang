@@ -20,3 +20,4 @@ tests/golden/coverage.csv
 *.bak
 _build_cflags_override.sexp
 result
+_pipeline/

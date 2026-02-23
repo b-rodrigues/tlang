@@ -6,7 +6,6 @@ open Builder_internal
 
 let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
   ensure_pipeline_dir ();
-  write_env_nix ();
   match write_dag p with
   | Error msg -> Error ("Failed to write dag.json: " ^ msg)
   | Ok () ->

@@ -2,7 +2,7 @@
 
 Pipeline Emitter
 
-Generates a complete `pipeline.nix` file representing the dependency graph.
+Generates a complete `_pipeline/pipeline.nix` file representing the dependency graph.
 
 ## Parameters
 
@@ -10,5 +10,5 @@ Generates a complete `pipeline.nix` file representing the dependency graph.
 
 ## Returns
 
-The content of the `pipeline.nix` file.
+The content of the `_pipeline/pipeline.nix` file.
 

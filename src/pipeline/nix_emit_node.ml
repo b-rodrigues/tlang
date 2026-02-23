@@ -25,7 +25,7 @@ let emit_node (name, expr) deps import_lines =
   Printf.sprintf {|
   %s = stdenv.mkDerivation {
     name = "%s";
-    buildInputs = t_lang_env ++ [ %s ];
+    buildInputs = [ tBin %s ];
     src = sources;
     buildCommand = ''
       cp -r $src/* . || true

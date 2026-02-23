@@ -26,7 +26,7 @@ p = pipeline {
 Instead of running it interactively to evaluate everything in-memory, the user can now leverage T's new pipeline built-ins directly from within the `t` REPL or scripts:
 
 ```t
--- Builds pipeline.nix under the hood and executes nix-build
+-- Builds _pipeline/pipeline.nix under the hood and executes nix-build
 build_pipeline(p)
 
 -- Read the artifact back from the Nix store cache into an object
@@ -42,7 +42,7 @@ The CLI tool will also provide equivalent proxy commands for external orchestrat
 
 ## 3. Implementation Details
 
-We will generate a `pipeline.nix` file that maps 1-to-1 with the pipeline's DAG.
+We will generate a `_pipeline/pipeline.nix` file that maps 1-to-1 with the pipeline's DAG.
 
 ### 3.1 Mapping T Nodes to Derivations
 
@@ -113,7 +113,7 @@ At the end of `pipeline.nix`, a target derivation collects the entire graph so t
 
 From `rixpress`, we borrow the following architectural concepts:
 1. **Derivation Builders**: `rxp_r()` generates `makeRDerivation` templates. In T, the pipeline AST transpiler iterates the `Pipeline` object natively and generates `mkDerivation` templates.
-2. **Artifact Bridging**: We decouple the steps. `build_pipeline(p)` creates `pipeline.nix` and triggers evaluation.
+2. **Artifact Bridging**: We decouple the steps. `build_pipeline(p)` creates `_pipeline/pipeline.nix` and triggers evaluation.
 3. **Cache Retrieval**: Because everything is in `/nix/store`, identical computations instantly cache-hit. The `load_node("node_name")` and `read_node("node_name")` builtin T functions act seamlessly as retrieval wrappers (mirroring `rxp_load()` and `rxp_read()`) so data scientists immediately get objects back in their runtime session without thinking about Nix paths.
 
 ## 5. Development Roadmap for Pipeline Compilation
@@ -147,7 +147,7 @@ and pipeline_node = {
 
 The core engine of this feature will reside in `nix_emitter.ml`. Its primary function, `emit_pipeline (p : VPipeline) : string`, processes the nodes in topological order.
 
-1. **Header Generation**: Outputs standard Nix boilerplate (`{ pkgs ? import <nixpkgs> {} }: let defaultPkgs = ...`).
+1. **Header Generation**: Outputs standard Nix boilerplate (`{ system ? builtins.currentSystem }: let ...`).
 2. **Node Traversal**: For each `pipeline_node`, it generates a `stdenv.mkDerivation`.
    - The `buildInputs` list dynamically references the names of the upstream upstream derivations using the `dependencies` list.
    - The T code representation of `node.body` is formatted into a local `node_script.t` string using a new function `Ast_unparse.unparse_expr(node.body)`.
@@ -157,10 +157,10 @@ The core engine of this feature will reside in `nix_emitter.ml`. Its primary fun
 
 When a user calls `build_pipeline(p)`:
 1. `eval.ml` intercepts the call, handing the `VPipeline` to `Nix_emitter.emit_pipeline`.
-2. The generated string is written to a temporary or project-level `pipeline.nix`.
+2. The generated string is written to a temporary or project-level `_pipeline/pipeline.nix`.
 3. T invokes the Nix build system using a sub-process (e.g., `Unix.open_process_in`):
    ```bash
-   nix-build pipeline.nix --no-out-link --print-out-paths
+   nix-build --impure _pipeline/pipeline.nix --no-out-link --print-out-paths
    ```
 4. The stdout of this command provides the exact `/nix/store/...-pipeline_output` path.
 5. T records this mapping in a lightweight project registry (`.t_pipeline_registry.json`), linking each `node.name` to its output sub-folder inside the store path (e.g., `{"summary": "/nix/store/.../summary/artifact.tobj"}`).

@@ -21,12 +21,17 @@ let emit_pipeline (p : Ast.pipeline_result) =
     |> String.concat "\n"
   in
   Printf.sprintf {|
-{ pkgs ? import <nixpkgs> {} }:
+{ system ? builtins.currentSystem }:
 let
+  # Pull exact pinned inputs from the project flake.
+  # The flake.lock guarantees reproducibility.
+  # Note: toString is required to convert the path to a string
+  # that builtins.getFlake accepts.
+  flake  = builtins.getFlake (toString ../.);
+  pkgs   = flake.inputs.nixpkgs.legacyPackages.${system};
+  tBin   = flake.inputs.t-lang.packages.${system}.default;
   stdenv = pkgs.stdenv;
-  # Use local env.nix if it exists, otherwise fallback to empty buildInputs
-  env = if builtins.pathExists ./env.nix then import ./env.nix { inherit pkgs; } else { buildInputs = []; };
-  t_lang_env = env.buildInputs or [];
+
   # Filter out _pipeline/, .git/, and other non-source directories
   sources = builtins.filterSource
     (path: type:
@@ -38,7 +43,7 @@ rec {
 %s
   pipeline_output = stdenv.mkDerivation {
     name = "pipeline_output";
-    buildInputs = t_lang_env ++ [ %s ];
+    buildInputs = [ tBin %s ];
     buildCommand = ''
       mkdir -p $out
 %s
