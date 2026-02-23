@@ -1214,6 +1214,27 @@ cumany([false, true, false]) -- Vector[false, true, true]
 
 Pipeline introspection and management.
 
+### `node(command, runtime = "T", serializer = "default", deserializer = "default")`
+
+Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
+
+**Parameters:**
+- `command` — The expression to evaluate (positional or named).
+- `runtime` (optional) — The runtime environment (`T`, `R`, `Python`). Default: `T`.
+- `serializer` (optional) — Write artifact overriding mechanism.
+- `deserializer` (optional) — Read artifact overriding mechanism.
+
+**Returns:** The evaluated return value of the node `command`.
+
+**Examples:**
+```t
+p = pipeline {
+  y = node(command = x + 5, runtime = T)
+}
+```
+
+---
+
 ### `pipeline_nodes(pipeline)`
 
 Get all node names in a pipeline.
