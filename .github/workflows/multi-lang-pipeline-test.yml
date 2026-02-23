@@ -1,0 +1,100 @@
+name: Multi-Language Pipeline E2E
+
+on:
+  push:
+    branches: [ main, develop, pipeline ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  multi-lang-e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v24
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v13
+      with:
+        name: rstats-on-nix
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        skipPush: true
+
+    - name: Initialize T Project
+      run: |
+        nix shell github:b-rodrigues/tlang --command t init project my_t_project --no-git
+
+    - name: Configure Project dependencies
+      run: |
+        cd my_t_project
+        # Update tproject.toml with R and Python dependencies
+        cat <<EOF > tproject.toml
+        [project]
+        name = "my_t_project"
+        description = "A multi-language T data analysis project"
+
+        [dependencies]
+
+        [r-dependencies]
+        packages = ["dplyr", "readr"]
+
+        [py-dependencies]
+        version = "python314"
+        packages = ["pandas"]
+
+        [t]
+        min_version = "0.5.0"
+        EOF
+
+        # Update flake.nix to use the current commit of this repo instead of the default version
+        # We replace the version tag with the current SHA
+        sed -i 's|t-lang.url = "github:b-rodrigues/tlang/[^"]*";|t-lang.url = "github:b-rodrigues/tlang/${{ github.sha }}";|' flake.nix
+        
+        # Verify the change
+        grep "t-lang.url" flake.nix
+
+    - name: Prepare Pipeline Scripts
+      run: |
+        cd my_t_project
+        # Copy the test scripts and dataset
+        cp ../tests/pipeline/multi_lang_pipeline.t .
+        cp ../tests/pipeline/iolib.R .
+        cp ../tests/pipeline/iolib.py .
+        mkdir -p tests/pipeline/data
+        cp ../tests/pipeline/data/mtcars.csv tests/pipeline/data/
+
+        # Update the pipeline script to use local paths
+        sed -i 's|functions = "tests/pipeline/iolib.R"|functions = "iolib.R"|' multi_lang_pipeline.t
+        sed -i 's|functions = "tests/pipeline/iolib.py"|functions = "iolib.py"|' multi_lang_pipeline.t
+
+    - name: Build T from current commit
+      run: nix build .#default
+
+    - name: Run Multi-Language Pipeline
+      run: |
+        cd my_t_project
+        # Use 't update' from the freshly built binary to sync the flake with new dependencies
+        ../result/bin/t update
+        
+        # Run the pipeline inside the nix environment
+        nix develop --command ../result/bin/t run multi_lang_pipeline.t
+
+    - name: Upload pipeline artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: multi-lang-pipeline-results
+        path: my_t_project/_pipeline/
+        retention-days: 7
