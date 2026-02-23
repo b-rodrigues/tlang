@@ -32,14 +32,23 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
         skipPush: true
 
-    - name: Initialize T Project
+    - name: Initialize and Run Multi-Language Pipeline
       run: |
-        nix shell github:b-rodrigues/tlang --command t init project my_t_project --no-git
-
-    - name: Configure Project dependencies
-      run: |
+        # 1. Build T from current commit first (we need the binary)
+        nix build .#default
+        TLANG_BIN=$(pwd)/result/bin/t
+        
+        # 2. Create a clean workspace outside the git repo
+        cd ..
+        mkdir pipeline_test_workspace
+        cd pipeline_test_workspace
+        
+        # 3. Initialize a new project
+        # Using the freshly built binary directly
+        $TLANG_BIN init project my_t_project --no-git
         cd my_t_project
-        # Update tproject.toml with R and Python dependencies
+        
+        # 4. Configure Project dependencies
         cat <<EOF > tproject.toml
         [project]
         name = "my_t_project"
@@ -58,64 +67,40 @@ jobs:
         min_version = "0.5.0"
         EOF
 
-        # Update flake.nix to use the current commit of this repo instead of the default version
-        # We replace the version tag with the current SHA
-        sed -i 's|t-lang.url = "github:b-rodrigues/tlang/[^"]*";|t-lang.url = "github:b-rodrigues/tlang/${{ github.sha }}";|' flake.nix
+        # 5. Update flake.nix to use the current commit of this repo
+        # Note: ${{ github.workspace }} is the root of the checkout
+        sed -i 's|t-lang.url = "github:b-rodrigues/tlang/[^"]*";|t-lang.url = "git+file://${{ github.workspace }}";|' flake.nix
         
-        # Verify the change
-        grep "t-lang.url" flake.nix
-
-    - name: Debug Project Configuration
-      run: |
-        cd my_t_project
         echo "=== tproject.toml ==="
         cat tproject.toml
         echo ""
         echo "=== flake.nix ==="
         cat flake.nix
-
-    - name: Prepare Pipeline Scripts
-      run: |
-        cd my_t_project
-        # Copy the test scripts and dataset
-        cp ../tests/pipeline/multi_lang_pipeline.t .
-        cp ../tests/pipeline/iolib.R .
-        cp ../tests/pipeline/iolib.py .
+        
+        # 6. Prepare Glue Scripts and Data
+        cp ${{ github.workspace }}/tests/pipeline/multi_lang_pipeline.t .
+        cp ${{ github.workspace }}/tests/pipeline/iolib.R .
+        cp ${{ github.workspace }}/tests/pipeline/iolib.py .
         mkdir -p tests/pipeline/data
-        cp ../tests/pipeline/data/mtcars.csv tests/pipeline/data/
+        cp ${{ github.workspace }}/tests/pipeline/data/mtcars.csv tests/pipeline/data/
 
         # Update the pipeline script to use local paths
         sed -i 's|functions = "tests/pipeline/iolib.R"|functions = "iolib.R"|' multi_lang_pipeline.t
         sed -i 's|functions = "tests/pipeline/iolib.py"|functions = "iolib.py"|' multi_lang_pipeline.t
 
-        echo "=== iolib.R ==="
-        cat iolib.R
-        echo ""
-        echo "=== iolib.py ==="
-        cat iolib.py
-        echo ""
-        echo "=== multi_lang_pipeline.t ==="
+        echo "--- multi_lang_pipeline.t ---"
         cat multi_lang_pipeline.t
 
-    - name: Build T from current commit
-      run: nix build .#default
-
-    - name: Run Multi-Language Pipeline
-      run: |
-        cd my_t_project
-        # Use 't update' from the freshly built binary to sync the flake with new dependencies
-        ../result/bin/t update
-        
-        # Run the pipeline inside the nix environment
-        nix develop --command ../result/bin/t run multi_lang_pipeline.t
+        # 7. Sync and Run
+        $TLANG_BIN update
+        nix develop --command $TLANG_BIN run multi_lang_pipeline.t
 
     - name: Verify Results in T REPL
       run: |
-        cd my_t_project
+        TLANG_BIN=$(pwd)/result/bin/t
+        cd ../pipeline_test_workspace/my_t_project
         echo "=== Inspecting artifacts via T REPL ==="
-        # Run T with a sequence of commands to load and print nodes
-        # Use --unsafe because we are in non-interactive shell but behaving like a REPL
-        nix develop --command ../result/bin/t --unsafe <<'EOF'
+        nix develop --command $TLANG_BIN --unsafe <<'EOF'
         print("--- Node: summary_r ---")
         read_node("summary_r") |> print
         print("\n--- Node: summary_py ---")
@@ -129,5 +114,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: multi-lang-pipeline-results
-        path: my_t_project/_pipeline/
+        path: ../pipeline_test_workspace/my_t_project/_pipeline/
         retention-days: 7
