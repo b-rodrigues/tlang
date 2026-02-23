@@ -15,7 +15,10 @@ let emit_pipeline (p : Ast.pipeline_result) =
       let runtime = List.assoc name p.p_runtimes in
       let serializer = List.assoc name p.p_serializers in
       let deserializer = List.assoc name p.p_deserializers in
-      emit_node (name, expr) deps import_lines runtime serializer deserializer)
+      let functions = match List.assoc_opt name p.p_functions with Some f -> f | None -> [] in
+      let includes = match List.assoc_opt name p.p_includes with Some f -> f | None -> [] in
+      let noop = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
+      emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes noop)
     |> String.concat "\n"
   in
   let final_copy =
@@ -41,6 +44,17 @@ let
       let baseName = builtins.baseNameOf path;
       in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv"))
     ./..;
+
+  toml = if builtins.pathExists ../tproject.toml then builtins.fromTOML (builtins.readFile ../tproject.toml) else {};
+  
+  rPackagesList = toml.r-dependencies.packages or [];
+  r-env = pkgs.rWrapper.override {
+    packages = builtins.map (p: pkgs.rPackages.${p}) rPackagesList;
+  };
+
+  pyVersion = toml.py-dependencies.version or "python311";
+  pyPackagesList = toml.py-dependencies.packages or [];
+  py-env = pkgs.${pyVersion}.withPackages (ps: builtins.map (p: ps.${p}) pyPackagesList);
 in
 rec {
 %s

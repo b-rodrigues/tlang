@@ -470,6 +470,32 @@ e.node_count  -- 3
 
 ---
 
+## 14. Skipping Nodes
+
+You can explicitly skip a node (and by extension, all nodes that depend on it) by passing the `noop = true` argument to the `node()` function.
+
+```t
+p = pipeline {
+  raw_data = read_csv("raw.csv")
+  
+  # This node and its dependencies won't trigger a heavy Nix build
+  expensive_model = node(
+    command = train(raw_data), 
+    runtime = R,
+    noop = true
+  )
+
+  # This node depends on expensive_model, therefore it becomes a noop as well
+  report = node(command = generate_report(expensive_model), runtime = R)
+}
+
+populate_pipeline(p, build = true)
+```
+
+In a Nix sandbox context, `noop` generates a lightweight stub instead of a real build derivation.
+
+---
+
 ## Complete Example
 
 ```t
