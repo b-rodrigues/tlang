@@ -50,23 +50,23 @@ jobs:
         cd my_t_project
         
         # 4. Configure Project dependencies
-        cat <<EOF > tproject.toml
-        [project]
-        name = "my_t_project"
-        description = "A multi-language T data analysis project"
+        cat > tproject.toml <<'TOML'
+[project]
+name = "my_t_project"
+description = "A multi-language T data analysis project"
 
-        [dependencies]
+[dependencies]
 
-        [r-dependencies]
-        packages = ["dplyr", "readr"]
+[r-dependencies]
+packages = ["dplyr", "readr"]
 
-        [py-dependencies]
-        version = "python314"
-        packages = ["pandas"]
+[py-dependencies]
+version = "python314"
+packages = ["pandas"]
 
-        [t]
-        min_version = "0.5.0"
-        EOF
+[t]
+min_version = "0.5.0"
+TOML
 
         # 5. Debug Project Configuration BEFORE sync
         echo "=== tproject.toml ==="
@@ -97,7 +97,7 @@ jobs:
         cat multi_lang_pipeline.t
 
         # 8. Run the pipeline
-        nix develop --command $TLANG_BIN run multi_lang_pipeline.t --accept-flake-config
+        nix develop --accept-flake-config --command $TLANG_BIN run multi_lang_pipeline.t
 
     - name: Verify Results in T REPL
       run: |

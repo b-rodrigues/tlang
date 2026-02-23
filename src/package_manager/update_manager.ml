@@ -120,7 +120,7 @@ let update_flake_lock () =
   | Ok () ->
     Printf.printf "Running nix flake update...\n";
     flush stdout;
-    match run_command "nix flake update" with
+    match run_command "nix flake update --accept-flake-config" with
     | Ok _ -> Ok ()
     | Error msg -> Error ("Failed to update dependencies: " ^ msg)
 

@@ -179,7 +179,6 @@ let generate_package_flake
     nixpkgs_date;
   Buffer.add_string buf "    flake-utils.url = \"github:numtide/flake-utils\";\n";
   let tlang_url = match Sys.getenv_opt "TLANG_FLAKE_URL" with Some url -> url | None -> Printf.sprintf "github:b-rodrigues/tlang/v%s" t_version in Printf.bprintf buf "    t-lang.url = \"%s\";\n" tlang_url;
-    t_version;
   if deps <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "    # Package dependencies — synced from DESCRIPTION.toml by 't update'\n";
