@@ -44,7 +44,11 @@ let generate_project_flake
     ~(project_name : string)
     ~(nixpkgs_date : string)
     ~(t_version : string)
-    ~(deps : dependency list) : string =
+    ~(deps : dependency list)
+    ?(r_deps : string list = [])
+    ?(py_deps : string list = [])
+    ?(py_version : string = "python311")
+    () : string =
   let buf = Buffer.create 2048 in
   (* Inputs section *)
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
@@ -96,11 +100,33 @@ let generate_project_flake
     ) deps;
     Buffer.add_string buf "        ];\n"
   end;
+  if r_deps <> [] then begin
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # R environment\n";
+    Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
+    Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
+    List.iter (fun dep ->
+      Printf.bprintf buf "            %s\n" dep
+    ) r_deps;
+    Buffer.add_string buf "          ];\n";
+    Buffer.add_string buf "        };\n"
+  end;
+  if py_deps <> [] then begin
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # Python environment\n";
+    Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+    List.iter (fun dep ->
+      Printf.bprintf buf "          %s\n" dep
+    ) py_deps;
+    Buffer.add_string buf "        ]);\n"
+  end;
   Buffer.add_string buf "      in\n";
   Buffer.add_string buf "      {\n";
   Buffer.add_string buf "        devShells.default = pkgs.mkShell {\n";
   Buffer.add_string buf "          buildInputs = [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.default\n";
+  if r_deps <> [] then Buffer.add_string buf "            r-env\n";
+  if py_deps <> [] then Buffer.add_string buf "            py-env\n";
   if deps <> [] then
     Buffer.add_string buf "          ] ++ tPackages;\n"
   else
@@ -248,12 +274,16 @@ let install_flake
     ~(nixpkgs_date : string)
     ~(t_version : string)
     ~(deps : dependency list)
+    ?(r_deps : string list = [])
+    ?(py_deps : string list = [])
+    ?(py_version : string = "python311")
     ~(dir : string)
-    ~(dry_run : bool) : (string, string) result =
+    ~(dry_run : bool)
+    () : (string, string) result =
   let flake_path = Filename.concat dir "flake.nix" in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
         ~nixpkgs_date ~t_version ~deps

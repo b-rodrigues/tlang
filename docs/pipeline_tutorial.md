@@ -264,7 +264,7 @@ p.nonexistent
 
 ## 11. Materializing Pipelines
 
-Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts, use `populate_pipeline()` with the `build = true` argument:
+Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts (potentially using R or Python dependencies you've defined in `tproject.toml`), use `populate_pipeline()` with the `build = true` argument:
 
 ```t
 p = pipeline {
@@ -278,7 +278,7 @@ populate_pipeline(p, build = true)
 `populate_pipeline(p, build = true)` is the primary command for materializing a pipeline. It does the following:
 
 1. **Populates** the `_pipeline/` directory with `pipeline.nix` and `dag.json`.
-2. **Generates** a Nix expression with one derivation per node.
+2. **Generates** a Nix expression with one derivation per node. Crucially, if you define `[r-dependencies]` or `[py-dependencies]` in your `tproject.toml`, pipeline nodes have access to these language environments!
 3. **Triggers** a Nix build to materialize each node as a serialized artifact.
 4. **Records** the build in a timestamped log file (`_pipeline/build_log_YYYYMMdd_HHmmss_hash.json`).
 

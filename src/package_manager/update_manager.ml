@@ -80,8 +80,12 @@ let update_flake_lock () =
             ~nixpkgs_date
             ~t_version:cfg.proj_min_t_version
             ~deps:cfg.proj_dependencies
+            ~r_deps:cfg.proj_r_dependencies
+            ~py_deps:cfg.proj_py_dependencies
+            ~py_version:cfg.proj_py_version
             ~dir
-            ~dry_run:false with
+            ~dry_run:false
+            () with
           | Ok _ -> Ok ()
           | Error msg -> Error msg
     end
@@ -103,7 +107,8 @@ let update_flake_lock () =
             ~t_version:cfg.min_t_version
             ~deps:cfg.dependencies
             ~dir
-            ~dry_run:false with
+            ~dry_run:false
+            () with
           | Ok _ -> Ok ()
           | Error msg -> Error msg
     end
