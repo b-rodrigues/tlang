@@ -2,9 +2,9 @@ name: Multi-Language Pipeline E2E
 
 on:
   push:
-    branches: [ main, develop, pipeline ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
 
 jobs:
   multi-lang-e2e:
@@ -65,6 +65,15 @@ jobs:
         # Verify the change
         grep "t-lang.url" flake.nix
 
+    - name: Debug Project Configuration
+      run: |
+        cd my_t_project
+        echo "=== tproject.toml ==="
+        cat tproject.toml
+        echo ""
+        echo "=== flake.nix ==="
+        cat flake.nix
+
     - name: Prepare Pipeline Scripts
       run: |
         cd my_t_project
@@ -79,6 +88,15 @@ jobs:
         sed -i 's|functions = "tests/pipeline/iolib.R"|functions = "iolib.R"|' multi_lang_pipeline.t
         sed -i 's|functions = "tests/pipeline/iolib.py"|functions = "iolib.py"|' multi_lang_pipeline.t
 
+        echo "=== iolib.R ==="
+        cat iolib.R
+        echo ""
+        echo "=== iolib.py ==="
+        cat iolib.py
+        echo ""
+        echo "=== multi_lang_pipeline.t ==="
+        cat multi_lang_pipeline.t
+
     - name: Build T from current commit
       run: nix build .#default
 
@@ -90,6 +108,21 @@ jobs:
         
         # Run the pipeline inside the nix environment
         nix develop --command ../result/bin/t run multi_lang_pipeline.t
+
+    - name: Verify Results in T REPL
+      run: |
+        cd my_t_project
+        echo "=== Inspecting artifacts via T REPL ==="
+        # Run T with a sequence of commands to load and print nodes
+        # Use --unsafe because we are in non-interactive shell but behaving like a REPL
+        nix develop --command ../result/bin/t --unsafe <<'EOF'
+        print("--- Node: summary_r ---")
+        read_node("summary_r") |> print
+        print("\n--- Node: summary_py ---")
+        read_node("summary_py") |> print
+        print("\n--- Node: final_results ---")
+        read_node("final_results") |> print
+        EOF
 
     - name: Upload pipeline artifacts
       if: always()
