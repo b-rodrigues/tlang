@@ -75,17 +75,20 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
       Printf.sprintf {|      cat <<'EOF' >> node_script.R
 %s <- %s
 EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.R|} name expr_s ser_call name
+      echo "%s(%s, \"$out/artifact\")" >> node_script.R
+      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
     else if runtime = "Python" then
       Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s
 EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py|} name expr_s ser_call name
+      echo "%s(%s, \"$out/artifact\")" >> node_script.py
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
     else
       Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
 EOF
-      echo "      %s(%s, \"$out/artifact\")" >> node_script.t|} name expr_s ser_call name
+      echo "      %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "      write_text(\"$out/class\", type(%s))" >> node_script.t|} name expr_s ser_call name name
   in
 
   (* Runtime specific build command *)

@@ -14,6 +14,14 @@ let write_file path content =
   with exn ->
     Error (Printexc.to_string exn)
 
+let read_file_first_line path =
+  try
+    let ic = open_in path in
+    let line = try input_line ic with End_of_file -> "" in
+    close_in ic;
+    Some (String.trim line)
+  with _ -> None
+
 let command_exists cmd =
   Sys.command (Printf.sprintf "command -v %s >/dev/null 2>&1" cmd) = 0
 
