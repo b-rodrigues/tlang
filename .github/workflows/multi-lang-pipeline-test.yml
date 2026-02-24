@@ -83,7 +83,10 @@ jobs:
         
         echo "=== flake.nix (after update) ==="
         cat flake.nix
-        
+
+        echo "=== _pipeline/pipeline.nix ==="
+        cat _pipeline/pipeline.nix
+
         # 7. Prepare Glue Scripts and Data
         cp ${{ github.workspace }}/tests/pipeline/multi_lang_pipeline.t .
         cp ${{ github.workspace }}/tests/pipeline/iolib.R .
