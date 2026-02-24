@@ -371,8 +371,8 @@ module Utils = struct
           (String.concat " + " response)
           (String.concat " + " predictors)
     | VComputedNode cn ->
-        Printf.sprintf "computed_node<%s> at %s\nserializer: %s\nclass: %s"
-          cn.cn_runtime cn.cn_path cn.cn_serializer cn.cn_class
+        Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s\npath: %s"
+          cn.cn_runtime cn.cn_serializer cn.cn_class cn.cn_path
     | VNode un ->
         Printf.sprintf "node<%s>(...)" un.un_runtime
 
