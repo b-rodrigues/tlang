@@ -123,11 +123,3 @@ jobs:
         print("\n--- Node: final_results ---")
         read_node("final_results") |> print
         EOF
-
-    - name: Upload pipeline artifacts
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: multi-lang-pipeline-results
-        path: ../pipeline_test_workspace/my_t_project/_pipeline/
-        retention-days: 7
