@@ -28,11 +28,13 @@ let inspect_pipeline ?which_log () =
           let nrows = List.length entries in
           let arr_derivations = Array.init nrows (fun i -> let (n,_) = List.nth entries i in Some n) in
           let arr_success = Array.init nrows (fun _ -> Some true) in
-          let arr_path = Array.init nrows (fun i -> let (_,p) = List.nth entries i in Some p) in
+          let arr_path = Array.init nrows (fun i -> let (_,cn) = List.nth entries i in Some cn.cn_path) in
+          let arr_runtime = Array.init nrows (fun i -> let (_,cn) = List.nth entries i in Some cn.cn_runtime) in
           let arr_output = Array.init nrows (fun i -> let (n,_) = List.nth entries i in Some n) in
           let columns = [
             ("derivation", Arrow_table.StringColumn arr_derivations);
             ("build_success", Arrow_table.BoolColumn arr_success);
+            ("runtime", Arrow_table.StringColumn arr_runtime);
             ("path", Arrow_table.StringColumn arr_path);
             ("output", Arrow_table.StringColumn arr_output);
           ] in

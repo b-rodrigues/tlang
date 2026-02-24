@@ -66,7 +66,7 @@ let rec expr_has_build_pipeline = function
   | Ast.DotAccess { target; _ } -> expr_has_build_pipeline target
   | Ast.Block stmts -> List.exists stmt_has_build_pipeline stmts
   | Ast.PipelineDef nodes ->
-      List.exists (fun (n : Ast.pipeline_node) -> expr_has_build_pipeline n.node_expr) nodes
+      List.exists (fun (_, e) -> expr_has_build_pipeline e) nodes
   | Ast.ListComp { expr; _ } -> expr_has_build_pipeline expr
   | Ast.IntentDef pairs -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
   | _ -> false

@@ -33,7 +33,12 @@ let read_node ?which_log name =
       | Ok entries ->
           (match List.assoc_opt name entries with
           | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in build log `%s`." name f)
-          | Some path ->
-              (match Serialization.deserialize_from_file path with
-              | Ok v -> v
-              | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name path msg)))
+          | Some cn ->
+              if cn.Ast.cn_runtime = "T"
+                 && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
+              then
+                (match Serialization.deserialize_from_file cn.Ast.cn_path with
+                | Ok v -> v
+                | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+              else
+                VComputedNode cn)

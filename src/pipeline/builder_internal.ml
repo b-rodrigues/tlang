@@ -37,19 +37,23 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             in
             let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
             let log_path = Filename.concat pipeline_dir log_name in
-            let registry =
-              List.map (fun (name, _) ->
-                (name, Filename.concat (Filename.concat out_path name) "artifact")
-              ) p.p_exprs
-            in
             let log_entries =
-              List.map (fun (name, path) ->
+              List.map (fun (name, _) ->
+                let path = Filename.concat (Filename.concat out_path name) "artifact" in
+                let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+                let serializer_expr = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.Var "default" in
+                let serializer = Nix_unparse.unparse_expr serializer_expr in
+                let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
                 Serialization.json_dict [
                   ("node", "\"" ^ Serialization.json_escape name ^ "\"");
                   ("path", "\"" ^ Serialization.json_escape path ^ "\"");
+                  ("runtime", "\"" ^ Serialization.json_escape runtime ^ "\"");
+                  ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
+                  ("class", "\"Unknown\"");
+                  ("dependencies", Serialization.json_list deps);
                   ("success", "true")
                 ]
-              ) registry
+              ) p.p_exprs
             in
             let log_json = Serialization.json_dict [
               ("timestamp", "\"" ^ timestamp ^ "\"");

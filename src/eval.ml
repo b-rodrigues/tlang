@@ -349,6 +349,39 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
        | VBool false -> eval_expr env_ref else_
        | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
 
+  | Call { fn = Var "node"; args } ->
+      let lookup_arg name default =
+        match List.assoc_opt (Some name) args with
+        | Some e -> e
+        | None -> (match name with
+                   | "command" ->
+                       (match List.filter (fun (k, _) -> k = None) args with
+                        | [(_, c)] -> c | _ -> default)
+                   | _ -> default)
+      in
+      let lookup_list name =
+        match List.assoc_opt (Some name) args with
+        | Some (ListLit items) -> List.map snd items
+        | Some expr -> [expr]
+        | None -> []
+      in
+      let eval_string name default =
+        match eval_expr env_ref (lookup_arg name (Value (VString default))) with
+        | VString s -> s | VSymbol s -> s | _ -> default
+      in
+      let eval_bool name default =
+        match eval_expr env_ref (lookup_arg name (Value (VBool default))) with
+        | VBool b -> b | _ -> default
+      in
+      VNode {
+        un_command = lookup_arg "command" (Value VNull);
+        un_runtime = eval_string "runtime" "T";
+        un_serializer = lookup_arg "serializer" (Var "default");
+        un_deserializer = lookup_arg "deserializer" (Var "default");
+        un_functions = lookup_list "functions";
+        un_includes = lookup_list "includes";
+        un_noop = eval_bool "noop" false;
+      }
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args
@@ -434,8 +467,8 @@ and free_vars (expr : Ast.expr) : string list =
   List.sort_uniq String.compare vars
 
 (** Topological sort of pipeline nodes based on dependencies *)
-and topo_sort (nodes : Ast.pipeline_node list) (deps : (string * string list) list) : (string list, string) result =
-  let node_names = List.map (fun n -> n.Ast.node_name) nodes in
+and topo_sort (nodes : (string * 'a) list) (deps : (string * string list) list) : (string list, string) result =
+  let node_names = List.map fst nodes in
   let visited = Hashtbl.create (List.length nodes) in
   let in_progress = Hashtbl.create (List.length nodes) in
   let order = ref [] in
@@ -471,61 +504,42 @@ and topo_sort (nodes : Ast.pipeline_node list) (deps : (string * string list) li
   | Ok () -> Ok (List.rev !order)
 
 (** Evaluate a pipeline definition *)
-and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
-  let node_names = List.map (fun n -> n.Ast.node_name) nodes in
+and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
+  let node_names = List.map fst nodes in
 
-  (* Desugar nodes into full pipeline_node structures with defaults *)
-  let desugar_node (n : Ast.pipeline_node) : (Ast.pipeline_node, value) result =
-    match n.node_expr with
-    | Call { fn = Var "node"; args } ->
-        let command_res = match List.assoc_opt (Some "command") args with
-          | Some c -> Ok c
-          | None -> (match List.filter (fun (name, _) -> name = None) args with
-                     | [(_, c)] -> Ok c
-                     | _ -> Error (Error.make_error Ast.TypeError "node() requires exactly one positional 'command' argument or a named 'command' argument."))
-        in
-        (match command_res with
-         | Error err -> Error err
-         | Ok command ->
-             let runtime_res = match List.assoc_opt (Some "runtime") args with
-               | Some (Var r) -> Ok r
-               | Some v ->
-                   let ev = eval_expr env_ref v in
-                   Error (Error.make_error Ast.TypeError (Printf.sprintf "node() 'runtime' must be an identifier (T, R, Python, Julia), got %s" (Utils.value_to_string ev)))
-               | None -> Ok "T"
-             in
-             match runtime_res with
-             | Error err -> Error err
-             | Ok runtime ->
-                 let serializer = match List.assoc_opt (Some "serializer") args with
-                   | Some s -> s
-                   | None -> Var "default"
-                 in
-                 let deserializer = match List.assoc_opt (Some "deserializer") args with
-                   | Some d -> d
-                   | None -> Var "default"
-                 in
-                 let functions = match List.assoc_opt (Some "functions") args with
-                   | Some (ListLit items) -> List.map snd items
-                   | Some expr -> [expr]
-                   | None -> []
-                 in
-                 let includes = match List.assoc_opt (Some "include") args with
-                   | Some (ListLit items) -> List.map snd items
-                   | Some expr -> [expr]
-                   | None -> []
-                 in
-                 let noop_flag = match List.assoc_opt (Some "noop") args with
-                   | Some v ->
-                       (match eval_expr env_ref v with
-                       | VBool b -> b
-                       | _ -> false)
-                   | None -> false
-                 in
-                 Ok { n with node_expr = command; node_runtime = runtime; node_serializer = serializer; node_deserializer = deserializer; node_functions = functions; node_includes = includes; node_noop = noop_flag })
-    | _ ->
-        (* Bare syntax: default to T runtime and 'default' serialization *)
-        Ok { n with node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default"; node_functions = []; node_includes = []; node_noop = false }
+  let default_un expr = {
+    un_command = expr;
+    un_runtime = "T";
+    un_serializer = Var "default";
+    un_deserializer = Var "default";
+    un_functions = [];
+    un_includes = [];
+    un_noop = false;
+  } in
+
+  (* Desugar nodes into enriched structures with defaults *)
+  let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
+    let is_node_expr = match node_expr with
+      | Call { fn = Var "node"; _ } | Var _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+      | _ -> false
+    in
+    if is_node_expr then
+      match eval_expr env_ref node_expr with
+      | VNode un -> Ok (name, un)
+      | VComputedNode cn ->
+          Ok (name, {
+            un_command = Value (VComputedNode cn);
+            un_runtime = cn.cn_runtime;
+            un_serializer = Value (VString cn.cn_serializer);
+            un_deserializer = Var "default";
+            un_functions = [];
+            un_includes = [];
+            un_noop = false;
+          })
+      | VError _ as e -> Error e
+      | _ -> Ok (name, default_un node_expr)
+    else
+      Ok (name, default_un node_expr)
   in
 
   let rec desugar_all acc = function
@@ -533,7 +547,7 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
     | node :: rest ->
         (match desugar_node node with
          | Error err -> Error err
-         | Ok n_desugared -> desugar_all (n_desugared :: acc) rest)
+         | Ok res -> desugar_all (res :: acc) rest)
   in
 
   match desugar_all [] nodes with
@@ -541,29 +555,27 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
   | Ok desugared_nodes ->
   
   (* Compute dependencies based on the 'command' part of the desugared node *)
-  let deps = List.map (fun (n : Ast.pipeline_node) ->
-    let fv = free_vars n.node_expr in
+  let deps = List.map (fun (name, un) ->
+    let fv = free_vars un.un_command in
     let node_deps = List.filter (fun v -> List.mem v node_names) fv in
-    (n.node_name, node_deps)
+    (name, node_deps)
   ) desugared_nodes in
 
   (* No-op propagation: if a node is noop, all its transitive dependents are noop *)
   let desugared_nodes =
     let rec propagate current =
       let changed = ref false in
-      let next = List.map (fun (n : Ast.pipeline_node) ->
-        if n.node_noop then n
+      let next = List.map (fun (name, un) ->
+        if un.un_noop then (name, un)
         else
-          let my_deps = match List.assoc_opt n.node_name deps with Some d -> d | None -> [] in
+          let my_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
           let has_noop_dep = List.exists (fun d ->
-            match List.find_opt (fun dn -> dn.Ast.node_name = d) current with
-            | Some dep_node -> dep_node.Ast.node_noop
+            match List.find_opt (fun (dn_name, _) -> dn_name = d) current with
+            | Some (_, dep_un) -> dep_un.Ast.un_noop
             | None -> false
           ) my_deps in
-          if has_noop_dep then begin
-            changed := true;
-            { n with node_noop = true }
-          end else n
+          if has_noop_dep then (changed := true; (name, { un with un_noop = true }))
+          else (name, un)
       ) current in
       if !changed then propagate next else next
     in
@@ -571,22 +583,22 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
   in
 
   (* Validation: Cross-runtime dependencies must have explicit deserializer *)
-  let runtime_mapping = List.map (fun n -> (n.node_name, n.node_runtime)) desugared_nodes in
-  let validation_errors = List.filter_map (fun n ->
-    let my_runtime = n.node_runtime in
-    let my_deps = List.assoc n.node_name deps in
+  let runtime_mapping = List.map (fun (name, un) -> (name, un.un_runtime)) desugared_nodes in
+  let validation_errors = List.filter_map (fun (name, un) ->
+    let my_runtime = un.un_runtime in
+    let my_deps = List.assoc name deps in
     let offenders = List.filter (fun dname ->
       let dep_runtime = List.assoc dname runtime_mapping in
-      dep_runtime <> my_runtime && n.node_deserializer = Var "default"
+      dep_runtime <> my_runtime && un.un_deserializer = Var "default"
     ) my_deps in
     if offenders <> [] then
-      Some (Printf.sprintf "Node `%s` (%s) depends on nodes with different runtimes (%s) but uses default deserializer. Please specify an explicit deserializer."
-              n.node_name my_runtime (String.concat ", " offenders))
+      Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
+             name my_runtime (List.hd offenders) (List.assoc (List.hd offenders) runtime_mapping))
     else None
   ) desugared_nodes in
 
   if validation_errors <> [] then
-    Error.make_error Ast.TypeError (String.concat "\n" validation_errors)
+    Error.make_error TypeError (List.hd validation_errors)
   else
 
   (* Topological sort *)
@@ -594,84 +606,93 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
-    (* Execute nodes in topological order *)
-    let node_map = List.map (fun (n : Ast.pipeline_node) -> (n.node_name, n)) desugared_nodes in
-    (* Helper: evaluate a T-runtime node, or produce a placeholder for non-T / noop nodes *)
-    let eval_or_defer (n : Ast.pipeline_node) env_ref =
-      if n.node_noop then VSymbol (Printf.sprintf "<noop:%s>" n.node_name)
-      else if n.node_runtime = "T" then eval_expr env_ref n.node_expr
-      else VSymbol (Printf.sprintf "<deferred:%s>" n.node_name)
+    let node_map = desugared_nodes in
+    let eval_or_defer name un current_env_ref =
+      if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
+      else if un.un_runtime = "T" then eval_expr current_env_ref un.un_command
+      else VComputedNode {
+        cn_name = name;
+        cn_runtime = un.un_runtime;
+        cn_path = "<unbuilt>";
+        cn_serializer = Nix_unparse.unparse_expr un.un_serializer;
+        cn_class = "Unknown";
+        cn_dependencies = List.assoc name deps;
+      }
     in
     let (results, _) = List.fold_left (fun (results, current_env_ref) name ->
-      let n = List.assoc name node_map in
-      let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
-      let upstream_err_opt = List.find_opt (fun d -> 
+      let un = List.assoc name node_map in
+      let node_deps = List.assoc name deps in
+      let upstream_err_opt = List.find_opt (fun d ->
          match Env.find_opt d !current_env_ref with
          | Some (VError _) -> true
          | _ -> false) node_deps in
       let v = match upstream_err_opt with
-        | Some failed_dep -> 
+        | Some failed_dep ->
             (match Env.find_opt failed_dep !current_env_ref with
-             | Some (VError err) -> 
+             | Some (VError err) ->
                  let msg = if String.starts_with ~prefix:"Upstream error: " err.message then
                      err.message
                  else
                      "Upstream error: " ^ err.message
                  in
                  Ast.VError { err with message = msg }
-             | _ -> eval_or_defer n current_env_ref)
-        | None -> eval_or_defer n current_env_ref
+             | _ -> eval_or_defer name un current_env_ref)
+        | None -> eval_or_defer name un current_env_ref
       in
       current_env_ref := Env.add name v !current_env_ref;
       ((name, v) :: results, current_env_ref)
     ) ([], ref !env_ref) exec_order in
 
     let p_nodes = List.rev results in
-
     VPipeline {
       p_nodes;
-      p_exprs = List.map (fun n -> (n.node_name, n.node_expr)) desugared_nodes;
+      p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes;
       p_deps = deps;
       p_imports = !current_imports;
-      p_runtimes = List.map (fun n -> (n.node_name, n.node_runtime)) desugared_nodes;
-      p_serializers = List.map (fun n -> (n.node_name, n.node_serializer)) desugared_nodes;
-      p_deserializers = List.map (fun n -> (n.node_name, n.node_deserializer)) desugared_nodes;
-      p_functions = List.map (fun n -> (n.node_name, n.node_functions)) desugared_nodes;
-      p_includes = List.map (fun n -> (n.node_name, n.node_includes)) desugared_nodes;
-      p_noops = List.map (fun n -> (n.node_name, n.node_noop)) desugared_nodes;
+      p_runtimes = runtime_mapping;
+      p_serializers = List.map (fun (name, un) -> (name, un.un_serializer)) desugared_nodes;
+      p_deserializers = List.map (fun (name, un) -> (name, un.un_deserializer)) desugared_nodes;
+      p_functions = List.map (fun (name, un) -> (name, un.un_functions)) desugared_nodes;
+      p_includes = List.map (fun (name, un) -> (name, un.un_includes)) desugared_nodes;
+      p_noops = List.map (fun (name, un) -> (name, un.un_noop)) desugared_nodes;
     }
 
-(** Re-run a pipeline, skipping nodes whose dependencies haven't changed *)
+(** Re-run a pipeline *)
 and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
-  match topo_sort
-    (List.map (fun (name, expr) -> 
-       { Ast.node_name = name; node_expr = expr; 
-         node_runtime = (List.assoc name prev.p_runtimes);
-         node_serializer = (List.assoc name prev.p_serializers);
-         node_deserializer = (List.assoc name prev.p_deserializers);
-         node_functions = (List.assoc name prev.p_functions);
-         node_includes = (List.assoc name prev.p_includes);
-         node_noop = (List.assoc name prev.p_noops) }) prev.p_exprs)
-    prev.p_deps with
+  let desugared_nodes = List.map (fun (name, expr) ->
+    (name, {
+      Ast.un_command = expr;
+      un_runtime = List.assoc name prev.p_runtimes;
+      un_serializer = List.assoc name prev.p_serializers;
+      un_deserializer = List.assoc name prev.p_deserializers;
+      un_functions = List.assoc name prev.p_functions;
+      un_includes = List.assoc name prev.p_includes;
+      un_noop = List.assoc name prev.p_noops;
+    })
+  ) prev.p_exprs in
+
+  match topo_sort desugared_nodes prev.p_deps with
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
-    (* Helper: evaluate a T-runtime node, or produce a placeholder for non-T / noop nodes *)
-    let rerun_eval_or_defer name expr env_ref =
-      let runtime = List.assoc name prev.p_runtimes in
-      let noop = List.assoc name prev.p_noops in
-      if noop then VSymbol (Printf.sprintf "<noop:%s>" name)
-      else if runtime = "T" then eval_expr env_ref expr
-      else VSymbol (Printf.sprintf "<deferred:%s>" name)
+    let rerun_eval_or_defer name un env_ref =
+      if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
+      else if un.un_runtime = "T" then eval_expr env_ref un.un_command
+      else VComputedNode {
+        cn_name = name;
+        cn_runtime = un.un_runtime;
+        cn_path = "<unbuilt>";
+        cn_serializer = Nix_unparse.unparse_expr un.un_serializer;
+        cn_class = "Unknown";
+        cn_dependencies = List.assoc name prev.p_deps;
+      }
     in
-    let (results, _, _changed_set) = List.fold_left (fun (results, current_env_ref, changed) name ->
-      let expr = List.assoc name prev.p_exprs in
+    let (results, _, _) = List.fold_left (fun (results, current_env_ref, changed) name ->
+      let un = List.assoc name desugared_nodes in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
-      (* A node needs re-evaluation if any of its dependencies changed *)
       let deps_changed = List.exists (fun d -> List.mem d changed) node_deps in
-      (* Also check if any dep refers to something outside the pipeline that may have changed *)
-      let fv = free_vars expr in
+      let fv = free_vars un.un_command in
       let external_deps = List.filter (fun v -> not (List.mem v node_names)) fv in
       let external_changed = List.exists (fun v ->
         let old_val = Env.find_opt v !env_ref in
@@ -679,44 +700,32 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
         old_val <> prev_val
       ) external_deps in
       if deps_changed || external_changed then begin
-        let upstream_err_opt = List.find_opt (fun d -> 
+        let upstream_err_opt = List.find_opt (fun d ->
            match Env.find_opt d !current_env_ref with
            | Some (VError _) -> true
            | _ -> false) node_deps in
         let v = match upstream_err_opt with
-          | Some failed_dep -> 
+          | Some failed_dep ->
               (match Env.find_opt failed_dep !current_env_ref with
-               | Some (VError err) -> 
+               | Some (VError err) ->
                    let msg = if String.starts_with ~prefix:"Upstream error: " err.message then
                        err.message
                    else
                        "Upstream error: " ^ err.message
                    in
                    Ast.VError { err with message = msg }
-               | _ -> rerun_eval_or_defer name expr current_env_ref)
-          | None -> rerun_eval_or_defer name expr current_env_ref
+               | _ -> rerun_eval_or_defer name un current_env_ref)
+          | None -> rerun_eval_or_defer name un current_env_ref
         in
         current_env_ref := Env.add name v !current_env_ref;
         ((name, v) :: results, current_env_ref, name :: changed)
       end else begin
-        (* Reuse cached value *)
         let cached = List.assoc name prev.p_nodes in
         current_env_ref := Env.add name cached !current_env_ref;
         ((name, cached) :: results, current_env_ref, changed)
       end
     ) ([], ref !env_ref, []) exec_order in
-    VPipeline {
-      p_nodes = List.rev results;
-      p_exprs = prev.p_exprs;
-      p_deps = prev.p_deps;
-      p_imports = prev.p_imports;
-      p_runtimes = prev.p_runtimes;
-      p_serializers = prev.p_serializers;
-      p_deserializers = prev.p_deserializers;
-      p_functions = prev.p_functions;
-      p_includes = prev.p_includes;
-      p_noops = prev.p_noops;
-    }
+    VPipeline { prev with p_nodes = List.rev results }
 
 and eval_list_lit env_ref items =
     let evaluated_items = List.map (fun (name, e) ->
@@ -809,6 +818,23 @@ and eval_dot_access env_ref target_expr field =
       (match List.assoc_opt field p_nodes with
        | Some v -> v
        | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field))
+  | VComputedNode cn ->
+      (match field with
+      | "name" -> VString cn.cn_name
+      | "runtime" -> VString cn.cn_runtime
+      | "path" -> VString cn.cn_path
+      | "serializer" -> VString cn.cn_serializer
+      | "class" -> VString cn.cn_class
+      | "dependencies" -> VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies)
+      | _ -> Error.make_error Ast.KeyError (Printf.sprintf "ComputedNode has no field `%s`" field))
+  | VNode un ->
+      (match field with
+      | "command" -> VString (Nix_unparse.unparse_expr un.un_command)
+      | "runtime" -> VString un.un_runtime
+      | "serializer" -> VString (Nix_unparse.unparse_expr un.un_serializer)
+      | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
+      | "noop" -> VBool un.un_noop
+      | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot access field on NA."
   | other -> Error.type_error (Printf.sprintf "Cannot access field `%s` on %s." field (Utils.type_name other))

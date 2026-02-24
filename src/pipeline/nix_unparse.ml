@@ -2,6 +2,13 @@ open Ast
 open Nix_utils
 
 let rec unparse_expr = function
+  | Value (VComputedNode cn) ->
+      Printf.sprintf "computed_node(name=\"%s\", runtime=\"%s\", path=\"%s\")"
+        (Serialization.json_escape cn.cn_name)
+        (Serialization.json_escape cn.cn_runtime)
+        (Serialization.json_escape cn.cn_path)
+  | Value (VNode un) ->
+      Printf.sprintf "node(runtime=\"%s\")" (Serialization.json_escape un.un_runtime)
   | Value v -> Ast.Utils.value_to_string v
   | Var s -> s
   | ColumnRef c -> "$" ^ c
