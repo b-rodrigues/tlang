@@ -30,9 +30,9 @@ let rec unparse_expr = function
       |> Printf.sprintf "[%s]"
   | DictLit xs ->
       xs
-      |> List.map (fun (k, e) -> Printf.sprintf "`%s`: %s" k (unparse_expr e))
+      |> List.map (fun (k, e) -> Printf.sprintf "%s: %s" k (unparse_expr e))
       |> String.concat ", "
-      |> Printf.sprintf "{%s}"
+      |> Printf.sprintf "[%s]"
   | BinOp { op; left; right } | BroadcastOp { op; left; right } ->
       Printf.sprintf "(%s %s %s)" (unparse_expr left) (op_to_string op) (unparse_expr right)
   | UnOp { op; operand } ->
