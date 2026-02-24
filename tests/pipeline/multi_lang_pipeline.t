@@ -30,7 +30,7 @@ p = pipeline {
 
     -- NODE 3: Python Language (using pandas)
     summary_py = node(
-        command = raw_data.groupby("cyl").mean(),
+        command = <{ raw_data.groupby("cyl").mean() }>,
         runtime = Python,
         deserializer = py_read_csv,
         serializer = py_write_csv,

@@ -394,15 +394,33 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         match eval_expr env_ref (lookup_arg name (Value (VBool default))) with
         | VBool b -> b | _ -> default
       in
-      VNode {
-        un_command = lookup_arg "command" (Value VNull);
-        un_runtime = eval_string "runtime" "T";
-        un_serializer = lookup_arg "serializer" (Var "default");
-        un_deserializer = lookup_arg "deserializer" (Var "default");
-        un_functions = lookup_list "functions";
-        un_includes = lookup_list "includes";
-        un_noop = eval_bool "noop" false;
-      }
+      let runtime = eval_string "runtime" "T" in
+      let command = lookup_arg "command" (Value VNull) in
+      if runtime <> "T" then
+        match command with
+        | RawCode _ ->
+            VNode {
+              un_command = command;
+              un_runtime = runtime;
+              un_serializer = lookup_arg "serializer" (Var "default");
+              un_deserializer = lookup_arg "deserializer" (Var "default");
+              un_functions = lookup_list "functions";
+              un_includes = lookup_list "includes";
+              un_noop = eval_bool "noop" false;
+            }
+        | _ -> 
+            let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode)." runtime in
+            Error.make_error TypeError msg
+      else
+        VNode {
+          un_command = command;
+          un_runtime = runtime;
+          un_serializer = lookup_arg "serializer" (Var "default");
+          un_deserializer = lookup_arg "deserializer" (Var "default");
+          un_functions = lookup_list "functions";
+          un_includes = lookup_list "includes";
+          un_noop = eval_bool "noop" false;
+        }
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args
