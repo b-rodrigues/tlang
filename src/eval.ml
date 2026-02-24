@@ -765,7 +765,7 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
              | VList items -> List.map (fun (n, v) -> (n, Value v)) items
              | VDict items -> List.map (fun (k, v) -> (Some k, Value v)) items
              | VVector arr -> Array.to_list arr |> List.map (fun v -> (None, Value v))
-             | other -> [(name, Value other)])
+             | other -> [(name, Value (make_error TypeError ("!!! operand must evaluate to a List, Vector, or Dict, got " ^ Utils.type_name other)))])
         | _ -> [(name, quote_expr env_ref arg)]
       ) args in
       Call { fn = quoted_fn; args = quoted_args }
@@ -777,7 +777,7 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
              | VList items -> List.map (fun (n, v) -> (n, Value v)) items
              | VDict items -> List.map (fun (k, v) -> (Some k, Value v)) items
              | VVector arr -> Array.to_list arr |> List.map (fun v -> (None, Value v))
-             | other -> [(name, Value other)])
+             | other -> [(name, Value (make_error TypeError ("!!! operand must evaluate to a List, Vector, or Dict, got " ^ Utils.type_name other)))])
         | _ -> [(name, quote_expr env_ref item)]
       ) items in
       ListLit quoted_items
@@ -796,6 +796,31 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
       PipelineDef (List.map (fun (n, e) -> (n, quote_expr env_ref e)) nodes)
   | IntentDef fields ->
       IntentDef (List.map (fun (n, e) -> (n, quote_expr env_ref e)) fields)
+  | Lambda l ->
+      Lambda { l with body = quote_expr env_ref l.body }
+  | ListComp { expr = e; clauses } ->
+      let quoted_clauses = List.map (fun clause ->
+        match clause with
+        | CFor { var; iter } -> CFor { var; iter = quote_expr env_ref iter }
+        | CFilter filter_expr -> CFilter (quote_expr env_ref filter_expr)
+      ) clauses in
+      ListComp { expr = quote_expr env_ref e; clauses = quoted_clauses }
+  | DictLit pairs ->
+      let quoted_pairs = List.concat_map (fun (k, v) ->
+        match v with
+        | UnquoteSplice e ->
+            (match eval_expr env_ref e with
+             | VDict items -> List.map (fun (k2, v2) -> (k2, Value v2)) items
+             | VList items -> List.filter_map (fun (name, v2) ->
+                 match name with
+                 | Some n -> Some (n, Value v2)
+                 | None -> Some (k, Value v2)) items
+             | other -> [(k, Value (make_error TypeError ("!!! operand must evaluate to a List, Vector, or Dict, got " ^ Utils.type_name other)))])
+        | _ -> [(k, quote_expr env_ref v)]
+      ) pairs in
+      DictLit quoted_pairs
+  | UnquoteSplice _ ->
+      Value (make_error TypeError "!!! can only be used inside a Call or List literal within expr()")
   | other -> other
 
 and quote_stmt (env_ref : environment ref) (stmt : Ast.stmt) : Ast.stmt =
