@@ -19,7 +19,7 @@ p = pipeline {
 
     -- NODE 2: R Language (using dplyr)
     summary_r = node(
-        command = raw_data |> group_by(cyl) |> summarize(avg_mpg = mean(mpg)),
+        command = raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)),
         runtime = R,
         deserializer = r_read_csv,
         serializer = r_write_csv,
