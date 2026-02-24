@@ -70,7 +70,7 @@ let core_package = {
   description = "Core utilities: printing, type inspection, data structures, strings";
   functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "sprintf"; "string"; "get";
                "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
-               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"];
+               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"];
 }
 
 let stats_package = {
@@ -241,6 +241,21 @@ let register env =
     env
   in
 
+(*
+--# Capture an expression
+--#
+--# Captures the provided expression as an Expr object without evaluating it.
+--# Useful for metaprogramming, quotation, and custom evaluation.
+--#
+--# @name expr
+--# @param x :: Any The expression to capture.
+--# @return :: Expr The captured expression object.
+--# @example
+--#   e = expr(1 + 2)
+--#   eval(e)
+--# @family core
+--# @export
+*)
   let env = Env.add "expr"
     (make_builtin ~name:"expr" 1 (fun args _env ->
       match args with
@@ -250,9 +265,100 @@ let register env =
     env
   in
 
+(*
+--# Capture multiple expressions
+--#
+--# Captures one or more expressions as a List of Expr values.
+--# Useful for metaprogramming and non-standard evaluation.
+--#
+--# @name exprs
+--# @param ... :: Any One or more expressions to capture.
+--# @return :: List[Expr] A list of captured expressions.
+--# @example
+--#   exprs(1 + 1, x = 2 * 2)
+--# @family core
+--# @export
+*)
   let env = Env.add "exprs"
     (make_builtin_named ~name:"exprs" ~variadic:true 0 (fun args _env ->
       VList (List.map (fun (name, v) -> (name, VExpr (Value v))) args)
+    ))
+    env
+  in
+
+(*
+--# Get function body
+--#
+--# Returns the implementation body of a function.
+--# For T functions, it returns the body as an Expr object.
+--# For built-ins, it returns metadata about the OCaml implementation.
+--#
+--# @name body
+--# @param fn :: Function The function to inspect.
+--# @return :: Expr | String The function body or implementation info.
+--# @example
+--#   f = \(x) (x + 1)
+--#   body(f)
+--# @family core
+--# @export
+*)
+  let env = Env.add "body"
+    (make_builtin ~name:"body" 1 (fun args _env ->
+      match args with
+      | [VLambda l] -> VExpr l.body
+      | [VBuiltin { b_name = Some name; _ }] ->
+          (match Tdoc_registry.lookup name with
+           | Some doc -> VString (Printf.sprintf "Built-in function implemented in %s:%d" doc.source_path doc.line_number)
+           | None -> VNA NAGeneric)
+      | [v] -> Error.type_error (Printf.sprintf "body: expected a Function, got %s." (Utils.type_name v))
+      | _ -> Error.arity_error_named "body" ~expected:1 ~received:(List.length args)
+    ))
+    env
+  in
+
+(*
+--# Get function source code
+--#
+--# Returns the source code of a function as a string.
+--# For built-in functions, it attempts to read the underlying OCaml source file.
+--#
+--# @name source
+--# @param fn :: Function The function to inspect.
+--# @return :: String The source code of the function.
+--# @example
+--#   source(print)
+--# @family core
+--# @export
+*)
+  let env = Env.add "source"
+    (make_builtin ~name:"source" 1 (fun args _env ->
+      match args with
+      | [VLambda l] -> VString (Utils.unparse_expr l.body)
+      | [VBuiltin { b_name = Some name; _ }] ->
+          (match Tdoc_registry.lookup name with
+           | Some doc ->
+               let path = doc.source_path in
+               if path = "" || not (Sys.file_exists path) then
+                 VString (Printf.sprintf "OCaml source not found at `%s`" path)
+               else
+                 let lines = ref [] in
+                 let chan = open_in path in
+                 (try
+                   for _ = 1 to doc.line_number - 1 do
+                     ignore (input_line chan)
+                   done;
+                   (* Read until end of file or a reasonable limit *)
+                   for _ = 1 to 50 do
+                     lines := input_line chan :: !lines
+                   done;
+                   close_in chan;
+                   VString (String.concat "\n" (List.rev !lines))
+                 with End_of_file ->
+                   close_in chan;
+                   VString (String.concat "\n" (List.rev !lines)))
+           | None -> VString (Printf.sprintf "No source metadata for `%s`" name))
+      | [v] -> Error.type_error (Printf.sprintf "source: expected a Function, got %s." (Utils.type_name v))
+      | _ -> Error.arity_error_named "source" ~expected:1 ~received:(List.length args)
     ))
     env
   in

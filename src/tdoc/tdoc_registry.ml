@@ -24,6 +24,20 @@ let to_json_file filename =
 (* Simple JSON parser (very limited) would go here for loading *)
 (* For now, we only implement saving as loading is for the generation phase *)
 
+let normalize_path path =
+  if Sys.file_exists path then path
+  else
+    (* Try to resolve relative to current project if it contains /src/ *)
+    let parts = String.split_on_char '/' path in
+    let rec find_src = function
+      | [] -> None
+      | "src" :: rest -> Some (String.concat "/" ("src" :: rest))
+      | _ :: rest -> find_src rest
+    in
+    match find_src parts with
+    | Some rel -> if Sys.file_exists rel then rel else path
+    | None -> path
+
 let load_from_json filename =
   try
     let ch = open_in filename in
@@ -37,7 +51,8 @@ let load_from_json filename =
         | Some (Tdoc_json.JArray docs) ->
             List.iter (fun doc_json ->
               let entry = Tdoc_types.doc_entry_of_json doc_json in
-              register entry
+              let normalized_entry = { entry with source_path = normalize_path entry.source_path } in
+              register normalized_entry
             ) docs
         | _ -> Printf.eprintf "Warning: Invalid docs.json format (missing 'docs' array)\n")
     | _ -> Printf.eprintf "Warning: Invalid docs.json format (not an object)\n"

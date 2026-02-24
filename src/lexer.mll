@@ -50,8 +50,8 @@ rule token = parse
   (* Literals — float must be tried before int *)
   | float as lxm { FLOAT (float_of_string lxm) }
   | int as lxm   { INT (int_of_string lxm) }
-  | '"' ([^'"']* as s) '"' { STRING s }
-  | '\'' ([^'\'']* as s) '\'' { STRING s }
+  | '"'          { read_string (Buffer.create 16) '"' lexbuf }
+  | '\''         { read_string (Buffer.create 16) '\'' lexbuf }
   | "`" ([^'`']* as s) "`" { BACKTICK_IDENT s }
 
   (* Raw code block: <{ ... }> for embedding foreign language code verbatim *)
@@ -106,3 +106,15 @@ and raw_code buf = parse
   | '\n' { Lexing.new_line lexbuf; Buffer.add_char buf '\n'; raw_code buf lexbuf }
   | _ as c { Buffer.add_char buf c; raw_code buf lexbuf }
   | eof { raise (SyntaxError "Unterminated raw code block (missing '}>'))") }
+
+and read_string buf delim = parse
+  | '"' | '\'' as c { if c = delim then STRING (Buffer.contents buf) else (Buffer.add_char buf c; read_string buf delim lexbuf) }
+  | '\\' 'n'  { Buffer.add_char buf '\n'; read_string buf delim lexbuf }
+  | '\\' 'r'  { Buffer.add_char buf '\r'; read_string buf delim lexbuf }
+  | '\\' 't'  { Buffer.add_char buf '\t'; read_string buf delim lexbuf }
+  | '\\' '"'  { Buffer.add_char buf '"'; read_string buf delim lexbuf }
+  | '\\' '\'' { Buffer.add_char buf '\''; read_string buf delim lexbuf }
+  | '\\' '\\' { Buffer.add_char buf '\\'; read_string buf delim lexbuf }
+  | [^ '"' '\'' '\\']+ as s { Buffer.add_string buf s; read_string buf delim lexbuf }
+  | eof { raise (SyntaxError "Unterminated string") }
+  | _ as c { Buffer.add_char buf c; read_string buf delim lexbuf }
