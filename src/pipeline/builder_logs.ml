@@ -28,22 +28,38 @@ let read_log path =
         let _ = Str.search_forward re_node raw pos in
         let node_name = Str.matched_group 1 raw in
         let next_pos = Str.match_end () in
-        let path = try let _ = Str.search_forward re_path raw next_pos in Str.matched_group 1 raw with _ -> "" in
-        let runtime = try let _ = Str.search_forward re_runtime raw next_pos in Str.matched_group 1 raw with _ -> "T" in
-        let serializer = try let _ = Str.search_forward re_serializer raw next_pos in Str.matched_group 1 raw with _ -> "default" in
-        let class_ = try let _ = Str.search_forward re_class raw next_pos in Str.matched_group 1 raw with _ -> "Unknown" in
-        let deps = try
-          let _ = Str.search_forward re_deps raw next_pos in
-          let s = Str.matched_group 1 raw in
-          let re_word = Str.regexp "\"\\([^\"]+\\)\"" in
-          let rec collect_words sub_pos sub_acc =
-            try
-              let _ = Str.search_forward re_word s sub_pos in
-              collect_words (Str.match_end ()) (Str.matched_group 1 s :: sub_acc)
-            with _ -> List.rev sub_acc
-          in
-          collect_words 0 []
-          with _ -> []
+        (* Find the start of the next node entry to bound our field searches *)
+        let end_pos =
+          try
+            let p = Str.search_forward re_node raw next_pos in
+            p
+          with Not_found -> String.length raw
+        in
+        let search_field re default =
+          try
+            let p = Str.search_forward re raw next_pos in
+            if p < end_pos then Str.matched_group 1 raw else default
+          with Not_found -> default
+        in
+        let path = search_field re_path "" in
+        let runtime = search_field re_runtime "T" in
+        let serializer = search_field re_serializer "default" in
+        let class_ = search_field re_class "Unknown" in
+        let deps =
+          try
+            let p = Str.search_forward re_deps raw next_pos in
+            if p < end_pos then
+              let s = Str.matched_group 1 raw in
+              let re_word = Str.regexp "\"\\([^\"]+\\)\"" in
+              let rec collect_words sub_pos sub_acc =
+                try
+                  let _ = Str.search_forward re_word s sub_pos in
+                  collect_words (Str.match_end ()) (Str.matched_group 1 s :: sub_acc)
+                with Not_found -> List.rev sub_acc
+              in
+              collect_words 0 []
+            else []
+          with Not_found -> []
         in
         let cn = {
           Ast.cn_name = node_name;

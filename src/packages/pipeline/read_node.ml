@@ -42,6 +42,19 @@ let register env =
     | _ -> Error.type_error "read_node: expected String or ComputedNode for argument 'node'"
   in
 
+(*
+--# Inspect Pipeline Node Metadata
+--#
+--# Returns a dictionary with metadata about a computed node, including its
+--# name, runtime, artifact path, serializer, class, and dependencies.
+--#
+--# @name inspect_node
+--# @param node :: ComputedNode A computed node value (e.g. from a built pipeline).
+--# @return :: Dict A dictionary with keys: name, runtime, path, serializer, class, dependencies.
+--# @family pipeline
+--# @seealso read_node, rebuild_node
+--# @export
+*)
   let inspect_fn named_args _env =
     match get_arg "node" 1 VNull named_args with
     | VComputedNode cn ->
@@ -56,10 +69,24 @@ let register env =
     | _ -> Error.type_error "inspect_node: expected a ComputedNode."
   in
 
+(*
+--# Rebuild a Pipeline Node
+--#
+--# Rebuilds a single node from the pipeline Nix expression and returns an
+--# updated ComputedNode with the new artifact path.
+--#
+--# @name rebuild_node
+--# @param node :: ComputedNode A computed node value to rebuild.
+--# @return :: ComputedNode An updated ComputedNode pointing to the rebuilt artifact.
+--# @family pipeline
+--# @seealso read_node, inspect_node
+--# @export
+*)
   let rebuild_fn named_args _env =
     match get_arg "node" 1 VNull named_args with
     | VComputedNode cn ->
-        let cmd = Printf.sprintf "nix-build --impure _pipeline/pipeline.nix -A %s --no-out-link 2>&1" cn.cn_name in
+        let quoted_name = Filename.quote cn.cn_name in
+        let cmd = Printf.sprintf "nix-build --impure _pipeline/pipeline.nix -A %s --no-out-link 2>&1" quoted_name in
         (match Builder_utils.run_command_capture cmd with
          | Ok (Unix.WEXITED 0, output) ->
              let store_path = String.trim output in
