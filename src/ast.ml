@@ -127,6 +127,7 @@ and value =
   | VFormula of formula_spec
   | VComputedNode of computed_node
   | VNode of unbuilt_node
+  | VExpr of expr
 
 
 
@@ -164,6 +165,8 @@ and expr =
   | BroadcastOp of { op : binop; left : expr; right : expr }
   | PipelineDef of (string * expr) list
   | IntentDef of (string * expr) list
+  | Unquote of expr
+  | UnquoteSplice of expr
 
   | Block of stmt list
 
@@ -198,6 +201,7 @@ and typ =
   | TVar of string
   | TCustom of string
   | TComputedNode
+  | TExpr
 
 type program = stmt list
 
@@ -286,6 +290,7 @@ module Utils = struct
     | TVar s -> s
     | TCustom s -> s
     | TComputedNode -> "ComputedNode"
+    | TExpr -> "Expression"
 
   let type_name = function
     | VInt _ -> "Int" | VFloat _ -> "Float"
@@ -299,8 +304,67 @@ module Utils = struct
     | VFormula _ -> "Formula"
     | VComputedNode _ -> "ComputedNode"
     | VNode _ -> "Node"
+    | VExpr _ -> "Expression"
 
-  let rec value_to_string = function
+  let rec binop_to_string = function
+    | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
+    | Eq -> "==" | NEq -> "!=" | Gt -> ">" | Lt -> "<" | GtEq -> ">=" | LtEq -> "<="
+    | And -> "&&" | Or -> "||" | BitAnd -> "&" | BitOr -> "|"
+    | In -> "in" | Pipe -> "|>" | MaybePipe -> "?|>" | Formula -> "~"
+
+  and unparse_expr = function
+    | Value v -> value_to_string v
+    | Var s -> s
+    | ColumnRef s -> "$" ^ s
+    | Call { fn; args } ->
+        let args_s = List.map (fun (name, e) ->
+          match name with
+          | Some n -> n ^ " = " ^ unparse_expr e
+          | None -> unparse_expr e
+        ) args in
+        unparse_expr fn ^ "(" ^ String.concat ", " args_s ^ ")"
+    | Lambda { params; body; _ } ->
+        "\\(" ^ String.concat ", " params ^ ") " ^ unparse_expr body
+    | IfElse { cond; then_; else_ } ->
+        "if (" ^ unparse_expr cond ^ ") " ^ unparse_expr then_ ^ " else " ^ unparse_expr else_
+    | ListLit items ->
+        let items_s = List.map (fun (name, e) ->
+          match name with
+          | Some n -> n ^ ": " ^ unparse_expr e
+          | None -> unparse_expr e
+        ) items in
+        "[" ^ String.concat ", " items_s ^ "]"
+    | DictLit pairs ->
+        let pairs_s = List.map (fun (k, v) -> k ^ ": " ^ unparse_expr v) pairs in
+        "{ " ^ (pairs_s |> String.concat ", ") ^ " }"
+    | BinOp { op; left; right } ->
+        unparse_expr left ^ " " ^ binop_to_string op ^ " " ^ unparse_expr right
+    | UnOp { op; operand } ->
+        let op_s = match op with Not -> "!" | Neg -> "-" in
+        op_s ^ unparse_expr operand
+    | DotAccess { target; field } ->
+        unparse_expr target ^ "." ^ field
+    | RawCode { raw_text; _ } -> "<{ " ^ raw_text ^ " }>"
+    | PipelineDef nodes ->
+        "pipeline { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
+    | BroadcastOp { op; left; right } ->
+        unparse_expr left ^ " ." ^ binop_to_string op ^ " " ^ unparse_expr right
+    | Unquote e -> "!!" ^ unparse_expr e
+    | UnquoteSplice e -> "!!!" ^ unparse_expr e
+    | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
+    | ListComp _ -> "[...]"
+    | IntentDef _ -> "intent { ... }"
+
+  and unparse_stmt = function
+    | Expression e -> unparse_expr e
+    | Assignment { name; expr; _ } -> name ^ " = " ^ unparse_expr expr
+    | Reassignment { name; expr } -> name ^ " := " ^ unparse_expr expr
+    | Import s -> "import \"" ^ s ^ "\""
+    | ImportPackage s -> "import " ^ s
+    | ImportFrom { package; names } -> 
+        "import " ^ package ^ " [" ^ String.concat ", " (List.map (fun is -> is.import_name) names) ^ "]"
+
+  and value_to_string = function
     | VInt n -> string_of_int n
     | VFloat f -> string_of_float f
     | VBool b -> string_of_bool b
@@ -370,6 +434,8 @@ module Utils = struct
         Printf.sprintf "%s ~ %s"
           (String.concat " + " response)
           (String.concat " + " predictors)
+    | VExpr e ->
+        Printf.sprintf "expr(%s)" (unparse_expr e)
     | VComputedNode cn ->
         Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s\npath: %s"
           cn.cn_runtime cn.cn_serializer cn.cn_class cn.cn_path
@@ -498,5 +564,8 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VInt _, TFloat -> true
 
   | VComputedNode _, TComputedNode -> true
+  | VExpr _, TExpr -> true
 
   | _ -> false
+
+

@@ -28,6 +28,7 @@ T supports the following value types:
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
 | `Null`      | `null`                   | Absence of value                    |
+| `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
 ### Variables and Assignment
@@ -556,6 +557,21 @@ intent_get(i, "description") -- specific field value
 ```t
 -- This is a single-line comment
 ```
+
+---
+
+## Metaprogramming
+
+T supports Lisp-style quotation and quasiquotation for code generation and DSL building.
+
+```t
+x = 10
+captured = expr(1 + !!x)
+print(captured)  -- expr(1 + 10)
+eval(captured)     -- 11
+```
+
+See the [Quotation Guide](quotation.md) for more details.
 
 ---
 

@@ -48,6 +48,8 @@ let rec unparse_expr = function
   | DotAccess { target; field } ->
       Printf.sprintf "%s.%s" (unparse_expr target) field
   | RawCode { raw_text; _ } -> raw_text
+  | Unquote e -> "!!" ^ unparse_expr e
+  | UnquoteSplice e -> "!!!" ^ unparse_expr e
   | PipelineDef _ | IntentDef _ | ListComp _ | Block _ ->
       "null"
 

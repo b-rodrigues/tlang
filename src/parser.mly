@@ -61,6 +61,7 @@ let build_bracket_literal (items : bracket_item list) : Ast.expr =
 %token DOT_BITAND DOT_BITOR
 %token DOT_PERCENT
 %token TILDE
+%token BANG_BANG BANG_BANG_BANG
 
 /* ... PRECEDENCE ... */
 
@@ -226,6 +227,8 @@ unary_expr:
   | e = postfix_expr { e }
   | MINUS e = unary_expr { UnOp { op = Neg; operand = e } }
   | BANG e = unary_expr { UnOp { op = Not; operand = e } }
+  | BANG_BANG e = unary_expr { Unquote e }
+  | BANG_BANG_BANG e = unary_expr { UnquoteSplice e }
   ;
 
 /* Function calls and dot access are postfix operations */
@@ -262,7 +265,9 @@ primary_expr:
   | NA { Value (VNA NAGeneric) }
   | col = COLUMN_REF { ColumnRef col }
   | id = any_ident { Var id }
-  | LPAREN e = expr RPAREN { e }
+  | LPAREN skip_sep e = expr skip_sep RPAREN { e }
+  | LPAREN skip_sep fn = expr COMMA skip_sep args = call_args RPAREN
+    { Call { fn; args } }
   | b = bracket_lit { b }
   | l = lambda_expr { l }
   | i = if_expr { i }
