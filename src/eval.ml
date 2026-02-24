@@ -520,12 +520,22 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   (* Desugar nodes into enriched structures with defaults *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_expr = match node_expr with
-      | Call { fn = Var "node"; _ } | Var _ | DotAccess _ | Value (VNode _) -> true
+      | Call { fn = Var "node"; _ } | Var _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
     if is_node_expr then
       match eval_expr env_ref node_expr with
       | VNode un -> Ok (name, un)
+      | VComputedNode cn ->
+          Ok (name, {
+            un_command = Value (VComputedNode cn);
+            un_runtime = cn.cn_runtime;
+            un_serializer = Value (VString cn.cn_serializer);
+            un_deserializer = Var "default";
+            un_functions = [];
+            un_includes = [];
+            un_noop = false;
+          })
       | VError _ as e -> Error e
       | _ -> Ok (name, default_un node_expr)
     else
@@ -592,8 +602,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   else
 
   (* Topological sort *)
-  let topo_deps = List.map (fun (name, d) -> (name, d)) deps in
-  match topo_sort desugared_nodes topo_deps with
+  match topo_sort desugared_nodes deps with
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
