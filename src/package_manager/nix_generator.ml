@@ -47,7 +47,7 @@ let generate_project_flake
     ~(deps : dependency list)
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
-    ?(py_version : string = "python311")
+    ?(py_version : string = "python314")
     () : string =
   let buf = Buffer.create 2048 in
   (* Inputs section *)
@@ -274,7 +274,7 @@ let install_flake
     ~(deps : dependency list)
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
-    ?(py_version : string = "python311")
+    ?(py_version : string = "python314")
     ~(dir : string)
     ~(dry_run : bool)
     () : (string, string) result =

@@ -325,7 +325,10 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   | Var s ->
       (match Env.find_opt s !env_ref with
       | Some v -> v
-      | None -> VSymbol s) (* Return bare words as Symbols for future NSE *)
+      | None -> 
+          (match !Ast.node_resolver s with
+           | Some v -> v
+           | None -> VSymbol s)) (* Return bare words as Symbols for future NSE *)
   
   | ColumnRef field ->
       (* Column references ($name) evaluate to a special symbol value
@@ -790,14 +793,22 @@ and eval_dot_access env_ref target_expr field =
                              ("__partial_dot_prefix__", VString compound)]
                  else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." compound))
             | _ ->
-              (* Check if any keys have this field as a dotted prefix *)
-              let pfx = field ^ "." in
-              let pfx_len = String.length pfx in
-              if List.exists (fun (k, _) ->
-                String.length k > pfx_len && String.sub k 0 pfx_len = pfx) pairs
-              then VDict [("__partial_dot_dict__", VDict pairs);
-                          ("__partial_dot_prefix__", VString field)]
-              else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." field))))
+               (* Check if any keys have this field as a dotted prefix *)
+               let pfx = field ^ "." in
+               let pfx_len = String.length pfx in
+               if List.exists (fun (k, _) ->
+                 String.length k > pfx_len && String.sub k 0 pfx_len = pfx) pairs
+               then VDict [("__partial_dot_dict__", VDict pairs);
+                           ("__partial_dot_prefix__", VString field)]
+               else Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." field))))
+  | VSymbol s ->
+      (match field with
+      | "path" ->
+          (match !Ast.node_resolver s with
+           | Some (VComputedNode cn) -> VString cn.cn_path
+           | Some (VNode _) -> VString "<unbuilt>"
+           | _ -> Error.make_error KeyError (Printf.sprintf "Symbol `%s` has no field `path` (and no built node with this name was found)." s))
+      | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Symbol has no field `%s`" field))
   | VList named_items ->
       (match List.find_opt (fun (name, _) -> name = Some field) named_items with
       | Some (_, v) -> v
@@ -831,6 +842,7 @@ and eval_dot_access env_ref target_expr field =
       (match field with
       | "command" -> VString (Nix_unparse.unparse_expr un.un_command)
       | "runtime" -> VString un.un_runtime
+      | "path" -> VString "<unbuilt>"
       | "serializer" -> VString (Nix_unparse.unparse_expr un.un_serializer)
       | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
       | "noop" -> VBool un.un_noop

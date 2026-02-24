@@ -8,6 +8,7 @@ module Env = Map.Make(String)
 
 type symbol = string
 
+
 (** NA type tags — missingness is explicit and typed *)
 type na_type =
   | NABool
@@ -128,6 +129,7 @@ and value =
   | VNode of unbuilt_node
 
 
+
 and builtin = {
   b_name: string option;
   b_arity: int;
@@ -198,6 +200,9 @@ and typ =
   | TComputedNode
 
 type program = stmt list
+
+(** Global hook for resolving node names to values (e.g. from build logs) *)
+let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.

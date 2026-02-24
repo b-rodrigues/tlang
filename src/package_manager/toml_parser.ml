@@ -62,7 +62,7 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_dependencies = parse_dependencies toml;
         proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
         proj_py_dependencies = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[];
-        proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python311";
+        proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python314";
         proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.5.0";
       }
   with

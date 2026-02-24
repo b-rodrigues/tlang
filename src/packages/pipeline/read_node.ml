@@ -97,6 +97,12 @@ let register env =
     | _ -> Error.type_error "rebuild_node: expected a ComputedNode."
   in
 
+  let _ = 
+    Ast.node_resolver := (fun name ->
+      match Builder.read_node name with
+      | VError _ -> None
+      | v -> Some v)
+  in
   env
   |> Env.add "read_node" (make_builtin_named ~name:"read_node" ~variadic:true 1 read_fn)
   |> Env.add "inspect_node" (make_builtin_named ~name:"inspect_node" ~variadic:true 1 inspect_fn)
