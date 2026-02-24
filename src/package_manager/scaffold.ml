@@ -352,7 +352,7 @@ packages = []
 
 [py-dependencies]
 # Python packages this project depends on
-version = "python311"
+version = "python314"
 # Example:
 # packages = ["pandas", "numpy"]
 packages = []

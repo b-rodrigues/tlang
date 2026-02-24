@@ -77,7 +77,7 @@ let default_project_config name = {
   proj_dependencies = [];
   proj_r_dependencies = [];
   proj_py_dependencies = [];
-  proj_py_version = "python311";
+  proj_py_version = "python314";
   proj_min_t_version = "0.5.0";
 }
 
