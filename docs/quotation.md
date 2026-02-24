@@ -5,7 +5,7 @@ T provides powerful metaprogramming capabilities inspired by Lisp and R's `rlang
 ## Core Concepts
 
 - **Quotation**: Capturing an expression without evaluating it immediately.
-- **Unquoting**: selectively evaluating parts of a quoted expression.
+- **Unquoting**: Selectively evaluating parts of a quoted expression.
 - **Splicing**: Expanding a list or collection into multiple arguments or elements within a quoted expression.
 - **Symbols**: Representing names (identifiers) as data.
 
