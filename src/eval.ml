@@ -622,6 +622,7 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
     ) ([], ref !env_ref) exec_order in
 
     let p_nodes = List.rev results in
+
     VPipeline {
       p_nodes;
       p_exprs = List.map (fun n -> (n.node_name, n.node_expr)) desugared_nodes;

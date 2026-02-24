@@ -53,4 +53,6 @@ let unparse_import_stmt = function
         | None -> s.import_name
       ) names in
       Printf.sprintf "import %s[%s]" package (String.concat ", " name_strs)
+  | Ast.Assignment { name; expr; _ } ->
+      Printf.sprintf "%s = %s" name (unparse_expr expr)
   | _ -> ""

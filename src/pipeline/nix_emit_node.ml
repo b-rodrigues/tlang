@@ -58,7 +58,8 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
       funcs |> List.map (fun f -> Printf.sprintf "      echo \"source('%s')\" >> node_script.R" f) |> String.concat "\n"
     else if runtime = "Python" then
       funcs |> List.map (fun f -> Printf.sprintf "      echo \"exec(open('%s').read())\" >> node_script.py" f) |> String.concat "\n"
-    else ""
+    else
+      funcs |> List.map (fun f -> Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote (Printf.sprintf "import \"%s\"" f))) |> String.concat "\n"
   in
   
   (* Logic for deserializing dependencies *)

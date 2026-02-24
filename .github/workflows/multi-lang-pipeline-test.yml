@@ -87,12 +87,14 @@ jobs:
 
         # 7. Prepare Glue Scripts and Data
         cp ${{ github.workspace }}/tests/pipeline/multi_lang_pipeline.t .
+        cp ${{ github.workspace }}/tests/pipeline/iolib.t .
         cp ${{ github.workspace }}/tests/pipeline/iolib.R .
         cp ${{ github.workspace }}/tests/pipeline/iolib.py .
         mkdir -p tests/pipeline/data
         cp ${{ github.workspace }}/tests/pipeline/data/mtcars.csv tests/pipeline/data/
 
         # Update the pipeline script to use local paths
+        sed -i 's|functions = "tests/pipeline/iolib.t"|functions = "iolib.t"|' multi_lang_pipeline.t
         sed -i 's|functions = "tests/pipeline/iolib.R"|functions = "iolib.R"|' multi_lang_pipeline.t
         sed -i 's|functions = "tests/pipeline/iolib.py"|functions = "iolib.py"|' multi_lang_pipeline.t
 
