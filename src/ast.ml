@@ -145,7 +145,7 @@ and expr =
   | BinOp of { op : binop; left : expr; right : expr }
   | UnOp of { op : unop; operand : expr }
   | DotAccess of { target : expr; field : string }
-  | NamespaceAccess of { ns : string; field : string }  (* R's pkg::fn syntax *)
+  | RawCode of { raw_text : string; raw_identifiers : string list }  (* Foreign code block <{ ... }> *)
   | BroadcastOp of { op : binop; left : expr; right : expr }
   | PipelineDef of pipeline_node list
   | IntentDef of (string * expr) list
@@ -184,6 +184,22 @@ and typ =
   | TCustom of string
 
 type program = stmt list
+
+(** Extract identifier-like tokens from a raw code string.
+    Used by RawCode blocks for automatic pipeline dependency detection.
+    Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results. *)
+let extract_identifiers text =
+  let re = Str.regexp {|[a-zA-Z_][a-zA-Z0-9_]*|} in
+  let rec find acc pos =
+    match (try Some (Str.search_forward re text pos) with Not_found -> None) with
+    | None -> List.rev acc
+    | Some _ ->
+        let word = Str.matched_string text in
+        let next_pos = Str.match_end () in
+        find (word :: acc) next_pos
+  in
+  let all = find [] 0 in
+  List.sort_uniq String.compare all
 
 (** Convenience type alias *)
 type environment = value Env.t

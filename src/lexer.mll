@@ -52,13 +52,15 @@ rule token = parse
   | '\'' ([^'\'']* as s) '\'' { STRING s }
   | "`" ([^'`']* as s) "`" { BACKTICK_IDENT s }
 
+  (* Raw code block: <{ ... }> for embedding foreign language code verbatim *)
+  | "<{" { raw_code (Buffer.create 256) lexbuf }
+
   (* Symbols and Operators *)
   | '(' { LPAREN }   | ')' { RPAREN }
   | '[' { LBRACK }   | ']' { RBRACK }
   | '{' { LBRACE }   | '}' { RBRACE }
   | '\\' { LAMBDA }  | ',' { COMMA }
   | ":=" { COLON_EQ }
-  | "::" { COLONCOLON }
   | ':' { COLON }    | '.' { DOT }
   | '=' { EQUALS }   | "->" { ARROW }
   | "..." { DOTDOTDOT }
@@ -95,3 +97,10 @@ rule token = parse
   (* End of file *)
   | eof { EOF }
   | _ as char { raise (SyntaxError ("Unexpected character: " ^ Char.escaped char)) }
+
+(* Secondary lexer rule: captures raw foreign code inside <{ ... }> *)
+and raw_code buf = parse
+  | "}>" { RAW_CODE (Buffer.contents buf) }
+  | '\n' { Lexing.new_line lexbuf; Buffer.add_char buf '\n'; raw_code buf lexbuf }
+  | _ as c { Buffer.add_char buf c; raw_code buf lexbuf }
+  | eof { raise (SyntaxError "Unterminated raw code block (missing '}>'))") }

@@ -40,8 +40,7 @@ let rec unparse_expr = function
       Printf.sprintf "%s%s" tok (unparse_expr operand)
   | DotAccess { target; field } ->
       Printf.sprintf "%s.%s" (unparse_expr target) field
-  | NamespaceAccess { ns; field } ->
-      Printf.sprintf "%s::%s" ns field
+  | RawCode { raw_text; _ } -> raw_text
   | PipelineDef _ | IntentDef _ | ListComp _ | Block _ ->
       "null"
 

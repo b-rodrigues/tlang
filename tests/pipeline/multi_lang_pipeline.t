@@ -18,8 +18,10 @@ p = pipeline {
     )
 
     -- NODE 2: R Language (using dplyr)
+    -- The <{ ... }> raw code block passes R code verbatim without T parsing.
+    -- Dependencies (raw_data) are auto-detected from identifiers in the block.
     summary_r = node(
-        command = raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)),
+        command = <{ raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)) }>,
         runtime = R,
         deserializer = r_read_csv,
         serializer = r_write_csv,
