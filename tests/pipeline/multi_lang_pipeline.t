@@ -6,8 +6,8 @@
 
 -- 1. Define T helper functions for CSV I/O
 -- These are used when a T node needs to read/write CSV instead of the default .tobj
-t_write_csv = \(df, path) write_csv(df, path)
-t_read_csv = \(path) read_csv(path)
+t_write_csv = \(df: DataFrame, path: String -> Null) write_csv(df, path)
+t_read_csv = \(path: String -> DataFrame) read_csv(path)
 
 -- Note: We assume that r_read_csv, r_write_csv, py_read_csv, and py_write_csv
 -- are available in their respective language environments (e.g., provided via
