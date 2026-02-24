@@ -27,7 +27,7 @@ p = pipeline {
     -- which would be invalid in R's dplyr context.
     -- We depend on raw_data (T node), so we use a CSV deserializer for R.
     summary_r = node(
-        command = raw_data |> group_by(`cyl`) |> summarize(avg_mpg = mean(`mpg`)),
+        command = raw_data |> group_by(cyl) |> summarize(avg_mpg = mean(mpg)),
         runtime = R,
         deserializer = r_read_csv,
         serializer = r_write_csv,
