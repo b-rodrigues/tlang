@@ -39,7 +39,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             let log_path = Filename.concat pipeline_dir log_name in
             let registry =
               List.map (fun (name, _) ->
-                (name, Filename.concat (Filename.concat out_path name) "artifact.tobj")
+                (name, Filename.concat (Filename.concat out_path name) "artifact")
               ) p.p_exprs
             in
             let log_entries =

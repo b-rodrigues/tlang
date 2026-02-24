@@ -85,7 +85,7 @@ EOF
       Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
 EOF
-      echo "      %s(%s, \"$out/artifact.tobj\")" >> node_script.t|} name expr_s ser_call name
+      echo "      %s(%s, \"$out/artifact\")" >> node_script.t|} name expr_s ser_call name
   in
 
   (* Runtime specific build command *)
