@@ -83,9 +83,7 @@ jobs:
         
         echo "=== flake.nix (after update) ==="
         cat flake.nix
-
-        echo "=== _pipeline/pipeline.nix ==="
-        cat _pipeline/pipeline.nix
+        echo ""
 
         # 7. Prepare Glue Scripts and Data
         cp ${{ github.workspace }}/tests/pipeline/multi_lang_pipeline.t .
@@ -101,8 +99,14 @@ jobs:
         echo "--- multi_lang_pipeline.t ---"
         cat multi_lang_pipeline.t
 
-        # 8. Run the pipeline
+        # 8. Run the pipeline (this triggers build_pipeline internally which generates the files)
         nix develop --accept-flake-config --command $TLANG_BIN run multi_lang_pipeline.t
+
+        echo "=== _pipeline/pipeline.nix ==="
+        cat _pipeline/pipeline.nix
+        echo ""
+        echo "=== _pipeline/dag.json ==="
+        cat _pipeline/dag.json
 
     - name: Verify Results in T REPL
       run: |

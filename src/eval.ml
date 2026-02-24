@@ -591,9 +591,14 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
   | Ok exec_order ->
     (* Execute nodes in topological order *)
     let node_map = List.map (fun (n : Ast.pipeline_node) -> (n.node_name, n)) desugared_nodes in
+    (* Helper: evaluate a T-runtime node, or produce a placeholder for non-T / noop nodes *)
+    let eval_or_defer (n : Ast.pipeline_node) env_ref =
+      if n.node_noop then VSymbol (Printf.sprintf "<noop:%s>" n.node_name)
+      else if n.node_runtime = "T" then eval_expr env_ref n.node_expr
+      else VSymbol (Printf.sprintf "<deferred:%s>" n.node_name)
+    in
     let (results, _) = List.fold_left (fun (results, current_env_ref) name ->
       let n = List.assoc name node_map in
-      let expr = n.node_expr in
       let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
       let upstream_err_opt = List.find_opt (fun d -> 
          match Env.find_opt d !current_env_ref with
@@ -609,8 +614,8 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
                      "Upstream error: " ^ err.message
                  in
                  Ast.VError { err with message = msg }
-             | _ -> eval_expr current_env_ref expr)
-        | None -> eval_expr current_env_ref expr
+             | _ -> eval_or_defer n current_env_ref)
+        | None -> eval_or_defer n current_env_ref
       in
       current_env_ref := Env.add name v !current_env_ref;
       ((name, v) :: results, current_env_ref)
@@ -634,11 +639,26 @@ and eval_pipeline env_ref (nodes : Ast.pipeline_node list) : value =
 and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
   match topo_sort
-    (List.map (fun (name, expr) -> { Ast.node_name = name; node_expr = expr; node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default"; node_functions = []; node_includes = []; node_noop = false }) prev.p_exprs)
+    (List.map (fun (name, expr) -> 
+       { Ast.node_name = name; node_expr = expr; 
+         node_runtime = (List.assoc name prev.p_runtimes);
+         node_serializer = (List.assoc name prev.p_serializers);
+         node_deserializer = (List.assoc name prev.p_deserializers);
+         node_functions = (List.assoc name prev.p_functions);
+         node_includes = (List.assoc name prev.p_includes);
+         node_noop = (List.assoc name prev.p_noops) }) prev.p_exprs)
     prev.p_deps with
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
+    (* Helper: evaluate a T-runtime node, or produce a placeholder for non-T / noop nodes *)
+    let rerun_eval_or_defer name expr env_ref =
+      let runtime = List.assoc name prev.p_runtimes in
+      let noop = List.assoc name prev.p_noops in
+      if noop then VSymbol (Printf.sprintf "<noop:%s>" name)
+      else if runtime = "T" then eval_expr env_ref expr
+      else VSymbol (Printf.sprintf "<deferred:%s>" name)
+    in
     let (results, _, _changed_set) = List.fold_left (fun (results, current_env_ref, changed) name ->
       let expr = List.assoc name prev.p_exprs in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
@@ -667,8 +687,8 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
                        "Upstream error: " ^ err.message
                    in
                    Ast.VError { err with message = msg }
-               | _ -> eval_expr current_env_ref expr)
-          | None -> eval_expr current_env_ref expr
+               | _ -> rerun_eval_or_defer name expr current_env_ref)
+          | None -> rerun_eval_or_defer name expr current_env_ref
         in
         current_env_ref := Env.add name v !current_env_ref;
         ((name, v) :: results, current_env_ref, name :: changed)
