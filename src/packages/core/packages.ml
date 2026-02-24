@@ -70,7 +70,7 @@ let core_package = {
   description = "Core utilities: printing, type inspection, data structures, strings";
   functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "sprintf"; "string"; "get";
                "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
-               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"];
+               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"];
 }
 
 let stats_package = {
@@ -230,6 +230,32 @@ let register env =
 --# @export
 *)
   let env = Env.add "casewhen" (make_builtin_named ~name:"casewhen" ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr_immutable)) env in
+
+  let env = Env.add "eval"
+    (make_builtin ~name:"eval" 1 (fun args env ->
+      match args with
+      | [VExpr quoted] -> Eval.eval_expr_immutable env quoted
+      | [v] -> v
+      | _ -> Error.arity_error_named "eval" ~expected:1 ~received:(List.length args)
+    ))
+    env
+  in
+
+  let env = Env.add "expr"
+    (make_builtin ~name:"expr" 1 (fun args _env ->
+      match args with
+      | [v] -> VExpr (Value v)
+      | _ -> Error.arity_error_named "expr" ~expected:1 ~received:(List.length args)
+    ))
+    env
+  in
+
+  let env = Env.add "exprs"
+    (make_builtin_named ~name:"exprs" ~variadic:true 0 (fun args _env ->
+      VList (List.map (fun (name, v) -> (name, VExpr (Value v))) args)
+    ))
+    env
+  in
 
   env
 
