@@ -46,9 +46,9 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   let src_block = match all_files with
     | [] -> "    src = sources;"
     | _ ->
-        let files = String.concat " " (List.map (fun f -> "./" ^ f) all_files) in
+        let files = String.concat " " (List.map (fun f -> "./../" ^ f) all_files) in
         Printf.sprintf {|    src = pkgs.lib.fileset.toSource {
-      root = ./.;
+      root = ./..;
       fileset = pkgs.lib.fileset.unions [ %s ];
     };|} files
   in
