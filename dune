@@ -1,4 +1,6 @@
 (dirs src tests help)
+(cram (enabled_if false))
+
 
 (alias
  (name default)
