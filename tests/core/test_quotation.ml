@@ -24,10 +24,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* !!! unquote-splice operator *)
   test "splice list into call" "vals = [1, 2, 3]\nexpr(sum(!!!vals))" "expr(sum(1, 2, 3))";
-  test "splice named dict into call" "args = { x: 10, y: 20 }\nexpr(f(!!!args))" "expr(f(x = 10, y = 20))";
+  test "splice named list into call" "my_args = [x: 10, y: 20]\nexpr(f(!!!my_args))" "expr(f(x = 10, y = 20))";
   test "splice list into list literal" "vals = [1, 2, 3]\nexpr([0, !!!vals, 4])" "expr([0, 1, 2, 3, 4])";
   test "splice non-list gives type error in list" "x = 42\neval(expr([!!!x]))" {|Error(TypeError: "!!! operand must evaluate to a List, Vector, or Dict, got Int")|};
-  test "splice outside call or list gives type error" "x = [1, 2]\neval(expr(!!!x))" {|Error(TypeError: "!!! can only be used inside a Call or List literal within expr()")|};
+  test "splice outside call or list gives type error" "x = [1, 2]\neval(expr(!!!x))" {|Error(TypeError: "!!! can only be used inside a Call, List, or Dict literal within expr()")|};
 
   (* roundtrip: expr + eval *)
   test "expr then eval roundtrip" "e = expr(3 * 7)\neval(e)" "21";

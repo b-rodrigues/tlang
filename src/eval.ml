@@ -750,83 +750,105 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
     ) ([], ref !env_ref, []) exec_order in
     VPipeline { prev with p_nodes = List.rev results }
 
+(** Evaluate a splice operand (!!!) and expand its elements as named pairs.
+    Used by quote_expr in Call args, ListLit items, and DictLit pairs. *)
+and splice_into_named_pairs env_ref fallback_name e =
+  match eval_expr env_ref e with
+  | VList items  -> List.map (fun (n, v) -> (n, Value v)) items
+  | VDict items  -> List.map (fun (k, v) -> (Some k, Value v)) items
+  | VVector arr  -> Array.to_list arr |> List.map (fun v -> (None, Value v))
+  | other ->
+      let msg = "!!! operand must evaluate to a List, Vector, or Dict, got "
+                ^ Utils.type_name other in
+      [(fallback_name, Value (make_error TypeError msg))]
+
+(** Evaluate a splice operand for DictLit pairs (string-keyed). *)
+and splice_into_dict_pairs env_ref fallback_key e =
+  match eval_expr env_ref e with
+  | VDict items -> List.map (fun (k, v) -> (k, Value v)) items
+  | VList items ->
+      List.map (fun (name, v) ->
+        let key = match name with Some n -> n | None -> fallback_key in
+        (key, Value v)
+      ) items
+  | other ->
+      let msg = "!!! operand must evaluate to a List, Vector, or Dict, got "
+                ^ Utils.type_name other in
+      [(fallback_key, Value (make_error TypeError msg))]
+
+(** Quote an expression: recursively walk the AST, leaving it unevaluated
+    except where !! (unquote) and !!! (unquote-splice) request evaluation. *)
 and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
+  let q  = quote_expr env_ref in
+  let qs = quote_stmt env_ref in
+  let qpair (n, e) = (n, q e) in
   match expr with
-  | Unquote e -> 
-      (match eval_expr env_ref e with
-       | VExpr ex -> ex
-       | other -> Value other)
+  (* ── Unquoting ─────────────────────────────────────────────── *)
+  | Unquote e ->
+      (match eval_expr env_ref e with VExpr ex -> ex | v -> Value v)
+
+  | UnquoteSplice _ ->
+      Value (make_error TypeError
+        "!!! can only be used inside a Call, List, or Dict literal within expr()")
+
+  (* ── Compound forms that support !!! splicing ──────────────── *)
   | Call { fn; args } ->
-      let quoted_fn = quote_expr env_ref fn in
       let quoted_args = List.concat_map (fun (name, arg) ->
         match arg with
-        | UnquoteSplice e ->
-            (match eval_expr env_ref e with
-             | VList items -> List.map (fun (n, v) -> (n, Value v)) items
-             | VDict items -> List.map (fun (k, v) -> (Some k, Value v)) items
-             | VVector arr -> Array.to_list arr |> List.map (fun v -> (None, Value v))
-             | other -> [(name, Value (make_error TypeError ("!!! operand must evaluate to a List, Vector, or Dict, got " ^ Utils.type_name other)))])
-        | _ -> [(name, quote_expr env_ref arg)]
+        | UnquoteSplice e -> splice_into_named_pairs env_ref name e
+        | _               -> [(name, q arg)]
       ) args in
-      Call { fn = quoted_fn; args = quoted_args }
+      Call { fn = q fn; args = quoted_args }
+
   | ListLit items ->
-      let quoted_items = List.concat_map (fun (name, item) ->
+      let quoted = List.concat_map (fun (name, item) ->
         match item with
-        | UnquoteSplice e ->
-            (match eval_expr env_ref e with
-             | VList items -> List.map (fun (n, v) -> (n, Value v)) items
-             | VDict items -> List.map (fun (k, v) -> (Some k, Value v)) items
-             | VVector arr -> Array.to_list arr |> List.map (fun v -> (None, Value v))
-             | other -> [(name, Value (make_error TypeError ("!!! operand must evaluate to a List, Vector, or Dict, got " ^ Utils.type_name other)))])
-        | _ -> [(name, quote_expr env_ref item)]
+        | UnquoteSplice e -> splice_into_named_pairs env_ref name e
+        | _               -> [(name, q item)]
       ) items in
-      ListLit quoted_items
-  | BinOp { op; left; right } ->
-      BinOp { op; left = quote_expr env_ref left; right = quote_expr env_ref right }
-  | BroadcastOp { op; left; right } ->
-      BroadcastOp { op; left = quote_expr env_ref left; right = quote_expr env_ref right }
-  | UnOp { op; operand } ->
-      UnOp { op; operand = quote_expr env_ref operand }
-  | IfElse { cond; then_; else_ } ->
-      IfElse { cond = quote_expr env_ref cond; then_ = quote_expr env_ref then_; else_ = quote_expr env_ref else_ }
-  | DotAccess { target; field } ->
-      DotAccess { target = quote_expr env_ref target; field }
-  | Block stmts -> Block (List.map (quote_stmt env_ref) stmts)
-  | PipelineDef nodes ->
-      PipelineDef (List.map (fun (n, e) -> (n, quote_expr env_ref e)) nodes)
-  | IntentDef fields ->
-      IntentDef (List.map (fun (n, e) -> (n, quote_expr env_ref e)) fields)
-  | Lambda l ->
-      Lambda { l with body = quote_expr env_ref l.body }
-  | ListComp { expr = e; clauses } ->
-      let quoted_clauses = List.map (fun clause ->
-        match clause with
-        | CFor { var; iter } -> CFor { var; iter = quote_expr env_ref iter }
-        | CFilter filter_expr -> CFilter (quote_expr env_ref filter_expr)
-      ) clauses in
-      ListComp { expr = quote_expr env_ref e; clauses = quoted_clauses }
+      ListLit quoted
+
   | DictLit pairs ->
-      let quoted_pairs = List.concat_map (fun (k, v) ->
+      let quoted = List.concat_map (fun (k, v) ->
         match v with
-        | UnquoteSplice e ->
-            (match eval_expr env_ref e with
-             | VDict items -> List.map (fun (k2, v2) -> (k2, Value v2)) items
-             | VList items -> List.map (fun (name, v2) ->
-                 let key = match name with Some n -> n | None -> k in
-                 (key, Value v2)) items
-             | other -> [(k, Value (make_error TypeError ("!!! operand must evaluate to a List, Vector, or Dict, got " ^ Utils.type_name other)))])
-        | _ -> [(k, quote_expr env_ref v)]
+        | UnquoteSplice e -> splice_into_dict_pairs env_ref k e
+        | _               -> [(k, q v)]
       ) pairs in
-      DictLit quoted_pairs
-  | UnquoteSplice _ ->
-      Value (make_error TypeError "!!! can only be used inside a Call or List literal within expr()")
+      DictLit quoted
+
+  (* ── Binary / unary operators ──────────────────────────────── *)
+  | BinOp { op; left; right }      -> BinOp { op; left = q left; right = q right }
+  | BroadcastOp { op; left; right } -> BroadcastOp { op; left = q left; right = q right }
+  | UnOp { op; operand }            -> UnOp { op; operand = q operand }
+
+  (* ── Control flow / structure ───────────────────────────────── *)
+  | IfElse { cond; then_; else_ } ->
+      IfElse { cond = q cond; then_ = q then_; else_ = q else_ }
+  | Block stmts       -> Block (List.map qs stmts)
+  | Lambda l          -> Lambda { l with body = q l.body }
+  | DotAccess { target; field } -> DotAccess { target = q target; field }
+
+  (* ── Named-pair containers ─────────────────────────────────── *)
+  | PipelineDef nodes  -> PipelineDef (List.map qpair nodes)
+  | IntentDef fields   -> IntentDef (List.map qpair fields)
+
+  (* ── List comprehension ────────────────────────────────────── *)
+  | ListComp { expr = e; clauses } ->
+      let qclause = function
+        | CFor { var; iter }  -> CFor { var; iter = q iter }
+        | CFilter filter_expr -> CFilter (q filter_expr)
+      in
+      ListComp { expr = q e; clauses = List.map qclause clauses }
+
+  (* ── Leaves (Value, Var, ColumnRef, RawCode) pass through ── *)
   | other -> other
 
 and quote_stmt (env_ref : environment ref) (stmt : Ast.stmt) : Ast.stmt =
+  let q = quote_expr env_ref in
   match stmt with
-  | Expression e -> Expression (quote_expr env_ref e)
-  | Assignment { name; typ; expr } -> Assignment { name; typ; expr = quote_expr env_ref expr }
-  | Reassignment { name; expr } -> Reassignment { name; expr = quote_expr env_ref expr }
+  | Expression e                  -> Expression (q e)
+  | Assignment { name; typ; expr } -> Assignment { name; typ; expr = q expr }
+  | Reassignment { name; expr }   -> Reassignment { name; expr = q expr }
   | other -> other
 
 and eval_list_lit env_ref items =

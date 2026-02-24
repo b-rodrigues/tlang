@@ -18,7 +18,7 @@ The `expr()` function captures the code you provide as an **Expression** object.
 ```t
 e = expr(1 + 2)
 print(e)
-# Output: expr(1 + 2)
+-- Output: expr(1 + 2)
 ```
 
 Unlike regular functions, `expr()` is a special form that does not evaluate its argument.
@@ -29,7 +29,7 @@ Unlike regular functions, `expr()` is a special form that does not evaluate its 
 
 ```t
 ee = exprs(x = 1 + 1, y = 2 + 2)
-# Result: [x: expr(1 + 1), y: expr(2 + 2)]
+-- Result: [x: expr(1 + 1), y: expr(2 + 2)]
 ```
 
 ### Symbols and Bare Words
@@ -38,7 +38,7 @@ In T, if you use a word that isn't defined as a variable, it is automatically tr
 
 ```t
 e = expr(select(df, age, height))
-# 'select', 'age', and 'height' are captured as symbols.
+-- 'select', 'age', and 'height' are captured as symbols.
 ```
 
 ## Evaluating Code
@@ -50,7 +50,7 @@ The `eval()` function takes an Expression object and evaluates it in the current
 ```t
 e = expr(10 + 20)
 res = eval(e)
-print(res) # Output: 30
+print(res) -- Output: 30
 ```
 
 ## Quasiquotation
@@ -65,7 +65,7 @@ The `!!` (pronounced "bang-bang") operator evaluates its operand immediately and
 x = 10
 e = expr(1 + !!x)
 print(e) 
-# Output: expr(1 + 10)
+-- Output: expr(1 + 10)
 ```
 
 If you unquote another Expression object, it is merged directly into the AST:
@@ -74,7 +74,7 @@ If you unquote another Expression object, it is merged directly into the AST:
 inner = expr(1 + 1)
 outer = expr(2 * !!inner)
 print(outer)
-# Output: expr(2 * (1 + 1))
+-- Output: expr(2 * (1 + 1))
 ```
 
 ### `!!!` (Unquote-Splice)
@@ -87,18 +87,18 @@ The `!!!` (pronounced "triple-bang") operator evaluates its operand and **splice
 vals = [1, 2, 3]
 e = expr(sum(!!!vals))
 print(e)
-# Output: expr(sum(1, 2, 3))
+-- Output: expr(sum(1, 2, 3))
 ```
 
 #### Splicing with Names
 
-If you splice a Dictionary or a named List, the names are used as argument names in the resulting call.
+If you splice a named List, the names are used as argument names in the resulting call.
 
 ```t
-args = { x: 10, y: 20 }
-e = expr(f(!!!args, z: 30))
+my_args = [x: 10, y: 20]
+e = expr(f(!!!my_args, z: 30))
 print(e)
-# Output: expr(f(x = 10, y = 20, z = 30))
+-- Output: expr(f(x = 10, y = 20, z = 30))
 ```
 
 ## Advanced Examples
@@ -115,7 +115,7 @@ my_intent = expr(intent {
 })
 
 print(my_intent)
-# Output: expr(intent { target = "mpg"; method = "lm" })
+-- Output: expr(intent { target = "mpg"; method = "lm" })
 ```
 
 ### Prefix-Call Syntax
@@ -124,7 +124,7 @@ T also supports a Lisp-style prefix call syntax which integrates seamlessly with
 
 ```t
 e = expr((add, 1, 2))
-# Equivalent to expr(add(1, 2))
+-- Equivalent to expr(add(1, 2))
 ```
 
 ## Summary of Operators
