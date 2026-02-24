@@ -40,18 +40,11 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
     |> List.filter (fun s -> s <> "")
   in
   let funcs = eval_string_list functions in
-  let incs = eval_string_list includes in
-  let all_files = funcs @ incs in
-  
-  let src_block = match all_files with
-    | [] -> "    src = sources;"
-    | _ ->
-        let files = String.concat " " (List.map (fun f -> "./../" ^ f) all_files) in
-        Printf.sprintf {|    src = pkgs.lib.fileset.toSource {
-      root = ./..;
-      fileset = pkgs.lib.fileset.unions [ %s ];
-    };|} files
-  in
+  let _incs = eval_string_list includes in
+
+  let src_block = "    src = sources;" in
+
+
 
   let source_files =
     if runtime = "R" then
