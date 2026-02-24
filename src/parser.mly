@@ -365,8 +365,7 @@ pipeline_node_list:
   ;
 
 pipeline_node:
-  | name = any_ident EQUALS e = expr
-    { { node_name = name; node_expr = e; node_runtime = "T"; node_serializer = Var "default"; node_deserializer = Var "default"; node_functions = []; node_includes = []; node_noop = false } }
+  | name = any_ident EQUALS e = expr { (name, e) }
   ;
 
 intent_expr:

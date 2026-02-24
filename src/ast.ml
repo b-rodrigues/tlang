@@ -54,17 +54,6 @@ and intent_block = {
   intent_fields : (string * string) list;  (* Key-value pairs of metadata *)
 }
 
-(** Phase 3: Pipeline node definition *)
-and pipeline_node = {
-  node_name : string;
-  node_expr : expr;
-  node_runtime : string;      (* e.g. "T", "R", "Python" *)
-  node_serializer : expr;     (* Function or "default" symbol *)
-  node_deserializer : expr;   (* Function or "default" symbol *)
-  node_functions : expr list; (* List of string literals for files containing functions *)
-  node_includes : expr list;  (* List of string literals for additional files to include in sandbox *)
-  node_noop : bool;           (* Whether this node execution is skipped *)
-}
 
 (** Phase 3: Pipeline result with cached values and dependency info *)
 and pipeline_result = {
@@ -86,6 +75,27 @@ and formula_spec = {
   predictors: string list;
   raw_lhs: expr;
   raw_rhs: expr;
+}
+
+(** Metadata for a node built via Nix that points to a filesystem artifact *)
+and computed_node = {
+  cn_name : string;
+  cn_runtime : string;
+  cn_path : string;
+  cn_serializer : string;
+  cn_class : string;
+  cn_dependencies : string list;
+}
+
+(** Metadata for an unbuilt node (first-class value from node() function) *)
+and unbuilt_node = {
+  un_command : expr;
+  un_runtime : string;
+  un_serializer : expr;
+  un_deserializer : expr;
+  un_functions : expr list;
+  un_includes : expr list;
+  un_noop : bool;
 }
 
 (** Runtime values *)
@@ -114,6 +124,9 @@ and value =
   | VIntent of intent_block
   (* Formula value *)
   | VFormula of formula_spec
+  | VComputedNode of computed_node
+  | VNode of unbuilt_node
+
 
 and builtin = {
   b_name: string option;
@@ -147,7 +160,7 @@ and expr =
   | DotAccess of { target : expr; field : string }
   | RawCode of { raw_text : string; raw_identifiers : string list }  (* Foreign code block <{ ... }> *)
   | BroadcastOp of { op : binop; left : expr; right : expr }
-  | PipelineDef of pipeline_node list
+  | PipelineDef of (string * expr) list
   | IntentDef of (string * expr) list
 
   | Block of stmt list
@@ -182,6 +195,7 @@ and typ =
   | TDataFrame of typ option
   | TVar of string
   | TCustom of string
+  | TComputedNode
 
 type program = stmt list
 
@@ -266,6 +280,7 @@ module Utils = struct
     | TDataFrame (Some schema) -> "DataFrame[" ^ typ_to_string schema ^ "]"
     | TVar s -> s
     | TCustom s -> s
+    | TComputedNode -> "ComputedNode"
 
   let type_name = function
     | VInt _ -> "Int" | VFloat _ -> "Float"
@@ -277,6 +292,8 @@ module Utils = struct
     | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
     | VIntent _ -> "Intent"
     | VFormula _ -> "Formula"
+    | VComputedNode _ -> "ComputedNode"
+    | VNode _ -> "Node"
 
   let rec value_to_string = function
     | VInt n -> string_of_int n
@@ -348,6 +365,11 @@ module Utils = struct
         Printf.sprintf "%s ~ %s"
           (String.concat " + " response)
           (String.concat " + " predictors)
+    | VComputedNode cn ->
+        Printf.sprintf "computed_node<%s> at %s\nserializer: %s\nclass: %s"
+          cn.cn_runtime cn.cn_path cn.cn_serializer cn.cn_class
+    | VNode un ->
+        Printf.sprintf "node<%s>(...)" un.un_runtime
 
   let value_to_raw_string = function
     | VString s -> s
@@ -469,5 +491,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
 
   (* Relaxed numeric matching: Int can often be used where Float is expected in T *)
   | VInt _, TFloat -> true
+
+  | VComputedNode _, TComputedNode -> true
 
   | _ -> false

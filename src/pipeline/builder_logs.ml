@@ -19,14 +19,41 @@ let read_log path =
     close_in ic;
     let re_node = Str.regexp "\"node\": \"\\([^\"]+\\)\"" in
     let re_path = Str.regexp "\"path\": \"\\([^\"]+\\)\"" in
+    let re_runtime = Str.regexp "\"runtime\": \"\\([^\"]+\\)\"" in
+    let re_serializer = Str.regexp "\"serializer\": \"\\([^\"]+\\)\"" in
+    let re_class = Str.regexp "\"class\": \"\\([^\"]+\\)\"" in
+    let re_deps = Str.regexp "\"dependencies\": \\[\\([^]]*\\)\\]" in
     let rec collect pos acc =
       try
         let _ = Str.search_forward re_node raw pos in
-        let node = Str.matched_group 1 raw in
+        let node_name = Str.matched_group 1 raw in
         let next_pos = Str.match_end () in
-        let _ = Str.search_forward re_path raw next_pos in
-        let path = Str.matched_group 1 raw in
-        collect (Str.match_end ()) ((node, path) :: acc)
+        let path = try let _ = Str.search_forward re_path raw next_pos in Str.matched_group 1 raw with _ -> "" in
+        let runtime = try let _ = Str.search_forward re_runtime raw next_pos in Str.matched_group 1 raw with _ -> "T" in
+        let serializer = try let _ = Str.search_forward re_serializer raw next_pos in Str.matched_group 1 raw with _ -> "default" in
+        let class_ = try let _ = Str.search_forward re_class raw next_pos in Str.matched_group 1 raw with _ -> "Unknown" in
+        let deps = try
+          let _ = Str.search_forward re_deps raw next_pos in
+          let s = Str.matched_group 1 raw in
+          let re_word = Str.regexp "\"\\([^\"]+\\)\"" in
+          let rec collect_words sub_pos sub_acc =
+            try
+              let _ = Str.search_forward re_word s sub_pos in
+              collect_words (Str.match_end ()) (Str.matched_group 1 s :: sub_acc)
+            with _ -> List.rev sub_acc
+          in
+          collect_words 0 []
+          with _ -> []
+        in
+        let cn = {
+          Ast.cn_name = node_name;
+          cn_runtime = runtime;
+          cn_path = path;
+          cn_serializer = serializer;
+          cn_class = class_;
+          cn_dependencies = deps;
+        } in
+        collect next_pos ((node_name, cn) :: acc)
       with Not_found -> List.rev acc
     in
     Ok (collect 0 [])
