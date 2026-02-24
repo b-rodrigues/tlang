@@ -43,6 +43,8 @@ rule token = parse
   | "||"        { OR }
   | "&"         { BITAND }
   | "|"         { BITOR } (* Note: PIPE is |> which is longer, so it should be fine *)
+  | "!!!"       { BANG_BANG_BANG }
+  | "!!"        { BANG_BANG }
   | "!"         { BANG }
 
   (* Literals — float must be tried before int *)

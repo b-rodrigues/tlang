@@ -321,6 +321,8 @@ let current_imports : Ast.stmt list ref = ref []
 
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   match expr with
+  | Unquote _ | UnquoteSplice _ ->
+      make_error GenericError "!! and !!! can only be used inside expr() or other quoting contexts"
   | Value v -> v
   | Var s ->
       (match Env.find_opt s !env_ref with
@@ -351,6 +353,22 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
        | VBool true -> eval_expr env_ref then_
        | VBool false -> eval_expr env_ref else_
        | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
+
+  | Call { fn = Var "expr"; args } ->
+      (match args with
+       | [(_name, e)] -> VExpr (quote_expr env_ref e)
+       | _ -> make_error ArityError "expr() expects exactly 1 argument")
+
+  | Call { fn = Var "exprs"; args } ->
+      VList (List.map (fun (name, e) -> (name, VExpr (quote_expr env_ref e))) args)
+
+  | Call { fn = Var "eval"; args } ->
+      (match args with
+       | [(_name, e)] ->
+           (match eval_expr env_ref e with
+            | VExpr quoted -> eval_expr env_ref quoted
+            | other -> other)
+       | _ -> make_error ArityError "eval() expects exactly 1 argument")
 
   | Call { fn = Var "node"; args } ->
       let lookup_arg name default =
@@ -390,6 +408,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       eval_call env_ref fn_val args
 
   | Lambda l -> VLambda { l with env = Some !env_ref } (* Capture the current environment *)
+
 
   (* Structural expressions *)
   | ListLit items -> eval_list_lit env_ref items
@@ -459,6 +478,7 @@ and free_vars (expr : Ast.expr) : string list =
     | Block stmts -> List.concat_map collect_stmt stmts
     | PipelineDef _ -> []
     | IntentDef pairs -> List.concat_map (fun (_, e) -> collect e) pairs
+    | Unquote e | UnquoteSplice e -> collect e
 
   and collect_stmt = function
     | Expression e -> collect e
@@ -729,6 +749,61 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
       end
     ) ([], ref !env_ref, []) exec_order in
     VPipeline { prev with p_nodes = List.rev results }
+
+and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
+  match expr with
+  | Unquote e -> 
+      (match eval_expr env_ref e with
+       | VExpr ex -> ex
+       | other -> Value other)
+  | Call { fn; args } ->
+      let quoted_fn = quote_expr env_ref fn in
+      let quoted_args = List.concat_map (fun (name, arg) ->
+        match arg with
+        | UnquoteSplice e ->
+            (match eval_expr env_ref e with
+             | VList items -> List.map (fun (n, v) -> (n, Value v)) items
+             | VDict items -> List.map (fun (k, v) -> (Some k, Value v)) items
+             | VVector arr -> Array.to_list arr |> List.map (fun v -> (None, Value v))
+             | other -> [(name, Value other)])
+        | _ -> [(name, quote_expr env_ref arg)]
+      ) args in
+      Call { fn = quoted_fn; args = quoted_args }
+  | ListLit items ->
+      let quoted_items = List.concat_map (fun (name, item) ->
+        match item with
+        | UnquoteSplice e ->
+            (match eval_expr env_ref e with
+             | VList items -> List.map (fun (n, v) -> (n, Value v)) items
+             | VDict items -> List.map (fun (k, v) -> (Some k, Value v)) items
+             | VVector arr -> Array.to_list arr |> List.map (fun v -> (None, Value v))
+             | other -> [(name, Value other)])
+        | _ -> [(name, quote_expr env_ref item)]
+      ) items in
+      ListLit quoted_items
+  | BinOp { op; left; right } ->
+      BinOp { op; left = quote_expr env_ref left; right = quote_expr env_ref right }
+  | BroadcastOp { op; left; right } ->
+      BroadcastOp { op; left = quote_expr env_ref left; right = quote_expr env_ref right }
+  | UnOp { op; operand } ->
+      UnOp { op; operand = quote_expr env_ref operand }
+  | IfElse { cond; then_; else_ } ->
+      IfElse { cond = quote_expr env_ref cond; then_ = quote_expr env_ref then_; else_ = quote_expr env_ref else_ }
+  | DotAccess { target; field } ->
+      DotAccess { target = quote_expr env_ref target; field }
+  | Block stmts -> Block (List.map (quote_stmt env_ref) stmts)
+  | PipelineDef nodes ->
+      PipelineDef (List.map (fun (n, e) -> (n, quote_expr env_ref e)) nodes)
+  | IntentDef fields ->
+      IntentDef (List.map (fun (n, e) -> (n, quote_expr env_ref e)) fields)
+  | other -> other
+
+and quote_stmt (env_ref : environment ref) (stmt : Ast.stmt) : Ast.stmt =
+  match stmt with
+  | Expression e -> Expression (quote_expr env_ref e)
+  | Assignment { name; typ; expr } -> Assignment { name; typ; expr = quote_expr env_ref expr }
+  | Reassignment { name; expr } -> Reassignment { name; expr = quote_expr env_ref expr }
+  | other -> other
 
 and eval_list_lit env_ref items =
     let evaluated_items = List.map (fun (name, e) ->

@@ -65,6 +65,7 @@
     <ul>
       <li><a href="reproducibility.html">Reproducibility Guide</a> — Nix integration and reproducible workflows</li>
       <li><a href="llm-collaboration.html">LLM Collaboration</a> — intent blocks and AI-assisted development</li>
+      <li><a href="quotation.html">Quotation & Metaprogramming</a> — capturing and generating code</li>
       <li><a href="formulas.html">Statistical Formulas</a> — formula syntax for modeling</li>
       <li><a href="performance.html">Performance</a> — Arrow backend and optimization</li>
     </ul>
@@ -197,11 +198,13 @@ pipeline analysis {
       <li>Conditional pipe operator: <code>|></code> (short-circuits on error)</li>
       <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
       <li>Dollar-prefix NSE: <code>select($name, $age)</code>, <code>filter($age > 30)</code>,
-        <code>summarize($total = sum($amount))</code></li>
+        <code>summarize($total = sum($amount))</code>
+      </li>
       <li>Named arguments: <code>lm(data = df, formula = y ~ x)</code></li>
       <li>NA handling: <code>mean(data, na_rm = true)</code> — all aggregation functions support <code>na_rm</code></li>
       <li>CSV I/O: <code>read_csv(path, sep = ";", skip_lines = 2)</code> and
-        <code>write_csv(df, path, sep = ";")</code></li>
+        <code>write_csv(df, path, sep = ";")</code>
+      </li>
       <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
       <li>Python-style dictionaries: <code>{name: "Alice", age: 30}</code></li>
       <li>Errors as values, not exceptions</li>
@@ -285,7 +288,8 @@ error("fail") ?|> recovery |> increment  -- 1
     <ul>
       <li><b>core</b>: functional utilities (<code>map</code>, <code>sum</code>, <code>seq</code>)</li>
       <li><b>stats</b>: statistical primitives (<code>mean</code>, <code>sd</code>, <code>quantile</code>,
-        <code>cor</code>, <code>lm</code>)</li>
+        <code>cor</code>, <code>lm</code>)
+      </li>
       <li><b>colcraft</b>: DataFrame operations (<code>select</code>, <code>filter</code>, <code>mutate</code>,
         <code>group_by</code>, <code>summarize</code>) and window functions (<code>row_number</code>,
         <code>min_rank</code>, <code>dense_rank</code>, <code>lag</code>, <code>lead</code>, <code>cumsum</code>, etc.)
@@ -374,7 +378,8 @@ lag([1, NA, 3])                    -- Vector[NA, 1, NA]
       <li>Core data verbs (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>summarize</code>)</li>
       <li>Grouped operations (<code>group_by |> mutate</code>, <code>group_by |> summarize</code>)</li>
       <li>Window functions with NA handling (<code>row_number</code>, <code>lag</code>, <code>lead</code>,
-        <code>cumsum</code>, etc.)</li>
+        <code>cumsum</code>, etc.)
+      </li>
       <li>Basic statistics and modeling with NA handling (<code>na_rm</code> parameter)</li>
       <li>Intent blocks and tooling hooks</li>
       <li>REPL and CLI</li>
