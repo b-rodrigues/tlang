@@ -36,6 +36,7 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
   | Block stmts ->
       (* We need to desugar inside statements too *)
       Block (List.map desugar_nse_stmt stmts)
+  | NamespaceAccess _ -> expr  (* Opaque to NSE desugaring *)
   | _ -> expr
 
 and desugar_nse_stmt stmt =
@@ -61,6 +62,7 @@ let rec uses_nse (expr : Ast.expr) : bool =
   | ListLit items -> List.exists (fun (_, e) -> uses_nse e) items
   | DictLit pairs -> List.exists (fun (_, e) -> uses_nse e) pairs
   | DotAccess { target; _ } -> uses_nse target
+  | NamespaceAccess _ -> false
   | Block stmts -> List.exists uses_nse_stmt stmts
   | _ -> false
 
@@ -357,6 +359,8 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   | ListLit items -> eval_list_lit env_ref items
   | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env_ref e)) pairs)
   | DotAccess { target; field } -> eval_dot_access env_ref target field
+  | NamespaceAccess { ns; field } ->
+      make_error GenericError (Printf.sprintf "The `::` operator (in `%s::%s`) is R-specific syntax and cannot be used in T code. It is only valid inside `node(command = ..., runtime = R)`." ns field)
   | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
   | Block stmts -> eval_block env_ref stmts
   | PipelineDef nodes -> eval_pipeline env_ref nodes
@@ -415,6 +419,7 @@ and free_vars (expr : Ast.expr) : string list =
     | UnOp { operand; _ } -> collect operand
     | BroadcastOp { left; right; _ } -> collect left @ collect right
     | DotAccess { target; _ } -> collect target
+    | NamespaceAccess _ -> []  (* R-specific; no T free vars *)
     | Block stmts -> List.concat_map collect_stmt stmts
     | PipelineDef _ -> []
     | IntentDef pairs -> List.concat_map (fun (_, e) -> collect e) pairs

@@ -58,6 +58,7 @@ rule token = parse
   | '{' { LBRACE }   | '}' { RBRACE }
   | '\\' { LAMBDA }  | ',' { COMMA }
   | ":=" { COLON_EQ }
+  | "::" { COLONCOLON }
   | ':' { COLON }    | '.' { DOT }
   | '=' { EQUALS }   | "->" { ARROW }
   | "..." { DOTDOTDOT }

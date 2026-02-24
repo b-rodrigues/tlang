@@ -145,6 +145,7 @@ and expr =
   | BinOp of { op : binop; left : expr; right : expr }
   | UnOp of { op : unop; operand : expr }
   | DotAccess of { target : expr; field : string }
+  | NamespaceAccess of { ns : string; field : string }  (* R's pkg::fn syntax *)
   | BroadcastOp of { op : binop; left : expr; right : expr }
   | PipelineDef of pipeline_node list
   | IntentDef of (string * expr) list

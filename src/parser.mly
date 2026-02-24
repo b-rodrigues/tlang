@@ -40,7 +40,7 @@ let build_bracket_literal (items : bracket_item list) : Ast.expr =
 %token <string> COLUMN_REF
 /* Symbols and Operators */
 %token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
-%token COMMA COLON COLON_EQ DOT EQUALS ARROW DOTDOTDOT
+%token COMMA COLON COLONCOLON COLON_EQ DOT EQUALS ARROW DOTDOTDOT
 %token PIPE
 %token MAYBE_PIPE
 %token PLUS MINUS STAR SLASH PERCENT
@@ -227,13 +227,15 @@ unary_expr:
   | BANG e = unary_expr { UnOp { op = Not; operand = e } }
   ;
 
-/* Function calls and dot access are postfix operations */
+/* Function calls, dot access, and namespace access (R's ::) are postfix operations */
 postfix_expr:
   | e = primary_expr { e }
   | fn = postfix_expr LPAREN skip_sep args = call_args RPAREN
     { Call { fn; args } }
   | target = postfix_expr DOT field = any_ident
     { DotAccess { target; field } }
+  | ns = any_ident COLONCOLON field = any_ident
+    { NamespaceAccess { ns; field } }
   ;
 
 call_args:
