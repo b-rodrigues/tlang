@@ -39,17 +39,20 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             let log_path = Filename.concat pipeline_dir log_name in
             let log_entries =
               List.map (fun (name, _) ->
-                let path = Filename.concat (Filename.concat out_path name) "artifact" in
+                let node_path = Filename.concat out_path name in
+                let artifact_path = Filename.concat node_path "artifact" in
+                let class_path = Filename.concat node_path "class" in
+                let class_val = match read_file_first_line class_path with Some c -> c | None -> "Unknown" in
                 let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
                 let serializer_expr = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.Var "default" in
                 let serializer = Nix_unparse.unparse_expr serializer_expr in
                 let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
                 Serialization.json_dict [
                   ("node", "\"" ^ Serialization.json_escape name ^ "\"");
-                  ("path", "\"" ^ Serialization.json_escape path ^ "\"");
+                  ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
                   ("runtime", "\"" ^ Serialization.json_escape runtime ^ "\"");
                   ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
-                  ("class", "\"Unknown\"");
+                  ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
                   ("dependencies", Serialization.json_list deps);
                   ("success", "true")
                 ]
