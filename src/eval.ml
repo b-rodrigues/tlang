@@ -811,10 +811,9 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
         | UnquoteSplice e ->
             (match eval_expr env_ref e with
              | VDict items -> List.map (fun (k2, v2) -> (k2, Value v2)) items
-             | VList items -> List.filter_map (fun (name, v2) ->
-                 match name with
-                 | Some n -> Some (n, Value v2)
-                 | None -> Some (k, Value v2)) items
+             | VList items -> List.map (fun (name, v2) ->
+                 let key = match name with Some n -> n | None -> k in
+                 (key, Value v2)) items
              | other -> [(k, Value (make_error TypeError ("!!! operand must evaluate to a List, Vector, or Dict, got " ^ Utils.type_name other)))])
         | _ -> [(k, quote_expr env_ref v)]
       ) pairs in
