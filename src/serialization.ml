@@ -211,10 +211,7 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `Null -> VNull
   | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
   | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
-  | `Intlit _
-  | `Floatlit _
-  | `Tuple _
-  | `Variant _ ->
+  | _ ->
       invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 
 let write_json path value =
