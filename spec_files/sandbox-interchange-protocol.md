@@ -1,15 +1,28 @@
+Below is your RFC, **extended to include standardized data interchange via Apache Arrow**, and updated to reflect the node-based runtime abstraction (with `"arrow"` and `"pmml"` as built-in serializers).
+
+I’ve kept the structure intact and added a new section after the Architecture Overview to integrate Arrow cleanly and consistently.
+
+---
+
 # RFC: Model Interchange via PMML for T
 
 ## Abstract
 
-This RFC proposes a **cross-language model interchange system** for T using **PMML (Predictive Model Markup Language)**.
+This RFC proposes a **cross-language model interchange system** for T using **PMML (Predictive Model Markup Language)**, and standardizes **data interchange via Apache Arrow**.
 
 * Models are trained in R or Python using standard user APIs.
 * T imports models via PMML as an **internal, versioned interchange format**.
-* Users never interact with PMML directly.
+* Tabular data is exchanged via Apache Arrow.
+* Users never interact with PMML or Arrow directly.
 * T executes models natively, enabling predictions, plotting, and further analysis.
 
-This approach separates **training** from **runtime execution**, ensures **language neutrality**, and avoids embedding foreign runtimes.
+This approach separates:
+
+* **Training** from **runtime execution**
+* **Data interchange** from **model interchange**
+* **External runtimes** from **T’s native execution engine**
+
+It ensures language neutrality and avoids embedding foreign runtimes.
 
 ---
 
@@ -22,92 +35,210 @@ T aims to:
 * Support **reproducibility** and **portability**
 * Interoperate with **existing ecosystems** (R, Python, scikit-learn, etc.)
 
-Instead of embedding R or Python runtimes, we use **PMML as a canonical, structured model representation**.
+Instead of embedding R or Python runtimes, we use:
+
+* **PMML** as a canonical model representation
+* **Apache Arrow** as a canonical data representation
 
 This ensures:
 
 * Stable, language-agnostic IR
 * Portable model execution
-* Consistent user experience across languages
-* Easier versioning and validation
+* Efficient, typed data interchange
+* Clear separation of concerns
+* Easier validation and versioning
 
 ---
 
+# Data Interchange: Apache Arrow
+
+## Background
+
+Apache Arrow is a cross-language columnar memory format designed for high-performance data interchange.
+
+It is supported in:
+
+* R (`arrow` package)
+* Python (`pyarrow`)
+* Many other ecosystems
+
+Arrow provides:
+
+* Schema preservation
+* Strong typing
+* Efficient columnar layout
+* Streaming support
+* Zero-copy compatibility (future extension)
+
+---
+
+## Motivation for Arrow
+
+Current node definition:
+
+```python
+summary_r = node(
+    command = <{ raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)) }>,
+    runtime = R,
+    deserializer = r_read_csv,
+    serializer = r_write_csv,
+    functions = "src/iolib.R"
+)
+```
+
+Problems:
+
+* CSV loses type information
+* Manual serializer/deserializer functions
+* Fragile and repetitive glue code
+* Harder to validate schemas
+
+---
+
+## Proposed Standard Serializer Keywords
+
+Replace custom functions with standardized format keywords:
+
+```python
+summary_r = node(
+    command = <{ raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)) }>,
+    runtime = R,
+    serializer = "arrow",
+    deserializer = "arrow"
+)
+```
+
+### Semantics
+
+If `"arrow"` is specified:
+
+1. T serializes input dataframe to Arrow IPC.
+2. External runtime reads Arrow.
+3. Runtime writes Arrow output.
+4. T deserializes Arrow back to native dataframe.
+
+No user-defined IO code required.
+
+---
+
+## Execution Flow (Data Plane)
+
+```
+T dataframe
+    ↓
+Arrow IPC
+    ↓
+R / Python runtime
+    ↓
+Arrow IPC
+    ↓
+T dataframe
+```
+
+Arrow becomes the standardized **data plane**.
+
+---
+
+# Model Interchange: PMML
+
 ## Background: PMML
 
-Predictive Model Markup Language (PMML) is an XML-based standard for predictive model representation.
+Predictive Model Markup Language is an XML-based standard for predictive model representation.
 
 It supports:
 
 * Regression models (linear, logistic, GLM)
 * Tree models (CART, random forests)
-* Ensembles, clustering, and more
-* Feature transformations and basic preprocessing
-
-### R Ecosystem
-
-* [`pmml`](https://cran.r-project.org/web/packages/pmml/index.html) — exports models to PMML
-* [`r2pmml`](https://cran.r-project.org/web/packages/r2pmml/index.html) — alternative exporter with configuration
-
-### Python Ecosystem
-
-* `sklearn2pmml` — sklearn → PMML pipeline exporter
-* `nyoka` — export Keras, sklearn, XGBoost models
-* `pypmml` — PMML evaluator (Java-backed)
-
-**Important:** Users never use PMML directly. T provides helpers to generate PMML internally from trained models.
+* Ensembles, clustering
+* Feature transformations and derived fields
 
 ---
 
-## Goals
+## R Ecosystem
 
-1. Provide **language-agnostic model import** in T
-2. Enable **native model execution** in T without embedding runtimes
-3. Support common model types (regression, GLM, trees) initially
-4. Ensure **user workflows remain natural** (no direct PMML)
-5. Enable **future extensions** to other models and pipelines
+* [`pmml`](https://cran.r-project.org/web/packages/pmml/index.html)
+* [`r2pmml`](https://cran.r-project.org/web/packages/r2pmml/index.html)
 
 ---
 
-## Architecture Overview
+## Python Ecosystem
 
-### 1. Training / Export (Python/R)
+* `sklearn2pmml`
+* `nyoka`
+* `pypmml`
 
-**R Example:**
+**Important:** Users never manipulate PMML directly.
+T provides `t_export_model()` helpers that wrap exporters internally.
+
+---
+
+# Architecture Overview
+
+## 1. Training / Export (Python/R)
+
+### R Example
 
 ```r
 library(r2pmml)
-library(stats)
-
 fit <- lm(mpg ~ wt + cyl, data = mtcars)
 
-# Export PMML for T
 t_export_model(fit, "model.pmml")
 ```
 
-* `t_export_model()` wraps `r2pmml` or `pmml` internally
-* User never interacts with PMML
-* PMML saved in a known location or Nix store path
-
-**Python Example:**
+### Python Example
 
 ```python
 from sklearn.linear_model import LinearRegression
-from nyoka import skl_to_pmml
 
 model = LinearRegression().fit(X, y)
-
-# Export PMML for T
 t_export_model(model, "model.pmml")
 ```
 
-* `t_export_model()` uses `nyoka` or `sklearn2pmml` internally
-* Ensures PMML conforms to T’s supported schema
-* Users stay in native Python APIs (scikit-learn, XGBoost, LightGBM)
+`t_export_model()`:
+
+* Wraps exporter (`r2pmml`, `nyoka`, etc.)
+* Validates supported constructs
+* Pins compatible exporter versions
+* Emits warnings if unsupported elements exist
+
+Users never touch PMML.
 
 ---
 
-### 2. T Import & Execution
+## 2. Node-Level Model Serialization
+
+Model-producing nodes may specify:
+
+```python
+model_train = node(
+    command = <{ lm(mpg ~ wt + cyl, data = raw_data) }>,
+    runtime = R,
+    serializer = "pmml"
+)
+```
+
+or
+
+```python
+model_train = node(
+    command = <{ LinearRegression().fit(X, y) }>,
+    runtime = Python,
+    serializer = "pmml"
+)
+```
+
+If `"pmml"` is specified:
+
+* Runtime exports model to PMML
+* T imports PMML
+* T converts to internal IR
+* T executes natively
+
+PMML becomes the standardized **model plane**.
+
+---
+
+## 3. T Import & Execution
 
 ```t
 model = load_pmml("model.pmml")
@@ -118,12 +249,15 @@ df |> plot(model)
 
 Steps:
 
-1. **Parse PMML XML** → internal T IR
-2. **Validate schema** and model type
-3. **Build native evaluator**
-4. Expose prediction API in T
+1. Parse PMML XML
+2. Validate schema + version
+3. Convert to T IR
+4. Compile evaluator
+5. Execute natively
 
-**Internal IR example:**
+---
+
+## Internal IR Example
 
 ```ocaml
 type regression_model = {
@@ -144,146 +278,499 @@ type t_model =
 
 ---
 
-### 3. Model Execution Semantics
+# Unified Interoperability Design
 
-#### Regression Models
+| Plane  | Standard     | Purpose                     |
+| ------ | ------------ | --------------------------- |
+| Data   | Apache Arrow | Typed tabular interchange   |
+| Models | PMML         | Model structure interchange |
 
-For `<RegressionModel>`:
+External runtimes become transformation engines.
+T becomes orchestration + execution engine.
+
+---
+
+# Model Execution Semantics
+
+## Regression
 
 ```
 ŷ = intercept + Σ (β_i × x_i)
 ```
 
-* Applies PMML-defined link function for GLMs (logit, probit, log, etc.)
-* Evaluates expressions natively in T
+Link functions applied per PMML spec.
 
-#### Tree Models
+## Trees
 
-For `<TreeModel>`:
-
-* Evaluates nested decision rules
-* Supports ensembles by aggregating predictions
-* Fully vectorized and native
+* Nested rule evaluation
+* Ensemble aggregation
+* Fully vectorized in T
 
 ---
 
-## Advantages of PMML
+# Validation Strategy
 
-1. **Language neutrality:** R, Python, or other tools can export to PMML
-2. **Broader model support:** Regression, GLM, trees, ensembles, clustering
-3. **Formal schema:** Validated, versioned, and stable
-4. **Runtime independence:** No R/Python required during inference
-5. **Clean separation:** Training ↔ Execution boundary
+To address exporter fragility and preprocessing risks:
 
----
+1. `t_export_model()` must:
 
-## Limitations
+   * Pin exporter versions
+   * Emit explicit warnings for dropped constructs
+   * Validate schema
 
-* Advanced pipelines (recipes, preprocessing) require PMML representation or must be mirrored in T
-* Complex deep learning models may exceed PMML support
-* XML parsing requires robust implementation
+2. Optional round-trip validation:
 
----
+   * Sample predictions in source runtime
+   * Compare against T evaluator
+   * Fail if tolerance exceeded
 
-## Security Considerations
-
-* Validate PMML against schema
-* Reject unsupported constructs
-* PMML is treated as **data**, never executable code
+This guards against silent divergence.
 
 ---
 
-## Open Questions
+# Advantages
 
-1. Should T allow model updates (incremental learning) on imported PMML?
-2. How to version T IR to remain backward-compatible with PMML updates?
-3. How to handle feature preprocessing pipelines cleanly in T?
+1. Language neutrality
+2. Standardized data and model planes
+3. No embedded runtimes
+4. Strong schema validation
+5. Reduced glue code
+6. Cleaner node abstraction
 
 ---
 
-## Recommended Initial Scope
+# Limitations
 
-* `<RegressionModel>` — Linear, Logistic, GLM
-* `<TreeModel>` — Single decision trees, later ensembles
-* `<MiningSchema>` — Columns and field metadata
-* `<DerivedField>` — Basic transformations
+* Complex preprocessing pipelines require careful support
+* PMML exporter ecosystems may lag upstream libraries
+* XML parsing complexity
+* Advanced ensemble coverage requires phased rollout
 
-Later expansion:
+---
 
+# Security Considerations
+
+* Arrow schema validation
+* Strict PMML schema validation
+* No execution of arbitrary code
+* Reject unsupported constructs explicitly
+
+---
+
+# Recommended Initial Scope
+
+## Data
+
+* Arrow IPC file-based exchange
+
+## Models
+
+* `<RegressionModel>`
+* `<TreeModel>`
+* `<MiningSchema>`
+* `<DerivedField>` (basic transforms)
+
+Future:
+
+* `<MiningModel>` (ensembles)
 * Random forests
 * Gradient boosting
-* Neural networks
-* Ensembles (`<MiningModel>`)
+* Advanced preprocessing
 
 ---
 
-## User Experience Principle
+# User Experience Principle
 
-* Users **never see PMML**.
-* Python / R code stays idiomatic:
+Users interact only with native APIs:
 
 ```python
 model = LinearRegression().fit(X, y)
-t_export_model(model, "model.pmml")  # Hidden PMML export
+t_export_model(model, "model.pmml")
 ```
 
 ```r
 fit <- lm(mpg ~ wt + cyl, data = mtcars)
-t_export_model(fit, "model.pmml")   # Hidden PMML export
+t_export_model(fit, "model.pmml")
 ```
 
-* T handles parsing, validation, IR creation, and native evaluation
-* Users interact with **T-native model APIs only** (`predict`, `plot`, `tidy`)
+```python
+summary_r = node(
+    command = <{ raw_data |> dplyr::summarize(avg = mean(x)) }>,
+    runtime = R,
+    serializer = "arrow",
+    deserializer = "arrow"
+)
+```
+
+Users never manipulate:
+
+* PMML
+* Arrow IPC
+* Custom IO glue
+
+T handles:
+
+* Serialization
+* Validation
+* IR conversion
+* Native execution
 
 ---
 
-## Conclusion
+# Conclusion
 
-Using PMML as a hidden interchange format:
+This RFC establishes:
 
-* Provides cross-language interoperability
-* Avoids embedding foreign runtimes
-* Allows native model execution in T
-* Aligns with T’s declarative, reproducible, tabular-first philosophy
-* Supports multiple ML ecosystems (R, Python, etc.)
+* **PMML** as the canonical model interchange format
+* **Apache Arrow** as the canonical data interchange format
+* Standardized serializer keywords (`"arrow"`, `"pmml"`)
+* A strict boundary between training and execution
+* A clean, extensible runtime abstraction
 
-This establishes T as a **language-agnostic model runtime** while keeping user workflows natural.
+This architecture positions T as:
 
+* A language-neutral analytics orchestrator
+* A high-performance tabular engine
+* A native model scoring runtime
+* A reproducible and principled system
 
-## Review: Model Interchange via PMML
+# RFC Addendum: Serialization of Primitive and Generic Objects
 
-The core proposal is sound. Using PMML as a hidden interchange format with a clean training/execution boundary is a pragmatic and well-reasoned architectural decision. The "users never see PMML" principle is exactly right — exposing PMML directly would introduce unnecessary complexity into user workflows. The phased rollout starting with `<RegressionModel>` and `<TreeModel>` is also appropriately conservative.
+## 1. Motivation
 
-That said, several concerns deserve attention before committing to this architecture.
+While tabular data and statistical models represent high-value structured objects, T must also support serialization of:
 
----
+* Scalars (integers, floats, booleans, strings)
+* Arrays / vectors
+* Lists / dictionaries / named structures
+* Nested composite objects
+* Lightweight configuration-like objects
+* Small intermediate computational results
 
-### 1. PMML Exporter Fragility
+These objects must:
 
-The PMML exporter ecosystem (`sklearn2pmml`, `nyoka`, `r2pmml`) has historically lagged behind upstream library versions. A user training a model with a recent scikit-learn or XGBoost release may encounter silent omissions or outright export failures depending on exporter version. Since T wraps these exporters internally via `t_export_model()`, users will have no visibility into what was dropped. The RFC should specify a pinning and validation strategy for exporter dependencies, and `t_export_model()` should surface warnings when a model includes constructs that cannot be faithfully represented in PMML.
+* Be portable across R, Python, Julia, and T
+* Require no user-written serialization code
+* Be deterministic and reproducible
+* Be human-inspectable when reasonable
+* Avoid unnecessary binary complexity
 
----
-
-### 2. Preprocessing Pipelines Are the Hard Part
-
-The RFC flags preprocessing as a limitation but undersells how critical this is in practice. Real-world models are typically 30% model and 70% preprocessing — scalers, encoders, imputers, interaction terms. If these transformations are not faithfully captured in PMML's `<DerivedField>` and `<TransformationDictionary>`, T's predictions will silently diverge from those produced by the original training environment, with no obvious error to the user.
-
-This is arguably the highest-risk part of the entire proposal, and it deserves its own dedicated RFC before the architecture is finalized. That RFC should define which preprocessing constructs T will support natively, how unsupported transforms are detected and surfaced, and whether there is a validation step that round-trips a sample of predictions from the source environment against T's evaluator to catch discrepancies early.
-
----
-
-### 3. Ensemble and Tree Coverage Deserves Prototyping First
-
-PMML's `<MiningModel>` schema for random forests and gradient boosting is complex, and exporters vary significantly in how faithfully they represent model-specific behavior — XGBoost's boosting logic in particular does not map cleanly to the PMML spec. The RFC places ensembles in the "later expansion" tier, which is correct, but it would be worth prototyping this before the roadmap is committed to, to avoid discovering late that ensembles require significant parser complexity or produce subtly incorrect results.
-
----
-
-### 4. Consider ONNX as a Complement for Python-Side ML Models
-
-For the Python ecosystem specifically, ONNX may be a better fit than PMML for tree-based and ensemble models. The `skl2onnx` converter is more actively maintained than its PMML equivalents and has broader coverage of scikit-learn's API surface. A hybrid approach — PMML for statistical models exported from R (GLMs, survival models, etc.) and ONNX for ML models from Python — would leverage the strengths of each format. The tradeoff is that T would need to maintain two parsers and two IR mappings, which adds implementation surface. This is worth evaluating explicitly rather than leaving as an implicit future option.
+For these object classes, JSON is the appropriate default.
 
 ---
 
-### Summary
+## 2. Serialization Strategy Overview
 
-The RFC establishes a clean and well-motivated architecture. The recommendations above are not blockers, but the preprocessing pipeline question in particular should be resolved before implementation begins, as it touches correctness in a way that is difficult to retrofit. A round-trip validation mechanism between the source environment and T's evaluator should be considered a first-class requirement rather than a nice-to-have.
+| Object Type                 | Format              | Rationale                                        |
+| --------------------------- | ------------------- | ------------------------------------------------ |
+| Tabular data                | Arrow IPC / Parquet | Columnar, zero-copy, cross-language              |
+| Statistical models          | PMML                | Language-neutral predictive model representation |
+| Primitive & generic objects | JSON                | Universally supported, simple, portable          |
+
+JSON becomes the **default fallback format** for non-tabular, non-model objects.
+
+---
+
+## 3. Design: JSON as the Generic Object Transport
+
+### 3.1 Principles
+
+1. Users never manually serialize.
+2. R/Python sandbox contains built-in T-provided serializers.
+3. T inspects metadata to determine how to deserialize.
+4. JSON must be structurally annotated when needed.
+
+---
+
+## 4. Built-in JSON Serializers
+
+### 4.1 R Runtime
+
+T provides:
+
+```r
+t_write_json <- function(object, path) {
+  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
+}
+
+t_read_json <- function(path) {
+  jsonlite::read_json(path, simplifyVector = TRUE)
+}
+```
+
+Uses:
+
+* `jsonlite::toJSON`
+* `jsonlite::fromJSON`
+
+No user code required.
+
+---
+
+### 4.2 Python Runtime
+
+T provides:
+
+```python
+import json
+
+def t_write_json(obj, path):
+    with open(path, "w") as f:
+        json.dump(obj, f)
+
+def t_read_json(path):
+    with open(path) as f:
+        return json.load(f)
+```
+
+For numpy support:
+
+```python
+import numpy as np
+
+class TEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return {
+                "__type__": "ndarray",
+                "dtype": str(obj.dtype),
+                "shape": obj.shape,
+                "data": obj.tolist()
+            }
+        return super().default(obj)
+```
+
+---
+
+## 5. Supported Object Classes
+
+### 5.1 Scalars
+
+| R         | Python | T      |
+| --------- | ------ | ------ |
+| numeric   | float  | Float  |
+| integer   | int    | Int    |
+| logical   | bool   | Bool   |
+| character | str    | String |
+
+JSON mapping is direct.
+
+---
+
+### 5.2 Vectors / Arrays
+
+R numeric vector:
+
+```r
+c(1, 2, 3)
+```
+
+Serialized as:
+
+```json
+[1, 2, 3]
+```
+
+Python list:
+
+```python
+[1, 2, 3]
+```
+
+Same JSON representation.
+
+T interprets as:
+
+```
+Vector<Float>
+```
+
+---
+
+### 5.3 Named Lists / Dictionaries
+
+R:
+
+```r
+list(alpha = 0.1, beta = 2)
+```
+
+JSON:
+
+```json
+{
+  "alpha": 0.1,
+  "beta": 2
+}
+```
+
+T interprets as:
+
+```
+Map<String, Any>
+```
+
+---
+
+### 5.4 Nested Objects
+
+JSON naturally supports nested structures:
+
+```json
+{
+  "model_config": {
+    "alpha": 0.1,
+    "penalty": "l2"
+  },
+  "metrics": [0.8, 0.9, 0.85]
+}
+```
+
+T recursively reconstructs typed structures.
+
+---
+
+## 6. Type Metadata and Tagged JSON
+
+For richer reconstruction, JSON may include metadata:
+
+```json
+{
+  "__t_class__": "vector_float",
+  "data": [1.0, 2.0, 3.0]
+}
+```
+
+Or:
+
+```json
+{
+  "__t_class__": "matrix",
+  "nrow": 2,
+  "ncol": 2,
+  "data": [1,2,3,4]
+}
+```
+
+This allows:
+
+* Preserving shape
+* Avoiding ambiguous reconstruction
+* Rebuilding typed T-native objects
+
+---
+
+## 7. Node-Level Usage
+
+### 7.1 Default JSON
+
+```python
+config = node(
+    command = <{ {"alpha": 0.1, "beta": 2} }>,
+    runtime = Python,
+    serializer = "json",
+    deserializer = "json"
+)
+```
+
+### 7.2 R Example
+
+```r
+params = node(
+    command = <{ list(alpha = 0.1, beta = 2) }>,
+    runtime = R,
+    serializer = "json",
+    deserializer = "json"
+)
+```
+
+T automatically:
+
+1. Executes sandbox
+2. Calls built-in `t_write_json`
+3. Reads JSON
+4. Reconstructs T structure
+
+---
+
+## 8. Why JSON for Generic Objects?
+
+### 8.1 Cross-language universality
+
+* R: jsonlite
+* Python: json
+* Julia: JSON3
+* OCaml (T): Yojson or similar
+
+### 8.2 Deterministic
+
+### 8.3 Human-readable
+
+### 8.4 Simple to debug
+
+### 8.5 Minimal dependency footprint
+
+---
+
+## 9. When JSON Is Not Appropriate
+
+JSON should NOT be used for:
+
+* Large tabular data → use Arrow
+* Numerical tensors (large) → consider Arrow or binary format
+* Statistical models → use PMML
+* Language-specific object graphs → avoid entirely
+
+---
+
+## 10. Complete Serialization Matrix
+
+| Type             | Format    | User API |
+| ---------------- | --------- | -------- |
+| DataFrame        | `"arrow"` | Built-in |
+| Model            | `"pmml"`  | Built-in |
+| Scalar           | `"json"`  | Built-in |
+| Vector           | `"json"`  | Built-in |
+| List / dict      | `"json"`  | Built-in |
+| Nested structure | `"json"`  | Built-in |
+
+---
+
+## 11. Architectural Summary
+
+T’s serialization stack becomes:
+
+```
+Tier 1: PMML  → Predictive models
+Tier 2: Arrow → Tabular data
+Tier 3: JSON  → Everything else
+```
+
+Each runtime exposes:
+
+```
+serializer = "arrow" | "pmml" | "json"
+deserializer = same
+```
+
+Users never write serialization code.
+
+---
+
+## 12. Design Philosophy
+
+This approach achieves:
+
+* Reproducibility (Nix-store artifacts)
+* Language neutrality
+* Deterministic pipelines
+* Extensibility
+* Minimal user burden
+* Clear semantic contracts
+
+Most importantly:
+
+T remains the semantic authority.
+
+External runtimes compute.
+T owns the meaning.
