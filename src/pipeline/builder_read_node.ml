@@ -44,5 +44,9 @@ let read_node ?which_log name =
                 (match Serialization.read_json cn.Ast.cn_path with
                  | Ok v -> v
                  | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read JSON node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+              else if cn.Ast.cn_serializer = "arrow" then
+                (match Arrow_io.read_ipc cn.Ast.cn_path with
+                 | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+                 | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
               else
                 VComputedNode cn)

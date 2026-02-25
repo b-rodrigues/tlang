@@ -1078,3 +1078,66 @@ Users can always drop below the stack.
 3. Serialization is transport, not semantics.
 4. T owns semantics after deserialization.
 5. Extensibility is a core design guarantee.
+
+---
+
+# 9. Arrow Implementation Details (Phase 2)
+
+Arrow interoperability is implemented using the Feather V2 (IPC) format for file-based interchange between runtimes.
+
+## 9.1 Data Flow
+
+1. **Serialization (Output)**:
+   - When a node has `serializer = "arrow"`, its output is written to `$out/artifact` using the Arrow IPC format.
+   - For **R**: Uses `arrow::write_ipc_file(as.data.frame(object), path)`.
+   - For **Python**: Uses `pyarrow.ipc.new_file` to write the table or DataFrame.
+   - For **T**: Uses `Arrow_io.write_ipc` (native-backed tables only).
+
+2. **Deserialization (Input)**:
+   - When a node consumes a dependency with `deserializer = "arrow"` (or by default if the upstream used `serializer = "arrow"` and matches), it reads from the upstream's `$out/artifact`.
+   - For **R**: Uses `arrow::read_ipc_file(path)`.
+   - For **Python**: Uses `pyarrow.ipc.open_file(path).read_pandas()`.
+   - For **T**: Uses `Arrow_io.read_ipc`.
+
+## 9.2 Type Mapping
+
+| T Type | Arrow Type | R Type | Python Type |
+|--------|------------|--------|-------------|
+| Int    | Int64      | integer / double | int64 |
+| Float  | Float64    | double | float64 |
+| Bool   | Boolean    | logical | bool |
+| String | String     | character | object / string |
+| NA     | Null       | NA      | None / NaN |
+
+## 9.3 Usage Example
+
+```python
+import "iris.csv" as raw_data
+
+# Process in R
+iris_summary = node(
+    command = <{
+        raw_data %>%
+          group_by(Species) %>%
+          summarize(mean_len = mean(Sepal.Length))
+    }>,
+    runtime = R,
+    serializer = "arrow"
+)
+
+# Consume in Python
+verified = node(
+    command = <{
+        print(iris_summary.head())
+        return iris_summary.mean_len.mean() > 5
+    }>,
+    runtime = Python,
+    deserializer = "arrow"
+)
+```
+
+## 9.4 Technical Invariants
+
+- **IPC Format**: T uses the Arrow IPC "File" format (Feather V2), which includes a footer with schema information, rather than the "Stream" format.
+- **Native Handles**: In T, Arrow tables can be "native-backed" (pointing directly to C memory managed by Arrow C GLib) or "OCaml-backed". `write_arrow` currently requires a native-backed table.
+- **Zero-Copy**: Where supported by the underlying C libraries, deserialization is zero-copy for numeric data.

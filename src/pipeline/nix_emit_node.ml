@@ -57,6 +57,8 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   
   let is_json_ser = match serializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
   let is_json_des = match deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
+  let is_arrow_ser = match serializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
+  let is_arrow_des = match deserializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
@@ -77,12 +79,50 @@ def t_read_json(path):
         return json.load(f)
 |} in
 
+  let t_arrow_r_code = {|
+t_write_arrow <- function(object, path) {
+  arrow::write_ipc_file(as.data.frame(object), path)
+}
+t_read_arrow <- function(path) {
+  arrow::read_ipc_file(path)
+}
+|} in
+
+  let t_arrow_py_code = {|
+import pyarrow as pa
+import pyarrow.ipc as ipc
+import pandas as pd
+
+def t_write_arrow(df, path):
+    if isinstance(df, pd.DataFrame):
+        table = pa.Table.from_pandas(df)
+    else:
+        table = df
+    with pa.OSFile(path, 'wb') as f:
+        with ipc.new_file(f, table.schema) as writer:
+            writer.write_table(table)
+
+def t_read_arrow(path):
+    with pa.OSFile(path, 'rb') as f:
+        return ipc.open_file(f).read_pandas()
+|} in
+
   let json_injection =
     if is_json_ser || is_json_des then
       if runtime = "R" then
         Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_json_r_code
       else if runtime = "Python" then
         Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_json_py_code
+      else ""
+    else ""
+  in
+
+  let arrow_injection =
+    if is_arrow_ser || is_arrow_des then
+      if runtime = "R" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_arrow_r_code
+      else if runtime = "Python" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_arrow_py_code
       else ""
     else ""
   in
@@ -96,6 +136,8 @@ def t_read_json(path):
           (if runtime = "R" then "readRDS" else "deserialize")
         else if is_json_des then
           "t_read_json"
+        else if is_arrow_des then
+          "t_read_arrow"
         else des_s
       in
       if runtime = "R" then
@@ -111,6 +153,8 @@ def t_read_json(path):
       (if runtime = "R" then "saveRDS" else "serialize")
     else if is_json_ser then
       "t_write_json"
+    else if is_arrow_ser then
+      "t_write_arrow"
     else ser_s
   in
 
@@ -133,13 +177,11 @@ EOF
       echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
     else if runtime = "Python" then
       if is_raw_code then
-        Printf.sprintf {|      echo "%s = (" >> node_script.py
-      cat <<'EOF' >> node_script.py
+        Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo ")" >> node_script.py
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s
@@ -178,6 +220,7 @@ EOF
     buildCommand = ''
       cp -r $src/* . || true
       chmod -R u+w .
+%s
 %s      cat << EOF > node_script.%s
 EOF
 %s
@@ -189,4 +232,4 @@ EOF
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports ext json_injection imports_echo source_files deps_script_lines assign_script_lines run_cmd
+|} name name deps_inputs src_block deps_exports json_injection ext arrow_injection imports_echo source_files deps_script_lines assign_script_lines run_cmd
