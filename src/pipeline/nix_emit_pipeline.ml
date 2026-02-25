@@ -52,7 +52,7 @@ let
     packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ pkgs.rPackages.jsonlite ];
   };
 
-  pyVersion = toml.py-dependencies.version or "python314";
+  pyVersion = toml.py-dependencies.version or "python3";
   pyPackagesList = toml.py-dependencies.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: builtins.map (p: ps.${p}) pyPackagesList);
 in

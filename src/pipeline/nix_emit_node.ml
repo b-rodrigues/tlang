@@ -118,11 +118,13 @@ def t_read_json(path):
   let assign_script_lines =
     if runtime = "R" then
       if is_raw_code then
-        Printf.sprintf {|      cat <<'EOF' >> node_script.R
+        Printf.sprintf {|      echo "%s <- local({" >> node_script.R
+      cat <<'EOF' >> node_script.R
 %s
 EOF
+      echo "})" >> node_script.R
       echo "%s(%s, \"$out/artifact\")" >> node_script.R
-      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} expr_s ser_call name name
+      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.R
 %s <- %s
@@ -131,11 +133,13 @@ EOF
       echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
     else if runtime = "Python" then
       if is_raw_code then
-        Printf.sprintf {|      cat <<'EOF' >> node_script.py
+        Printf.sprintf {|      echo "%s = (" >> node_script.py
+      cat <<'EOF' >> node_script.py
 %s
 EOF
+      echo ")" >> node_script.py
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s
@@ -144,11 +148,13 @@ EOF
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
     else
       if is_raw_code then
-        Printf.sprintf {|      cat <<'EOF' >> node_script.t
+        Printf.sprintf {|      echo "      %s = {" >> node_script.t
+      cat <<'EOF' >> node_script.t
 %s
 EOF
+      echo "      }" >> node_script.t
       echo "      %s(%s, \"$out/artifact\")" >> node_script.t
-      echo "      write_text(\"$out/class\", type(%s))" >> node_script.t|} expr_s ser_call name name
+      echo "      write_text(\"$out/class\", type(%s))" >> node_script.t|} name expr_s ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
