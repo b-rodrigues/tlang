@@ -104,8 +104,7 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
         GARROW_IS_UINT8_DATA_TYPE(dtype) || GARROW_IS_UINT16_DATA_TYPE(dtype) ||
         GARROW_IS_UINT32_DATA_TYPE(dtype) || GARROW_IS_UINT64_DATA_TYPE(dtype))
                                                   type_tag = 0; /* ArrowInt64 */
-    else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype) || GARROW_IS_FLOAT_DATA_TYPE(dtype))
-                                                  type_tag = 1; /* ArrowFloat64 */
+    else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype))                              type_tag = 1; /* ArrowFloat64 */
     else if (GARROW_IS_BOOLEAN_DATA_TYPE(dtype))  type_tag = 2; /* ArrowBoolean */
     else if (GARROW_IS_STRING_DATA_TYPE(dtype) ||
              GARROW_IS_LARGE_STRING_DATA_TYPE(dtype))
@@ -195,7 +194,10 @@ CAMLprim value caml_arrow_read_int64_column(value v_array_ptr) {
       else if (int32_array) val = garrow_int32_array_get_value(int32_array, i);
       else if (int16_array) val = garrow_int16_array_get_value(int16_array, i);
       else if (int8_array)  val = garrow_int8_array_get_value(int8_array, i);
-      else if (uint64_array) val = (gint64)garrow_uint64_array_get_value(uint64_array, i);
+      else if (uint64_array) {
+        guint64 u = garrow_uint64_array_get_value(uint64_array, i);
+        val = (u > (guint64)G_MAXINT64) ? G_MAXINT64 : (gint64)u;
+      }
       else if (uint32_array) val = (gint64)garrow_uint32_array_get_value(uint32_array, i);
       else if (uint16_array) val = (gint64)garrow_uint16_array_get_value(uint16_array, i);
       else if (uint8_array)  val = (gint64)garrow_uint8_array_get_value(uint8_array, i);
@@ -1751,16 +1753,17 @@ CAMLprim value caml_arrow_read_ipc(value v_path) {
     CAMLreturn(Val_none);
   }
 
-  /* Feather V2 IS Arrow IPC File format */
-  GArrowFeatherFileReader *reader =
-    garrow_feather_file_reader_new(GARROW_SEEKABLE_INPUT_STREAM(input), &error);
+  /* Use Arrow IPC RecordBatch file reader for standard IPC files */
+  GArrowRecordBatchFileReader *reader =
+    garrow_record_batch_file_reader_new(GARROW_SEEKABLE_INPUT_STREAM(input), &error);
   if (reader == NULL) {
     g_object_unref(input);
     if (error) g_error_free(error);
     CAMLreturn(Val_none);
   }
 
-  GArrowTable *table = garrow_feather_file_reader_read(reader, &error);
+  GArrowTable *table =
+    garrow_record_batch_reader_read_all(GARROW_RECORD_BATCH_READER(reader), &error);
   g_object_unref(reader);
   g_object_unref(input);
 

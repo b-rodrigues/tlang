@@ -159,6 +159,17 @@ def t_read_arrow(path):
   in
 
   let is_raw_code = match expr with RawCode _ -> true | _ -> false in
+
+  (* Check if raw code string contains an assignment to node_name at line start *)
+  let raw_assigns_to name s =
+    let prefix = name ^ " =" in
+    String.split_on_char '\n' s
+    |> List.exists (fun line ->
+      let l = String.trim line in
+      String.length l >= String.length prefix &&
+      String.sub l 0 (String.length prefix) = prefix)
+  in
+
   let assign_script_lines =
     if runtime = "R" then
       if is_raw_code then
@@ -177,11 +188,20 @@ EOF
       echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
     else if runtime = "Python" then
       if is_raw_code then
-        Printf.sprintf {|      cat <<'EOF' >> node_script.py
+        if raw_assigns_to name expr_s then
+          (* Statement-style: raw code explicitly assigns to node name — use as-is *)
+          Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s
 EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
+        else
+          (* Expression-style: wrap with assignment to node name *)
+          Printf.sprintf {|      cat <<'EOF' >> node_script.py
+%s = (%s)
+EOF
+      echo "%s(%s, \"$out/artifact\")" >> node_script.py
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s
@@ -221,7 +241,7 @@ EOF
       cp -r $src/* . || true
       chmod -R u+w .
 %s
-%s      cat << EOF > node_script.%s
+      cat << EOF > node_script.%s
 EOF
 %s
 %s
@@ -232,4 +252,4 @@ EOF
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports json_injection ext arrow_injection imports_echo source_files deps_script_lines assign_script_lines run_cmd
+|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection imports_echo source_files deps_script_lines assign_script_lines run_cmd

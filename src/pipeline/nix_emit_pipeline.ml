@@ -8,6 +8,22 @@ let emit_pipeline (p : Ast.pipeline_result) =
     if s = "" then None else Some s
   ) p.p_imports in
   let node_names = List.map fst p.p_exprs in
+
+  let is_arrow_ser_or_des name =
+    let ser = List.assoc name p.p_serializers in
+    let des = List.assoc name p.p_deserializers in
+    (match ser with Value (VString "arrow") -> true | _ -> false) ||
+    (match des with Value (VString "arrow") -> true | _ -> false)
+  in
+  let needs_r_arrow = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "R" && is_arrow_ser_or_des name
+  ) in
+  let needs_py_arrow = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "Python" && is_arrow_ser_or_des name
+  ) in
+
   let nodes =
     p.p_exprs
     |> List.map (fun (name, expr) ->
@@ -26,6 +42,8 @@ let emit_pipeline (p : Ast.pipeline_result) =
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
+  let r_arrow_pkg = if needs_r_arrow then " pkgs.rPackages.arrow" else "" in
+  let py_arrow_pkgs = if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "" in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
 let
@@ -49,12 +67,12 @@ let
   
   rPackagesList = toml.r-dependencies.packages or [];
   r-env = pkgs.rWrapper.override {
-    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ pkgs.rPackages.jsonlite ];
+    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ pkgs.rPackages.jsonlite%s ];
   };
 
   pyVersion = toml.py-dependencies.version or "python3";
   pyPackagesList = toml.py-dependencies.packages or [];
-  py-env = pkgs.${pyVersion}.withPackages (ps: builtins.map (p: ps.${p}) pyPackagesList);
+  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList)%s);
 in
 rec {
 %s
@@ -67,4 +85,4 @@ rec {
     '';
   };
 }
-|} nodes (String.concat " " node_names) final_copy
+|} r_arrow_pkg py_arrow_pkgs nodes (String.concat " " node_names) final_copy
