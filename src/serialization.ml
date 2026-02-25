@@ -168,3 +168,64 @@ let json_dict pairs =
     Printf.sprintf "  \"%s\": %s" (json_escape k) v
   ) pairs)) ^
   "\n}"
+
+let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
+  match v with
+  | VInt i -> `Int i
+  | VFloat f -> `Float f
+  | VBool b -> `Bool b
+  | VString s -> `String s
+  | VNull -> `Null
+  | VList items -> `List (List.map (fun (_, v) -> value_to_yojson v) items)
+  | VDict pairs -> `Assoc (List.map (fun (k, v) -> (k, value_to_yojson v)) pairs)
+  | VVector arr -> `List (Array.to_list arr |> List.map value_to_yojson)
+  | VNA _ -> `Null
+  | VSymbol _ as sym -> `String (Ast.Utils.value_to_string sym)
+  | VDataFrame _ ->
+      invalid_arg "value_to_yojson: VDataFrame is not supported for JSON serialization"
+  | VPipeline _ ->
+      invalid_arg "value_to_yojson: VPipeline is not supported for JSON serialization"
+  | VLambda _ ->
+      invalid_arg "value_to_yojson: VLambda is not supported for JSON serialization"
+  | VBuiltin _ ->
+      invalid_arg "value_to_yojson: VBuiltin is not supported for JSON serialization"
+  | VFormula _ ->
+      invalid_arg "value_to_yojson: VFormula is not supported for JSON serialization"
+  | VNDArray _ ->
+      invalid_arg "value_to_yojson: VNDArray is not supported for JSON serialization"
+  | VIntent _ ->
+      invalid_arg "value_to_yojson: VIntent is not supported for JSON serialization"
+  | VNode _ ->
+      invalid_arg "value_to_yojson: VNode is not supported for JSON serialization"
+  | VExpr _ ->
+      invalid_arg "value_to_yojson: VExpr is not supported for JSON serialization"
+  | _ ->
+      invalid_arg "value_to_yojson: unsupported value type for JSON serialization"
+
+let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
+  match j with
+  | `Int i -> VInt i
+  | `Float f -> VFloat f
+  | `Bool b -> VBool b
+  | `String s -> VString s
+  | `Null -> VNull
+  | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
+  | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
+  | _ ->
+      invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
+
+let write_json path value =
+  try
+    ensure_parent_dir path;
+    let j = value_to_yojson value in
+    Yojson.Safe.to_file path j;
+    Ok ()
+  with exn -> Error (Printexc.to_string exn)
+
+let read_json path =
+  try
+    if not (Sys.file_exists path) then Error "File not found"
+    else
+      let j = Yojson.Safe.from_file path in
+      Ok (yojson_to_value j)
+  with exn -> Error (Printexc.to_string exn)

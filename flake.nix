@@ -36,6 +36,7 @@
             tidyr
             purrr
             broom
+            jsonlite
           ];
         };
 
