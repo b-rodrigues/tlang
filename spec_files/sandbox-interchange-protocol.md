@@ -774,3 +774,307 @@ T remains the semantic authority.
 
 External runtimes compute.
 T owns the meaning.
+
+Below is the additional RFC section introducing a **phased implementation plan** and explicitly formalizing **user-provided serializers** as first-class citizens.
+
+This integrates cleanly with the previously defined Arrow / PMML / JSON tiered architecture.
+
+---
+
+# RFC Addendum: Phased Implementation Plan and Extensibility
+
+## 1. Design Principle
+
+T must provide:
+
+1. **Sensible, zero-configuration defaults**
+2. **A clear migration path toward richer cross-language semantics**
+3. **Full user override capability at every stage**
+
+Built-in keywords (`"json"`, `"arrow"`, `"pmml"`) are convenience layers — not restrictions.
+
+Users must always be able to provide:
+
+* Custom serializer functions
+* Custom deserializer functions
+* Custom metadata handlers
+
+T never removes flexibility in favor of convenience.
+
+---
+
+# 2. Phased Implementation Plan
+
+The serialization system will be implemented incrementally in five phases.
+
+---
+
+## Phase 1 — JSON Baseline (MVP)
+
+### Goal
+
+Enable universal object transport across R, Python, Julia, and T.
+
+### Scope
+
+* Built-in keyword: `"json"`
+* T-provided R and Python serializer functions
+* Basic scalar, vector, list, dict support
+* Optional tagged JSON for structured reconstruction
+
+### Node API
+
+```python
+node(
+    command = <{ ... }>,
+    runtime = R,
+    serializer = "json",
+    deserializer = "json"
+)
+```
+
+### Internal Requirements
+
+* Embed `t_write_json` and `t_read_json` into sandbox (R and Python)
+* These functions should be defined within pipeline.nix and reused for each derivation
+* Deterministic JSON encoding
+* Metadata sidecar file (class/type hints)
+
+### Deliverable
+
+Cross-language transport of:
+
+* Scalars
+* Lists
+* Nested objects
+* Small structured configs
+
+This is the foundation.
+
+---
+
+## Phase 2 — Arrow for Tabular Data
+
+### Goal
+
+Efficient, typed DataFrame exchange.
+
+### Scope
+
+* Built-in keyword: `"arrow"`
+* R: arrow::write_ipc_stream / read_ipc_stream
+* Python: pyarrow
+* OCaml: Arrow C data interface bindings
+
+### Node API
+
+```python
+node(
+    command = <{ raw_data |> summarize(...) }>,
+    runtime = R,
+    serializer = "arrow",
+    deserializer = "arrow"
+)
+```
+
+### Guarantees
+
+* Zero-copy where possible
+* Preserved column types
+* No CSV fallback
+
+### Deliverable
+
+Production-grade DataFrame interoperability.
+
+---
+
+## Phase 3 — PMML for Models
+
+### Goal
+
+Language-neutral predictive model exchange.
+
+### Scope
+
+* Built-in keyword: `"pmml"`
+* R integration via r2pmml
+* Python integration via sklearn2pmml / nyoka
+* T-native PMML parser (subset first)
+
+### Node API
+
+```python
+model = node(
+    command = <{ fit_model(data) }>,
+    runtime = Python,
+    serializer = "pmml",
+    deserializer = "pmml"
+)
+```
+
+### Deliverable
+
+T-native model abstraction capable of:
+
+* Predict
+* Inspect features
+* Plot decision boundaries (when feasible)
+
+---
+
+## Phase 4 — Semantic Object Reconstruction
+
+### Goal
+
+Move from "transport" to "semantic integration".
+
+### Scope
+
+* Mapping PMML → T model objects
+* Mapping JSON-tagged objects → typed T structures
+* Versioned deserializers
+* Class registry inside T
+
+Deliver:
+
+```text
+PMML → T::LinearModel
+PMML → T::TreeModel
+JSON(tag=matrix) → T::Matrix
+```
+
+---
+
+# 3. User-Provided Serializers (First-Class Feature)
+
+Built-in keywords are shorthand.
+
+The node API must always support explicit functions:
+
+```python
+node(
+    command = <{ ... }>,
+    runtime = R,
+    serializer = "my_custom_writer",
+    deserializer = "my_custom_reader",
+    functions = "src/my_io.R"
+)
+```
+
+Or in Python:
+
+```python
+node(
+    command = <{ ... }>,
+    runtime = Python,
+    serializer = my_writer,
+    deserializer = my_reader,
+    functions = "src/io.py"
+)
+```
+
+---
+
+## 3.1 Formal Rule
+
+Resolution order for `serializer`:
+
+1. If string matches built-in keyword → use built-in
+2. If string matches provided function name → use user function
+3. If callable object provided → use directly
+4. Otherwise → error
+
+Built-in keywords are syntactic sugar for:
+
+```text
+"json"  → t_write_json / t_read_json
+"arrow" → t_write_arrow / t_read_arrow
+"pmml"  → t_write_pmml / t_read_pmml
+```
+
+---
+
+# 4. Overriding Defaults
+
+Users may:
+
+* Replace JSON implementation
+* Provide optimized Arrow writer
+* Provide custom PMML post-processing
+* Implement domain-specific formats
+
+Example:
+
+```python
+node(
+    command = <{ heavy_object }>,
+    runtime = Python,
+    serializer = "pickle_writer",
+    deserializer = "pickle_reader",
+    functions = "src/pickle_io.py"
+)
+```
+
+T imposes no restrictions beyond determinism and file-path return contract.
+
+---
+
+# 5. Required Contract for Any Serializer
+
+A serializer must:
+
+1. Accept `(object, path)`
+2. Write deterministically to `path`
+3. Return nothing (or success flag)
+
+A deserializer must:
+
+1. Accept `path`
+2. Return reconstructed object
+
+T handles:
+
+* Store paths
+* Metadata
+* Version tracking
+
+---
+
+# 6. Architectural Invariant
+
+Built-in serializers are:
+
+* Convenience
+* Stable defaults
+* Fully replaceable
+
+T remains:
+
+* Format-agnostic
+* Extensible
+* Runtime-neutral
+
+---
+
+# 7. Final Serialization Stack
+
+```text
+Layer 3 — JSON  → Generic objects
+Layer 2 — Arrow → Tabular data
+Layer 1 — PMML  → Models
+--------------------------------
+Override layer → User-defined serializers
+```
+
+Users can always drop below the stack.
+
+---
+
+# 8. Guiding Philosophy
+
+1. Defaults must cover 90% of use cases.
+2. Advanced users must never be boxed in.
+3. Serialization is transport, not semantics.
+4. T owns semantics after deserialization.
+5. Extensibility is a core design guarantee.
