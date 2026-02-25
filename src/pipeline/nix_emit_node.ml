@@ -60,15 +60,9 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
-  if (!requireNamespace("jsonlite", quietly = TRUE)) {
-    stop("Package 'jsonlite' is required for JSON serialization. Please add it to your r-dependencies in tproject.toml.")
-  }
   jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
 }
 t_read_json <- function(path) {
-  if (!requireNamespace("jsonlite", quietly = TRUE)) {
-    stop("Package 'jsonlite' is required for JSON serialization. Please add it to your r-dependencies in tproject.toml.")
-  }
   jsonlite::read_json(path, simplifyVector = TRUE)
 }
 |} in

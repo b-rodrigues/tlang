@@ -40,7 +40,7 @@ let read_node ?which_log name =
                 (match Serialization.deserialize_from_file cn.Ast.cn_path with
                 | Ok v -> v
                 | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
-              else if cn.Ast.cn_serializer = "\"json\"" || cn.Ast.cn_serializer = "json" then
+              else if cn.Ast.cn_serializer = "json" then
                 (match Serialization.read_json cn.Ast.cn_path with
                  | Ok v -> v
                  | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read JSON node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
