@@ -1753,17 +1753,16 @@ CAMLprim value caml_arrow_read_ipc(value v_path) {
     CAMLreturn(Val_none);
   }
 
-  /* Use Arrow IPC RecordBatch file reader for standard IPC files */
-  GArrowRecordBatchFileReader *reader =
-    garrow_record_batch_file_reader_new(GARROW_SEEKABLE_INPUT_STREAM(input), &error);
+  /* Feather V2 IS Arrow IPC File format */
+  GArrowFeatherFileReader *reader =
+    garrow_feather_file_reader_new(GARROW_SEEKABLE_INPUT_STREAM(input), &error);
   if (reader == NULL) {
     g_object_unref(input);
     if (error) g_error_free(error);
     CAMLreturn(Val_none);
   }
 
-  GArrowTable *table =
-    garrow_record_batch_reader_read_all(GARROW_RECORD_BATCH_READER(reader), &error);
+  GArrowTable *table = garrow_feather_file_reader_read(reader, &error);
   g_object_unref(reader);
   g_object_unref(input);
 

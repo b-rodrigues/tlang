@@ -248,6 +248,7 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
