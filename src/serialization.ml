@@ -199,8 +199,10 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       invalid_arg "value_to_yojson: VNode is not supported for JSON serialization"
   | VExpr _ ->
       invalid_arg "value_to_yojson: VExpr is not supported for JSON serialization"
-  | _ ->
-      invalid_arg "value_to_yojson: unsupported value type for JSON serialization"
+  | VComputedNode _ ->
+      invalid_arg "value_to_yojson: VComputedNode is not supported for JSON serialization"
+  | VError _ ->
+      invalid_arg "value_to_yojson: VError is not supported for JSON serialization"
 
 let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   match j with
