@@ -160,14 +160,18 @@ def t_read_arrow(path):
 
   let is_raw_code = match expr with RawCode _ -> true | _ -> false in
 
-  (* Check if raw code string contains an assignment to node_name at line start *)
+  (* Check if raw code string contains a Python assignment to node_name.
+     Looks for `name = ` (assignment, not `==` comparison) at the start of a line. *)
   let raw_assigns_to name s =
-    let prefix = name ^ " =" in
+    let prefix = name ^ " = " in
+    let prefix_eq = name ^ " ==" in
     String.split_on_char '\n' s
     |> List.exists (fun line ->
       let l = String.trim line in
       String.length l >= String.length prefix &&
-      String.sub l 0 (String.length prefix) = prefix)
+      String.sub l 0 (String.length prefix) = prefix &&
+      not (String.length l >= String.length prefix_eq &&
+           String.sub l 0 (String.length prefix_eq) = prefix_eq))
   in
 
   let assign_script_lines =

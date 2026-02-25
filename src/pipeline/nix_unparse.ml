@@ -30,7 +30,14 @@ let dedent s =
     ) lines
     |> String.concat "\n"
 
-let rec unparse_expr = function
+(** Extract a plain string from an expression if it wraps VString/VSymbol,
+    otherwise fall back to the general unparser. Used for serializer/deserializer fields.  *)
+let rec expr_to_string expr =
+  match expr with
+  | Ast.Value (Ast.VString s) | Ast.Value (Ast.VSymbol s) -> s
+  | e -> unparse_expr e
+
+and unparse_expr = function
   | Value (VComputedNode cn) ->
       Printf.sprintf "computed_node(name=\"%s\", runtime=\"%s\", path=\"%s\")"
         (Serialization.json_escape cn.cn_name)

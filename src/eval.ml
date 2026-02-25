@@ -635,8 +635,8 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     let my_deps = List.assoc name deps in
     let offenders = List.filter (fun dname ->
       let dep_runtime = List.assoc dname runtime_mapping in
-      let is_json_des = match un.un_deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
-      dep_runtime <> my_runtime && un.un_deserializer = Var "default" && not is_json_des
+      (* Cross-runtime dependency without an explicit deserializer *)
+      dep_runtime <> my_runtime && un.un_deserializer = Var "default"
     ) my_deps in
     if offenders <> [] then
       Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
@@ -664,7 +664,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             cn_name = name;
             cn_runtime = "T";
             cn_path = "<unbuilt>";
-            cn_serializer = (match un.un_serializer with Ast.Value (Ast.VString s) -> s | e -> Nix_unparse.unparse_expr e);
+            cn_serializer = Nix_unparse.expr_to_string un.un_serializer;
             cn_class = "Unknown";
             cn_dependencies = node_deps;
           }
@@ -680,13 +680,12 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
                      acc)
             | _ -> acc
           ) !current_env_ref node_deps in
-          let cmd = match un.un_command with Value (VExpr e) -> e | e -> e in
-          eval_expr (ref env_with_deserialized) cmd
+          eval_expr (ref env_with_deserialized) un.un_command
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
         cn_path = "<unbuilt>";
-        cn_serializer = (match un.un_serializer with Ast.Value (Ast.VString s) -> s | e -> Nix_unparse.unparse_expr e);
+        cn_serializer = Nix_unparse.expr_to_string un.un_serializer;
         cn_class = "Unknown";
         cn_dependencies = List.assoc name deps;
       }
