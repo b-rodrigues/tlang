@@ -21,7 +21,7 @@ let dedent s =
             incr indent
           done;
           min min_acc !indent
-      ) 1000 lines
+      ) max_int lines
     in
     List.map (fun l ->
       if String.length l >= min_indent then

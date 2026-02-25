@@ -180,7 +180,27 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   | VDict pairs -> `Assoc (List.map (fun (k, v) -> (k, value_to_yojson v)) pairs)
   | VVector arr -> `List (Array.to_list arr |> List.map value_to_yojson)
   | VNA _ -> `Null
-  | _ -> `String (Ast.Utils.value_to_string v)
+  | VSymbol _ as sym -> `String (Ast.Utils.value_to_string sym)
+  | VDataFrame _ ->
+      invalid_arg "value_to_yojson: VDataFrame is not supported for JSON serialization"
+  | VPipeline _ ->
+      invalid_arg "value_to_yojson: VPipeline is not supported for JSON serialization"
+  | VLambda _ ->
+      invalid_arg "value_to_yojson: VLambda is not supported for JSON serialization"
+  | VBuiltin _ ->
+      invalid_arg "value_to_yojson: VBuiltin is not supported for JSON serialization"
+  | VFormula _ ->
+      invalid_arg "value_to_yojson: VFormula is not supported for JSON serialization"
+  | VNDArray _ ->
+      invalid_arg "value_to_yojson: VNDArray is not supported for JSON serialization"
+  | VIntent _ ->
+      invalid_arg "value_to_yojson: VIntent is not supported for JSON serialization"
+  | VNode _ ->
+      invalid_arg "value_to_yojson: VNode is not supported for JSON serialization"
+  | VExpr _ ->
+      invalid_arg "value_to_yojson: VExpr is not supported for JSON serialization"
+  | _ ->
+      invalid_arg "value_to_yojson: unsupported value type for JSON serialization"
 
 let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   match j with
@@ -191,7 +211,11 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `Null -> VNull
   | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
   | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
-  | _ -> VNull
+  | `Intlit _
+  | `Floatlit _
+  | `Tuple _
+  | `Variant _ ->
+      invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 
 let write_json path value =
   try

@@ -15,8 +15,6 @@ let read_log path =
   try
     let json = Yojson.Safe.from_file path in
     let open Yojson.Safe.Util in
-    let _timestamp = json |> member "timestamp" |> to_string in
-    let _hash = json |> member "hash" |> to_string in
     let nodes = json |> member "nodes" |> to_list in
     let entries = List.map (fun node_json ->
       let name = node_json |> member "node" |> to_string in
