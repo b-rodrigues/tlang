@@ -94,7 +94,7 @@ let math_package = {
 let base_package = {
   name = "base";
   description = "Assertions, NA handling, and error utilities";
-  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_message"; "error_context"; "serialize"; "deserialize"];
+  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_message"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"];
 }
 
 let dataframe_package = {
@@ -391,6 +391,7 @@ let init_env () =
   let env = Error_utils.register env in
   let env = Serialize.register env in
   let env = Deserialize.register env in
+  let env = T_json.register env in
   (* Dataframe package *)
   let env = T_dataframe.register env in
   let env = T_read_csv.register env in

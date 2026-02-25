@@ -598,7 +598,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   (* Compute dependencies based on the 'command' part of the desugared node *)
   let deps = List.map (fun (name, un) ->
     let fv = free_vars un.un_command in
-    let node_deps = List.filter (fun v -> List.mem v node_names) fv in
+    let node_deps = List.filter (fun v -> List.mem v node_names && v <> name) fv in
     (name, node_deps)
   ) desugared_nodes in
 
@@ -630,7 +630,8 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     let my_deps = List.assoc name deps in
     let offenders = List.filter (fun dname ->
       let dep_runtime = List.assoc dname runtime_mapping in
-      dep_runtime <> my_runtime && un.un_deserializer = Var "default"
+      let is_json_des = match un.un_deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
+      dep_runtime <> my_runtime && un.un_deserializer = Var "default" && not is_json_des
     ) my_deps in
     if offenders <> [] then
       Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
@@ -650,7 +651,32 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     let node_map = desugared_nodes in
     let eval_or_defer name un current_env_ref =
       if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
-      else if un.un_runtime = "T" then eval_expr current_env_ref un.un_command
+      else if un.un_runtime = "T" then
+        let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
+        let is_unbuilt d = match Env.find_opt d !current_env_ref with Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>" | _ -> false in
+        if List.exists is_unbuilt node_deps then
+          VComputedNode {
+            cn_name = name;
+            cn_runtime = "T";
+            cn_path = "<unbuilt>";
+            cn_serializer = Nix_unparse.unparse_expr un.un_serializer;
+            cn_class = "Unknown";
+            cn_dependencies = node_deps;
+          }
+        else
+          let is_json_des = match un.un_deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
+          let env_with_deserialized = List.fold_left (fun acc dname ->
+            match Env.find_opt dname acc with
+            | Some (VComputedNode cn) when is_json_des && (cn.cn_serializer = "\"json\"" || cn.cn_serializer = "json") ->
+                (match Serialization.read_json cn.cn_path with
+                 | Ok v -> Env.add dname v acc
+                 | Error msg -> 
+                     Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname name msg;
+                     acc)
+            | _ -> acc
+          ) !current_env_ref node_deps in
+          let cmd = match un.un_command with Value (VExpr e) -> e | e -> e in
+          eval_expr (ref env_with_deserialized) cmd
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
@@ -719,7 +745,32 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
   | Ok exec_order ->
     let rerun_eval_or_defer name un env_ref =
       if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
-      else if un.un_runtime = "T" then eval_expr env_ref un.un_command
+      else if un.un_runtime = "T" then
+        let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
+        let is_unbuilt d = match Env.find_opt d !env_ref with Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>" | _ -> false in
+        if List.exists is_unbuilt node_deps then
+          VComputedNode {
+            cn_name = name;
+            cn_runtime = "T";
+            cn_path = "<unbuilt>";
+            cn_serializer = Nix_unparse.unparse_expr un.un_serializer;
+            cn_class = "Unknown";
+            cn_dependencies = node_deps;
+          }
+        else
+          let is_json_des = match un.un_deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
+          let env_with_deserialized = List.fold_left (fun acc dname ->
+            match Env.find_opt dname acc with
+            | Some (VComputedNode cn) when is_json_des && (cn.cn_serializer = "\"json\"" || cn.cn_serializer = "json") ->
+                (match Serialization.read_json cn.cn_path with
+                 | Ok v -> Env.add dname v acc
+                 | Error msg -> 
+                     Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s` during re-run: %s\n%!" dname name msg;
+                     acc)
+            | _ -> acc
+          ) !env_ref node_deps in
+          let cmd = match un.un_command with Value (VExpr e) -> e | e -> e in
+          eval_expr (ref env_with_deserialized) cmd
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;

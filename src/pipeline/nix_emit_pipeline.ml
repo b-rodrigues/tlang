@@ -49,7 +49,7 @@ let
   
   rPackagesList = toml.r-dependencies.packages or [];
   r-env = pkgs.rWrapper.override {
-    packages = builtins.map (p: pkgs.rPackages.${p}) rPackagesList;
+    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ pkgs.rPackages.jsonlite ];
   };
 
   pyVersion = toml.py-dependencies.version or "python314";

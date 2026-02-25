@@ -55,11 +55,55 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
       funcs |> List.map (fun f -> Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote (Printf.sprintf "import \"%s\"" f))) |> String.concat "\n"
   in
   
+  let is_json_ser = match serializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
+  let is_json_des = match deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
+
+  let t_json_r_code = {|
+t_write_json <- function(object, path) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("Package 'jsonlite' is required for JSON serialization. Please add it to your r-dependencies in tproject.toml.")
+  }
+  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
+}
+t_read_json <- function(path) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("Package 'jsonlite' is required for JSON serialization. Please add it to your r-dependencies in tproject.toml.")
+  }
+  jsonlite::read_json(path, simplifyVector = TRUE)
+}
+|} in
+
+  let t_json_py_code = {|
+import json
+def t_write_json(obj, path):
+    with open(path, "w") as f:
+        json.dump(obj, f)
+def t_read_json(path):
+    with open(path) as f:
+        return json.load(f)
+|} in
+
+  let json_injection =
+    if is_json_ser || is_json_des then
+      if runtime = "R" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_json_r_code
+      else if runtime = "Python" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_json_py_code
+      else ""
+    else ""
+  in
+
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
     deps
     |> List.map (fun d ->
-      let des_call = if des_s = "default" then (if runtime = "R" then "readRDS" else "deserialize") else des_s in
+      let des_call =
+        if des_s = "default" then
+          (if runtime = "R" then "readRDS" else "deserialize")
+        else if is_json_des then
+          "t_read_json"
+        else des_s
+      in
       if runtime = "R" then
         Printf.sprintf "      echo \"%s <- %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext
       else
@@ -68,23 +112,51 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   in
 
   let expr_s = unparse_expr expr in
-  let ser_call = if ser_s = "default" then (if runtime = "R" then "saveRDS" else "serialize") else ser_s in
+  let ser_call =
+    if ser_s = "default" then
+      (if runtime = "R" then "saveRDS" else "serialize")
+    else if is_json_ser then
+      "t_write_json"
+    else ser_s
+  in
 
+  let is_raw_code = match expr with RawCode _ -> true | _ -> false in
   let assign_script_lines =
     if runtime = "R" then
-      Printf.sprintf {|      cat <<'EOF' >> node_script.R
+      if is_raw_code then
+        Printf.sprintf {|      cat <<'EOF' >> node_script.R
+%s
+EOF
+      echo "%s(%s, \"$out/artifact\")" >> node_script.R
+      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} expr_s ser_call name name
+      else
+        Printf.sprintf {|      cat <<'EOF' >> node_script.R
 %s <- %s
 EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.R
       echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
     else if runtime = "Python" then
-      Printf.sprintf {|      cat <<'EOF' >> node_script.py
+      if is_raw_code then
+        Printf.sprintf {|      cat <<'EOF' >> node_script.py
+%s
+EOF
+      echo "%s(%s, \"$out/artifact\")" >> node_script.py
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
+      else
+        Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s
 EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
     else
-      Printf.sprintf {|      cat <<'EOF' >> node_script.t
+      if is_raw_code then
+        Printf.sprintf {|      cat <<'EOF' >> node_script.t
+%s
+EOF
+      echo "      %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "      write_text(\"$out/class\", type(%s))" >> node_script.t|} expr_s ser_call name name
+      else
+        Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
 EOF
       echo "      %s(%s, \"$out/artifact\")" >> node_script.t
@@ -112,8 +184,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports ext imports_echo source_files deps_script_lines assign_script_lines run_cmd
+|} name name deps_inputs src_block deps_exports ext json_injection imports_echo source_files deps_script_lines assign_script_lines run_cmd

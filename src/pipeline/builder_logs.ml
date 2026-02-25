@@ -13,66 +13,24 @@ let get_logs () =
 
 let read_log path =
   try
-    let ic = open_in path in
-    let len = in_channel_length ic in
-    let raw = really_input_string ic len in
-    close_in ic;
-    let re_node = Str.regexp "\"node\": \"\\([^\"]+\\)\"" in
-    let re_path = Str.regexp "\"path\": \"\\([^\"]+\\)\"" in
-    let re_runtime = Str.regexp "\"runtime\": \"\\([^\"]+\\)\"" in
-    let re_serializer = Str.regexp "\"serializer\": \"\\([^\"]+\\)\"" in
-    let re_class = Str.regexp "\"class\": \"\\([^\"]+\\)\"" in
-    let re_deps = Str.regexp "\"dependencies\": \\[\\([^]]*\\)\\]" in
-    let rec collect pos acc =
-      try
-        let _ = Str.search_forward re_node raw pos in
-        let node_name = Str.matched_group 1 raw in
-        let next_pos = Str.match_end () in
-        (* Find the start of the next node entry to bound our field searches *)
-        let end_pos =
-          try
-            let p = Str.search_forward re_node raw next_pos in
-            p
-          with Not_found -> String.length raw
-        in
-        let search_field re default =
-          try
-            let p = Str.search_forward re raw next_pos in
-            if p < end_pos then Str.matched_group 1 raw else default
-          with Not_found -> default
-        in
-        let path = search_field re_path "" in
-        let runtime = search_field re_runtime "T" in
-        let serializer = search_field re_serializer "default" in
-        let class_ = search_field re_class "Unknown" in
-        let deps =
-          try
-            let p = Str.search_forward re_deps raw next_pos in
-            if p < end_pos then
-              let s = Str.matched_group 1 raw in
-              let re_word = Str.regexp "\"\\([^\"]+\\)\"" in
-              let rec collect_words sub_pos sub_acc =
-                try
-                  let _ = Str.search_forward re_word s sub_pos in
-                  collect_words (Str.match_end ()) (Str.matched_group 1 s :: sub_acc)
-                with Not_found -> List.rev sub_acc
-              in
-              collect_words 0 []
-            else []
-          with Not_found -> []
-        in
-        let cn = {
-          Ast.cn_name = node_name;
-          cn_runtime = runtime;
-          cn_path = path;
-          cn_serializer = serializer;
-          cn_class = class_;
-          cn_dependencies = deps;
-        } in
-        collect next_pos ((node_name, cn) :: acc)
-      with Not_found -> List.rev acc
-    in
-    Ok (collect 0 [])
+    let json = Yojson.Safe.from_file path in
+    let open Yojson.Safe.Util in
+    let _timestamp = json |> member "timestamp" |> to_string in
+    let _hash = json |> member "hash" |> to_string in
+    let nodes = json |> member "nodes" |> to_list in
+    let entries = List.map (fun node_json ->
+      let name = node_json |> member "node" |> to_string in
+      let cn = {
+        Ast.cn_name = name;
+        cn_runtime = node_json |> member "runtime" |> to_string;
+        cn_path = node_json |> member "path" |> to_string;
+        cn_serializer = node_json |> member "serializer" |> to_string;
+        cn_class = node_json |> member "class" |> to_string;
+        cn_dependencies = node_json |> member "dependencies" |> to_list |> filter_string;
+      } in
+      (name, cn)
+    ) nodes in
+    Ok entries
   with exn -> Error (Printexc.to_string exn)
 
 let list_logs () =

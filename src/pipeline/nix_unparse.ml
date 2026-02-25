@@ -1,6 +1,35 @@
 open Ast
 open Nix_utils
 
+let dedent s =
+  let lines = String.split_on_char '\n' s in
+  (* Remove leading/trailing empty lines *)
+  let rec remove_leading = function
+    | l :: ls when String.trim l = "" -> remove_leading ls
+    | ls -> ls
+  in
+  let lines = remove_leading (List.rev (remove_leading (List.rev lines))) in
+  match lines with
+  | [] -> ""
+  | _ ->
+    let min_indent =
+      List.fold_left (fun min_acc l ->
+        if String.trim l = "" then min_acc
+        else
+          let indent = ref 0 in
+          while !indent < String.length l && l.[!indent] = ' ' do
+            incr indent
+          done;
+          min min_acc !indent
+      ) 1000 lines
+    in
+    List.map (fun l ->
+      if String.length l >= min_indent then
+        String.sub l min_indent (String.length l - min_indent)
+      else ""
+    ) lines
+    |> String.concat "\n"
+
 let rec unparse_expr = function
   | Value (VComputedNode cn) ->
       Printf.sprintf "computed_node(name=\"%s\", runtime=\"%s\", path=\"%s\")"
@@ -47,7 +76,7 @@ let rec unparse_expr = function
       Printf.sprintf "%s%s" tok (unparse_expr operand)
   | DotAccess { target; field } ->
       Printf.sprintf "%s.%s" (unparse_expr target) field
-  | RawCode { raw_text; _ } -> raw_text
+  | RawCode { raw_text; _ } -> dedent raw_text
   | Unquote e -> "!!" ^ unparse_expr e
   | UnquoteSplice e -> "!!!" ^ unparse_expr e
   | PipelineDef _ | IntentDef _ | ListComp _ | Block _ ->

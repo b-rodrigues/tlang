@@ -36,6 +36,10 @@ let register env =
           (match Serialization.deserialize_from_file cn.cn_path with
            | Ok v -> v
            | Error msg -> Error.make_error FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
+        else if cn.cn_serializer = "\"json\"" || cn.cn_serializer = "json" then
+          (match Serialization.read_json cn.cn_path with
+           | Ok v -> v
+           | Error msg -> Error.make_error FileError (Printf.sprintf "read_node: Failed to read JSON node `%s`: %s" cn.cn_name msg))
         else
           Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer)
     | VNull -> Error.make_error ValueError "read_node: requires a node name or a ComputedNode object."

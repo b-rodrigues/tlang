@@ -35,7 +35,7 @@
    ; packages/core
    t_print t_type args head tail is_error t_seq t_map sum pretty_print packages t_string t_get help string_ops t_boolean t_write_text
     ; packages/base
-    t_assert is_na na error_mod error_utils serialize deserialize
+    t_assert is_na na error_mod error_utils serialize deserialize t_json
    ; packages/dataframe
    t_read_csv t_write_csv t_dataframe colnames nrow ncol clean_colnames glimpse
     ; packages/pipeline
@@ -54,7 +54,7 @@
    ; tdoc
    tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )
- (libraries menhirLib otoml unix str)
+ (libraries menhirLib otoml yojson unix str)
 )
 
 (executable
