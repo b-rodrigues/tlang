@@ -65,6 +65,16 @@ external arrow_read_csv : string -> nativeint option
   = "caml_arrow_read_csv"
 
 (* ===================================================================== *)
+(* IPC Read/Write                                                       *)
+(* ===================================================================== *)
+
+external arrow_read_ipc : string -> nativeint option
+  = "caml_arrow_read_ipc"
+
+external arrow_write_ipc : nativeint -> string -> bool
+  = "caml_arrow_write_ipc"
+
+(* ===================================================================== *)
 (* Column Projection (Select)                                            *)
 (* ===================================================================== *)
 

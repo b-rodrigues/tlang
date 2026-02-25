@@ -183,6 +183,29 @@ let download_url (url : string) : (string, string) result =
       let _ = Sys.remove temp_file in
       Error (Printf.sprintf "Download failed with exit code %d" n)
 
+(** Read an Arrow IPC file *)
+let read_ipc (path : string) : (Arrow_table.t, string) result =
+  match Arrow_ffi.arrow_read_ipc path with
+  | Some ptr ->
+      let schema_pairs = Arrow_ffi.arrow_table_get_schema ptr in
+      let nrows = Arrow_ffi.arrow_table_num_rows ptr in
+      let schema = List.map (fun (name, type_tag) ->
+        (name, Arrow_table.arrow_type_of_tag type_tag)
+      ) schema_pairs in
+      Ok (Arrow_table.create_from_native ptr schema nrows)
+  | None -> Error ("Arrow IPC read failed: " ^ path)
+
+(** Write an Arrow table to an IPC file *)
+let write_ipc (table : Arrow_table.t) (path : string) : (unit, string) result =
+  match table.native_handle with
+  | Some handle when not handle.freed ->
+      if Arrow_ffi.arrow_write_ipc handle.ptr path then Ok ()
+      else Error ("Arrow IPC write failed: " ^ path)
+  | _ -> 
+      (* For now, we only support writing native-backed tables to IPC.
+         In the future, we will add a native-ization bridge. *)
+      Error "Arrow IPC write is currently only supported for native-backed tables (e.g., read from CSV or IPC)"
+
 (** Pure OCaml CSV reading fallback *)
 let read_csv_fallback (path : string) : (Arrow_table.t, string) result =
   try

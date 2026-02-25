@@ -99,8 +99,12 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
 
     /* Map Arrow type to T arrow_type tag */
     int type_tag;
-    if (GARROW_IS_INT64_DATA_TYPE(dtype))        type_tag = 0; /* ArrowInt64 */
-    else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype))   type_tag = 1; /* ArrowFloat64 */
+    if (GARROW_IS_INT8_DATA_TYPE(dtype) || GARROW_IS_INT16_DATA_TYPE(dtype) ||
+        GARROW_IS_INT32_DATA_TYPE(dtype) || GARROW_IS_INT64_DATA_TYPE(dtype) ||
+        GARROW_IS_UINT8_DATA_TYPE(dtype) || GARROW_IS_UINT16_DATA_TYPE(dtype) ||
+        GARROW_IS_UINT32_DATA_TYPE(dtype) || GARROW_IS_UINT64_DATA_TYPE(dtype))
+                                                  type_tag = 0; /* ArrowInt64 */
+    else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype))                              type_tag = 1; /* ArrowFloat64 */
     else if (GARROW_IS_BOOLEAN_DATA_TYPE(dtype))  type_tag = 2; /* ArrowBoolean */
     else if (GARROW_IS_STRING_DATA_TYPE(dtype) ||
              GARROW_IS_LARGE_STRING_DATA_TYPE(dtype))
@@ -172,12 +176,32 @@ CAMLprim value caml_arrow_read_int64_column(value v_array_ptr) {
 
   v_result = caml_alloc(length, 0);
 
-  GArrowInt64Array *int_array = GARROW_INT64_ARRAY(array);
+  GArrowInt64Array *int64_array = GARROW_IS_INT64_ARRAY(array) ? GARROW_INT64_ARRAY(array) : NULL;
+  GArrowInt32Array *int32_array = GARROW_IS_INT32_ARRAY(array) ? GARROW_INT32_ARRAY(array) : NULL;
+  GArrowInt16Array *int16_array = GARROW_IS_INT16_ARRAY(array) ? GARROW_INT16_ARRAY(array) : NULL;
+  GArrowInt8Array  *int8_array  = GARROW_IS_INT8_ARRAY(array)  ? GARROW_INT8_ARRAY(array)  : NULL;
+  GArrowUInt64Array *uint64_array = GARROW_IS_UINT64_ARRAY(array) ? GARROW_UINT64_ARRAY(array) : NULL;
+  GArrowUInt32Array *uint32_array = GARROW_IS_UINT32_ARRAY(array) ? GARROW_UINT32_ARRAY(array) : NULL;
+  GArrowUInt16Array *uint16_array = GARROW_IS_UINT16_ARRAY(array) ? GARROW_UINT16_ARRAY(array) : NULL;
+  GArrowUInt8Array  *uint8_array  = GARROW_IS_UINT8_ARRAY(array)  ? GARROW_UINT8_ARRAY(array)  : NULL;
+
   for (gint64 i = 0; i < length; i++) {
     if (garrow_array_is_null(array, i)) {
       Store_field(v_result, i, Val_none);
     } else {
-      gint64 val = garrow_int64_array_get_value(int_array, i);
+      gint64 val = 0;
+      if (int64_array)      val = garrow_int64_array_get_value(int64_array, i);
+      else if (int32_array) val = garrow_int32_array_get_value(int32_array, i);
+      else if (int16_array) val = garrow_int16_array_get_value(int16_array, i);
+      else if (int8_array)  val = garrow_int8_array_get_value(int8_array, i);
+      else if (uint64_array) {
+        guint64 u = garrow_uint64_array_get_value(uint64_array, i);
+        val = (u > (guint64)G_MAXINT64) ? G_MAXINT64 : (gint64)u;
+      }
+      else if (uint32_array) val = (gint64)garrow_uint32_array_get_value(uint32_array, i);
+      else if (uint16_array) val = (gint64)garrow_uint16_array_get_value(uint16_array, i);
+      else if (uint8_array)  val = (gint64)garrow_uint8_array_get_value(uint8_array, i);
+
       v_some = caml_alloc(1, 0); /* Some(...) */
       Store_field(v_some, 0, Val_long(val));
       Store_field(v_result, i, v_some);
@@ -247,16 +271,25 @@ CAMLprim value caml_arrow_read_string_column(value v_array_ptr) {
 
   v_result = caml_alloc(length, 0);
 
-  GArrowStringArray *str_array = GARROW_STRING_ARRAY(array);
+  GArrowStringArray *str_array = GARROW_IS_STRING_ARRAY(array) ? GARROW_STRING_ARRAY(array) : NULL;
+  GArrowLargeStringArray *lstr_array = GARROW_IS_LARGE_STRING_ARRAY(array) ? GARROW_LARGE_STRING_ARRAY(array) : NULL;
+
   for (gint64 i = 0; i < length; i++) {
     if (garrow_array_is_null(array, i)) {
       Store_field(v_result, i, Val_none);
     } else {
-      gchar *val = garrow_string_array_get_string(str_array, i);
-      v_some = caml_alloc(1, 0); /* Some(...) */
-      Store_field(v_some, 0, caml_copy_string(val));
-      g_free(val);
-      Store_field(v_result, i, v_some);
+      gchar *val = NULL;
+      if (str_array) val = garrow_string_array_get_string(str_array, i);
+      else if (lstr_array) val = garrow_large_string_array_get_string(lstr_array, i);
+
+      if (val) {
+        v_some = caml_alloc(1, 0); /* Some(...) */
+        Store_field(v_some, 0, caml_copy_string(val));
+        g_free(val);
+        Store_field(v_result, i, v_some);
+      } else {
+        Store_field(v_result, i, Val_none);
+      }
     }
   }
 
@@ -1699,4 +1732,81 @@ CAMLprim value caml_arrow_compute_compare_scalar(value v_ptr, value v_col_name,
   v_result = caml_alloc(1, 0);
   Store_field(v_result, 0, v_arr);
   CAMLreturn(v_result);
+}
+
+/* ===================================================================== */
+/* IPC Read/Write                                                       */
+/* ===================================================================== */
+
+/* Read Arrow table from IPC file */
+CAMLprim value caml_arrow_read_ipc(value v_path) {
+  CAMLparam1(v_path);
+  CAMLlocal1(v_result);
+
+  const char *path = String_val(v_path);
+  GError *error = NULL;
+
+  GArrowMemoryMappedInputStream *input =
+    garrow_memory_mapped_input_stream_new(path, &error);
+  if (input == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  /* Feather V2 IS Arrow IPC File format */
+  GArrowFeatherFileReader *reader =
+    garrow_feather_file_reader_new(GARROW_SEEKABLE_INPUT_STREAM(input), &error);
+  if (reader == NULL) {
+    g_object_unref(input);
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowTable *table = garrow_feather_file_reader_read(reader, &error);
+  g_object_unref(reader);
+  g_object_unref(input);
+
+  if (table == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  /* Wrap as Some(nativeint) */
+  v_result = caml_alloc(1, 0);  /* Some(...) */
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)table));
+  CAMLreturn(v_result);
+}
+
+/* Write Arrow table to IPC file */
+CAMLprim value caml_arrow_write_ipc(value v_ptr, value v_path) {
+  CAMLparam2(v_ptr, v_path);
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *path = String_val(v_path);
+  GError *error = NULL;
+
+  GArrowFileOutputStream *output =
+    garrow_file_output_stream_new(path, FALSE, &error);
+  if (output == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_bool(FALSE));
+  }
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  GArrowRecordBatchFileWriter *writer =
+    garrow_record_batch_file_writer_new(GARROW_OUTPUT_STREAM(output), schema, &error);
+  g_object_unref(schema);
+
+  if (writer == NULL) {
+    g_object_unref(output);
+    if (error) g_error_free(error);
+    CAMLreturn(Val_bool(FALSE));
+  }
+
+  gboolean ok = garrow_record_batch_writer_write_table(GARROW_RECORD_BATCH_WRITER(writer), table, &error);
+  garrow_record_batch_writer_close(GARROW_RECORD_BATCH_WRITER(writer), NULL);
+  g_object_unref(writer);
+  g_object_unref(output);
+
+  if (!ok && error) g_error_free(error);
+  CAMLreturn(Val_bool(ok));
 }

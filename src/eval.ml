@@ -598,8 +598,9 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   (* Compute dependencies based on the 'command' part of the desugared node *)
   let deps = List.map (fun (name, un) ->
     let fv = free_vars un.un_command in
+    let is_raw = match un.un_command with RawCode _ -> true | _ -> false in
     let has_self_ref = List.exists (fun v -> v = name) fv in
-    if has_self_ref then
+    if has_self_ref && not is_raw then
       invalid_arg ("Self-referential node detected in command for node: " ^ name)
     else
       let node_deps = List.filter (fun v -> List.mem v node_names && v <> name) fv in

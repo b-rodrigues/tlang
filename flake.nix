@@ -37,8 +37,14 @@
             purrr
             broom
             jsonlite
+            arrow
           ];
         };
+
+        python-with-packages = pkgs.python3.withPackages (p: with p; [
+          pandas
+          pyarrow
+        ]);
 
         # Pin a specific version of OCaml for reproducibility.
         # OCaml 5.1 is a modern, solid choice.
@@ -175,9 +181,10 @@
             # Uncomment when owl is available in your OCaml package set:
             # ocamlVersion.owl
 
-            # 5. R environment for golden tests
+            # 5. R and Python environments for testing
             # -------------------------------------------------------
             R-with-packages
+            python-with-packages
           ];
 
           shellHook = ''
