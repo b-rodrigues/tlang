@@ -31,19 +31,19 @@ jobs:
         skipPush: true
     
     - name: Build T
-      run: nix develop --command dune build
+      run: nix develop --accept-flake-config --command dune build
     
     - name: Generate test data (R datasets)
-      run: nix develop --command make golden-data
+      run: nix develop --accept-flake-config --command make golden-data
     
     - name: Generate expected outputs (R/dplyr)
-      run: nix develop --command make golden-expected
+      run: nix develop --accept-flake-config --command make golden-expected
     
     - name: Run T test scripts
-      run: nix develop --command make golden-run
+      run: nix develop --accept-flake-config --command make golden-run
     
     - name: Compare outputs (testthat)
-      run: nix develop --command make golden-compare
+      run: nix develop --accept-flake-config --command make golden-compare
     
     - name: Upload test results
       if: always()
@@ -77,7 +77,7 @@ jobs:
     
     - name: Generate coverage report
       run: |
-        nix develop --command bash -c '
+        nix develop --accept-flake-config --command bash -c '
           Rscript tests/golden/generate_coverage_report.R
         '
     
