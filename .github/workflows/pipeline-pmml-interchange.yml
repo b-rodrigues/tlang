@@ -75,28 +75,30 @@ jobs:
       run: |
         TLANG_BIN=$(pwd)/result/bin/t
         cd ../pmml_test_workspace/pmml_project
-        echo "=== Verifying artifacts ==="
+        echo "=== Verifying Artifacts in T REPL ==="
+        echo "Loading model_node and preds_node to verify PMML interchange..."
         nix develop --accept-flake-config --command $TLANG_BIN --unsafe <<'EOF'
-        print("=== Model ===")
+        print("--- Node: model_node ---")
         model = read_node("model_node")
-        print("Model:")
+        print("Model Object (Raw):")
         print(model)
-        print("Tidy Summary:")
+        
+        print("\nTidy Coefficient Summary (broom::tidy equivalent):")
         print(summary(model))
-        print("Fit Stats:")
+        
+        print("\nModel Fit Statistics (broom::glance equivalent):")
         print(fit_stats(model))
-        print("=== Model verified ===")
-        print("=== Predictions ===")
+        
+        print("\n--- Node: preds_node ---")
         results = read_node("preds_node")
-        print("Predictions:")
+        print("Native T Predictions using PMML Coefficients from model_node:")
         print(results)
-        print("=== Predictions verified ===")
         
         expected = [23.5723, 22.5834, 25.2758]
         if (abs(get(results, 0) - get(expected, 0)) < 0.01) {
-            print("PMML interchange verified!")
+            print("\nSUCCESS: PMML interchange verified! Native T predictions match R model.")
         } else {
-            print("ERROR: Prediction mismatch")
+            print("\nERROR: Prediction mismatch")
             exit(1)
         }
         EOF

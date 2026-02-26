@@ -78,17 +78,20 @@ jobs:
       run: |
         TLANG_BIN=$(pwd)/result/bin/t
         cd ../arrow_test_workspace/arrow_project
-        echo "=== Verifying artifacts ==="
+        echo "=== Verifying Artifacts in T REPL ==="
         nix develop --accept-flake-config --command $TLANG_BIN --unsafe <<'EOF'
         df = read_node("df_py")
-        print("df_py summary:")
+        print("--- Node: df_py ---")
+        print("Raw Value:")
+        print(df)
+        print("\nDataFrame Inspection:")
         glimpse(df)
         
         -- Check if we have the expected column and row count
         if (nrow(df) == 5) {
-            print("Row count verified: 5")
+            print("\nRow count verified: 5")
         } else {
-            print("ERROR: Row count mismatch")
+            print("\nERROR: Row count mismatch")
             exit(1)
         }
         
