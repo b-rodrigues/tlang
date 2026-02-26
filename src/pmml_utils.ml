@@ -14,6 +14,7 @@ type predictor_info = {
 let read_pmml path =
   try
     let ic = open_in path in
+    Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
     let i = Xmlm.make_input (`Channel ic) in
     
     let find_attr name attrs =
@@ -129,7 +130,6 @@ let read_pmml path =
         | `El_end | `Data _ | `Dtd _ -> loop ()
     in
     loop ();
-    close_in ic;
 
     if not !found_model then Error "No <RegressionModel> found in PMML"
     else if not !found_table then Error "No <RegressionTable> found in PMML"
@@ -184,5 +184,6 @@ let read_pmml path =
             (None, VString "model_type");
           ]);
         ])
+    ) (* end Fun.protect *)
   with exn -> 
     Error (Printf.sprintf "PMML Parse Error: %s" (Printexc.to_string exn))
