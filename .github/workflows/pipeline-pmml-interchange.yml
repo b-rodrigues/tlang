@@ -77,16 +77,16 @@ jobs:
         cd ../pmml_test_workspace/pmml_project
         echo "=== Verifying artifacts ==="
         nix develop --accept-flake-config --command $TLANG_BIN --unsafe <<'EOF'
-        echo "=== Model ==="
+        print("=== Model ===")
         model = read_node("model_node")
         print("Model:")
         print(model)
-        echo "=== Model verified ==="
-        echo "=== Predictions ==="
+        print("=== Model verified ===")
+        print("=== Predictions ===")
         results = read_node("preds_node")
         print("Predictions:")
         print(results)
-        echo "=== Predictions verified ==="
+        print("=== Predictions verified ===")
         
         expected = [23.5723, 22.5834, 25.2758]
         if (abs(get(results, 0) - get(expected, 0)) < 0.01) {
