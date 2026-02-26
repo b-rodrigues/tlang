@@ -67,7 +67,11 @@ let
   # that builtins.getFlake accepts.
   flake  = builtins.getFlake (toString ../.);
   pkgs   = flake.inputs.nixpkgs.legacyPackages.${system};
-  tBin   = ((flake.inputs.t-lang or flake).packages.${system}.default).overrideAttrs (old: { src = sources; });
+  tBin   = let
+             base = (flake.inputs.t-lang or flake).packages.${system}.default;
+           in if builtins.pathExists ../dune-project then
+             base.overrideAttrs (old: { src = sources; })
+           else base;
   stdenv = pkgs.stdenv;
 
   # Filter out _pipeline/, .git/, and other non-source directories
