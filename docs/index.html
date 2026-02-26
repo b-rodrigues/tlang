@@ -1,146 +1,243 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>T Programming Language</title>
+  <style>
+    :root {
+      --bg-color: #f5f5dc;
+      --text-color: #000000;
+      --link-color: #0000ee;
+      --vlink-color: #551a8b;
+      --code-bg: #ffffff;
+      --hr-color: #000000;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: "Courier New", Courier, monospace;
+      font-size: 16px;
+      line-height: 1.5;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    a {
+      color: var(--link-color);
+    }
+
+    a:visited {
+      color: var(--vlink-color);
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      margin-top: 1.5rem;
+    }
+
+    p,
+    li {
+      margin-bottom: 1rem;
+    }
+
+    pre {
+      background-color: var(--code-bg);
+      padding: 15px;
+      border: 1px solid #ccc;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    code {
+      background-color: rgba(0, 0, 0, 0.05);
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+
+    hr {
+      border: 0;
+      border-top: 1px solid var(--hr-color);
+      margin: 2rem auto;
+    }
+
+    .header-hr {
+      width: 80%;
+    }
+
+    .footer-hr {
+      width: 60%;
+    }
+
+    center {
+      display: block;
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        font-size: 15px;
+      }
+
+      h1 {
+        font-size: 1.4rem;
+      }
+
+      h2 {
+        font-size: 1.3rem;
+      }
+
+      .container {
+        padding: 15px;
+      }
+
+      pre {
+        padding: 10px;
+        font-size: 0.85rem;
+      }
+    }
+  </style>
 </head>
 
-<body bgcolor="#f5f5dc" text="#000000" link="#0000ee" vlink="#551a8b" alink="#ff0000">
+<body>
+  <div class="container">
+    <header>
+      <h1>T — A Language for Tabular Data and Human–LLM Collaboration</h1>
+      <hr class="header-hr">
+    </header>
 
-  <center>
-    <h1>
-      <font face="Courier New">T — A Language for Tabular Data and Human–LLM Collaboration</font>
-    </h1>
-    <hr width="80%">
-  </center>
+    <main>
+      <p>
+        <b>T</b> is an experimental programming language for declarative, functional manipulation
+        of tabular data. Inspired by R’s tidyverse and OCaml’s semantic rigor, T is designed
+        to make data analysis <b>explicit, inspectable, and pipeline-oriented</b>.
+      </p>
 
-  <font face="Courier New" size="3">
+      <p>
+        Unlike traditional scripting languages, T is built from the ground up to support
+        <b>human–LLM collaborative programming</b>, where humans specify intent and constraints,
+        and language tools (including LLMs) generate localized, mechanical code.
+      </p>
 
-    <p>
-      <b>T</b> is an experimental programming language for declarative, functional manipulation
-      of tabular data. Inspired by R’s tidyverse and OCaml’s semantic rigor, T is designed
-      to make data analysis <b>explicit, inspectable, and pipeline-oriented</b>.
-    </p>
+      <p><b>Status:</b> Pre-alpha. Actively designed and implemented.</p>
 
-    <p>
-      Unlike traditional scripting languages, T is built from the ground up to support
-      <b>human–LLM collaborative programming</b>, where humans specify intent and constraints,
-      and language tools (including LLMs) generate localized, mechanical code.
-    </p>
+      <hr>
 
-    <p><b>Status:</b> Pre-alpha. Actively designed and implemented.</p>
+      <h2>Documentation</h2>
 
-    <hr>
+      <h3>Getting Started</h3>
+      <ul>
+        <li><a href="getting-started.html">Getting Started Guide</a> — first steps with T</li>
+        <li><a href="installation.html">Installation Guide</a> — detailed setup with Nix</li>
+        <li><a href="language_overview.html">Language Overview</a> — types, syntax, functions, and standard library</li>
+        <li><a href="arrays.html">Numerical Arrays</a> — tutorial on N-dimensional arrays and linear algebra</li>
+      </ul>
 
-    <h2>
-      <font face="Courier New">Documentation</font>
-    </h2>
+      <h3>User Guides</h3>
+      <ul>
+        <li><a href="api-reference.html">API Reference</a> — complete function reference by package</li>
+        <li><a href="data_manipulation_examples.html">Data Manipulation Examples</a> — practical examples with core data
+          verbs</li>
+        <li><a href="pipeline_tutorial.html">Pipeline Tutorial</a> — step-by-step guide to T's pipeline model</li>
+        <li><a href="examples.html">Comprehensive Examples</a> — real-world analysis patterns</li>
+        <li><a href="error-handling.html">Error Handling Guide</a> — error patterns and recovery strategies</li>
+      </ul>
 
-    <h3>
-      <font face="Courier New">Getting Started</font>
-    </h3>
-    <ul>
-      <li><a href="getting-started.html">Getting Started Guide</a> — first steps with T</li>
-      <li><a href="installation.html">Installation Guide</a> — detailed setup with Nix</li>
-      <li><a href="language_overview.html">Language Overview</a> — types, syntax, functions, and standard library</li>
-      <li><a href="arrays.html">Numerical Arrays</a> — tutorial on N-dimensional arrays and linear algebra</li>
+      <h3>Advanced Topics</h3>
+      <ul>
+        <li><a href="reproducibility.html">Reproducibility Guide</a> — Nix integration and reproducible workflows</li>
+        <li><a href="llm-collaboration.html">LLM Collaboration</a> — intent blocks and AI-assisted development</li>
+        <li><a href="quotation.html">Quotation & Metaprogramming</a> — capturing and generating code</li>
+        <li><a href="formulas.html">Statistical Formulas</a> — formula syntax for modeling</li>
+        <li><a href="performance.html">Performance</a> — Arrow backend and optimization</li>
+      </ul>
 
-    </ul>
+      <h3>Developer Resources</h3>
+      <ul>
+        <li><a href="architecture.html">Architecture</a> — language design and implementation</li>
+        <li><a href="contributing.html">Contributing Guide</a> — how to contribute to T</li>
+        <li><a href="development.html">Development Guide</a> — building, testing, and debugging</li>
+        <li><a href="package_development.html">Package Development Guide</a> — creating and publishing T packages</li>
+      </ul>
 
-    <h3>
-      <font face="Courier New">User Guides</font>
-    </h3>
-    <ul>
-      <li><a href="api-reference.html">API Reference</a> — complete function reference by package</li>
-      <li><a href="data_manipulation_examples.html">Data Manipulation Examples</a> — practical examples with core data
-        verbs</li>
-      <li><a href="pipeline_tutorial.html">Pipeline Tutorial</a> — step-by-step guide to T's pipeline model</li>
-      <li><a href="examples.html">Comprehensive Examples</a> — real-world analysis patterns</li>
-      <li><a href="error-handling.html">Error Handling Guide</a> — error patterns and recovery strategies</li>
-    </ul>
+      <h3>Reference & Support</h3>
+      <ul>
+        <li><a href="faq.html">FAQ</a> — frequently asked questions</li>
+        <li><a href="troubleshooting.html">Troubleshooting</a> — common issues and solutions</li>
+        <li><a href="changelog.html">Changelog</a> — version history and roadmap</li>
+        <li><a href="code-of-ethics.md">Code of Ethics</a> — standards of conduct</li>
+      </ul>
 
-    <h3>
-      <font face="Courier New">Advanced Topics</font>
-    </h3>
-    <ul>
-      <li><a href="reproducibility.html">Reproducibility Guide</a> — Nix integration and reproducible workflows</li>
-      <li><a href="llm-collaboration.html">LLM Collaboration</a> — intent blocks and AI-assisted development</li>
-      <li><a href="quotation.html">Quotation & Metaprogramming</a> — capturing and generating code</li>
-      <li><a href="formulas.html">Statistical Formulas</a> — formula syntax for modeling</li>
-      <li><a href="performance.html">Performance</a> — Arrow backend and optimization</li>
-    </ul>
+      <hr>
 
-    <h3>
-      <font face="Courier New">Developer Resources</font>
-    </h3>
-    <ul>
-      <li><a href="architecture.html">Architecture</a> — language design and implementation</li>
-      <li><a href="contributing.html">Contributing Guide</a> — how to contribute to T</li>
-      <li><a href="development.html">Development Guide</a> — building, testing, and debugging</li>
-      <li><a href="package_development.html">Package Development Guide</a> — creating and publishing T packages</li>
-    </ul>
+      <h2>Design Goals</h2>
+      <ul>
+        <li>Data analysis as explicit pipelines</li>
+        <li>First-class tabular data (DataFrame-centric)</li>
+        <li>Expression-oriented, functional style</li>
+        <li>Explicit semantics (no hidden rules, no implicit NA propagation)</li>
+        <li>Minimal OCaml core, extensible via packages</li>
+        <li>Deterministic execution and inspectable errors</li>
+        <li>REPL-first exploratory workflow</li>
+        <li>LLM-friendly structure and tooling</li>
+      </ul>
 
-    <h3>
-      <font face="Courier New">Reference & Support</font>
-    </h3>
-    <ul>
-      <li><a href="faq.html">FAQ</a> — frequently asked questions</li>
-      <li><a href="troubleshooting.html">Troubleshooting</a> — common issues and solutions</li>
-      <li><a href="changelog.html">Changelog</a> — version history and roadmap</li>
-      <li><a href="code-of-ethics.md">Code of Ethics</a> — standards of conduct</li>
-    </ul>
+      <hr>
 
-    <hr>
+      <h2>LLM-Native by Design</h2>
 
-    <h2>
-      <font face="Courier New">Design Goals</font>
-    </h2>
-    <ul>
-      <li>Data analysis as explicit pipelines</li>
-      <li>First-class tabular data (DataFrame-centric)</li>
-      <li>Expression-oriented, functional style</li>
-      <li>Explicit semantics (no hidden rules, no implicit NA propagation)</li>
-      <li>Minimal OCaml core, extensible via packages</li>
-      <li>Deterministic execution and inspectable errors</li>
-      <li>REPL-first exploratory workflow</li>
-      <li>LLM-friendly structure and tooling</li>
-    </ul>
+      <p>
+        T treats large language models as <b>first-class collaborators</b>, not magic code generators.
+        The language and tooling are designed to make LLM-generated code:
+      </p>
 
-    <hr>
+      <ul>
+        <li>Local rather than global</li>
+        <li>Constrained rather than free-form</li>
+        <li>Inspectable rather than opaque</li>
+        <li>Correctable rather than brittle</li>
+      </ul>
 
-    <h2>
-      <font face="Courier New">LLM-Native by Design</font>
-    </h2>
+      <p>
+        Humans define intent, assumptions, and invariants. LLMs generate localized code.
+        T enforces semantics and correctness.
+      </p>
 
-    <p>
-      T treats large language models as <b>first-class collaborators</b>, not magic code generators.
-      The language and tooling are designed to make LLM-generated code:
-    </p>
+      <hr>
 
-    <ul>
-      <li>Local rather than global</li>
-      <li>Constrained rather than free-form</li>
-      <li>Inspectable rather than opaque</li>
-      <li>Correctable rather than brittle</li>
-    </ul>
+      <h2>Intent Blocks</h2>
 
-    <p>
-      Humans define intent, assumptions, and invariants. LLMs generate localized code.
-      T enforces semantics and correctness.
-    </p>
+      <p>
+        T supports <b>intent blocks</b>: structured comments that encode analytical goals,
+        assumptions, and checks in a machine-readable way.
+      </p>
 
-    <hr>
-
-    <h2>
-      <font face="Courier New">Intent Blocks</font>
-    </h2>
-
-    <p>
-      T supports <b>intent blocks</b>: structured comments that encode analytical goals,
-      assumptions, and checks in a machine-readable way.
-    </p>
-
-    <pre>
+      <pre>
 -- intent:
 -- goal: "Estimate approval as a function of age and income"
 -- assumptions:
@@ -151,39 +248,42 @@
 --   - at least 100 observations per group
   </pre>
 
-    <p>
-      Intent blocks are preserved by tooling, version-controlled with code, and used
-      as stable regeneration boundaries for LLM-assisted workflows.
-    </p>
+      <p>
+        Intent blocks are preserved by tooling, version-controlled with code, and used
+        as stable regeneration boundaries for LLM-assisted workflows.
+      </p>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Pipelines</font>
-    </h2>
+      <h2>Pipelines</h2>
 
-    <p>
-      Pipelines are T’s core execution model. Each pipeline is a DAG of named nodes with
-      explicit dependencies, cacheable results, and inspectable outputs. T supports
-      <b>multi-runtime execution</b>, allowing nodes to run in T, R, or Python with automatic
-      data interchange via Arrow and PMML.
-    </p>
+      <p>
+        Pipelines are T’s core execution model. Each pipeline is a DAG of named nodes with
+        explicit dependencies, cacheable results, and inspectable outputs. T supports
+        <b>multi-runtime execution</b>, allowing nodes to run in T, R, or Python with automatic
+        data interchange via Arrow and PMML.
+      </p>
 
-    pipeline analysis {
-    raw = { read_csv("data.csv") }
+      <pre>
+pipeline analysis {
+  raw = { read_csv("data.csv") }
 
-    cleaned = {
+  cleaned = {
     raw |> filter($age > 18)
-    |> mutate($income_k = $income / 1000)
-    }
+        |> mutate($income_k = $income / 1000)
+  }
 
-    model = node(
-    command = <{ # In R fit <- lm(approval ~ age + income_k, data=cleaned) fit }>,
-      runtime = "R",
-      serializer = "pmml"
-      )
-      }
-      </pre>
+  model = node(
+    command = <{
+      # In R
+      fit <- lm(approval ~ age + income_k, data = cleaned)
+      fit
+    }>,
+    runtime = "R",
+    serializer = "pmml"
+  )
+}
+  </pre>
 
       <p>
         Pipelines enable local reasoning, reproducibility, and safe regeneration of individual
@@ -192,9 +292,7 @@
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Language Features</font>
-      </h2>
+      <h2>Language Features</h2>
 
       <ul>
         <li>R-style lambdas: <code>\(x) x + 1</code></li>
@@ -220,17 +318,13 @@
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Pipe Operators</font>
-      </h2>
+      <h2>Pipe Operators</h2>
 
       <p>
         T provides two pipe operators with different error-handling semantics:
       </p>
 
-      <h3>
-        <font face="Courier New">Conditional Pipe: <code>|></code></font>
-      </h3>
+      <h3>Conditional Pipe: <code>|></code></h3>
       <p>
         The standard pipe passes the left-hand value as the first argument to the right-hand
         function. If the left-hand value is an error, the pipeline <b>short-circuits</b> and
@@ -241,9 +335,7 @@
 error("boom") |> double    -- Error (short-circuited)
   </pre>
 
-      <h3>
-        <font face="Courier New">Maybe-Pipe: <code>?|></code></font>
-      </h3>
+      <h3>Maybe-Pipe: <code>?|></code></h3>
       <p>
         The maybe-pipe <b>always</b> forwards the left-hand value — including errors —
         to the right-hand function. This enables explicit error recovery patterns.
@@ -267,9 +359,7 @@ error("fail") ?|> recovery |> increment  -- 1
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Numerical Backend</font>
-      </h2>
+      <h2>Numerical Backend</h2>
 
       <p>
         T’s numerical stack is layered:
@@ -289,9 +379,7 @@ error("fail") ?|> recovery |> increment  -- 1
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Standard Packages</font>
-      </h2>
+      <h2>Standard Packages</h2>
       <ul>
         <li><b>core</b>: functional utilities (<code>map</code>, <code>sum</code>, <code>seq</code>)</li>
         <li><b>stats</b>: statistical primitives (<code>mean</code>, <code>sd</code>, <code>quantile</code>,
@@ -311,9 +399,7 @@ error("fail") ?|> recovery |> increment  -- 1
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Missing Value Handling</font>
-      </h2>
+      <h2>Missing Value Handling</h2>
 
       <p>
         T uses explicit <code>NA</code> values with type tags. NA does <b>not</b> propagate
@@ -341,9 +427,7 @@ cor(x, y, na_rm = true)            -- pairwise deletion
         <code>quantile</code>, <code>cor</code>) support the <code>na_rm</code> parameter.
       </p>
 
-      <h3>
-        <font face="Courier New">Window Functions and NA</font>
-      </h3>
+      <h3>Window Functions and NA</h3>
 
       <p>
         Window functions compute values across a set of rows without collapsing them.
@@ -371,9 +455,7 @@ lag([1, NA, 3])                    -- Vector[NA, 1, NA]
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Alpha Roadmap</font>
-      </h2>
+      <h2>Alpha Roadmap</h2>
 
       <p>
         The alpha version of T targets a complete, end-to-end workflow:
@@ -402,9 +484,7 @@ lag([1, NA, 3])                    -- Vector[NA, 1, NA]
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Project Structure</font>
-      </h2>
+      <h2>Project Structure</h2>
       <pre>
 .
 ├── flake.nix
@@ -423,9 +503,7 @@ lag([1, NA, 3])                    -- Vector[NA, 1, NA]
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Building</font>
-      </h2>
+      <h2>Building</h2>
       <pre>
 nix develop
 t repl
@@ -433,9 +511,7 @@ t repl
 
       <hr>
 
-      <h2>
-        <font face="Courier New">Contributing</font>
-      </h2>
+      <h2>Contributing</h2>
 
       <p>
         Contributions focus on clarity, explicit semantics, and small, reviewable changes.
@@ -446,15 +522,15 @@ t repl
 
       <p><b>License:</b> EUPL v1.2.</p>
 
-      <center>
-        <hr width="60%">
-        <font size="2">
+      <footer>
+        <hr class="footer-hr">
+        <center>
           Best viewed with a sense of curiosity.<br>
           <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-        </font>
-      </center>
-
-  </font>
+        </center>
+      </footer>
+    </main>
+  </div>
 </body>
 
 </html>

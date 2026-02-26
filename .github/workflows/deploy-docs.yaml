@@ -30,26 +30,69 @@ jobs:
         run: |
           cat > /tmp/doc-template.html <<'TEMPLATE'
           <!DOCTYPE html>
-          <html>
+          <html lang="en">
           <head>
             <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>$title$</title>
+            <style>
+              body {
+                background-color: #f5f5dc;
+                color: #000;
+                font-family: "Courier New", Courier, monospace;
+                font-size: 16px;
+                line-height: 1.5;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+              }
+              .container {
+                max-width: 800px;
+                width: 100%;
+                padding: 20px;
+                box-sizing: border-box;
+              }
+              a { color: #0000ee; }
+              pre {
+                background: #fff;
+                padding: 15px;
+                border: 1px solid #ccc;
+                overflow-x: auto;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                font-size: 0.9rem;
+              }
+              code {
+                background: rgba(0,0,0,0.05);
+                padding: 2px 4px;
+                border-radius: 3px;
+              }
+              hr { border: 0; border-top: 1px solid #000; margin: 2rem 0; }
+              center { text-align: center; display: block; }
+              img { max-width: 100%; height: auto; }
+              @media (max-width: 600px) {
+                body { font-size: 15px; }
+                .container { padding: 15px; }
+                pre { padding: 10px; font-size: 0.85rem; }
+              }
+            </style>
           </head>
-          <body bgcolor="#f5f5dc" text="#000000" link="#0000ee" vlink="#551a8b" alink="#ff0000">
-            <font face="Courier New" size="3">
-            <center>
-              <p><a href="index.html">← Back to Home</a></p>
-              <hr width="80%">
-            </center>
-          $body$
-            <hr>
-            <center>
-              <p><a href="index.html">← Back to Home</a></p>
-              <font size="2">
-                <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-              </font>
-            </center>
-            </font>
+          <body>
+            <div class="container">
+              <center>
+                <p><a href="index.html">← Back to Home</a></p>
+                <hr style="width: 80%">
+              </center>
+              $body$
+              <hr>
+              <center>
+                <p><a href="index.html">← Back to Home</a></p>
+                <font size="2">
+                  <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+                </font>
+              </center>
+            </div>
           </body>
           </html>
           TEMPLATE
