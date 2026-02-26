@@ -49,6 +49,7 @@ let register env =
           
           let nrows = Arrow_table.num_rows df.arrow_table in
           let out = Array.make nrows 0.0 in
+          let na_rows = Array.make nrows false in
           
           (* Basic vectorized prediction: y = b0 + sum(bi * xi) *)
           for i = 0 to nrows - 1 do
@@ -68,12 +69,12 @@ let register env =
                   for i = 0 to nrows - 1 do
                     match Arrow_table.get_float col i with
                     | Some x -> out.(i) <- out.(i) +. (coef *. x)
-                    | None -> out.(i) <- nan (* Propagate NA: missing predictor yields NaN prediction *)
+                    | None -> na_rows.(i) <- true (* Propagate NA: missing predictor yields NA prediction *)
                   done
           ) !terms;
           
           if not !success then Error.make_error KeyError !error_msg
-          else VVector (Array.map (fun x -> VFloat x) out)
+          else VVector (Array.mapi (fun i x -> if na_rows.(i) then VNA NAFloat else VFloat x) out)
 
       | [VDataFrame _; _] ->
           Error.type_error "Function `predict` expects a model (Dict) as second argument."

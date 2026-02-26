@@ -76,8 +76,14 @@ let read_pmml path =
         if Xmlm.eoi i then ()
         else match Xmlm.input i with
           | `El_start ((_, "NumericPredictor"), attrs) ->
-              let name = match find_attr "name" attrs with Some s -> s | None -> "" in
-              let coef = match get_float_attr "coefficient" attrs with Some v -> v | None -> 0.0 in
+              let name = match find_attr "name" attrs with
+                | Some s -> s
+                | None -> failwith "Required PMML attribute 'name' missing in <NumericPredictor>"
+              in
+              let coef = match get_float_attr "coefficient" attrs with
+                | Some v -> v
+                | None -> failwith "Required PMML attribute 'coefficient' missing in <NumericPredictor>"
+              in
               let p = { name; estimate = coef; 
                         std_error = get_float_attr "stdError" attrs; 
                         statistic = get_float_attr "tStatistic" attrs; 
@@ -114,7 +120,10 @@ let read_pmml path =
         | `El_start ((_, "RegressionTable"), attrs) ->
             if not !found_table then begin
                 found_table := true;
-                let intercept_val = match get_float_attr "intercept" attrs with Some v -> v | None -> 0.0 in
+                let intercept_val = match get_float_attr "intercept" attrs with
+                  | Some v -> v
+                  | None -> failwith "Required PMML attribute 'intercept' missing in <RegressionTable>"
+                in
                 let p = { name = "(Intercept)"; estimate = intercept_val; 
                           std_error = get_float_attr "stdError" attrs;
                           statistic = get_float_attr "tStatistic" attrs;
@@ -173,7 +182,7 @@ let read_pmml path =
           ("aic", (match !aic with Some v -> VFloat v | None -> VNull));
           ("bic", (match !bic with Some v -> VFloat v | None -> VNull));
           ("sigma", (match !sigma with Some v -> VFloat v | None -> VNull));
-          ("nobs", (match !nobs with Some v -> VInt v | None -> VInt 0));
+          ("nobs", (match !nobs with Some v -> VInt v | None -> VNull));
           ("df_model", VInt (max 0 (num_preds - 1)));
           ("f_statistic", (match !f_statistic with Some v -> VFloat v | None -> VNull));
           ("f_p_value", (match !f_p_value with Some v -> VFloat v | None -> VNull));
