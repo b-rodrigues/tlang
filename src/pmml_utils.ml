@@ -40,7 +40,7 @@ let read_pmml path =
               | None -> failwith "Required PMML attribute 'coefficient' missing in NumericPredictor"
             in
             coeffs := (name, VFloat coef) :: !coeffs
-        | `El_end | `Data _ | `Dtd _ -> ());
+        | `El_start _ | `El_end | `Data _ | `Dtd _ -> ());
         loop ()
       end
     in
