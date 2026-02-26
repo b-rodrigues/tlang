@@ -153,6 +153,27 @@ let column_type (t : t) (name : string) : arrow_type option =
 let has_column (t : t) (name : string) : bool =
   List.mem_assoc name t.schema
 
+let get_int (col : column_data) (row : int) : int option =
+  match col with
+  | IntColumn a -> if row < Array.length a then a.(row) else None
+  | _ -> None
+
+let get_float (col : column_data) (row : int) : float option =
+  match col with
+  | FloatColumn a -> if row < Array.length a then a.(row) else None
+  | IntColumn a -> if row < Array.length a then (match a.(row) with Some i -> Some (float_of_int i) | None -> None) else None
+  | _ -> None
+
+let get_bool (col : column_data) (row : int) : bool option =
+  match col with
+  | BoolColumn a -> if row < Array.length a then a.(row) else None
+  | _ -> None
+
+let get_string (col : column_data) (row : int) : string option =
+  match col with
+  | StringColumn a -> if row < Array.length a then a.(row) else None
+  | _ -> None
+
 (* --- Table operations --- *)
 
 (** Project (select) columns by name — zero-copy in native Arrow backend.

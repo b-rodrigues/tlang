@@ -24,6 +24,21 @@ let emit_pipeline (p : Ast.pipeline_result) =
     runtime = "Python" && is_arrow_ser_or_des name
   ) in
 
+  let is_pmml_ser_or_des name =
+    let ser = List.assoc name p.p_serializers in
+    let des = List.assoc name p.p_deserializers in
+    (match ser with Value (VString "pmml") -> true | _ -> false) ||
+    (match des with Value (VString "pmml") -> true | _ -> false)
+  in
+  let needs_r_pmml = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "R" && is_pmml_ser_or_des name
+  ) in
+  let needs_py_pmml = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "Python" && is_pmml_ser_or_des name
+  ) in
+
   let nodes =
     p.p_exprs
     |> List.map (fun (name, expr) ->
@@ -42,8 +57,14 @@ let emit_pipeline (p : Ast.pipeline_result) =
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
-  let r_arrow_pkg = if needs_r_arrow then " pkgs.rPackages.arrow" else "" in
-  let py_arrow_pkgs = if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "" in
+  let r_extra_pkgs = 
+    (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
+    (if needs_r_pmml then " pkgs.rPackages.r2pmml" else "")
+  in
+  let py_extra_pkgs = 
+    (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^
+    (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ]" else "")
+  in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
 let
@@ -53,14 +74,18 @@ let
   # that builtins.getFlake accepts.
   flake  = builtins.getFlake (toString ../.);
   pkgs   = flake.inputs.nixpkgs.legacyPackages.${system};
-  tBin   = (flake.inputs.t-lang or flake).packages.${system}.default;
+  tBin   = let
+             base = (flake.inputs.t-lang or flake).packages.${system}.default;
+           in if builtins.pathExists ../dune-project then
+             base.overrideAttrs (old: { src = sources; })
+           else base;
   stdenv = pkgs.stdenv;
 
   # Filter out _pipeline/, .git/, and other non-source directories
   sources = builtins.filterSource
     (path: type:
       let baseName = builtins.baseNameOf path;
-      in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv"))
+      in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv" || baseName == "_build"))
     ./..;
 
   toml = if builtins.pathExists ../tproject.toml then builtins.fromTOML (builtins.readFile ../tproject.toml) else {};
@@ -70,8 +95,9 @@ let
     packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ pkgs.rPackages.jsonlite%s ];
   };
 
-  pyVersion = toml.py-dependencies.version or "python3";
-  pyPackagesList = toml.py-dependencies.packages or [];
+  pyDeps = toml.py-dependencies or toml.python-dependencies or {};
+  pyVersion = pyDeps.version or "python3";
+  pyPackagesList = pyDeps.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList)%s);
 in
 rec {
@@ -85,4 +111,4 @@ rec {
     '';
   };
 }
-|} r_arrow_pkg py_arrow_pkgs nodes (String.concat " " node_names) final_copy
+|} r_extra_pkgs py_extra_pkgs nodes (String.concat " " node_names) final_copy

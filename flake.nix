@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-09";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-26";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -38,12 +38,15 @@
             broom
             jsonlite
             arrow
+            r2pmml
           ];
         };
 
         python-with-packages = pkgs.python3.withPackages (p: with p; [
           pandas
           pyarrow
+          scikit-learn
+          sklearn2pmml
         ]);
 
         # Pin a specific version of OCaml for reproducibility.
@@ -64,6 +67,8 @@
             ocamlVersion.menhir
             # pkg-config — resolves C library flags for arrow-glib, gobject, glib
             pkgs.pkg-config
+            pkgs.makeWrapper
+            pkgs.autoPatchelfHook
           ];
 
           buildInputs = [
@@ -72,6 +77,7 @@
             ocamlVersion.linenoise
             # otoml — TOML parsing library for package management (DESCRIPTION.toml, tproject.toml)
             ocamlVersion.otoml
+            ocamlVersion.xmlm
             ocamlVersion.lsp
             ocamlVersion.jsonrpc
             # Arrow C++ — provides arrow.pc that arrow-glib depends on
@@ -97,8 +103,9 @@
 
           installPhase = ''
             mkdir -p $out/bin
-            cp _build/default/src/repl.exe $out/bin/t
-            chmod +x $out/bin/t
+            cp _build/default/src/repl.exe $out/bin/.t-unwrapped
+            makeWrapper $out/bin/.t-unwrapped $out/bin/t \
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}"
           '';
 
           meta = with pkgs.lib; {
@@ -145,6 +152,7 @@
 
             # TOML parsing library for package management
             ocamlVersion.otoml
+            ocamlVersion.xmlm
             ocamlVersion.lsp
             ocamlVersion.jsonrpc
 

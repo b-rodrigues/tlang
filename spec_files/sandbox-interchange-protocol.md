@@ -164,7 +164,6 @@ It supports:
 ## Python Ecosystem
 
 * `sklearn2pmml`
-* `nyoka`
 * `pypmml`
 
 **Important:** Users never manipulate PMML directly.
@@ -196,7 +195,7 @@ t_export_model(model, "model.pmml")
 
 `t_export_model()`:
 
-* Wraps exporter (`r2pmml`, `nyoka`, etc.)
+* Wraps exporter (`r2pmml`, `sklearn2pmml`, etc.)
 * Validates supported constructs
 * Pins compatible exporter versions
 * Emits warnings if unsupported elements exist
@@ -893,23 +892,23 @@ Production-grade DataFrame interoperability.
 
 ### Goal
 
-Language-neutral predictive model exchange.
+Language-neutral predictive model exchange with full statistical context (coefficients, standard errors, p-values, and goodness-of-fit statistics).
 
 ### Scope
 
 * Built-in keyword: `"pmml"`
-* R integration via r2pmml
-* Python integration via sklearn2pmml / nyoka
-* T-native PMML parser (subset first)
+* **R backend**: `r2pmml` (preferred for its rich PMML support via JPMML).
+* **Python backend**: `sklearn2pmml`.
+* **T-native PMML parser**: Recursive XML parser capable of mapping PMML elements to T linear and tree model records.
+* **Enrichment layer**: Post-export XML modification in runtimes to inject stats not natively included in standard PMML (e.g., standard errors in `RegressionModel`).
 
 ### Node API
 
 ```python
 model = node(
-    command = <{ fit_model(data) }>,
-    runtime = Python,
-    serializer = "pmml",
-    deserializer = "pmml"
+    command = <{ lm(mpg ~ wt + hp, data = data) }>,
+    runtime = R,
+    serializer = "pmml"
 )
 ```
 
@@ -917,9 +916,37 @@ model = node(
 
 T-native model abstraction capable of:
 
-* Predict
-* Inspect features
-* Plot decision boundaries (when feasible)
+* `predict(df, model)`: Native execution without runtime overhead.
+* `summary(model)`: Full coefficient table with estimates, std. errors, and p-values.
+* `fit_stats(model)`: Goodness-of-fit metrics (R², Adj. R², AIC, BIC, etc.).
+
+---
+
+## Principles for Model Bridge Development
+
+To expand T's model support (e.g., GLMs, Random Forests, XGBoost), developers must follow these core principles:
+
+### 1. Statistical Context Preservation
+A model in T is not just a scoring function; it is a statistical object. 
+*   **Don't stop at coefficients**: Ensure the bridge captures standard errors, t-statistics, and p-values.
+*   **Capture Goodness-of-Fit**: Expose R-squared, Adj. R-squared, AIC, BIC, Log-Likelihood, and Deviance.
+*   **Consistency**: The T-side `summary(model)` and `fit_stats(model)` must feel as complete as their R/Python counterparts.
+
+### 2. Prefer `r2pmml` and `JPMML` backends
+While the base `pmml` package exists in R, `r2pmml` (and the underlying Java JPMML library) is preferred because:
+*   It supports a wider range of models (including scikit-learn models via `sklearn2pmml`).
+*   It handles feature transformations more robustly.
+*   It produces highly standardized XML structure that is easier for T to parse deterministically.
+
+### 3. Context-Aware XML Enrichment
+Since standard PMML sometimes omits statistical metadata (like standard errors in a `RegressionModel`), we perform "enrichment" on the R/Python side before the artifact is finalized.
+*   **Be Context-Aware**: Use specific XML patterns for substitution (e.g., match `<NumericPredictor name="var"` rather than just `name="var"`) to avoid accidental replacement in `MiningSchema` or other metadata sections.
+*   **Standardized Extensions**: Where possible, use standard PMML attributes (like `stdError`, `tStatistic`, `pValue`) or the `<PredictiveModelQuality>` element for model-level stats.
+
+### 4. Strict Symmetry Between Runtime and Parser
+The logic used to inject XML attributes in the runtime (R/Python) and the logic used to parse them in T (`pmml_utils.ml`) must be updated in lockstep.
+*   Always use `fmt <- function(x) sprintf("%.15g", x)` in R to preserve precision during interchange.
+*   Ensure T parser handles both standard attributes and our custom extensions gracefully (returning `VNull` if missing).
 
 ---
 

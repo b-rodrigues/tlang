@@ -27,8 +27,13 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
       let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.Var "default" in
       let des = match List.assoc_opt name p.p_deserializers with Some s -> s | None -> Ast.Var "default" in
       let funcs = match List.assoc_opt name p.p_functions with Some f -> eval_string_list f | None -> [] in
-      let is_custom_ser = match ser with Ast.Var "default" -> false | _ -> true in
-      let is_custom_des = match des with Ast.Var "default" -> false | _ -> true in
+      let is_builtin = function
+        | Ast.Value (Ast.VString ("pmml" | "arrow" | "json"))
+        | Ast.Var ("pmml" | "arrow" | "json" | "default") -> true
+        | _ -> false
+      in
+      let is_custom_ser = not (is_builtin ser) in
+      let is_custom_des = not (is_builtin des) in
       if (is_custom_ser || is_custom_des) && funcs = [] then
         Printf.eprintf "Warning: Node `%s` uses custom serializer/deserializer but has no functions specified. Ensure it's available in the runtime environment.\n%!" name
     ) p.p_exprs

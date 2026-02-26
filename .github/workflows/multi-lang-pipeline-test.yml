@@ -117,9 +117,21 @@ jobs:
         echo "=== Inspecting artifacts via T REPL ==="
         nix develop --accept-flake-config --command $TLANG_BIN --unsafe <<'EOF'
         print("--- Node: summary_r ---")
-        read_node("summary_r") |> print
+        node_r = read_node("summary_r")
+        print("Raw Value:")
+        print(node_r)
+        print("\nDataFrame Inspection:")
+        glimpse(node_r)
+
         print("\n--- Node: summary_py ---")
-        read_node("summary_py") |> print
+        node_py = read_node("summary_py")
+        print("Raw Value:")
+        print(node_py)
+        print("\nDataFrame Inspection:")
+        glimpse(node_py)
+
         print("\n--- Node: final_results ---")
-        read_node("final_results") |> print
+        res = read_node("final_results")
+        print("Final Combined Results:")
+        print(res)
         EOF
