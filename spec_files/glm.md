@@ -145,49 +145,175 @@ The same context-aware XPath pattern from the linear model bridge is reused. The
 
 ---
 
-## 5. Runtime Enrichment (Python)
+## 5. Python Runtime — statsmodels GLMs via JPMML-StatsModels
 
-For `statsmodels.GLM`:
+### 5.1 Overview
+
+The Python GLM path mirrors the R path structurally. Both delegate to a JPMML-backed converter that accepts a pickle file and emits PMML. The converter for statsmodels is **JPMML-StatsModels**, a dedicated library in the same JPMML family as the `r2pmml` backend used on the R side.
+
+The workflow is:
+
+```
+statsmodels fit → pickle → JPMML-StatsModels CLI → PMML → T enrichment (if needed)
+```
+
+Users never interact with any of these steps. `t_export_glm` orchestrates the full pipeline internally.
+
+---
+
+### 5.2 Supported Models
+
+JPMML-StatsModels supports the following GLM configurations natively:
+
+**Families:** `Binomial`, `Gaussian`, `Poisson`
+
+**Link functions:** `identity`, `log`, `logit`
+
+This covers the large majority of practical GLM usage. Families outside this set (Gamma, InverseGaussian, Quasi variants) are not supported on the Python path in the initial implementation — users requiring those should train in R.
+
+---
+
+### 5.3 Implementation
 
 ```python
-import xml.etree.ElementTree as ET
-import json, re
+import subprocess
+import pickle
+import tempfile
+import os
 
-def t_export_glm(fit, path):
-    # sklearn2pmml handles base export
-    sklearn2pmml_pipeline_to_pmml(fit, path)
+def t_export_glm(results, path: str) -> str:
+    """
+    Export a fitted statsmodels GLM result to PMML.
 
-    tree = ET.parse(path)
-    root = tree.getroot()
-    ns   = {"pmml": "http://www.dmg.org/PMML-4_4"}
-    fmt  = lambda x: f"{x:.15g}"
+    Parameters
+    ----------
+    results : statsmodels results object
+        The return value of model.fit(). Must be a supported GLM type.
+    path : str
+        Destination path for the PMML file.
+    """
+    _assert_supported(results)
 
-    summary = fit.summary2().tables[1]   # param table
-    for _, row in summary.iterrows():
-        name = row.name
-        xpath = f".//pmml:NumericPredictor[@name='{name}']"
-        for nd in root.findall(xpath, ns):
-            nd.set("stdError",   fmt(row["Std.Err."]))
-            nd.set("zStatistic", fmt(row["z"]))
-            nd.set("pValue",     fmt(row["P>|z|"]))
+    with tempfile.TemporaryDirectory() as tmp:
+        pkl_path = os.path.join(tmp, "model.pkl")
+        results.save(pkl_path, remove_data=True)
 
-    reg = root.find(".//pmml:RegressionModel", ns)
-    ext = ET.SubElement(reg, "Extension")
-    ext.set("name", "GLMStats")
-    ext.set("value", json.dumps({
-        "family"              : fit.family.__class__.__name__,
-        "link"                : fit.family.link.__class__.__name__,
-        "null_deviance"       : fmt(fit.null_deviance),
-        "null_deviance_df"    : int(fit.df_null),
-        "residual_deviance"   : fmt(fit.deviance),
-        "residual_deviance_df": int(fit.df_resid),
-        "dispersion"          : fmt(fit.scale),
-        "aic"                 : fmt(fit.aic),
-        "log_likelihood"      : fmt(float(fit.llf))
-    }))
+        jar_path = _resolve_jpmml_statsmodels_jar()
 
-    tree.write(path, xml_declaration=True, encoding="utf-8")
+        subprocess.run(
+            [
+                "java", "-jar", jar_path,
+                "--pkl-input",  pkl_path,
+                "--pmml-output", path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+    return path
+
+
+def _assert_supported(results):
+    import statsmodels.genmod.generalized_linear_model as glm_module
+
+    supported_families = {"Binomial", "Gaussian", "Poisson"}
+    supported_links    = {"identity", "log", "logit"}
+
+    if hasattr(results, "family"):
+        family_name = type(results.family).__name__
+        link_name   = type(results.family.link).__name__.lower()
+
+        if family_name not in supported_families:
+            raise ValueError(
+                f"GLM family '{family_name}' is not supported on the Python path. "
+                f"Train in R to use this family."
+            )
+        if link_name not in supported_links:
+            raise ValueError(
+                f"Link function '{link_name}' is not supported on the Python path. "
+                f"Train in R to use this link."
+            )
+
+
+def _resolve_jpmml_statsmodels_jar() -> str:
+    # T's Nix derivation places the JAR at a well-known path.
+    # This function reads that path from the T runtime environment.
+    jar = os.environ.get("T_JPMML_STATSMODELS_JAR")
+    if not jar or not os.path.exists(jar):
+        raise RuntimeError(
+            "JPMML-StatsModels JAR not found. "
+            "Ensure the t-pmml-java derivation is present in your environment."
+        )
+    return jar
 ```
+
+---
+
+### 5.4 Enrichment
+
+Before writing any enrichment code, verify the raw PMML output from JPMML-StatsModels against a real fit. Because JPMML-StatsModels is purpose-built for a library that carries full inference results, it may already emit `stdError`, `tStatistic`, and `pValue` attributes on `NumericPredictor` elements without any post-processing. The R side requires enrichment because `r2pmml` omits those attributes by default; the statsmodels side may not have the same gap.
+
+The verification procedure:
+
+```python
+import statsmodels.api as sm
+import pandas as pd
+
+data = sm.datasets.spector.load_pandas().data
+fit  = sm.GLM(
+    data["GRADE"],
+    sm.add_constant(data[["GPA", "TUCE", "PSI"]]),
+    family = sm.families.Binomial()
+).fit()
+
+t_export_glm(fit, "/tmp/test_glm.pmml")
+```
+
+Then inspect `/tmp/test_glm.pmml` for:
+
+```xml
+<NumericPredictor name="GPA" coefficient="..." stdError="..." pValue="..."/>
+```
+
+If those attributes are present, no enrichment layer is needed on the Python path. If they are absent, apply the same post-processing pattern used on the R side, reading from `results.bse`, `results.tvalues`, and `results.pvalues` respectively.
+
+---
+
+### 5.5 Node API
+
+Identical to the R path — no new syntax:
+
+```python
+logit_model = node(
+    command = <{
+        import statsmodels.api as sm
+        fit = sm.GLM(y, X, family=sm.families.Binomial()).fit()
+        t_export_glm(fit, "$out/artifact")
+    }>,
+    runtime = Python,
+    serializer = "pmml"
+)
+```
+
+---
+
+### 5.6 Java Dependency
+
+Both the R and Python PMML serializer paths depend on a JRE (Java 11+) at conversion time. This is not a new constraint — `r2pmml` has the same requirement. The `t-pmml-java` Nix derivation should provision the JAR and expose `T_JPMML_STATSMODELS_JAR` and `T_JPMML_SKLEARN_JAR` as environment variables, keeping JAR version management inside Nix and invisible to users.
+
+---
+
+### 5.7 Capability Comparison
+
+| Capability | R (`r2pmml`) | Python (`jpmml-statsmodels`) |
+|---|---|---|
+| OLS / WLS | ✓ | ✓ |
+| GLM Binomial/logit | ✓ | ✓ |
+| GLM Poisson/log | ✓ | ✓ |
+| GLM Gamma | ✓ | ✗ |
+| Quasi families | ✓ | ✗ |
+| Inference stats in PMML | via enrichment | verify first |
+| Java required | ✓ | ✓ | 
 
 ---
 
