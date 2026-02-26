@@ -81,29 +81,44 @@ jobs:
         TLANG_BIN=$(pwd)/result/bin/t
         cd ../pmml_test_workspace/pmml_project
         echo "=== Verifying Artifacts in T REPL ==="
-        echo "Loading model_node and preds_node to verify PMML interchange..."
         nix develop --accept-flake-config --command $TLANG_BIN --unsafe <<'EOF'
-        print("--- Node: model_node ---")
-        model = read_node("model_node")
-        print("Model Object (Raw):")
-        model
+        print("\n--- Verifying R PMML Interchange (model_node) ---")
+        model_r = read_node("model_node")
+        print("Tidy Coefficient Summary:")
+        summary(model_r)
+        print("Model Fit Statistics:")
+        fit_stats(model_r)
         
-        print("\nTidy Coefficient Summary (broom::tidy equivalent):")
-        summary(model)
+        results_r = read_node("preds_node")
+        print("Predictions from R Model:")
+        print(head(results_r))
         
-        print("\nModel Fit Statistics (broom::glance equivalent):")
-        fit_stats(model)
+        print("\n--- Verifying Python PMML Interchange (model_py_node) ---")
+        model_py = read_node("model_py_node")
+        print("Tidy Coefficient Summary:")
+        summary(model_py)
+        print("Model Fit Statistics:")
+        fit_stats(model_py)
         
-        print("\n--- Node: preds_node ---")
-        results = read_node("preds_node")
-        print("Native T Predictions using PMML Coefficients from model_node:")
-        print(results)
+        results_py = read_node("preds_py_node")
+        print("Predictions from Python Model:")
+        print(head(results_py))
         
-        expected = [23.5723, 22.5834, 25.2758]
-        if (abs(get(results, 0) - get(expected, 0)) < 0.01) {
-            print("\nSUCCESS: PMML interchange verified! Native T predictions match R model.")
+        expected_val = 23.5723
+        val_r = get(results_r, 0)
+        val_py = get(results_py, 0)
+        
+        if (abs(val_r - expected_val) < 0.01) {
+            print("\nSUCCESS: R PMML interchange verified!")
         } else {
-            print("\nERROR: Prediction mismatch")
+            print("\nERROR: R Prediction mismatch")
+            exit(1)
+        }
+        
+        if (abs(val_py - expected_val) < 0.01) {
+            print("SUCCESS: Python PMML interchange verified!")
+        } else {
+            print("ERROR: Python Prediction mismatch")
             exit(1)
         }
         EOF
