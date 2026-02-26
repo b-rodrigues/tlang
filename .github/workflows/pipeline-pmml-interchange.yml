@@ -65,8 +65,10 @@ jobs:
         # 5. Sync dependencies
         $TLANG_BIN update
         
-        # 6. Prepare Test Script
+        # 6. Prepare Test Script and Data
         cp ${{ github.workspace }}/tests/pipeline/test_pmml_interchange.t .
+        mkdir -p data
+        curl -L https://raw.githubusercontent.com/b-rodrigues/rixpress_demos/refs/heads/master/basic_r/data/mtcars.csv -o data/mtcars.csv
 
         # 7. Run the pipeline
         nix develop --accept-flake-config --command $TLANG_BIN run test_pmml_interchange.t --unsafe

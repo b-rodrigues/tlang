@@ -3,7 +3,8 @@
 model_node = node(
     command = <{
         # In R
-        fit <- lm(mpg ~ wt + hp, data = mtcars)
+        data <- read.csv("data/mtcars.csv", sep="|", header=TRUE)
+        fit <- lm(mpg ~ wt + hp, data = data)
         fit
     }>,
     runtime = "R",
@@ -14,24 +15,15 @@ model_node = node(
 preds_node = node(
     command = <{
         model = model_node
-        -- predicted values for mtcars
+        
         print("Model coefficients:")
         print(model.coefficients)
         
         print("Tidy summary via summary(model):")
         print(summary(model))
         
-        -- We need data to predict on. Let's use mtcars.
-        -- Note: read_csv or similar is needed if we didn't pass it through.
-        -- For simplicity in this test, let's assume we have it or use a subset.
-        
-        -- Actually, mtcars is built-in in R, but not in T.
-        -- Let's create a small dataframe in T for testing.
-        test_df = dataframe([
-            [wt: 2.62, hp: 110.0],
-            [wt: 2.875, hp: 110.0],
-            [wt: 2.32, hp: 93.0]
-        ])
+        -- Use the CSV data
+        test_df = read_csv("data/mtcars.csv", separator: "|")
         
         p = predict(test_df, model)
         print("Predictions:")
