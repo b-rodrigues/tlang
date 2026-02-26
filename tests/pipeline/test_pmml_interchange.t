@@ -98,30 +98,60 @@ p = pipeline {
     preds_py_node = preds_py_node
 }
 
-print("Building pipeline...")
+print("Populating and building pipeline...")
 res = build_pipeline(p)
+
+if (is_error(res)) {
+    print("FATAL: Pipeline build failed!")
+    print(res)
+    exit(1)
+} else {
+    print("Pipeline build successful.")
+}
 
 -- Verify R
 results_r = read_node("preds_node")
-print("Verified Predictions in T (from R):")
-print(results_r)
+if (is_error(results_r)) {
+    print("Error reading results_r:")
+    print(results_r)
+    exit(1)
+} else {
+    print("Verified Predictions in T (from R):")
+    print(head(results_r))
+}
 
 -- Verify Python
 results_py = read_node("preds_py_node")
-print("Verified Predictions in T (from Python):")
-print(results_py)
+if (is_error(results_py)) {
+    print("Error reading results_py:")
+    print(results_py)
+    exit(1)
+} else {
+    print("Verified Predictions in T (from Python):")
+    print(head(results_py))
+}
 
 -- Final check
 expected = [23.5723294033, 22.583482564, 25.2758187247]
+
 -- Check first value from both
-if (abs(get(results_r, 0) - get(expected, 0)) < 0.001) {
-    if (abs(get(results_py, 0) - get(expected, 0)) < 0.001) {
-        print("Test Passed: Native T predictions match both R and Python models via PMML")
+val_r = get(results_r, 0)
+val_py = get(results_py, 0)
+exp = get(expected, 0)
+
+print("First prediction (R):", val_r)
+print("First prediction (Py):", val_py)
+print("Expected:", exp)
+
+if (abs(val_r - exp) < 0.001) {
+    if (abs(val_py - exp) < 0.001) {
+        print("SUCCESS: Native T predictions match both R and Python models!")
+        0
     } else {
-        print("Test Failed: Python predictions mismatch")
+        print("FAILED: Python prediction mismatch. Delta:", abs(val_py - exp))
         exit(1)
     }
 } else {
-    print("Test Failed: R predictions mismatch")
+    print("FAILED: R prediction mismatch. Delta:", abs(val_r - exp))
     exit(1)
 }
