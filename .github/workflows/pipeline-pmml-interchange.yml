@@ -81,13 +81,13 @@ jobs:
         print("--- Node: model_node ---")
         model = read_node("model_node")
         print("Model Object (Raw):")
-        print(model)
+        model
         
         print("\nTidy Coefficient Summary (broom::tidy equivalent):")
-        print(summary(model))
+        summary(model)
         
         print("\nModel Fit Statistics (broom::glance equivalent):")
-        print(fit_stats(model))
+        fit_stats(model)
         
         print("\n--- Node: preds_node ---")
         results = read_node("preds_node")
