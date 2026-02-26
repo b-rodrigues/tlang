@@ -34,6 +34,11 @@ let read_pmml path =
     let bic = ref None in
     let sigma = ref None in
     let nobs = ref None in
+    let f_statistic = ref None in
+    let f_p_value = ref None in
+    let log_lik = ref None in
+    let deviance_ = ref None in
+    let df_residual = ref None in
     let found_model = ref false in
     let found_table = ref false in
 
@@ -125,6 +130,11 @@ let read_pmml path =
             (match get_float_attr "bic" attrs with Some v -> bic := Some v | _ -> ());
             (match get_float_attr "sigma" attrs with Some v -> sigma := Some v | _ -> ());
             (match get_float_attr "nobs" attrs with Some v -> nobs := (try Some (int_of_float v) with _ -> None) | _ -> ());
+            (match get_float_attr "fStatistic" attrs with Some v -> f_statistic := Some v | _ -> ());
+            (match get_float_attr "fPValue" attrs with Some v -> f_p_value := Some v | _ -> ());
+            (match get_float_attr "logLik" attrs with Some v -> log_lik := Some v | _ -> ());
+            (match get_float_attr "deviance" attrs with Some v -> deviance_ := Some v | _ -> ());
+            (match get_float_attr "dfResidual" attrs with Some v -> df_residual := (try Some (int_of_float v) with _ -> None) | _ -> ());
             loop ()
         | `El_start _ -> loop ()
         | `El_end | `Data _ | `Dtd _ -> loop ()
@@ -165,6 +175,11 @@ let read_pmml path =
           ("sigma", (match !sigma with Some v -> VFloat v | None -> VNull));
           ("nobs", (match !nobs with Some v -> VInt v | None -> VInt 0));
           ("df_model", VInt (max 0 (num_preds - 1)));
+          ("f_statistic", (match !f_statistic with Some v -> VFloat v | None -> VNull));
+          ("f_p_value", (match !f_p_value with Some v -> VFloat v | None -> VNull));
+          ("log_lik", (match !log_lik with Some v -> VFloat v | None -> VNull));
+          ("deviance", (match !deviance_ with Some v -> VFloat v | None -> VNull));
+          ("df_residual", (match !df_residual with Some v -> VInt v | None -> VNull));
         ] in
 
         let coefficients_dict = VDict (List.map (fun p -> (p.name, VFloat p.estimate)) all_preds) in

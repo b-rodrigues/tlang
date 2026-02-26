@@ -122,14 +122,15 @@ t_write_pmml <- function(object, path) {
     pmml_text <- paste(readLines(path, warn = FALSE), collapse = "\n")
     coefs <- s$coefficients
     fmt <- function(x) sprintf("%.15g", x)
-    # Add std_error/tStatistic/pValue to each NumericPredictor using fixed matching
+    # Add std_error/tStatistic/pValue to each NumericPredictor
+    # Must match on NumericPredictor context to avoid hitting MiningField elements
     for (pname in rownames(coefs)) {
       if (pname == "(Intercept)") next
       se <- fmt(coefs[pname, "Std. Error"])
       tv <- fmt(coefs[pname, "t value"])
       pv <- fmt(coefs[pname, "Pr(>|t|)"])
-      old_frag <- paste0('name="', pname, '"')
-      new_frag <- paste0('name="', pname, '" stdError="', se, '" tStatistic="', tv, '" pValue="', pv, '"')
+      old_frag <- paste0('<NumericPredictor name="', pname, '"')
+      new_frag <- paste0('<NumericPredictor name="', pname, '" stdError="', se, '" tStatistic="', tv, '" pValue="', pv, '"')
       pmml_text <- sub(old_frag, new_frag, pmml_text, fixed = TRUE)
     }
     # Add intercept stats to RegressionTable
@@ -145,11 +146,19 @@ t_write_pmml <- function(object, path) {
       }
     }
     # Add PredictiveModelQuality element with model-level stats
+    fstat <- if (!is.null(s$fstatistic)) fmt(s$fstatistic[1]) else "NA"
+    fpval <- if (!is.null(s$fstatistic)) {
+      fmt(pf(s$fstatistic[1], s$fstatistic[2], s$fstatistic[3], lower.tail = FALSE))
+    } else "NA"
+    ll <- fmt(logLik(object))
+    dev <- fmt(deviance(object))
+    dfr <- df.residual(object)
     quality <- sprintf(
-      '  <PredictiveModelQuality r2="%s" adj-r2="%s" aic="%s" bic="%s" sigma="%s" nobs="%d"/>',
+      '  <PredictiveModelQuality r2="%s" adj-r2="%s" aic="%s" bic="%s" sigma="%s" nobs="%d" fStatistic="%s" fPValue="%s" logLik="%s" deviance="%s" dfResidual="%d"/>',
       fmt(s$r.squared), fmt(s$adj.r.squared),
       fmt(AIC(object)), fmt(BIC(object)),
-      fmt(s$sigma), nobs(object)
+      fmt(s$sigma), nobs(object),
+      fstat, fpval, ll, dev, dfr
     )
     pmml_text <- sub("</RegressionModel>",
                      paste0(quality, "\n</RegressionModel>"),
