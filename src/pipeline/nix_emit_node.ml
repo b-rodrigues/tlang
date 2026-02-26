@@ -115,12 +115,51 @@ def t_read_arrow(path):
   let t_pmml_r_code = {|
 t_write_pmml <- function(object, path) {
   r2pmml::r2pmml(object, path)
+  # Enrich PMML with summary statistics for lm/glm models
+  if (inherits(object, "lm")) {
+    s <- tryCatch(summary(object), error = function(e) NULL)
+    if (is.null(s)) return(invisible(NULL))
+    pmml_text <- paste(readLines(path, warn = FALSE), collapse = "\n")
+    coefs <- s$coefficients
+    fmt <- function(x) sprintf("%.15g", x)
+    # Add std_error/tStatistic/pValue to each NumericPredictor using fixed matching
+    for (pname in rownames(coefs)) {
+      if (pname == "(Intercept)") next
+      se <- fmt(coefs[pname, "Std. Error"])
+      tv <- fmt(coefs[pname, "t value"])
+      pv <- fmt(coefs[pname, "Pr(>|t|)"])
+      old_frag <- paste0('name="', pname, '"')
+      new_frag <- paste0('name="', pname, '" stdError="', se, '" tStatistic="', tv, '" pValue="', pv, '"')
+      pmml_text <- sub(old_frag, new_frag, pmml_text, fixed = TRUE)
+    }
+    # Add intercept stats to RegressionTable
+    if ("(Intercept)" %in% rownames(coefs)) {
+      se <- fmt(coefs["(Intercept)", "Std. Error"])
+      tv <- fmt(coefs["(Intercept)", "t value"])
+      pv <- fmt(coefs["(Intercept)", "Pr(>|t|)"])
+      # Find the intercept value that r2pmml wrote
+      m <- regmatches(pmml_text, regexpr('intercept="[^"]*"', pmml_text))
+      if (length(m) > 0) {
+        new_frag <- paste0(m[1], ' stdError="', se, '" tStatistic="', tv, '" pValue="', pv, '"')
+        pmml_text <- sub(m[1], new_frag, pmml_text, fixed = TRUE)
+      }
+    }
+    # Add PredictiveModelQuality element with model-level stats
+    quality <- sprintf(
+      '  <PredictiveModelQuality r2="%s" adj-r2="%s" aic="%s" bic="%s" sigma="%s" nobs="%d"/>',
+      fmt(s$r.squared), fmt(s$adj.r.squared),
+      fmt(AIC(object)), fmt(BIC(object)),
+      fmt(s$sigma), nobs(object)
+    )
+    pmml_text <- sub("</RegressionModel>",
+                     paste0(quality, "\n</RegressionModel>"),
+                     pmml_text, fixed = TRUE)
+    cat(pmml_text, file = path)
+  }
 }
 t_read_pmml <- function(path) {
-  if (!requireNamespace("pmml", quietly = TRUE)) {
-    stop("The 'pmml' package is required to read PMML files. Please install it via install.packages('pmml').")
-  }
-  pmml::read.pmml(path)
+  # Return the raw PMML path - T handles PMML deserialization natively
+  path
 }
 |} in
 
