@@ -232,7 +232,7 @@ def t_write_pmml(model, path):
                 # 1. Inject model-level Quality metrics
                 # Get namespace from parent tag
                 tag = reg_model.tag
-                ns_prefix = tag[:tag.rfind('}')+1] if '}' in tag else ''
+                ns_prefix = tag[:tag.rfind('}')+1] if '}' in tag else ""
                 
                 quality = ET.SubElement(reg_model, ns_prefix + 'PredictiveModelQuality')
                 if hasattr(model, 'r2_'): quality.set('r2', str(model.r2_))
