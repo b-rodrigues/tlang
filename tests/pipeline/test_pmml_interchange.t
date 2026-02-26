@@ -18,6 +18,9 @@ preds_node = node(
         print("Model coefficients:")
         print(model.coefficients)
         
+        print("Tidy summary via summary(model):")
+        print(summary(model))
+        
         -- We need data to predict on. Let's use mtcars.
         -- Note: read_csv or similar is needed if we didn't pass it through.
         -- For simplicity in this test, let's assume we have it or use a subset.
