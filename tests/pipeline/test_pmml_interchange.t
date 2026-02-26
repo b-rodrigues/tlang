@@ -25,9 +25,9 @@ preds_node = node(
         -- Actually, mtcars is built-in in R, but not in T.
         -- Let's create a small dataframe in T for testing.
         test_df = dataframe([
-            [wt: 2.62, hp: 110.0, mpg: 21.0],
-            [wt: 2.875, hp: 110.0, mpg: 21.0],
-            [wt: 2.32, hp: 93.0, mpg: 22.8]
+            [wt: 2.62, hp: 110.0],
+            [wt: 2.875, hp: 110.0],
+            [wt: 2.32, hp: 93.0]
         ])
         
         p = predict(test_df, model)

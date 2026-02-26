@@ -92,7 +92,7 @@ jobs:
             exit(1)
         }
         
-        if ("val" in columns(df)) {
+        if ("val" in colnames(df)) {
              print("Column 'val' found")
         } else {
              print("ERROR: Column 'val' missing")

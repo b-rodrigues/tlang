@@ -40,7 +40,7 @@ let register env =
           List.iter (fun (name, v) ->
             match v with
             | VFloat f ->
-                if name = "(Intercept)" || name = "intercept" then
+                if name = "(Intercept)" then
                   intercept := f
                 else
                   terms := (name, f) :: !terms
@@ -68,7 +68,7 @@ let register env =
                   for i = 0 to nrows - 1 do
                     match Arrow_table.get_float col i with
                     | Some x -> out.(i) <- out.(i) +. (coef *. x)
-                    | None -> () (* Handle NA? tidypredict usually propagates NA *)
+                    | None -> out.(i) <- nan (* Propagate NA: missing predictor yields NaN prediction *)
                   done
           ) !terms;
           
