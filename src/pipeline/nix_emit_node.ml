@@ -184,7 +184,7 @@ def t_write_pmml(model, path):
         ) from exc
     
     # Basic export
-    sklearn2pmml(model, path, with_variable_names=True)
+    sklearn2pmml(model, path)
 
     # Statistical enrichment for LinearRegression
     from sklearn.linear_model import LinearRegression
