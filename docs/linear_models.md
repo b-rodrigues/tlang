@@ -165,7 +165,7 @@ lm(data = df, formula = y ~ x1 + x2 + x3)    -- many predictors
 
 ## Model Interchange & PMML
 
-T supports cross-language model interchange via the **PMML (Predictive Model Markup Language)** standard. This allows you to train a model in R or Python (using libraries like `r2pmml` or `nyoka`) and import it into a T pipeline for native evaluation and inspection.
+T supports cross-language model interchange via the **PMML (Predictive Model Markup Language)** standard. This allows you to train a model in R or Python (using libraries like `r2pmml` or `sklearn2pmml`) and import it into a T pipeline for native evaluation and inspection.
 
 ### Importing a PMML Model
 

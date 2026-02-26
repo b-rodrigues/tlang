@@ -17,7 +17,9 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
     | "R" -> 
         let inputs = if is_pmml_ser || is_pmml_des then "r-env pkgs.jre" else "r-env" in
         "R", inputs
-    | "Python" -> "py", "py-env"
+    | "Python" -> 
+        let inputs = if is_pmml_ser || is_pmml_des then "py-env pkgs.jre" else "py-env" in
+        "py", inputs
     | _ -> "t", ""
   in
 
@@ -175,14 +177,14 @@ t_read_pmml <- function(path) {
   let t_pmml_py_code = {|
 def t_write_pmml(model, path):
     try:
-        from nyoka import skl_to_pmml
+        from sklearn2pmml import sklearn2pmml
     except ImportError as exc:
         raise ImportError(
-            "PMML export in Python requires the 'nyoka' package to be installed."
+            "PMML export in Python requires the 'sklearn2pmml' package to be installed."
         ) from exc
     
     # Basic export
-    skl_to_pmml(model, None, None, path)
+    sklearn2pmml(model, path, with_variable_names=True)
 
     # Statistical enrichment for LinearRegression
     from sklearn.linear_model import LinearRegression
@@ -217,7 +219,7 @@ def t_write_pmml(model, path):
             tree = ET.parse(path)
             root = tree.getroot()
             ns = {'p': 'http://www.dmg.org/PMML-4_4'}
-            # Note: nyoka might use a different version. Let's find the tag regardless of NS.
+            # Note: sklearn2pmml might use a different version. Let's find the tag regardless of NS.
             
             def find_tag(root, tag):
                 for el in root.iter():

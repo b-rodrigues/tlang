@@ -34,6 +34,10 @@ let emit_pipeline (p : Ast.pipeline_result) =
     let runtime = List.assoc name p.p_runtimes in
     runtime = "R" && is_pmml_ser_or_des name
   ) in
+  let needs_py_pmml = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "Python" && is_pmml_ser_or_des name
+  ) in
 
   let nodes =
     p.p_exprs
@@ -57,7 +61,10 @@ let emit_pipeline (p : Ast.pipeline_result) =
     (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
     (if needs_r_pmml then " pkgs.rPackages.r2pmml" else "")
   in
-  let py_arrow_pkgs = if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "" in
+  let py_extra_pkgs = 
+    (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^
+    (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ]" else "")
+  in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
 let
@@ -104,4 +111,4 @@ rec {
     '';
   };
 }
-|} r_extra_pkgs py_arrow_pkgs nodes (String.concat " " node_names) final_copy
+|} r_extra_pkgs py_extra_pkgs nodes (String.concat " " node_names) final_copy

@@ -164,7 +164,6 @@ It supports:
 ## Python Ecosystem
 
 * `sklearn2pmml`
-* `nyoka`
 * `pypmml`
 
 **Important:** Users never manipulate PMML directly.
@@ -196,7 +195,7 @@ t_export_model(model, "model.pmml")
 
 `t_export_model()`:
 
-* Wraps exporter (`r2pmml`, `nyoka`, etc.)
+* Wraps exporter (`r2pmml`, `sklearn2pmml`, etc.)
 * Validates supported constructs
 * Pins compatible exporter versions
 * Emits warnings if unsupported elements exist
@@ -899,7 +898,7 @@ Language-neutral predictive model exchange with full statistical context (coeffi
 
 * Built-in keyword: `"pmml"`
 * **R backend**: `r2pmml` (preferred for its rich PMML support via JPMML).
-* **Python backend**: `nyoka` or `sklearn2pmml`.
+* **Python backend**: `sklearn2pmml`.
 * **T-native PMML parser**: Recursive XML parser capable of mapping PMML elements to T linear and tree model records.
 * **Enrichment layer**: Post-export XML modification in runtimes to inject stats not natively included in standard PMML (e.g., standard errors in `RegressionModel`).
 
