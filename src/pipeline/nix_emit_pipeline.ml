@@ -85,7 +85,7 @@ let
   sources = builtins.filterSource
     (path: type:
       let baseName = builtins.baseNameOf path;
-      in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv"))
+      in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv" || baseName == "_build"))
     ./..;
 
   toml = if builtins.pathExists ../tproject.toml then builtins.fromTOML (builtins.readFile ../tproject.toml) else {};

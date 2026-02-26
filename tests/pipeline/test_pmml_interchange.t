@@ -30,8 +30,7 @@ preds_node = node(
         print(p)
         p
     }>,
-    runtime = "T",
-    deserializer = "pmml"
+    runtime = "T"
 )
 
 model_py_node = node(
@@ -87,8 +86,7 @@ preds_py_node = node(
         print(p)
         p
     }>,
-    runtime = "T",
-    deserializer = "pmml"
+    runtime = "T"
 )
 
 p = pipeline {
