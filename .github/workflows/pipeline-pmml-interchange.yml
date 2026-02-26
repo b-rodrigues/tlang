@@ -62,7 +62,7 @@ jobs:
           'packages = ["r2pmml"]' \
           '' \
           '[python-dependencies]' \
-          'packages = ["pandas", "scikit-learn", "nyoka", "scipy"]' \
+          'packages = ["pandas", "scikit-learn", "sklearn2pmml", "scipy"]' \
           > tproject.toml
 
         # 5. Sync dependencies

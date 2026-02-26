@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-09";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-26";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -46,6 +46,7 @@
           pandas
           pyarrow
           scikit-learn
+          sklearn2pmml
         ]);
 
         # Pin a specific version of OCaml for reproducibility.
