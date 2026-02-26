@@ -64,8 +64,6 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   let is_json_des = match deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
   let is_arrow_ser = match serializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
   let is_arrow_des = match deserializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
-  let is_pmml_ser = match serializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
-  let is_pmml_des = match deserializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
@@ -119,28 +117,32 @@ t_write_pmml <- function(object, path) {
   r2pmml::r2pmml(object, path)
 }
 t_read_pmml <- function(path) {
-  # Load as XML/PMML object if needed, but T executes natively.
-  # For R consumers, we might use the pmml package if available.
-  if (requireNamespace("pmml", quietly = TRUE)) {
-    return(pmml::read.pmml(path))
+  if (!requireNamespace("pmml", quietly = TRUE)) {
+    stop("The 'pmml' package is required to read PMML files. Please install it via install.packages('pmml').")
   }
-  return(path)
+  pmml::read.pmml(path)
 }
 |} in
 
   let t_pmml_py_code = {|
-from pypmml import Model
 def t_write_pmml(model, path):
-    # Python export to PMML usually requires nyoka or sklearn2pmml.
-    # If using nyoka:
     try:
         from nyoka import skl_to_pmml
-        skl_to_pmml(model, None, None, path)
-    except ImportError:
-        # Fallback/placeholder for now as user stressed pypmml
-        raise ImportError("PMML export in Python requires 'nyoka' package.")
+    except ImportError as exc:
+        raise ImportError(
+            "PMML export in Python requires the 'nyoka' package to be installed. "
+            "Install it with: pip install nyoka"
+        ) from exc
+    skl_to_pmml(model, None, None, path)
 
 def t_read_pmml(path):
+    try:
+        from pypmml import Model
+    except ImportError as exc:
+        raise ImportError(
+            "PMML reading in Python requires the 'pypmml' package to be installed. "
+            "Install it with: pip install pypmml"
+        ) from exc
     return Model.load(path)
 |} in
 

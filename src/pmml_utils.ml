@@ -17,19 +17,34 @@ let read_pmml path =
     let found_model = ref false in
     let found_table = ref false in
 
-    while not (Xmlm.eoi i) do
-      match Xmlm.input i with
-      | `El_start ((_, "RegressionModel"), _) ->
-          found_model := true
-      | `El_start ((_, "RegressionTable"), attrs) ->
-          found_table := true;
-          intercept := (match find_attr "intercept" attrs with Some s -> float_of_string s | None -> 0.0)
-      | `El_start ((_, "NumericPredictor"), attrs) ->
-          let name = match find_attr "name" attrs with Some s -> s | None -> "" in
-          let coef = match find_attr "coefficient" attrs with Some s -> float_of_string s | None -> 0.0 in
-          if name <> "" then coeffs := (name, VFloat coef) :: !coeffs
-      | _ -> ()
-    done;
+    let rec loop () =
+      if Xmlm.eoi i then ()
+      else begin
+        (match Xmlm.input i with
+        | `El_start ((_, "RegressionModel"), _) ->
+            found_model := true
+        | `El_start ((_, "RegressionTable"), attrs) ->
+            found_table := true;
+            (match find_attr "intercept" attrs with
+             | Some s -> intercept := float_of_string s
+             | None -> failwith "Missing 'intercept' attribute in <RegressionTable>")
+        | `El_start ((_, "NumericPredictor"), attrs) ->
+            let name =
+              match find_attr "name" attrs with
+              | Some s -> s
+              | None -> failwith "Required PMML attribute 'name' missing in NumericPredictor"
+            in
+            let coef =
+              match find_attr "coefficient" attrs with
+              | Some s -> float_of_string s
+              | None -> failwith "Required PMML attribute 'coefficient' missing in NumericPredictor"
+            in
+            coeffs := (name, VFloat coef) :: !coeffs
+        | `El_end | `Data _ | `Dtd _ -> ());
+        loop ()
+      end
+    in
+    loop ();
     close_in ic;
 
     if not !found_model then Error "No <RegressionModel> found in PMML"
