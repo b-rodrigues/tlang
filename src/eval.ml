@@ -670,6 +670,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
           }
         else
           let is_json_des = match un.un_deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
+          let is_pmml_des = match un.un_deserializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
           let env_with_deserialized = List.fold_left (fun acc dname ->
             match Env.find_opt dname acc with
             | Some (VComputedNode cn) when is_json_des && cn.cn_serializer = "json" ->
@@ -677,6 +678,12 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
                  | Ok v -> Env.add dname v acc
                  | Error msg -> 
                      Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname name msg;
+                     acc)
+            | Some (VComputedNode cn) when is_pmml_des && cn.cn_serializer = "pmml" ->
+                (match Pmml_utils.read_pmml cn.cn_path with
+                 | Ok v -> Env.add dname v acc
+                 | Error msg -> 
+                     Printf.eprintf "Warning: Automatic PMML deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname name msg;
                      acc)
             | _ -> acc
           ) !current_env_ref node_deps in
@@ -763,6 +770,7 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
           }
         else
           let is_json_des = match un.un_deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
+          let is_pmml_des = match un.un_deserializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
           let env_with_deserialized = List.fold_left (fun acc dname ->
             match Env.find_opt dname acc with
             | Some (VComputedNode cn) when is_json_des && cn.cn_serializer = "json" ->
@@ -770,6 +778,12 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
                  | Ok v -> Env.add dname v acc
                  | Error msg -> 
                      Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s` during re-run: %s\n%!" dname name msg;
+                     acc)
+            | Some (VComputedNode cn) when is_pmml_des && cn.cn_serializer = "pmml" ->
+                (match Pmml_utils.read_pmml cn.cn_path with
+                 | Ok v -> Env.add dname v acc
+                 | Error msg -> 
+                     Printf.eprintf "Warning: Automatic PMML deserialization failed for dependency `%s` of node `%s` during re-run: %s\n%!" dname name msg;
                      acc)
             | _ -> acc
           ) !env_ref node_deps in
