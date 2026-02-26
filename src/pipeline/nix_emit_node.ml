@@ -230,7 +230,11 @@ def t_write_pmml(model, path):
             reg_model = find_tag(root, 'RegressionModel')
             if reg_model is not None:
                 # 1. Inject model-level Quality metrics
-                quality = ET.SubElement(reg_model, '{http://www.dmg.org/PMML-4_4}PredictiveModelQuality')
+                # Get namespace from parent tag
+                tag = reg_model.tag
+                ns_prefix = tag[:tag.rfind('}')+1] if '}' in tag else ''
+                
+                quality = ET.SubElement(reg_model, ns_prefix + 'PredictiveModelQuality')
                 if hasattr(model, 'r2_'): quality.set('r2', str(model.r2_))
                 if hasattr(model, 'adj_r2_'): quality.set('adj-r2', str(model.adj_r2_))
                 if hasattr(model, 'aic_'): quality.set('aic', str(model.aic_))
@@ -239,6 +243,8 @@ def t_write_pmml(model, path):
                 if hasattr(model, 'nobs_'): quality.set('nobs', str(int(model.nobs_)))
                 if hasattr(model, 'f_statistic_'): quality.set('fStatistic', str(model.f_statistic_))
                 if hasattr(model, 'f_p_value_'): quality.set('fPValue', str(model.f_p_value_))
+                if hasattr(model, 'log_lik_'): quality.set('logLik', str(model.log_lik_))
+                if hasattr(model, 'deviance_'): quality.set('deviance', str(model.deviance_))
                 if hasattr(model, 'df_residual_'): quality.set('dfResidual', str(int(model.df_residual_)))
 
                 # 2. Inject coefficient-level stats
@@ -255,8 +261,10 @@ def t_write_pmml(model, path):
                     if hasattr(model, 'p_values_'):
                         table.set('pValue', str(model.p_values_[0]))
                     
-                    # NumericPredictors
-                    for pred in table.findall('.//{http://www.dmg.org/PMML-4_4}NumericPredictor'):
+                    # NumericPredictors - use namespace-agnostic search
+                    for pred in table:
+                        if not pred.tag.endswith('NumericPredictor'):
+                            continue
                         name = pred.get('name')
                         if name in features:
                             idx = features.index(name) + 1 # +1 because 0 is intercept
