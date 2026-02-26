@@ -170,6 +170,9 @@ Version history and roadmap for the T programming language.
 - FAQ
 - Troubleshooting guide
 - Changelog (this file)
+- **Model Interchange & PMML**: Documentation for cross-language model support and broom-style outputs for imported models.
+- **Improved Data Inspection**: Enhanced `glimpse()` documentation for quick DataFrame summaries.
+
 
 ---
 

@@ -15,6 +15,23 @@ df = read_csv("employees.csv")
 nrow(df)      -- 100
 ncol(df)      -- 5
 colnames(df)  -- ["name", "age", "score", "dept", "salary"]
+ 
+ ### glimpse() — Inspect DataFrame Structure
+ 
+ Use `glimpse()` for a quick, tidy overview of a DataFrame's structure, dimensions, and contents:
+ 
+ ```t
+ df |> glimpse()
+ -- # A DataFrame: 100 × 5
++-- name   (String): "Alice", "Bob", "Charlie", ...
++-- age    (Int): 30, 25, 42, ...
++-- score  (Float): 88.5, 92.0, 75.2, ...
++-- dept   (String): "eng", "eng", "sales", ...
++-- salary (Float): 85000.0, 92000.0, 65000.0, ...
+ ```
+ 
+ Unlike `print()`, which shows a formatted table, `glimpse()` lists columns vertically with their types and a sample of values, making it ideal for wide datasets or quick exploration.
+
 ```
 
 ### read_csv() Options

@@ -163,6 +163,60 @@ lm(data = df, formula = y ~ x1 + x2)         -- two predictors
 lm(data = df, formula = y ~ x1 + x2 + x3)    -- many predictors
 ```
 
+## Model Interchange & PMML
+ 
+ T supports cross-language model interchange via the **PMML (Predictive Model Markup Language)** standard. This allows you to train a model in R or Python (using libraries like `r2pmml` or `nyoka`) and import it into a T pipeline for native evaluation and inspection.
+ 
+ ### Importing a PMML Model
+ 
+ In a pipeline context, you can define a node that trains a model in R and exports it via PMML:
+ 
+ ```t
+ p = pipeline {
+   model_node = node(
+     command = <{
+       fit = lm(mpg ~ wt + hp, data = mtcars)
+       fit
+     }>,
+     runtime = R,
+     serializer = "pmml"
+   )
+   
+   -- Node depending on the imported model
+   predictions = node(
+     command = <{
+       model = model_node
+       predict(test_df, model)
+     }>,
+     runtime = T,
+     deserializer = "pmml"
+   )
+ }
+ ```
+ 
+ ### Inspecting Imported Models
+ 
+ When a model is imported via PMML (either through a pipeline node or manually via `read_node`), T automatically recognizes it as a first-class linear model if it uses the `RegressionModel` standard. 
+ 
+ You can use the same `broom`-style functions on these imported models:
+ 
+ ```t
+ model = read_node("model_node")
+ 
+ -- The imported model supports full tidy summary
+ summary(model)
+ 
+ -- And model-level statistics
+ fit_stats(model)
+ ```
+ 
+ T extracts as much information as possible from the PMML file, including:
+ - **Coefficients** (Estimates, Standard Errors, t-statistics, p-values)
+ - **Model Stats** ($R^2$, Adjusted $R^2$, AIC, BIC, Sigma, $n_{obs}$)
+ 
+ > [!TIP]
+ > Use `glimpse(df)` to quickly inspect the results of `summary(model)` or `fit_stats(model)`.
+
 ## Comparison with R's broom Package
 
 | R (broom) | T equivalent |
