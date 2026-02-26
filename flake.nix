@@ -193,6 +193,8 @@
             # -------------------------------------------------------
             R-with-packages
             python-with-packages
+            pkgs.actionlint
+            pkgs.shellcheck
           ];
 
           shellHook = ''

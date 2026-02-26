@@ -48,7 +48,7 @@ jobs:
         cd pmml_test_workspace
         
         # 3. Initialize a new project
-        $TLANG_BIN init project pmml_project --no-git
+        "$TLANG_BIN" init project pmml_project --no-git
         cd pmml_project
         
         # 4. Configure Project dependencies
@@ -66,7 +66,7 @@ jobs:
           > tproject.toml
 
         # 5. Sync dependencies
-        $TLANG_BIN update
+        "$TLANG_BIN" update
         
         # 6. Prepare Test Script and Data
         cp ${{ github.workspace }}/tests/pipeline/test_pmml_interchange.t .
@@ -74,14 +74,14 @@ jobs:
         cp ${{ github.workspace }}/tests/pipeline/data/mtcars.csv data/mtcars.csv
 
         # 7. Run the pipeline
-        nix develop --accept-flake-config --command $TLANG_BIN run test_pmml_interchange.t --unsafe
+        nix develop --accept-flake-config --command "$TLANG_BIN" run test_pmml_interchange.t --unsafe
 
     - name: Verify Results
       run: |
         TLANG_BIN=$(pwd)/result/bin/t
         cd ../pmml_test_workspace/pmml_project
         echo "=== Verifying Artifacts in T REPL ==="
-        nix develop --accept-flake-config --command $TLANG_BIN --unsafe <<'EOF'
+        nix develop --accept-flake-config --command "$TLANG_BIN" --unsafe <<'EOF'
         print("\n--- Verifying R PMML Interchange (model_node) ---")
         model_r = read_node("model_node")
         print("Tidy Coefficient Summary:")
@@ -121,4 +121,4 @@ jobs:
             print("ERROR: Python Prediction mismatch")
             exit(1)
         }
-EOF
+        EOF
