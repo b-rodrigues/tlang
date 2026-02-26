@@ -42,21 +42,69 @@ In addition to bare assignments, you can explicitly configure nodes using the `n
 p = pipeline {
   data = node(command = read_csv("data.csv"), runtime = T)
   
-  -- Running a Python node that requires a custom deserializer 
-  -- if dependent on a T node (Python and R support coming soon in v2)
+  -- Running a Python node that trains a model
   model = node(
-    command = build_model(data), 
-    runtime = Python,
-    deserializer = read_parquet
+    command = <{
+        from sklearn.linear_model import LinearRegression
+        fit = LinearRegression().fit(X, y)
+        fit
+    }>, 
+    runtime = "Python",
+    serializer = "pmml"
   )
 }
 ```
 
-Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, you must specify an explicit `deserializer`.
+Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
 ---
 
-## 3. Automatic Dependency Resolution
+## 3. Cross-Language Integration
+
+T is designed to orchestrate code across multiple languages. The pipeline runner manages the serialization and deserialization of data between R, Python, and T using industry-standard formats.
+
+### Supported Interchange Formats
+
+| Format | Option | Best For | Requirement |
+|---|---|---|---|
+| **T Native** | `"default"` | T-to-T communication | None |
+| **Arrow** | `"arrow"` | Large DataFrames | `pyarrow` (Py), `arrow` (R) |
+| **PMML** | `"pmml"` | Predictive Models | `sklearn2pmml` (Py), `r2pmml` (R) |
+| **JSON** | `"json"` | Simple lists/dicts | `jsonlite` (R) |
+
+### Example: Training in R, Predicting in T
+
+You can train a model in R and use T's native OCaml model evaluator to make predictions without leaving the T runtime:
+
+```t
+p = pipeline {
+  -- Node 1: Train model in R
+  model_r = node(
+    command = <{
+      data <- read.csv("data.csv")
+      lm(mpg ~ wt + hp, data = data)
+    }>,
+    runtime = "R",
+    serializer = "pmml"
+  )
+  
+  -- Node 2: Predict in T using the R model
+  predictions = node(
+    command = <{
+      test_df = read_csv("new_data.csv")
+      predict(test_df, model_r)
+    }>,
+    runtime = "T",
+    deserializer = "pmml"
+  )
+}
+```
+
+Setting `deserializer = "pmml"` on the T node tells the pipeline runner to use T's native PMML parser to convert the R model into a T model object.
+
+---
+
+## 4. Automatic Dependency Resolution
 
 Nodes can be declared in **any order**. T automatically resolves dependencies:
 
@@ -73,7 +121,7 @@ T builds a dependency graph and executes nodes in topological order, so `x` and 
 
 ---
 
-## 3. Chained Dependencies
+## 5. Chained Dependencies
 
 Nodes can depend on other computed nodes, forming chains:
 
@@ -89,7 +137,7 @@ p.d  -- 4
 
 ---
 
-## 4. Pipelines with Functions
+## 6. Pipelines with Functions
 
 Nodes can use any T function, including standard library functions:
 
@@ -105,7 +153,7 @@ p.count  -- 5
 
 ---
 
-## 5. Pipelines with Pipe Operators
+## 7. Pipelines with Pipe Operators
 
 The pipe operator `|>` works naturally inside pipelines:
 
@@ -141,7 +189,7 @@ Without `?|>`, the error from `raw` would short-circuit at `|>` and never reach 
 
 ---
 
-## 6. Data Pipelines
+## 8. Data Pipelines
 
 Pipelines are most powerful for data analysis workflows. Here's a complete example loading, transforming, and summarizing data:
 
@@ -173,7 +221,7 @@ p.summary  -- DataFrame with regional totals
 
 ---
 
-## 7. Pipeline Introspection
+## 9. Pipeline Introspection
 
 T provides functions to inspect pipeline structure:
 
@@ -199,7 +247,7 @@ pipeline_node(p, "total")  -- 30
 
 ---
 
-## 8. Re-running Pipelines
+## 10. Re-running Pipelines
 
 Use `pipeline_run()` to re-execute a pipeline:
 
@@ -212,7 +260,7 @@ Re-running produces the same results — T pipelines are deterministic.
 
 ---
 
-## 9. Deterministic Execution
+## 11. Deterministic Execution
 
 Two pipelines with the same definitions always produce the same results:
 
@@ -224,7 +272,7 @@ p1.c == p2.c  -- true
 
 ---
 
-## 10. Error Handling
+## 12. Error Handling
 
 ### Cycle Detection
 
@@ -262,7 +310,7 @@ p.nonexistent
 
 ---
 
-## 11. Materializing Pipelines
+## 13. Materializing Pipelines
 
 Defining a pipeline with `pipeline { ... }` evaluates nodes in-memory. To **materialize** them as reproducible Nix artifacts (potentially using R or Python dependencies you've defined in `tproject.toml`), use `populate_pipeline()` with the `build = true` argument:
 
@@ -298,7 +346,7 @@ These functions look up the node in the **latest build log** and deserialize the
 
 ---
 
-## 12. Orchestrating with populate_pipeline()
+## 14. Orchestrating with populate_pipeline()
 
 For more control over the build process, T provides `populate_pipeline()`. This function prepares the pipeline infrastructure without necessarily triggering the Nix build immediately.
 
@@ -317,7 +365,7 @@ T maintains a persistent state directory for your pipeline. When you populate or
 
 ---
 
-## 13. Build Logs and Time Travel
+## 15. Build Logs and Time Travel
 
 T keeps a history of your builds in `_pipeline/`. This enables **Time Travel** — the ability to read artifacts from specific past versions of your pipeline.
 
@@ -354,7 +402,7 @@ This ensures that even as you update your code and data, you can always recover 
 
 ---
 
-## 14. Execution Modes
+## 16. Execution Modes
 
 T enforces a clear separation between interactive and non-interactive execution:
 
@@ -401,7 +449,7 @@ T> p.a
 
 ---
 
-## 15. Using Imports in Pipelines
+## 17. Using Imports in Pipelines
 
 When a pipeline is built with `build_pipeline()`, each node runs inside a **Nix sandbox** — an isolated build environment. Import statements from your script are **automatically propagated** into each sandbox, so imported packages and functions are available to all nodes.
 
@@ -442,7 +490,7 @@ All three import forms are supported:
 
 ---
 
-## 16. Using explain() with Pipelines
+## 18. Using explain() with Pipelines
 
 The `explain()` function provides structured metadata about pipelines:
 
@@ -470,7 +518,7 @@ e.node_count  -- 3
 
 ---
 
-## 14. Skipping Nodes
+## 19. Skipping Nodes
 
 You can explicitly skip a node (and by extension, all nodes that depend on it) by passing the `noop = true` argument to the `node()` function.
 

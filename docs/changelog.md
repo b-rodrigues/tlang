@@ -112,6 +112,12 @@ Version history and roadmap for the T programming language.
 - Cycle detection
 - Introspection
 
+✅ **Cross-Language Model Interchange (PMML)**:
+- Native PMML parser and evaluator in OCaml
+- Seamless import of models from R (`lm`) and Python (`scikit-learn`)
+- `broom`-style tidy summaries (`summary()`, `fit_stats()`) for imported models
+- Native high-performance prediction in T without runtime language dependencies
+
 ✅ **Intent Blocks**:
 - Structured metadata for LLM collaboration
 - Document assumptions, constraints, goals

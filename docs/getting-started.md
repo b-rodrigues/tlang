@@ -97,10 +97,10 @@ message = "Hello, " + name + "!"
 print(message)
 ```
 
-Run it (assuming you've created a runner - for now, REPL only):
+Run it with the `t run` command:
 
 ```bash
-# Currently T is REPL-only; file execution coming soon
+t run hello.t
 ```
 
 ## Understanding T Scripts
@@ -119,7 +119,7 @@ active = true
 numbers = [1, 2, 3, 4, 5]
 
 -- Dictionaries
-person = {name: "Bob", age: 30}
+person = [name: "Bob", age: 30]
 
 -- Functions
 add = \(a, b) a + b
@@ -163,7 +163,18 @@ analysis = pipeline {
   -- Aggregate
   summary = clean
     |> group_by($region)
-    |> summarize($total_profit, \(g) sum(g.profit))
+    |> summarize($total_profit = sum($profit))
+
+  -- Python node for advanced modeling
+  py_model = node(
+    command = <{
+        # Run in Python
+        from sklearn.linear_model import LinearRegression
+        LinearRegression().fit(X, y)
+    }>,
+    runtime = "Python",
+    serializer = "pmml"
+  )
 }
 
 -- Access pipeline results

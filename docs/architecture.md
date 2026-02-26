@@ -9,6 +9,7 @@ Internal design and implementation of the T programming language.
 - [Core Components](#core-components)
 - [Type System](#type-system)
 - [Execution Model](#execution-model)
+- [Multi-Language Execution](#multi-language-execution)
 - [Arrow Backend](#arrow-backend)
 - [Package System](#package-system)
 - [Design Decisions](#design-decisions)
@@ -375,6 +376,18 @@ p = pipeline {
 ```t
 pipeline { a = b; b = a }  -- Error: Circular dependency
 ```
+
+## Multi-Language Execution
+
+T leverages Nix to orchestrate computation across multiple runtimes. When a node is configured with `runtime = "R"` or `runtime = "Python"`, the following architecture is used:
+
+1. **Isolation**: Each node runs in a dedicated Nix derivation with its own language environment.
+2. **Environment Injection**: Project dependencies from `tproject.toml` are automatically satisfied in the sandbox.
+3. **Data Interchange**:
+   - **DataFrames**: Passed via Apache Arrow IPC for zero-copy performance.
+   - **Models**: Passed via PMML (Predictive Model Markup Language) for high-fidelity cross-language persistence.
+   - **Scalars**: Passed via JSON or T's native binary format.
+4. **Code Injection**: T automatically injects a bridge layer into the R/Python scripts to handle reading dependencies and writing the node result using the specified serializer.
 
 ---
 

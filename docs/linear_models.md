@@ -194,9 +194,29 @@ p = pipeline {
 }
 ```
 
+### Python Integration (scikit-learn)
+
+For Python nodes, T integrates with `sklearn2pmml`. Because scikit-learn's `LinearRegression` does not store statistical metadata (like standard errors or p-values) by default, you can "enrich" your model object before exporting it. T's PMML bridge looks for specific attributes on the Python model:
+
+```python
+model = LinearRegression()
+model.fit(X, y)
+
+# Add stats for T's broom-style bridge to find
+model.r2_ = model.score(X, y)
+model.nobs_ = len(y)
+model.std_errors_ = ... # array including intercept at [0]
+model.t_stats_ = ...
+model.p_values_ = ...
+
+model # Return the model for export
+```
+
+When this model is exported via `serializer = "pmml"`, T's pipeline runner will inject these statistics into the resulting PMML file, making them available to `summary(model)` and `fit_stats(model)` in T.
+
 ### Inspecting Imported Models
 
-When a model is imported via PMML (either through a pipeline node or manually via `read_node`), T automatically recognizes it as a first-class linear model if it uses the `RegressionModel` standard. 
+When a model is imported via PMML (either through a pipeline node with `deserializer = "pmml"` or manually via `read_node`), T automatically recognizes it as a first-class linear model.
 
 You can use the same `broom`-style functions on these imported models:
 
@@ -210,9 +230,16 @@ summary(model)
 fit_stats(model)
 ```
 
-T extracts as much information as possible from the PMML file, including:
-- **Coefficients** (Estimates, Standard Errors, t-statistics, p-values)
-- **Model Stats** (R², Adjusted R², AIC, BIC, Sigma, nobs)
+T extracts the following from the PMML file:
+- **Coefficients**: Estimates, and if available, Standard Errors, t-statistics, and p-values.
+- **Model Stats**: R², Adjusted R², AIC, BIC, Sigma, nobs, F-statistic, etc.
+
+Predicting with these models in T is **native and fast**:
+
+```t
+-- No R or Python required for this call!
+p = predict(test_df, model)
+```
 
 > [!TIP]
 > Use `glimpse(df)` to quickly inspect the results of `summary(model)` or `fit_stats(model)`.

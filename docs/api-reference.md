@@ -659,29 +659,84 @@ cor([1, NA, 3], [2, 4, NA], na_rm = true)  -- 1.0 (uses [1,3] and [2,4])
 
 ### `lm(data, formula)`
 
-Linear regression model (ordinary least squares).
+Fit a linear regression model (ordinary least squares).
 
 **Parameters:**
 - `data` — DataFrame
-- `formula` — Formula object (`y ~ x`)
+- `formula` — Formula object (`y ~ x1 + x2`)
 
-**Returns:** Model object with fields:
-- `slope` — Regression slope
-- `intercept` — Regression intercept
-- `r_squared` — R² coefficient of determination
-- `n` — Number of observations
+**Returns:** Model object. Use `summary()` and `fit_stats()` to inspect.
 
 **Examples:**
 ```t
-model = lm(data = df, formula = sales ~ advertising)
-model.slope        -- e.g., 0.75
-model.intercept    -- e.g., 100.0
-model.r_squared    -- e.g., 0.82 (82% variance explained)
-model.n            -- e.g., 50
+model = lm(data = df, formula = mpg ~ wt + hp)
+print(model)
+```
 
--- Use for prediction (manually)
-predict = \(x) model.intercept + model.slope * x
-predict(200)  -- Predicted sales for advertising = 200
+---
+
+### `summary(model)`
+
+Get a tidy DataFrame of model coefficients. Similar to `broom::tidy()` in R.
+
+**Parameters:**
+- `model` — Linear model object (from `lm()` or imported via PMML)
+
+**Returns:** DataFrame with columns: `term`, `estimate`, `std_error`, `statistic`, `p_value`.
+
+**Examples:**
+```t
+summary(model)
+```
+
+---
+
+### `fit_stats(model)`
+
+Get a single-row DataFrame of model-level statistics. Similar to `broom::glance()` in R.
+
+**Parameters:**
+- `model` — Linear model object
+
+**Returns:** DataFrame with statistics like `r_squared`, `AIC`, `BIC`, `sigma`, etc.
+
+**Examples:**
+```t
+fit_stats(model)
+```
+
+---
+
+### `add_diagnostics(model, data)`
+
+Augment data with per-observation diagnostics. Similar to `broom::augment()` in R.
+
+**Parameters:**
+- `model` — Linear model object
+- `data` — Original DataFrame used for fitting
+
+**Returns:** DataFrame with original columns plus diagnostics (`.fitted`, `.resid`, etc.).
+
+**Examples:**
+```t
+add_diagnostics(model, data = df)
+```
+
+---
+
+### `predict(data, model)`
+
+Perform vectorized prediction on a new DataFrame.
+
+**Parameters:**
+- `data` — DataFrame containing predictor columns
+- `model` — Linear model object
+
+**Returns:** Vector of predicted values.
+
+**Examples:**
+```t
+preds = predict(new_df, model)
 ```
 
 ---
@@ -1301,7 +1356,7 @@ pipeline_node(p, "doubled") -- 20
 
 ### `pipeline_run(pipeline)`
 
-Re-execute a pipeline.
+Re-execute a pipeline in-memory.
 
 **Parameters:**
 - `pipeline` — Pipeline object
@@ -1313,6 +1368,70 @@ Re-execute a pipeline.
 p = pipeline { x = 10; y = x * 2 }
 p2 = pipeline_run(p)
 ```
+
+---
+
+### `populate_pipeline(pipeline, build = false)`
+
+Prepare pipeline infrastructure in `_pipeline/`.
+
+**Parameters:**
+- `pipeline` — Pipeline object
+- `build` (optional) — If true, triggers a Nix build of all nodes.
+
+**Returns:** Success message or Error.
+
+**Examples:**
+```t
+populate_pipeline(p)
+populate_pipeline(p, build = true)
+```
+
+---
+
+### `build_pipeline(pipeline)`
+
+Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
+
+**Parameters:**
+- `pipeline` — Pipeline object
+
+---
+
+### `read_node(name, which_log = null)`
+
+Read a materialized artifact from a previous build.
+
+**Parameters:**
+- `name` — Name of the node to read (String)
+- `which_log` (optional) — Regex pattern or filename of a specific build log. Defaults to latest.
+
+**Returns:** Deserialized value.
+
+**Examples:**
+```t
+read_node("summary_stats")
+read_node("model_v1", which_log = "20260221")
+```
+
+---
+
+### `inspect_pipeline(which_log = null)`
+
+View build status and output paths for a pipeline build.
+
+**Parameters:**
+- `which_log` (optional) — Specific build log to inspect.
+
+**Returns:** DataFrame with columns: `node`, `success`, `path`, `output`.
+
+---
+
+### `list_logs()`
+
+List all available build logs in `_pipeline/`.
+
+**Returns:** DataFrame with columns: `filename`, `mod_time`, `size_kb`.
 
 ---
 

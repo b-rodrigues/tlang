@@ -38,12 +38,13 @@ In T, non-interactive execution requires a pipeline. This is a deliberate design
 
 This constraint ensures that your stabilization phase—moving from REPL to script—is an intentional act of documentation and architectural design.
 
-### The Power of Polyglot Pipelines (Roadmap)
+### The Power of Polyglot Pipelines
 
-T does not attempt to reinvent the wheel for every statistical model or machine learning algorithm. Instead, it aims to be the **ultimate orchestration layer**. Because T uses Nix for build automation, future versions will allow you to define nodes using different languages within the same pipeline:
+T does not attempt to reinvent the wheel for every statistical model or machine learning algorithm. Instead, it acts as a **high-fidelity orchestration layer**. Because T uses Nix for build automation, it allows you to define nodes using different languages within the same pipeline:
 
-- **Seamless Polyglotism**: Define an R node for data cleaning, a Python node for deep learning, and a Julia node for heavy simulation—all in one file.
-- **Zero-Config Object Transfer**: Transparently pass data frames and objects between languages without manual serialization boilerplate.
+- **Seamless Polyglotism**: Define an R node for data cleaning, a Python node for deep learning, and a T node for final reporting—all in one file.
+- **PMML Model Interchange**: High-fidelity transfer of models from R/Python into T's native model evaluator.
+- **Zero-Config Object Transfer**: Transparently pass data frames via Apache Arrow IPC between languages.
 - **Nix-Powered Sandboxing**: Each node runs in a pristine, reproducible environment where dependencies are guaranteed to be present.
 
 By using Nix as the engine, T provides a level of orchestration and reproducibility that general-purpose languages simply cannot match.
@@ -249,7 +250,7 @@ p = pipeline {
 build_pipeline(p)
 ```
 
-T handles the serialization and data transfer between languages transparently. When a node is evaluated, it becomes a **Computed Node**, representing a reproducible artifact on disk.
+T handles the serialization and data transfer between languages transparently. DataFrames are passed via **Apache Arrow**, and models are exchanged using **PMML**, allowing T to perform native predictions on models trained in R or Python without runtime language dependencies.
 
 ## Metaprogramming (Quasiquotation)
 

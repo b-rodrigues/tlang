@@ -164,85 +164,91 @@
 
     <p>
       Pipelines are T’s core execution model. Each pipeline is a DAG of named nodes with
-      explicit dependencies, cacheable results, and inspectable outputs.
+      explicit dependencies, cacheable results, and inspectable outputs. T supports
+      <b>multi-runtime execution</b>, allowing nodes to run in T, R, or Python with automatic
+      data interchange via Arrow and PMML.
     </p>
 
-    <pre>
-pipeline analysis {
-  raw = { read_csv("data.csv") }
+    pipeline analysis {
+    raw = { read_csv("data.csv") }
 
-  cleaned = {
-    raw |> filter(age > 18)
-        |> mutate(income_k = income / 1000)
-  }
+    cleaned = {
+    raw |> filter($age > 18)
+    |> mutate($income_k = $income / 1000)
+    }
 
-  model = {
-    cleaned |> lm(approval ~ age + income_k)
-  }
-}
-  </pre>
+    model = node(
+    command = <{ # In R fit <- lm(approval ~ age + income_k, data=cleaned) fit }>,
+      runtime = "R",
+      serializer = "pmml"
+      )
+      }
+      </pre>
 
-    <p>
-      Pipelines enable local reasoning, reproducibility, and safe regeneration of individual
-      steps without rewriting entire scripts.
-    </p>
+      <p>
+        Pipelines enable local reasoning, reproducibility, and safe regeneration of individual
+        steps without rewriting entire scripts.
+      </p>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Language Features</font>
-    </h2>
+      <h2>
+        <font face="Courier New">Language Features</font>
+      </h2>
 
-    <ul>
-      <li>R-style lambdas: <code>\(x) x + 1</code></li>
-      <li>Conditional pipe operator: <code>|></code> (short-circuits on error)</li>
-      <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
-      <li>Dollar-prefix NSE: <code>select($name, $age)</code>, <code>filter($age > 30)</code>,
-        <code>summarize($total = sum($amount))</code>
-      </li>
-      <li>Named arguments: <code>lm(data = df, formula = y ~ x)</code></li>
-      <li>NA handling: <code>mean(data, na_rm = true)</code> — all aggregation functions support <code>na_rm</code></li>
-      <li>CSV I/O: <code>read_csv(path, sep = ";", skip_lines = 2)</code> and
-        <code>write_csv(df, path, sep = ";")</code>
-      </li>
-      <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
-      <li>Python-style dictionaries: <code>{name: "Alice", age: 30}</code></li>
-      <li>Errors as values, not exceptions</li>
-      <li>Actionable error messages with name suggestions, type conversion hints, and function signatures</li>
-      <li>Explicit, typed missing values</li>
-    </ul>
+      <ul>
+        <li>R-style lambdas: <code>\(x) x + 1</code></li>
+        <li>Conditional pipe operator: <code>|></code> (short-circuits on error)</li>
+        <li>Maybe-pipe operator: <code>?|></code> (forwards errors for recovery)</li>
+        <li>Dollar-prefix NSE: <code>select($name, $age)</code>, <code>filter($age > 30)</code>,
+          <code>summarize($total = sum($amount))</code>
+        </li>
+        <li>Named arguments: <code>lm(data = df, formula = y ~ x)</code></li>
+        <li>NA handling: <code>mean(data, na_rm = true)</code> — all aggregation functions support <code>na_rm</code>
+        </li>
+        <li>CSV I/O: <code>read_csv(path, sep = ";", skip_lines = 2)</code> and
+          <code>write_csv(df, path, sep = ";")</code>
+        </li>
+        <li>Python-style comprehensions: <code>[x * x for x in xs if x > 2]</code></li>
+        <li>Dictionary literals: <code>[name: "Alice", age: 30]</code></li>
+        <li>Multi-language orchestration: run R or Python code as pipeline nodes</li>
+        <li>Model interchange: seamless PMML import of R/Python models into T</li>
+        <li>Errors as values, not exceptions</li>
+        <li>Actionable error messages with name suggestions, type conversion hints, and function signatures</li>
+        <li>Explicit, typed missing values</li>
+      </ul>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Pipe Operators</font>
-    </h2>
+      <h2>
+        <font face="Courier New">Pipe Operators</font>
+      </h2>
 
-    <p>
-      T provides two pipe operators with different error-handling semantics:
-    </p>
+      <p>
+        T provides two pipe operators with different error-handling semantics:
+      </p>
 
-    <h3>
-      <font face="Courier New">Conditional Pipe: <code>|></code></font>
-    </h3>
-    <p>
-      The standard pipe passes the left-hand value as the first argument to the right-hand
-      function. If the left-hand value is an error, the pipeline <b>short-circuits</b> and
-      the error is returned without calling the function.
-    </p>
-    <pre>
+      <h3>
+        <font face="Courier New">Conditional Pipe: <code>|></code></font>
+      </h3>
+      <p>
+        The standard pipe passes the left-hand value as the first argument to the right-hand
+        function. If the left-hand value is an error, the pipeline <b>short-circuits</b> and
+        the error is returned without calling the function.
+      </p>
+      <pre>
 5 |> double                -- 10
 error("boom") |> double    -- Error (short-circuited)
   </pre>
 
-    <h3>
-      <font face="Courier New">Maybe-Pipe: <code>?|></code></font>
-    </h3>
-    <p>
-      The maybe-pipe <b>always</b> forwards the left-hand value — including errors —
-      to the right-hand function. This enables explicit error recovery patterns.
-    </p>
-    <pre>
+      <h3>
+        <font face="Courier New">Maybe-Pipe: <code>?|></code></font>
+      </h3>
+      <p>
+        The maybe-pipe <b>always</b> forwards the left-hand value — including errors —
+        to the right-hand function. This enables explicit error recovery patterns.
+      </p>
+      <pre>
 -- Recover from errors:
 handle = \(x) if (is_error(x)) "recovered" else x
 error("boom") ?|> handle           -- "recovered"
@@ -253,148 +259,153 @@ increment = \(x) x + 1
 error("fail") ?|> recovery |> increment  -- 1
   </pre>
 
-    <p>
-      Together, <code>|></code> and <code>?|></code> enable
-      <b>Railway-Oriented Programming</b> in T: errors flow through pipelines as
-      explicit values, and recovery logic is composable.
-    </p>
+      <p>
+        Together, <code>|></code> and <code>?|></code> enable
+        <b>Railway-Oriented Programming</b> in T: errors flow through pipelines as
+        explicit values, and recovery logic is composable.
+      </p>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Numerical Backend</font>
-    </h2>
+      <h2>
+        <font face="Courier New">Numerical Backend</font>
+      </h2>
 
-    <p>
-      T’s numerical stack is layered:
-    </p>
+      <p>
+        T’s numerical stack is layered:
+      </p>
 
-    <ul>
-      <li><b>Tabular layer:</b> Apache Arrow for columnar data and interoperability</li>
-      <li><b>Compute layer:</b> Owl for linear algebra, optimization, and statistics</li>
-      <li><b>Fallback layer:</b> Selective C bindings (e.g. LAPACK, GSL) when needed</li>
-    </ul>
+      <ul>
+        <li><b>Tabular layer:</b> Apache Arrow for columnar data and zero-copy interoperability</li>
+        <li><b>Interchange layer:</b> PMML for high-fidelity cross-language model transfer</li>
+        <li><b>Compute layer:</b> Owl for linear algebra, optimization, and statistics</li>
+        <li><b>Fallback layer:</b> Selective C bindings (e.g. LAPACK, GSL) when needed</li>
+      </ul>
 
-    <p>
-      This approach prioritizes fast development, explicit semantics, and safe defaults,
-      while leaving room for future performance upgrades.
-    </p>
+      <p>
+        This approach prioritizes fast development, explicit semantics, and safe defaults,
+        while leaving room for future performance upgrades.
+      </p>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Standard Packages</font>
-    </h2>
-    <ul>
-      <li><b>core</b>: functional utilities (<code>map</code>, <code>sum</code>, <code>seq</code>)</li>
-      <li><b>stats</b>: statistical primitives (<code>mean</code>, <code>sd</code>, <code>quantile</code>,
-        <code>cor</code>, <code>lm</code>)
-      </li>
-      <li><b>colcraft</b>: DataFrame operations (<code>select</code>, <code>filter</code>, <code>mutate</code>,
-        <code>group_by</code>, <code>summarize</code>) and window functions (<code>row_number</code>,
-        <code>min_rank</code>, <code>dense_rank</code>, <code>lag</code>, <code>lead</code>, <code>cumsum</code>, etc.)
-      </li>
-    </ul>
+      <h2>
+        <font face="Courier New">Standard Packages</font>
+      </h2>
+      <ul>
+        <li><b>core</b>: functional utilities (<code>map</code>, <code>sum</code>, <code>seq</code>)</li>
+        <li><b>stats</b>: statistical primitives (<code>mean</code>, <code>sd</code>, <code>quantile</code>,
+          <code>cor</code>, <code>lm</code>)
+        </li>
+        <li><b>colcraft</b>: DataFrame operations (<code>select</code>, <code>filter</code>, <code>mutate</code>,
+          <code>group_by</code>, <code>summarize</code>) and window functions (<code>row_number</code>,
+          <code>min_rank</code>, <code>dense_rank</code>, <code>lag</code>, <code>lead</code>, <code>cumsum</code>,
+          etc.)
+        </li>
+      </ul>
 
-    <p>
-      Packages are part of the standard library and loaded by default.
-      Each function lives in its own file.
-    </p>
+      <p>
+        Packages are part of the standard library and loaded by default.
+        Each function lives in its own file.
+      </p>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Missing Value Handling</font>
-    </h2>
+      <h2>
+        <font face="Courier New">Missing Value Handling</font>
+      </h2>
 
-    <p>
-      T uses explicit <code>NA</code> values with type tags. NA does <b>not</b> propagate
-      implicitly — operations on NA produce errors by default:
-    </p>
+      <p>
+        T uses explicit <code>NA</code> values with type tags. NA does <b>not</b> propagate
+        implicitly — operations on NA produce errors by default:
+      </p>
 
-    <pre>
+      <pre>
 mean([1, NA, 3])                   -- Error: NA encountered
 sum([1, NA, 3])                    -- Error: NA encountered
   </pre>
 
-    <p>
-      To skip NA values, use the <code>na_rm = true</code> parameter:
-    </p>
+      <p>
+        To skip NA values, use the <code>na_rm = true</code> parameter:
+      </p>
 
-    <pre>
+      <pre>
 mean([1, NA, 3], na_rm = true)     -- 2.0
 sum([1, NA, 3], na_rm = true)      -- 4
 sd([2, NA, 4, 9], na_rm = true)    -- 3.61
 cor(x, y, na_rm = true)            -- pairwise deletion
   </pre>
 
-    <p>
-      All aggregation functions (<code>mean</code>, <code>sum</code>, <code>sd</code>,
-      <code>quantile</code>, <code>cor</code>) support the <code>na_rm</code> parameter.
-    </p>
+      <p>
+        All aggregation functions (<code>mean</code>, <code>sum</code>, <code>sd</code>,
+        <code>quantile</code>, <code>cor</code>) support the <code>na_rm</code> parameter.
+      </p>
 
-    <h3>
-      <font face="Courier New">Window Functions and NA</font>
-    </h3>
+      <h3>
+        <font face="Courier New">Window Functions and NA</font>
+      </h3>
 
-    <p>
-      Window functions compute values across a set of rows without collapsing them.
-      All window functions handle NA gracefully:
-    </p>
+      <p>
+        Window functions compute values across a set of rows without collapsing them.
+        All window functions handle NA gracefully:
+      </p>
 
-    <ul>
-      <li><b>Ranking</b> (<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>,
-        <code>cume_dist</code>, <code>percent_rank</code>, <code>ntile</code>):
-        NA positions get NA rank; ranks computed only among non-NA values
-      </li>
-      <li><b>Offset</b> (<code>lag</code>, <code>lead</code>):
-        NA values pass through unchanged</li>
-      <li><b>Cumulative</b> (<code>cumsum</code>, <code>cummin</code>, <code>cummax</code>,
-        <code>cummean</code>, <code>cumall</code>, <code>cumany</code>):
-        NA propagates to all subsequent values (matching R)
-      </li>
-    </ul>
+      <ul>
+        <li><b>Ranking</b> (<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>,
+          <code>cume_dist</code>, <code>percent_rank</code>, <code>ntile</code>):
+          NA positions get NA rank; ranks computed only among non-NA values
+        </li>
+        <li><b>Offset</b> (<code>lag</code>, <code>lead</code>):
+          NA values pass through unchanged</li>
+        <li><b>Cumulative</b> (<code>cumsum</code>, <code>cummin</code>, <code>cummax</code>,
+          <code>cummean</code>, <code>cumall</code>, <code>cumany</code>):
+          NA propagates to all subsequent values (matching R)
+        </li>
+      </ul>
 
-    <pre>
+      <pre>
 row_number([3, NA, 1])             -- Vector[2, NA, 1]
 cumsum([1, NA, 3])                 -- Vector[1, NA, NA]
 lag([1, NA, 3])                    -- Vector[NA, 1, NA]
   </pre>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Alpha Roadmap</font>
-    </h2>
+      <h2>
+        <font face="Courier New">Alpha Roadmap</font>
+      </h2>
 
-    <p>
-      The alpha version of T targets a complete, end-to-end workflow:
-    </p>
+      <p>
+        The alpha version of T targets a complete, end-to-end workflow:
+      </p>
 
-    <ul>
-      <li>Stable core syntax and interpreter</li>
-      <li>Arrow-backed DataFrames</li>
-      <li>DAG-based pipelines with caching</li>
-      <li>Core data verbs (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>summarize</code>)</li>
-      <li>Grouped operations (<code>group_by |> mutate</code>, <code>group_by |> summarize</code>)</li>
-      <li>Window functions with NA handling (<code>row_number</code>, <code>lag</code>, <code>lead</code>,
-        <code>cumsum</code>, etc.)
-      </li>
-      <li>Basic statistics and modeling with NA handling (<code>na_rm</code> parameter)</li>
-      <li>Intent blocks and tooling hooks</li>
-      <li>REPL and CLI</li>
-    </ul>
+      <ul>
+        <li>Stable core syntax and interpreter</li>
+        <li>Arrow-backed DataFrames</li>
+        <li>DAG-based pipelines with Nix-managed caching</li>
+        <li>Multi-runtime support (T, R, Python)</li>
+        <li>Core data verbs (<code>select</code>, <code>filter</code>, <code>group_by</code>, <code>summarize</code>)
+        </li>
+        <li>Grouped operations (<code>group_by |> mutate</code>, <code>group_by |> summarize</code>)</li>
+        <li>Window functions with NA handling (<code>row_number</code>, <code>lag</code>, <code>lead</code>,
+          <code>cumsum</code>, etc.)
+        </li>
+        <li>PMML model interchange with tidy statistics bridge</li>
+        <li>Basic statistics and modeling with NA handling (<code>na_rm</code> parameter)</li>
+        <li>Intent blocks and tooling hooks</li>
+        <li>REPL and CLI</li>
+      </ul>
 
-    <p>
-      Performance tuning, GPUs, and distributed execution are explicitly out of scope for alpha.
-    </p>
+      <p>
+        Performance tuning, GPUs, and distributed execution are explicitly out of scope for alpha.
+      </p>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Project Structure</font>
-    </h2>
-    <pre>
+      <h2>
+        <font face="Courier New">Project Structure</font>
+      </h2>
+      <pre>
 .
 ├── flake.nix
 ├── ast.ml
@@ -410,38 +421,38 @@ lag([1, NA, 3])                    -- Vector[NA, 1, NA]
     └── colcraft/
   </pre>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Building</font>
-    </h2>
-    <pre>
+      <h2>
+        <font face="Courier New">Building</font>
+      </h2>
+      <pre>
 nix develop
 t repl
   </pre>
 
-    <hr>
+      <hr>
 
-    <h2>
-      <font face="Courier New">Contributing</font>
-    </h2>
+      <h2>
+        <font face="Courier New">Contributing</font>
+      </h2>
 
-    <p>
-      Contributions focus on clarity, explicit semantics, and small, reviewable changes.
-      Packages live in-repo during early development.
-    </p>
+      <p>
+        Contributions focus on clarity, explicit semantics, and small, reviewable changes.
+        Packages live in-repo during early development.
+      </p>
 
-    <hr>
+      <hr>
 
-    <p><b>License:</b> EUPL v1.2.</p>
+      <p><b>License:</b> EUPL v1.2.</p>
 
-    <center>
-      <hr width="60%">
-      <font size="2">
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-      </font>
-    </center>
+      <center>
+        <hr width="60%">
+        <font size="2">
+          Best viewed with a sense of curiosity.<br>
+          <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+        </font>
+      </center>
 
   </font>
 </body>
