@@ -76,7 +76,7 @@ let core_package = {
 let stats_package = {
   name = "stats";
   description = "Statistical summaries and models";
-  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"];
+  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"];
 }
 
 let colcraft_package = {
@@ -496,6 +496,8 @@ let init_env () =
   let env = Quantile.register env in
   let env = Cor.register env in
   let env = Lm.register env in
+  let env = Predict.register env in
+  let env = T_read_pmml.register env in
   let env = Fit_stats.register env in
   let env = Add_diagnostics.register env in
   let env = Summary.register env in

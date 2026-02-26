@@ -10,8 +10,13 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
     echo "Build skipped for %s" > $out/NOOPBUILD
   '';|} name name name
   else
+  let is_pmml_ser = match serializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
+  let is_pmml_des = match deserializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
+
   let ext, extra_input = match runtime with
-    | "R" -> "R", "r-env"
+    | "R" -> 
+        let inputs = if is_pmml_ser || is_pmml_des then "r-env pkgs.jre" else "r-env" in
+        "R", inputs
     | "Python" -> "py", "py-env"
     | _ -> "t", ""
   in
@@ -59,6 +64,8 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   let is_json_des = match deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
   let is_arrow_ser = match serializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
   let is_arrow_des = match deserializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
+  let is_pmml_ser = match serializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
+  let is_pmml_des = match deserializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
@@ -107,6 +114,36 @@ def t_read_arrow(path):
         return ipc.open_file(f).read_pandas()
 |} in
 
+  let t_pmml_r_code = {|
+t_write_pmml <- function(object, path) {
+  r2pmml::r2pmml(object, path)
+}
+t_read_pmml <- function(path) {
+  # Load as XML/PMML object if needed, but T executes natively.
+  # For R consumers, we might use the pmml package if available.
+  if (requireNamespace("pmml", quietly = TRUE)) {
+    return(pmml::read.pmml(path))
+  }
+  return(path)
+}
+|} in
+
+  let t_pmml_py_code = {|
+from pypmml import Model
+def t_write_pmml(model, path):
+    # Python export to PMML usually requires nyoka or sklearn2pmml.
+    # If using nyoka:
+    try:
+        from nyoka import skl_to_pmml
+        skl_to_pmml(model, None, None, path)
+    except ImportError:
+        # Fallback/placeholder for now as user stressed pypmml
+        raise ImportError("PMML export in Python requires 'nyoka' package.")
+
+def t_read_pmml(path):
+    return Model.load(path)
+|} in
+
   let json_injection =
     if is_json_ser || is_json_des then
       if runtime = "R" then
@@ -127,6 +164,16 @@ def t_read_arrow(path):
     else ""
   in
 
+  let pmml_injection =
+    if is_pmml_ser || is_pmml_des then
+      if runtime = "R" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_pmml_r_code
+      else if runtime = "Python" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pmml_py_code
+      else ""
+    else ""
+  in
+
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
     deps
@@ -138,6 +185,8 @@ def t_read_arrow(path):
           "t_read_json"
         else if is_arrow_des then
           "t_read_arrow"
+        else if is_pmml_des then
+          "t_read_pmml"
         else des_s
       in
       if runtime = "R" then
@@ -155,6 +204,8 @@ def t_read_arrow(path):
       "t_write_json"
     else if is_arrow_ser then
       "t_write_arrow"
+    else if is_pmml_ser then
+      "t_write_pmml"
     else ser_s
   in
 
@@ -253,8 +304,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection imports_echo source_files deps_script_lines assign_script_lines run_cmd
+|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection pmml_injection imports_echo source_files deps_script_lines assign_script_lines run_cmd

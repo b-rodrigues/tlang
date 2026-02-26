@@ -24,6 +24,17 @@ let emit_pipeline (p : Ast.pipeline_result) =
     runtime = "Python" && is_arrow_ser_or_des name
   ) in
 
+  let is_pmml_ser_or_des name =
+    let ser = List.assoc name p.p_serializers in
+    let des = List.assoc name p.p_deserializers in
+    (match ser with Value (VString "pmml") -> true | _ -> false) ||
+    (match des with Value (VString "pmml") -> true | _ -> false)
+  in
+  let needs_r_pmml = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "R" && is_pmml_ser_or_des name
+  ) in
+
   let nodes =
     p.p_exprs
     |> List.map (fun (name, expr) ->
@@ -42,7 +53,10 @@ let emit_pipeline (p : Ast.pipeline_result) =
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
-  let r_arrow_pkg = if needs_r_arrow then " pkgs.rPackages.arrow" else "" in
+  let r_extra_pkgs = 
+    (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
+    (if needs_r_pmml then " pkgs.rPackages.r2pmml" else "")
+  in
   let py_arrow_pkgs = if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "" in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
@@ -53,7 +67,7 @@ let
   # that builtins.getFlake accepts.
   flake  = builtins.getFlake (toString ../.);
   pkgs   = flake.inputs.nixpkgs.legacyPackages.${system};
-  tBin   = (flake.inputs.t-lang or flake).packages.${system}.default;
+  tBin   = ((flake.inputs.t-lang or flake).packages.${system}.default).overrideAttrs (old: { src = sources; });
   stdenv = pkgs.stdenv;
 
   # Filter out _pipeline/, .git/, and other non-source directories
@@ -85,4 +99,4 @@ rec {
     '';
   };
 }
-|} r_arrow_pkg py_arrow_pkgs nodes (String.concat " " node_names) final_copy
+|} r_extra_pkgs py_arrow_pkgs nodes (String.concat " " node_names) final_copy

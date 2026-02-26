@@ -38,12 +38,14 @@
             broom
             jsonlite
             arrow
+            r2pmml
           ];
         };
 
         python-with-packages = pkgs.python3.withPackages (p: with p; [
           pandas
           pyarrow
+          scikit-learn
         ]);
 
         # Pin a specific version of OCaml for reproducibility.
@@ -72,6 +74,7 @@
             ocamlVersion.linenoise
             # otoml — TOML parsing library for package management (DESCRIPTION.toml, tproject.toml)
             ocamlVersion.otoml
+            ocamlVersion.xmlm
             ocamlVersion.lsp
             ocamlVersion.jsonrpc
             # Arrow C++ — provides arrow.pc that arrow-glib depends on
@@ -145,6 +148,7 @@
 
             # TOML parsing library for package management
             ocamlVersion.otoml
+            ocamlVersion.xmlm
             ocamlVersion.lsp
             ocamlVersion.jsonrpc
 

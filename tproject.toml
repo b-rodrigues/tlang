@@ -1,0 +1,13 @@
+[project]
+name = "pmml_test"
+version = "0.1.0"
+
+[r-dependencies]
+packages = [
+    "r2pmml"
+]
+
+[py-dependencies]
+packages = [
+    "scikit-learn"
+]

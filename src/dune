@@ -28,7 +28,7 @@
    arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
    arrow_owl_bridge
    ; core language
-    ast lexer parser eval typecheck error serialization semantic_type symbol_table completion analyzer
+    ast lexer parser eval typecheck error serialization pmml_utils semantic_type symbol_table completion analyzer
     ; pipeline compiler
     nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter
     builder_utils builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder
@@ -46,7 +46,7 @@
    ; packages/math
    t_sqrt t_abs t_log t_exp pow ndarray t_iota round floor ceiling ceil trunc sign signif sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh
    ; packages/stats
-   mean sd quantile cor lm fit_stats add_diagnostics summary min max median var cov range iqr scale standardize normalize mad skewness kurtosis mode cv fivenum trimmed_mean winsorize huber_loss
+   mean sd quantile cor lm predict t_read_pmml fit_stats add_diagnostics summary min max median var cov range iqr scale standardize normalize mad skewness kurtosis mode cv fivenum trimmed_mean winsorize huber_loss
    ; packages/explain
    intent_fields intent_get t_explain explain_json
    ; package_manager
@@ -54,7 +54,7 @@
    ; tdoc
    tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )
- (libraries menhirLib otoml yojson unix str)
+ (libraries menhirLib otoml yojson xmlm unix str)
 )
 
 (executable
