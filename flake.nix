@@ -67,6 +67,7 @@
             ocamlVersion.menhir
             # pkg-config — resolves C library flags for arrow-glib, gobject, glib
             pkgs.pkg-config
+            pkgs.makeWrapper
           ];
 
           buildInputs = [
@@ -101,8 +102,9 @@
 
           installPhase = ''
             mkdir -p $out/bin
-            cp _build/default/src/repl.exe $out/bin/t
-            chmod +x $out/bin/t
+            cp _build/default/src/repl.exe $out/bin/.t-unwrapped
+            makeWrapper $out/bin/.t-unwrapped $out/bin/t \
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}"
           '';
 
           meta = with pkgs.lib; {

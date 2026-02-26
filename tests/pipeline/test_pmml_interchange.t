@@ -36,42 +36,42 @@ preds_node = node(
 
 model_py_node = node(
     command = <{
-        # In Python
-        import pandas as pd
-        import numpy as np
-        from sklearn.linear_model import LinearRegression
-        from scipy import stats
-        
-        data = pd.read_csv("data/mtcars.csv", sep="|")
-        X_df = data[["wt", "hp"]]
-        y = data["mpg"]
-        
-        model = LinearRegression()
-        model.fit(X_df, y)
-        
-        # Calculate OLS statistics for PMML enrichment
-        params = np.append(model.intercept_, model.coef_)
-        preds = model.predict(X_df)
-        X_mat = np.append(np.ones((len(X_df),1)), X_df.values, axis=1)
-        
-        n, p = X_mat.shape
-        dof = n - p
-        mse = np.sum((y - preds)**2) / dof
-        var_b = mse * (np.linalg.inv(X_mat.T @ X_mat).diagonal())
-        sd_b = np.sqrt(var_b)
-        ts_b = params / sd_b
-        p_values = [2 * (1 - stats.t.cdf(np.abs(i), dof)) for i in ts_b]
-        
-        # Attach properties for the T PMML bridge to find
-        model.std_errors_ = sd_b
-        model.t_stats_ = ts_b
-        model.p_values_ = p_values
-        model.nobs_ = n
-        model.r2_ = model.score(X_df, y)
-        model.df_residual_ = dof
-        model.sigma_ = np.sqrt(mse)
-        
-        model
+# In Python
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from scipy import stats
+
+data = pd.read_csv("data/mtcars.csv", sep="|")
+X_df = data[["wt", "hp"]]
+y = data["mpg"]
+
+model_py_node = LinearRegression()
+model_py_node.fit(X_df, y)
+
+# Calculate OLS statistics for PMML enrichment
+params = np.append(model_py_node.intercept_, model_py_node.coef_)
+preds = model_py_node.predict(X_df)
+X_mat = np.append(np.ones((len(X_df),1)), X_df.values, axis=1)
+
+n, p = X_mat.shape
+dof = n - p
+mse = np.sum((y - preds)**2) / dof
+var_b = mse * (np.linalg.inv(X_mat.T @ X_mat).diagonal())
+sd_b = np.sqrt(var_b)
+ts_b = params / sd_b
+p_values = [2 * (1 - stats.t.cdf(np.abs(i), dof)) for i in ts_b]
+
+# Attach properties for the T PMML bridge to find
+model_py_node.std_errors_ = sd_b
+model_py_node.t_stats_ = ts_b
+model_py_node.p_values_ = p_values
+model_py_node.nobs_ = n
+model_py_node.r2_ = model_py_node.score(X_df, y)
+model_py_node.df_residual_ = dof
+model_py_node.sigma_ = np.sqrt(mse)
+
+model_py_node
     }>,
     runtime = "Python",
     serializer = "pmml"
@@ -137,21 +137,21 @@ expected = [23.5723294033, 22.583482564, 25.2758187247]
 -- Check first value from both
 val_r = get(results_r, 0)
 val_py = get(results_py, 0)
-exp = get(expected, 0)
+expected_val = get(expected, 0)
 
 print("First prediction (R):", val_r)
 print("First prediction (Py):", val_py)
-print("Expected:", exp)
+print("Expected:", expected_val)
 
-if (abs(val_r - exp) < 0.001) {
-    if (abs(val_py - exp) < 0.001) {
+if (abs(val_r - expected_val) < 0.001) {
+    if (abs(val_py - expected_val) < 0.001) {
         print("SUCCESS: Native T predictions match both R and Python models!")
         0
     } else {
-        print("FAILED: Python prediction mismatch. Delta:", abs(val_py - exp))
+        print("FAILED: Python prediction mismatch. Delta:", abs(val_py - expected_val))
         exit(1)
     }
 } else {
-    print("FAILED: R prediction mismatch. Delta:", abs(val_r - exp))
+    print("FAILED: R prediction mismatch. Delta:", abs(val_r - expected_val))
     exit(1)
 }
