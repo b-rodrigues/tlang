@@ -13,17 +13,20 @@ df = dataframe(data)
 
 p = pipeline {
     data_node = node(
-        command = <{ df }>,
-        runtime = T,
+        command = <{
+            data.frame(
+                x = c(1.0, 2.0, 3.0, 4.0, 5.0),
+                y = c(0.0, 0.0, 1.0, 1.0, 1.0)
+            )
+        }>,
+        runtime = R,
         serializer = "arrow"
     );
     
     model_node = node(
         command = <{
-            # data_node is available as an R object (data.frame)
-            fit <- glm(y ~ x, data = data_node, family = binomial(link = "logit"))
-            # t_write_pmml is provided by the bridge
-            t_write_pmml(fit, "$out/artifact")
+            data_node$y <- as.factor(data_node$y)
+            glm(y ~ x, data = data_node, family = binomial(link = "logit"))
         }>,
         runtime = R,
         serializer = "pmml",
@@ -31,15 +34,16 @@ p = pipeline {
     )
 }
 
--- Build the pipeline
--- We need to provide the 'df' as an initial value for data_node if it wasn't a node
--- But here data_node just returns df.
-
-print("Building GLM pipeline...")
+print("Building GLM (R) pipeline...")
 res = build_pipeline(p)
-print("Pipeline build successful.")
+print("Build Result:")
+print(res)
+print("----------------")
 
 model = read_node("model_node")
+
+print("Model Summary:")
+print(summary(model))
 
 print("Model Class:")
 print(model.class)

@@ -88,6 +88,18 @@ let register env =
               | "inverse" -> 1.0 /. eta
               | "sqrt" -> eta *. eta
               | "cloglog" -> 1.0 -. exp(-. exp eta)
+              | "probit" ->
+                  let a1 =  0.254829592 in
+                  let a2 = -0.284496736 in
+                  let a3 =  1.421413741 in
+                  let a4 = -1.453152027 in
+                  let a5 =  1.061405429 in
+                  let p  =  0.3275911 in
+                  let sign = if eta < 0.0 then -1.0 else 1.0 in
+                  let x = Float.abs eta /. sqrt 2.0 in
+                  let t = 1.0 /. (1.0 +. p *. x) in
+                  let y = 1.0 -. (((((a5 *. t +. a4) *. t) +. a3) *. t +. a2) *. t +. a1) *. t *. exp (-. x *. x) in
+                  0.5 *. (1.0 +. sign *. y)
               | _ -> eta (* Default to identity if unknown *)
             in
             

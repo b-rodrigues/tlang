@@ -59,11 +59,11 @@ let emit_pipeline (p : Ast.pipeline_result) =
   in
   let r_extra_pkgs = 
     (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
-    (if needs_r_pmml then " pkgs.rPackages.r2pmml" else "")
+    (if needs_r_pmml then " pkgs.rPackages.r2pmml pkgs.rPackages.XML" else "")
   in
   let py_extra_pkgs = 
     (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^
-    (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ]" else "")
+    (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ps.statsmodels ]" else "")
   in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
