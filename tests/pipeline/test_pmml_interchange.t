@@ -1,37 +1,36 @@
 -- test_pmml_interchange.t
 
+data_node = node(
+    command = read_csv("data/mtcars.csv", separator: "|"),
+    serializer = write_csv
+)
+
 model_node = node(
     command = <{
         # In R
-        data <- read.csv("data/mtcars.csv", sep="|", header=TRUE)
-        fit <- lm(mpg ~ wt + hp, data = data)
-        fit
+        lm(mpg ~ wt + hp, data = data_node)
     }>,
     runtime = "R",
+    deserializer = "read.csv",
     serializer = "pmml"
 )
 
 -- Native T prediction
 preds_node = node(
     command = <{
-        model = model_node
-        
         print("Model coefficients:")
-        print(model.coefficients)
+        print(model_node.coefficients)
         
-        print("Tidy summary via summary(model):")
-        print(summary(model))
+        print("Tidy summary via summary(model_node):")
+        print(summary(model_node))
         
-        -- Use the CSV data
-        test_df = read_csv("data/mtcars.csv", separator: "|")
-        
-        p = predict(test_df, model)
+        p = predict(data_node, model_node)
         print("Predictions:")
         print(p)
         p
     }>,
     runtime = "T",
-    deserializer = "pmml"
+    deserializer = [data_node: "read_csv", model_node: "pmml"]
 )
 
 model_py_node = node(
@@ -42,7 +41,7 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from scipy import stats
 
-data = pd.read_csv("data/mtcars.csv", sep="|")
+data = data_node
 X_df = data[["wt", "hp"]]
 y = data["mpg"]
 
@@ -74,24 +73,24 @@ model_py_node.sigma_ = np.sqrt(mse)
 model_py_node
     }>,
     runtime = "Python",
+    deserializer = "pd.read_csv",
     serializer = "pmml"
 )
 
 -- Native T prediction using Python model
 preds_py_node = node(
     command = <{
-        model = model_py_node
-        test_df = read_csv("data/mtcars.csv", separator: "|")
-        p = predict(test_df, model)
+        p = predict(data_node, model_py_node)
         print("Python model predictions in T:")
         print(p)
         p
     }>,
     runtime = "T",
-    deserializer = "pmml"
+    deserializer = [data_node: "read_csv", model_py_node: "pmml"]
 )
 
 p = pipeline {
+    data_node = data_node
     model_node = model_node
     preds_node = preds_node
     model_py_node = model_py_node
