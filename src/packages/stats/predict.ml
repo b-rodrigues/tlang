@@ -74,7 +74,27 @@ let register env =
           ) !terms;
           
           if not !success then Error.make_error KeyError !error_msg
-          else VVector (Array.mapi (fun i x -> if na_rows.(i) then VNA NAFloat else VFloat x) out)
+          else 
+            let link = match List.assoc_opt "link" pairs with
+              | Some (VString l) -> String.lowercase_ascii l
+              | _ -> "identity"
+            in
+            
+            let apply_link_inv eta =
+              match link with
+              | "identity" -> eta
+              | "logit" -> 1.0 /. (1.0 +. exp(-. eta))
+              | "log" -> exp eta
+              | "inverse" -> 1.0 /. eta
+              | "sqrt" -> eta *. eta
+              | "cloglog" -> 1.0 -. exp(-. exp eta)
+              | _ -> eta (* Default to identity if unknown *)
+            in
+            
+            VVector (Array.mapi (fun i x -> 
+              if na_rows.(i) then VNA NAFloat 
+              else VFloat (apply_link_inv x)
+            ) out)
 
       | [VDataFrame _; _] ->
           Error.type_error "Function `predict` expects a model (Dict) as second argument."

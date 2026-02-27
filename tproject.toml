@@ -1,0 +1,5 @@
+[py-dependencies]
+packages = ["pandas", "scikit-learn"]
+
+[r-dependencies]
+packages = ["dplyr"]

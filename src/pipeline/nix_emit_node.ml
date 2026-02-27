@@ -124,59 +124,100 @@ def t_read_arrow(path):
   let t_pmml_r_code = {|
 t_write_pmml <- function(object, path) {
   r2pmml::r2pmml(object, path)
-  # Enrich PMML with summary statistics for lm/glm models
+  
+  # Enrichment for lm/glm models
   if (inherits(object, "lm")) {
     s <- tryCatch(summary(object), error = function(e) NULL)
     if (is.null(s)) return(invisible(NULL))
-    pmml_text <- paste(readLines(path, warn = FALSE), collapse = "\n")
-    coefs <- s$coefficients
+    
+    doc <- tryCatch(XML::xmlParse(path), error = function(e) NULL)
+    if (is.null(doc)) return(invisible(NULL))
+    
+    root <- XML::xmlRoot(doc)
+    ns <- c(pmml = "http://www.dmg.org/PMML-4_4")
     fmt <- function(x) sprintf("%.15g", x)
-    # Add std_error/tStatistic/pValue to each NumericPredictor
-    # Must match on NumericPredictor context to avoid hitting MiningField elements
-    for (pname in rownames(coefs)) {
-      if (pname == "(Intercept)") next
-      se <- fmt(coefs[pname, "Std. Error"])
-      tv <- fmt(coefs[pname, "t value"])
-      pv <- fmt(coefs[pname, "Pr(>|t|)"])
-      old_frag <- paste0('<NumericPredictor name="', pname, '"')
-      new_frag <- paste0('<NumericPredictor name="', pname, '" stdError="', se, '" tStatistic="', tv, '" pValue="', pv, '"')
-      pmml_text <- sub(old_frag, new_frag, pmml_text, fixed = TRUE)
-    }
-    # Add intercept stats to RegressionTable
-    if ("(Intercept)" %in% rownames(coefs)) {
-      se <- fmt(coefs["(Intercept)", "Std. Error"])
-      tv <- fmt(coefs["(Intercept)", "t value"])
-      pv <- fmt(coefs["(Intercept)", "Pr(>|t|)"])
-      # Find the intercept value that r2pmml wrote
-      m <- regmatches(pmml_text, regexpr('intercept="[^"]*"', pmml_text))
-      if (length(m) > 0) {
-        new_frag <- paste0(m[1], ' stdError="', se, '" tStatistic="', tv, '" pValue="', pv, '"')
-        pmml_text <- sub(m[1], new_frag, pmml_text, fixed = TRUE)
+    
+    coef_m <- s$coefficients
+    is_glm <- inherits(object, "glm")
+    
+    # Update NumericPredictors and RegressionTable (for Intercept)
+    for (nm in rownames(coef_m)) {
+      safe <- if (nm == "(Intercept)") nm else nm # XPath handles literals well if escaped or used in @name=''
+      
+      if (nm == "(Intercept)") {
+        # Intercept is an attribute on RegressionTable
+        xpath <- "//pmml:RegressionTable"
+        nodes <- XML::getNodeSet(doc, xpath, namespaces = ns)
+        for (nd in nodes) {
+          XML::xmlAttrs(nd)[["stdError"]]   <- fmt(coef_m[nm, "Std. Error"])
+          stat_name <- if (is_glm) "zStatistic" else "tStatistic"
+          XML::xmlAttrs(nd)[[stat_name]]    <- fmt(coef_m[nm, 3])
+          XML::xmlAttrs(nd)[["pValue"]]     <- fmt(coef_m[nm, 4])
+        }
+      } else {
+        # Other predictors are nodes
+        xpath <- sprintf("//pmml:NumericPredictor[@name='%s']", nm)
+        nodes <- XML::getNodeSet(doc, xpath, namespaces = ns)
+        for (nd in nodes) {
+          XML::xmlAttrs(nd)[["stdError"]]   <- fmt(coef_m[nm, "Std. Error"])
+          stat_name <- if (is_glm) "zStatistic" else "tStatistic"
+          XML::xmlAttrs(nd)[[stat_name]]    <- fmt(coef_m[nm, 3])
+          XML::xmlAttrs(nd)[["pValue"]]     <- fmt(coef_m[nm, 4])
+        }
       }
     }
-    # Add PredictiveModelQuality element with model-level stats
-    fstat <- if (!is.null(s$fstatistic)) fmt(s$fstatistic[1]) else "NA"
-    fpval <- if (!is.null(s$fstatistic)) {
-      fmt(pf(s$fstatistic[1], s$fstatistic[2], s$fstatistic[3], lower.tail = FALSE))
-    } else "NA"
-    ll <- fmt(logLik(object))
-    dev <- fmt(deviance(object))
-    dfr <- df.residual(object)
-    quality <- sprintf(
-      '  <PredictiveModelQuality r2="%s" adj-r2="%s" aic="%s" bic="%s" sigma="%s" nobs="%d" fStatistic="%s" fPValue="%s" logLik="%s" deviance="%s" dfResidual="%d"/>',
-      fmt(s$r.squared), fmt(s$adj.r.squared),
-      fmt(AIC(object)), fmt(BIC(object)),
-      fmt(s$sigma), nobs(object),
-      fstat, fpval, ll, dev, dfr
-    )
-    pmml_text <- sub("</RegressionModel>",
-                     paste0(quality, "\n</RegressionModel>"),
-                     pmml_text, fixed = TRUE)
-    cat(pmml_text, file = path)
+    
+    # Model-level statistics
+    reg_node <- XML::getNodeSet(doc, "//pmml:RegressionModel", namespaces = ns)[[1]]
+    
+    if (is_glm) {
+      # GLM Specific Stats (Extension)
+      glm_ext <- XML::newXMLNode("Extension",
+        attrs = list(
+          name  = "GLMStats",
+          value = jsonlite::toJSON(list(
+            family              = family(object)$family,
+            link                = family(object)$link,
+            null_deviance       = fmt(s$null.deviance),
+            null_deviance_df    = s$df.null,
+            residual_deviance   = fmt(s$deviance),
+            residual_deviance_df= s$df.residual,
+            dispersion          = fmt(s$dispersion),
+            aic                 = fmt(s$aic),
+            log_likelihood      = fmt(as.numeric(logLik(object)))
+          ), auto_unbox = TRUE)
+        )
+      )
+      XML::addChildren(reg_node, glm_ext)
+    } else {
+      # LM Specific Stats (PredictiveModelQuality)
+      fstat <- if (!is.null(s$fstatistic)) fmt(s$fstatistic[1]) else "NA"
+      fpval <- if (!is.null(s$fstatistic)) {
+        fmt(pf(s$fstatistic[1], s$fstatistic[2], s$fstatistic[3], lower.tail = FALSE))
+      } else "NA"
+      
+      quality <- XML::newXMLNode("PredictiveModelQuality",
+        attrs = list(
+          r2 = fmt(s$r.squared),
+          `adj-r2` = fmt(s$adj.r.squared),
+          aic = fmt(AIC(object)),
+          bic = fmt(BIC(object)),
+          sigma = fmt(s$sigma),
+          nobs = nobs(object),
+          fStatistic = fstat,
+          fPValue = fpval,
+          logLik = fmt(as.numeric(logLik(object))),
+          deviance = fmt(deviance(object)),
+          dfResidual = df.residual(object)
+        )
+      )
+      XML::addChildren(reg_node, quality)
+    }
+    
+    XML::saveXML(doc, file = path)
   }
 }
 t_read_pmml <- function(path) {
-  # Return the raw PMML path - T handles PMML deserialization natively
   path
 }
 |} in

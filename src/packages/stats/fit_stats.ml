@@ -43,6 +43,9 @@ let register env =
              ("deviance",      Arrow_table.FloatColumn [| mk_f (get_float "deviance") |]);
              ("df_residual",   Arrow_table.FloatColumn [| mk_i (get_int "df_residual") |]);
              ("nobs",          Arrow_table.FloatColumn [| mk_i (get_int "nobs") |]);
+             ("null_deviance",    Arrow_table.FloatColumn [| mk_f (get_float "null_deviance") |]);
+             ("null_df",          Arrow_table.FloatColumn [| mk_i (get_int "null_deviance_df") |]);
+             ("dispersion",       Arrow_table.FloatColumn [| mk_f (get_float "dispersion") |]);
            ] in
            let table = Arrow_table.create columns 1 in
            VDataFrame { arrow_table = table; group_keys = [] }

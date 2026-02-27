@@ -159,6 +159,37 @@ let read_pmml path =
         in
         let num_preds = List.length all_preds in
 
+
+        let glm_stats = ref None in
+        let find_glm_ext () =
+          try
+            let ic2 = open_in path in
+            Fun.protect ~finally:(fun () -> close_in_noerr ic2) (fun () ->
+              let i2 = Xmlm.make_input (`Channel ic2) in
+              let rec loop2 () =
+                if Xmlm.eoi i2 then ()
+                else match Xmlm.input i2 with
+                | `El_start ((_, "Extension"), attrs) ->
+                    if List.exists (fun ((_, n), v) -> n = "name" && v = "GLMStats") attrs then
+                      (match List.find_map (fun ((_, n), v) -> if n = "value" then Some v else None) attrs with
+                       | Some json_s -> 
+                           (try 
+                              let json = Yojson.Safe.from_string json_s in
+                              glm_stats := Some json
+                            with _ -> ())
+                       | None -> ());
+                    ignore_element (); loop2 ()
+                | `El_start _ -> ignore_element (); loop2 ()
+                | _ -> loop2 ()
+              in loop2 ()
+            )
+          with _ -> ()
+        in
+        find_glm_ext ();
+
+        let is_glm = Option.is_some !glm_stats in
+        let model_class = if is_glm then "glm" else "lm" in
+
         (* 1. Build Tidy DataFrame (broom::tidy) *)
         let term_col      = Arrow_table.StringColumn (Array.of_list (List.map (fun p -> Some p.name) all_preds)) in
         let estimate_col  = Arrow_table.FloatColumn (Array.of_list (List.map (fun p -> Some p.estimate) all_preds)) in
@@ -176,7 +207,7 @@ let read_pmml path =
         let tidy_df = VDataFrame { arrow_table = tidy_table; group_keys = [] } in
 
         (* 2. Build Model Data (broom::glance) *)
-        let model_data = VDict [
+        let base_model_data = [
           ("r_squared", (match !r2 with Some v -> VFloat v | None -> VNull));
           ("adj_r_squared", (match !adj_r2 with Some v -> VFloat v | None -> VNull));
           ("aic", (match !aic with Some v -> VFloat v | None -> VNull));
@@ -191,22 +222,52 @@ let read_pmml path =
           ("df_residual", (match !df_residual with Some v -> VInt v | None -> VNull));
         ] in
 
+        let model_data_list = match !glm_stats with
+          | None -> base_model_data
+          | Some json ->
+              let open Yojson.Safe.Util in
+              let get_field name = 
+                match json |> member name with
+                | `String s -> (try VFloat (float_of_string s) with _ -> VString s)
+                | `Int n -> VInt n
+                | `Float f -> VFloat f
+                | _ -> VNull
+              in
+              base_model_data @ [
+                ("family", get_field "family");
+                ("link", get_field "link");
+                ("null_deviance", get_field "null_deviance");
+                ("null_deviance_df", get_field "null_deviance_df");
+                ("residual_deviance", get_field "residual_deviance");
+                ("residual_deviance_df", get_field "residual_deviance_df");
+                ("dispersion", get_field "dispersion");
+              ]
+        in
+        let model_data = VDict model_data_list in
+
         let coefficients_dict = VDict (List.map (fun p -> (p.name, VFloat p.estimate)) all_preds) in
         let std_errors_dict = VDict (List.map (fun p -> (p.name, match p.std_error with Some v -> VFloat v | None -> VNull)) all_preds) in
+
+        let display_keys = [
+          (None, VString "coefficients");
+          (None, VString "std_errors");
+          (None, VString "class");
+          (None, VString "model_type");
+        ] in
+        let display_keys = if is_glm then 
+          display_keys @ [ (None, VString "family"); (None, VString "link") ]
+          else display_keys in
 
         Ok (VDict [
           ("_tidy_df", tidy_df);
           ("_model_data", model_data);
           ("coefficients", coefficients_dict);
           ("std_errors", std_errors_dict);
-          ("class", VString "lm");
+          ("class", VString model_class);
           ("model_type", VString "regression");
-          ("_display_keys", VList [
-            (None, VString "coefficients");
-            (None, VString "std_errors");
-            (None, VString "class");
-            (None, VString "model_type");
-          ]);
+          ("family", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "family" j with `String s -> VString s | _ -> VNull) | None -> VNull));
+          ("link", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "link" j with `String s -> VString s | _ -> VNull) | None -> VNull));
+          ("_display_keys", VList display_keys);
         ])
     ) (* end Fun.protect *)
   with exn -> 
