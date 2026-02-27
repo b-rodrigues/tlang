@@ -635,7 +635,6 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     let my_deps = List.assoc name deps in
     let offenders = List.filter (fun dname ->
       let dep_runtime = List.assoc dname runtime_mapping in
-      (* Cross-runtime dependency without an explicit deserializer *)
       dep_runtime <> my_runtime && un.un_deserializer = Var "default"
     ) my_deps in
     if offenders <> [] then
@@ -669,17 +668,37 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             cn_dependencies = node_deps;
           }
         else
-          let is_json_des = match un.un_deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
-          let is_pmml_des = match un.un_deserializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
+          let get_strategy dep_name =
+            let rec lookup_in_list target = function
+              | [] -> None
+              | (Some n, e) :: _ when n = target -> Some e
+              | _ :: rest -> lookup_in_list target rest
+            in
+            let rec lookup_in_dict target = function
+              | [] -> None
+              | (n, e) :: _ when n = target -> Some e
+              | _ :: rest -> lookup_in_dict target rest
+            in
+            let strategy_expr = match un.un_deserializer with
+              | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> un.un_deserializer)
+              | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> un.un_deserializer)
+              | _ -> un.un_deserializer
+            in
+            match strategy_expr with
+            | Ast.Value (Ast.VString s) -> s
+            | Ast.Var s -> s
+            | _ -> "default"
+          in
           let env_with_deserialized = List.fold_left (fun acc dname ->
+            let strategy = get_strategy dname in
             match Env.find_opt dname acc with
-            | Some (VComputedNode cn) when is_json_des && cn.cn_serializer = "json" ->
+            | Some (VComputedNode cn) when strategy = "json" && cn.cn_serializer = "json" ->
                 (match Serialization.read_json cn.cn_path with
                  | Ok v -> Env.add dname v acc
                  | Error msg -> 
                      Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname name msg;
                      acc)
-            | Some (VComputedNode cn) when is_pmml_des && cn.cn_serializer = "pmml" ->
+            | Some (VComputedNode cn) when strategy = "pmml" && cn.cn_serializer = "pmml" ->
                 (match Pmml_utils.read_pmml cn.cn_path with
                  | Ok v -> Env.add dname v acc
                  | Error msg -> 
@@ -769,17 +788,37 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
             cn_dependencies = node_deps;
           }
         else
-          let is_json_des = match un.un_deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
-          let is_pmml_des = match un.un_deserializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
+          let get_strategy dep_name =
+            let rec lookup_in_list target = function
+              | [] -> None
+              | (Some n, e) :: _ when n = target -> Some e
+              | _ :: rest -> lookup_in_list target rest
+            in
+            let rec lookup_in_dict target = function
+              | [] -> None
+              | (n, e) :: _ when n = target -> Some e
+              | _ :: rest -> lookup_in_dict target rest
+            in
+            let strategy_expr = match un.un_deserializer with
+              | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> un.un_deserializer)
+              | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> un.un_deserializer)
+              | _ -> un.un_deserializer
+            in
+            match strategy_expr with
+            | Ast.Value (Ast.VString s) -> s
+            | Ast.Var s -> s
+            | _ -> "default"
+          in
           let env_with_deserialized = List.fold_left (fun acc dname ->
+            let strategy = get_strategy dname in
             match Env.find_opt dname acc with
-            | Some (VComputedNode cn) when is_json_des && cn.cn_serializer = "json" ->
+            | Some (VComputedNode cn) when strategy = "json" && cn.cn_serializer = "json" ->
                 (match Serialization.read_json cn.cn_path with
                  | Ok v -> Env.add dname v acc
                  | Error msg -> 
                      Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s` during re-run: %s\n%!" dname name msg;
                      acc)
-            | Some (VComputedNode cn) when is_pmml_des && cn.cn_serializer = "pmml" ->
+            | Some (VComputedNode cn) when strategy = "pmml" && cn.cn_serializer = "pmml" ->
                 (match Pmml_utils.read_pmml cn.cn_path with
                  | Ok v -> Env.add dname v acc
                  | Error msg -> 

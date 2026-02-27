@@ -10,8 +10,20 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
     echo "Build skipped for %s" > $out/NOOPBUILD
   '';|} name name name
   else
+  let has_strategy name =
+    match deserializer with
+    | Ast.Value (Ast.VString s) -> s = name
+    | Ast.Var s -> s = name
+    | Ast.ListLit items ->
+        List.exists (fun (_, e) -> match e with Ast.Value (Ast.VString s) | Ast.Var s -> s = name | _ -> false) items
+    | Ast.DictLit items ->
+        List.exists (fun (_, e) -> match e with Ast.Value (Ast.VString s) | Ast.Var s -> s = name | _ -> false) items
+    | _ -> false
+  in
   let is_pmml_ser = match serializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
-  let is_pmml_des = match deserializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
+  let is_pmml_des = has_strategy "pmml" in
+  let is_json_des = has_strategy "json" in
+  let is_arrow_des = has_strategy "arrow" in
 
   let ext, extra_input = match runtime with
     | "R" -> 
@@ -39,7 +51,6 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   in
   
   let ser_s = unparse_expr serializer in
-  let des_s = unparse_expr deserializer in
   let eval_string_list lst =
     lst
     |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
@@ -63,9 +74,7 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   in
   
   let is_json_ser = match serializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
-  let is_json_des = match deserializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
   let is_arrow_ser = match serializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
-  let is_arrow_des = match deserializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
@@ -321,19 +330,40 @@ def t_read_pmml(path):
 
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
+    let get_des_call dep_name =
+      let rec lookup_in_list target = function
+        | [] -> None
+        | (Some n, e) :: _ when n = target -> Some e
+        | _ :: rest -> lookup_in_list target rest
+      in
+      let rec lookup_in_dict target = function
+        | [] -> None
+        | (n, e) :: _ when n = target -> Some e
+        | _ :: rest -> lookup_in_dict target rest
+      in
+      let strategy_expr = match deserializer with
+        | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> deserializer)
+        | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> deserializer)
+        | _ -> deserializer
+      in
+      let strategy = match strategy_expr with
+        | Ast.Value (Ast.VString s) -> s
+        | Ast.Var s -> s
+        | _ -> "default"
+      in
+      if strategy = "default" then
+        (if runtime = "R" then "readRDS" else "deserialize")
+      else if strategy = "json" then
+        "t_read_json"
+      else if strategy = "arrow" then
+        "t_read_arrow"
+      else if strategy = "pmml" then
+        "t_read_pmml"
+      else strategy
+    in
     deps
     |> List.map (fun d ->
-      let des_call =
-        if des_s = "default" then
-          (if runtime = "R" then "readRDS" else "deserialize")
-        else if is_json_des then
-          "t_read_json"
-        else if is_arrow_des then
-          "t_read_arrow"
-        else if is_pmml_des then
-          "t_read_pmml"
-        else des_s
-      in
+      let des_call = get_des_call d in
       if runtime = "R" then
         Printf.sprintf "      echo \"%s <- %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext
       else
