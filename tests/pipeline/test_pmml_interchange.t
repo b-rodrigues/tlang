@@ -73,7 +73,7 @@ model_py_node.sigma_ = np.sqrt(mse)
 model_py_node
     }>,
     runtime = "Python",
-    deserializer = "import pandas; pandas.read_csv",
+    deserializer = "pd.read_csv",
     serializer = "pmml"
 )
 
