@@ -75,6 +75,8 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   
   let is_json_ser = match serializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
   let is_arrow_ser = match serializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
+  let is_csv_ser = match serializer with Ast.Value (Ast.VString "csv") | Ast.Value (Ast.VString "write_csv") | Ast.Value (Ast.VString "write.csv") -> true | _ -> false in
+  let is_csv_des = has_strategy "csv" || has_strategy "read_csv" || has_strategy "read.csv" || has_strategy "pd.read_csv" in
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
@@ -93,6 +95,28 @@ def t_write_json(obj, path):
 def t_read_json(path):
     with open(path) as f:
         return json.load(f)
+|} in
+
+  let t_csv_r_code = {|
+t_write_csv <- function(object, path) {
+  write.csv(object, path, row.names = FALSE)
+}
+t_read_csv <- function(path) {
+  read.csv(path, stringsAsFactors = FALSE)
+}
+|} in
+
+  let t_csv_py_code = {|
+def t_write_csv(obj, path):
+    import pandas as pd
+    if hasattr(obj, 'to_csv'):
+        obj.to_csv(path, index=False)
+    else:
+        pd.DataFrame(obj).to_csv(path, index=False)
+
+def t_read_csv(path):
+    import pandas as pd
+    return pd.read_csv(path)
 |} in
 
   let t_arrow_r_code = {|
@@ -328,6 +352,16 @@ def t_read_pmml(path):
     else ""
   in
 
+  let csv_injection =
+    if is_csv_ser || is_csv_des then
+      if runtime = "R" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_csv_r_code
+      else if runtime = "Python" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_csv_py_code
+      else ""
+    else ""
+  in
+
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
     let get_des_call dep_name =
@@ -385,6 +419,25 @@ def t_read_pmml(path):
   in
 
   let is_raw_code = match expr with RawCode _ -> true | _ -> false in
+
+  let hoisted_imports =
+    if is_raw_code then
+      let lines = String.split_on_char '\n' expr_s in
+      let is_import_line line =
+        let l = String.trim line in
+        if runtime = "Python" then
+          String.starts_with ~prefix:"import " l || String.starts_with ~prefix:"from " l
+        else if runtime = "R" then
+          String.starts_with ~prefix:"library(" l || String.starts_with ~prefix:"require(" l
+        else false
+      in
+      let imports = List.filter is_import_line lines in
+      if imports = [] then ""
+      else
+        let code = String.concat "\n" imports in
+        Printf.sprintf "      cat <<'EOF' >> node_script.%s\n%s\nEOF\n" ext code
+    else ""
+  in
 
   (* Check if raw code string contains a Python assignment to node_name.
      Looks for `name = ` (assignment, not `==` comparison) at the start of a line. *)
@@ -480,8 +533,10 @@ EOF
 %s
 %s
 %s
+%s
+%s
       mkdir -p $out
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection pmml_injection imports_echo source_files deps_script_lines assign_script_lines run_cmd
+|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection pmml_injection csv_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
