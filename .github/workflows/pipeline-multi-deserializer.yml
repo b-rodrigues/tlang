@@ -81,8 +81,17 @@ jobs:
         echo "=== Verifying Artifacts in T REPL ==="
         nix develop --accept-flake-config --command "$TLANG_BIN" --unsafe <<'EOF'
         print("\n--- Verifying Multi-Deserializer Node Result ---")
+        
+        print("Data from Python (via read_node):")
+        data = read_node("data_node")
+        print(data)
+        
+        print("\nModel from R (via read_node):")
+        model = read_node("model_node")
+        print("Coefficients:", model.coefficients)
+        
         combined = read_node("combined_node")
-        print("Result from combined_node:", combined)
+        print("\nFinal Result from combined_node:", combined)
         
         if (combined == "SUCCESS") {
             print("\nSUCCESS: Multi-deserializer map integration verified!")
