@@ -27,13 +27,16 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
       let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.Var "default" in
       let des = match List.assoc_opt name p.p_deserializers with Some s -> s | None -> Ast.Var "default" in
       let funcs = match List.assoc_opt name p.p_functions with Some f -> eval_string_list f | None -> [] in
-      let is_builtin = function
-        | Ast.Value (Ast.VString ("pmml" | "arrow" | "json"))
-        | Ast.Var ("pmml" | "arrow" | "json" | "default") -> true
+      let rec requires_functions = function
+        | Ast.Value (Ast.VString s) -> not (List.mem s ["pmml"; "arrow"; "json"; "default"])
+        | Ast.Var _ -> false (* They passed a variable natively, they handle imports *)
+        | Ast.DotAccess _ | Ast.RawCode _ -> false
+        | Ast.ListLit items -> List.exists (fun (_, e) -> requires_functions e) items
+        | Ast.DictLit items -> List.exists (fun (_, e) -> requires_functions e) items
         | _ -> false
       in
-      let is_custom_ser = not (is_builtin ser) in
-      let is_custom_des = not (is_builtin des) in
+      let is_custom_ser = requires_functions ser in
+      let is_custom_des = requires_functions des in
       if (is_custom_ser || is_custom_des) && funcs = [] then
         Printf.eprintf "Warning: Node `%s` uses custom serializer/deserializer but has no functions specified. Ensure it's available in the runtime environment.\n%!" name
     ) p.p_exprs

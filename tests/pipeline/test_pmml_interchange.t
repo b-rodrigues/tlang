@@ -11,7 +11,7 @@ model_node = node(
         lm(mpg ~ wt + hp, data = data_node)
     }>,
     runtime = "R",
-    deserializer = "read.csv",
+    deserializer = read.csv,
     serializer = "pmml"
 )
 
@@ -30,7 +30,7 @@ preds_node = node(
         p
     }>,
     runtime = "T",
-    deserializer = [data_node: "read_csv", model_node: "pmml"]
+    deserializer = [data_node: read_csv, model_node: "pmml"]
 )
 
 model_py_node = node(
@@ -73,7 +73,7 @@ model_py_node.sigma_ = np.sqrt(mse)
 model_py_node
     }>,
     runtime = "Python",
-    deserializer = "pd.read_csv",
+    deserializer = pd.read_csv,
     serializer = "pmml"
 )
 
@@ -86,7 +86,7 @@ preds_py_node = node(
         p
     }>,
     runtime = "T",
-    deserializer = [data_node: "read_csv", model_py_node: "pmml"]
+    deserializer = [data_node: read_csv, model_py_node: "pmml"]
 )
 
 p = pipeline {

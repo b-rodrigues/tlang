@@ -1,6 +1,4 @@
-(* src/pipeline/nix_emit_node.ml *)
 open Nix_utils
-open Nix_unparse
 
 let emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes noop =
   if noop then
@@ -20,7 +18,8 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
         List.exists (fun (_, e) -> match e with Ast.Value (Ast.VString s) | Ast.Var s -> s = name | _ -> false) items
     | _ -> false
   in
-  let is_pmml_ser = match serializer with Ast.Value (Ast.VString "pmml") -> true | _ -> false in
+  let is_builtin expr name = match expr with Ast.Value (Ast.VString s) -> s = name | _ -> false in
+  let is_pmml_ser = is_builtin serializer "pmml" in
   let is_pmml_des = has_strategy "pmml" in
   let is_json_des = has_strategy "json" in
   let is_arrow_des = has_strategy "arrow" in
@@ -50,7 +49,6 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
     else ""
   in
   
-  let ser_s = unparse_expr serializer in
   let eval_string_list lst =
     lst
     |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
@@ -75,8 +73,6 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   
   let is_json_ser = match serializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
   let is_arrow_ser = match serializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
-  let is_csv_ser = match serializer with Ast.Value (Ast.VString "csv") | Ast.Value (Ast.VString "write_csv") | Ast.Value (Ast.VString "write.csv") -> true | _ -> false in
-  let is_csv_des = has_strategy "csv" || has_strategy "read_csv" || has_strategy "read.csv" || has_strategy "pd.read_csv" in
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
@@ -95,28 +91,6 @@ def t_write_json(obj, path):
 def t_read_json(path):
     with open(path) as f:
         return json.load(f)
-|} in
-
-  let t_csv_r_code = {|
-t_write_csv <- function(object, path) {
-  write.csv(object, path, row.names = FALSE)
-}
-t_read_csv <- function(path) {
-  read.csv(path, stringsAsFactors = FALSE)
-}
-|} in
-
-  let t_csv_py_code = {|
-def t_write_csv(obj, path):
-    import pandas as pd
-    if hasattr(obj, 'to_csv'):
-        obj.to_csv(path, index=False)
-    else:
-        pd.DataFrame(obj).to_csv(path, index=False)
-
-def t_read_csv(path):
-    import pandas as pd
-    return pd.read_csv(path)
 |} in
 
   let t_arrow_r_code = {|
@@ -352,16 +326,6 @@ def t_read_pmml(path):
     else ""
   in
 
-  let csv_injection =
-    if is_csv_ser || is_csv_des then
-      if runtime = "R" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_csv_r_code
-      else if runtime = "Python" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_csv_py_code
-      else ""
-    else ""
-  in
-
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
     let get_des_call dep_name =
@@ -380,20 +344,18 @@ def t_read_pmml(path):
         | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> deserializer)
         | _ -> deserializer
       in
-      let strategy = match strategy_expr with
-        | Ast.Value (Ast.VString s) -> s
-        | Ast.Var s -> s
-        | _ -> "default"
-      in
+      let strategy_is_string = match strategy_expr with Ast.Value (Ast.VString _) -> true | _ -> false in
+      let strategy = Nix_unparse.expr_to_string strategy_expr in
+      
       if strategy = "default" then
         (if runtime = "R" then "readRDS" else "deserialize")
-      else if strategy = "json" then
-        "t_read_json"
-      else if strategy = "arrow" then
-        "t_read_arrow"
-      else if strategy = "pmml" then
-        "t_read_pmml"
-      else strategy
+      else if strategy_is_string then
+        if strategy = "json" then "t_read_json"
+        else if strategy = "arrow" then "t_read_arrow"
+        else if strategy = "pmml" then "t_read_pmml"
+        else strategy
+      else
+        strategy
     in
     deps
     |> List.map (fun d ->
@@ -405,17 +367,19 @@ def t_read_pmml(path):
     |> String.concat "\n"
   in
 
-  let expr_s = unparse_expr expr in
+  let expr_s = Nix_unparse.unparse_expr expr in
+  let ser_expr_is_string = match serializer with Ast.Value (Ast.VString _) -> true | _ -> false in
+  let ser_s = Nix_unparse.expr_to_string serializer in
   let ser_call =
     if ser_s = "default" then
       (if runtime = "R" then "saveRDS" else "serialize")
-    else if is_json_ser then
-      "t_write_json"
-    else if is_arrow_ser then
-      "t_write_arrow"
-    else if is_pmml_ser then
-      "t_write_pmml"
-    else ser_s
+    else if ser_expr_is_string then
+      if ser_s = "json" then "t_write_json"
+      else if ser_s = "arrow" then "t_write_arrow"
+      else if ser_s = "pmml" then "t_write_pmml"
+      else ser_s
+    else
+      ser_s
   in
 
   let is_raw_code = match expr with RawCode _ -> true | _ -> false in
@@ -498,14 +462,18 @@ EOF
 %s
 EOF
       echo "      }" >> node_script.t
-      echo "      %s(%s, \"$out/artifact\")" >> node_script.t
-      echo "      write_text(\"$out/class\", type(%s))" >> node_script.t|} name expr_s ser_call name name
+      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
+      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
 EOF
-      echo "      %s(%s, \"$out/artifact\")" >> node_script.t
-      echo "      write_text(\"$out/class\", type(%s))" >> node_script.t|} name expr_s ser_call name name
+      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
+      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
   in
 
   (* Runtime specific build command *)
@@ -534,9 +502,8 @@ EOF
 %s
 %s
 %s
-%s
       mkdir -p $out
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection pmml_injection csv_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
+|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection pmml_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
