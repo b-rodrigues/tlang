@@ -21,8 +21,7 @@ process_node = {"result": res}
 )
 
 final_node = node(
-    command = <{ final_node = process_node.result * 2 }>,
-    runtime = T,
+    command = process_node.result * 2,
     deserializer = "json"
 )
 
@@ -51,3 +50,4 @@ print(proc_data)
 print("final_node data (T node):")
 f_data = read_node("final_node")
 print(f_data)
+
