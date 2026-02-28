@@ -1,129 +1,183 @@
 # Statistical Models & Tidy Output
 
 > [!IMPORTANT]
-> **API Evolution Note**: $T$ currently supports Linear Models (`lm`) and Generalized Linear Models (`glm`). These are implemented with a `broom`-style output architecture to facilitate tidy data workflows.
+> **Native Support Note**: $T$ currently provides a native implementation for Linear Models (`lm`) for convenience. For more advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a "Polyglot" approach where models are trained in R or Python nodes and then consumed natively in T via PMML.
 
-$T$ provides a comprehensive suite of functions for fitting, inspecting, and predicting with statistical models. Whether the model is trained in $T$, R, or Python, $T$ treats it as a first-class object that can be summarized and evaluated natively.
+$T$ treats models as first-class objects that can be summarized and evaluated regardless of which runtime created them.
 
 ## Fitting Models
 
-### `lm()` — Linear Regression
-Fits an Ordinary Least Squares (OLS) model.
+### `lm()` — Linear Regression (Native)
+Fits an Ordinary Least Squares (OLS) model. Following $T$'s "Data First" philosophy, the dataset is the first argument.
+
 ```t
-model = lm(Volume ~ Girth + Height, data = trees)
+-- Positional: data, then formula
+model = lm(mtcars, mpg ~ wt + hp)
+
+-- Named args also supported
+model = lm(data = mtcars, formula = mpg ~ wt + hp)
 ```
 
-### `glm()` — Generalized Linear Models
-Fits common GLMs (Logistic, Poisson, etc.) using Iteratively Reweighted Least Squares (IRLS).
+### Advanced Modeling (Polyglot)
+To fit models beyond simple OLS, you should use `R` or `Python` nodes within a $T$ pipeline. These nodes produce a model object that is serialized to PMML, allowing $T$ to consume it natively for inspection and prediction.
+
+#### Example: Logistic Regression in R
 ```t
-model = glm(Survived ~ Pclass + Age, data = titanic, family = "binomial")
+p = pipeline {
+    model_node = node(
+        command = <{
+            glm(Survived ~ Pclass + Sex + Age, data = titanic, family = binomial())
+        }>,
+        runtime = R,
+        serializer = "pmml"
+    )
+}
+build_pipeline(p)
+model = read_node("model_node")
+summary(model) -- Fully supported in T!
 ```
 
 ---
 
-## Model Inspection (Broom-Style)
+## Model Inspection & Diagnostics
 
-$T$ adopts the `broom` philosophy from R: model outputs should be DataFrames.
+> [!TIP]
+> **Native Convenience**: All model inspection and diagnostic functions are implemented natively in $T$. This means that even if a model was originally trained in R or Python (and imported via PMML), you can perform summaries, calculate residuals, and run hypothesis tests **without** needing an active R or Python environment. This approach provides significant speed advantages and simplifies high-performance pipelines.
+
+$T$ adopts the `broom` philosophy: model outputs should be DataFrames or Tidy Dictionaries.
 
 ### `summary(model)`
-Returns a tidy DataFrame of coefficients (estimates, standard errors, statistics, and p-values).
+Returns a tidy representation of coefficients. 
+* For native `lm`, it returns a DataFrame. 
+* For some imported models, it returns a Dict where the tidy DataFrame is in `_tidy_df`.
+
 ```t
 s = summary(model)
+s._tidy_df
 -- # A DataFrame: 3 × 5
 --   term         estimate  std_error  statistic  p_value
---   (Intercept)  12.5      3.2        3.906      0.0012
---   sqft         125.3     8.2        15.28      0.0000
 ```
 
 ### `coef(model)`
 A convenience function that returns a two-column DataFrame with just `term` and `estimate`.
-```t
-estimates = coef(model)
--- # A DataFrame: 3 × 2
---   term         estimate
---   (Intercept)  12.5
---   sqft         125.3
-```
-
-### `conf_int(model, level = 0.95)`
-Computes confidence intervals for model coefficients using the Student's t distribution. 
-```t
-ci = conf_int(model, level: 0.99)
--- # A DataFrame: 3 × 3
---   term         lower     upper
---   (Intercept)  4.25      20.75
-```
 
 ### `fit_stats(model)`
-Returns a single-row DataFrame of model-level statistics (R-squared, AIC, BIC, Deviance, Log-Likelihood).
+Returns a single-row DataFrame of model-level statistics (R-squared, AIC, BIC, etc.).
+
 ```t
 stats = fit_stats(model)
 -- # A DataFrame: 1 × 15
 --   r_squared  adj_r_squared  aic    bic    nobs
---   0.87       0.85           125.4  130.2  100
 ```
 
-### `add_diagnostics(model, data)`
-Augments the original data with per-observation residuals, fitted values, leverage (`.hat`), and influence measures (`.cooksd`).
+### `conf_int(model, level = 0.95)`
+Computes confidence intervals for model coefficients.
+
 ```t
-aug = add_diagnostics(model, data)
-filter(aug, .cooksd > 0.5)
+ci = conf_int(model, level: 0.99)
+-- # A DataFrame: 3 × 3
+--   term         lower     upper
+```
+
+### `compare(model1, model2, ...)`
+Aligns multiple model coefficient tables into a single wide DataFrame for side-by-side comparison.
+
+```t
+comp = compare(m1, m2)
+-- Returns DataFrame with columns: estimate_1, std_error_1, ..., estimate_2, ...
+```
+
+### `augment(data, model)`
+Augments the original data with core model-based columns: `fitted`, `resid`, and `std_resid`.
+
+```t
+aug = augment(mtcars, model)
+-- Adds columns: fitted, resid, std_resid
+```
+
+### `add_diagnostics(data, model)`
+Similar to `augment`, but adds a more comprehensive set of diagnostic columns (leverage, influence, etc.).
+
+```t
+diag = add_diagnostics(mtcars, model)
+-- Adds columns: fitted, resid, hat, sigma, cooksd, std_resid
+```
+
+### `residuals(data, model, type = "response")`
+Returns a DataFrame containing the `actual` response, the `fitted` values, and the calculated `resid` (residuals).
+
+```t
+res = residuals(mtcars, model, type: "pearson")
+-- # A DataFrame: 32 × 3 [actual, fitted, resid]
+```
+
+---
+
+## Hypothesis Testing & Diagnostics
+
+### `anova(model1, model2, ...)`
+Performs Analysis of Variance (ANOVA) comparing two or more nested models.
+
+```t
+m1 = lm(mtcars, mpg ~ wt)
+m2 = lm(mtcars, mpg ~ wt + hp + qsec)
+av = anova(m1, m2)
+-- Returns an ANOVA table with Statistics and P-values
+```
+
+### `wald_test(model, terms, value = 0.0)`
+Performs a joint Wald test on a subset of model coefficients.
+
+```t
+-- Test if both 'hp' and 'qsec' are jointly equal to zero
+w = wald_test(model, terms: ["hp", "qsec"])
+```
+
+### `vcov(model)`
+Returns the Variance-Covariance matrix of the coefficients as a square DataFrame.
+
+```t
+v = vcov(model)
 ```
 
 ---
 
 ## Prediction
 
-The `predict()` function performs vectorized predictions on new data. Importantly, if a model was imported from R or Python via PMML, $T$ performs the calculation **natively in the $T$ evaluator** without requiring the original runtime to be present.
+The `predict(data, model)` function performs vectorized predictions natively in $T$. 
 
 ```t
 -- Fast, native evaluation in T
+-- Even if the model was trained in R or Python (and imported via PMML)
 preds = predict(new_data, model)
 ```
+
+$T$ supports various link functions for GLMs (imported via PMML), including **Logit**, **Probit**, **Log**, **Inverse**, and **Cloglog**.
 
 ---
 
 ## Model Interchange & PMML
 
 ### Why PMML?
-The **Predictive Model Markup Language (PMML)** is an XML-based standard for sharing models across different systems. $T$ uses PMML as a bridge to allow:
-1. **R Integration**: Training models in R and using them in $T$ pipelines.
-2. **Python Integration**: Training models in `scikit-learn` or `statsmodels` and using them in $T$ pipelines.
-3. **Reproducibility**: Models are saved in a transparent, readable format that persists independently of the code that created them.
+The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and other runtimes. It allows:
+1. **R Integration**: Using any R model that has a PMML exporter (e.g. `stats::glm`, `survival::coxph`).
+2. **Python Integration**: Using `scikit-learn` or `statsmodels`.
+3. **Reproducibility**: Models persist independently of the original runtime code.
 
 ### Cross-Runtime Consistency
-$T$'s statistical evaluator is verified against R's reference implementation. When you use `summary()`, `predict()`, or `conf_int()` on a model in $T$, the results match R's `broom::tidy()` and `stats::predict()` to within floating-point precision.
-
-### Pipeline Example
-```t
-p = pipeline {
-  model_node = node(
-    command = <{ 
-      import statsmodels.api as sm
-      X = sm.add_constant(data_node[["wt", "hp"]])
-      y = data_node["mpg"]
-      sm.GLM(y, X, family=sm.families.Gaussian()).fit()
-    }>,
-    runtime = Python,
-    serializer = "pmml"
-  );
-  
-  predict_node = node(
-    command = <{ predict(data_node, model_node) }>,
-    runtime = T, -- No Python needed here!
-    deserializer = [model_node: "pmml"]
-  )
-}
-```
+$T$'s statistical evaluator is verified against R's reference implementation. Results match R's `broom::tidy()` and `stats::predict()` exactly.
 
 ---
 
 ## Comparison with R's broom Package
 
-| R (broom) | T equivalent |
-|-----------|-------------|
+| R (broom) / stats | T equivalent |
+|-------------------|--------------|
 | `broom::tidy(fit)` | `summary(model)` |
 | `broom::glance(fit)` | `fit_stats(model)` |
-| `broom::augment(fit, data)` | `add_diagnostics(model, data = df)` |
-
-The outputs are designed to be drop-in replacements for R's tidy modeling workflow.
+| `broom::augment(fit, data)` | `augment(df, model)` |
+| `stats::residuals(fit)` | `residuals(df, model)`|
+| `stats::coef(fit)` | `coef(model)` |
+| `stats::vcov(fit)` | `vcov(model)` |
+| `stats::anova(m1, m2)` | `anova(m1, m2)` |
+| `survey::regTermTest` | `wald_test(model, terms)` |

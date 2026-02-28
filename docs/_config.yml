@@ -1,0 +1,10 @@
+theme: jekyll-theme-minimal
+title: T Programming Language
+description: A Language for Tabular Data and Human–LLM Collaboration
+baseurl: /tlang
+defaults:
+  -
+    scope:
+      path: ""
+    values:
+      layout: "default"
