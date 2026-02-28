@@ -4,6 +4,38 @@
 
 Inspired by R's tidyverse and OCaml's type discipline, T provides a small, focused core for data wrangling, but its true strength lies in its **mandatory pipeline architecture**.
 
+### The Canonical T Script
+
+A canonical T script orchestrates strictly defined nodes into a reproducible pipeline. It allows you to seamlessly mix T's native data manipulation with R's statistical ecosystem and Python's machine learning libraries:
+
+```t
+-- A canonical, reproducible polyglot pipeline
+p = pipeline {
+  # 1. Load and prepare data natively in T
+  data = node(command = read_csv("data.csv") |> filter($age > 18))
+  
+  # 2. Train a statistical model in R using the rn() wrapper
+  model_r = rn(
+    command = <{
+      lm(score ~ age + income, data = data)
+    }>,
+    serializer = "pmml"
+  )
+  
+  # 3. Train a machine learning model in Python using the pyn() wrapper
+  model_py = pyn(
+    command = <{
+      from sklearn.ensemble import RandomForestRegressor
+      RandomForestRegressor().fit(X, y)
+    }>,
+    serializer = "pmml"
+  )
+}
+
+# Materialize the pipeline into reproducible Nix artifacts
+build_pipeline(p)
+```
+
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
 [![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.5-orange.svg)](https://tstats-project.org)
 
