@@ -476,6 +476,7 @@ Pipeline features:
 - **Deterministic execution**: Same inputs always produce same outputs
 - **Cycle detection**: Circular dependencies are caught and reported
 - **Introspection**: `pipeline_nodes()`, `pipeline_deps()`, `pipeline_node()`
+- **Cross-language**: `node()`, `pyn()`, `rn()` enable execution in T, Python, and R
 - **Re-run**: `pipeline_run()` re-executes the pipeline
 
 ---

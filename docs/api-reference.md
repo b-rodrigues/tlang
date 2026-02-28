@@ -1299,6 +1299,38 @@ p = pipeline {
 
 ---
 
+### `pyn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)`
+
+Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
+
+**Parameters:**
+- `command` — The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks).
+- `serializer` (optional) — Custom serializer function. Default: `default`.
+- `deserializer` (optional) — Custom deserializer function. Default: `default`.
+- `functions` (optional) — Python files to source before execution.
+- `include` (optional) — Additional files for the sandbox.
+- `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+
+**Returns:** The evaluated return value of the command.
+
+---
+
+### `rn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)`
+
+Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
+
+**Parameters:**
+- `command` — The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks).
+- `serializer` (optional) — Custom serializer function. Default: `default`.
+- `deserializer` (optional) — Custom deserializer function. Default: `default`.
+- `functions` (optional) — R scripts to source before execution.
+- `include` (optional) — Additional files for the sandbox.
+- `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+
+**Returns:** The evaluated return value of the command.
+
+---
+
 ### `pipeline_nodes(pipeline)`
 
 Get all node names in a pipeline.

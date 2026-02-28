@@ -24,11 +24,10 @@ To fit models beyond simple OLS, you should use `R` or `Python` nodes within a $
 #### Example: Logistic Regression in R
 ```t
 p = pipeline {
-    model_node = node(
+    model_node = rn(
         command = <{
             glm(Survived ~ Pclass + Sex + Age, data = titanic, family = binomial())
         }>,
-        runtime = R,
         serializer = "pmml"
     )
 }

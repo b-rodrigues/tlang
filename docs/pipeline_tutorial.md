@@ -42,20 +42,19 @@ In addition to bare assignments, you can explicitly configure nodes using the `n
 p = pipeline {
   data = node(command = read_csv("data.csv"), runtime = T)
   
-  -- Running a Python node that trains a model
-  model = node(
+  -- Running a Python node that trains a model using the pyn wrapper
+  model = pyn(
     command = <{
         from sklearn.linear_model import LinearRegression
         fit = LinearRegression().fit(X, y)
         fit
-    }>, 
-    runtime = "Python",
+    }>,
     serializer = "pmml"
   )
 }
 ```
 
-Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
+Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()` and `rn()` as shortcuts for Python and R runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
 ---
 
@@ -78,13 +77,12 @@ You can train a model in R and use T's native OCaml model evaluator to make pred
 
 ```t
 p = pipeline {
-  -- Node 1: Train model in R
-  model_r = node(
+  -- Node 1: Train model in R using the rn wrapper
+  model_r = rn(
     command = <{
       data <- read.csv("data.csv")
       lm(mpg ~ wt + hp, data = data)
     }>,
-    runtime = "R",
     serializer = "pmml"
   )
   
@@ -527,14 +525,13 @@ p = pipeline {
   raw_data = read_csv("raw.csv")
   
   # This node and its dependencies won't trigger a heavy Nix build
-  expensive_model = node(
-    command = train(raw_data), 
-    runtime = R,
+  expensive_model = rn(
+    command = train(raw_data),
     noop = true
   )
 
   # This node depends on expensive_model, therefore it becomes a noop as well
-  report = node(command = generate_report(expensive_model), runtime = R)
+  report = rn(command = generate_report(expensive_model))
 }
 
 populate_pipeline(p, build = true)
