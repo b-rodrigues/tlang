@@ -459,6 +459,38 @@ test_that("STRING: iris operations", {
 })
 
 # ============================================================================
+# Test Suite 20: ADVANCED STATS (vcov, residuals, augment, anova)
+# ============================================================================
+
+test_that("ADVANCED STATS: vcov matrix", {
+  compare_csvs("lm_vcov_m1", tolerance = 1e-4) # Higher tolerance for cross-matrix
+})
+
+test_that("ADVANCED STATS: residuals", {
+  compare_csvs("lm_residuals_m1", tolerance = 1e-5)
+})
+
+test_that("ADVANCED STATS: augment", {
+  compare_csvs("lm_augment_m1", tolerance = 1e-5)
+})
+
+test_that("ADVANCED STATS: anova table", {
+  compare_csvs("lm_anova_m1_m2", tolerance = 1e-4)
+})
+
+test_that("ADVANCED STATS: wald_test joint hipothesis", {
+  compare_csvs("lm_wald_hp_qsec", tolerance = 1e-4)
+})
+
+# ============================================================================
+# Test Suite 21: DISTRIBUTIONS
+# ============================================================================
+
+test_that("DISTRIBUTIONS: baselines match R", {
+  compare_csvs("dist_baselines", tolerance = 1e-6)
+})
+
+# ============================================================================
 # SUMMARY REPORT
 # ============================================================================
 

@@ -11,7 +11,7 @@ open Ast
 --# @param data :: DataFrame Input data.
 --# @param model :: Model The model object.
 --# @param type :: String (Optional) Type of residuals: "response" (default) or "pearson".
---# @return :: DataFrame Columns: `actual`, `.fitted`, `.resid`.
+--# @return :: DataFrame Columns: `actual`, `fitted`, `resid`.
 --#
 --# @details
 --# Residuals represent the difference between observed data and model predictions.
@@ -90,8 +90,8 @@ let register env =
           
           let columns = [
             ("actual",  Arrow_table.FloatColumn actuals);
-            (".fitted", Arrow_table.FloatColumn (Array.map (function VFloat f -> Some f | _ -> None) fitted));
-            (".resid",  Arrow_table.FloatColumn resids);
+            ("fitted",  Arrow_table.FloatColumn (Array.map (function VFloat f -> Some f | _ -> None) fitted));
+            ("resid",   Arrow_table.FloatColumn resids);
           ] in
           let table = Arrow_table.create columns n in
           VDataFrame { arrow_table = table; group_keys = [] }

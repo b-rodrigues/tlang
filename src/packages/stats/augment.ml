@@ -10,7 +10,7 @@ open Ast
 --# @name augment
 --# @param data :: DataFrame The dataset to augment.
 --# @param model :: Model The model object.
---# @return :: DataFrame The original DataFrame with appended `.fitted`, `.resid`, etc.
+--# @return :: DataFrame The original DataFrame with appended `fitted`, `resid`, etc.
 --# @example
 --#   aug = augment(mtcars, model)
 --# @family stats
@@ -30,8 +30,8 @@ let register env =
         
         (match res_v with
          | VDataFrame res_df ->
-            let fitted = Arrow_table.get_column res_df.arrow_table ".fitted" in
-            let resid  = Arrow_table.get_column res_df.arrow_table ".resid" in
+            let fitted = Arrow_table.get_column res_df.arrow_table "fitted" in
+            let resid  = Arrow_table.get_column res_df.arrow_table "resid" in
             
             let sigma = match List.assoc_opt "_model_data" model with
               | Some (VDict d) -> (match List.assoc_opt "sigma" d with Some (VFloat f) -> f | _ -> 1.0)
@@ -47,11 +47,11 @@ let register env =
             in
             
             let new_cols = [
-              (".fitted", match fitted with Some c -> c | None -> Arrow_table.NullColumn 0);
-              (".resid",  match resid with Some c -> c | None -> Arrow_table.NullColumn 0);
+              ("fitted", match fitted with Some c -> c | None -> Arrow_table.NullColumn 0);
+              ("resid",  match resid with Some c -> c | None -> Arrow_table.NullColumn 0);
             ] in
             let new_cols = match std_resid with
-              | Some c -> new_cols @ [(".std.resid", c)]
+              | Some c -> new_cols @ [("std_resid", c)]
               | None -> new_cols
             in
             

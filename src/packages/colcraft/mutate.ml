@@ -105,6 +105,11 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                 (match apply_vector_mutation current_df col_name vec with
                  | VDataFrame new_df -> apply_named_mutations new_df rest_mutations
                  | err -> err)
+            | (Some col_name, VList items) :: rest_mutations ->
+                let vec = Array.of_list (List.map snd items) in
+                (match apply_vector_mutation current_df col_name vec with
+                 | VDataFrame new_df -> apply_named_mutations new_df rest_mutations
+                 | err -> err)
             | (Some col_name, fn) :: rest_mutations ->
                 (match apply_mutation current_df col_name fn with
                  | VDataFrame new_df -> apply_named_mutations new_df rest_mutations

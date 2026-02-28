@@ -6,6 +6,7 @@
 | [acos](acos.md) | Inverse cosine |
 | [acosh](acosh.md) | Inverse hyperbolic cosine |
 | [add_diagnostics](add_diagnostics.md) | Add Model Diagnostics |
+| [anova](anova.md) | Analysis of Variance (ANOVA) |
 | [apropos](apropos.md) | Search for functions by keyword |
 | [args](args.md) | Get function arguments and their types |
 | [arrange](arrange.md) | Arrange rows |
@@ -195,6 +196,7 @@
 | [update_flake_lock](update_flake_lock.md) | Update Dependencies |
 | [var](var.md) | Variance |
 | [vcov](vcov.md) | Variance-Covariance Matrix |
+| [wald_test](wald_test.md) | Joint Wald Test |
 | [winsorize](winsorize.md) | Winsorize values |
 | [write_csv](write_csv.md) | Write CSV file |
 | [write_registry](write_registry.md) | Registry Maintenance (Writer) |
