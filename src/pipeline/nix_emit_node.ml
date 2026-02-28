@@ -270,8 +270,55 @@ def t_write_pmml(model, path):
     _enrich_sklearn_pmml(model, path)
 
 def t_export_sm_glm(results, path):
-    # Stub for future implementation
-    raise NotImplementedError("JPMML-StatsModels integration for Python GLM is currently disabled. Focus is on R support.")
+    _assert_supported(results)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        pkl_path = os.path.join(tmp, "model.pkl")
+        results.save(pkl_path, remove_data=False)
+
+        jar_path = _resolve_jpmml_statsmodels_jar()
+
+        subprocess.run(
+            [
+                "java", "-jar", jar_path,
+                "--pkl-input",  pkl_path,
+                "--pmml-output", path,
+            ],
+            check=True,
+        )
+
+    _enrich_sm_glm_pmml(results, path)
+    return path
+
+def _assert_supported(results):
+    import statsmodels.genmod.generalized_linear_model as glm_module
+
+    supported_families = {"Binomial", "Gaussian", "Poisson"}
+    supported_links    = {"identity", "log", "logit"}
+
+    if hasattr(results, "family"):
+        family_name = type(results.family).__name__
+        link_name   = type(results.family.link).__name__.lower()
+
+        if family_name not in supported_families:
+            raise ValueError(
+                f"GLM family '{family_name}' is not supported on the Python path. "
+                f"Train in R to use this family."
+            )
+        if link_name not in supported_links:
+            raise ValueError(
+                f"Link function '{link_name}' is not supported on the Python path. "
+                f"Train in R to use this link."
+            )
+
+def _resolve_jpmml_statsmodels_jar():
+    jar = os.environ.get("T_JPMML_STATSMODELS_JAR")
+    if not jar or not os.path.exists(jar):
+        raise RuntimeError(
+            "JPMML-StatsModels JAR not found. "
+            "Ensure the t-pmml-java derivation is present in your environment."
+        )
+    return jar
 
 def _enrich_sklearn_pmml(model, path):
     from sklearn.linear_model import LinearRegression
@@ -296,7 +343,75 @@ def _enrich_sklearn_pmml(model, path):
         except Exception: pass
 
 def _enrich_sm_glm_pmml(results, path):
-    pass
+    import json
+    try:
+        import xml.etree.ElementTree as ET
+        tree = ET.parse(path)
+        root = tree.getroot()
+        reg_model = None
+        for el in root.iter():
+            if el.tag.endswith('RegressionModel') or el.tag.endswith('GeneralRegressionModel'):
+                reg_model = el
+                break
+        if reg_model is not None:
+            tag = reg_model.tag
+            ns_prefix = tag[:tag.rfind('}')+1] if '}' in tag else ""
+            
+            fam = type(results.family).__name__
+            lnk = type(results.family.link).__name__.lower()
+            
+            coef_list = {}
+            for name, coef in results.params.items():
+                c_dict = {"estimate": float(coef)}
+                try: c_dict["std_error"] = float(results.bse[name])
+                except Exception: pass
+                try:
+                    stat = results.tvalues[name] if hasattr(results, 'tvalues') else (results.zvalues[name] if hasattr(results, 'zvalues') else None)
+                    if stat is not None: c_dict["statistic"] = float(stat)
+                except Exception: pass
+                try: c_dict["p_value"] = float(results.pvalues[name])
+                except Exception: pass
+                coef_list[name] = c_dict
+                
+            glm_stats = {
+                "family": fam,
+                "link": lnk,
+                "coefficients": coef_list
+            }
+            if hasattr(results, 'null_deviance'): glm_stats["null_deviance"] = str(float(results.null_deviance))
+            if hasattr(results, 'df_null'): glm_stats["null_deviance_df"] = int(results.df_null)
+            if hasattr(results, 'deviance'): glm_stats["residual_deviance"] = str(float(results.deviance))
+            if hasattr(results, 'df_resid'): glm_stats["residual_deviance_df"] = int(results.df_resid)
+            if hasattr(results, 'scale'): glm_stats["dispersion"] = str(float(results.scale))
+            if hasattr(results, 'aic'): glm_stats["aic"] = str(float(results.aic))
+            if hasattr(results, 'llf'): glm_stats["log_likelihood"] = str(float(results.llf))
+            
+            glm_ext = ET.SubElement(reg_model, ns_prefix + 'Extension')
+            glm_ext.set('name', 'GLMStats')
+            glm_ext.set('value', json.dumps(glm_stats))
+            
+            for el in reg_model.iter():
+                if el.tag.endswith('NumericPredictor'):
+                    nm = el.get('name')
+                    if nm and nm in results.params:
+                        try: el.set('stdError', str(results.bse[nm]))
+                        except Exception: pass
+                        try: el.set('zStatistic', str(results.tvalues[nm]))
+                        except Exception: pass
+                        try: el.set('pValue', str(results.pvalues[nm]))
+                        except Exception: pass
+                elif el.tag.endswith('RegressionTable'):
+                    if 'const' in results.params:
+                        try: el.set('stdError', str(results.bse['const']))
+                        except Exception: pass
+                        try: el.set('zStatistic', str(results.tvalues['const']))
+                        except Exception: pass
+                        try: el.set('pValue', str(results.pvalues['const']))
+                        except Exception: pass
+
+            tree.write(path)
+    except Exception:
+        pass
 
 def t_read_pmml(path):
     try:
@@ -408,7 +523,7 @@ def t_read_pmml(path):
       let imports = List.filter is_import_line lines in
       if imports = [] then ""
       else
-        let code = String.concat "\n" imports in
+        let code = String.concat "\n" (List.map String.trim imports) in
         Printf.sprintf "      cat <<'EOF' >> node_script.%s\n%s\nEOF\n" ext code
     else ""
   in
@@ -497,6 +612,7 @@ EOF
   %s = stdenv.mkDerivation {
     name = "%s";
     buildInputs = [ tBin %s ];
+    T_JPMML_STATSMODELS_JAR = "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar";
 %s
     buildCommand = ''
       cp -r $src/* . || true

@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-26";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-28";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -94,8 +94,8 @@
             pkgs.glib.dev
             # Owl — OCaml numerical library for linear algebra and statistics
             # Used by Arrow-Owl bridge for matrix operations in lm(), cor()
-            # Uncomment when owl is available in your OCaml package set:
             # ocamlVersion.owl
+            pkgs.jpmml-statsmodels
           ];
 
           buildPhase = ''
@@ -107,7 +107,8 @@
             mkdir -p $out/bin
             cp _build/default/src/repl.exe $out/bin/.t-unwrapped
             makeWrapper $out/bin/.t-unwrapped $out/bin/t \
-              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}"
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}" \
+              --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
           '';
 
           meta = with pkgs.lib; {
@@ -192,11 +193,12 @@
             # ocamlVersion.owl
 
             # 5. R and Python environments for testing
-            # -------------------------------------------------------
             R-with-packages
             python-with-packages
             pkgs.actionlint
             pkgs.shellcheck
+            pkgs.jpmml-statsmodels
+            pkgs.jre
           ];
 
           shellHook = ''

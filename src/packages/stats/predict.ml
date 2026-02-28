@@ -40,7 +40,7 @@ let register env =
           List.iter (fun (name, v) ->
             match v with
             | VFloat f ->
-                if name = "(Intercept)" then
+                if name = "(Intercept)" || name = "Intercept" || name = "const" then
                   intercept := f
                 else
                   terms := (name, f) :: !terms

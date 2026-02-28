@@ -13,7 +13,7 @@ p = pipeline {
         serializer = "arrow"
     );
 
-    model_node = node(
+    r_model_node = node(
         command = <{
             data_node$Survived <- as.factor(data_node$Survived)
             glm(Survived ~ Pclass + Age + Fare, data = data_node, family = binomial(link = "logit"))
@@ -23,20 +23,25 @@ p = pipeline {
         deserializer = "arrow"
     );
 
-    r_pred_node = node(
+    py_model_node = node(
         command = <{
-            data_node$Survived <- as.factor(data_node$Survived)
-            fit <- glm(Survived ~ Pclass + Age + Fare, data = data_node, family = binomial(link = "logit"))
-            preds <- predict(fit, data_node, type = "response")
-            data.frame(preds = as.numeric(preds))
+import statsmodels.api as sm
+# Select predictors and add constant
+X = data_node[['Pclass', 'Age', 'Fare']]
+X = sm.add_constant(X)
+y = data_node['Survived']
+# Fit model using matrix API
+py_model_node = sm.GLM(y, X, family=sm.families.Binomial()).fit()
+import os
+t_write_pmml(py_model_node, os.path.expandvars("$out/artifact"))
         }>,
-        runtime = R,
-        serializer = "arrow",
+        runtime = Python,
+        serializer = "pmml",
         deserializer = "arrow"
     )
 }
 
-print("Building Titanic GLM pipeline...")
+print("Building Titanic GLM pipeline (R + Python)...")
 res = build_pipeline(p)
 
 if (is_error(res)) {
@@ -45,25 +50,28 @@ if (is_error(res)) {
 } else {
     print("Reading artifacts...")
     df_clean = read_node("data_node")
-    model    = read_node("model_node")
-    r_preds_df = read_node("r_pred_node")
-    r_preds = pull(r_preds_df, "preds")
+    r_model    = read_node("r_model_node")
+    py_model   = read_node("py_model_node")
 
-    print("Computing predictions in T...")
-    t_preds = predict(df_clean, model)
+    print("Computing predictions in T (R Model)...")
+    t_preds_r = predict(df_clean, r_model)
 
-    -- Compute MAE
-    -- Compute MAE
-    diff = r_preds .- t_preds
+    print("Computing predictions in T (Python Model)...")
+    t_preds_py = predict(df_clean, py_model)
+
+    -- Compare R-model vs Python-model predictions in T
+    diff = t_preds_r .- t_preds_py
     mae = mean(abs(diff))
     
-    print("Mean Absolute Error Between R and T:")
+    print("MAE between predictions from R and Python models (evaluated in T):")
     print(mae)
 
-    -- Use a large enough threshold for float comparisons (due to PMML truncation)
+    -- Threshold for float comparisons across runtimes/libraries
     if (mae < 0.001) {
-        print("SUCCESS: T predictions match R predictions!")
+        print("SUCCESS: R and Python models yield identical predictions in T!")
     } else {
         print("FAILURE: Predictions significantly different.")
+        print("Sample diff:")
+        print(head(diff))
     }
 }
