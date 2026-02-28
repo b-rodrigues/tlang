@@ -1,18 +1,10 @@
 # Getting Started with T
 
-Welcome to T! This guide will help you install T, write your first program, and understand the basic workflow.
+Welcome to T! This guide will help you install T, create your first project, and understand the basic layout of a T workspace.
 
 ## Prerequisites
 
-T requires:
-
-- **Nix package manager** (version 2.4 or later) with flakes enabled
-- **Linux or macOS** (Windows via WSL2)
-- Basic familiarity with command-line tools
-
-## Installation
-
-### 1. Install Nix
+T requires the **Nix package manager** with flakes enabled. Nix ensures that your T environment is perfectly reproducible across Linux and macOS.
 
 If you don't have Nix installed:
 
@@ -25,306 +17,80 @@ mkdir -p ~/.config/nix
 echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 ```
 
-### 2. Clone T Repository
+## Running T
+
+As a user, you don't need to clone the repository or build the compiler from source! You can run the T shell directly from GitHub using Nix:
 
 ```bash
-git clone https://github.com/b-rodrigues/tlang.git
-cd tlang
+nix shell github:b-rodrigues/tlang
 ```
 
-### 3. Enter Development Environment
+This command will download the T executable, fetch all required dependencies, and drop you into a shell where the `t` command is available.
+
+## Starting a New Workspace
+
+T provides a built-in scaffolding tool to initialize your workspaces. There are two types of workspaces in T:
+- **Projects**: Designed for data analysis, scripts, and reproducible pipelines.
+- **Packages**: Designed for creating reusable functions and libraries to share with others.
+
+### Creating a Project
+
+To start a new data analysis project, navigate to your desired folder and run:
 
 ```bash
-nix develop
+t init project
 ```
 
-This will:
-- Download and cache all dependencies
-- Set up OCaml, Apache Arrow, and build tools
-- Create an isolated development shell
+The interactive wizard will ask for a project name (e.g., `my_analysis`) and generate a reproducible workspace. The resulting tree layout will look like this:
 
-### 4. Build T
+```text
+my_analysis/
+├── tproject.toml       # Project configuration and dependencies
+├── flake.nix           # Reproducible environment definition
+├── _pipeline/          # Output directory for pipeline node results
+├── data/               # Place your raw data files here
+└── scripts/
+    └── main.t          # Your main analysis script
+```
+
+### Creating a Package
+
+If you want to create a reusable library of T functions, initialize a package instead:
 
 ```bash
-dune build
+t init package
 ```
 
-### 5. Start the REPL
+The tree layout for a package is structured for development and testing:
+
+```text
+my_package/
+├── tproject.toml       # Package metadata (name, version, exports)
+├── flake.nix           # Reproducible environment definition
+├── src/
+│   └── main.t          # Package source code
+└── tests/
+    └── test_main.t     # Unit tests for your package
+```
+
+## Running Your Code
+
+Inside your project or package directory, you can start the interactive REPL to explore your data:
 
 ```bash
-dune exec src/repl.exe
+t repl
 ```
 
-You should see:
-
-```
-T Language REPL (Alpha 0.1)
-Type 'exit' to quit
-> 
-```
-
-## Your First T Program
-
-### Interactive REPL Session
-
-```t
-> 2 + 3
-5
-
-> x = 42
-42
-
-> double = \(n) n * 2
-<function>
-
-> double(x)
-84
-
-> [1, 2, 3, 4, 5] |> map(\(x) x * x) |> sum
-55
-
-> exit
-```
-
-### Writing a T Script
-
-Create a file `hello.t`:
-
-```t
--- hello.t
-name = "World"
-message = "Hello, " + name + "!"
-print(message)
-```
-
-Run it with the `t run` command:
+To execute a script from end-to-end, use:
 
 ```bash
-t run hello.t
-```
-
-## Understanding T Scripts
-
-### Basic Syntax
-
-```t
--- Comments start with double dash
-
--- Variables are immutable
-x = 42
-name = "Alice"
-active = true
-
--- Lists
-numbers = [1, 2, 3, 4, 5]
-
--- Dictionaries
-person = [name: "Bob", age: 30]
-
--- Functions
-add = \(a, b) a + b
-square = \(x) x * x
-```
-
-### Working with Data
-
-```t
--- Load CSV data
-df = read_csv("data.csv")
-
--- Inspect the data
-nrow(df)      -- number of rows
-ncol(df)      -- number of columns
-colnames(df)  -- column names
-head(df.age)  -- first few values of age column
-
--- Filter and select using NSE dollar-prefix syntax
-young_people = df |> filter($age < 30)
-names_only = young_people |> select($name)
-
--- Compute statistics
-mean(df.age, na_rm = true)
-sd(df.salary, na_rm = true)
-```
-
-### Building Pipelines
-
-```t
--- Create a reproducible analysis pipeline
-analysis = pipeline {
-  -- Load data
-  raw = read_csv("sales.csv")
-  
-  -- Clean and filter
-  clean = raw
-    |> filter($amount > 0)
-    |> mutate($profit, \(row) row.revenue - row.cost)
-  
-  -- Aggregate
-  summary = clean
-    |> group_by($region)
-    |> summarize($total_profit = sum($profit))
-
-  -- Python node for advanced modeling
-  py_model = node(
-    command = <{
-        # Run in Python
-        from sklearn.linear_model import LinearRegression
-        LinearRegression().fit(X, y)
-    }>,
-    runtime = "Python",
-    serializer = "pmml"
-  )
-}
-
--- Access pipeline results
-print(analysis.summary)
-```
-
-## Common Patterns
-
-### Error Handling
-
-```t
--- Errors are values, not exceptions
-result = 1 / 0
-is_error(result)        -- true
-error_message(result)   -- "Division by zero"
-
--- Conditional pipe short-circuits on errors
-safe_chain = error("oops") |> double |> triple  -- Error
-unsafe_chain = error("oops") ?|> handle         -- Can recover
-
--- Recovery function
-handle = \(x) if (is_error(x)) 0 else x
-```
-
-### Working with NA Values
-
-```t
--- NA must be handled explicitly
-data_with_missing = [1, 2, NA, 4]
-
--- This errors
-mean(data_with_missing)  -- Error: NA encountered
-
--- Explicit handling
-mean(data_with_missing, na_rm = true)  -- 2.33...
-
--- Check for NA
-is_na(NA)        -- true
-is_na(42)        -- false
-```
-
-### Data Transformations
-
-```t
--- Select specific columns
-subset = df |> select($name, $age, $salary)
-
--- Filter rows by condition
-adults = df |> filter($age >= 18)
-
--- Add or modify columns
-with_bonus = df |> mutate($bonus, \(row) row.salary * 0.1)
-
--- Sort data
-sorted = df |> arrange($salary, "desc")
-
--- Group and summarize
-by_dept = df
-  |> group_by($dept)
-  |> summarize($avg_salary, \(g) mean(g.salary))
-```
-
-## REPL Tips
-
-### Multiline Input
-
-The REPL supports multiline expressions:
-
-```t
-> long_pipeline = [1, 2, 3, 4, 5]
-    |> map(\(x) x * x)
-    |> filter(\(x) x > 10)
-    |> sum
-55
-```
-
-### Inspecting Values
-
-```t
-> type(42)
-"Int"
-
-> type(df)
-"DataFrame"
-
-> explain(df)
-DataFrame(100 rows x 5 cols: [name, age, dept, salary, active])
-```
-
-### Getting Help
-
-```t
--- Check available packages
-> packages()
-
--- View package functions (implementation dependent)
-> package_info("stats")
+t run scripts/main.t
 ```
 
 ## Next Steps
 
-Now that you've got T running, explore:
+Now that you have your first project set up and understand the folder structure, the best place to learn how to do actual data analysis in T is the Pipeline Tutorial!
 
-1. **[Language Overview](language_overview.md)** — Learn all language features
-2. **[Data Manipulation Examples](data_manipulation_examples.md)** — Master data verbs
-3. **[Pipeline Tutorial](pipeline_tutorial.md)** — Build reproducible workflows
-4. **[API Reference](api-reference.md)** — Complete function documentation
-
-## Common Issues
-
-### Flakes Not Enabled
-
-If you get `unrecognized command 'develop'`:
-
-```bash
-# Add to ~/.config/nix/nix.conf
-experimental-features = nix-command flakes
-```
-
-### Build Errors
-
-If `dune build` fails:
-
-```bash
-# Clean and rebuild
-dune clean
-dune build
-```
-
-### Missing Dependencies
-
-Make sure you're in the Nix development shell:
-
-```bash
-nix develop
-```
-
-All dependencies should be automatically available.
-
-## Learning Resources
-
-- **Examples Directory**: `examples/` contains practical T programs
-- **Tests Directory**: `tests/` shows expected behavior and usage patterns
-- **Website**: [tstats-project.org](https://tstats-project.org) for comprehensive docs
-
-## Getting Help
-
-- **GitHub Issues**: [github.com/b-rodrigues/tlang/issues](https://github.com/b-rodrigues/tlang/issues)
-- **Discussions**: Check existing issues for common questions
-
----
-
-Ready to dive deeper? Check out the [Language Overview](language_overview.md)!
+1. **[Pipeline Tutorial](pipeline_tutorial.html)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
+2. **[Project Development](project_development.html)** — Dive deeper into managing your `tproject.toml` and Nix environments.
+3. **[Language Overview](language_overview.html)** — Explore T's syntax, types, and standard library functions.
