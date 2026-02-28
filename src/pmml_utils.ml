@@ -155,8 +155,8 @@ let read_pmml path =
                       glm_stats := Some json
                     with _ -> ())
                | None -> ());
-            ignore_element (); loop ()
-        | `El_start _ -> ignore_element (); loop ()
+            loop ()
+        | `El_start _ -> loop ()
         | `El_end | `Data _ | `Dtd _ -> loop ()
     in
     loop ();

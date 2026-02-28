@@ -291,7 +291,7 @@ def _enrich_sklearn_pmml(model, path):
                 quality = ET.SubElement(reg_model, ns_prefix + 'PredictiveModelQuality')
                 for attr in ['r2_', 'adj_r2_', 'aic_', 'bic_', 'sigma_', 'nobs_', 'f_statistic_', 'f_p_value_', 'log_lik_', 'deviance_', 'df_residual_']:
                     if hasattr(model, attr):
-                        quality.set(attr.replace('_', '').replace('adjr2', 'adj-r2'), str(getattr(model, attr)))
+                        quality.set(attr.replace('_', "").replace('adjr2', 'adj-r2'), str(getattr(model, attr)))
                 tree.write(path)
         except Exception: pass
 
