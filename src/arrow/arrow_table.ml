@@ -153,6 +153,27 @@ let column_type (t : t) (name : string) : arrow_type option =
 let has_column (t : t) (name : string) : bool =
   List.mem_assoc name t.schema
 
+let get_string_column (t : t) (name : string) : string option array =
+  match get_column t name with
+  | Some (StringColumn a) -> a
+  | _ -> Array.make (num_rows t) None
+
+let get_float_column (t : t) (name : string) : float option array =
+  match get_column t name with
+  | Some (FloatColumn a) -> a
+  | Some (IntColumn a) -> Array.map (function Some i -> Some (float_of_int i) | None -> None) a
+  | _ -> Array.make (num_rows t) None
+
+let get_int_column (t : t) (name : string) : int option array =
+  match get_column t name with
+  | Some (IntColumn a) -> a
+  | _ -> Array.make (num_rows t) None
+
+let get_bool_column (t : t) (name : string) : bool option array =
+  match get_column t name with
+  | Some (BoolColumn a) -> a
+  | _ -> Array.make (num_rows t) None
+
 let get_int (col : column_data) (row : int) : int option =
   match col with
   | IntColumn a -> if row < Array.length a then a.(row) else None
@@ -308,3 +329,27 @@ let sort_by_indices (t : t) (indices : int array) : t =
   in
   let columns = List.map (fun (name, col) -> (name, sort_col col)) source_columns in
   { schema = t.schema; columns; nrows = n; native_handle = None }
+
+(** Materialize a pure OCaml table into a native Arrow-backed one.
+    Returns the table itself if it already has a native_handle. *)
+let materialize (t : t) : t =
+  match t.native_handle with
+  | Some handle when not handle.freed -> t
+  | _ ->
+    let tag_of = function
+      | ArrowInt64 -> 0 | ArrowFloat64 -> 1 | ArrowBoolean -> 2 | ArrowString -> 3 | ArrowNull -> 4
+    in
+    let ffi_cols = List.map (fun (name, type_) ->
+      let data = match List.assoc_opt name t.columns with
+        | Some (IntColumn a) -> Obj.magic a
+        | Some (FloatColumn a) -> Obj.magic a
+        | Some (BoolColumn a) -> Obj.magic a
+        | Some (StringColumn a) -> Obj.magic a
+        | Some (NullColumn n) -> Obj.magic (Array.make n None)
+        | None -> Obj.magic (Array.make t.nrows None)
+      in
+      (name, tag_of type_, data)
+    ) t.schema in
+    match Arrow_ffi.arrow_table_new ffi_cols with
+    | Some ptr -> create_from_native ptr t.schema t.nrows
+    | None -> t (* Fallback to self if FFI fails *)

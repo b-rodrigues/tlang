@@ -197,14 +197,13 @@ let read_ipc (path : string) : (Arrow_table.t, string) result =
 
 (** Write an Arrow table to an IPC file *)
 let write_ipc (table : Arrow_table.t) (path : string) : (unit, string) result =
+  let table = Arrow_table.materialize table in
   match table.native_handle with
   | Some handle when not handle.freed ->
       if Arrow_ffi.arrow_write_ipc handle.ptr path then Ok ()
       else Error ("Arrow IPC write failed: " ^ path)
   | _ -> 
-      (* For now, we only support writing native-backed tables to IPC.
-         In the future, we will add a native-ization bridge. *)
-      Error "Arrow IPC write is currently only supported for native-backed tables (e.g., read from CSV or IPC)"
+      Error "Arrow IPC write failed: could not materialize table to native Arrow format"
 
 (** Pure OCaml CSV reading fallback *)
 let read_csv_fallback (path : string) : (Arrow_table.t, string) result =

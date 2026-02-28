@@ -354,6 +354,8 @@ param:
   ;
 
 if_expr:
+  | IF LPAREN cond = expr RPAREN then_ = primary_expr
+    { IfElse { cond; then_; else_ = Value VNull } }
   | IF LPAREN cond = expr RPAREN then_ = primary_expr ELSE else_ = primary_expr
     { IfElse { cond; then_; else_ } }
   ;

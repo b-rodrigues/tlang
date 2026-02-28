@@ -15,6 +15,7 @@
 | [atan](atan.md) | Inverse tangent |
 | [atan2](atan2.md) | Two-argument arctangent |
 | [atanh](atanh.md) | Inverse hyperbolic tangent |
+| [augment](augment.md) | Augment Data with Model Calculations |
 | [body](body.md) | Get function body |
 | [build_pipeline](build_pipeline.md) | Build Pipeline Artifacts |
 | [build_pipeline_internal](build_pipeline_internal.md) | Build Pipeline Internally |
@@ -27,7 +28,10 @@
 | [char_at](char_at.md) | Get character at index |
 | [clean_colnames](clean_colnames.md) | Clean DataFrame Column Names |
 | [clean_names](clean_names.md) | Clean Column Names |
+| [coef](coef.md) | Model Coefficients |
 | [colnames](colnames.md) | Get column names |
+| [compare](compare.md) | Compare Models |
+| [conf_int](conf_int.md) | Confidence Intervals for Model Coefficients |
 | [contains](contains.md) | Check if string contains substring |
 | [cor](cor.md) | Correlation |
 | [cos](cos.md) | Cosine |
@@ -45,7 +49,9 @@
 | [dense_rank](dense_rank.md) | Dense Rank |
 | [deserialize](deserialize.md) | Deserialize Value |
 | [deserialize_from_file](deserialize_from_file.md) | Binary Deserialization |
+| [df_residual](df_residual.md) | Residual Degrees of Freedom |
 | [diag](diag.md) | Create or extract diagonal |
+| [dispersion](dispersion.md) | Dispersion Parameter |
 | [ends_with](ends_with.md) | Check if string ends with suffix |
 | [error](error.md) | Raise Error |
 | [error_code](error_code.md) | Get error code |
@@ -110,6 +116,7 @@
 | [ncol](ncol.md) | Number of columns |
 | [ndarray](ndarray.md) | Create an N-dimensional array |
 | [ndarray_data](ndarray_data.md) | Get NDArray data |
+| [nobs](nobs.md) | Number of Observations |
 | [node](node.md) | Configure a Pipeline Node |
 | [normalize](normalize.md) | Normalize values |
 | [nrow](nrow.md) | Number of rows |
@@ -124,6 +131,7 @@
 | [pipeline_run](pipeline_run.md) | Run Pipeline |
 | [populate_pipeline](populate_pipeline.md) | Populate Pipeline |
 | [pow](pow.md) | Power function |
+| [predict](predict.md) | Linear Model Prediction |
 | [pretty_print](pretty_print.md) | Pretty-print a value |
 | [print](print.md) | Print values to standard output |
 | [pull](pull.md) | Extract column as vector |
@@ -136,18 +144,21 @@
 | [replace](replace.md) | Replace all occurrences |
 | [replace_first](replace_first.md) | Replace first occurrence |
 | [reshape](reshape.md) | Reshape an NDArray |
+| [residuals](residuals.md) | Model Residuals |
 | [round](round.md) | Round values |
 | [row_number](row_number.md) | Row Number |
 | [run_doctor](run_doctor.md) | Run Package/Project Doctor |
 | [scaffold_package](scaffold_package.md) | Scaffold a new T package |
 | [scaffold_project](scaffold_project.md) | Scaffold a new T project |
 | [scale](scale.md) | Scale values |
+| [score](score.md) | Model Scoring |
 | [sd](sd.md) | Standard Deviation |
 | [select](select.md) | Select columns |
 | [seq](seq.md) | Generate a sequence of integers |
 | [serialize](serialize.md) | Serialize Value |
 | [serialize_to_file](serialize_to_file.md) | Binary Serialization |
 | [shape](shape.md) | Get NDArray dimensions |
+| [sigma](sigma.md) | Residual Standard Deviation |
 | [sign](sign.md) | Sign of number |
 | [signif](signif.md) | Significant-digit rounding |
 | [sin](sin.md) | Sine |
@@ -183,6 +194,7 @@
 | [ungroup](ungroup.md) | Remove grouping |
 | [update_flake_lock](update_flake_lock.md) | Update Dependencies |
 | [var](var.md) | Variance |
+| [vcov](vcov.md) | Variance-Covariance Matrix |
 | [winsorize](winsorize.md) | Winsorize values |
 | [write_csv](write_csv.md) | Write CSV file |
 | [write_registry](write_registry.md) | Registry Maintenance (Writer) |

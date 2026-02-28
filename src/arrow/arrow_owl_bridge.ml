@@ -167,6 +167,7 @@ type lm_result = {
   hat_values : float array;       (* length n: diagonal of hat matrix *)
   cooks_distance : float array;   (* length n *)
   std_residuals : float array;    (* length n *)
+  vcov : float array array;       (* p x p matrix *)
   term_names : string list;       (* "(Intercept)" :: predictor names *)
 }
 
@@ -447,6 +448,9 @@ let linreg_multi (xs_list : float array list) (ys : float array)
       let aic = -2.0 *. log_lik +. 2.0 *. (pf +. 1.0) in (* +1 for sigma *)
       let bic = -2.0 *. log_lik +. (pf +. 1.0) *. log nf in
       let term_names = "(Intercept)" :: predictor_names in
+      let vcov = Array.init p (fun i ->
+        Array.init p (fun j -> sigma2 *. xtx_inv.(i).(j))
+      ) in
       Some {
         coefficients = beta;
         std_errors = std_errs;
@@ -469,6 +473,7 @@ let linreg_multi (xs_list : float array list) (ys : float array)
         hat_values = hat_vals;
         cooks_distance = cooks_d;
         std_residuals = std_resid;
+        vcov;
         term_names;
       }
   end

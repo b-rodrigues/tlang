@@ -95,6 +95,9 @@ external arrow_table_filter_mask : nativeint -> bool array -> nativeint option
 external arrow_table_sort : nativeint -> string -> bool -> nativeint option
   = "caml_arrow_table_sort"
 
+external arrow_table_new : (string * int * 'a array) list -> nativeint option
+  = "caml_arrow_table_new"
+
 (* ===================================================================== *)
 (* Scalar Arithmetic Operations                                          *)
 (* ===================================================================== *)

@@ -61,6 +61,9 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
         VFloat (sqrt (Float.abs ss_i))
       else VFloat result.sigma
     )));
+    ("vcov", VList (Array.to_list (Array.map (fun row ->
+      (None, VVector (Array.map (fun x -> VFloat x) row))
+    ) result.vcov)));
   ] in
 
   (* Create coefficients dictionary *)
@@ -124,13 +127,14 @@ let register env =
         match n with None -> Some v | Some _ -> None
       ) args in
       (* Get required arguments: try named first, fall back to positional *)
-      let data_val = match List.assoc_opt "data" named with
+      (* Standard R convention: lm(formula, data) *)
+      let formula_val = match List.assoc_opt "formula" named with
         | Some v -> Some v
         | None -> (match positional with v :: _ -> Some v | [] -> None)
       in
-      let formula_val = match List.assoc_opt "formula" named with
+      let data_val = match List.assoc_opt "data" named with
         | Some v -> Some v
-        | None -> (match positional with _ :: v :: _ -> Some v | _ -> None)
+        | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when formula_val <> Some v -> Some v | _ -> None))
       in
       match (data_val, formula_val) with
       | (None, _) -> Error.make_error ArityError "Function `lm` missing required argument 'data'."
