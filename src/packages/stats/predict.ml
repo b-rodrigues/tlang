@@ -22,9 +22,19 @@ open Ast
 *)
 let register env =
   Env.add "predict"
-    (make_builtin ~name:"predict" 2 (fun args _env ->
-      match args with
-      | [VDataFrame df; VDict pairs] ->
+    (make_builtin_named ~name:"predict" ~variadic:true 0 (fun args _env ->
+      let named = List.filter_map (fun (n, v) -> match n with Some name -> Some (name, v) | None -> None) args in
+      let positional = List.filter_map (fun (n, v) -> match n with None -> Some v | Some _ -> None) args in
+      let data_v = match List.assoc_opt "data" named with
+        | Some v -> Some v
+        | None -> (match positional with v :: _ -> Some v | [] -> None)
+      in
+      let model_v = match List.assoc_opt "model" named with
+        | Some v -> Some v
+        | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_v <> Some v -> Some v | _ -> None))
+      in
+      match (data_v, model_v) with
+      | (Some (VDataFrame df), Some (VDict pairs)) ->
         (* Extract coefficients and intercept *)
         let coeffs = match List.assoc_opt "coefficients" pairs with
           | Some (VDict c) -> c
@@ -108,11 +118,11 @@ let register env =
               else VFloat (apply_link_inv x)
             ) out)
 
-      | [VDataFrame _; _] ->
+      | (Some (VDataFrame _), _) ->
           Error.type_error "Function `predict` expects a model (Dict) as second argument."
-      | [_; _] ->
+      | (Some _, _) ->
           Error.type_error "Function `predict` expects a DataFrame as first argument."
       | _ ->
-          Error.make_error ArityError "Function `predict` expects 2 arguments."
+          Error.make_error ArityError "Function `predict` expects 2 arguments (data, model)."
     ))
     env

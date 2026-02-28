@@ -18,9 +18,19 @@ open Ast
 *)
 let register env =
   Env.add "augment"
-    (make_builtin ~name:"augment" 2 (fun args _env ->
-      match args with
-      | [VDataFrame df; VDict model] ->
+    (make_builtin_named ~name:"augment" ~variadic:true 0 (fun args _env ->
+      let named = List.filter_map (fun (n, v) -> match n with Some name -> Some (name, v) | None -> None) args in
+      let positional = List.filter_map (fun (n, v) -> match n with None -> Some v | Some _ -> None) args in
+      let data_v = match List.assoc_opt "data" named with
+        | Some v -> Some v
+        | None -> (match positional with v :: _ -> Some v | [] -> None)
+      in
+      let model_v = match List.assoc_opt "model" named with
+        | Some v -> Some v
+        | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_v <> Some v -> Some v | _ -> None))
+      in
+      match (data_v, model_v) with
+      | (Some (VDataFrame df), Some (VDict model)) ->
         (* 1. Use residuals() to get fitted and resid *)
         let residuals_fn = match Env.find_opt "residuals" _env with
           | Some (VBuiltin b) -> b.b_func
@@ -66,6 +76,6 @@ let register env =
             
          | VError e -> VError e
          | _ -> Error.type_error "Function `residuals` did not return a DataFrame.")
-      | [VError _ as e; _] | [_; (VError _ as e)] -> e
+      | (Some (VError _ as e), _) | (_, Some (VError _ as e)) -> e
       | _ -> Error.type_error "Function `augment` expects (DataFrame, Model)."
     )) env

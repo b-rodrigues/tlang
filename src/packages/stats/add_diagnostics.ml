@@ -8,11 +8,11 @@ open Ast
 --# augments the data with model diagnostic columns (residuals, fitted values, etc.).
 --#
 --# @name add_diagnostics
+--# @param data :: DataFrame (Optional) The data to augment.
 --# @param model :: Model The model object.
---# @param data :: DataFrame (Optional) The data to augment. Defaults to model data.
 --# @return :: DataFrame The data with added diagnostic columns.
 --# @example
---#   df = add_diagnostics(model)
+--#   df = add_diagnostics(mtcars, model)
 --# @family stats
 --# @seealso lm
 --# @export
@@ -26,15 +26,15 @@ let register env =
       let positional = List.filter_map (fun (n, v) ->
         match n with None -> Some v | Some _ -> None
       ) args in
-      (* First positional or named "model" *)
-      let model_val = match List.assoc_opt "model" named with
+      (* First positional or named "data" *)
+      let data_val = match List.assoc_opt "data" named with
         | Some v -> Some v
         | None -> (match positional with v :: _ -> Some v | [] -> None)
       in
-      (* Second positional or named "data" — optional, falls back to _original_data *)
-      let data_val = match List.assoc_opt "data" named with
-        | Some v -> Some v
-        | None -> (match positional with _ :: v :: _ -> Some v | _ -> None)
+      (* Second positional or named "model" *)
+      let model_val = match List.assoc_opt "model" named with
+        | Some (VDict _) as v -> v
+        | _ -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
       in
       match model_val with
       | None -> Error.make_error ArityError "Function `add_diagnostics` missing required argument 'model'."
