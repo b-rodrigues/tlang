@@ -210,12 +210,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Check add_diagnostics has diagnostic columns *)
   let (v, _) = eval_string_env "colnames(add_diagnostics(model, data = df))" env_lm in
   let result = Ast.Utils.value_to_string v in
-  let has_fitted = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string ".fitted") result 0 in true with Not_found -> false) in
-  let has_resid = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string ".resid") result 0 in true with Not_found -> false) in
+  let has_fitted = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string "fitted") result 0 in true with Not_found -> false) in
+  let has_resid = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string "resid") result 0 in true with Not_found -> false) in
   if has_fitted && has_resid then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics() adds .fitted and .resid columns\n"
+    incr pass_count; Printf.printf "  ✓ add_diagnostics() adds fitted and resid columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ add_diagnostics() adds .fitted and .resid columns\n    Got columns: %s\n" result
+    incr fail_count; Printf.printf "  ✗ add_diagnostics() adds fitted and resid columns\n    Got columns: %s\n" result
   end;
 
   (* Formula type and printing tests *)

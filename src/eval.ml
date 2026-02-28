@@ -370,7 +370,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             | other -> other)
        | _ -> make_error ArityError "eval() expects exactly 1 argument")
 
-  | Call { fn = Var "node"; args } ->
+  | (Call { fn = Var "node"; args } | Call { fn = Var "pyn"; args } | Call { fn = Var "rn"; args }) as call ->
       let lookup_arg name default =
         match List.assoc_opt (Some name) args with
         | Some e -> e
@@ -394,7 +394,12 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         match eval_expr env_ref (lookup_arg name (Value (VBool default))) with
         | VBool b -> b | _ -> default
       in
-      let runtime = eval_string "runtime" "T" in
+      let default_runtime = match call with
+        | Call { fn = Var "pyn"; _ } -> "Python"
+        | Call { fn = Var "rn"; _ } -> "R"
+        | _ -> "T"
+      in
+      let runtime = eval_string "runtime" default_runtime in
       let command = lookup_arg "command" (Value VNull) in
       if runtime <> "T" then
         match command with
@@ -561,7 +566,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   (* Desugar nodes into enriched structures with defaults *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_expr = match node_expr with
-      | Call { fn = Var "node"; _ } | Var _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+      | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
     if is_node_expr then

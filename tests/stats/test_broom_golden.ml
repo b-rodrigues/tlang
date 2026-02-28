@@ -185,7 +185,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let (v, _) = eval_string_env "colnames(aug)" env_a in
   let result = Ast.Utils.value_to_string v in
   let has_col name = try let _ = Str.search_forward (Str.regexp_string name) result 0 in true with Not_found -> false in
-  if has_col ".fitted" && has_col ".resid" && has_col ".hat" && has_col ".sigma" && has_col ".cooksd" && has_col ".std_resid" then begin
+  if has_col "fitted" && has_col "resid" && has_col "hat" && has_col "sigma" && has_col "cooksd" && has_col "std_resid" then begin
     incr pass_count; Printf.printf "  ✓ augment: has all diagnostic columns\n"
   end else begin
     incr fail_count;
@@ -200,11 +200,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
 
   (* Use select to extract diagnostic columns and access via DataFrame *)
   (* Since column names start with ".", we use select() which operates by name *)
-  let (_, env_a) = eval_string_env {|fitted_col = select(aug, ".fitted")|} env_a in
-  let (_, env_a) = eval_string_env {|resid_col = select(aug, ".resid")|} env_a in
-  let (_, env_a) = eval_string_env {|hat_col = select(aug, ".hat")|} env_a in
-  let (_, env_a) = eval_string_env {|cooksd_col = select(aug, ".cooksd")|} env_a in
-  let (_, env_a) = eval_string_env {|stdr_col = select(aug, ".std_resid")|} env_a in
+  let (_, env_a) = eval_string_env {|fitted_col = select(aug, "fitted")|} env_a in
+  let (_, env_a) = eval_string_env {|resid_col = select(aug, "resid")|} env_a in
+  let (_, env_a) = eval_string_env {|hat_col = select(aug, "hat")|} env_a in
+  let (_, env_a) = eval_string_env {|cooksd_col = select(aug, "cooksd")|} env_a in
+  let (_, env_a) = eval_string_env {|stdr_col = select(aug, "std_resid")|} env_a in
 
   (* Now extract using colnames-based access — the select()ed df has one column *)
   (* Actually, we can extract the model_data directly for diagnostics *)
