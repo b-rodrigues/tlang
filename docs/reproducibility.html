@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - reproducibility</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="index.html">Home</a> |
+        <a href="getting-started.html">Get Started</a> |
+        <a href="language_overview.html">Overview</a> |
+        <a href="api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Programming Language - reproducibility</h1>
+</header>
+<h1 id="reproducibility-in-t">Reproducibility in T</h1>
+<p>How T ensures perfect reproducibility for data analysis through Nix
+integration and deterministic execution.</p>
+<h2 id="the-reproducibility-problem">The Reproducibility Problem</h2>
+<p>Traditional data science faces a reproducibility crisis:</p>
+<ul>
+<li><strong>Dependency Drift</strong>: Package versions change over
+time</li>
+<li><strong>Platform Differences</strong>: Code behaves differently on
+Linux vs macOS vs Windows</li>
+<li><strong>Hidden State</strong>: Random seeds, global variables,
+system time</li>
+<li><strong>Implicit Assumptions</strong>: Undocumented data
+preprocessing steps</li>
+</ul>
+<p><strong>Result</strong>: “Works on my machine” syndrome — analyses
+that can’t be reproduced months or years later.</p>
+<hr />
+<h2 id="ts-reproducibility-guarantee">T’s Reproducibility Guarantee</h2>
+<p>T provides <strong>perfect reproducibility</strong>: The same T code
+with the same data produces identical results, always.</p>
+<h3 id="three-pillars">Three Pillars</h3>
+<ol type="1">
+<li><strong>Nix Package Management</strong>: Frozen dependency
+versions</li>
+<li><strong>Deterministic Execution</strong>: No hidden randomness or
+state</li>
+<li><strong>Intent Blocks</strong>: Document assumptions and
+constraints</li>
+</ol>
+<hr />
+<h2 id="nix-integration">Nix Integration</h2>
+<h3 id="what-is-nix">What is Nix?</h3>
+<p>Nix is a declarative package manager that ensures: -
+<strong>Bit-for-bit identical builds</strong> across machines -
+<strong>Isolated environments</strong> (no global state) -
+<strong>Versioned dependencies</strong> (pinned to exact commits)</p>
+<h3 id="how-t-uses-nix">How T Uses Nix</h3>
+<p>Every T project is a <strong>Nix flake</strong>:</p>
+<p><strong><code>flake.nix</code></strong>:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">description</span> <span class="op">=</span> <span class="st">&quot;My T analysis project&quot;</span><span class="op">;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">inputs</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">nixpkgs</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:NixOS/nixpkgs/nixos-23.11&quot;</span><span class="op">;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.1.0&quot;</span><span class="op">;</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="va">outputs</span> <span class="op">=</span> <span class="op">{</span> <span class="va">self</span><span class="op">,</span> <span class="va">nixpkgs</span><span class="op">,</span> <span class="va">tlang</span> <span class="op">}</span>: <span class="op">{</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="va">devShell</span> <span class="op">=</span> nixpkgs<span class="op">.</span>lib<span class="op">.</span>mkShell <span class="op">{</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>      <span class="va">buildInputs</span> <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>        tlang<span class="op">.</span>packages<span class="op">.</span><span class="sc">${</span>system<span class="sc">}</span><span class="op">.</span>default</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Any other dependencies</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>      <span class="op">];</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p><strong>Lock file</strong> (<code>flake.lock</code>): Pins exact
+versions</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;nodes&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;tlang&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;locked&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;narHash&quot;</span><span class="fu">:</span> <span class="st">&quot;sha256-...&quot;</span><span class="fu">,</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;rev&quot;</span><span class="fu">:</span> <span class="st">&quot;abc123...&quot;</span><span class="fu">,</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;github&quot;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="reproducibility-across-time">Reproducibility Across Time</h3>
+<p><strong>Scenario</strong>: You run an analysis today. A colleague
+tries to run it in 2026.</p>
+<p><strong>Without Nix</strong>: - Package versions have changed - APIs
+have breaking changes - Results differ or code errors</p>
+<p><strong>With Nix</strong>:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2026: Same exact environment as 2024</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop github:myuser/my-analysis<span class="pp">?</span>rev=abc123</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe <span class="op">&lt;</span> analysis.t</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Identical output, guaranteed</span></span></code></pre></div>
+<p>The <code>flake.lock</code> file ensures every dependency (OCaml,
+Arrow, system libraries) is pinned to the exact version used
+originally.</p>
+<hr />
+<h2 id="deterministic-execution">Deterministic Execution</h2>
+<h3 id="no-hidden-randomness">No Hidden Randomness</h3>
+<p>T has <strong>no built-in randomness</strong>: - No random number
+generators (RNG) - No random seeds - No sampling without explicit
+seed</p>
+<p><strong>To add randomness</strong> (future feature):</p>
+<pre class="t"><code>-- Explicit, reproducible randomness
+rng = random_seed(12345)
+sample = random_sample(data, 100, rng)</code></pre>
+<h3 id="no-implicit-state">No Implicit State</h3>
+<ul>
+<li><strong>No global variables</strong>: All state is explicit in
+pipelines</li>
+<li><strong>No system time</strong>: Computations don’t depend on
+clock</li>
+<li><strong>No file system side effects</strong> (except explicit
+I/O)</li>
+</ul>
+<h3 id="deterministic-pipelines">Deterministic Pipelines</h3>
+<p>Pipelines execute in <strong>topological order</strong> (determined
+by dependencies):</p>
+<pre class="t"><code>p = pipeline {
+  z = x + y
+  x = 10
+  y = 20
+}
+-- Always executes: x, y, then z
+-- Order of declaration doesn&#39;t matter</code></pre>
+<p><strong>Same inputs → Same outputs</strong>, always.</p>
+<hr />
+<h2 id="documenting-assumptions-with-intent-blocks">Documenting
+Assumptions with Intent Blocks</h2>
+<p>Intent blocks make <strong>implicit knowledge explicit</strong>:</p>
+<pre class="t"><code>intent {
+  description: &quot;Customer churn prediction for Q4 2023&quot;,
+  
+  data_source: &quot;customers.csv from Salesforce export 2023-12-31&quot;,
+  
+  assumptions: [
+    &quot;Churn defined as no purchase in 90 days&quot;,
+    &quot;Test accounts excluded (account_type != &#39;test&#39;)&quot;,
+    &quot;Incomplete records removed (age, email must be present)&quot;
+  ],
+  
+  constraints: [
+    &quot;Age between 18 and 100&quot;,
+    &quot;Email format validated&quot;,
+    &quot;Purchase amounts &gt; 0&quot;
+  ],
+  
+  preprocessing: [
+    &quot;Column names cleaned (snake_case)&quot;,
+    &quot;NA values in &#39;income&#39; imputed with median&quot;,
+    &quot;Outliers beyond 3σ removed&quot;
+  ],
+  
+  environment: {
+    t_version: &quot;0.1.0&quot;,
+    nix_revision: &quot;abc123&quot;,
+    run_date: &quot;2024-01-15&quot;
+  }
+}
+
+-- Analysis code follows...</code></pre>
+<p><strong>Benefits</strong>: - Future readers understand context - LLMs
+can regenerate code correctly - Auditors can verify assumptions -
+Changes to assumptions are versioned (Git)</p>
+<hr />
+<h2 id="reproducible-workflow-example">Reproducible Workflow
+Example</h2>
+<h3 id="project-structure">Project Structure</h3>
+<pre><code>my-analysis/
+├── flake.nix           # Nix configuration
+├── flake.lock          # Locked dependencies
+├── data/
+│   └── sales.csv       # Input data (or fetch script)
+├── scripts/
+│   └── analysis.t      # T analysis script
+├── outputs/
+│   └── report.csv      # Generated results
+└── README.md           # Documentation</code></pre>
+<h3 id="step-1-create-nix-flake">Step 1: Create Nix Flake</h3>
+<p><strong><code>flake.nix</code></strong>:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">description</span> <span class="op">=</span> <span class="st">&quot;Q4 2023 Sales Analysis&quot;</span><span class="op">;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">inputs</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">nixpkgs</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:NixOS/nixpkgs/nixos-23.11&quot;</span><span class="op">;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.1.0&quot;</span><span class="op">;</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="va">outputs</span> <span class="op">=</span> <span class="op">{</span> <span class="va">self</span><span class="op">,</span> <span class="va">nixpkgs</span><span class="op">,</span> <span class="va">tlang</span> <span class="op">}</span>: <span class="op">{</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ... configuration ...</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h3 id="step-2-write-analysis-with-intent">Step 2: Write Analysis with
+Intent</h3>
+<p><strong><code>scripts/analysis.t</code></strong>:</p>
+<pre class="t"><code>intent {
+  description: &quot;Q4 2023 revenue analysis by region&quot;,
+  data_source: &quot;data/sales.csv (exported 2023-12-31)&quot;,
+  assumptions: &quot;All sales in USD, no refunds included&quot;,
+  created: &quot;2024-01-15&quot;,
+  author: &quot;Data Team&quot;
+}
+
+sales = read_csv(&quot;data/sales.csv&quot;, clean_colnames = true)
+
+analysis = pipeline {
+  cleaned = sales
+    |&gt; filter($amount &gt; 0)
+    |&gt; filter(not is_na($region))
+  
+  by_region = cleaned
+    |&gt; group_by($region)
+    |&gt; summarize($total_revenue = sum($amount))
+    |&gt; arrange($total_revenue, &quot;desc&quot;)
+}
+
+write_csv(analysis.by_region, &quot;outputs/report.csv&quot;)</code></pre>
+<h3 id="step-3-run-analysis">Step 3: Run Analysis</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Enter reproducible environment</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Run analysis</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe <span class="op">&lt;</span> scripts/analysis.t</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Output: outputs/report.csv</span></span></code></pre></div>
+<h3 id="step-4-version-control">Step 4: Version Control</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> init</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add flake.nix flake.lock scripts/ data/ README.md</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">&quot;Initial Q4 2023 analysis&quot;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> tag v1.0.0</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> push</span></code></pre></div>
+<h3 id="step-5-reproduce-anywhere">Step 5: Reproduce Anywhere</h3>
+<p><strong>On any machine, any time</strong>:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Clone project</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/myorg/q4-analysis.git</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> q4-analysis</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Enter exact same environment</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Run analysis</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe <span class="op">&lt;</span> scripts/analysis.t</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify identical output</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="fu">diff</span> outputs/report.csv expected_report.csv</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co"># (No differences)</span></span></code></pre></div>
+<hr />
+<h2 id="reproducibility-checklist">Reproducibility Checklist</h2>
+<h3 id="for-every-analysis">For Every Analysis</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Use Nix flake with locked
+dependencies</label></li>
+<li><label><input type="checkbox" />Add intent block documenting
+assumptions</label></li>
+<li><label><input type="checkbox" />Explicit NA handling
+(<code>na_rm = true</code> where needed)</label></li>
+<li><label><input type="checkbox" />No randomness without explicit
+seeds</label></li>
+<li><label><input type="checkbox" />Version control everything (code +
+<code>flake.lock</code>)</label></li>
+<li><label><input type="checkbox" />Document data sources and
+versions</label></li>
+<li><label><input type="checkbox" />Test re-execution produces identical
+results</label></li>
+</ul>
+<h3 id="for-sharing">For Sharing</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Include <code>flake.nix</code> and
+<code>flake.lock</code></label></li>
+<li><label><input type="checkbox" />Document data download/preparation
+steps</label></li>
+<li><label><input type="checkbox" />Provide expected outputs for
+verification</label></li>
+<li><label><input type="checkbox" />Include README with run
+instructions</label></li>
+<li><label><input type="checkbox" />Tag releases with Git
+(<code>git tag v1.0.0</code>)</label></li>
+</ul>
+<h3 id="for-long-term-storage">For Long-Term Storage</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Archive with Zenodo or similar
+(DOI)</label></li>
+<li><label><input type="checkbox" />Include all dependencies in
+archive</label></li>
+<li><label><input type="checkbox" />Document minimum system
+requirements</label></li>
+<li><label><input type="checkbox" />Provide checksum for
+verification</label></li>
+</ul>
+<hr />
+<h2 id="advanced-reproducibility">Advanced Reproducibility</h2>
+<h3 id="containerization">Containerization</h3>
+<p>Nix + Docker for maximum portability:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> nixos/nix</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">WORKDIR</span> /analysis</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="kw">COPY</span> . .</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">nix</span> develop <span class="at">--command</span> dune build</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">&quot;nix&quot;</span>, <span class="st">&quot;develop&quot;</span>, <span class="st">&quot;--command&quot;</span>, <span class="st">&quot;dune&quot;</span>, <span class="st">&quot;exec&quot;</span>, <span class="st">&quot;src/repl.exe&quot;</span>, <span class="st">&quot;&lt;&quot;</span>, <span class="st">&quot;analysis.t&quot;</span>]</span></code></pre></div>
+<h3 id="continuous-integration">Continuous Integration</h3>
+<p>Verify reproducibility on every commit:</p>
+<p><strong><code>.github/workflows/reproduce.yml</code></strong>:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> Verify Reproducibility</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="fu">on</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">push</span><span class="kw">]</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="fu">jobs</span><span class="kw">:</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">reproduce</span><span class="kw">:</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">runs-on</span><span class="kw">:</span><span class="at"> ubuntu-latest</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">steps</span><span class="kw">:</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/checkout@v2</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> cachix/install-nix-action@v15</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> nix develop --command dune exec src/repl.exe &lt; analysis.t</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> diff outputs/result.csv expected_result.csv</span></span></code></pre></div>
+<h3 id="data-versioning">Data Versioning</h3>
+<p>Use DVC or Git-LFS for data versioning:</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Track data files</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dvc</span> add data/sales.csv</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add data/sales.csv.dvc</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Data is versioned alongside code</span></span></code></pre></div>
+<hr />
+<h2 id="reproducibility-vs-performance">Reproducibility vs
+Performance</h2>
+<p><strong>Trade-off</strong>: Perfect reproducibility sometimes costs
+performance.</p>
+<p><strong>Strategies</strong>:</p>
+<ol type="1">
+<li><strong>Cache expensive computations</strong> (Nix store)</li>
+<li><strong>Parallelize where deterministic</strong> (map/reduce)</li>
+<li><strong>Profile and optimize hot paths</strong> (keep
+determinism)</li>
+<li><strong>Document performance assumptions</strong> (hardware,
+runtime)</li>
+</ol>
+<p><strong>Example</strong>:</p>
+<pre class="t"><code>intent {
+  performance: &quot;Optimized for 8-core CPU, 16GB RAM&quot;,
+  runtime_expected: &quot;5 minutes on reference hardware&quot;,
+  caching: &quot;Pipeline nodes cached in .cache/&quot;
+}</code></pre>
+<hr />
+<h2 id="reproducibility-best-practices">Reproducibility Best
+Practices</h2>
+<ol type="1">
+<li><strong>Pin Everything</strong>: Nix locks all dependencies</li>
+<li><strong>Document Everything</strong>: Intent blocks capture
+assumptions</li>
+<li><strong>Test Everything</strong>: Verify results are identical on
+re-run</li>
+<li><strong>Version Everything</strong>: Git for code, DVC for data</li>
+<li><strong>Share Everything</strong>: Public repos, archived
+datasets</li>
+</ol>
+<hr />
+<p><strong>See Also</strong>: - <a href="installation.md">Installation
+Guide</a> — Setting up Nix - <a href="pipeline_tutorial.md">Pipeline
+Tutorial</a> — Building reproducible workflows - <a
+href="llm-collaboration.md">LLM Collaboration</a> — Intent blocks for
+AI</p>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

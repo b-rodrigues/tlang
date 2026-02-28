@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - arrays</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="index.html">Home</a> |
+        <a href="getting-started.html">Get Started</a> |
+        <a href="language_overview.html">Overview</a> |
+        <a href="api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Programming Language - arrays</h1>
+</header>
+<h1 id="numerical-arrays-ndarrays">Numerical Arrays (NDArrays)</h1>
+<p>Numerical arrays (NDArrays) are first-class data structures in T
+designed for high-performance numerical computation, linear algebra, and
+statistical operations. Unlike lists, NDArrays have a fixed shape and
+optimized storage for numeric data.</p>
+<h2 id="creating-arrays">Creating Arrays</h2>
+<p>You can create an NDArray using the <code>ndarray()</code> function.
+It can infer the shape from a nested list or accept an explicit
+shape.</p>
+<h3 id="from-nested-lists">From Nested Lists</h3>
+<pre class="t"><code>-- Create a 1D array (vector)
+v = ndarray([1, 2, 3, 4, 5])
+
+-- Create a 2D array (matrix)
+m = ndarray([[1, 2, 3], [4, 5, 6]])
+
+-- Access shape and data
+print(shape(m))        -- [2, 3]
+print(ndarray_data(m)) -- [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]</code></pre>
+<h3 id="with-explicit-shape">With Explicit Shape</h3>
+<pre class="t"><code>-- Create a 2x3 matrix from a flat list
+m = ndarray([1, 2, 3, 4, 5, 6], shape = [2, 3])</code></pre>
+<h2 id="array-operations">Array Operations</h2>
+<h3 id="element-wise-arithmetic">Element-wise Arithmetic</h3>
+<p>NDArrays support standard arithmetic operators (+, -, *, /) and
+comparison operators (==, !=, &lt;, &gt;, &lt;=, &gt;=). These
+operations are applied element-wise.</p>
+<pre class="t"><code>a = ndarray([[1, 2], [3, 4]])
+b = ndarray([[5, 6], [7, 8]])
+
+c = a + b    -- [[6, 8], [10, 12]]
+d = a * 2    -- [[2, 4], [6, 8]] (Broadcasting)</code></pre>
+<h3 id="broadcasting">Broadcasting</h3>
+<p>Operations between an NDArray and a scalar value automatically
+“broadcast” the scalar to match the shape of the array.</p>
+<pre class="t"><code>m = ndarray([1, 2, 3])
+res = m + 10  -- [11, 12, 13]</code></pre>
+<h3 id="linear-algebra">Linear Algebra</h3>
+<p>T provides specific functions for matrix operations:</p>
+<ul>
+<li><strong><code>matmul(a, b)</code></strong>: Performs matrix
+multiplication between two 2D arrays.</li>
+<li><strong><code>kron(a, b)</code></strong>: Computes the Kronecker
+product of two 2D arrays.</li>
+<li><strong><code>diag(x)</code></strong>: For a 1D array, returns a
+square diagonal matrix; for a 2D array, extracts its main diagonal.</li>
+<li><strong><code>inv(a)</code></strong>: Computes the inverse of a
+square 2D array.</li>
+</ul>
+<pre class="t"><code>a = ndarray([[1, 2], [3, 4]])
+i = ndarray([[1, 0], [0, 1]])
+
+res = matmul(a, i) -- Returns &#39;a&#39;
+main_diag = diag(a)  -- [1.0, 4.0]
+inverse = inv(a)     -- [[-2.0, 1.0], [1.5, -0.5]]</code></pre>
+<h2 id="reshaping-and-introspection">Reshaping and Introspection</h2>
+<ul>
+<li><strong><code>shape(arr)</code></strong>: Returns the dimensions of
+the array as a list.</li>
+<li><strong><code>ndarray_data(arr)</code></strong>: Returns the
+underlying flat data as a list of floats.</li>
+<li><strong><code>reshape(arr, new_shape)</code></strong>: Returns a new
+array with the same data but a different shape. The total number of
+elements must remain consistent.</li>
+</ul>
+<pre class="t"><code>m = ndarray([1, 2, 3, 4, 5, 6], shape = [2, 3])
+m2 = m |&gt; reshape([3, 2]) -- Reshapes to 3 rows, 2 columns</code></pre>
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+<li>NDArrays cannot contain <code>NA</code> values. Handle missing data
+before converting to arrays.</li>
+<li>Prefer NDArrays over lists for large numerical datasets to benefit
+from optimized performance and specialized linear algebra
+functions.</li>
+</ul>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - models</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="index.html">Home</a> |
+        <a href="getting-started.html">Get Started</a> |
+        <a href="language_overview.html">Overview</a> |
+        <a href="api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Programming Language - models</h1>
+</header>
+<h1 id="statistical-models-tidy-output">Statistical Models &amp; Tidy
+Output</h1>
+<blockquote>
+<p>[!IMPORTANT] <strong>Native Support Note</strong>: <span
+class="math inline"><em>T</em></span> currently provides a native
+implementation for Linear Models (<code>lm</code>) for convenience. For
+more advanced modeling (GLMs, Mixed Models, Machine Learning), <span
+class="math inline"><em>T</em></span> uses a “Polyglot” approach where
+models are trained in R or Python nodes and then consumed natively in T
+via PMML.</p>
+</blockquote>
+<p><span class="math inline"><em>T</em></span> treats models as
+first-class objects that can be summarized and evaluated regardless of
+which runtime created them.</p>
+<h2 id="fitting-models">Fitting Models</h2>
+<h3 id="lm-linear-regression-native"><code>lm()</code> — Linear
+Regression (Native)</h3>
+<p>Fits an Ordinary Least Squares (OLS) model. Following <span
+class="math inline"><em>T</em></span>’s “Data First” philosophy, the
+dataset is the first argument.</p>
+<pre class="t"><code>-- Positional: data, then formula
+model = lm(mtcars, mpg ~ wt + hp)
+
+-- Named args also supported
+model = lm(data = mtcars, formula = mpg ~ wt + hp)</code></pre>
+<h3 id="advanced-modeling-polyglot">Advanced Modeling (Polyglot)</h3>
+<p>To fit models beyond simple OLS, you should use <code>R</code> or
+<code>Python</code> nodes within a <span
+class="math inline"><em>T</em></span> pipeline. These nodes produce a
+model object that is serialized to PMML, allowing <span
+class="math inline"><em>T</em></span> to consume it natively for
+inspection and prediction.</p>
+<h4 id="example-logistic-regression-in-r">Example: Logistic Regression
+in R</h4>
+<pre class="t"><code>p = pipeline {
+    model_node = node(
+        command = &lt;{
+            glm(Survived ~ Pclass + Sex + Age, data = titanic, family = binomial())
+        }&gt;,
+        runtime = R,
+        serializer = &quot;pmml&quot;
+    )
+}
+build_pipeline(p)
+model = read_node(&quot;model_node&quot;)
+summary(model) -- Fully supported in T!</code></pre>
+<hr />
+<h2 id="model-inspection-diagnostics">Model Inspection &amp;
+Diagnostics</h2>
+<blockquote>
+<p>[!TIP] <strong>Native Convenience</strong>: All model inspection and
+diagnostic functions are implemented natively in <span
+class="math inline"><em>T</em></span>. This means that even if a model
+was originally trained in R or Python (and imported via PMML), you can
+perform summaries, calculate residuals, and run hypothesis tests
+<strong>without</strong> needing an active R or Python environment. This
+approach provides significant speed advantages and simplifies
+high-performance pipelines.</p>
+</blockquote>
+<p><span class="math inline"><em>T</em></span> adopts the
+<code>broom</code> philosophy: model outputs should be DataFrames or
+Tidy Dictionaries.</p>
+<h3 id="summarymodel"><code>summary(model)</code></h3>
+<p>Returns a tidy representation of coefficients. * For native
+<code>lm</code>, it returns a DataFrame. * For some imported models, it
+returns a Dict where the tidy DataFrame is in <code>_tidy_df</code>.</p>
+<pre class="t"><code>s = summary(model)
+s._tidy_df
+-- # A DataFrame: 3 × 5
+--   term         estimate  std_error  statistic  p_value</code></pre>
+<h3 id="coefmodel"><code>coef(model)</code></h3>
+<p>A convenience function that returns a two-column DataFrame with just
+<code>term</code> and <code>estimate</code>.</p>
+<h3 id="fit_statsmodel"><code>fit_stats(model)</code></h3>
+<p>Returns a single-row DataFrame of model-level statistics (R-squared,
+AIC, BIC, etc.).</p>
+<pre class="t"><code>stats = fit_stats(model)
+-- # A DataFrame: 1 × 15
+--   r_squared  adj_r_squared  aic    bic    nobs</code></pre>
+<h3
+id="conf_intmodel-level-0.95"><code>conf_int(model, level = 0.95)</code></h3>
+<p>Computes confidence intervals for model coefficients.</p>
+<pre class="t"><code>ci = conf_int(model, level: 0.99)
+-- # A DataFrame: 3 × 3
+--   term         lower     upper</code></pre>
+<h3
+id="comparemodel1-model2-..."><code>compare(model1, model2, ...)</code></h3>
+<p>Aligns multiple model coefficient tables into a single wide DataFrame
+for side-by-side comparison.</p>
+<pre class="t"><code>comp = compare(m1, m2)
+-- Returns DataFrame with columns: estimate_1, std_error_1, ..., estimate_2, ...</code></pre>
+<h3 id="augmentdata-model"><code>augment(data, model)</code></h3>
+<p>Augments the original data with core model-based columns:
+<code>fitted</code>, <code>resid</code>, and <code>std_resid</code>.</p>
+<pre class="t"><code>aug = augment(mtcars, model)
+-- Adds columns: fitted, resid, std_resid</code></pre>
+<h3
+id="add_diagnosticsdata-model"><code>add_diagnostics(data, model)</code></h3>
+<p>Similar to <code>augment</code>, but adds a more comprehensive set of
+diagnostic columns (leverage, influence, etc.).</p>
+<pre class="t"><code>diag = add_diagnostics(mtcars, model)
+-- Adds columns: fitted, resid, hat, sigma, cooksd, std_resid</code></pre>
+<h3
+id="residualsdata-model-type-response"><code>residuals(data, model, type = "response")</code></h3>
+<p>Returns a DataFrame containing the <code>actual</code> response, the
+<code>fitted</code> values, and the calculated <code>resid</code>
+(residuals).</p>
+<pre class="t"><code>res = residuals(mtcars, model, type: &quot;pearson&quot;)
+-- # A DataFrame: 32 × 3 [actual, fitted, resid]</code></pre>
+<hr />
+<h2 id="hypothesis-testing-diagnostics">Hypothesis Testing &amp;
+Diagnostics</h2>
+<h3
+id="anovamodel1-model2-..."><code>anova(model1, model2, ...)</code></h3>
+<p>Performs Analysis of Variance (ANOVA) comparing two or more nested
+models.</p>
+<pre class="t"><code>m1 = lm(mtcars, mpg ~ wt)
+m2 = lm(mtcars, mpg ~ wt + hp + qsec)
+av = anova(m1, m2)
+-- Returns an ANOVA table with Statistics and P-values</code></pre>
+<h3
+id="wald_testmodel-terms-value-0.0"><code>wald_test(model, terms, value = 0.0)</code></h3>
+<p>Performs a joint Wald test on a subset of model coefficients.</p>
+<pre class="t"><code>-- Test if both &#39;hp&#39; and &#39;qsec&#39; are jointly equal to zero
+w = wald_test(model, terms: [&quot;hp&quot;, &quot;qsec&quot;])</code></pre>
+<h3 id="vcovmodel"><code>vcov(model)</code></h3>
+<p>Returns the Variance-Covariance matrix of the coefficients as a
+square DataFrame.</p>
+<pre class="t"><code>v = vcov(model)</code></pre>
+<hr />
+<h2 id="prediction">Prediction</h2>
+<p>The <code>predict(data, model)</code> function performs vectorized
+predictions natively in <span class="math inline"><em>T</em></span>.</p>
+<pre class="t"><code>-- Fast, native evaluation in T
+-- Even if the model was trained in R or Python (and imported via PMML)
+preds = predict(new_data, model)</code></pre>
+<p><span class="math inline"><em>T</em></span> supports various link
+functions for GLMs (imported via PMML), including
+<strong>Logit</strong>, <strong>Probit</strong>, <strong>Log</strong>,
+<strong>Inverse</strong>, and <strong>Cloglog</strong>.</p>
+<hr />
+<h2 id="model-interchange-pmml">Model Interchange &amp; PMML</h2>
+<h3 id="why-pmml">Why PMML?</h3>
+<p>The <strong>Predictive Model Markup Language (PMML)</strong> is the
+bridge between <span class="math inline"><em>T</em></span> and other
+runtimes. It allows: 1. <strong>R Integration</strong>: Using any R
+model that has a PMML exporter (e.g. <code>stats::glm</code>,
+<code>survival::coxph</code>). 2. <strong>Python Integration</strong>:
+Using <code>scikit-learn</code> or <code>statsmodels</code>. 3.
+<strong>Reproducibility</strong>: Models persist independently of the
+original runtime code.</p>
+<h3 id="cross-runtime-consistency">Cross-Runtime Consistency</h3>
+<p><span class="math inline"><em>T</em></span>’s statistical evaluator
+is verified against R’s reference implementation. Results match R’s
+<code>broom::tidy()</code> and <code>stats::predict()</code>
+exactly.</p>
+<hr />
+<h2 id="comparison-with-rs-broom-package">Comparison with R’s broom
+Package</h2>
+<table>
+<thead>
+<tr>
+<th>R (broom) / stats</th>
+<th>T equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>broom::tidy(fit)</code></td>
+<td><code>summary(model)</code></td>
+</tr>
+<tr>
+<td><code>broom::glance(fit)</code></td>
+<td><code>fit_stats(model)</code></td>
+</tr>
+<tr>
+<td><code>broom::augment(fit, data)</code></td>
+<td><code>augment(df, model)</code></td>
+</tr>
+<tr>
+<td><code>stats::residuals(fit)</code></td>
+<td><code>residuals(df, model)</code></td>
+</tr>
+<tr>
+<td><code>stats::coef(fit)</code></td>
+<td><code>coef(model)</code></td>
+</tr>
+<tr>
+<td><code>stats::vcov(fit)</code></td>
+<td><code>vcov(model)</code></td>
+</tr>
+<tr>
+<td><code>stats::anova(m1, m2)</code></td>
+<td><code>anova(m1, m2)</code></td>
+</tr>
+<tr>
+<td><code>survey::regTermTest</code></td>
+<td><code>wald_test(model, terms)</code></td>
+</tr>
+</tbody>
+</table>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

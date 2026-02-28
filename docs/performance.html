@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - performance</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="index.html">Home</a> |
+        <a href="getting-started.html">Get Started</a> |
+        <a href="language_overview.html">Overview</a> |
+        <a href="api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Programming Language - performance</h1>
+</header>
+<h1 id="performance">Performance</h1>
+<blockquote>
+<p>Arrow backend architecture, vectorization strategy, and performance
+expectations</p>
+</blockquote>
+<hr />
+<h2 id="arrow-backend-architecture">Arrow Backend Architecture</h2>
+<p>T’s DataFrame operations are backed by <a
+href="https://arrow.apache.org/">Apache Arrow</a>, a columnar memory
+format designed for efficient analytical processing. The Arrow
+integration provides:</p>
+<ul>
+<li><strong>Zero-copy column access</strong>: Column views reference the
+underlying Arrow buffer directly, avoiding data copies when reading
+column data</li>
+<li><strong>Vectorized compute</strong>: Arithmetic, math, and
+comparison operations use Arrow Compute kernels for SIMD-accelerated
+processing</li>
+<li><strong>Native CSV reading</strong>: Large CSV files are parsed
+using Arrow C GLib’s CSV reader for maximum throughput</li>
+<li><strong>Hash-based grouping</strong>: <code>group_by()</code>
+operations use Arrow’s hash-based grouping when a native handle is
+present</li>
+</ul>
+<h3 id="dual-path-architecture">Dual-Path Architecture</h3>
+<p>Every operation in T follows a <strong>dual-path</strong>
+pattern:</p>
+<ol type="1">
+<li><strong>Native Arrow path</strong>: When the table has a
+<code>native_handle</code> (e.g., from <code>read_csv()</code>),
+operations delegate to Arrow Compute kernels via FFI for zero-copy,
+vectorized execution</li>
+<li><strong>Pure OCaml fallback</strong>: When no native handle is
+present (e.g., after <code>mutate()</code> materializes a table),
+operations use pure OCaml implementations that work on typed columnar
+arrays</li>
+</ol>
+<p>This ensures correctness regardless of backing storage, while
+maximizing performance when native Arrow buffers are available.</p>
+<h3 id="zero-copy-column-views">Zero-Copy Column Views</h3>
+<p>The <code>Arrow_column</code> module provides
+<code>column_view</code> and <code>numeric_view</code> types that
+reference the backing Arrow table without copying data:</p>
+<pre><code>┌─────────────────────────────────────────────┐
+│ Arrow Table (native memory)                 │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐    │
+│  │ Column A │ │ Column B │ │ Column C │    │
+│  │ (Float64)│ │ (Int64)  │ │ (String) │    │
+│  └──────────┘ └──────────┘ └──────────┘    │
+└─────────────────────────────────────────────┘
+       ↑               ↑
+  FloatView ba     IntView ba
+  (Bigarray)       (Bigarray)
+  (zero-copy)      (zero-copy)</code></pre>
+<p>For numeric columns (<code>Float64</code>, <code>Int64</code>),
+<code>zero_copy_view</code> returns a Bigarray that shares memory with
+the Arrow buffer — no allocation or copying occurs. The GC finalizer on
+the backing table ensures the Arrow memory remains valid.</p>
+<hr />
+<h2 id="when-vectorization-is-used-vs.-fallback">When Vectorization Is
+Used vs. Fallback</h2>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 37%" />
+<col style="width: 41%" />
+</colgroup>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Native Arrow Path</th>
+<th>Pure OCaml Fallback</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>select()</code> (project)</td>
+<td>Zero-copy column selection</td>
+<td>List-based column lookup</td>
+</tr>
+<tr>
+<td><code>filter()</code></td>
+<td>Arrow filter kernel with bool mask</td>
+<td>Element-wise mask application</td>
+</tr>
+<tr>
+<td><code>arrange()</code> (sort)</td>
+<td>Arrow sort kernel</td>
+<td>Index-based reordering</td>
+</tr>
+<tr>
+<td><code>add_scalar</code>, <code>multiply_scalar</code>, etc.</td>
+<td>Arrow Compute arithmetic kernels</td>
+<td>Element-wise loop</td>
+</tr>
+<tr>
+<td><code>sqrt</code>, <code>abs</code>, <code>log</code>,
+<code>exp</code>, <code>pow</code></td>
+<td>Arrow Compute unary kernels</td>
+<td><code>Array.map</code> with stdlib math</td>
+</tr>
+<tr>
+<td><code>sum</code>, <code>mean</code>, <code>min</code>,
+<code>max</code></td>
+<td>Arrow Compute aggregation kernels</td>
+<td><code>Array.fold_left</code></td>
+</tr>
+<tr>
+<td><code>compare</code> (eq, lt, gt, le, ge)</td>
+<td>Arrow Compute comparison kernel</td>
+<td>Element-wise comparison</td>
+</tr>
+<tr>
+<td><code>group_by</code></td>
+<td>Arrow hash-based grouping</td>
+<td>Hashtable-based grouping</td>
+</tr>
+<tr>
+<td><code>group_aggregate</code> (sum, mean, count)</td>
+<td>Arrow group aggregation kernels</td>
+<td>Per-group fold</td>
+</tr>
+</tbody>
+</table>
+<p><strong>When does the fallback trigger?</strong></p>
+<ul>
+<li>After <code>mutate()</code> adds or replaces a column, the table is
+materialized as pure OCaml (the native handle is dropped)</li>
+<li>After <code>add_column()</code> modifies the table structure</li>
+<li>When the Arrow C GLib library is not available at build time</li>
+</ul>
+<hr />
+<h2 id="performance-expectations-by-dataset-size">Performance
+Expectations by Dataset Size</h2>
+<p>The following expectations assume standard hardware (modern x86-64,
+8+ GB RAM) and typical datasets with 10–20 columns:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>10k rows</th>
+<th>100k rows</th>
+<th>1M rows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Column selection (<code>select</code>)</td>
+<td>&lt;10ms</td>
+<td>&lt;50ms</td>
+<td>&lt;500ms</td>
+</tr>
+<tr>
+<td>Row filtering (<code>filter</code>)</td>
+<td>&lt;10ms</td>
+<td>&lt;100ms</td>
+<td>&lt;1s</td>
+</tr>
+<tr>
+<td>Arithmetic operations</td>
+<td>&lt;20ms</td>
+<td>&lt;200ms</td>
+<td>&lt;2s</td>
+</tr>
+<tr>
+<td>Aggregation (<code>sum</code>, <code>mean</code>)</td>
+<td>&lt;5ms</td>
+<td>&lt;50ms</td>
+<td>&lt;500ms</td>
+</tr>
+<tr>
+<td>Grouping + summarization</td>
+<td>&lt;50ms</td>
+<td>&lt;500ms</td>
+<td>&lt;5s</td>
+</tr>
+<tr>
+<td>Window functions</td>
+<td>&lt;30ms</td>
+<td>&lt;300ms</td>
+<td>&lt;3s</td>
+</tr>
+<tr>
+<td>CSV reading</td>
+<td>&lt;50ms</td>
+<td>&lt;200ms</td>
+<td>&lt;2s</td>
+</tr>
+</tbody>
+</table>
+<p>Performance scales approximately linearly with row count for columnar
+operations. Actual timings depend on hardware, dataset characteristics
+(column count, string lengths, group cardinality), and whether the
+native Arrow path is active.</p>
+<hr />
+<h2 id="known-performance-limitations">Known Performance
+Limitations</h2>
+<ol type="1">
+<li><p><strong>Materialization after mutate</strong>: Adding or
+replacing columns materializes the entire table as pure OCaml arrays,
+dropping the native Arrow handle. Subsequent operations on the modified
+table use the fallback path. This can be significant for pipelines that
+alternate <code>mutate()</code> and compute-heavy operations.</p></li>
+<li><p><strong>Single-threaded execution</strong>: All operations run on
+a single thread. Arrow’s multi-threaded capabilities (Rayon-based
+parallelism) are not yet exposed through the FFI layer.</p></li>
+<li><p><strong>String columns</strong>: Zero-copy views are only
+available for numeric columns (<code>Float64</code>,
+<code>Int64</code>). String column operations always copy data into
+OCaml heap memory.</p></li>
+<li><p><strong>Large group counts</strong>: Group-by with very high
+cardinality (&gt;10,000 unique groups) uses O(n × g) operations in the
+OCaml fallback path, where n is row count and g is group count.</p></li>
+<li><p><strong>Memory usage</strong>: Pure OCaml fallback stores data as
+<code>option array</code> (boxed), using more memory than Arrow’s
+compact nullable representation. For 1M-row datasets, expect ~2× memory
+overhead compared to native Arrow storage.</p></li>
+</ol>
+<hr />
+<h2 id="roadmap-post-alpha-performance-improvements">Roadmap: Post-Alpha
+Performance Improvements</h2>
+<p>The following optimizations are planned for future versions:</p>
+<h3 id="beta-performance-enhancements">Beta Performance
+Enhancements</h3>
+<ul>
+<li>Multi-threaded Arrow operations using Rayon</li>
+<li>Lazy evaluation with query optimization</li>
+<li>Column pruning for pipelines (only load needed columns)</li>
+<li>Predicate pushdown for filtering</li>
+<li>Memory-mapped file support for datasets larger than RAM</li>
+<li>Streaming CSV reading for incremental processing</li>
+</ul>
+<h3 id="long-term-performance-goals">Long-Term Performance Goals</h3>
+<ul>
+<li>GPU acceleration via Arrow CUDA</li>
+<li>Distributed execution (Apache Spark/Dask-like)</li>
+<li>Advanced query optimization (cost-based optimizer)</li>
+<li>Native Parquet support (faster than CSV)</li>
+<li>Zero-copy interop with Python/Pandas via Arrow Flight</li>
+</ul>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

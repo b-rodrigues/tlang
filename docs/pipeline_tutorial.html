@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - pipeline_tutorial</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="index.html">Home</a> |
+        <a href="getting-started.html">Get Started</a> |
+        <a href="language_overview.html">Overview</a> |
+        <a href="api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Programming Language - pipeline_tutorial</h1>
+</header>
+<h1 id="pipeline-tutorial">Pipeline Tutorial</h1>
+<blockquote>
+<p>A step-by-step guide to T’s pipeline execution model</p>
+</blockquote>
+<p>Pipelines are T’s core execution model. They let you define named
+computation steps (nodes) that are automatically ordered by their
+dependencies, executed deterministically, and cached for re-use.</p>
+<hr />
+<h2 id="your-first-pipeline">1. Your First Pipeline</h2>
+<p>A pipeline is a block of named expressions enclosed in
+<code>pipeline { ... }</code>:</p>
+<pre class="t"><code>p = pipeline {
+  x = 10
+  y = 20
+  total = x + y
+}</code></pre>
+<p>This creates a pipeline with three nodes: <code>x</code>,
+<code>y</code>, and <code>total</code>. Each node is computed once, and
+the results are cached. Access any node’s value with dot notation:</p>
+<pre class="t"><code>p.x      -- 10
+p.y      -- 20
+p.total  -- 30</code></pre>
+<p>The pipeline itself displays as:</p>
+<pre><code>Pipeline(3 nodes: [x, y, total])</code></pre>
+<hr />
+<h2 id="explicit-node-configuration">2. Explicit Node Configuration</h2>
+<p>In addition to bare assignments, you can explicitly configure nodes
+using the <code>node()</code> function. This lets you define the
+execution environment (like the <code>runtime</code>) and custom
+serialization methods for when a pipeline is materialized by Nix:</p>
+<pre class="t"><code>p = pipeline {
+  data = node(command = read_csv(&quot;data.csv&quot;), runtime = T)
+  
+  -- Running a Python node that trains a model
+  model = node(
+    command = &lt;{
+        from sklearn.linear_model import LinearRegression
+        fit = LinearRegression().fit(X, y)
+        fit
+    }&gt;, 
+    runtime = &quot;Python&quot;,
+    serializer = &quot;pmml&quot;
+  )
+}</code></pre>
+<p>Bare syntax (like <code>x = 10</code>) is automatically desugared to
+<code>x = node(command = 10, runtime = T, serializer = default, deserializer = default)</code>.
+T enforces cross-runtime safety: if a node with a non-<code>T</code>
+runtime depends on a <code>T</code> node, or vice versa, you should
+specify an explicit
+<code>serializer</code>/<code>deserializer</code>.</p>
+<hr />
+<h2 id="cross-language-integration">3. Cross-Language Integration</h2>
+<p>T is designed to orchestrate code across multiple languages. The
+pipeline runner manages the serialization and deserialization of data
+between R, Python, and T using industry-standard formats.</p>
+<h3 id="supported-interchange-formats">Supported Interchange
+Formats</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Format</th>
+<th>Option</th>
+<th>Best For</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T Native</strong></td>
+<td><code>"default"</code></td>
+<td>T-to-T communication</td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Arrow</strong></td>
+<td><code>"arrow"</code></td>
+<td>Large DataFrames</td>
+<td><code>pyarrow</code> (Py), <code>arrow</code> (R)</td>
+</tr>
+<tr>
+<td><strong>PMML</strong></td>
+<td><code>"pmml"</code></td>
+<td>Predictive Models</td>
+<td><code>sklearn2pmml</code> (Py), <code>r2pmml</code> (R)</td>
+</tr>
+<tr>
+<td><strong>JSON</strong></td>
+<td><code>"json"</code></td>
+<td>Simple lists/dicts</td>
+<td><code>jsonlite</code> (R)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-training-in-r-predicting-in-t">Example: Training in R,
+Predicting in T</h3>
+<p>You can train a model in R and use T’s native OCaml model evaluator
+to make predictions without leaving the T runtime:</p>
+<pre class="t"><code>p = pipeline {
+  -- Node 1: Train model in R
+  model_r = node(
+    command = &lt;{
+      data &lt;- read.csv(&quot;data.csv&quot;)
+      lm(mpg ~ wt + hp, data = data)
+    }&gt;,
+    runtime = &quot;R&quot;,
+    serializer = &quot;pmml&quot;
+  )
+  
+  -- Node 2: Predict in T using the R model
+  predictions = node(
+    command = &lt;{
+      test_df = read_csv(&quot;new_data.csv&quot;)
+      predict(test_df, model_r)
+    }&gt;,
+    runtime = &quot;T&quot;,
+    deserializer = &quot;pmml&quot;
+  )
+}</code></pre>
+<p>Setting <code>deserializer = "pmml"</code> on the T node tells the
+pipeline runner to use T’s native PMML parser to convert the R model
+into a T model object.</p>
+<hr />
+<h2 id="automatic-dependency-resolution">4. Automatic Dependency
+Resolution</h2>
+<p>Nodes can be declared in <strong>any order</strong>. T automatically
+resolves dependencies:</p>
+<pre class="t"><code>p = pipeline {
+  result = x + y   -- depends on x and y
+  x = 3            -- defined after result
+  y = 7            -- defined after result
+}
+p.result  -- 10</code></pre>
+<p>T builds a dependency graph and executes nodes in topological order,
+so <code>x</code> and <code>y</code> are computed before
+<code>result</code> regardless of declaration order.</p>
+<hr />
+<h2 id="chained-dependencies">5. Chained Dependencies</h2>
+<p>Nodes can depend on other computed nodes, forming chains:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = a + 1     -- depends on a
+  c = b + 1     -- depends on b
+  d = c + 1     -- depends on c
+}
+p.d  -- 4</code></pre>
+<hr />
+<h2 id="pipelines-with-functions">6. Pipelines with Functions</h2>
+<p>Nodes can use any T function, including standard library
+functions:</p>
+<pre class="t"><code>p = pipeline {
+  data = [1, 2, 3, 4, 5]
+  total = sum(data)
+  count = length(data)
+}
+p.total  -- 15
+p.count  -- 5</code></pre>
+<hr />
+<h2 id="pipelines-with-pipe-operators">7. Pipelines with Pipe
+Operators</h2>
+<p>The pipe operator <code>|&gt;</code> works naturally inside
+pipelines:</p>
+<pre class="t"><code>double = \(x) x * 2
+
+p = pipeline {
+  a = 5
+  b = a |&gt; double
+}
+p.b  -- 10</code></pre>
+<h3 id="error-recovery-with-maybe-pipe">Error Recovery with
+Maybe-Pipe</h3>
+<p>The maybe-pipe <code>?|&gt;</code> forwards all values — including
+errors — to the next function. This is useful for building recovery
+logic into pipelines:</p>
+<pre class="t"><code>recovery = \(x) if (is_error(x)) 0 else x
+double = \(x) x * 2
+
+p = pipeline {
+  raw = 1 / 0                    -- Error: division by zero
+  safe = raw ?|&gt; recovery        -- forwards error to recovery → 0
+  result = safe |&gt; double        -- 0 |&gt; double → 0
+}
+p.safe    -- 0
+p.result  -- 0</code></pre>
+<p>Without <code>?|&gt;</code>, the error from <code>raw</code> would
+short-circuit at <code>|&gt;</code> and never reach
+<code>recovery</code>. The maybe-pipe lets you intercept errors and
+provide fallback values.</p>
+<hr />
+<h2 id="data-pipelines">8. Data Pipelines</h2>
+<p>Pipelines are most powerful for data analysis workflows. Here’s a
+complete example loading, transforming, and summarizing data:</p>
+<pre class="t"><code>p = pipeline {
+  data = read_csv(&quot;employees.csv&quot;)
+  rows = data |&gt; nrow
+  cols = data |&gt; ncol
+  names = data |&gt; colnames
+}
+
+p.rows   -- number of rows
+p.cols   -- number of columns
+p.names  -- list of column names</code></pre>
+<h3 id="full-data-analysis-pipeline">Full Data Analysis Pipeline</h3>
+<pre class="t"><code>p = pipeline {
+  raw = read_csv(&quot;sales.csv&quot;)
+  filtered = filter(raw, $amount &gt; 100)
+  by_region = filtered |&gt; group_by($region)
+  summary = by_region |&gt; summarize($total = sum($amount))
+}
+
+p.summary  -- DataFrame with regional totals</code></pre>
+<hr />
+<h2 id="pipeline-introspection">9. Pipeline Introspection</h2>
+<p>T provides functions to inspect pipeline structure:</p>
+<h3 id="list-all-nodes">List all nodes</h3>
+<pre class="t"><code>p = pipeline { x = 10; y = 20; total = x + y }
+pipeline_nodes(p)  -- [&quot;x&quot;, &quot;y&quot;, &quot;total&quot;]</code></pre>
+<h3 id="view-dependency-graph">View dependency graph</h3>
+<pre class="t"><code>pipeline_deps(p)
+-- {`x`: [], `y`: [], `total`: [&quot;x&quot;, &quot;y&quot;]}</code></pre>
+<h3 id="access-a-specific-node-by-name">Access a specific node by
+name</h3>
+<pre class="t"><code>pipeline_node(p, &quot;total&quot;)  -- 30</code></pre>
+<hr />
+<h2 id="re-running-pipelines">10. Re-running Pipelines</h2>
+<p>Use <code>pipeline_run()</code> to re-execute a pipeline:</p>
+<pre class="t"><code>p2 = pipeline_run(p)
+p2.total  -- 30 (re-computed)</code></pre>
+<p>Re-running produces the same results — T pipelines are
+deterministic.</p>
+<hr />
+<h2 id="deterministic-execution">11. Deterministic Execution</h2>
+<p>Two pipelines with the same definitions always produce the same
+results:</p>
+<pre class="t"><code>p1 = pipeline { a = 5; b = a * 2; c = b + 1 }
+p2 = pipeline { a = 5; b = a * 2; c = b + 1 }
+p1.c == p2.c  -- true</code></pre>
+<hr />
+<h2 id="error-handling">12. Error Handling</h2>
+<h3 id="cycle-detection">Cycle Detection</h3>
+<p>T detects circular dependencies and reports them:</p>
+<pre class="t"><code>pipeline {
+  a = b
+  b = a
+}
+-- Error(ValueError: &quot;Pipeline has a dependency cycle involving node &#39;a&#39;&quot;)</code></pre>
+<h3 id="error-propagation">Error Propagation</h3>
+<p>If a node fails, the error is captured and reported:</p>
+<pre class="t"><code>pipeline {
+  a = 1 / 0
+  b = a + 1
+}
+-- Error(ValueError: &quot;Pipeline node &#39;a&#39; failed: ...&quot;)</code></pre>
+<h3 id="missing-nodes">Missing Nodes</h3>
+<p>Accessing a non-existent node returns a structured error:</p>
+<pre class="t"><code>p = pipeline { x = 10 }
+p.nonexistent
+-- Error(KeyError: &quot;node &#39;nonexistent&#39; not found in Pipeline&quot;)</code></pre>
+<hr />
+<h2 id="materializing-pipelines">13. Materializing Pipelines</h2>
+<p>Defining a pipeline with <code>pipeline { ... }</code> evaluates
+nodes in-memory. To <strong>materialize</strong> them as reproducible
+Nix artifacts (potentially using R or Python dependencies you’ve defined
+in <code>tproject.toml</code>), use <code>populate_pipeline()</code>
+with the <code>build = true</code> argument:</p>
+<pre class="t"><code>p = pipeline {
+  data = read_csv(&quot;sales.csv&quot;)
+  total = sum(data.$amount)
+}
+
+populate_pipeline(p, build = true)</code></pre>
+<p><code>populate_pipeline(p, build = true)</code> is the primary
+command for materializing a pipeline. It does the following:</p>
+<ol type="1">
+<li><strong>Populates</strong> the <code>_pipeline/</code> directory
+with <code>pipeline.nix</code> and <code>dag.json</code>.</li>
+<li><strong>Generates</strong> a Nix expression with one derivation per
+node. Crucially, if you define <code>[r-dependencies]</code> or
+<code>[py-dependencies]</code> in your <code>tproject.toml</code>,
+pipeline nodes have access to these language environments!</li>
+<li><strong>Triggers</strong> a Nix build to materialize each node as a
+serialized artifact.</li>
+<li><strong>Records</strong> the build in a timestamped log file
+(<code>_pipeline/build_log_YYYYMMdd_HHmmss_hash.json</code>).</li>
+</ol>
+<blockquote>
+<p>[!NOTE] <code>build_pipeline(p)</code> is available as a shorthand
+for <code>populate_pipeline(p, build = true)</code>.</p>
+</blockquote>
+<h3 id="reading-built-artifacts">Reading built artifacts</h3>
+<p>After building, use <code>read_node()</code> or
+<code>load_node()</code> to retrieve materialized values:</p>
+<pre class="t"><code>read_node(&quot;total&quot;)   -- reads the serialized artifact for &quot;total&quot;
+load_node(&quot;total&quot;)   -- same as read_node, loads the artifact</code></pre>
+<p>These functions look up the node in the <strong>latest build
+log</strong> and deserialize the artifact.</p>
+<hr />
+<h2 id="orchestrating-with-populate_pipeline">14. Orchestrating with
+populate_pipeline()</h2>
+<p>For more control over the build process, T provides
+<code>populate_pipeline()</code>. This function prepares the pipeline
+infrastructure without necessarily triggering the Nix build
+immediately.</p>
+<pre class="t"><code>populate_pipeline(p)                -- Prepares _pipeline/ only
+populate_pipeline(p, build = true)  -- Same as build_pipeline(p)</code></pre>
+<h3 id="the-_pipeline-directory">The <code>_pipeline/</code>
+directory</h3>
+<p>T maintains a persistent state directory for your pipeline. When you
+populate or build, T creates:</p>
+<ul>
+<li><strong><code>_pipeline/pipeline.nix</code></strong>: The generated
+Nix expression for your pipeline nodes.</li>
+<li><strong><code>_pipeline/dag.json</code></strong>: A machine-readable
+dependency graph of your pipeline.</li>
+<li><strong><code>_pipeline/build_log_*.json</code></strong>: History of
+previous successful builds.</li>
+</ul>
+<hr />
+<h2 id="build-logs-and-time-travel">15. Build Logs and Time Travel</h2>
+<p>T keeps a history of your builds in <code>_pipeline/</code>. This
+enables <strong>Time Travel</strong> — the ability to read artifacts
+from specific past versions of your pipeline.</p>
+<h3 id="inspecting-logs">Inspecting logs</h3>
+<p>Use <code>list_logs()</code> to see available build logs:</p>
+<pre class="t"><code>logs = list_logs()
+-- DataFrame of build logs with filename, modification_time, and size_kb</code></pre>
+<p>Use <code>inspect_pipeline()</code> to view the build status of a
+specific pipeline as a DataFrame (defaults to the latest):</p>
+<pre class="t"><code>inspect_pipeline()
+-- DataFrame(5 rows x 4 cols: [derivation, build_success, path, output])
+
+inspect_pipeline(which_log = &quot;20260221_143022&quot;)</code></pre>
+<h3 id="reading-from-a-specific-build">Reading from a specific
+build</h3>
+<p>Pass the <code>which_log</code> argument to <code>read_node()</code>
+to specify which build to read from. You can pass a regex pattern or a
+specific filename:</p>
+<pre class="t"><code>-- Read the latest version (default)
+val = read_node(&quot;result&quot;)
+
+-- Read from a specific historical build
+val_old = read_node(&quot;result&quot;, which_log = &quot;20260221_143022&quot;)</code></pre>
+<p>This ensures that even as you update your code and data, you can
+always recover and compare results from previous runs.</p>
+<hr />
+<h2 id="execution-modes">16. Execution Modes</h2>
+<p>T enforces a clear separation between interactive and non-interactive
+execution:</p>
+<h3 id="non-interactive-t-run">Non-interactive (<code>t run</code>)</h3>
+<p>Scripts executed with <code>t run</code> <strong>must</strong> call
+<code>populate_pipeline()</code> (or <code>build_pipeline()</code>).
+This ensures that non-interactive execution always produces reproducible
+Nix artifacts.</p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — script defines and populates a pipeline</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the REPL for interactive exploration, or pass --unsafe to override.</span></span></code></pre></div>
+<p>A valid pipeline script looks like:</p>
+<pre class="t"><code>-- my_pipeline.t
+p = pipeline {
+  data = read_csv(&quot;input.csv&quot;)
+  result = data |&gt; filter($value &gt; 0) |&gt; summarize(total = sum($value))
+}
+
+populate_pipeline(p, build = true)</code></pre>
+<h3 id="interactive-repl">Interactive (REPL)</h3>
+<p>The REPL is <strong>unrestricted</strong> — you can run any T code
+line by line, whether or not it involves pipelines:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<hr />
+<h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
+<p>When a pipeline is built with <code>build_pipeline()</code>, each
+node runs inside a <strong>Nix sandbox</strong> — an isolated build
+environment. Import statements from your script are
+<strong>automatically propagated</strong> into each sandbox, so imported
+packages and functions are available to all nodes.</p>
+<pre class="t"><code>-- my_analysis.t
+import my_stats
+import data_utils[read_clean, normalize]
+
+p = pipeline {
+  raw = read_csv(&quot;data.csv&quot;)
+  clean = read_clean(raw)              -- uses imported function
+  normed = normalize(clean)            -- uses imported function
+  result = weighted_mean(normed.$x, normed.$w)  -- uses imported function
+}
+
+build_pipeline(p)</code></pre>
+<p>When <code>build_pipeline(p)</code> generates the Nix derivation for
+each node, it prepends the import statements:</p>
+<pre class="t"><code>-- Generated node_script.t (inside Nix sandbox)
+import my_stats
+import data_utils[read_clean, normalize]
+raw = deserialize(&quot;$T_NODE_raw/artifact.tobj&quot;)
+result = weighted_mean(raw.$x, raw.$w)
+serialize(result, &quot;$out/artifact.tobj&quot;)</code></pre>
+<p>All three import forms are supported:</p>
+<table>
+<thead>
+<tr>
+<th>Syntax</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>import "src/helpers.t"</code></td>
+<td>Import a local file</td>
+</tr>
+<tr>
+<td><code>import my_stats</code></td>
+<td>Import all public functions from a package</td>
+</tr>
+<tr>
+<td><code>import my_stats[foo, bar]</code></td>
+<td>Import specific functions</td>
+</tr>
+<tr>
+<td><code>import my_stats[wm=weighted_mean]</code></td>
+<td>Import with aliases</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="using-explain-with-pipelines">18. Using explain() with
+Pipelines</h2>
+<p>The <code>explain()</code> function provides structured metadata
+about pipelines:</p>
+<pre class="t"><code>p = pipeline {
+  x = 10
+  y = x + 5
+  z = y * 2
+}
+
+e = explain(p)
+e.kind        -- &quot;pipeline&quot;
+e.node_count  -- 3</code></pre>
+<hr />
+<h2 id="best-practices">Best Practices</h2>
+<ol type="1">
+<li><strong>Name nodes descriptively</strong>: Use names like
+<code>raw_data</code>, <code>filtered_sales</code>,
+<code>summary_stats</code></li>
+<li><strong>Keep nodes focused</strong>: Each node should do one
+thing</li>
+<li><strong>Use pipes within nodes</strong>: Combine pipeline structure
+with pipe operator for readability</li>
+<li><strong>Inspect before consuming</strong>: Use
+<code>pipeline_nodes()</code> and <code>pipeline_deps()</code> to
+understand pipeline structure</li>
+<li><strong>Build incrementally</strong>: Start with data loading, add
+transformations one node at a time</li>
+</ol>
+<hr />
+<h2 id="skipping-nodes">19. Skipping Nodes</h2>
+<p>You can explicitly skip a node (and by extension, all nodes that
+depend on it) by passing the <code>noop = true</code> argument to the
+<code>node()</code> function.</p>
+<pre class="t"><code>p = pipeline {
+  raw_data = read_csv(&quot;raw.csv&quot;)
+  
+  # This node and its dependencies won&#39;t trigger a heavy Nix build
+  expensive_model = node(
+    command = train(raw_data), 
+    runtime = R,
+    noop = true
+  )
+
+  # This node depends on expensive_model, therefore it becomes a noop as well
+  report = node(command = generate_report(expensive_model), runtime = R)
+}
+
+populate_pipeline(p, build = true)</code></pre>
+<p>In a Nix sandbox context, <code>noop</code> generates a lightweight
+stub instead of a real build derivation.</p>
+<hr />
+<h2 id="complete-example">Complete Example</h2>
+<pre class="t"><code>-- A full data analysis pipeline
+p = pipeline {
+  -- Load data
+  raw = read_csv(&quot;employees.csv&quot;)
+  
+  -- Filter to active engineers
+  engineers = raw
+    |&gt; filter($dept == &quot;eng&quot;)
+    |&gt; filter($active == true)
+  
+  -- Compute statistics
+  avg_salary = engineers.salary |&gt; mean
+  salary_sd = engineers.salary |&gt; sd
+  team_size = engineers |&gt; nrow
+  
+  -- Sort by performance
+  ranked = engineers |&gt; arrange(&quot;score&quot;, &quot;desc&quot;)
+}
+
+-- Access results
+p.team_size     -- number of active engineers
+p.avg_salary    -- mean salary
+p.ranked        -- DataFrame sorted by score</code></pre>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

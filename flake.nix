@@ -173,6 +173,9 @@
             # RPC version needed for Dune to run the formatter automatically.
             ocamlVersion.ocamlformat-rpc-lib
 
+            # Markdown to HTML compiler
+            pkgs.pandoc
+
             # 3. Arrow C GLib — Apache Arrow columnar data library
             # -------------------------------------------------------
             # Arrow C++ — provides arrow.pc that arrow-glib depends on

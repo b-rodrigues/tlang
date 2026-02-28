@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - quotation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="index.html">Home</a> |
+        <a href="getting-started.html">Get Started</a> |
+        <a href="language_overview.html">Overview</a> |
+        <a href="api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Programming Language - quotation</h1>
+</header>
+<h1 id="metaprogramming-quotation-and-quasiquotation">Metaprogramming:
+Quotation and Quasiquotation</h1>
+<p>T provides powerful metaprogramming capabilities inspired by Lisp and
+R’s <code>rlang</code> package. These features allow you to capture code
+as data, manipulate it, and evaluate it dynamically.</p>
+<h2 id="core-concepts">Core Concepts</h2>
+<ul>
+<li><strong>Quotation</strong>: Capturing an expression without
+evaluating it immediately.</li>
+<li><strong>Unquoting</strong>: Selectively evaluating parts of a quoted
+expression.</li>
+<li><strong>Splicing</strong>: Expanding a list or collection into
+multiple arguments or elements within a quoted expression.</li>
+<li><strong>Symbols</strong>: Representing names (identifiers) as
+data.</li>
+</ul>
+<h2 id="capturing-code">Capturing Code</h2>
+<h3 id="exprexpression"><code>expr(expression)</code></h3>
+<p>The <code>expr()</code> function captures the code you provide as an
+<strong>Expression</strong> object.</p>
+<pre class="t"><code>e = expr(1 + 2)
+print(e)
+-- Output: expr(1 + 2)</code></pre>
+<p>Unlike regular functions, <code>expr()</code> is a special form that
+does not evaluate its argument.</p>
+<h3 id="exprs..."><code>exprs(...)</code></h3>
+<p><code>exprs()</code> captures multiple expressions and returns them
+as a list of Expression objects. It supports named arguments.</p>
+<pre class="t"><code>ee = exprs(x = 1 + 1, y = 2 + 2)
+-- Result: [x: expr(1 + 1), y: expr(2 + 2)]</code></pre>
+<h3 id="symbols-and-bare-words">Symbols and Bare Words</h3>
+<p>In T, if you use a word that isn’t defined as a variable, it is
+automatically treated as a <strong>Symbol</strong> when inside a quoting
+context. This is useful for building Domain Specific Languages
+(DSLs).</p>
+<pre class="t"><code>e = expr(select(df, age, height))
+-- &#39;select&#39;, &#39;age&#39;, and &#39;height&#39; are captured as symbols.</code></pre>
+<h2 id="evaluating-code">Evaluating Code</h2>
+<h3 id="evalexpr_object"><code>eval(expr_object)</code></h3>
+<p>The <code>eval()</code> function takes an Expression object and
+evaluates it in the current environment.</p>
+<pre class="t"><code>e = expr(10 + 20)
+res = eval(e)
+print(res) -- Output: 30</code></pre>
+<h2 id="quasiquotation">Quasiquotation</h2>
+<p>Quasiquotation allows you to “fill in the blanks” in a captured
+expression.</p>
+<h3 id="unquote"><code>!!</code> (Unquote)</h3>
+<p>The <code>!!</code> (pronounced “bang-bang”) operator evaluates its
+operand immediately and injects the result into the surrounding quoted
+expression.</p>
+<pre class="t"><code>x = 10
+e = expr(1 + !!x)
+print(e) 
+-- Output: expr(1 + 10)</code></pre>
+<p>If you unquote another Expression object, it is merged directly into
+the AST:</p>
+<pre class="t"><code>inner = expr(1 + 1)
+outer = expr(2 * !!inner)
+print(outer)
+-- Output: expr(2 * (1 + 1))</code></pre>
+<h3 id="unquote-splice"><code>!!!</code> (Unquote-Splice)</h3>
+<p>The <code>!!!</code> (pronounced “triple-bang”) operator evaluates
+its operand and <strong>splices</strong> the elements into the
+surrounding call or list. The operand must evaluate to a
+<code>List</code>, <code>Vector</code>, or <code>Dict</code>.</p>
+<h4 id="splicing-into-arguments">Splicing into Arguments</h4>
+<pre class="t"><code>vals = [1, 2, 3]
+e = expr(sum(!!!vals))
+print(e)
+-- Output: expr(sum(1, 2, 3))</code></pre>
+<h4 id="splicing-with-names">Splicing with Names</h4>
+<p>If you splice a named List, the names are used as argument names in
+the resulting call.</p>
+<pre class="t"><code>my_args = [x: 10, y: 20]
+e = expr(f(!!!my_args, z: 30))
+print(e)
+-- Output: expr(f(x = 10, y = 20, z = 30))</code></pre>
+<h2 id="advanced-examples">Advanced Examples</h2>
+<h3 id="dynamic-pipeline-generation">Dynamic Pipeline Generation</h3>
+<p>You can use quasiquotation to dynamically build pipeline nodes or
+intents:</p>
+<pre class="t"><code>var_name = &quot;mpg&quot;
+my_intent = expr(intent {
+  target = !!var_name
+  method = &quot;lm&quot;
+})
+
+print(my_intent)
+-- Output: expr(intent { target = &quot;mpg&quot;; method = &quot;lm&quot; })</code></pre>
+<h3 id="prefix-call-syntax">Prefix-Call Syntax</h3>
+<p>T also supports a Lisp-style prefix call syntax which integrates
+seamlessly with quotation:</p>
+<pre class="t"><code>e = expr((add, 1, 2))
+-- Equivalent to expr(add(1, 2))</code></pre>
+<h2 id="summary-of-operators">Summary of Operators</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Operator/Function</th>
+<th style="text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>expr(x)</code></td>
+<td style="text-align: left;">Capture <code>x</code> as an
+Expression.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>exprs(...)</code></td>
+<td style="text-align: left;">Capture multiple expressions as a
+List.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>eval(e)</code></td>
+<td style="text-align: left;">Evaluate Expression <code>e</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>!!x</code></td>
+<td style="text-align: left;">Evaluate <code>x</code> and inject into
+<code>expr()</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>!!!x</code></td>
+<td style="text-align: left;">Evaluate <code>x</code> and splice
+elements into <code>expr()</code>.</td>
+</tr>
+</tbody>
+</table>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>
