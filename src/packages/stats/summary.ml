@@ -9,9 +9,10 @@ open Ast
 --#
 --# @name summary
 --# @param model :: Model The model object (e.g., from lm()).
---# @return :: DataFrame Tidy summary of coefficients.
+--# @return :: Dict Tidy summary dictionary with `_tidy_df` and metadata.
 --# @example
---#   summary(model)
+--#   s = summary(model)
+--#   coefficients = s._tidy_df
 --# @family stats
 --# @seealso lm, fit_stats
 --# @export

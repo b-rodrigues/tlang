@@ -69,17 +69,17 @@ let register env =
               let sigma_arr = extract_float_array "leave_one_out_sigma" in
               (* Add columns to the DataFrame *)
               let table = data_df.arrow_table in
-              let table = Arrow_table.add_column table ".fitted"
+              let table = Arrow_table.add_column table "fitted"
                 (Arrow_table.FloatColumn fitted_arr) in
-              let table = Arrow_table.add_column table ".resid"
+              let table = Arrow_table.add_column table "resid"
                 (Arrow_table.FloatColumn resid_arr) in
-              let table = Arrow_table.add_column table ".hat"
+              let table = Arrow_table.add_column table "hat"
                 (Arrow_table.FloatColumn hat_arr) in
-              let table = Arrow_table.add_column table ".sigma"
+              let table = Arrow_table.add_column table "sigma"
                 (Arrow_table.FloatColumn sigma_arr) in
-              let table = Arrow_table.add_column table ".cooksd"
+              let table = Arrow_table.add_column table "cooksd"
                 (Arrow_table.FloatColumn cooksd_arr) in
-              let table = Arrow_table.add_column table ".std_resid"
+              let table = Arrow_table.add_column table "std_resid"
                 (Arrow_table.FloatColumn std_resid_arr) in
               VDataFrame { arrow_table = table; group_keys = data_df.group_keys })
          | _ ->
