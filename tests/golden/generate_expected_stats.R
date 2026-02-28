@@ -133,4 +133,81 @@ extended_stats <- tibble(
 write_csv(extended_stats, file.path(output_dir, "extended_stats_basics.csv"))
 message("✓ Extended stats baseline set")
 
+# ============================================================================
+# Test Suite 12: ADVANCED STATS (vcov, residuals, augment, anova)
+# ============================================================================
+message("\n=== ADVANCED STATS Tests ===")
+
+# Model 1: mpg ~ wt
+m1 = lm(mpg ~ wt, data = mtcars)
+
+# Model 2: mpg ~ wt + hp + qsec
+m2 = lm(mpg ~ wt + hp + qsec, data = mtcars)
+
+# 12.1: vcov matrix
+write_csv(as_tibble(vcov(m1), rownames = "term"), file.path(output_dir, "lm_vcov_m1.csv"))
+write_csv(as_tibble(vcov(m2), rownames = "term"), file.path(output_dir, "lm_vcov_m2.csv"))
+message("✓ vcov matrix")
+
+# 12.2: residuals
+res_m1 = tibble(
+  response = residuals(m1, type = "response"),
+  pearson = residuals(m1, type = "pearson")
+)
+write_csv(res_m1, file.path(output_dir, "lm_residuals_m1.csv"))
+message("✓ residuals (response & pearson)")
+
+# 12.3: augment
+# T's augment returns fitted, resid, std_resid
+# R's augment includes more, we just need parity on the core ones
+aug_m1 = augment(m1) %>%
+  select(actual = mpg, fitted = .fitted, resid = .resid)
+write_csv(aug_m1, file.path(output_dir, "lm_augment_m1.csv"))
+message("✓ augment core columns")
+
+# 12.4: anova
+av = anova(m1, m2)
+# T returns model, df_residual, deviance, delta_df, delta_deviance, statistic, p_value
+av_tidy = tibble(
+  model = c("m1", "m2"),
+  df_residual = av$Res.Df,
+  deviance = av$RSS,
+  delta_df = c(NA, -diff(av$Res.Df)),
+  delta_deviance = c(NA, -diff(av$RSS)),
+  statistic = c(NA, av$F[2]),
+  p_value = c(NA, av$`Pr(>F)`[2])
+)
+write_csv(av_tidy, file.path(output_dir, "lm_anova_m1_m2.csv"))
+message("✓ anova table")
+
+# 12.5: wald_test parity (for hp and qsec in m2)
+# In OLS/F-test context, this is equivalent to comparing with m1 (which only has wt)
+# but wait, m2 has wt, hp, qsec. m1 has wt. 
+# So comparing m2 with m1 tests hp=0 and qsec=0 jointly.
+wh = anova(m1, m2)
+wh_tidy = tibble(
+  terms = "hp, qsec",
+  statistic = wh$F[2],
+  df = wh$Df[2],
+  p_value = wh$`Pr(>F)`[2],
+  test_type = "F"
+)
+write_csv(wh_tidy, file.path(output_dir, "lm_wald_hp_qsec.csv"))
+message("✓ wald_test parity")
+
+# ============================================================================
+# Test Suite 13: DISTRIBUTIONS
+# ============================================================================
+message("\n=== DISTRIBUTION Tests ===")
+
+dist_tests <- tibble(
+  pnorm_1 = pnorm(1.0),
+  pnorm_196 = pnorm(1.96),
+  pt_2_10 = pt(2.0, df = 10),
+  pf_3_2_30 = pf(3.0, df1 = 2, df2 = 30),
+  pchisq_384_1 = pchisq(3.84, df = 1)
+)
+write_csv(dist_tests, file.path(output_dir, "dist_baselines.csv"))
+message("✓ Distribution functions")
+
 message("\n✅ All statistical outputs generated!")

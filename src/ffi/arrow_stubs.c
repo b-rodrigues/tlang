@@ -1810,3 +1810,123 @@ CAMLprim value caml_arrow_write_ipc(value v_ptr, value v_path) {
   if (!ok && error) g_error_free(error);
   CAMLreturn(Val_bool(ok));
 }
+/* Create a native Arrow table from a list of (name, type_tag, array) tuples.
+   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String.
+   array is an OCaml option array (None = null, Some x = value). */
+CAMLprim value caml_arrow_table_new(value v_cols) {
+  CAMLparam1(v_cols);
+  CAMLlocal3(v_iter, v_col, v_arr);
+  GError *error = NULL;
+
+  GList *fields = NULL;
+  GList *columns = NULL;
+  
+  v_iter = v_cols;
+  while (v_iter != Val_emptylist) {
+    v_col = Field(v_iter, 0);
+    const char *name = String_val(Field(v_col, 0));
+    int type_tag = Int_val(Field(v_col, 1));
+    v_arr = Field(v_col, 2);
+    int n = Wosize_val(v_arr);
+
+    GArrowDataType *dtype = NULL;
+    GArrowArrayBuilder *builder = NULL;
+
+    switch (type_tag) {
+      case 0: // Int64
+        dtype = (GArrowDataType *)garrow_int64_data_type_new();
+        builder = (GArrowArrayBuilder *)garrow_int64_array_builder_new();
+        for (int i = 0; i < n; i++) {
+          value v_opt = Field(v_arr, i);
+          if (Is_block(v_opt)) { // Some(x)
+            garrow_int64_array_builder_append_value(GARROW_INT64_ARRAY_BUILDER(builder), Long_val(Field(v_opt, 0)), &error);
+          } else {
+            garrow_array_builder_append_null(builder, &error);
+          }
+        }
+        break;
+      case 1: // Float64
+        dtype = (GArrowDataType *)garrow_double_data_type_new();
+        builder = (GArrowArrayBuilder *)garrow_double_array_builder_new();
+        for (int i = 0; i < n; i++) {
+          value v_opt = Field(v_arr, i);
+          if (Is_block(v_opt)) {
+            garrow_double_array_builder_append_value(GARROW_DOUBLE_ARRAY_BUILDER(builder), Double_val(Field(v_opt, 0)), &error);
+          } else {
+            garrow_array_builder_append_null(builder, &error);
+          }
+        }
+        break;
+      case 2: // Boolean
+        dtype = (GArrowDataType *)garrow_boolean_data_type_new();
+        builder = (GArrowArrayBuilder *)garrow_boolean_array_builder_new();
+        for (int i = 0; i < n; i++) {
+          value v_opt = Field(v_arr, i);
+          if (Is_block(v_opt)) {
+            garrow_boolean_array_builder_append_value(GARROW_BOOLEAN_ARRAY_BUILDER(builder), Bool_val(Field(v_opt, 0)), &error);
+          } else {
+            garrow_array_builder_append_null(builder, &error);
+          }
+        }
+        break;
+      case 3: // String
+        dtype = (GArrowDataType *)garrow_string_data_type_new();
+        builder = (GArrowArrayBuilder *)garrow_string_array_builder_new();
+        for (int i = 0; i < n; i++) {
+          value v_opt = Field(v_arr, i);
+          if (Is_block(v_opt)) {
+            garrow_string_array_builder_append_string(GARROW_STRING_ARRAY_BUILDER(builder), String_val(Field(v_opt, 0)), &error);
+          } else {
+            garrow_array_builder_append_null(builder, &error);
+          }
+        }
+        break;
+      default:
+        break;
+    }
+
+    if (builder) {
+      GArrowArray *array = garrow_array_builder_finish(builder, &error);
+      GList *chunks = g_list_append(NULL, array);
+      GArrowChunkedArray *chunked = garrow_chunked_array_new(chunks, &error);
+      g_list_free(chunks);
+      g_object_unref(array);
+      g_object_unref(builder);
+
+      GArrowField *field = garrow_field_new(name, dtype);
+      fields = g_list_append(fields, field);
+      columns = g_list_append(columns, chunked);
+      g_object_unref(dtype);
+    }
+
+    v_iter = Field(v_iter, 1);
+  }
+
+  GArrowTable *table = NULL;
+  if (fields && columns) {
+    GArrowSchema *schema = garrow_schema_new(fields);
+    guint n = g_list_length(columns);
+    GArrowChunkedArray **cols_arr = g_new(GArrowChunkedArray *, n);
+    GList *iter = columns;
+    for (guint i = 0; i < n; i++) {
+        cols_arr[i] = (GArrowChunkedArray *)iter->data;
+        iter = iter->next;
+    }
+    table = garrow_table_new_chunked_arrays(schema, cols_arr, n, &error);
+    g_free(cols_arr);
+    g_object_unref(schema);
+  }
+
+  g_list_free_full(fields, g_object_unref);
+  g_list_free_full(columns, g_object_unref);
+
+  if (table == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  CAMLlocal1(v_res);
+  v_res = caml_alloc(1, 0);
+  Store_field(v_res, 0, caml_copy_nativeint((intnat)table));
+  CAMLreturn(v_res);
+}

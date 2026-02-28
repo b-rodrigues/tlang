@@ -76,7 +76,9 @@ let core_package = {
 let stats_package = {
   name = "stats";
   description = "Statistical summaries and models";
-  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"];
+  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
+               "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "augment"; "score";
+               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"];
 }
 
 let colcraft_package = {
@@ -491,6 +493,7 @@ let init_env () =
   let env = Atanh.register env in
   let env = Ndarray.register env in
   (* Stats package *)
+  let env = Distributions.register env in
   let env = Mean.register env in
   let env = Sd.register env in
   let env = Quantile.register env in
@@ -520,6 +523,19 @@ let init_env () =
   let env = Trimmed_mean.register env in
   let env = Winsorize.register env in
   let env = Huber_loss.register env in
+  let env = Coef.register env in
+  let env = Conf_int.register env in
+  let env = Nobs.register env in
+  let env = Df_residual.register env in
+  let env = Sigma.register env in
+  let env = Dispersion.register env in
+  let env = Vcov.register env in
+  let env = Compare.register env in
+  let env = Residuals.register env in
+  let env = Augment.register env in
+  let env = Score.register env in
+  let env = Anova.register env in
+  let env = Wald_test.register env in
   (* Explain package *)
   let env = Intent_fields.register env in
   let env = Intent_get.register env in

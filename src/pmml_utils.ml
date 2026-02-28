@@ -42,6 +42,8 @@ let read_pmml path =
     let glm_stats = ref None in
     let found_model = ref false in
     let found_table = ref false in
+    let response_name = ref None in
+    let predictors = ref [] in
 
     let ignore_element () =
       let rec skip depth =
@@ -145,6 +147,13 @@ let read_pmml path =
             (match get_float_attr "logLik" attrs with Some v -> log_lik := Some v | _ -> ());
             (match get_float_attr "deviance" attrs with Some v -> deviance_ := Some v | _ -> ());
             (match get_float_attr "dfResidual" attrs with Some v -> df_residual := (try Some (int_of_float v) with _ -> None) | _ -> ());
+            loop ()
+        | `El_start ((_, "MiningField"), attrs) ->
+            (match find_attr "name" attrs, find_attr "usageType" attrs with
+             | Some name, Some "target" -> response_name := Some name
+             | Some name, Some "active" -> predictors := name :: !predictors
+             | _ -> ());
+            ignore_element ();
             loop ()
         | `El_start ((_, "Extension"), attrs) ->
             if List.exists (fun ((_, n), v) -> n = "name" && v = "GLMStats") attrs then
@@ -279,6 +288,9 @@ let read_pmml path =
           ("model_type", VString "regression");
           ("family", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "family" j with `String s -> VString s | _ -> VNull) | None -> VNull));
           ("link", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "link" j with `String s -> VString s | _ -> VNull) | None -> VNull));
+          ("formula", (match !response_name with
+            | Some r -> VFormula { response = [r]; predictors = List.rev !predictors; raw_lhs = Value VNull; raw_rhs = Value VNull }
+            | None -> VNull));
           ("_display_keys", VList display_keys);
         ])
     ) (* end Fun.protect *)

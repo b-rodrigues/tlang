@@ -61,6 +61,9 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
         VFloat (sqrt (Float.abs ss_i))
       else VFloat result.sigma
     )));
+    ("vcov", VList (Array.to_list (Array.map (fun row ->
+      (None, VVector (Array.map (fun x -> VFloat x) row))
+    ) result.vcov)));
   ] in
 
   (* Create coefficients dictionary *)
@@ -104,11 +107,11 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
 --# Fits a linear regression model using Ordinary Least Squares (OLS).
 --#
 --# @name lm
---# @param formula :: Formula The model formula (e.g., mpg ~ wt + hp).
 --# @param data :: DataFrame The data to use.
+--# @param formula :: Formula The model formula (e.g., mpg ~ wt + hp).
 --# @return :: Model A model object containing coefficients, residuals, and statistics.
 --# @example
---#   model = lm(mpg ~ wt + hp, data: mtcars)
+--#   model = lm(mtcars, mpg ~ wt + hp)
 --#   summary(model)
 --# @family stats
 --# @seealso summary, fit_stats, add_diagnostics
@@ -124,13 +127,14 @@ let register env =
         match n with None -> Some v | Some _ -> None
       ) args in
       (* Get required arguments: try named first, fall back to positional *)
+      (* Standard R convention: lm(formula, data) *)
       let data_val = match List.assoc_opt "data" named with
         | Some v -> Some v
         | None -> (match positional with v :: _ -> Some v | [] -> None)
       in
       let formula_val = match List.assoc_opt "formula" named with
         | Some v -> Some v
-        | None -> (match positional with _ :: v :: _ -> Some v | _ -> None)
+        | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_val <> Some v -> Some v | _ -> None))
       in
       match (data_val, formula_val) with
       | (None, _) -> Error.make_error ArityError "Function `lm` missing required argument 'data'."
