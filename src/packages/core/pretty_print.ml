@@ -1,25 +1,28 @@
-(* src/packages/core/pretty_print.ml *)
-(* Phase 7: Pretty-printing for REPL output *)
-
 open Ast
 
+(** Internal helper to format cell values *)
+let cell_to_string v =
+  match v with
+  | VString s -> s
+  | VNA na_t ->
+      let tag = Utils.na_type_to_string na_t in
+      if tag = "" then "NA" else "NA(" ^ tag ^ ")"
+  | VFloat f ->
+      if f = floor f then Printf.sprintf "%.1f" f
+      else if Float.abs f < 0.001 then Printf.sprintf "%.4e" f
+      else Printf.sprintf "%.4g" f
+  | other -> Utils.value_to_string other
+
 (** Pretty-print a DataFrame as a table *)
-let pretty_print_dataframe { arrow_table; group_keys } =
+let pretty_print_dataframe ?(headers) { arrow_table; group_keys } =
   let nrows = Arrow_table.num_rows arrow_table in
   let value_columns = Arrow_bridge.table_to_value_columns arrow_table in
   if value_columns = [] then
     "Empty DataFrame (0 rows x 0 cols)\n"
   else
-    let col_names = List.map fst value_columns in
-    (* Format each cell value *)
-    let cell_to_string v =
-      match v with
-      | VString s -> s
-      | VNA na_t ->
-          let tag = Utils.na_type_to_string na_t in
-          if tag = "" then "NA" else "NA(" ^ tag ^ ")"
-      | other -> Utils.value_to_string other
-    in
+    let col_names = match headers with
+      | Some h -> List.map (fun (old_n, _) -> match List.assoc_opt old_n h with Some new_n -> new_n | None -> old_n) value_columns
+      | None -> List.map fst value_columns in
     (* Compute column widths *)
     let col_widths = List.map (fun (name, col_data) ->
       let header_len = String.length name in
@@ -93,12 +96,41 @@ let pretty_print_pipeline { p_nodes; p_deps; p_runtimes; _ } =
   ) p_nodes;
   Buffer.contents buf
 
+(** Pretty-print a model summary *)
+let pretty_print_summary pairs =
+  let model_class = match List.assoc_opt "model_class" pairs with Some (VString s) -> s | _ -> "lm" in
+  let is_glm = model_class = "glm" in
+  let family = match List.assoc_opt "family" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "Gaussian" in
+  let link = match List.assoc_opt "link" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "identity" in
+  let buf = Buffer.create 256 in
+  if is_glm then begin
+    Buffer.add_string buf (Printf.sprintf "Family:   %s\n" family);
+    Buffer.add_string buf (Printf.sprintf "Link:     %s\n\n" link)
+  end;
+  Buffer.add_string buf "Coefficients:\n";
+  (match List.assoc_opt "_tidy_df" pairs with
+  | Some (VDataFrame df) ->
+      let headers = [
+        ("term", "");
+        ("estimate", "Estimate");
+        ("std_error", "Std. Error");
+        ("statistic", if is_glm then "z value" else "t value");
+        ("p_value", if is_glm then (if is_glm then "Pr(>|z|)" else "Pr(>|t|)") else "Pr(>|t|)")
+      ] in
+      Buffer.add_string buf (pretty_print_dataframe ~headers df)
+  | _ -> Buffer.add_string buf "No coefficient data available.\n");
+  Buffer.contents buf
+
 (** Pretty-print any value for REPL display *)
 let pretty_print_value v =
   match v with
   | VDataFrame df -> pretty_print_dataframe df
   | VError err -> pretty_print_error err
   | VPipeline p -> pretty_print_pipeline p
+  | VDict pairs ->
+      (match List.assoc_opt "class" pairs with
+       | Some (VString "summary") -> pretty_print_summary pairs
+       | _ -> Utils.value_to_string v ^ "\n")
   | VNull -> ""
   | other -> Utils.value_to_string other ^ "\n"
 

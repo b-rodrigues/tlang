@@ -1,0 +1,6 @@
+data_node = read_csv("/nix/store/yspsvjz0i694mbkwgzq7hk3vrm9z4i1n-pipeline_output/data_node/artifact")
+model_node = t_read_pmml("/nix/store/yspsvjz0i694mbkwgzq7hk3vrm9z4i1n-pipeline_output/model_node/artifact")
+p = predict(data_node, model_node)
+print("Calling serialize...")
+res = serialize(p, "artifact_test")
+print(res)

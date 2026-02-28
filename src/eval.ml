@@ -433,7 +433,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env_ref e)) pairs)
   | DotAccess { target; field } -> eval_dot_access env_ref target field
   | RawCode _ ->
-      make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated in T. They are only valid inside `node(command = ..., runtime = R|Python|Julia)`."
+      make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated in T. They are only valid inside `node(command = ..., runtime = T|R|Python|Julia)`."
   | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
   | Block stmts -> eval_block env_ref stmts
   | PipelineDef nodes -> eval_pipeline env_ref nodes
@@ -658,7 +658,8 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       else if un.un_runtime = "T" then
         let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
         let is_unbuilt d = match Env.find_opt d !current_env_ref with Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>" | _ -> false in
-        if List.exists is_unbuilt node_deps then
+        let is_raw = match un.un_command with RawCode _ -> true | _ -> false in
+        if is_raw || List.exists is_unbuilt node_deps then
           VComputedNode {
             cn_name = name;
             cn_runtime = "T";

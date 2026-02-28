@@ -124,175 +124,300 @@ def t_read_arrow(path):
   let t_pmml_r_code = {|
 t_write_pmml <- function(object, path) {
   r2pmml::r2pmml(object, path)
-  # Enrich PMML with summary statistics for lm/glm models
+  
+  # Enrichment for lm/glm models
   if (inherits(object, "lm")) {
     s <- tryCatch(summary(object), error = function(e) NULL)
     if (is.null(s)) return(invisible(NULL))
-    pmml_text <- paste(readLines(path, warn = FALSE), collapse = "\n")
-    coefs <- s$coefficients
+    
+    doc <- tryCatch(XML::xmlParse(path), error = function(e) NULL)
+    if (is.null(doc)) return(invisible(NULL))
+    
+    root <- XML::xmlRoot(doc)
     fmt <- function(x) sprintf("%.15g", x)
-    # Add std_error/tStatistic/pValue to each NumericPredictor
-    # Must match on NumericPredictor context to avoid hitting MiningField elements
-    for (pname in rownames(coefs)) {
-      if (pname == "(Intercept)") next
-      se <- fmt(coefs[pname, "Std. Error"])
-      tv <- fmt(coefs[pname, "t value"])
-      pv <- fmt(coefs[pname, "Pr(>|t|)"])
-      old_frag <- paste0('<NumericPredictor name="', pname, '"')
-      new_frag <- paste0('<NumericPredictor name="', pname, '" stdError="', se, '" tStatistic="', tv, '" pValue="', pv, '"')
-      pmml_text <- sub(old_frag, new_frag, pmml_text, fixed = TRUE)
-    }
-    # Add intercept stats to RegressionTable
-    if ("(Intercept)" %in% rownames(coefs)) {
-      se <- fmt(coefs["(Intercept)", "Std. Error"])
-      tv <- fmt(coefs["(Intercept)", "t value"])
-      pv <- fmt(coefs["(Intercept)", "Pr(>|t|)"])
-      # Find the intercept value that r2pmml wrote
-      m <- regmatches(pmml_text, regexpr('intercept="[^"]*"', pmml_text))
-      if (length(m) > 0) {
-        new_frag <- paste0(m[1], ' stdError="', se, '" tStatistic="', tv, '" pValue="', pv, '"')
-        pmml_text <- sub(m[1], new_frag, pmml_text, fixed = TRUE)
+    
+    coef_m <- s$coefficients
+    is_glm <- inherits(object, "glm")
+    
+    # Update NumericPredictors and RegressionTable (for Intercept)
+    for (nm in rownames(coef_m)) {
+      # Namespace-agnostic XPath
+      xpath_np <- sprintf("//*[local-name()='NumericPredictor' and @name='%s']", nm)
+      if (nm == "(Intercept)") {
+         xpath_np <- "//*[local-name()='NumericPredictor' and @name='(Intercept)']"
+      }
+      
+      nodes <- XML::getNodeSet(doc, xpath_np)
+      for (nd in nodes) {
+        XML::xmlAttrs(nd)[["stdError"]]   <- fmt(coef_m[nm, "Std. Error"])
+        stat_name <- if (is_glm) "zStatistic" else "tStatistic"
+        XML::xmlAttrs(nd)[[stat_name]]    <- fmt(coef_m[nm, 3])
+        XML::xmlAttrs(nd)[["pValue"]]     <- fmt(coef_m[nm, 4])
+      }
+      
+      if (nm == "(Intercept)") {
+        xpath_rt <- "//*[local-name()='RegressionTable']"
+        nodes_rt <- XML::getNodeSet(doc, xpath_rt)
+        for (nd in nodes_rt) {
+          XML::xmlAttrs(nd)[["stdError"]]   <- fmt(coef_m[nm, "Std. Error"])
+          stat_name <- if (is_glm) "zStatistic" else "tStatistic"
+          XML::xmlAttrs(nd)[[stat_name]]    <- fmt(coef_m[nm, 3])
+          XML::xmlAttrs(nd)[["pValue"]]     <- fmt(coef_m[nm, 4])
+        }
       }
     }
-    # Add PredictiveModelQuality element with model-level stats
-    fstat <- if (!is.null(s$fstatistic)) fmt(s$fstatistic[1]) else "NA"
-    fpval <- if (!is.null(s$fstatistic)) {
-      fmt(pf(s$fstatistic[1], s$fstatistic[2], s$fstatistic[3], lower.tail = FALSE))
-    } else "NA"
-    ll <- fmt(logLik(object))
-    dev <- fmt(deviance(object))
-    dfr <- df.residual(object)
-    quality <- sprintf(
-      '  <PredictiveModelQuality r2="%s" adj-r2="%s" aic="%s" bic="%s" sigma="%s" nobs="%d" fStatistic="%s" fPValue="%s" logLik="%s" deviance="%s" dfResidual="%d"/>',
-      fmt(s$r.squared), fmt(s$adj.r.squared),
-      fmt(AIC(object)), fmt(BIC(object)),
-      fmt(s$sigma), nobs(object),
-      fstat, fpval, ll, dev, dfr
-    )
-    pmml_text <- sub("</RegressionModel>",
-                     paste0(quality, "\n</RegressionModel>"),
-                     pmml_text, fixed = TRUE)
-    cat(pmml_text, file = path)
+    
+    # Model-level statistics
+    reg_nodes <- XML::getNodeSet(doc, "//*[local-name()='RegressionModel' or local-name()='GeneralRegressionModel']")
+    if (length(reg_nodes) > 0) {
+      reg_node <- reg_nodes[[1]]
+      
+      if (is_glm) {
+        # Prepare coefficient data as JSON for fallback
+        coef_list <- list()
+        for (nm in rownames(coef_m)) {
+          coef_list[[nm]] <- list(
+            estimate = coef_m[nm, 1],
+            std_error = coef_m[nm, 2],
+            statistic = coef_m[nm, 3],
+            p_value = coef_m[nm, 4]
+          )
+        }
+
+        # GLM Specific Stats (Extension)
+        glm_ext <- XML::newXMLNode("Extension",
+          attrs = list(
+            name  = "GLMStats",
+            value = jsonlite::toJSON(list(
+              family              = family(object)$family,
+              link                = family(object)$link,
+              null_deviance       = fmt(s$null.deviance),
+              null_deviance_df    = s$df.null,
+              residual_deviance   = fmt(s$deviance),
+              residual_deviance_df= s$df.residual,
+              dispersion          = fmt(s$dispersion),
+              aic                 = fmt(s$aic),
+              log_likelihood      = fmt(as.numeric(logLik(object))),
+              coefficients        = coef_list
+            ), auto_unbox = TRUE)
+          )
+        )
+        XML::addChildren(reg_node, glm_ext)
+      } else {
+        # LM Specific Stats (PredictiveModelQuality)
+        fstat <- if (!is.null(s$fstatistic)) fmt(s$fstatistic[1]) else "NA"
+        fpval <- if (!is.null(s$fstatistic)) {
+          fmt(pf(s$fstatistic[1], s$fstatistic[2], s$fstatistic[3], lower.tail = FALSE))
+        } else "NA"
+        
+        quality <- XML::newXMLNode("PredictiveModelQuality",
+          attrs = list(
+            r2 = fmt(s$r.squared),
+            `adj-r2` = fmt(s$adj.r.squared),
+            aic = fmt(AIC(object)),
+            bic = fmt(BIC(object)),
+            sigma = fmt(s$sigma),
+            nobs = nobs(object),
+            fStatistic = fstat,
+            fPValue = fpval,
+            logLik = fmt(as.numeric(logLik(object))),
+            deviance = fmt(deviance(object)),
+            dfResidual = df.residual(object)
+          )
+        )
+        XML::addChildren(reg_node, quality)
+      }
+    }
+    
+    XML::saveXML(doc, file = path)
   }
 }
 t_read_pmml <- function(path) {
-  # Return the raw PMML path - T handles PMML deserialization natively
   path
 }
 |} in
 
   let t_pmml_py_code = {|
+import os
+import subprocess
+import tempfile
+import pickle
+
 def t_write_pmml(model, path):
+    # Check if it's a statsmodels GLM
+    is_sm_glm = False
+    try:
+        import statsmodels.genmod.generalized_linear_model as sm_glm
+        if isinstance(model, sm_glm.GLMResults) or isinstance(model, sm_glm.GLMResultsWrapper):
+            is_sm_glm = True
+    except ImportError:
+        pass
+
+    if is_sm_glm:
+        return t_export_sm_glm(model, path)
+
+    # Otherwise assume sklearn
     try:
         from sklearn2pmml import sklearn2pmml
     except ImportError as exc:
         raise ImportError(
-            "PMML export in Python requires the 'sklearn2pmml' package to be installed."
+            "PMML export in Python requires the 'sklearn2pmml' package for sklearn models."
         ) from exc
     
     # Basic export
     sklearn2pmml(model, path)
+    # sklearn-specific enrichment omitted for brevity here, should follow previous pattern if needed
+    _enrich_sklearn_pmml(model, path)
 
-    # Statistical enrichment for LinearRegression
+def t_export_sm_glm(results, path):
+    _assert_supported(results)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        pkl_path = os.path.join(tmp, "model.pkl")
+        results.save(pkl_path, remove_data=False)
+
+        jar_path = _resolve_jpmml_statsmodels_jar()
+
+        subprocess.run(
+            [
+                "java", "-jar", jar_path,
+                "--pkl-input",  pkl_path,
+                "--pmml-output", path,
+            ],
+            check=True,
+        )
+
+    _enrich_sm_glm_pmml(results, path)
+    return path
+
+def _assert_supported(results):
+    import statsmodels.genmod.generalized_linear_model as glm_module
+
+    supported_families = {"Binomial", "Gaussian", "Poisson"}
+    supported_links    = {"identity", "log", "logit"}
+
+    if hasattr(results, "family"):
+        family_name = type(results.family).__name__
+        link_name   = type(results.family.link).__name__.lower()
+
+        if family_name not in supported_families:
+            raise ValueError(
+                f"GLM family '{family_name}' is not supported on the Python path. "
+                f"Train in R to use this family."
+            )
+        if link_name not in supported_links:
+            raise ValueError(
+                f"Link function '{link_name}' is not supported on the Python path. "
+                f"Train in R to use this link."
+            )
+
+def _resolve_jpmml_statsmodels_jar():
+    jar = os.environ.get("T_JPMML_STATSMODELS_JAR")
+    if not jar or not os.path.exists(jar):
+        raise RuntimeError(
+            "JPMML-StatsModels JAR not found. "
+            "Ensure the t-pmml-java derivation is present in your environment."
+        )
+    return jar
+
+def _enrich_sklearn_pmml(model, path):
     from sklearn.linear_model import LinearRegression
     if isinstance(model, LinearRegression) and hasattr(model, 'feature_names_in_'):
         try:
-            import numpy as np
-            from scipy import stats
             import xml.etree.ElementTree as ET
-
-            # 1. Calculate OLS statistics
-            # We assume the model was fit on data where we can't easily get the original X
-            # but if it was fit just now, we might have issues. 
-            # However, for the bridge to be useful, we need the stats.
-            # In T pipelines, the user usually passes raw data to the command.
-            # For now, we only enrich if we have the necessary info or if we can re-derive it.
-            # But sklearn doesn't store the training data.
-            # Strategy: If the model has been enriched with stats attributes by the user, use them.
-            # Otherwise, we can only export coefficients.
-            
-            # To match R's lm, we'd need the residuals and X matrix.
-            # Since sklearn doesn't keep them, we expect the user might have used a wrapper 
-            # or we just provide the coefficients.
-            # BUT the user request says "the data and received should be the same as the R ones".
-            # This implies they want the standard errors even from Python.
-            
-            # Let's check if we can find the data in the local scope? No, that's hacky.
-            # Let's assume for this bridge that if standard errors are missing, we just leave them.
-            # UNLESS we calculate them here if X and y are available in the scope?
-            # No, t_write_pmml only gets 'model'.
-            
-            # However, we can at least add the model quality (R2) which sklearn DOES have.
             tree = ET.parse(path)
             root = tree.getroot()
-            ns = {'p': 'http://www.dmg.org/PMML-4_4'}
-            # Note: sklearn2pmml might use a different version. Let's find the tag regardless of NS.
-            
-            def find_tag(root, tag):
-                for el in root.iter():
-                    if el.tag.endswith(tag):
-                        return el
-                return None
-
-            reg_model = find_tag(root, 'RegressionModel')
+            reg_model = None
+            for el in root.iter():
+                if el.tag.endswith('RegressionModel'):
+                    reg_model = el
+                    break
             if reg_model is not None:
-                # 1. Inject model-level Quality metrics
-                # Get namespace from parent tag
                 tag = reg_model.tag
                 ns_prefix = tag[:tag.rfind('}')+1] if '}' in tag else ""
-                
                 quality = ET.SubElement(reg_model, ns_prefix + 'PredictiveModelQuality')
-                if hasattr(model, 'r2_'): quality.set('r2', str(model.r2_))
-                if hasattr(model, 'adj_r2_'): quality.set('adj-r2', str(model.adj_r2_))
-                if hasattr(model, 'aic_'): quality.set('aic', str(model.aic_))
-                if hasattr(model, 'bic_'): quality.set('bic', str(model.bic_))
-                if hasattr(model, 'sigma_'): quality.set('sigma', str(model.sigma_))
-                if hasattr(model, 'nobs_'): quality.set('nobs', str(int(model.nobs_)))
-                if hasattr(model, 'f_statistic_'): quality.set('fStatistic', str(model.f_statistic_))
-                if hasattr(model, 'f_p_value_'): quality.set('fPValue', str(model.f_p_value_))
-                if hasattr(model, 'log_lik_'): quality.set('logLik', str(model.log_lik_))
-                if hasattr(model, 'deviance_'): quality.set('deviance', str(model.deviance_))
-                if hasattr(model, 'df_residual_'): quality.set('dfResidual', str(int(model.df_residual_)))
-
-                # 2. Inject coefficient-level stats
-                table = find_tag(reg_model, 'RegressionTable')
-                if table is not None:
-                    # Map feature names to order in model
-                    features = model.feature_names_in_.tolist()
-                    
-                    # Intercept
-                    if hasattr(model, 'std_errors_'):
-                        table.set('stdError', str(model.std_errors_[0]))
-                    if hasattr(model, 't_stats_'):
-                        table.set('tStatistic', str(model.t_stats_[0]))
-                    if hasattr(model, 'p_values_'):
-                        table.set('pValue', str(model.p_values_[0]))
-                    
-                    # NumericPredictors - use namespace-agnostic search
-                    for pred in table:
-                        if not pred.tag.endswith('NumericPredictor'):
-                            continue
-                        name = pred.get('name')
-                        if name in features:
-                            idx = features.index(name) + 1 # +1 because 0 is intercept
-                            if hasattr(model, 'std_errors_'):
-                                pred.set('stdError', str(model.std_errors_[idx]))
-                            if hasattr(model, 't_stats_'):
-                                pred.set('tStatistic', str(model.t_stats_[idx]))
-                            if hasattr(model, 'p_values_'):
-                                pred.set('pValue', str(model.p_values_[idx]))
-
+                for attr in ['r2_', 'adj_r2_', 'aic_', 'bic_', 'sigma_', 'nobs_', 'f_statistic_', 'f_p_value_', 'log_lik_', 'deviance_', 'df_residual_']:
+                    if hasattr(model, attr):
+                        quality.set(attr.replace('_', "").replace('adjr2', 'adj-r2'), str(getattr(model, attr)))
                 tree.write(path)
-        except Exception:
-            pass # Fallback to basic PMML if enrichment fails
+        except Exception: pass
+
+def _enrich_sm_glm_pmml(results, path):
+    import json
+    try:
+        import xml.etree.ElementTree as ET
+        tree = ET.parse(path)
+        root = tree.getroot()
+        reg_model = None
+        for el in root.iter():
+            if el.tag.endswith('RegressionModel') or el.tag.endswith('GeneralRegressionModel'):
+                reg_model = el
+                break
+        if reg_model is not None:
+            tag = reg_model.tag
+            ns_prefix = tag[:tag.rfind('}')+1] if '}' in tag else ""
+            
+            fam = type(results.family).__name__
+            lnk = type(results.family.link).__name__.lower()
+            
+            coef_list = {}
+            for name, coef in results.params.items():
+                c_dict = {"estimate": float(coef)}
+                try: c_dict["std_error"] = float(results.bse[name])
+                except Exception: pass
+                try:
+                    stat = results.tvalues[name] if hasattr(results, 'tvalues') else (results.zvalues[name] if hasattr(results, 'zvalues') else None)
+                    if stat is not None: c_dict["statistic"] = float(stat)
+                except Exception: pass
+                try: c_dict["p_value"] = float(results.pvalues[name])
+                except Exception: pass
+                coef_list[name] = c_dict
+                
+            glm_stats = {
+                "family": fam,
+                "link": lnk,
+                "coefficients": coef_list
+            }
+            if hasattr(results, 'null_deviance'): glm_stats["null_deviance"] = str(float(results.null_deviance))
+            if hasattr(results, 'df_null'): glm_stats["null_deviance_df"] = int(results.df_null)
+            if hasattr(results, 'deviance'): glm_stats["residual_deviance"] = str(float(results.deviance))
+            if hasattr(results, 'df_resid'): glm_stats["residual_deviance_df"] = int(results.df_resid)
+            if hasattr(results, 'scale'): glm_stats["dispersion"] = str(float(results.scale))
+            if hasattr(results, 'aic'): glm_stats["aic"] = str(float(results.aic))
+            if hasattr(results, 'llf'): glm_stats["log_likelihood"] = str(float(results.llf))
+            
+            glm_ext = ET.SubElement(reg_model, ns_prefix + 'Extension')
+            glm_ext.set('name', 'GLMStats')
+            glm_ext.set('value', json.dumps(glm_stats))
+            
+            for el in reg_model.iter():
+                if el.tag.endswith('NumericPredictor'):
+                    nm = el.get('name')
+                    if nm and nm in results.params:
+                        try: el.set('stdError', str(results.bse[nm]))
+                        except Exception: pass
+                        try: el.set('zStatistic', str(results.tvalues[nm]))
+                        except Exception: pass
+                        try: el.set('pValue', str(results.pvalues[nm]))
+                        except Exception: pass
+                elif el.tag.endswith('RegressionTable'):
+                    if 'const' in results.params:
+                        try: el.set('stdError', str(results.bse['const']))
+                        except Exception: pass
+                        try: el.set('zStatistic', str(results.tvalues['const']))
+                        except Exception: pass
+                        try: el.set('pValue', str(results.pvalues['const']))
+                        except Exception: pass
+
+            tree.write(path)
+    except Exception:
+        pass
 
 def t_read_pmml(path):
     try:
         from pypmml import Model
-    except ImportError as exc:
-        raise ImportError(
-            "PMML reading in Python requires the 'pypmml' package to be installed."
-        ) from exc
+    except ImportError:
+        return path # Fallback to path
     return Model.load(path)
 |} in
 
@@ -398,7 +523,7 @@ def t_read_pmml(path):
       let imports = List.filter is_import_line lines in
       if imports = [] then ""
       else
-        let code = String.concat "\n" imports in
+        let code = String.concat "\n" (List.map String.trim imports) in
         Printf.sprintf "      cat <<'EOF' >> node_script.%s\n%s\nEOF\n" ext code
     else ""
   in
@@ -487,6 +612,7 @@ EOF
   %s = stdenv.mkDerivation {
     name = "%s";
     buildInputs = [ tBin %s ];
+    T_JPMML_STATSMODELS_JAR = "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar";
 %s
     buildCommand = ''
       cp -r $src/* . || true

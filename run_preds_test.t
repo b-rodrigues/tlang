@@ -1,0 +1,6 @@
+data_node = read_csv("/nix/store/lnfra1hbkbsny3kg1jshxd9x2kb3rx7s-pipeline_output/data_node/artifact")
+print(data_node)
+model_node = t_read_pmml("/nix/store/lnfra1hbkbsny3kg1jshxd9x2kb3rx7s-pipeline_output/model_node/artifact")
+print(model_node)
+p = predict(data_node, model_node)
+print(p)

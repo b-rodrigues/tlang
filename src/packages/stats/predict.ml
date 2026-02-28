@@ -40,7 +40,7 @@ let register env =
           List.iter (fun (name, v) ->
             match v with
             | VFloat f ->
-                if name = "(Intercept)" then
+                if name = "(Intercept)" || name = "Intercept" || name = "const" then
                   intercept := f
                 else
                   terms := (name, f) :: !terms
@@ -74,7 +74,39 @@ let register env =
           ) !terms;
           
           if not !success then Error.make_error KeyError !error_msg
-          else VVector (Array.mapi (fun i x -> if na_rows.(i) then VNA NAFloat else VFloat x) out)
+          else 
+            let link = match List.assoc_opt "link" pairs with
+              | Some (VString l) -> String.lowercase_ascii l
+              | _ -> "identity"
+            in
+            
+            let apply_link_inv eta =
+              match link with
+              | "identity" -> eta
+              | "logit" -> 1.0 /. (1.0 +. exp(-. eta))
+              | "log" -> exp eta
+              | "inverse" -> 1.0 /. eta
+              | "sqrt" -> eta *. eta
+              | "cloglog" -> 1.0 -. exp(-. exp eta)
+              | "probit" ->
+                  let a1 =  0.254829592 in
+                  let a2 = -0.284496736 in
+                  let a3 =  1.421413741 in
+                  let a4 = -1.453152027 in
+                  let a5 =  1.061405429 in
+                  let p  =  0.3275911 in
+                  let sign = if eta < 0.0 then -1.0 else 1.0 in
+                  let x = Float.abs eta /. sqrt 2.0 in
+                  let t = 1.0 /. (1.0 +. p *. x) in
+                  let y = 1.0 -. (((((a5 *. t +. a4) *. t) +. a3) *. t +. a2) *. t +. a1) *. t *. exp (-. x *. x) in
+                  0.5 *. (1.0 +. sign *. y)
+              | _ -> eta (* Default to identity if unknown *)
+            in
+            
+            VVector (Array.mapi (fun i x -> 
+              if na_rows.(i) then VNA NAFloat 
+              else VFloat (apply_link_inv x)
+            ) out)
 
       | [VDataFrame _; _] ->
           Error.type_error "Function `predict` expects a model (Dict) as second argument."
