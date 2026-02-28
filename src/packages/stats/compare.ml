@@ -54,14 +54,18 @@ let register env =
           ) valid_models in
           
           (* 2. Collect union of terms, preserving order *)
+          let seen_terms = Hashtbl.create 16 in
           let all_terms = ref [] in
           List.iter (fun (_, tidy) ->
             let terms = Arrow_table.get_string_column tidy.arrow_table "term" in
             Array.iter (function 
-              | Some t -> if not (List.mem t !all_terms) then all_terms := !all_terms @ [t] 
+              | Some t -> if not (Hashtbl.mem seen_terms t) then begin
+                  Hashtbl.add seen_terms t ();
+                  all_terms := t :: !all_terms
+                end
               | None -> ()) terms
           ) model_infos;
-          let union_terms = Array.of_list !all_terms in
+          let union_terms = Array.of_list (List.rev !all_terms) in
           let n_union = Array.length union_terms in
           
           (* 3. build columns for each model *)

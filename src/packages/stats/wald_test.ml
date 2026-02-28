@@ -85,14 +85,15 @@ let register env =
                      Error.value_error "wald_test: some terms not found in model coefficients."
                    else begin
                      let q = List.length indices in
+                     let indices_arr = Array.of_list indices in
                      let beta_q = Array.init q (fun i -> 
-                       let idx = List.nth indices i in
+                       let idx = indices_arr.(i) in
                        match estimates.(idx) with Some f -> f -. null_val | None -> 0.0
                      ) in
                      let vcov_q = Array.init q (fun i ->
                        Array.init q (fun j ->
-                         let idx_i = List.nth indices i in
-                         let idx_j = List.nth indices j in
+                         let idx_i = indices_arr.(i) in
+                         let idx_j = indices_arr.(j) in
                          mat.(idx_i).(idx_j)
                        )
                      ) in

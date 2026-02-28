@@ -478,7 +478,7 @@ test_that("ADVANCED STATS: anova table", {
   compare_csvs("lm_anova_m1_m2", tolerance = 1e-4)
 })
 
-test_that("ADVANCED STATS: wald_test joint hipothesis", {
+test_that("ADVANCED STATS: wald_test joint hypothesis", {
   compare_csvs("lm_wald_hp_qsec", tolerance = 1e-4)
 })
 

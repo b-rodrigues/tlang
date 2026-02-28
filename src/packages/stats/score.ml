@@ -43,8 +43,8 @@ let register env =
         (match res_v with
          | VDataFrame res_df ->
             let actuals = Arrow_table.get_float_column res_df.arrow_table "actual" in
-            let fitted  = Arrow_table.get_float_column res_df.arrow_table ".fitted" in
-            let resids  = Arrow_table.get_float_column res_df.arrow_table ".resid" in
+            let fitted  = Arrow_table.get_float_column res_df.arrow_table "fitted" in
+            let resids  = Arrow_table.get_float_column res_df.arrow_table "resid" in
             
             let valid_resids = List.filter_map (fun x -> x) (Array.to_list resids) in
             let nv = float_of_int (List.length valid_resids) in
