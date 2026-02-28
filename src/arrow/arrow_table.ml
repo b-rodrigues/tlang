@@ -341,12 +341,12 @@ let materialize (t : t) : t =
     in
     let ffi_cols = List.map (fun (name, type_) ->
       let data = match List.assoc_opt name t.columns with
-        | Some (IntColumn a) -> Obj.magic a
-        | Some (FloatColumn a) -> Obj.magic a
-        | Some (BoolColumn a) -> Obj.magic a
-        | Some (StringColumn a) -> Obj.magic a
-        | Some (NullColumn n) -> Obj.magic (Array.make n None)
-        | None -> Obj.magic (Array.make t.nrows None)
+        | Some (IntColumn a) -> Array.map (Option.map Obj.repr) a
+        | Some (FloatColumn a) -> Array.map (Option.map Obj.repr) a
+        | Some (BoolColumn a) -> Array.map (Option.map Obj.repr) a
+        | Some (StringColumn a) -> Array.map (Option.map Obj.repr) a
+        | Some (NullColumn n) -> Array.make n None
+        | None -> Array.make t.nrows None
       in
       (name, tag_of type_, data)
     ) t.schema in

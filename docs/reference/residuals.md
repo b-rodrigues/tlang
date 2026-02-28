@@ -12,7 +12,7 @@ Computes residuals for a model given a dataset.
 
 ## Returns
 
-Columns: `actual`, `.fitted`, `.resid`.
+Columns: `actual`, `fitted`, `resid`.
 
 ## Examples
 

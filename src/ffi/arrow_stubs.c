@@ -1881,6 +1881,8 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           }
         }
         break;
+      default:
+        break;
     }
 
     if (builder) {
