@@ -39,6 +39,7 @@ let read_pmml path =
     let log_lik = ref None in
     let deviance_ = ref None in
     let df_residual = ref None in
+    let glm_stats = ref None in
     let found_model = ref false in
     let found_table = ref false in
 
@@ -145,41 +146,23 @@ let read_pmml path =
             (match get_float_attr "deviance" attrs with Some v -> deviance_ := Some v | _ -> ());
             (match get_float_attr "dfResidual" attrs with Some v -> df_residual := (try Some (int_of_float v) with _ -> None) | _ -> ());
             loop ()
-        | `El_start _ -> loop ()
+        | `El_start ((_, "Extension"), attrs) ->
+            if List.exists (fun ((_, n), v) -> n = "name" && v = "GLMStats") attrs then
+              (match List.find_map (fun ((_, n), v) -> if n = "value" then Some v else None) attrs with
+               | Some json_s -> 
+                   (try 
+                      let json = Yojson.Safe.from_string json_s in
+                      glm_stats := Some json
+                    with _ -> ())
+               | None -> ());
+            ignore_element (); loop ()
+        | `El_start _ -> ignore_element (); loop ()
         | `El_end | `Data _ | `Dtd _ -> loop ()
     in
     loop ();
 
     if not !found_model then Error "No <RegressionModel> or <GeneralRegressionModel> found in PMML"
     else
-
-
-        let glm_stats = ref None in
-        let find_glm_ext () =
-          try
-            let ic2 = open_in path in
-            Fun.protect ~finally:(fun () -> close_in_noerr ic2) (fun () ->
-              let i2 = Xmlm.make_input (`Channel ic2) in
-              let rec loop2 () =
-                if Xmlm.eoi i2 then ()
-                else match Xmlm.input i2 with
-                | `El_start ((_, "Extension"), attrs) ->
-                    if List.exists (fun ((_, n), v) -> n = "name" && v = "GLMStats") attrs then
-                      (match List.find_map (fun ((_, n), v) -> if n = "value" then Some v else None) attrs with
-                       | Some json_s -> 
-                           (try 
-                              let json = Yojson.Safe.from_string json_s in
-                              glm_stats := Some json
-                            with _ -> ())
-                       | None -> ());
-                    ignore_element (); loop2 ()
-                | `El_start _ -> ignore_element (); loop2 ()
-                | _ -> loop2 ()
-              in loop2 ()
-            )
-          with _ -> ()
-        in
-        find_glm_ext ();
 
         let is_glm = Option.is_some !glm_stats in
         

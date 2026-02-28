@@ -146,17 +146,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ model.nobs = 5\n    Expected: 5\n    Got: %s\n" result
   end;
 
-  (* summary(model) returns a tidy DataFrame *)
+  (* summary(model) returns a tidy Dict *)
   let (v, _) = eval_string_env "type(summary(model))" env_lm in
   let result = Ast.Utils.value_to_string v in
-  if result = {|"DataFrame"|} then begin
-    incr pass_count; Printf.printf "  ✓ summary(model) returns a DataFrame\n"
+  if result = {|"Dict"|} then begin
+    incr pass_count; Printf.printf "  ✓ summary(model) returns a Dict\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ summary(model) returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ summary(model) returns a Dict\n    Expected: \"Dict\"\n    Got: %s\n" result
   end;
 
   (* summary() has correct columns *)
-  let (v, _) = eval_string_env "colnames(summary(model))" env_lm in
+  let (v, _) = eval_string_env "colnames(summary(model)._tidy_df)" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = {|["term", "estimate", "std_error", "statistic", "p_value"]|} then begin
     incr pass_count; Printf.printf "  ✓ summary() tidy DataFrame has correct columns\n"
@@ -165,7 +165,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* summary() has 2 rows (intercept + x) *)
-  let (v, _) = eval_string_env "nrow(summary(model))" env_lm in
+  let (v, _) = eval_string_env "nrow(summary(model)._tidy_df)" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
     incr pass_count; Printf.printf "  ✓ summary() has 2 rows\n"
