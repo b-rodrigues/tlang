@@ -67,10 +67,10 @@ jobs:
         "$TLANG_BIN" update
         
         # 6. Copy labs data
-        mkdir -p jcrouser-labs/lab2 jcrouser-labs/lab3 jcrouser-labs/lab8
-        cp ${{ github.workspace }}/tests/pipeline/jcrouser-labs/lab2/Boston.csv jcrouser-labs/lab2/
-        cp ${{ github.workspace }}/tests/pipeline/jcrouser-labs/lab3/Smarket.csv jcrouser-labs/lab3/
-        cp ${{ github.workspace }}/tests/pipeline/jcrouser-labs/lab8/Hitters.csv jcrouser-labs/lab8/
+        mkdir -p tests/pipeline/data
+        cp ${{ github.workspace }}/tests/pipeline/data/Boston.csv tests/pipeline/data/
+        cp ${{ github.workspace }}/tests/pipeline/data/Smarket.csv tests/pipeline/data/
+        cp ${{ github.workspace }}/tests/pipeline/data/Hitters.csv tests/pipeline/data/
 
         # 7. Run Lab 2 Pipeline
         cp ${{ github.workspace }}/tests/pipeline/test_lab2_boston.t .
