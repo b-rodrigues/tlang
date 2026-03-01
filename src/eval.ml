@@ -400,7 +400,18 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         | _ -> "T"
       in
       let runtime = eval_string "runtime" default_runtime in
-      let command = lookup_arg "command" (Value VNull) in
+      let script_opt = List.assoc_opt (Some "script") args in
+      let has_named_command = Option.is_some (List.assoc_opt (Some "command") args) in
+      let has_positional_command = List.exists (fun (k, _) -> k = None) args in
+      let has_command = has_named_command || has_positional_command in
+      if Option.is_some script_opt && has_command then
+        Error.make_error ArityError "Provide either `command` or `script`, but not both."
+      else
+      let command =
+        match script_opt with
+        | Some script -> script
+        | None -> lookup_arg "command" (Value VNull)
+      in
       if runtime <> "T" then
         match command with
         | RawCode _ ->

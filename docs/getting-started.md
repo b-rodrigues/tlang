@@ -92,5 +92,6 @@ t run scripts/main.t
 Now that you have your first project set up and understand the folder structure, the best place to learn how to do actual data analysis in T is the Pipeline Tutorial!
 
 1. **[Pipeline Tutorial](pipeline_tutorial.html)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
-2. **[Project Development](project_development.html)** — Dive deeper into managing your `tproject.toml` and Nix environments.
-3. **[Language Overview](language_overview.html)** — Explore T's syntax, types, and standard library functions.
+2. **[Script Nodes Tutorial](script_nodes_tutorial.html)** — Learn when to use `command` vs `script` in `node()`, `pyn()`, and `rn()`.
+3. **[Project Development](project_development.html)** — Dive deeper into managing your `tproject.toml` and Nix environments.
+4. **[Language Overview](language_overview.html)** — Explore T's syntax, types, and standard library functions.

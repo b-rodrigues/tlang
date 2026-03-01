@@ -8,14 +8,15 @@
 --# enable cross-runtime evaluation.
 --#
 --# @name node
---# @param command :: Any The expression to evaluate inside the node.
---# @param runtime :: Symbol (Optional) The runtime environment (T, R, Python). Default = T.
+--# @param command :: Any (Optional) The expression to evaluate inside the node.
+--# @param script :: Any (Optional) A raw script block to execute instead of `command`. The script should return exactly one object, which is then serialized. Cannot be used together with `command`.
 --# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
 --# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.
 --# @param functions :: String | List[String] (Optional) Files to source before execution.
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.
---# @return :: Any The evaluated return value of the command.
+--# @param runtime :: Symbol (Optional) The runtime environment (T, R, Python). Default = T.
+--# @return :: Any The evaluated return value of `script` or `command` (exactly one must be provided).
 --# @family pipeline
 --# @export
 *)

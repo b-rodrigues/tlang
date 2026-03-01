@@ -606,12 +606,20 @@ EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
         else
-          (* Expression-style: wrap with assignment to node name *)
+          (* Script-style: run as a black box and expect a final return value. *)
+          let indented_expr_s =
+            String.split_on_char '\n' expr_s
+            |> List.map (fun line -> "    " ^ line)
+            |> String.concat "\n"
+          in
           Printf.sprintf {|      cat <<'EOF' >> node_script.py
-%s = (%s)
+def __tlang_node_script__():
+%s
+
+%s = __tlang_node_script__()
 EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} indented_expr_s name ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s
