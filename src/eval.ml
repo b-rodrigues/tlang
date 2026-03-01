@@ -407,36 +407,50 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       if Option.is_some script_opt && has_command then
         Error.make_error ArityError "Provide either `command` or `script`, but not both."
       else
-      let command =
+      let command_or_error =
         match script_opt with
-        | Some script -> script
-        | None -> lookup_arg "command" (Value VNull)
+        | Some script_expr ->
+            let script_value = eval_expr env_ref script_expr in
+            (match script_value with
+             | VString script_path | VSymbol script_path ->
+                 if runtime = "Python" then
+                   let raw_text = Printf.sprintf "import runpy
+__tlang_script_globals__ = runpy.run_path(%S)
+if 'main' in __tlang_script_globals__:
+    return __tlang_script_globals__['main']()
+if 'result' in __tlang_script_globals__:
+    return __tlang_script_globals__['result']
+raise Exception('Python script must define main() or `result`.')" script_path in
+                   Ok (RawCode { raw_text; raw_identifiers = Ast.extract_identifiers raw_text })
+                 else if runtime = "R" then
+                   let raw_text = Printf.sprintf "source(%S)$value" script_path in
+                   Ok (RawCode { raw_text; raw_identifiers = Ast.extract_identifiers raw_text })
+                 else
+                   Error (Error.make_error TypeError (Printf.sprintf "`script` path is only supported for Python or R runtimes, got `%s`." runtime))
+             | VError _ as e -> Error e
+             | v -> Error (Error.make_error TypeError (Printf.sprintf "`script` must be a path String/Symbol, got %s." (Utils.type_name v))))
+        | None -> Ok (lookup_arg "command" (Value VNull))
       in
-      if runtime <> "T" then
-        match command with
-        | RawCode _ ->
-            VNode {
-              un_command = command;
-              un_runtime = runtime;
-              un_serializer = lookup_arg "serializer" (Var "default");
-              un_deserializer = lookup_arg "deserializer" (Var "default");
-              un_functions = lookup_list "functions";
-              un_includes = lookup_list "includes";
-              un_noop = eval_bool "noop" false;
-            }
-        | _ -> 
-            let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode)." runtime in
-            Error.make_error TypeError msg
-      else
-        VNode {
-          un_command = command;
-          un_runtime = runtime;
-          un_serializer = lookup_arg "serializer" (Var "default");
-          un_deserializer = lookup_arg "deserializer" (Var "default");
-          un_functions = lookup_list "functions";
-          un_includes = lookup_list "includes";
-          un_noop = eval_bool "noop" false;
-        }
+      (match command_or_error with
+       | Error e -> e
+       | Ok command ->
+           let base_node = {
+             un_command = command;
+             un_runtime = runtime;
+             un_serializer = lookup_arg "serializer" (Var "default");
+             un_deserializer = lookup_arg "deserializer" (Var "default");
+             un_functions = lookup_list "functions";
+             un_includes = lookup_list "includes";
+             un_noop = eval_bool "noop" false;
+           } in
+           if runtime <> "T" then
+             (match command with
+              | RawCode _ -> VNode base_node
+              | _ ->
+                  let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode)." runtime in
+                  Error.make_error TypeError msg)
+           else
+             VNode base_node)
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args

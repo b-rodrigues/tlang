@@ -200,84 +200,78 @@ p_cross = pipeline {
   end;
 
   Printf.printf "Phase 3 — Script Argument Support:\n";
+  let py_script = "test_node_script.py" in
+  let r_script = "test_node_script.R" in
+  let write_file path content =
+    let oc = open_out path in
+    output_string oc content;
+    close_out oc
+  in
+  write_file py_script "def main():\n    return 42\n";
+  write_file r_script "42\n";
+
   let (v_node_script_only, _) = eval_string_env
-    "cfg = node(script = <{ return 42 }>, runtime = Python); cfg.command"
+    "cfg = node(script = \"test_node_script.py\", runtime = Python); cfg.command"
     (Packages.init_env ()) in
-  if Ast.Utils.value_to_string v_node_script_only = "\"<{return 42}>\"" then begin
-    incr pass_count; Printf.printf "  ✓ node(script=...) works without command\n"
+  if String.starts_with ~prefix:"\"<{import runpy" (Ast.Utils.value_to_string v_node_script_only) then begin
+    incr pass_count; Printf.printf "  ✓ node(script=\"path\") rewrites to runtime script execution\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ node(script=...) failed\n    Got: %s\n" (Ast.Utils.value_to_string v_node_script_only)
+    incr fail_count; Printf.printf "  ✗ node(script=\"path\") rewrite failed\n    Got: %s\n" (Ast.Utils.value_to_string v_node_script_only)
   end;
 
+  let both_err = "Error(ArityError: \"Provide either `command` or `script`, but not both.\")" in
   let (v_node_both, _) = eval_string_env
-    "node(command = <{ 1 + 1 }>, script = <{ return 5 }>, runtime = Python)"
+    "node(command = <{ 1 + 1 }>, script = \"test_node_script.py\", runtime = Python)"
     (Packages.init_env ()) in
-  if Ast.Utils.value_to_string v_node_both = "Error(ArityError: \"Provide either `command` or `script`, but not both.\")" then begin
+  if Ast.Utils.value_to_string v_node_both = both_err then begin
     incr pass_count; Printf.printf "  ✓ node rejects command+script together\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ node did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_node_both)
   end;
 
   let (v_pyn_both, _) = eval_string_env
-    "pyn(command = <{ 1 + 1 }>, script = <{ return 5 }>)"
+    "pyn(command = <{ 1 + 1 }>, script = \"test_node_script.py\")"
     (Packages.init_env ()) in
-  if Ast.Utils.value_to_string v_pyn_both = "Error(ArityError: \"Provide either `command` or `script`, but not both.\")" then begin
+  if Ast.Utils.value_to_string v_pyn_both = both_err then begin
     incr pass_count; Printf.printf "  ✓ pyn rejects command+script together\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ pyn did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_pyn_both)
   end;
 
   let (v_rn_both, _) = eval_string_env
-    "rn(command = <{ 1 + 1 }>, script = <{ 5 }>)"
+    "rn(command = <{ 1 + 1 }>, script = \"test_node_script.R\")"
     (Packages.init_env ()) in
-  if Ast.Utils.value_to_string v_rn_both = "Error(ArityError: \"Provide either `command` or `script`, but not both.\")" then begin
+  if Ast.Utils.value_to_string v_rn_both = both_err then begin
     incr pass_count; Printf.printf "  ✓ rn rejects command+script together\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ rn did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_rn_both)
   end;
-  print_newline ();
 
   Printf.printf "Phase 3 — Runtime Script Files (Python + R):\n";
   let command_exists cmd = Sys.command (Printf.sprintf "command -v %s >/dev/null 2>&1" cmd) = 0 in
   let can_run_runtime_scripts = command_exists "nix-build" && command_exists "python" && command_exists "Rscript" in
   if can_run_runtime_scripts then begin
-    let temp_dir = Filename.concat (Filename.get_temp_dir_name ()) ("tlang_script_test_" ^ string_of_int (Unix.getpid ())) in
-    (try Unix.mkdir temp_dir 0o755 with _ -> ());
-    let py_file = Filename.concat temp_dir "helpers.py" in
-    let r_file = Filename.concat temp_dir "helpers.R" in
-    let write_file path content =
-      let oc = open_out path in
-      output_string oc content;
-      close_out oc
-    in
-    write_file py_file "def add_one(x):\n    return x + 1\n";
-    write_file r_file "add_one <- function(x) { x + 1 }\n";
-    let script_code = Printf.sprintf {|p_scripts = pipeline {
-  py = pyn(script = <{
-from helpers import add_one
-return add_one(41)
-  }>, functions = "%s")
-  rr = rn(script = <{
-source("helpers.R")
-add_one(41)
-  }>, functions = "%s")
+    let script_code = {|p_scripts = pipeline {
+  py = pyn(script = "test_node_script.py")
+  rr = rn(script = "test_node_script.R")
 }
 out = build_pipeline(p_scripts)
 ok = if (is_error(out)) (false) else ((read_node("py") == 42) && (read_node("rr") == 42))
-ok|} py_file r_file in
+ok|} in
     let (v_script_runtime, _) = eval_string_env script_code (Packages.init_env ()) in
     if Ast.Utils.value_to_string v_script_runtime = "true" then begin
-      incr pass_count; Printf.printf "  ✓ runtime script files execute for Python and R nodes\n"
+      incr pass_count; Printf.printf "  ✓ runtime script path files execute for Python and R nodes\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ runtime script files failed\n    Got: %s\n" (Ast.Utils.value_to_string v_script_runtime)
-    end;
-    (try Sys.remove py_file with _ -> ());
-    (try Sys.remove r_file with _ -> ());
-    (try Unix.rmdir temp_dir with _ -> ())
+      incr fail_count; Printf.printf "  ✗ runtime script path files failed\n    Got: %s\n" (Ast.Utils.value_to_string v_script_runtime)
+    end
   end else begin
     incr pass_count; Printf.printf "  ✓ skipped runtime script file test (requires nix-build, python, and Rscript)\n"
   end;
+
+  (try Sys.remove py_script with _ -> ());
+  (try Sys.remove r_script with _ -> ());
   print_newline ();
+
   (* Verify that explain indicates the different nodes *)
   let (v_explain, _) = eval_string_env "explain(p_cross).node_count" env_cross in
   if Ast.Utils.value_to_string v_explain = "3" then begin

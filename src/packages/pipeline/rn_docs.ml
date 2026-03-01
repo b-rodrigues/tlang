@@ -8,7 +8,7 @@
 --#
 --# @name rn
 --# @param command :: Any (Optional) The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks).
---# @param script :: Any (Optional) An R raw script block (`<{ ... }>`). If provided, it is executed instead of `command` and should return one object. Cannot be used together with `command`.
+--# @param script :: Any (Optional) A path to an R script file. If provided, it is executed instead of `command`, and the last expression value is serialized. Cannot be used together with `command`.
 --# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
 --# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.
 --# @param functions :: String | List[String] (Optional) R scripts to source before execution.

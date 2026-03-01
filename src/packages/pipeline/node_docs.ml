@@ -9,7 +9,7 @@
 --#
 --# @name node
 --# @param command :: Any (Optional) The expression to evaluate inside the node.
---# @param script :: Any (Optional) A raw script block to execute instead of `command`. The script should return exactly one object, which is then serialized. Cannot be used together with `command`.
+--# @param script :: Any (Optional) A path to a runtime script file to execute instead of `command`. For Python, the script should define `main()` (or set `result`) for the returned object to be serialized. For R, the last expression value is serialized. Cannot be used together with `command`.
 --# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
 --# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.
 --# @param functions :: String | List[String] (Optional) Files to source before execution.

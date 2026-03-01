@@ -1,99 +1,75 @@
-# Tutorial: Using `script` vs `command` in `node()`, `pyn()`, and `rn()`
+# Tutorial: Using script paths in `node()`, `pyn()`, and `rn()`
 
-This tutorial explains how to choose between `command` and `script` for pipeline nodes.
+`script` is a **path to a script file**, not an inline `<{ ... }>` block.
 
-## Rule of thumb
+## Core rules
 
-For cross-runtime nodes (`Python` and `R`):
-
-- Use **`command`** for expression-style code.
-- Use **`script`** for black-box script-style code that may have multiple statements.
-- Provide **exactly one** of `command` or `script`.
-
-If both are provided, T raises:
+- Use **either** `command` **or** `script`.
+- If both are supplied, T returns:
 
 ```text
 Error(ArityError: "Provide either `command` or `script`, but not both.")
 ```
 
-## Why `script` exists
+## Python script path
 
-Sometimes a node is easier to write as imperative code (loops, branches, temporary variables, function definitions, etc.).
+Provide a `.py` file path. The script should either:
 
-`script` lets you treat the body as a black box, as long as one final object is returned and serialized as the node artifact.
+- define `main()` and return the node object, or
+- set a global variable named `result`.
 
-## Python examples
+Example `my_node.py`:
 
-### 1) Expression-style with `command`
+```python
+def main():
+    vals = [1, 2, 3]
+    return {"sum": sum(vals), "n": len(vals)}
+```
+
+Use it from T:
 
 ```t
 p = pipeline {
-  features = pyn(command = <{ [1, 2, 3] }>)
+  py_model = pyn(script = "my_node.py")
 }
 ```
 
-### 2) Script-style with `script`
+## R script path
+
+Provide an `.R` file path. The value of the script's **last expression** is serialized.
+
+Example `my_node.R`:
+
+```r
+vals <- c(1, 2, 3)
+list(sum = sum(vals), n = length(vals))
+```
+
+Use it from T:
 
 ```t
 p = pipeline {
-  model = pyn(script = <{
-import math
-vals = [1, 4, 9]
-rooted = [math.sqrt(x) for x in vals]
-return {"values": vals, "sqrt": rooted}
-  }>)
+  r_model = rn(script = "my_node.R")
 }
 ```
 
-## R examples
-
-### 1) Expression-style with `command`
+## Explicit `node()` usage
 
 ```t
 p = pipeline {
-  x = rn(command = <{ 1 + 1 }>)
-}
-```
-
-### 2) Script-style with `script`
-
-```t
-p = pipeline {
-  summary = rn(script = <{
-vals <- c(1, 2, 3, 4)
-out <- list(mean = mean(vals), sum = sum(vals))
-out
-  }>)
-}
-```
-
-## Base `node()` form
-
-You can also use explicit runtime configuration:
-
-```t
-p = pipeline {
-  result = node(runtime = Python, script = <{
-nums = [1, 2, 3]
-return {"n": len(nums), "sum": sum(nums)}
-  }>)
+  py_model = node(runtime = Python, script = "my_node.py")
+  r_model  = node(runtime = R, script = "my_node.R")
 }
 ```
 
 ## Invalid usage
 
-Do not pass both:
-
 ```t
 # ❌ invalid
-pyn(command = <{ 1 + 1 }>, script = <{ return 2 }>)
+pyn(command = <{ 1 + 1 }>, script = "my_node.py")
 ```
-
-Use one or the other:
 
 ```t
 # ✅ valid
-pyn(command = <{ 1 + 1 }>)
-# or
-pyn(script = <{ return 2 }>)
+pyn(script = "my_node.py")
 ```

@@ -8,7 +8,7 @@
 --#
 --# @name pyn
 --# @param command :: Any (Optional) The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks).
---# @param script :: Any (Optional) A Python raw script block (`<{ ... }>`). If provided, it is executed instead of `command` and should return one object. Cannot be used together with `command`.
+--# @param script :: Any (Optional) A path to a Python script file. If provided, it is executed instead of `command`. The script should define `main()` (or set `result`) to provide the serialized object. Cannot be used together with `command`.
 --# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
 --# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.
 --# @param functions :: String | List[String] (Optional) Python files to source before execution.
