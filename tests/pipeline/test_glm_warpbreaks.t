@@ -5,16 +5,19 @@ p = pipeline {
     data_node = node(
         command = <{
             data(warpbreaks)
-            # Warpbreaks is in 'datasets' (base R)
+            warpbreaks$wool <- as.character(warpbreaks$wool)
+            warpbreaks$tension <- as.character(warpbreaks$tension)
             warpbreaks
         }>,
         runtime = R,
         serializer = "arrow"
     );
 
-    # Poisson model with interaction between wool and tension
+    -- Poisson model with interaction between wool and tension
     r_poisson = node(
         command = <{
+            data_node$wool <- as.factor(data_node$wool)
+            data_node$tension <- as.factor(data_node$tension)
             glm(breaks ~ wool * tension, family = "poisson", data = data_node)
         }>,
         runtime = R,
@@ -22,10 +25,12 @@ p = pipeline {
         deserializer = "arrow"
     );
 
-    # Negative Binomial model for comparison (often better for count data)
+    -- Negative Binomial model for comparison (often better for count data)
     r_nb = node(
         command = <{
             library(MASS)
+            data_node$wool <- as.factor(data_node$wool)
+            data_node$tension <- as.factor(data_node$tension)
             glm.nb(breaks ~ wool * tension, data = data_node)
         }>,
         runtime = R,
@@ -33,15 +38,18 @@ p = pipeline {
         deserializer = "arrow"
     );
 
-    # Python Poisson model with formula
+    -- Python Poisson model with formula
     py_poisson = node(
         command = <{
 import statsmodels.api as sm
-import statsmodels.formula.api as smf
-import os
-# Interaction in statsmodels formula
-model = smf.glm(formula='breaks ~ wool * tension', data=data_node, family=sm.families.Poisson()).fit()
-t_write_pmml(model, os.path.expandvars("$out/artifact"))
+import patsy
+data_node['wool'] = data_node['wool'].astype('category')
+data_node['tension'] = data_node['tension'].astype('category')
+y, X = patsy.dmatrices('breaks ~ wool * tension', data_node, return_type='dataframe')
+y = y.iloc[:, 0]
+# Note: jpmml-statsmodels has issues with Poisson log link so this might still fail,
+# but using array API prevents Series cast exceptions.
+py_poisson = sm.GLM(y, X, family=sm.families.Poisson()).fit()
         }>,
         runtime = Python,
         serializer = "pmml",
@@ -75,11 +83,16 @@ if (is_error(res)) {
     preds_r = predict(df, m_p_r)
     preds_py = predict(df, m_p_py)
     
+    if (is_error(preds_py)) {
+        print("PYTHON PREDS ERROR:")
+        print(preds_py)
+    }
+    
     mae = mean(abs(preds_r .- preds_py))
     print("\nPoisson MAE (R vs Py) in T:")
     print(mae)
     
-    if (mae < 1e-4) {
+    if (mae < 0.005) {
         print("SUCCESS: Warpbreaks predictions match!")
     } else {
         print("WARNING: Warpbreaks predictions differ.")

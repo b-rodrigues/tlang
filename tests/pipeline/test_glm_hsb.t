@@ -9,7 +9,8 @@ p = pipeline {
             # Select relevant columns and handle factors
             # We convert binary target to integer for easier comparison
             hsb$target <- as.integer(hsb$prog == "academic")
-            # We keep factors as is for the formula-based fitting in R and Python
+            hsb$ses <- as.character(hsb$ses)
+            hsb$schtyp <- as.character(hsb$schtyp)
             hsb
         }>,
         runtime = R,
@@ -20,6 +21,9 @@ p = pipeline {
         command = <{
             # Logistic regression as in the article
             # Formula: target ~ ses + schtyp + read + write + science + socst
+            data_node$target <- as.factor(data_node$target)
+            data_node$ses <- as.factor(data_node$ses)
+            data_node$schtyp <- as.factor(data_node$schtyp)
             glm(target ~ ses + schtyp + read + write + science + socst, 
                 family = binomial(link = "logit"), 
                 data = data_node)
@@ -36,12 +40,11 @@ import statsmodels.formula.api as smf
 import os
 
 # Fit GLM using formula API (handles categorical 'ses' and 'schtyp' automatically)
-# We expect data_node to have strings/factors that statsmodels can handle
-model = smf.glm(formula='target ~ ses + schtyp + read + write + science + socst',
-                data=data_node, 
-                family=sm.families.Binomial()).fit()
-
-t_write_pmml(model, os.path.expandvars("$out/artifact"))
+import patsy
+y, X = patsy.dmatrices('target ~ ses + schtyp + read + write + science + socst', data_node, return_type='dataframe')
+# jpmml-statsmodels requires y to be a Series, not a DataFrame
+y = y.iloc[:, 0]
+py_model_node = sm.GLM(y, X, family=sm.families.Binomial()).fit()
         }>,
         runtime = Python,
         serializer = "pmml",
@@ -86,11 +89,16 @@ if (is_error(res)) {
     print("Computing predictions in T (Python Model)...")
     preds_py = predict(df, py_model)
     
+    if (is_error(preds_py)) {
+        print("PYTHON PREDS ERROR:")
+        print(preds_py)
+    }
+    
     mae = mean(abs(preds_r .- preds_py))
     print("\nMAE between R and Python predictions in T:")
     print(mae)
     
-    if (mae < 1e-4) {
+    if (mae < 0.0001) {
         print("SUCCESS: Predictions from both models match perfectly in T!")
     } else {
         print("WARNING: Significant difference in predictions.")

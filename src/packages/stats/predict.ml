@@ -74,67 +74,72 @@ let register env =
             |> List.filter (fun n -> match Arrow_table.column_type df.arrow_table n with Some ArrowString -> true | _ -> false)
           in
 
-          let get_part_value part row_idx =
-            match Arrow_table.get_column df.arrow_table part with
-            | Some col -> Arrow_table.get_float col row_idx
+          let resolve_part part_name =
+            match Arrow_table.get_column df.arrow_table part_name with
+            | Some col -> Some (fun row_idx -> Arrow_table.get_float col row_idx)
             | None ->
-                let res = ref None in
-                List.iter (fun col_name ->
-                  if !res = None && String.starts_with ~prefix:col_name part then
-                    let level = String.sub part (String.length col_name) (String.length part - String.length col_name) in
-                    if level <> "" then (
-                      match Arrow_table.get_column df.arrow_table col_name with
-                      | Some col ->
-                          (match Arrow_table.get_string col row_idx with
-                           | Some v -> res := Some (if v = level then 1.0 else 0.0)
-                           | None -> ())
-                      | _ -> ()
-                    )
-                ) string_cols;
-                !res
+                let rec find_level = function
+                  | [] -> None
+                  | col_name :: rest ->
+                      let prefix_py = col_name ^ "[T." in
+                      if String.starts_with ~prefix:prefix_py part_name && String.ends_with ~suffix:"]" part_name then
+                        let level = String.sub part_name (String.length prefix_py) (String.length part_name - String.length prefix_py - 1) in
+                        match Arrow_table.get_column df.arrow_table col_name with
+                        | Some col ->
+                            Some (fun row_idx ->
+                              match Arrow_table.get_string col row_idx with
+                              | Some v -> Some (if String.equal v level then 1.0 else 0.0)
+                              | None -> None
+                            )
+                        | None -> find_level rest
+                      else if String.starts_with ~prefix:col_name part_name && String.length part_name > String.length col_name then
+                        let level = String.sub part_name (String.length col_name) (String.length part_name - String.length col_name) in
+                        match Arrow_table.get_column df.arrow_table col_name with
+                        | Some col ->
+                            Some (fun row_idx ->
+                              match Arrow_table.get_string col row_idx with
+                              | Some v -> Some (if String.equal v level then 1.0 else 0.0)
+                              | None -> None
+                            )
+                        | None -> find_level rest
+                      else find_level rest
+                in
+                find_level string_cols
           in
 
-          let get_term_value term row_idx =
-            if String.contains term ':' then
-              let parts = String.split_on_char ':' term in
-              let rec loop acc = function
-                | [] -> Some acc
-                | p :: rest ->
-                    (match get_part_value p row_idx with
-                     | Some v -> loop (acc *. v) rest
-                     | None -> None)
-              in loop 1.0 parts
+          let resolve_term term_name =
+            if String.contains term_name ':' then
+              let parts = String.split_on_char ':' term_name in
+              let resolved = List.map resolve_part parts in
+              if List.exists Option.is_none resolved then None
+              else
+                let evaluators = List.map Option.get resolved in
+                Some (fun row_idx ->
+                  let rec loop acc = function
+                    | [] -> Some acc
+                    | eval_fn :: rest ->
+                        (match eval_fn row_idx with
+                         | Some v -> loop (acc *. v) rest
+                         | None -> None)
+                  in loop 1.0 evaluators
+                )
             else
-              get_part_value term row_idx
-          in
-
-          let is_part_matchable part =
-            Arrow_table.has_column df.arrow_table part ||
-            List.exists (fun col_name -> 
-              String.starts_with ~prefix:col_name part && 
-              (String.length part > String.length col_name)
-            ) string_cols
-          in
-
-          let is_term_matchable term =
-            if String.contains term ':' then
-              List.for_all is_part_matchable (String.split_on_char ':' term)
-            else is_part_matchable term
+              resolve_part term_name
           in
 
           List.iter (fun (name, coef) ->
             if !success then (
-              if not (is_term_matchable name) then (
-                success := false;
-                error_msg := Printf.sprintf "Predictor `%s` not found in DataFrame for prediction and could not be resolved as a factor level." name
-              ) else (
-                for i = 0 to nrows - 1 do
-                  if not na_rows.(i) then
-                    match get_term_value name i with
-                    | Some x -> out.(i) <- out.(i) +. (coef *. x)
-                    | None -> na_rows.(i) <- true
-                done
-              )
+              match resolve_term name with
+              | None ->
+                  success := false;
+                  error_msg := Printf.sprintf "Predictor `%s` not found in DataFrame for prediction and could not be resolved as a factor level." name
+              | Some eval_term ->
+                  for i = 0 to nrows - 1 do
+                    if not na_rows.(i) then
+                      match eval_term i with
+                      | Some x -> out.(i) <- out.(i) +. (coef *. x)
+                      | None -> na_rows.(i) <- true
+                  done
             )
           ) !terms;
           
