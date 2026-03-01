@@ -414,13 +414,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             (match script_value with
              | VString script_path | VSymbol script_path ->
                  if runtime = "Python" then
-                   let raw_text = Printf.sprintf "import runpy
-__tlang_script_globals__ = runpy.run_path(%S)
-if 'main' in __tlang_script_globals__:
-    return __tlang_script_globals__['main']()
-if 'result' in __tlang_script_globals__:
-    return __tlang_script_globals__['result']
-raise Exception('Python script must define main() or `result`.')" script_path in
+                   let raw_text = Printf.sprintf "!__TLANG_SCRIPT__\nimport runpy\n__tlang_script_globals__ = runpy.run_path(%S)\nif 'main' in __tlang_script_globals__:\n    return __tlang_script_globals__['main']()\nelif 'result' in __tlang_script_globals__:\n    return __tlang_script_globals__['result']\nelse:\n    raise Exception('Python script must define main() or `result`.')" script_path in
                    Ok (RawCode { raw_text; raw_identifiers = Ast.extract_identifiers raw_text })
                  else if runtime = "R" then
                    let raw_text = Printf.sprintf "source(%S)$value" script_path in

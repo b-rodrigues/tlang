@@ -598,17 +598,11 @@ EOF
       echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
     else if runtime = "Python" then
       if is_raw_code then
-        if raw_assigns_to name expr_s then
-          (* Statement-style: raw code explicitly assigns to node name — use as-is *)
-          Printf.sprintf {|      cat <<'EOF' >> node_script.py
-%s
-EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
-        else
+        if String.starts_with ~prefix:"!__TLANG_SCRIPT__\n" expr_s then
           (* Script-style: run as a black box and expect a final return value. *)
+          let actual_expr_s = String.sub expr_s 18 (String.length expr_s - 18) in
           let indented_expr_s =
-            String.split_on_char '\n' expr_s
+            String.split_on_char '\n' actual_expr_s
             |> List.map (fun line -> "    " ^ line)
             |> String.concat "\n"
           in
@@ -620,6 +614,20 @@ def __tlang_node_script__():
 EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} indented_expr_s name ser_call name name
+        else if raw_assigns_to name expr_s then
+          (* Statement-style: raw code explicitly assigns to node name — use as-is *)
+          Printf.sprintf {|      cat <<'EOF' >> node_script.py
+%s
+EOF
+      echo "%s(%s, \"$out/artifact\")" >> node_script.py
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
+        else
+          (* Expression-style: command with no explicit assignment, evaluate and assign to node name *)
+          Printf.sprintf {|      cat <<'EOF' >> node_script.py
+%s = (%s)
+EOF
+      echo "%s(%s, \"$out/artifact\")" >> node_script.py
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s
