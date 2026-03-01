@@ -70,7 +70,7 @@ let core_package = {
   description = "Core utilities: printing, type inspection, data structures, strings";
   functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "sprintf"; "string"; "get";
                "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
-               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"];
+               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"];
 }
 
 let stats_package = {
@@ -385,6 +385,7 @@ let init_env () =
   let env = Help.register env in
   let env = String_ops.register env in
   let env = T_write_text.register env in
+  let env = Converters.register env in
   (* Base package *)
   let env = T_assert.register env in
   let env = Is_na.register env in
