@@ -374,11 +374,9 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       let lookup_arg name default =
         match List.assoc_opt (Some name) args with
         | Some e -> e
-        | None -> (match name with
-                   | "command" ->
-                       (match List.filter (fun (k, _) -> k = None) args with
-                        | [(_, c)] -> c | _ -> default)
-                   | _ -> default)
+        | None -> if name = "command" then
+                    (match List.filter (fun (k, _) -> k = None) args with [(_, c)] -> c | _ -> default)
+                  else default
       in
       let lookup_list name =
         match List.assoc_opt (Some name) args with
@@ -388,11 +386,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       in
       let eval_string name default =
         match eval_expr env_ref (lookup_arg name (Value (VString default))) with
-        | VString s -> s | VSymbol s -> s | _ -> default
-      in
-      let eval_bool name default =
-        match eval_expr env_ref (lookup_arg name (Value (VBool default))) with
-        | VBool b -> b | _ -> default
+        | VString s | VSymbol s -> s | _ -> default
       in
       let default_runtime = match call with
         | Call { fn = Var "pyn"; _ } -> "Python"
@@ -400,51 +394,37 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         | _ -> "T"
       in
       let runtime = eval_string "runtime" default_runtime in
-      let script_opt = List.assoc_opt (Some "script") args in
-      let has_named_command = Option.is_some (List.assoc_opt (Some "command") args) in
-      let has_positional_command = List.exists (fun (k, _) -> k = None) args in
-      let has_command = has_named_command || has_positional_command in
-      if Option.is_some script_opt && has_command then
+      let script_arg = List.assoc_opt (Some "script") args in
+      let command_arg = List.assoc_opt (Some "command") args in
+      
+      if Option.is_some script_arg && (Option.is_some command_arg || List.exists (fun (k, _) -> k = None) args) then
         Error.make_error ArityError "Provide either `command` or `script`, but not both."
       else
-      let command_or_error =
-        match script_opt with
-        | Some script_expr ->
-            let script_value = eval_expr env_ref script_expr in
-            (match script_value with
-             | VString script_path | VSymbol script_path ->
-                 if runtime = "Python" then
-                   let raw_text = Printf.sprintf "!__TLANG_SCRIPT__\nimport runpy\n__tlang_script_globals__ = runpy.run_path(%S)\nif 'main' in __tlang_script_globals__:\n    return __tlang_script_globals__['main']()\nelif 'result' in __tlang_script_globals__:\n    return __tlang_script_globals__['result']\nelse:\n    raise Exception('Python script must define main() or `result`.')" script_path in
-                   Ok (RawCode { raw_text; raw_identifiers = Ast.extract_identifiers raw_text })
-                 else if runtime = "R" then
-                   let raw_text = Printf.sprintf "source(%S)$value" script_path in
-                   Ok (RawCode { raw_text; raw_identifiers = Ast.extract_identifiers raw_text })
-                 else
-                   Error (Error.make_error TypeError (Printf.sprintf "`script` path is only supported for Python or R runtimes, got `%s`." runtime))
-             | VError _ as e -> Error e
-             | v -> Error (Error.make_error TypeError (Printf.sprintf "`script` must be a path String/Symbol, got %s." (Utils.type_name v))))
+      let command_or_error = 
+        match script_arg with
+        | Some expr -> 
+            (match eval_expr env_ref expr with
+             | VString s | VSymbol s -> Ok (RawCode { raw_text = "@script:" ^ s; raw_identifiers = [] })
+             | v -> Error (Error.make_error TypeError (Printf.sprintf "`script` must be a path string, got %s." (Utils.type_name v))))
         | None -> Ok (lookup_arg "command" (Value VNull))
       in
       (match command_or_error with
        | Error e -> e
        | Ok command ->
-           let base_node = {
+           let node = {
              un_command = command;
              un_runtime = runtime;
              un_serializer = lookup_arg "serializer" (Var "default");
              un_deserializer = lookup_arg "deserializer" (Var "default");
              un_functions = lookup_list "functions";
              un_includes = lookup_list "includes";
-             un_noop = eval_bool "noop" false;
+             un_noop = match eval_expr env_ref (lookup_arg "noop" (Value (VBool false))) with VBool b -> b | _ -> false;
            } in
            if runtime <> "T" then
-             (match command with
-              | RawCode _ -> VNode base_node
-              | _ ->
-                  let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode)." runtime in
-                  Error.make_error TypeError msg)
-           else
-             VNode base_node)
+             match command with
+             | RawCode _ -> VNode node
+             | _ -> Error.make_error TypeError (Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode)." runtime)
+           else VNode node)
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args

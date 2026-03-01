@@ -580,79 +580,48 @@ def t_read_pmml(path):
            String.sub l 0 (String.length prefix_eq) = prefix_eq))
   in
 
+  let is_script s = String.starts_with ~prefix:"@script:" s in
+  let get_path s = String.sub s 8 (String.length s - 8) in
+
   let assign_script_lines =
-    if runtime = "R" then
-      if is_raw_code then
+    match runtime with
+    | "R" ->
+        let code = if is_script expr_s then
+          Printf.sprintf "source(%S)$value" (get_path expr_s)
+        else expr_s in
         Printf.sprintf {|      echo "%s <- local({" >> node_script.R
       cat <<'EOF' >> node_script.R
 %s
 EOF
       echo "})" >> node_script.R
       echo "%s(%s, \"$out/artifact\")" >> node_script.R
-      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
-      else
-        Printf.sprintf {|      cat <<'EOF' >> node_script.R
-%s <- %s
-EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.R
-      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
-    else if runtime = "Python" then
-      if is_raw_code then
-        if String.starts_with ~prefix:"!__TLANG_SCRIPT__\n" expr_s then
-          (* Script-style: run as a black box and expect a final return value. *)
-          let actual_expr_s = String.sub expr_s 18 (String.length expr_s - 18) in
-          let indented_expr_s =
-            String.split_on_char '\n' actual_expr_s
-            |> List.map (fun line -> "    " ^ line)
-            |> String.concat "\n"
-          in
-          Printf.sprintf {|      cat <<'EOF' >> node_script.py
-def __tlang_node_script__():
-%s
-
-%s = __tlang_node_script__()
-EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} indented_expr_s name ser_call name name
-        else if raw_assigns_to name expr_s then
-          (* Statement-style: raw code explicitly assigns to node name — use as-is *)
-          Printf.sprintf {|      cat <<'EOF' >> node_script.py
-%s
-EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
-        else
-          (* Expression-style: command with no explicit assignment, evaluate and assign to node name *)
-          Printf.sprintf {|      cat <<'EOF' >> node_script.py
-%s = (%s)
-EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
-      else
+      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name code ser_call name name
+    | "Python" ->
+        let code =
+          if is_script expr_s then
+            let path = get_path expr_s in
+            Printf.sprintf "import runpy\ng = runpy.run_path(%S)\n%s = g['main']() if 'main' in g else g['result']" path name
+          else if is_raw_code && raw_assigns_to name expr_s then
+            expr_s
+          else
+            Printf.sprintf "%s = (%s)" name (String.trim expr_s)
+        in
         Printf.sprintf {|      cat <<'EOF' >> node_script.py
-%s = %s
-EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
-    else
-      if is_raw_code then
-        Printf.sprintf {|      echo "      %s = {" >> node_script.t
-      cat <<'EOF' >> node_script.t
 %s
 EOF
-      echo "      }" >> node_script.t
+      echo "%s(%s, \"$out/artifact\")" >> node_script.py
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} code ser_call name name
+    | _ -> (* T runtime *)
+        let code = if is_raw_code then
+          Printf.sprintf "      echo \"      %s = {\" >> node_script.t\n      cat <<'EOF' >> node_script.t\n%s\nEOF\n      echo \"      }\" >> node_script.t" name expr_s
+        else
+          Printf.sprintf "      cat <<'EOF' >> node_script.t\n      %s = %s\nEOF" name expr_s
+        in
+        Printf.sprintf {|%s
       echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
       echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
-      else
-        Printf.sprintf {|      cat <<'EOF' >> node_script.t
-      %s = %s
-EOF
-      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
-      echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
-      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} code ser_call name name
   in
 
   (* Runtime specific build command *)
