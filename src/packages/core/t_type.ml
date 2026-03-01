@@ -10,10 +10,10 @@ open Ast
 --# @return :: String The type name.
 --# @example
 --#   type(123)
---#   -- Returns: "Int"
+--#   -- Returns = "Int"
 --#
 --#   type([1, 2])
---#   -- Returns: "List"
+--#   -- Returns = "List"
 --# @family core
 --# @export
 *)

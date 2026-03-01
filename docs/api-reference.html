@@ -138,6 +138,44 @@ type(NA)             -- &quot;NA&quot;
 type(error(&quot;x&quot;))     -- &quot;Error&quot;
 type(df)             -- &quot;DataFrame&quot;</code></pre>
 <hr />
+<h3 id="to_integervalue"><code>to_integer(value)</code></h3>
+<p>Convert a value to an integer robustly. Handles strings with spaces,
+percentages, commas, and recognizes ‘TRUE’/‘FALSE’. Also propagates
+vectorization over Collections.</p>
+<p><strong>Parameters:</strong> - <code>value</code> — Any value
+(String, Bool, Float, List, Vector)</p>
+<p><strong>Returns:</strong> <code>Int</code>, <code>NA</code>, or a
+Collection of <code>Int</code>/<code>NA</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>to_integer(&quot;12 300&quot;)     -- 12300
+to_integer(&quot;TRUE&quot;)       -- 1
+to_integer(&quot;FALSE&quot;)      -- 0
+to_integer(&quot;15%&quot;)        -- 15
+to_integer(&quot;3,14&quot;)       -- 3
+to_integer(3.14)         -- 3
+to_integer(&quot;hello&quot;)      -- NA(Int)
+to_integer([&quot;1&quot;, &quot;2&quot;])   -- [1, 2]</code></pre>
+<hr />
+<h3 id="to_floatvalue-to_numericvalue"><code>to_float(value)</code> /
+<code>to_numeric(value)</code></h3>
+<p>Convert a value to a float robustly. <code>to_numeric</code> is an
+alias for <code>to_float</code>. Handles strings with spaces,
+percentages, commas, and recognizes ‘TRUE’/‘FALSE’. Also propagates
+vectorization over Collections.</p>
+<p><strong>Parameters:</strong> - <code>value</code> — Any value
+(String, Bool, Int, List, Vector)</p>
+<p><strong>Returns:</strong> <code>Float</code>, <code>NA</code>, or a
+Collection of <code>Float</code>/<code>NA</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>to_float(&quot;3,14&quot;)         -- 3.14
+to_float(&quot;15%&quot;)          -- 15.0
+to_float(&quot; 1 200.5 &quot;)    -- 1200.5
+to_numeric(&quot;TRUE&quot;)       -- 1.0
+to_numeric(&quot;F&quot;)          -- 0.0
+to_float(42)             -- 42.0
+to_float(&quot;hello&quot;)        -- NA(Float)
+to_numeric([&quot;1&quot;, &quot;2&quot;])   -- [1.0, 2.0]</code></pre>
+<hr />
 <h3 id="lengthcollection"><code>length(collection)</code></h3>
 <p>Get the number of elements in a collection.</p>
 <p><strong>Parameters:</strong> - <code>collection</code> — List,
@@ -838,6 +876,42 @@ skip execution and generate a stub.</p>
     include = &quot;config.yml&quot;
   )
 }</code></pre>
+<hr />
+<h3
+id="pyncommand-serializer-default-deserializer-default-functions-include-noop-false"><code>pyn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)</code></h3>
+<p>Configure a Python Pipeline Node. A convenience wrapper around
+<code>node()</code> with <code>runtime = "Python"</code>. Used directly
+within a <code>pipeline { ... }</code> block to execute Python code.</p>
+<p><strong>Parameters:</strong> - <code>command</code> — The expression
+to evaluate inside the Python node (must be enclosed in
+<code>&lt;{ ... }&gt;</code> blocks). - <code>serializer</code>
+(optional) — Custom serializer function. Default: <code>default</code>.
+- <code>deserializer</code> (optional) — Custom deserializer function.
+Default: <code>default</code>. - <code>functions</code> (optional) —
+Python files to source before execution. - <code>include</code>
+(optional) — Additional files for the sandbox. - <code>noop</code>
+(optional) — Whether to skip execution and generate a stub. Default:
+<code>false</code>.</p>
+<p><strong>Returns:</strong> The evaluated return value of the
+command.</p>
+<hr />
+<h3
+id="rncommand-serializer-default-deserializer-default-functions-include-noop-false"><code>rn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)</code></h3>
+<p>Configure an R Pipeline Node. A convenience wrapper around
+<code>node()</code> with <code>runtime = "R"</code>. Used directly
+within a <code>pipeline { ... }</code> block to execute R code.</p>
+<p><strong>Parameters:</strong> - <code>command</code> — The expression
+to evaluate inside the R node (must be enclosed in
+<code>&lt;{ ... }&gt;</code> blocks). - <code>serializer</code>
+(optional) — Custom serializer function. Default: <code>default</code>.
+- <code>deserializer</code> (optional) — Custom deserializer function.
+Default: <code>default</code>. - <code>functions</code> (optional) — R
+scripts to source before execution. - <code>include</code> (optional) —
+Additional files for the sandbox. - <code>noop</code> (optional) —
+Whether to skip execution and generate a stub. Default:
+<code>false</code>.</p>
+<p><strong>Returns:</strong> The evaluated return value of the
+command.</p>
 <hr />
 <h3
 id="pipeline_nodespipeline"><code>pipeline_nodes(pipeline)</code></h3>

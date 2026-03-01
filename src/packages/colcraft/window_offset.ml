@@ -19,7 +19,7 @@ let register env =
   --# @return :: Vector The shifted vector.
   --# @example
   --#   lag([1, 2, 3])
-  --#   -- Returns: [NA, 1, 2]
+  --#   -- Returns = [NA, 1, 2]
   --# @family colcraft
   --# @seealso lead
   --# @export
@@ -69,7 +69,7 @@ let register env =
   --# @return :: Vector The shifted vector.
   --# @example
   --#   lead([1, 2, 3])
-  --#   -- Returns: [2, 3, NA]
+  --#   -- Returns = [2, 3, NA]
   --# @family colcraft
   --# @seealso lag
   --# @export

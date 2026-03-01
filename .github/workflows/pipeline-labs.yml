@@ -1,0 +1,85 @@
+name: Pipeline Labs E2E
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  labs-e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v24
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v13
+      with:
+        name: rstats-on-nix
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        skipPush: true
+
+    - name: Run Lab Pipelines
+      env:
+        TLANG_FLAKE_URL: git+file://${{ github.workspace }}
+      run: |
+        # 1. Build T from current commit
+        nix build .#default --accept-flake-config
+        TLANG_BIN=$(pwd)/result/bin/t
+        
+        # 2. Create a clean workspace
+        cd ..
+        mkdir labs_test_workspace
+        cd labs_test_workspace
+        
+        # 3. Initialize a new project
+        "$TLANG_BIN" init project labs_project --no-git
+        cd labs_project
+        
+        # 4. Configure Project dependencies
+        cat > tproject.toml <<EOF
+        [project]
+        name = "labs_project"
+        
+        [py-dependencies]
+        packages = ["pandas", "scikit-learn", "statsmodels", "patsy", "sklearn2pmml"]
+        
+        [r-dependencies]
+        packages = ["dplyr", "glmnet", "r2pmml"]
+        EOF
+
+        # 5. Sync dependencies
+        "$TLANG_BIN" update
+        
+        # 6. Copy labs data
+        mkdir -p tests/pipeline/data
+        cp ${{ github.workspace }}/tests/pipeline/data/Boston.csv tests/pipeline/data/
+        cp ${{ github.workspace }}/tests/pipeline/data/Smarket.csv tests/pipeline/data/
+        cp ${{ github.workspace }}/tests/pipeline/data/Hitters.csv tests/pipeline/data/
+
+        # 7. Run Lab 2 Pipeline
+        cp ${{ github.workspace }}/tests/pipeline/test_lab2_boston.t .
+        nix develop --accept-flake-config --command "$TLANG_BIN" run test_lab2_boston.t --unsafe
+
+        # 8. Run Lab 4 Pipeline
+        cp ${{ github.workspace }}/tests/pipeline/test_lab4_smarket.t .
+        nix develop --accept-flake-config --command "$TLANG_BIN" run test_lab4_smarket.t --unsafe
+        
+        # 9. Run Lab 10 Pipeline
+        cp ${{ github.workspace }}/tests/pipeline/test_lab10_hitters.t .
+        nix develop --accept-flake-config --command "$TLANG_BIN" run test_lab10_hitters.t --unsafe

@@ -45,6 +45,7 @@
 | [cummean](cummean.md) | Cumulative Mean |
 | [cummin](cummin.md) | Cumulative Minimum |
 | [cumsum](cumsum.md) | Cumulative Sum |
+| [cut](cut.md) | Discretize numeric vector |
 | [cv](cv.md) | Coefficient of variation |
 | [dataframe](dataframe.md) | Create a DataFrame |
 | [dense_rank](dense_rank.md) | Dense Rank |
@@ -130,12 +131,14 @@
 | [pipeline_node](pipeline_node.md) | Get Pipeline Node |
 | [pipeline_nodes](pipeline_nodes.md) | List Pipeline Nodes |
 | [pipeline_run](pipeline_run.md) | Run Pipeline |
+| [poly](poly.md) | Polynomial basis expansion |
 | [populate_pipeline](populate_pipeline.md) | Populate Pipeline |
 | [pow](pow.md) | Power function |
 | [predict](predict.md) | Linear Model Prediction |
 | [pretty_print](pretty_print.md) | Pretty-print a value |
 | [print](print.md) | Print values to standard output |
 | [pull](pull.md) | Extract column as vector |
+| [pyn](pyn.md) | Configure a Python Pipeline Node |
 | [quantile](quantile.md) | Quantiles |
 | [range](range.md) | Range |
 | [read_csv](read_csv.md) | Read CSV file |
@@ -146,6 +149,7 @@
 | [replace_first](replace_first.md) | Replace first occurrence |
 | [reshape](reshape.md) | Reshape an NDArray |
 | [residuals](residuals.md) | Model Residuals |
+| [rn](rn.md) | Configure an R Pipeline Node |
 | [round](round.md) | Round values |
 | [row_number](row_number.md) | Row Number |
 | [run_doctor](run_doctor.md) | Run Package/Project Doctor |
@@ -185,7 +189,10 @@
 | [tan](tan.md) | Tangent |
 | [tanh](tanh.md) | Hyperbolic tangent |
 | [to_array](to_array.md) | Convert to NDArray |
+| [to_float](to_float.md) | Convert to Float |
+| [to_integer](to_integer.md) | Convert to Integer |
 | [to_lower](to_lower.md) | Convert to lowercase |
+| [to_numeric](to_numeric.md) | Convert to Numeric |
 | [to_upper](to_upper.md) | Convert to uppercase |
 | [trace_nodes](trace_nodes.md) | Trace Pipeline Nodes |
 | [transpose](transpose.md) | Transpose matrix |

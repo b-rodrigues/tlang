@@ -11,7 +11,7 @@ open Ast
 --# @param model :: Model The model object.
 --# @return :: Int The residual degrees of freedom.
 --# @example
---#   model = lm(mpg ~ wt, data: mtcars)
+--#   model = lm(mpg ~ wt, data = mtcars)
 --#   df = df_residual(model)
 --# @family stats
 --# @export

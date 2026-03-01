@@ -123,18 +123,53 @@ def t_read_arrow(path):
 
   let t_pmml_r_code = {|
 t_write_pmml <- function(object, path) {
-  r2pmml::r2pmml(object, path)
+  if (inherits(object, "glmnet")) {
+    r2pmml::r2pmml(object, path, lambda.s = object$lambda[1])
+  } else {
+    r2pmml::r2pmml(object, path)
+  }
   
-  # Enrichment for lm/glm models
-  if (inherits(object, "lm")) {
-    s <- tryCatch(summary(object), error = function(e) NULL)
-    if (is.null(s)) return(invisible(NULL))
-    
+  # Enrichment for lm/glm/glmnet models
+  if (inherits(object, "lm") || inherits(object, "glmnet")) {
     doc <- tryCatch(XML::xmlParse(path), error = function(e) NULL)
     if (is.null(doc)) return(invisible(NULL))
     
     root <- XML::xmlRoot(doc)
     fmt <- function(x) sprintf("%.15g", x)
+    
+    if (inherits(object, "glmnet")) {
+      # For glmnet, we pull the coefficients for the current lambda
+      # Note: object$lambda[1] was used for export
+      coef_m <- as.matrix(coef(object, s = object$lambda[1]))
+      
+      coef_list <- list()
+      for (nm in rownames(coef_m)) {
+        coef_list[[nm]] <- list(
+          estimate = coef_m[nm, 1]
+        )
+      }
+      
+      reg_nodes <- XML::getNodeSet(doc, "//*[local-name()='RegressionModel' or local-name()='GeneralRegressionModel' or local-name()='MiningModel']")
+      if (length(reg_nodes) > 0) {
+        reg_node <- reg_nodes[[1]]
+        glm_ext <- XML::newXMLNode("Extension",
+          attrs = list(
+            name  = "GLMStats",
+            value = jsonlite::toJSON(list(
+              family              = "Gaussian", # glmnet default for alpha=0 is Gaussian if not specified
+              link                = "identity",
+              coefficients        = coef_list
+            ), auto_unbox = TRUE)
+          )
+        )
+        XML::addChildren(reg_node, glm_ext)
+        XML::saveXML(doc, file = path)
+      }
+      return(invisible(NULL))
+    }
+
+    s <- tryCatch(summary(object), error = function(e) NULL)
+    if (is.null(s)) return(invisible(NULL))
     
     coef_m <- s$coefficients
     is_glm <- inherits(object, "glm")
@@ -244,17 +279,16 @@ import tempfile
 import pickle
 
 def t_write_pmml(model, path):
-    # Check if it's a statsmodels GLM
-    is_sm_glm = False
+    # Check if it's a statsmodels model
+    is_sm = False
     try:
-        import statsmodels.genmod.generalized_linear_model as sm_glm
-        if isinstance(model, sm_glm.GLMResults) or isinstance(model, sm_glm.GLMResultsWrapper):
-            is_sm_glm = True
-    except ImportError:
-        pass
+        import statsmodels.base.wrapper as sm_wrapper
+        if isinstance(model, sm_wrapper.ResultsWrapper):
+            is_sm = True
+    except ImportError: pass
 
-    if is_sm_glm:
-        return t_export_sm_glm(model, path)
+    if is_sm:
+        return t_export_sm_model(model, path)
 
     # Otherwise assume sklearn
     try:
@@ -269,7 +303,7 @@ def t_write_pmml(model, path):
     # sklearn-specific enrichment omitted for brevity here, should follow previous pattern if needed
     _enrich_sklearn_pmml(model, path)
 
-def t_export_sm_glm(results, path):
+def t_export_sm_model(results, path):
     _assert_supported(results)
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -287,7 +321,7 @@ def t_export_sm_glm(results, path):
             check=True,
         )
 
-    _enrich_sm_glm_pmml(results, path)
+    _enrich_sm_model_pmml(results, path)
     return path
 
 def _assert_supported(results):
@@ -296,7 +330,7 @@ def _assert_supported(results):
     supported_families = {"Binomial", "Gaussian", "Poisson"}
     supported_links    = {"identity", "log", "logit"}
 
-    if hasattr(results, "family"):
+    if hasattr(results, "family") and results.family is not None:
         family_name = type(results.family).__name__
         link_name   = type(results.family.link).__name__.lower()
 
@@ -342,7 +376,7 @@ def _enrich_sklearn_pmml(model, path):
                 tree.write(path)
         except Exception: pass
 
-def _enrich_sm_glm_pmml(results, path):
+def _enrich_sm_model_pmml(results, path):
     import json
     try:
         import xml.etree.ElementTree as ET
@@ -357,8 +391,12 @@ def _enrich_sm_glm_pmml(results, path):
             tag = reg_model.tag
             ns_prefix = tag[:tag.rfind('}')+1] if '}' in tag else ""
             
-            fam = type(results.family).__name__
-            lnk = type(results.family.link).__name__.lower()
+            if hasattr(results, "family") and results.family is not None:
+                fam = type(results.family).__name__
+                lnk = type(results.family.link).__name__.lower()
+            else:
+                fam = "Gaussian"
+                lnk = "identity"
             
             coef_list = {}
             for name, coef in results.params.items():

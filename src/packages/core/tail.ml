@@ -11,10 +11,10 @@ open Ast
 --# @param n :: Int = 5 Number of items to return.
 --# @return :: DataFrame | List | Vector A subset of the input containing the last n items.
 --# @example
---#   tail([1, 2, 3, 4, 5, 6], n: 3)
---#   -- Returns: [4, 5, 6]
+--#   tail([1, 2, 3, 4, 5, 6], n = 3)
+--#   -- Returns = [4, 5, 6]
 --#
---#   df |> tail(n: 10)
+--#   df |> tail(n = 10)
 --# @family core
 --# @export
 *)

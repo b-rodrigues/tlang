@@ -11,7 +11,7 @@ open Ast
 --# @return :: Float The standard deviation.
 --# @example
 --#   sd([1, 2, 3, 4, 5])
---#   -- Returns: 1.5811...
+--#   -- Returns = 1.5811...
 --# @family stats
 --# @seealso mean, var
 --# @export

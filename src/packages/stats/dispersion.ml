@@ -12,7 +12,7 @@ open Ast
 --# @param model :: Model The model object.
 --# @return :: Float The dispersion parameter.
 --# @example
---#   model = glm(survived ~ age, data: df, family: "binomial")
+--#   model = glm(survived ~ age, data: df, family = "binomial")
 --#   d = dispersion(model)
 --# @family stats
 --# @seealso sigma

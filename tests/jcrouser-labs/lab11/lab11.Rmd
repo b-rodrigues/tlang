@@ -1,0 +1,163 @@
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+require(knitr)
+opts_chunk$set(eval=FALSE)
+```
+
+This lab on PCS and PLS in R comes from p. 256-259 of "Introduction to Statistical Learning with Applications in R" by Gareth James, Daniela Witten, Trevor Hastie and Robert Tibshirani. It was re-implemented in Fall 2016 in `tidyverse` format by Amelia McNamara and R. Jordan Crouser at Smith College.
+
+# 6.7.1 Principal Components Regression
+
+Principal components regression (PCR) can be performed using the `pcr()`
+function, which is part of the `pls` library. In this lab, we'll apply PCR to the `Hitters`
+data, in order to predict `Salary`. As in previous labs, we'll start by ensuring that the missing values have
+been removed from the data:
+
+```{r}
+library(ISLR)
+library(dplyr)
+library(tidyr)
+library(pls)
+Hitters = na.omit(Hitters) # Omit empty rows
+```
+
+The syntax for the `pcr()` function is similar to that for `lm()`, with a few
+additional options. Setting `scale=TRUE` has the effect of standardizing each
+predictor prior to generating the principal components, so that
+the scale on which each variable is measured will not have an effect. Setting
+`validation="CV"` causes `pcr()` to compute the ten-fold cross-validation error
+for each possible value of $M$, the number of principal components used.  As usual, we'll set a random seed for consistency:
+
+```{r}
+set.seed(2)
+pcr.fit = pcr(Salary~., data = Hitters, scale = TRUE, validation = "CV")
+```
+
+The resulting fit can be examined using the `summary()` function:
+
+```{r}
+summary(pcr.fit)
+```
+
+The CV score is provided for each possible number of components, ranging
+from $M = 0$ onwards. Note that `pcr()` reports the **root mean squared error**; in order to obtain
+the usual MSE, we must square this quantity. For instance, a root mean
+squared error of 352.8 corresponds to an MSE of 352.82 = 124,468.
+
+One can also plot the cross-validation scores using the `validationplot()`
+function. Using `val.type="MSEP"` will cause the cross-validation MSE to be
+plotted:
+
+```{r}
+validationplot(pcr.fit, val.type = "MSEP")
+```
+
+We see that the smallest cross-validation error occurs when $M = 16$ components
+are used. This is barely fewer than $M = 19$, which amounts to
+simply performing least squares, because when all of the components are
+used in PCR no dimension reduction occurs. However, from the plot we
+also see that the cross-validation error is roughly the same when only one
+component is included in the model. This suggests that a model that uses
+just a small number of components might suffice.
+
+You might have noticed that the `summary()` function also provides the percentage of variance explained
+in the predictors and in the response using different numbers of components.
+We'll dig deeper into this concept in Chapter 10, but for now we can think of this as the amount of information about the predictors or the response that is captured using $M$ principal components. For example,
+setting $M = 1$ only captures 38.31% of all the variance, or information, in
+the predictors. In contrast, using $M = 6$ increases the value to 88.63%. If
+we were to use all $M = p = 19$ components, this would increase to 100%.
+
+Now let's perform PCR on the training data and evaluate its test set
+performance:
+
+```{r}
+set.seed(1)
+
+train = Hitters %>%
+  sample_frac(0.5)
+
+test = Hitters %>%
+  setdiff(train)
+
+pcr.fit = pcr(Salary~., data = train, scale = TRUE, validation = "CV")
+validationplot(pcr.fit, val.type = "MSEP")
+```
+
+We find that the lowest cross-validation error occurs when $M = 7$
+components are used. We compute the test MSE as follows:
+
+```{r}
+x_train = model.matrix(Salary~., train)[,-1]
+x_test = model.matrix(Salary~., test)[,-1]
+
+y_train = train %>%
+  select(Salary) %>%
+  unlist() %>%
+  as.numeric()
+
+y_test = test %>%
+  select(Salary) %>%
+  unlist() %>%
+  as.numeric()
+
+pcr.pred = predict(pcr.fit, x_test, ncomp=7)
+mean((pcr.pred-y_test)^2)
+```
+
+This test set MSE is competitive with the results obtained using ridge regression
+and the lasso. However, as a result of the way PCR is implemented,
+the final model is more difficult to interpret because it does not perform
+any kind of variable selection or even directly produce coefficient estimates.
+
+Finally, we fit PCR on the full data set using $M = 7$, the number of
+components identified by cross-validation:
+
+```{r}
+x = model.matrix(Salary~., Hitters)[,-1]
+
+y = Hitters %>%
+  select(Salary) %>%
+  unlist() %>%
+  as.numeric()
+
+pcr.fit = pcr(y~x, scale = TRUE, ncomp = 7)
+summary(pcr.fit)
+```
+
+# 6.7.2 Partial Least Squares
+
+Next we'll implement partial least squares (PLS) using the `plsr()` function, also
+in the `pls` library. The syntax is just like that of the `pcr()` function:
+
+```{r}
+set.seed(1)
+pls.fit=plsr(Salary~., data = train, scale = TRUE, validation = "CV")
+summary(pls.fit)
+validationplot(pls.fit, val.type = "MSEP")
+```
+
+The lowest cross-validation error occurs when only $M = 2$ partial least
+squares directions are used. We now evaluate the corresponding test set
+MSE:
+
+```{r}
+pls.pred = predict(pls.fit, x_test, ncomp = 2)
+mean((pls.pred - y_test)^2)
+```
+
+The test MSE is comparable to, but slightly higher than, the test MSE
+obtained using ridge regression, the lasso, and PCR.
+
+Finally, we perform PLS using the full data set using $M = 2$, the number
+of components identified by cross-validation:
+
+```{r}
+pls.fit = plsr(Salary~., data = Hitters, scale = TRUE, ncomp = 2)
+summary(pls.fit)
+```
+
+To get credit for this lab, post your responses to the following questions:
+ - What is the primary difference between PCR and PLS?
+ - Which method do you think tends to have lower bias?
+ - Which method do you think tends to have lower variance?
+ 
+to Piazza: https://piazza.com/class/igwiv4w3ctb6rg?cid=42

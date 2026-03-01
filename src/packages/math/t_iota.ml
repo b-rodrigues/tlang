@@ -11,7 +11,7 @@ open Ast
 --# @return :: Vector[Float] A vector of ones.
 --# @example
 --#   iota(3)
---#   -- Returns: [1.0, 1.0, 1.0]
+--#   -- Returns = [1.0, 1.0, 1.0]
 --# @family math
 --# @seealso seq, ndarray
 --# @export

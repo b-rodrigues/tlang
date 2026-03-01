@@ -10,7 +10,7 @@ open Ast
 --# @return :: Float | Vector | NDArray The result of e^x.
 --# @example
 --#   exp(1)
---#   -- Returns: 2.71828...
+--#   -- Returns = 2.71828...
 --# @family math
 --# @seealso log, pow
 --# @export

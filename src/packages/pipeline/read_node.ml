@@ -58,7 +58,7 @@ let register env =
 --#
 --# @name inspect_node
 --# @param node :: ComputedNode A computed node value (e.g. from a built pipeline).
---# @return :: Dict A dictionary with keys: name, runtime, path, serializer, class, dependencies.
+--# @return :: Dict A dictionary with keys = name, runtime, path, serializer, class, dependencies.
 --# @family pipeline
 --# @seealso read_node, rebuild_node
 --# @export

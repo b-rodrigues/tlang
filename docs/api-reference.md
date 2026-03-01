@@ -128,6 +128,52 @@ type(df)             -- "DataFrame"
 
 ---
 
+### `to_integer(value)`
+
+Convert a value to an integer robustly. Handles strings with spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'. Also propagates vectorization over Collections.
+
+**Parameters:**
+- `value` — Any value (String, Bool, Float, List, Vector)
+
+**Returns:** `Int`, `NA`, or a Collection of `Int`/`NA`
+
+**Examples:**
+```t
+to_integer("12 300")     -- 12300
+to_integer("TRUE")       -- 1
+to_integer("FALSE")      -- 0
+to_integer("15%")        -- 15
+to_integer("3,14")       -- 3
+to_integer(3.14)         -- 3
+to_integer("hello")      -- NA(Int)
+to_integer(["1", "2"])   -- [1, 2]
+```
+
+---
+
+### `to_float(value)` / `to_numeric(value)`
+
+Convert a value to a float robustly. `to_numeric` is an alias for `to_float`. Handles strings with spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'. Also propagates vectorization over Collections.
+
+**Parameters:**
+- `value` — Any value (String, Bool, Int, List, Vector)
+
+**Returns:** `Float`, `NA`, or a Collection of `Float`/`NA`
+
+**Examples:**
+```t
+to_float("3,14")         -- 3.14
+to_float("15%")          -- 15.0
+to_float(" 1 200.5 ")    -- 1200.5
+to_numeric("TRUE")       -- 1.0
+to_numeric("F")          -- 0.0
+to_float(42)             -- 42.0
+to_float("hello")        -- NA(Float)
+to_numeric(["1", "2"])   -- [1.0, 2.0]
+```
+
+---
+
 ### `length(collection)`
 
 Get the number of elements in a collection.

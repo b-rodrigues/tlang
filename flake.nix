@@ -39,6 +39,8 @@
             jsonlite
             arrow
             r2pmml
+            faraway
+            MASS
           ];
         };
 

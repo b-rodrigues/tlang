@@ -8,7 +8,7 @@ open Ast
 --# @name conf_int
 --# @param model :: Model The model object (e.g., from lm() or imported).
 --# @param level :: Float Confidence level (default 0.95).
---# @return :: DataFrame Columns: `term`, `lower`, `upper`.
+--# @return :: DataFrame Columns = `term`, `lower`, `upper`.
 --# @example
 --#   conf_int(model)
 --#   conf_int(model, 0.99)

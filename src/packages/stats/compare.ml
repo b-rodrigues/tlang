@@ -11,8 +11,8 @@ open Ast
 --# @param ... :: Variadic Models or a List of models to compare.
 --# @return :: DataFrame A wide DataFrame with aligned terms and suffixed columns.
 --# @example
---#   m1 = lm(mpg ~ wt, data: mtcars)
---#   m2 = lm(mpg ~ wt + hp, data: mtcars)
+--#   m1 = lm(mpg ~ wt, data = mtcars)
+--#   m2 = lm(mpg ~ wt + hp, data = mtcars)
 --#   compare(m1, m2)
 --# @family stats
 --# @export

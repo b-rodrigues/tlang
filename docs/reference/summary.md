@@ -10,12 +10,13 @@ Returns a tidy DataFrame of regression coefficients and statistics.
 
 ## Returns
 
-Tidy summary of coefficients.
+Tidy summary dictionary with `_tidy_df` and metadata.
 
 ## Examples
 
 ```t
-summary(model)
+s = summary(model)
+coefficients = s._tidy_df
 ```
 
 ## See Also

@@ -27,7 +27,7 @@ open Ast
 --# standard errors as a fallback.
 --#
 --# @example
---#   model = lm(mpg ~ wt, data: mtcars)
+--#   model = lm(mpg ~ wt, data = mtcars)
 --#   v = vcov(model)
 --# @family stats
 --# @export

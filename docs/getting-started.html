@@ -102,18 +102,12 @@
 <h1 class="title">T Programming Language - getting-started</h1>
 </header>
 <h1 id="getting-started-with-t">Getting Started with T</h1>
-<p>Welcome to T! This guide will help you install T, write your first
-program, and understand the basic workflow.</p>
+<p>Welcome to T! This guide will help you install T, create your first
+project, and understand the basic layout of a T workspace.</p>
 <h2 id="prerequisites">Prerequisites</h2>
-<p>T requires:</p>
-<ul>
-<li><strong>Nix package manager</strong> (version 2.4 or later) with
-flakes enabled</li>
-<li><strong>Linux or macOS</strong> (Windows via WSL2)</li>
-<li>Basic familiarity with command-line tools</li>
-</ul>
-<h2 id="installation">Installation</h2>
-<h3 id="install-nix">1. Install Nix</h3>
+<p>T requires the <strong>Nix package manager</strong> with flakes
+enabled. Nix ensures that your T environment is perfectly reproducible
+across Linux and macOS.</p>
 <p>If you don’t have Nix installed:</p>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install Nix with flakes enabled</span></span>
@@ -122,233 +116,73 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable flakes (add to ~/.config/nix/nix.conf)</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.config/nix</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;experimental-features = nix-command flakes&quot;</span> <span class="op">&gt;&gt;</span> ~/.config/nix/nix.conf</span></code></pre></div>
-<h3 id="clone-t-repository">2. Clone T Repository</h3>
+<h2 id="running-t">Running T</h2>
+<p>As a user, you don’t need to clone the repository or build the
+compiler from source! You can run the T shell directly from GitHub using
+Nix:</p>
 <div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/b-rodrigues/tlang.git</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> tlang</span></code></pre></div>
-<h3 id="enter-development-environment">3. Enter Development
-Environment</h3>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> shell github:b-rodrigues/tlang</span></code></pre></div>
+<p>This command will download the T executable, fetch all required
+dependencies, and drop you into a shell where the <code>t</code> command
+is available.</p>
+<h2 id="starting-a-new-workspace">Starting a New Workspace</h2>
+<p>T provides a built-in scaffolding tool to initialize your workspaces.
+There are two types of workspaces in T: - <strong>Projects</strong>:
+Designed for data analysis, scripts, and reproducible pipelines. -
+<strong>Packages</strong>: Designed for creating reusable functions and
+libraries to share with others.</p>
+<h3 id="creating-a-project">Creating a Project</h3>
+<p>To start a new data analysis project, navigate to your desired folder
+and run:</p>
 <div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
-<p>This will: - Download and cache all dependencies - Set up OCaml,
-Apache Arrow, and build tools - Create an isolated development shell</p>
-<h3 id="build-t">4. Build T</h3>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span></code></pre></div>
-<h3 id="start-the-repl">5. Start the REPL</h3>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init project</span></code></pre></div>
+<p>The interactive wizard will ask for a project name (e.g.,
+<code>my_analysis</code>) and generate a reproducible workspace. The
+resulting tree layout will look like this:</p>
+<pre class="text"><code>my_analysis/
+├── tproject.toml       # Project configuration and dependencies
+├── flake.nix           # Reproducible environment definition
+├── _pipeline/          # Output directory for pipeline node results
+├── data/               # Place your raw data files here
+└── scripts/
+    └── main.t          # Your main analysis script</code></pre>
+<h3 id="creating-a-package">Creating a Package</h3>
+<p>If you want to create a reusable library of T functions, initialize a
+package instead:</p>
 <div class="sourceCode" id="cb5"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe</span></code></pre></div>
-<p>You should see:</p>
-<pre><code>T Language REPL (Alpha 0.1)
-Type &#39;exit&#39; to quit
-&gt; </code></pre>
-<h2 id="your-first-t-program">Your First T Program</h2>
-<h3 id="interactive-repl-session">Interactive REPL Session</h3>
-<pre class="t"><code>&gt; 2 + 3
-5
-
-&gt; x = 42
-42
-
-&gt; double = \(n) n * 2
-&lt;function&gt;
-
-&gt; double(x)
-84
-
-&gt; [1, 2, 3, 4, 5] |&gt; map(\(x) x * x) |&gt; sum
-55
-
-&gt; exit</code></pre>
-<h3 id="writing-a-t-script">Writing a T Script</h3>
-<p>Create a file <code>hello.t</code>:</p>
-<pre class="t"><code>-- hello.t
-name = &quot;World&quot;
-message = &quot;Hello, &quot; + name + &quot;!&quot;
-print(message)</code></pre>
-<p>Run it with the <code>t run</code> command:</p>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run hello.t</span></code></pre></div>
-<h2 id="understanding-t-scripts">Understanding T Scripts</h2>
-<h3 id="basic-syntax">Basic Syntax</h3>
-<pre class="t"><code>-- Comments start with double dash
-
--- Variables are immutable
-x = 42
-name = &quot;Alice&quot;
-active = true
-
--- Lists
-numbers = [1, 2, 3, 4, 5]
-
--- Dictionaries
-person = [name: &quot;Bob&quot;, age: 30]
-
--- Functions
-add = \(a, b) a + b
-square = \(x) x * x</code></pre>
-<h3 id="working-with-data">Working with Data</h3>
-<pre class="t"><code>-- Load CSV data
-df = read_csv(&quot;data.csv&quot;)
-
--- Inspect the data
-nrow(df)      -- number of rows
-ncol(df)      -- number of columns
-colnames(df)  -- column names
-head(df.age)  -- first few values of age column
-
--- Filter and select using NSE dollar-prefix syntax
-young_people = df |&gt; filter($age &lt; 30)
-names_only = young_people |&gt; select($name)
-
--- Compute statistics
-mean(df.age, na_rm = true)
-sd(df.salary, na_rm = true)</code></pre>
-<h3 id="building-pipelines">Building Pipelines</h3>
-<pre class="t"><code>-- Create a reproducible analysis pipeline
-analysis = pipeline {
-  -- Load data
-  raw = read_csv(&quot;sales.csv&quot;)
-  
-  -- Clean and filter
-  clean = raw
-    |&gt; filter($amount &gt; 0)
-    |&gt; mutate($profit, \(row) row.revenue - row.cost)
-  
-  -- Aggregate
-  summary = clean
-    |&gt; group_by($region)
-    |&gt; summarize($total_profit = sum($profit))
-
-  -- Python node for advanced modeling
-  py_model = node(
-    command = &lt;{
-        # Run in Python
-        from sklearn.linear_model import LinearRegression
-        LinearRegression().fit(X, y)
-    }&gt;,
-    runtime = &quot;Python&quot;,
-    serializer = &quot;pmml&quot;
-  )
-}
-
--- Access pipeline results
-print(analysis.summary)</code></pre>
-<h2 id="common-patterns">Common Patterns</h2>
-<h3 id="error-handling">Error Handling</h3>
-<pre class="t"><code>-- Errors are values, not exceptions
-result = 1 / 0
-is_error(result)        -- true
-error_message(result)   -- &quot;Division by zero&quot;
-
--- Conditional pipe short-circuits on errors
-safe_chain = error(&quot;oops&quot;) |&gt; double |&gt; triple  -- Error
-unsafe_chain = error(&quot;oops&quot;) ?|&gt; handle         -- Can recover
-
--- Recovery function
-handle = \(x) if (is_error(x)) 0 else x</code></pre>
-<h3 id="working-with-na-values">Working with NA Values</h3>
-<pre class="t"><code>-- NA must be handled explicitly
-data_with_missing = [1, 2, NA, 4]
-
--- This errors
-mean(data_with_missing)  -- Error: NA encountered
-
--- Explicit handling
-mean(data_with_missing, na_rm = true)  -- 2.33...
-
--- Check for NA
-is_na(NA)        -- true
-is_na(42)        -- false</code></pre>
-<h3 id="data-transformations">Data Transformations</h3>
-<pre class="t"><code>-- Select specific columns
-subset = df |&gt; select($name, $age, $salary)
-
--- Filter rows by condition
-adults = df |&gt; filter($age &gt;= 18)
-
--- Add or modify columns
-with_bonus = df |&gt; mutate($bonus, \(row) row.salary * 0.1)
-
--- Sort data
-sorted = df |&gt; arrange($salary, &quot;desc&quot;)
-
--- Group and summarize
-by_dept = df
-  |&gt; group_by($dept)
-  |&gt; summarize($avg_salary, \(g) mean(g.salary))</code></pre>
-<h2 id="repl-tips">REPL Tips</h2>
-<h3 id="multiline-input">Multiline Input</h3>
-<p>The REPL supports multiline expressions:</p>
-<pre class="t"><code>&gt; long_pipeline = [1, 2, 3, 4, 5]
-    |&gt; map(\(x) x * x)
-    |&gt; filter(\(x) x &gt; 10)
-    |&gt; sum
-55</code></pre>
-<h3 id="inspecting-values">Inspecting Values</h3>
-<pre class="t"><code>&gt; type(42)
-&quot;Int&quot;
-
-&gt; type(df)
-&quot;DataFrame&quot;
-
-&gt; explain(df)
-DataFrame(100 rows x 5 cols: [name, age, dept, salary, active])</code></pre>
-<h3 id="getting-help">Getting Help</h3>
-<pre class="t"><code>-- Check available packages
-&gt; packages()
-
--- View package functions (implementation dependent)
-&gt; package_info(&quot;stats&quot;)</code></pre>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init package</span></code></pre></div>
+<p>The tree layout for a package is structured for development and
+testing:</p>
+<pre class="text"><code>my_package/
+├── tproject.toml       # Package metadata (name, version, exports)
+├── flake.nix           # Reproducible environment definition
+├── src/
+│   └── main.t          # Package source code
+└── tests/
+    └── test_main.t     # Unit tests for your package</code></pre>
+<h2 id="running-your-code">Running Your Code</h2>
+<p>Inside your project or package directory, you can start the
+interactive REPL to explore your data:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> repl</span></code></pre></div>
+<p>To execute a script from end-to-end, use:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run scripts/main.t</span></code></pre></div>
 <h2 id="next-steps">Next Steps</h2>
-<p>Now that you’ve got T running, explore:</p>
+<p>Now that you have your first project set up and understand the folder
+structure, the best place to learn how to do actual data analysis in T
+is the Pipeline Tutorial!</p>
 <ol type="1">
-<li><strong><a href="language_overview.md">Language
-Overview</a></strong> — Learn all language features</li>
-<li><strong><a href="data_manipulation_examples.md">Data Manipulation
-Examples</a></strong> — Master data verbs</li>
-<li><strong><a href="pipeline_tutorial.md">Pipeline
-Tutorial</a></strong> — Build reproducible workflows</li>
-<li><strong><a href="api-reference.md">API Reference</a></strong> —
-Complete function documentation</li>
+<li><strong><a href="pipeline_tutorial.html">Pipeline
+Tutorial</a></strong> — Learn how to build reproducible, DAG-based data
+analysis workflows (the core feature of T).</li>
+<li><strong><a href="project_development.html">Project
+Development</a></strong> — Dive deeper into managing your
+<code>tproject.toml</code> and Nix environments.</li>
+<li><strong><a href="language_overview.html">Language
+Overview</a></strong> — Explore T’s syntax, types, and standard library
+functions.</li>
 </ol>
-<h2 id="common-issues">Common Issues</h2>
-<h3 id="flakes-not-enabled">Flakes Not Enabled</h3>
-<p>If you get <code>unrecognized command 'develop'</code>:</p>
-<div class="sourceCode" id="cb19"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Add to ~/.config/nix/nix.conf</span></span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ex">experimental-features</span> = nix-command flakes</span></code></pre></div>
-<h3 id="build-errors">Build Errors</h3>
-<p>If <code>dune build</code> fails:</p>
-<div class="sourceCode" id="cb20"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Clean and rebuild</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> clean</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span></code></pre></div>
-<h3 id="missing-dependencies">Missing Dependencies</h3>
-<p>Make sure you’re in the Nix development shell:</p>
-<div class="sourceCode" id="cb21"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
-<p>All dependencies should be automatically available.</p>
-<h2 id="learning-resources">Learning Resources</h2>
-<ul>
-<li><strong>Examples Directory</strong>: <code>examples/</code> contains
-practical T programs</li>
-<li><strong>Tests Directory</strong>: <code>tests/</code> shows expected
-behavior and usage patterns</li>
-<li><strong>Website</strong>: <a
-href="https://tstats-project.org">tstats-project.org</a> for
-comprehensive docs</li>
-</ul>
-<h2 id="getting-help-1">Getting Help</h2>
-<ul>
-<li><strong>GitHub Issues</strong>: <a
-href="https://github.com/b-rodrigues/tlang/issues">github.com/b-rodrigues/tlang/issues</a></li>
-<li><strong>Discussions</strong>: Check existing issues for common
-questions</li>
-</ul>
-<hr />
-<p>Ready to dive deeper? Check out the <a
-href="language_overview.md">Language Overview</a>!</p>
 <footer>
     <hr class="footer-hr">
     <center>

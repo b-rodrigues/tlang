@@ -70,7 +70,7 @@ let core_package = {
   description = "Core utilities: printing, type inspection, data structures, strings";
   functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "sprintf"; "string"; "get";
                "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
-               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"];
+               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "list_files"; "file_exists"];
 }
 
 let stats_package = {
@@ -78,7 +78,7 @@ let stats_package = {
   description = "Statistical summaries and models";
   functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
                "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "augment"; "score";
-               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"];
+               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"];
 }
 
 let colcraft_package = {
@@ -180,6 +180,18 @@ let register env =
           | Some pkg -> package_to_value pkg
           | None -> Error.make_error KeyError (Printf.sprintf "Package `%s` not found." name))
       | _ -> Error.type_error "Function `package_info` expects a string argument."
+    ))
+    env
+  in
+  
+  let env = Env.add "exit"
+    (make_builtin ~name:"exit" ~variadic:true 0 (fun args _env ->
+      let code = match args with
+        | [VInt n] -> n
+        | [] -> 0
+        | _ -> 1
+      in
+      Stdlib.exit code
     ))
     env
   in
@@ -385,6 +397,8 @@ let init_env () =
   let env = Help.register env in
   let env = String_ops.register env in
   let env = T_write_text.register env in
+  let env = Converters.register env in
+  let env = File_ops.register env in
   (* Base package *)
   let env = T_assert.register env in
   let env = Is_na.register env in
@@ -535,6 +549,7 @@ let init_env () =
   let env = Augment.register env in
   let env = Score.register env in
   let env = Anova.register env in
+  let env = Basis.register env in
   let env = Wald_test.register env in
   (* Explain package *)
   let env = Intent_fields.register env in

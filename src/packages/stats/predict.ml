@@ -14,7 +14,7 @@ open Ast
 --# @param model :: Model The linear model object.
 --# @return :: Vector The predicted values.
 --# @example
---#   model = lm(mpg ~ wt + hp, data: mtcars)
+--#   model = lm(mpg ~ wt + hp, data = mtcars)
 --#   preds = predict(mtcars, model)
 --# @family stats
 --# @seealso lm
@@ -69,18 +69,78 @@ let register env =
           let success = ref true in
           let error_msg = ref "" in
           
+          let string_cols = 
+            Arrow_table.column_names df.arrow_table 
+            |> List.filter (fun n -> match Arrow_table.column_type df.arrow_table n with Some ArrowString -> true | _ -> false)
+          in
+
+          let resolve_part part_name =
+            match Arrow_table.get_column df.arrow_table part_name with
+            | Some col -> Some (fun row_idx -> Arrow_table.get_float col row_idx)
+            | None ->
+                let rec find_level = function
+                  | [] -> None
+                  | col_name :: rest ->
+                      let prefix_py = col_name ^ "[T." in
+                      if String.starts_with ~prefix:prefix_py part_name && String.ends_with ~suffix:"]" part_name then
+                        let level = String.sub part_name (String.length prefix_py) (String.length part_name - String.length prefix_py - 1) in
+                        match Arrow_table.get_column df.arrow_table col_name with
+                        | Some col ->
+                            Some (fun row_idx ->
+                              match Arrow_table.get_string col row_idx with
+                              | Some v -> Some (if String.equal v level then 1.0 else 0.0)
+                              | None -> None
+                            )
+                        | None -> find_level rest
+                      else if String.starts_with ~prefix:col_name part_name && String.length part_name > String.length col_name then
+                        let level = String.sub part_name (String.length col_name) (String.length part_name - String.length col_name) in
+                        match Arrow_table.get_column df.arrow_table col_name with
+                        | Some col ->
+                            Some (fun row_idx ->
+                              match Arrow_table.get_string col row_idx with
+                              | Some v -> Some (if String.equal v level then 1.0 else 0.0)
+                              | None -> None
+                            )
+                        | None -> find_level rest
+                      else find_level rest
+                in
+                find_level string_cols
+          in
+
+          let resolve_term term_name =
+            if String.contains term_name ':' then
+              let parts = String.split_on_char ':' term_name in
+              let resolved = List.map resolve_part parts in
+              if List.exists Option.is_none resolved then None
+              else
+                let evaluators = List.map Option.get resolved in
+                Some (fun row_idx ->
+                  let rec loop acc = function
+                    | [] -> Some acc
+                    | eval_fn :: rest ->
+                        (match eval_fn row_idx with
+                         | Some v -> loop (acc *. v) rest
+                         | None -> None)
+                  in loop 1.0 evaluators
+                )
+            else
+              resolve_part term_name
+          in
+
           List.iter (fun (name, coef) ->
-            if !success then
-              match Arrow_table.get_column df.arrow_table name with
+            if !success then (
+              match resolve_term name with
               | None ->
                   success := false;
-                  error_msg := Printf.sprintf "Column `%s` not found in DataFrame for prediction." name
-              | Some col ->
+                  error_msg := Printf.sprintf "Predictor `%s` not found in DataFrame for prediction and could not be resolved as a factor level." name
+              | Some eval_term ->
                   for i = 0 to nrows - 1 do
-                    match Arrow_table.get_float col i with
-                    | Some x -> out.(i) <- out.(i) +. (coef *. x)
-                    | None -> na_rows.(i) <- true (* Propagate NA: missing predictor yields NA prediction *)
+                    if not na_rows.(i) then
+                      match eval_term i with
+                      | Some x -> out.(i) <- out.(i) +. (coef *. x)
+                      | None -> na_rows.(i) <- true
                   done
+            )
           ) !terms;
           
           if not !success then Error.make_error KeyError !error_msg

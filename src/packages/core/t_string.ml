@@ -11,9 +11,9 @@ open Ast
 --# @return :: String The joined string.
 --# @example
 --#   join(["a", "b", "c"], "-")
---#   -- Returns: "a-b-c"
+--#   -- Returns = "a-b-c"
 --#   join(["a", "b", "c"])
---#   -- Returns: "abc"
+--#   -- Returns = "abc"
 --# @family core
 --# @seealso string
 --# @export
@@ -28,7 +28,7 @@ open Ast
 --# @return :: String The string representation.
 --# @example
 --#   string(123)
---#   -- Returns: "123"
+--#   -- Returns = "123"
 --# @family core
 --# @seealso join
 --# @export

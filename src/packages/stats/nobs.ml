@@ -11,7 +11,7 @@ open Ast
 --# @param model :: Model The model object.
 --# @return :: Int The number of observations.
 --# @example
---#   model = lm(mpg ~ wt, data: mtcars)
+--#   model = lm(mpg ~ wt, data = mtcars)
 --#   n = nobs(model)
 --# @family stats
 --# @export

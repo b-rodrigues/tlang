@@ -11,7 +11,7 @@ open Ast
 --# @return :: List The list of results.
 --# @example
 --#   map([1, 2, 3], fn(x) -> x * 2)
---#   -- Returns: [2, 4, 6]
+--#   -- Returns = [2, 4, 6]
 --# @family core
 --# @export
 *)

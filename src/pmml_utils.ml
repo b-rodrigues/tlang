@@ -111,7 +111,7 @@ let read_pmml path =
     let rec loop () =
       if Xmlm.eoi i then ()
       else match Xmlm.input i with
-        | `El_start ((_, ("RegressionModel" | "GeneralRegressionModel")), attrs) ->
+        | `El_start ((_, ("RegressionModel" | "GeneralRegressionModel" | "MiningModel")), attrs) ->
             found_model := true;
             (match get_float_attr "r_squared" attrs with Some v -> r2 := Some v 
              | None -> (match get_float_attr "r2" attrs with Some v -> r2 := Some v | _ -> ()));
@@ -286,6 +286,10 @@ let read_pmml path =
           ("std_errors", std_errors_dict);
           ("class", VString model_class);
           ("model_type", VString "regression");
+          ("r_squared", (match !r2 with Some v -> VFloat v | None -> VNull));
+          ("adj_r_squared", (match !adj_r2 with Some v -> VFloat v | None -> VNull));
+          ("sigma", (match !sigma with Some v -> VFloat v | None -> VNull));
+          ("nobs", (match !nobs with Some v -> VInt v | None -> VNull));
           ("family", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "family" j with `String s -> VString s | _ -> VNull) | None -> VNull));
           ("link", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "link" j with `String s -> VString s | _ -> VNull) | None -> VNull));
           ("formula", (match !response_name with

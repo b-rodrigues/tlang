@@ -242,9 +242,9 @@ let sprintf_impl args _env =
 --# @return :: String The formatted string.
 --# @example
 --#   sprintf("Hello, %s!", "world")
---#   -- Returns: "Hello, world!"
---#   sprintf("Value: %d", 42)
---#   -- Returns: "Value: 42"
+--#   -- Returns = "Hello, world!"
+--#   sprintf("Value = %d", 42)
+--#   -- Returns: "Value = 42"
 --# @family string
 --# @export
 *)

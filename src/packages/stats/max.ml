@@ -10,7 +10,7 @@ open Ast
 --# @return :: Float The maximum value.
 --# @example
 --#   max([1, 2, 3])
---#   -- Returns: 3.0
+--#   -- Returns = 3.0
 --# @family stats
 --# @seealso min
 --# @export

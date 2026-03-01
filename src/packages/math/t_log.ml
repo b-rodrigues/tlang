@@ -10,7 +10,7 @@ open Ast
 --# @return :: Float | Vector | NDArray The natural logarithm.
 --# @example
 --#   log(2.71828)
---#   -- Returns: ~1.0
+--#   -- Returns = ~1.0
 --# @family math
 --# @seealso exp
 --# @export

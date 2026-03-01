@@ -11,7 +11,7 @@ open Ast
 --# @return :: Any The element at the index.
 --# @example
 --#   get([10, 20, 30], 1)
---#   -- Returns: 20
+--#   -- Returns = 20
 --# @family core
 --# @export
 *)
