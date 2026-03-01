@@ -111,7 +111,7 @@ let read_pmml path =
     let rec loop () =
       if Xmlm.eoi i then ()
       else match Xmlm.input i with
-        | `El_start ((_, ("RegressionModel" | "GeneralRegressionModel")), attrs) ->
+        | `El_start ((_, ("RegressionModel" | "GeneralRegressionModel" | "MiningModel")), attrs) ->
             found_model := true;
             (match get_float_attr "r_squared" attrs with Some v -> r2 := Some v 
              | None -> (match get_float_attr "r2" attrs with Some v -> r2 := Some v | _ -> ()));

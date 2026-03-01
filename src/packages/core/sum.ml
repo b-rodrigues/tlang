@@ -42,6 +42,7 @@ let register env =
                  | e -> e)
             | (_, VNA _) :: rest when na_rm -> add_all rest
             | (_, VNA _) :: _ -> Error.type_error "Function `sum` encountered NA value. Handle missingness explicitly."
+            | (_, (VError _ as e)) :: _ -> e
             | _ -> Error.type_error "Function `sum` requires a list of numbers."
           in
           add_all items
@@ -64,6 +65,7 @@ let register env =
                     total_float := !total_float +. f
               | VNA _ when na_rm -> ()
               | VNA _ -> had_error := Some (Error.type_error "Function `sum` encountered NA value. Handle missingness explicitly.")
+              | VError _ as e -> had_error := Some e
               | _ -> had_error := Some (Error.type_error "Function `sum` requires numeric values.")
           done;
           (match !had_error with

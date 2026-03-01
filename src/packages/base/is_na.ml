@@ -20,6 +20,8 @@ let register env =
     (make_builtin ~name:"is_na" 1 (fun args _env ->
       match args with
       | [VNA _] -> VBool true
+      | [VVector arr] -> VVector (Array.map (function VNA _ -> VBool true | _ -> VBool false) arr)
+      | [VList items] -> VList (List.map (fun (n, v) -> (n, match v with VNA _ -> VBool true | _ -> VBool false)) items)
       | [_] -> VBool false
       | _ -> Error.arity_error_named "is_na" ~expected:1 ~received:(List.length args)
     ))
