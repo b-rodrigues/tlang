@@ -396,9 +396,14 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       let runtime = eval_string "runtime" default_runtime in
       let script_arg = List.assoc_opt (Some "script") args in
       let command_arg = List.assoc_opt (Some "command") args in
-      
-      if Option.is_some script_arg && (Option.is_some command_arg || List.exists (fun (k, _) -> k = None) args) then
+      let has_command = Option.is_some command_arg || List.exists (fun (k, _) -> k = None) args in
+      let has_script = Option.is_some script_arg in
+      let noop = match eval_expr env_ref (lookup_arg "noop" (Value (VBool false))) with VBool b -> b | _ -> false in
+
+      if has_script && has_command then
         Error.make_error ArityError "Provide either `command` or `script`, but not both."
+      else if not has_script && not has_command && not noop then
+        Error.make_error ArityError "Either `command` or `script` must be provided."
       else
       let command_or_error = 
         match script_arg with
@@ -418,7 +423,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              un_deserializer = lookup_arg "deserializer" (Var "default");
              un_functions = lookup_list "functions";
              un_includes = lookup_list "includes";
-             un_noop = match eval_expr env_ref (lookup_arg "noop" (Value (VBool false))) with VBool b -> b | _ -> false;
+             un_noop = noop;
            } in
            if runtime <> "T" then
              match command with

@@ -14,7 +14,7 @@
 --# @param functions :: String | List[String] (Optional) R scripts to source before execution.
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.
---# @return :: Any The evaluated return value of `script` or `command` (exactly one must be provided).
+--# @return :: Any The evaluated return value of `script` or `command`. Exactly one of `script` or `command` must be provided; omitting both is an error unless `noop = true`.
 --# @family pipeline
 --# @seealso node, pyn
 --# @export
