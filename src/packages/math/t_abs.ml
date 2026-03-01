@@ -10,7 +10,7 @@ open Ast
 --# @return :: Number | Vector | NDArray The absolute value.
 --# @example
 --#   abs(-5)
---#   -- Returns: 5
+--#   -- Returns = 5
 --# @family math
 --# @export
 *)

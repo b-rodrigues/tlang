@@ -11,10 +11,10 @@ open Ast
 --# @return :: Number | NA The sum of values.
 --# @example
 --#   sum([1, 2, 3])
---#   -- Returns: 6
+--#   -- Returns = 6
 --#
---#   sum([1, NA, 3], na_rm: true)
---#   -- Returns: 4
+--#   sum([1, NA, 3], na_rm = true)
+--#   -- Returns = 4
 --# @family core
 --# @export
 *)

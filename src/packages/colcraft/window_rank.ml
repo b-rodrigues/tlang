@@ -92,7 +92,7 @@ let register env =
   --# @return :: Vector The ranks.
   --# @example
   --#   min_rank([1, 2, 2, 4])
-  --#   -- Returns: [1, 2, 2, 4]
+  --#   -- Returns = [1, 2, 2, 4]
   --# @family colcraft
   --# @seealso dense_rank, row_number
   --# @export
@@ -142,7 +142,7 @@ let register env =
   --# @return :: Vector The ranks.
   --# @example
   --#   dense_rank([1, 2, 2, 4])
-  --#   -- Returns: [1, 2, 2, 3]
+  --#   -- Returns = [1, 2, 2, 3]
   --# @family colcraft
   --# @seealso min_rank
   --# @export

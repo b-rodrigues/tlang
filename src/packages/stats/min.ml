@@ -10,7 +10,7 @@ open Ast
 --# @return :: Float The minimum value.
 --# @example
 --#   min([1, 2, 3])
---#   -- Returns: 1.0
+--#   -- Returns = 1.0
 --# @family stats
 --# @seealso max
 --# @export

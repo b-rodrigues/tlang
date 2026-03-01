@@ -6,8 +6,8 @@ Fits a linear regression model using Ordinary Least Squares (OLS).
 
 ## Parameters
 
-- **formula** (`Formula`): The model formula (e.g., mpg ~ wt + hp).
 - **data** (`DataFrame`): The data to use.
+- **formula** (`Formula`): The model formula (e.g., mpg ~ wt + hp).
 
 ## Returns
 
@@ -16,7 +16,7 @@ A model object containing coefficients, residuals, and statistics.
 ## Examples
 
 ```t
-model = lm(mpg ~ wt + hp, data: mtcars)
+model = lm(mtcars, mpg ~ wt + hp)
 summary(model)
 ```
 

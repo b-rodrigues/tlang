@@ -11,7 +11,7 @@ open Ast
 --# @return :: Number | Vector | NDArray The result of base ^ exponent.
 --# @example
 --#   pow(2, 3)
---#   -- Returns: 8.0
+--#   -- Returns = 8.0
 --# @family math
 --# @seealso sqrt, exp
 --# @export

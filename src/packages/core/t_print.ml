@@ -11,7 +11,7 @@ open Ast
 --# @return :: Null
 --# @example
 --#   print("Hello", "World")
---#   -- Output: Hello World
+--#   -- Output = Hello World
 --# @family core
 --# @export
 *)

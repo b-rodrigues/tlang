@@ -11,7 +11,7 @@ Appends model predictions, residuals, and potentially diagnostic metrics to a da
 
 ## Returns
 
-The original DataFrame with appended `fitted`, `resid`, `std_resid`, etc.
+The original DataFrame with appended `fitted`, `resid`, etc.
 
 ## Examples
 

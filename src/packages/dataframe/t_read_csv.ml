@@ -16,7 +16,7 @@ let is_sep_name = function Some "separator" -> true | _ -> false
 --# @return :: DataFrame The loaded data.
 --# @example
 --#   df = read_csv("data.csv")
---#   df = read_csv("data.csv", separator: ";")
+--#   df = read_csv("data.csv", separator = ";")
 --# @family dataframe
 --# @seealso write_csv
 --# @export
@@ -152,7 +152,7 @@ let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) ?(clean_col
 --# @return :: DataFrame The loaded data.
 --# @example
 --#   df = read_csv("data.csv")
---#   df = read_csv("data.csv", separator: ";")
+--#   df = read_csv("data.csv", separator = ";")
 --# @family dataframe
 --# @seealso write_csv
 --# @export

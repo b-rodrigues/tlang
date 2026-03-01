@@ -286,6 +286,10 @@ let read_pmml path =
           ("std_errors", std_errors_dict);
           ("class", VString model_class);
           ("model_type", VString "regression");
+          ("r_squared", (match !r2 with Some v -> VFloat v | None -> VNull));
+          ("adj_r_squared", (match !adj_r2 with Some v -> VFloat v | None -> VNull));
+          ("sigma", (match !sigma with Some v -> VFloat v | None -> VNull));
+          ("nobs", (match !nobs with Some v -> VInt v | None -> VNull));
           ("family", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "family" j with `String s -> VString s | _ -> VNull) | None -> VNull));
           ("link", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "link" j with `String s -> VString s | _ -> VNull) | None -> VNull));
           ("formula", (match !response_name with

@@ -11,8 +11,8 @@ open Ast
 --# @param ... :: Model One or more model objects to compare.
 --# @return :: DataFrame ANOVA table with statistics and p-values.
 --# @example
---#   m1 = lm(mpg ~ wt, data: mtcars)
---#   m2 = lm(mpg ~ wt + hp, data: mtcars)
+--#   m1 = lm(mpg ~ wt, data = mtcars)
+--#   m2 = lm(mpg ~ wt + hp, data = mtcars)
 --#   anova(m1, m2)
 --# @family stats
 --# @export

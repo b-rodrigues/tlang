@@ -7,7 +7,7 @@ open Ast
 --#
 --# @name inspect_pipeline
 --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
---# @return :: DataFrame A DataFrame with columns: derivation, build_success, path, output.
+--# @return :: DataFrame A DataFrame with columns = derivation, build_success, path, output.
 --# @family pipeline
 --# @export
 *)

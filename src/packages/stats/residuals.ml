@@ -10,8 +10,8 @@ open Ast
 --# @name residuals
 --# @param data :: DataFrame Input data.
 --# @param model :: Model The model object.
---# @param type :: String (Optional) Type of residuals: "response" (default) or "pearson".
---# @return :: DataFrame Columns: `actual`, `fitted`, `resid`.
+--# @param type :: String (Optional) Type of residuals = "response" (default) or "pearson".
+--# @return :: DataFrame Columns = `actual`, `fitted`, `resid`.
 --#
 --# @details
 --# Residuals represent the difference between observed data and model predictions.
@@ -27,7 +27,7 @@ open Ast
 --#
 --# @example
 --#   res = residuals(mtcars, model)
---#   res_p = residuals(mtcars, model, type: "pearson")
+--#   res_p = residuals(mtcars, model, type = "pearson")
 --# @family stats
 --# @export
 *)

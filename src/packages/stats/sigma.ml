@@ -17,11 +17,11 @@ open Ast
 --# of the standard deviation of the error term $\epsilon$. It measures the "average"
 --# distance that the observed values fall from the regression line.
 --#
---# For OLS, it is calculated as: $\hat{\sigma} = \sqrt{\frac{\sum r_i^2}{n - p}}$, where
+--# For OLS, it is calculated as = $\hat{\sigma} = \sqrt{\frac{\sum r_i^2}{n - p}}$, where
 --# $n$ is the number of observations and $p$ is the number of estimated parameters.
 --#
 --# @example
---#   model = lm(mpg ~ wt, data: mtcars)
+--#   model = lm(mpg ~ wt, data = mtcars)
 --#   s = sigma(model)
 --# @family stats
 --# @seealso dispersion

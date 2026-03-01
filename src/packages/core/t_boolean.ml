@@ -54,7 +54,7 @@ let cast_value target_type v =
 --# @param out_type :: String (Optional) Explicit output type casting.
 --# @return :: Vector A vector of the resulting values.
 --# @example
---#   ifelse([true, false, NA], "Yes", "No", missing: "Unknown")
+--#   ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 --# @family core
 --# @export
 *)

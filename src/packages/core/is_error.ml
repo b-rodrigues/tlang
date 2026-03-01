@@ -10,7 +10,7 @@ open Ast
 --# @return :: Bool True if x is an Error.
 --# @example
 --#   is_error(error("Something went wrong"))
---#   -- Returns: true
+--#   -- Returns = true
 --# @family core
 --# @export
 *)

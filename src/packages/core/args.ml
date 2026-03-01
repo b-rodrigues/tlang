@@ -8,14 +8,14 @@ open Ast
 --#
 --# @name args
 --# @param fn :: Function The function to inspect.
---# @return :: Dict A dictionary of name: Type.
+--# @return :: Dict A dictionary of name = Type.
 --# @example
 --#   args(sqrt)
---#   -- Returns: {x: "Number | Vector | NDArray"}
+--#   -- Returns: {x = "Number | Vector | NDArray"}
 --#
---#   f = \(x: Int, y: Float -> Int) x + y
+--#   f = \(x: Int, y = Float -> Int) x + y
 --#   args(f)
---#   -- Returns: {x: "Int", y: "Float"}
+--#   -- Returns: {x: "Int", y = "Float"}
 --# @family core
 --# @export
 *)

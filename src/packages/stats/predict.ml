@@ -14,7 +14,7 @@ open Ast
 --# @param model :: Model The linear model object.
 --# @return :: Vector The predicted values.
 --# @example
---#   model = lm(mpg ~ wt + hp, data: mtcars)
+--#   model = lm(mpg ~ wt + hp, data = mtcars)
 --#   preds = predict(mtcars, model)
 --# @family stats
 --# @seealso lm

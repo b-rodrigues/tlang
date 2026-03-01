@@ -11,10 +11,10 @@ open Ast
 --# @param n :: Int = 5 Number of items to return.
 --# @return :: DataFrame | List | Vector A subset of the input containing the first n items.
 --# @example
---#   head([1, 2, 3, 4, 5, 6], n: 3)
---#   -- Returns: [1, 2, 3]
+--#   head([1, 2, 3, 4, 5, 6], n = 3)
+--#   -- Returns = [1, 2, 3]
 --#
---#   df |> head(n: 10)
+--#   df |> head(n = 10)
 --# @family core
 --# @export
 *)

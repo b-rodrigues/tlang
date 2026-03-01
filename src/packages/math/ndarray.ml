@@ -293,7 +293,7 @@ let register env =
   --# @param shape :: List[Int] (Optional) The dimensions of the array.
   --# @return :: NDArray The created N-dimensional array.
   --# @example
-  --#   ndarray([1, 2, 3, 4], shape: [2, 2])
+  --#   ndarray([1, 2, 3, 4], shape = [2, 2])
   --#   ndarray([[1, 2], [3, 4]])
   --# @family math
   --# @seealso reshape, shape

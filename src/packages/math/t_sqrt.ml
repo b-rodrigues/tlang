@@ -10,7 +10,7 @@ open Ast
 --# @return :: Float | Vector | NDArray The square root.
 --# @example
 --#   sqrt(16)
---#   -- Returns: 4.0
+--#   -- Returns = 4.0
 --# @family math
 --# @seealso pow
 --# @export

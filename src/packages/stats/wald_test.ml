@@ -13,7 +13,7 @@ open Ast
 --# @param value :: Float (Optional) The null value to test against. Defaults to 0.0.
 --# @return :: DataFrame A one-row DataFrame with the test statistic and p-value.
 --# @example
---#   wald_test(model, terms: ["wt", "hp"])
+--#   wald_test(model, terms = ["wt", "hp"])
 --# @family stats
 --# @export
 *)

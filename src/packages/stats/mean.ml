@@ -12,17 +12,17 @@ open Ast
 --# @return :: Float | NA The arithmetic mean, or NA if input contains NA and na_rm is false
 --# @example
 --#   mean([1, 2, 3])
---#   -- Returns: 2.0
+--#   -- Returns = 2.0
 --#
---#   mean([1, NA, 3], na_rm: true)
---#   -- Returns: 2.0
+--#   mean([1, NA, 3], na_rm = true)
+--#   -- Returns = 2.0
 --#
 --# @seealso median, sd, sum
 --# @family descriptive-statistics
 --# @intent
---#   purpose: "Compute central tendency of numeric data"
---#   use_when: "Summarizing distributions or comparing groups"
---#   alternatives: "Use median() for robust center; sd() for spread"
+--#   purpose = "Compute central tendency of numeric data"
+--#   use_when = "Summarizing distributions or comparing groups"
+--#   alternatives = "Use median() for robust center; sd() for spread"
 --# @export
 *)
 let register env =

@@ -18,7 +18,7 @@ let register env =
   --# @return :: Vector The cumulative sum.
   --# @example
   --#   cumsum([1, 2, 3])
-  --#   -- Returns: [1, 3, 6]
+  --#   -- Returns = [1, 3, 6]
   --# @family colcraft
   --# @seealso sum, cummax, cummin
   --# @export
@@ -76,7 +76,7 @@ let register env =
   --# @return :: Vector The cumulative minimum.
   --# @example
   --#   cummin([3, 2, 4, 1])
-  --#   -- Returns: [3, 2, 2, 1]
+  --#   -- Returns = [3, 2, 2, 1]
   --# @family colcraft
   --# @seealso min, cummax, cumsum
   --# @export
@@ -134,7 +134,7 @@ let register env =
   --# @return :: Vector The cumulative maximum.
   --# @example
   --#   cummax([1, 3, 2, 4])
-  --#   -- Returns: [1, 3, 3, 4]
+  --#   -- Returns = [1, 3, 3, 4]
   --# @family colcraft
   --# @seealso max, cummin, cumsum
   --# @export
@@ -193,10 +193,10 @@ let register env =
   --# @return :: Vector The cumulative mean.
   --# @example
   --#   cummean([1, 2, 3])
-  --#   -- Returns: [1.0, 1.5, 2.0]
+  --#   -- Returns = [1.0, 1.5, 2.0]
   --#
-  --#   cummean([1, NA, 3], na_rm: true)
-  --#   -- Returns: [1.0, 1.0, 2.0]
+  --#   cummean([1, NA, 3], na_rm = true)
+  --#   -- Returns = [1.0, 1.0, 2.0]
   --# @family colcraft
   --# @seealso mean, cumsum
   --# @export
@@ -259,7 +259,7 @@ let register env =
   --# @return :: Vector The cumulative AND.
   --# @example
   --#   cumall([true, true, false, true])
-  --#   -- Returns: [true, true, false, false]
+  --#   -- Returns = [true, true, false, false]
   --# @family colcraft
   --# @seealso cumany
   --# @export
@@ -303,7 +303,7 @@ let register env =
   --# @return :: Vector The cumulative OR.
   --# @example
   --#   cumany([false, false, true, false])
-  --#   -- Returns: [false, false, true, true]
+  --#   -- Returns = [false, false, true, true]
   --# @family colcraft
   --# @seealso cumall
   --# @export
