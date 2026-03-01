@@ -19,9 +19,6 @@ jobs:
         fetch-depth: 0
 
     - name: Install Nix
-      uses: actions/checkout@v4 # Dummy step to keep structure similar to GLM workflow
-    
-    - name: Install Nix
       uses: cachix/install-nix-action@v24
       with:
         nix_path: nixpkgs=channel:nixos-unstable
@@ -29,6 +26,13 @@ jobs:
           experimental-features = nix-command flakes
           substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
           trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v13
+      with:
+        name: rstats-on-nix
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        skipPush: true
 
     - name: Run Lab Pipelines
       env:
