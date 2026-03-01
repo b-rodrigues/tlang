@@ -2,7 +2,7 @@
 name = "tlang"
 
 [py-dependencies]
-packages = ["pandas", "scikit-learn", "statsmodels", "sklearn2pmml"]
+packages = ["pandas", "scikit-learn", "statsmodels", "patsy", "sklearn2pmml"]
 
 [r-dependencies]
-packages = ["dplyr", "faraway", "MASS", "r2pmml"]
+packages = ["dplyr", "faraway", "MASS", "glmnet", "r2pmml"]
