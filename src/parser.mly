@@ -248,8 +248,8 @@ call_args:
 
 arg:
   | e = expr { (None, e) }
-  | name = IDENT COLON e = expr { (Some name, e) }
-  | name = IDENT EQUALS e = expr { (Some name, e) }
+  | name = any_ident COLON e = expr { (Some name, e) }
+  | name = any_ident EQUALS e = expr { (Some name, e) }
   | DOT name = IDENT EQUALS e = expr { (Some ("." ^ name), e) }
   | col = COLUMN_REF EQUALS e = expr { (Some col, e) }
   ;
