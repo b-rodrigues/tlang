@@ -11,11 +11,11 @@ open Ast
 --# @return :: Dict A dictionary of name = Type.
 --# @example
 --#   args(sqrt)
---#   -- Returns: {x = "Number | Vector | NDArray"}
+--#   -- Returns = {x = "Number | Vector | NDArray"}
 --#
 --#   f = \(x: Int, y = Float -> Int) x + y
 --#   args(f)
---#   -- Returns: {x: "Int", y = "Float"}
+--#   -- Returns = {x: "Int", y = "Float"}
 --# @family core
 --# @export
 *)

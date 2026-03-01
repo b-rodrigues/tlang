@@ -244,7 +244,7 @@ let sprintf_impl args _env =
 --#   sprintf("Hello, %s!", "world")
 --#   -- Returns = "Hello, world!"
 --#   sprintf("Value = %d", 42)
---#   -- Returns: "Value = 42"
+--#   -- Returns = "Value = 42"
 --# @family string
 --# @export
 *)
