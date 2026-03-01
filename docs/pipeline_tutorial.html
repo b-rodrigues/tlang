@@ -134,22 +134,22 @@ serialization methods for when a pipeline is materialized by Nix:</p>
 <pre class="t"><code>p = pipeline {
   data = node(command = read_csv(&quot;data.csv&quot;), runtime = T)
   
-  -- Running a Python node that trains a model
-  model = node(
+  -- Running a Python node that trains a model using the pyn wrapper
+  model = pyn(
     command = &lt;{
         from sklearn.linear_model import LinearRegression
         fit = LinearRegression().fit(X, y)
         fit
-    }&gt;, 
-    runtime = &quot;Python&quot;,
+    }&gt;,
     serializer = &quot;pmml&quot;
   )
 }</code></pre>
 <p>Bare syntax (like <code>x = 10</code>) is automatically desugared to
 <code>x = node(command = 10, runtime = T, serializer = default, deserializer = default)</code>.
-T enforces cross-runtime safety: if a node with a non-<code>T</code>
-runtime depends on a <code>T</code> node, or vice versa, you should
-specify an explicit
+You can also use <code>pyn()</code> and <code>rn()</code> as shortcuts
+for Python and R runtimes. T enforces cross-runtime safety: if a node
+with a non-<code>T</code> runtime depends on a <code>T</code> node, or
+vice versa, you should specify an explicit
 <code>serializer</code>/<code>deserializer</code>.</p>
 <hr />
 <h2 id="cross-language-integration">3. Cross-Language Integration</h2>
@@ -205,13 +205,12 @@ Predicting in T</h3>
 <p>You can train a model in R and use T’s native OCaml model evaluator
 to make predictions without leaving the T runtime:</p>
 <pre class="t"><code>p = pipeline {
-  -- Node 1: Train model in R
-  model_r = node(
+  -- Node 1: Train model in R using the rn wrapper
+  model_r = rn(
     command = &lt;{
       data &lt;- read.csv(&quot;data.csv&quot;)
       lm(mpg ~ wt + hp, data = data)
     }&gt;,
-    runtime = &quot;R&quot;,
     serializer = &quot;pmml&quot;
   )
   
@@ -580,14 +579,13 @@ depend on it) by passing the <code>noop = true</code> argument to the
   raw_data = read_csv(&quot;raw.csv&quot;)
   
   # This node and its dependencies won&#39;t trigger a heavy Nix build
-  expensive_model = node(
-    command = train(raw_data), 
-    runtime = R,
+  expensive_model = rn(
+    command = train(raw_data),
     noop = true
   )
 
   # This node depends on expensive_model, therefore it becomes a noop as well
-  report = node(command = generate_report(expensive_model), runtime = R)
+  report = rn(command = generate_report(expensive_model))
 }
 
 populate_pipeline(p, build = true)</code></pre>

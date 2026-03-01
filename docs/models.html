@@ -71,11 +71,10 @@ inspection and prediction.</p>
 <h4 id="example-logistic-regression-in-r">Example: Logistic Regression
 in R</h4>
 <pre class="t"><code>p = pipeline {
-    model_node = node(
+    model_node = rn(
         command = &lt;{
             glm(Survived ~ Pclass + Sex + Age, data = titanic, family = binomial())
         }&gt;,
-        runtime = R,
         serializer = &quot;pmml&quot;
     )
 }
