@@ -213,10 +213,10 @@ p_cross = pipeline {
   let (v_node_script_only, _) = eval_string_env
     "cfg = node(script = \"test_node_script.py\", runtime = Python); cfg.command"
     (Packages.init_env ()) in
-  if String.starts_with ~prefix:"\"<{import runpy" (Ast.Utils.value_to_string v_node_script_only) then begin
-    incr pass_count; Printf.printf "  ✓ node(script=\"path\") rewrites to runtime script execution\n"
+  if String.starts_with ~prefix:"\"@script:" (Ast.Utils.value_to_string v_node_script_only) then begin
+    incr pass_count; Printf.printf "  ✓ node(script=\"path\") produces @script marker in command\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ node(script=\"path\") rewrite failed\n    Got: %s\n" (Ast.Utils.value_to_string v_node_script_only)
+    incr fail_count; Printf.printf "  ✗ node(script=\"path\") did not produce @script marker\n    Got: %s\n" (Ast.Utils.value_to_string v_node_script_only)
   end;
 
   let both_err = "Error(ArityError: \"Provide either `command` or `script`, but not both.\")" in
@@ -246,6 +246,34 @@ p_cross = pipeline {
   end else begin
     incr fail_count; Printf.printf "  ✗ rn did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_rn_both)
   end;
+
+  let no_cmd_err = "Error(ArityError: \"Either `command` or `script` must be provided.\")" in
+  let (v_node_none, _) = eval_string_env
+    "node(runtime = Python)"
+    (Packages.init_env ()) in
+  if Ast.Utils.value_to_string v_node_none = no_cmd_err then begin
+    incr pass_count; Printf.printf "  ✓ node without command or script raises ArityError\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ node without command or script did not raise ArityError\n    Got: %s\n" (Ast.Utils.value_to_string v_node_none)
+  end;
+
+  let (v_pyn_none, _) = eval_string_env
+    "pyn()"
+    (Packages.init_env ()) in
+  if Ast.Utils.value_to_string v_pyn_none = no_cmd_err then begin
+    incr pass_count; Printf.printf "  ✓ pyn without command or script raises ArityError\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pyn without command or script did not raise ArityError\n    Got: %s\n" (Ast.Utils.value_to_string v_pyn_none)
+  end;
+
+  let (v_node_noop, _) = eval_string_env
+    "node(noop = true)"
+    (Packages.init_env ()) in
+  (match Ast.Utils.value_to_string v_node_noop with
+   | s when String.starts_with ~prefix:"node<" s ->
+       incr pass_count; Printf.printf "  ✓ node(noop=true) without command or script is allowed\n"
+   | s ->
+       incr fail_count; Printf.printf "  ✗ node(noop=true) without command or script failed\n    Got: %s\n" s);
 
   Printf.printf "Phase 3 — Runtime Script Files (Python + R):\n";
   let command_exists cmd = Sys.command (Printf.sprintf "command -v %s >/dev/null 2>&1" cmd) = 0 in

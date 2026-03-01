@@ -600,7 +600,16 @@ EOF
         let code =
           if is_script expr_s then
             let path = get_path expr_s in
-            Printf.sprintf "import runpy\ng = runpy.run_path(%S)\n%s = g['main']() if 'main' in g else g['result']" path name
+            String.concat "\n"
+              [ "import runpy"
+              ; Printf.sprintf "_tlang_g = runpy.run_path(%S)" path
+              ; "if 'main' in _tlang_g and callable(_tlang_g['main']):"
+              ; Printf.sprintf "    %s = _tlang_g['main']()" name
+              ; "elif 'result' in _tlang_g:"
+              ; Printf.sprintf "    %s = _tlang_g['result']" name
+              ; "else:"
+              ; "    raise RuntimeError(\"Script must define a callable 'main' function or a 'result' variable.\")"
+              ]
           else if is_raw_code && raw_assigns_to name expr_s then
             expr_s
           else
@@ -612,7 +621,9 @@ EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} code ser_call name name
     | _ -> (* T runtime *)
-        let code = if is_raw_code then
+        let code = if is_script expr_s then
+          Printf.sprintf "      echo \"      %s = {\" >> node_script.t\n      cat %S >> node_script.t\n      echo \"      }\" >> node_script.t" name (get_path expr_s)
+        else if is_raw_code then
           Printf.sprintf "      echo \"      %s = {\" >> node_script.t\n      cat <<'EOF' >> node_script.t\n%s\nEOF\n      echo \"      }\" >> node_script.t" name expr_s
         else
           Printf.sprintf "      cat <<'EOF' >> node_script.t\n      %s = %s\nEOF" name expr_s
