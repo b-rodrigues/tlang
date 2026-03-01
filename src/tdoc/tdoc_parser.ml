@@ -101,11 +101,17 @@ let parse_block lines filename line_num =
     )
   ) lines;
 
+  let data_first_params params =
+    let is_data_param (p : param_doc) = String.lowercase_ascii p.name = "data" in
+    let data_params, other_params = List.partition is_data_param params in
+    data_params @ other_params
+  in
+
   {
     name = (match !name_override with Some n -> n | None -> "unknown");
     description_brief = !brief;
     description_full = String.trim (Buffer.contents full);
-    params = List.rev !params;
+    params = data_first_params (List.rev !params);
     return_value = !return_val;
     examples = List.rev !examples;
     see_also = List.rev !see_also;
