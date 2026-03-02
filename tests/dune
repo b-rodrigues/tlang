@@ -24,6 +24,7 @@
    test_scalar_strictness
    test_typing_mode
    test_quotation
+   test_pipeline_ops
  )
  (libraries t_lang menhirLib otoml unix str)
 )
