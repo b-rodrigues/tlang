@@ -9,4 +9,4 @@ av = anova(m1, m2)
 av_result = mutate(av, model: ["m1", "m2"])
 
 write_csv(av_result, "tests/golden/t_outputs/lm_anova_m1_m2.csv")
-print("✓ lm_anova_m1_m2 complete")
+print("success lm_anova_m1_m2 complete")

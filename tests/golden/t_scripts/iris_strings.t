@@ -12,4 +12,4 @@ result = df
     rep_all = replace($Species, "s", "S")
   )
 write_csv(result, "tests/golden/t_outputs/iris_strings.csv")
-print("✓ String operations on Iris Species complete")
+print("success String operations on Iris Species complete")

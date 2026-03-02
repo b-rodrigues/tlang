@@ -10,4 +10,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/matmul_identity.csv")
-print("✓ matmul identity complete")
+print("success matmul identity complete")

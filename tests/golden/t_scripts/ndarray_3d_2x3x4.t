@@ -12,4 +12,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_3d_2x3x4.csv")
-print("✓ ndarray 3D (2x3x4) complete")
+print("success ndarray 3D (2x3x4) complete")

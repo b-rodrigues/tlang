@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/empty.csv")
 result = df |> filter($col1 > 0)
 write_csv(result, "tests/golden/t_outputs/empty_filter.csv")
-print("✓ empty_filter complete")
+print("success empty_filter complete")

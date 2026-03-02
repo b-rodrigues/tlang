@@ -18,4 +18,4 @@ v_or = v1 .| v2
 expected_or = [true, true, true, false]
 assert(v_or == expected_or, "Vector .| failed")
 
-print("✓ logical_ops complete")
+print("success logical_ops complete")

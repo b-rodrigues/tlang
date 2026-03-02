@@ -9,4 +9,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/diag_from_vector.csv")
-print("✓ diag from vector complete")
+print("success diag from vector complete")

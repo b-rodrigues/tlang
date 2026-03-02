@@ -18,9 +18,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env0 in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ filter to empty then group_by+summarize returns DataFrame\n"
+    incr pass_count; Printf.printf "  success filter to empty then group_by+summarize returns DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ filter to empty then group_by+summarize returns DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure filter to empty then group_by+summarize returns DataFrame\n    Got: %s\n" result
   end;
 
   (* Filter to zero rows produces 0-row DataFrame *)
@@ -29,9 +29,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "0" then begin
-    incr pass_count; Printf.printf "  ✓ filter to zero rows gives nrow=0\n"
+    incr pass_count; Printf.printf "  success filter to zero rows gives nrow=0\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ filter to zero rows gives nrow=0\n    Expected: 0\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure filter to zero rows gives nrow=0\n    Expected: 0\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -58,12 +58,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   | Ok v ->
     let result = Ast.Utils.value_to_string v in
     if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-      incr pass_count; Printf.printf "  ✓ grouped summarize with all-NA values returns DataFrame\n"
+      incr pass_count; Printf.printf "  success grouped summarize with all-NA values returns DataFrame\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values returns DataFrame\n    Got: %s\n" result
+      incr fail_count; Printf.printf "  failure grouped summarize with all-NA values returns DataFrame\n    Got: %s\n" result
     end
   | Error msg ->
-    incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values\n    EXCEPTION: %s\n" msg);
+    incr fail_count; Printf.printf "  failure grouped summarize with all-NA values\n    EXCEPTION: %s\n" msg);
 
   (* mean on all-NA with na_rm=true returns NA *)
   test "mean all-NA na_rm=true returns NA(Float)"
@@ -89,9 +89,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env_single in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ single-row groups summarize produces DataFrame\n"
+    incr pass_count; Printf.printf "  success single-row groups summarize produces DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ single-row groups summarize produces DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure single-row groups summarize produces DataFrame\n    Got: %s\n" result
   end;
 
   (* Check single-row group count values *)
@@ -100,9 +100,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env_single in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[1, 1, 1]" then begin
-    incr pass_count; Printf.printf "  ✓ single-row groups each have count=1\n"
+    incr pass_count; Printf.printf "  success single-row groups each have count=1\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ single-row groups each have count=1\n    Expected: Vector[1, 1, 1]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure single-row groups each have count=1\n    Expected: Vector[1, 1, 1]\n    Got: %s\n" result
   end;
 
   (* sd of single value should return Error *)
@@ -129,9 +129,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env_multi in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ group_by two columns produces DataFrame\n"
+    incr pass_count; Printf.printf "  success group_by two columns produces DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by two columns produces DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure group_by two columns produces DataFrame\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_multi with _ -> ());
@@ -153,9 +153,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env_gm in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate on single-row groups works\n"
+    incr pass_count; Printf.printf "  success grouped mutate on single-row groups works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate on single-row groups works\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped mutate on single-row groups works\n    Got: %s\n" result
   end;
 
   (* Check grouped mutate broadcasts correct values *)
@@ -164,9 +164,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env_gm in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[1, 1, 1]" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate broadcasts 1 for single-row groups\n"
+    incr pass_count; Printf.printf "  success grouped mutate broadcasts 1 for single-row groups\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate broadcasts 1 for single-row groups\n    Expected: Vector[1, 1, 1]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped mutate broadcasts 1 for single-row groups\n    Expected: Vector[1, 1, 1]\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_gm with _ -> ());
@@ -180,9 +180,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env0 in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ summarize with multiple aggregation pairs\n"
+    incr pass_count; Printf.printf "  success summarize with multiple aggregation pairs\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ summarize with multiple aggregation pairs\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure summarize with multiple aggregation pairs\n    Got: %s\n" result
   end;
 
   (* Ungrouped summarize on empty DataFrame *)
@@ -191,9 +191,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env0 in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ ungrouped summarize on filtered-empty DataFrame\n"
+    incr pass_count; Printf.printf "  success ungrouped summarize on filtered-empty DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ ungrouped summarize on filtered-empty DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure ungrouped summarize on filtered-empty DataFrame\n    Got: %s\n" result
   end;
 
   print_newline ();

@@ -50,25 +50,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "sqrt(vdf.a)" env_p5 in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[1., 2., 3.]" then begin
-    incr pass_count; Printf.printf "  ✓ sqrt on vector\n"
+    incr pass_count; Printf.printf "  success sqrt on vector\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ sqrt on vector\n    Expected: Vector[1., 2., 3.]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure sqrt on vector\n    Expected: Vector[1., 2., 3.]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "abs(vdf.c)" env_p5 in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[1, 2, 3]" then begin
-    incr pass_count; Printf.printf "  ✓ abs on vector\n"
+    incr pass_count; Printf.printf "  success abs on vector\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ abs on vector\n    Expected: Vector[1, 2, 3]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure abs on vector\n    Expected: Vector[1, 2, 3]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "pow(vdf.b, 2)" env_p5 in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[4., 9., 16.]" then begin
-    incr pass_count; Printf.printf "  ✓ pow on vector\n"
+    incr pass_count; Printf.printf "  success pow on vector\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pow on vector\n    Expected: Vector[4., 9., 16.]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pow on vector\n    Expected: Vector[4., 9., 16.]\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p5_vec with _ -> ());
   print_newline ();

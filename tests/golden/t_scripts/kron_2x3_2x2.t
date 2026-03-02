@@ -10,4 +10,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/kron_2x3_2x2.csv")
-print("✓ kron 2x3 ⊗ 2x2 complete")
+print("success kron 2x3 ⊗ 2x2 complete")

@@ -9,4 +9,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/diag_from_matrix.csv")
-print("✓ diag from matrix complete")
+print("success diag from matrix complete")

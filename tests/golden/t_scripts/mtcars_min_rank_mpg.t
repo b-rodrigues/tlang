@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/mtcars.csv")
 result = mutate(df, $rank_mpg = min_rank($mpg))
 write_csv(result, "tests/golden/t_outputs/mtcars_min_rank_mpg.csv")
-print("✓ min_rank(mpg) complete")
+print("success min_rank(mpg) complete")

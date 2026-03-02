@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/special_values.csv")
 result = df |> mutate($result = $value / $divisor)
 write_csv(result, "tests/golden/t_outputs/edge_division.csv")
-print("✓ edge_division complete")
+print("success edge_division complete")

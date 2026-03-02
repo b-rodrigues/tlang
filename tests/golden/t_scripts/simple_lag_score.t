@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/simple.csv")
 result = mutate(df, $prev_score = lag($score))
 write_csv(result, "tests/golden/t_outputs/simple_lag_score.csv")
-print("✓ lag(score) complete")
+print("success lag(score) complete")

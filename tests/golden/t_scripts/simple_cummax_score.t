@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/simple.csv")
 result = mutate(df, $cummax_score = cummax($score))
 write_csv(result, "tests/golden/t_outputs/simple_cummax_score.csv")
-print("✓ cummax(score) complete")
+print("success cummax(score) complete")

@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/single_row.csv")
 result = df |> select($id, $value)
 write_csv(result, "tests/golden/t_outputs/single_row_select.csv")
-print("✓ single_row_select complete")
+print("success single_row_select complete")

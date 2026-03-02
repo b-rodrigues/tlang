@@ -12,17 +12,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|select(df, $name, $age)|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 2 cols: [name, age])" then begin
-    incr pass_count; Printf.printf "  ✓ select two columns\n"
+    incr pass_count; Printf.printf "  success select two columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ select two columns\n    Expected: DataFrame(5 rows x 2 cols: [name, age])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure select two columns\n    Expected: DataFrame(5 rows x 2 cols: [name, age])\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env {|select(df, $name)|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 1 cols: [name])" then begin
-    incr pass_count; Printf.printf "  ✓ select single column\n"
+    incr pass_count; Printf.printf "  success select single column\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ select single column\n    Expected: DataFrame(5 rows x 1 cols: [name])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure select single column\n    Expected: DataFrame(5 rows x 1 cols: [name])\n    Got: %s\n" result
   end;
 
   test "select missing column"
@@ -43,17 +43,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|filter(df, $age > 28)|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(3 rows x 4 cols: [name, age, score, dept])" then begin
-    incr pass_count; Printf.printf "  ✓ filter by $age > 28\n"
+    incr pass_count; Printf.printf "  success filter by $age > 28\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ filter by $age > 28\n    Expected: DataFrame(3 rows x 4 cols: [name, age, score, dept])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure filter by $age > 28\n    Expected: DataFrame(3 rows x 4 cols: [name, age, score, dept])\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env {|df |> filter($dept == "eng") |> nrow|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ filter by $dept == eng via pipe\n"
+    incr pass_count; Printf.printf "  success filter by $dept == eng via pipe\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ filter by $dept == eng via pipe\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure filter by $dept == eng via pipe\n    Expected: 3\n    Got: %s\n" result
   end;
 
   test "filter non-dataframe"
@@ -65,18 +65,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|mutate(df, $age_plus_10 = $age + 10)|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])" then begin
-    incr pass_count; Printf.printf "  ✓ mutate adds new column\n"
+    incr pass_count; Printf.printf "  success mutate adds new column\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ mutate adds new column\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure mutate adds new column\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])\n    Got: %s\n" result
   end;
 
   (* mutate replaces existing column *)
   let (v, _) = eval_string_env {|mutate(df, $age = $age + 1) |> ncol|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "4" then begin
-    incr pass_count; Printf.printf "  ✓ mutate replaces existing column (same col count)\n"
+    incr pass_count; Printf.printf "  success mutate replaces existing column (same col count)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ mutate replaces existing column (same col count)\n    Expected: 4\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure mutate replaces existing column (same col count)\n    Expected: 4\n    Got: %s\n" result
   end;
 
   test "mutate non-dataframe"
@@ -92,17 +92,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|df2 = arrange(df, $age); select(df2, $name) |> \(d) d.name|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = {|Vector["Bob", "Diana", "Alice", "Eve", "Charlie"]|} then begin
-    incr pass_count; Printf.printf "  ✓ arrange ascending by age\n"
+    incr pass_count; Printf.printf "  success arrange ascending by age\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ arrange ascending by age\n    Expected: Vector[\"Bob\", \"Diana\", \"Alice\", \"Eve\", \"Charlie\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure arrange ascending by age\n    Expected: Vector[\"Bob\", \"Diana\", \"Alice\", \"Eve\", \"Charlie\"]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env {|df2 = arrange(df, $age, "desc"); select(df2, $name) |> \(d) d.name|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = {|Vector["Charlie", "Eve", "Alice", "Diana", "Bob"]|} then begin
-    incr pass_count; Printf.printf "  ✓ arrange descending by age\n"
+    incr pass_count; Printf.printf "  success arrange descending by age\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ arrange descending by age\n    Expected: Vector[\"Charlie\", \"Eve\", \"Alice\", \"Diana\", \"Bob\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure arrange descending by age\n    Expected: Vector[\"Charlie\", \"Eve\", \"Alice\", \"Diana\", \"Bob\"]\n    Got: %s\n" result
   end;
 
   test "arrange missing column"
@@ -118,9 +118,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|group_by(df, $dept)|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 4 cols: [name, age, score, dept]) grouped by [dept]" then begin
-    incr pass_count; Printf.printf "  ✓ group_by marks grouping\n"
+    incr pass_count; Printf.printf "  success group_by marks grouping\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by marks grouping\n    Expected: DataFrame(5 rows x 4 cols: [name, age, score, dept]) grouped by [dept]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure group_by marks grouping\n    Expected: DataFrame(5 rows x 4 cols: [name, age, score, dept]) grouped by [dept]\n    Got: %s\n" result
   end;
 
   test "group_by missing column"
@@ -138,9 +138,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|df |> group_by($dept) |> ungroup|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 4 cols: [name, age, score, dept])" then begin
-    incr pass_count; Printf.printf "  ✓ ungroup removes grouping\n"
+    incr pass_count; Printf.printf "  success ungroup removes grouping\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ ungroup removes grouping\n    Expected: DataFrame(5 rows x 4 cols: [name, age, score, dept])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure ungroup removes grouping\n    Expected: DataFrame(5 rows x 4 cols: [name, age, score, dept])\n    Got: %s\n" result
   end;
 
   test "ungroup on ungrouped dataframe"
@@ -156,9 +156,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|summarize(df, $total_rows = nrow(df))|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(1 rows x 1 cols: [total_rows])" then begin
-    incr pass_count; Printf.printf "  ✓ ungrouped summarize produces 1-row result\n"
+    incr pass_count; Printf.printf "  success ungrouped summarize produces 1-row result\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ ungrouped summarize produces 1-row result\n    Expected: DataFrame(1 rows x 1 cols: [total_rows])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure ungrouped summarize produces 1-row result\n    Expected: DataFrame(1 rows x 1 cols: [total_rows])\n    Got: %s\n" result
   end;
 
   (* Grouped summarize *)
@@ -167,9 +167,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(2 rows x 2 cols: [dept, count])" then begin
-    incr pass_count; Printf.printf "  ✓ grouped summarize produces per-group result\n"
+    incr pass_count; Printf.printf "  success grouped summarize produces per-group result\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped summarize produces per-group result\n    Expected: DataFrame(2 rows x 2 cols: [dept, count])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped summarize produces per-group result\n    Expected: DataFrame(2 rows x 2 cols: [dept, count])\n    Got: %s\n" result
   end;
 
   (* Check grouped summarize values *)
@@ -178,9 +178,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[3, 2]" then begin
-    incr pass_count; Printf.printf "  ✓ grouped summarize correct counts (eng=3, sales=2)\n"
+    incr pass_count; Printf.printf "  success grouped summarize correct counts (eng=3, sales=2)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped summarize correct counts (eng=3, sales=2)\n    Expected: Vector[3, 2]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped summarize correct counts (eng=3, sales=2)\n    Expected: Vector[3, 2]\n    Got: %s\n" result
   end;
 
   test "summarize non-dataframe"
@@ -213,9 +213,9 @@ df |> mutate($senior = $age >= 30)
     env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, dept_size]) grouped by [dept]" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate adds column with group context\n"
+    incr pass_count; Printf.printf "  success grouped mutate adds column with group context\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate adds column with group context\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, dept_size]) grouped by [dept]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped mutate adds column with group context\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, dept_size]) grouped by [dept]\n    Got: %s\n" result
   end;
 
   (* Grouped mutate: check broadcast values *)
@@ -224,9 +224,9 @@ df |> mutate($senior = $age >= 30)
     env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[3, 2, 3, 2, 3]" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate broadcasts group values correctly\n"
+    incr pass_count; Printf.printf "  success grouped mutate broadcasts group values correctly\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate broadcasts group values correctly\n    Expected: Vector[3, 2, 3, 2, 3]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped mutate broadcasts group values correctly\n    Expected: Vector[3, 2, 3, 2, 3]\n    Got: %s\n" result
   end;
 
   (* Grouped mutate: preserves group keys *)
@@ -235,9 +235,9 @@ df |> mutate($senior = $age >= 30)
     env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, x]) grouped by [dept]" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate preserves group keys\n"
+    incr pass_count; Printf.printf "  success grouped mutate preserves group keys\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate preserves group keys\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, x]) grouped by [dept]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped mutate preserves group keys\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, x]) grouped by [dept]\n    Got: %s\n" result
   end;
 
   (* Grouped mutate: compute group mean score *)
@@ -253,9 +253,9 @@ df |> mutate($senior = $age >= 30)
     in check 0
   in
   if contains result "93.03333" && contains result "87.65" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate computes group mean\n"
+    incr pass_count; Printf.printf "  success grouped mutate computes group mean\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate computes group mean\n    Expected eng mean ~93.03 and sales mean ~87.65\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped mutate computes group mean\n    Expected eng mean ~93.03 and sales mean ~87.65\n    Got: %s\n" result
   end;
 
   (* Grouped mutate followed by ungrouped operation *)
@@ -264,18 +264,18 @@ df |> mutate($senior = $age >= 30)
     env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate chains with filter\n"
+    incr pass_count; Printf.printf "  success grouped mutate chains with filter\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate chains with filter\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped mutate chains with filter\n    Expected: 3\n    Got: %s\n" result
   end;
 
   (* Ungrouped mutate *)
   let (v, _) = eval_string_env {|mutate(df, $age_x2 = $age * 2) |> ncol|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "5" then begin
-    incr pass_count; Printf.printf "  ✓ ungrouped mutate works\n"
+    incr pass_count; Printf.printf "  success ungrouped mutate works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ ungrouped mutate works\n    Expected: 5\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure ungrouped mutate works\n    Expected: 5\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -311,9 +311,9 @@ df |> mutate($senior = $age >= 30)
   | Ok (v, env_nas2) ->
     let result = Ast.Utils.value_to_string v in
     if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-      incr pass_count; Printf.printf "  ✓ mutate with if/else on CSV with NAs\n"
+      incr pass_count; Printf.printf "  success mutate with if/else on CSV with NAs\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ mutate with if/else on CSV with NAs\n    Got: %s\n" result
+      incr fail_count; Printf.printf "  failure mutate with if/else on CSV with NAs\n    Got: %s\n" result
     end;
 
     let step2_result = (try
@@ -328,15 +328,15 @@ df |> mutate($senior = $age >= 30)
     | Ok v2 ->
       let result2 = Ast.Utils.value_to_string v2 in
       if String.length result2 >= 9 && String.sub result2 0 9 = "DataFrame" then begin
-        incr pass_count; Printf.printf "  ✓ grouped summarize with mean on NAs\n"
+        incr pass_count; Printf.printf "  success grouped summarize with mean on NAs\n"
       end else begin
-        incr fail_count; Printf.printf "  ✗ grouped summarize with mean on NAs\n    Got: %s\n" result2
+        incr fail_count; Printf.printf "  failure grouped summarize with mean on NAs\n    Got: %s\n" result2
       end
     | Error msg ->
-      incr fail_count; Printf.printf "  ✗ grouped summarize with mean on NAs\n    EXCEPTION: %s\n" msg)
+      incr fail_count; Printf.printf "  failure grouped summarize with mean on NAs\n    EXCEPTION: %s\n" msg)
   | Error msg ->
-    incr fail_count; Printf.printf "  ✗ mutate with if/else on CSV with NAs\n    EXCEPTION: %s\n" msg;
-    incr fail_count; Printf.printf "  ✗ grouped summarize with mean on NAs (skipped)\n");
+    incr fail_count; Printf.printf "  failure mutate with if/else on CSV with NAs\n    EXCEPTION: %s\n" msg;
+    incr fail_count; Printf.printf "  failure grouped summarize with mean on NAs (skipped)\n");
 
   (try Sys.remove csv_nas with _ -> ());
   print_newline ();
@@ -347,27 +347,27 @@ df |> mutate($senior = $age >= 30)
   let (v, _) = eval_string_env {|summarize(df, $total_score = sum($score))|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(1 rows x 1 cols: [total_score])" then begin
-    incr pass_count; Printf.printf "  ✓ summarize with $col = expr\n"
+    incr pass_count; Printf.printf "  success summarize with $col = expr\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ summarize with $col = expr\n    Expected: DataFrame(1 rows x 1 cols: [total_score])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure summarize with $col = expr\n    Expected: DataFrame(1 rows x 1 cols: [total_score])\n    Got: %s\n" result
   end;
 
   (* Grouped summarize with $col = expr *)
   let (v, _) = eval_string_env {|df |> group_by($dept) |> summarize($avg_score = mean($score))|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(2 rows x 2 cols: [dept, avg_score])" then begin
-    incr pass_count; Printf.printf "  ✓ grouped summarize with $col = expr\n"
+    incr pass_count; Printf.printf "  success grouped summarize with $col = expr\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped summarize with $col = expr\n    Expected: DataFrame(2 rows x 2 cols: [dept, avg_score])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped summarize with $col = expr\n    Expected: DataFrame(2 rows x 2 cols: [dept, avg_score])\n    Got: %s\n" result
   end;
 
   (* NSE mutate: mutate($col = expr) *)
   let (v, _) = eval_string_env {|mutate(df, $age_plus_10 = $age + 10)|} env_p4 in
   let result = Ast.Utils.value_to_string v in
   if result = "DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])" then begin
-    incr pass_count; Printf.printf "  ✓ mutate with $col = expr\n"
+    incr pass_count; Printf.printf "  success mutate with $col = expr\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ mutate with $col = expr\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure mutate with $col = expr\n    Expected: DataFrame(5 rows x 5 cols: [name, age, score, dept, age_plus_10])\n    Got: %s\n" result
   end;
 
   test "mutate $col = expr via pipe"

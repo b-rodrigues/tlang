@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/empty.csv")
 result = df |> select($col1, $col2)
 write_csv(result, "tests/golden/t_outputs/empty_select.csv")
-print("✓ empty_select complete")
+print("success empty_select complete")

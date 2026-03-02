@@ -17,9 +17,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "nrow(df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ bridge test setup (3 rows)\n"
+    incr pass_count; Printf.printf "  success bridge test setup (3 rows)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ bridge test setup\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure bridge test setup\n    Expected: 3\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -44,25 +44,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      let intercept_str = Ast.Utils.value_to_string arr.(0) in
      (match float_of_string_opt slope_str with
       | Some slope when Float.abs (slope -. 2.0) < 0.001 ->
-        incr pass_count; Printf.printf "  ✓ lm() via bridge: correct slope (2.0)\n"
+        incr pass_count; Printf.printf "  success lm() via bridge: correct slope (2.0)\n"
       | _ ->
-        incr fail_count; Printf.printf "  ✗ lm() via bridge: correct slope\n    Expected: ~2.0\n    Got: %s\n" slope_str);
+        incr fail_count; Printf.printf "  failure lm() via bridge: correct slope\n    Expected: ~2.0\n    Got: %s\n" slope_str);
      (match float_of_string_opt intercept_str with
       | Some intercept when Float.abs (intercept -. 1.0) < 0.001 ->
-        incr pass_count; Printf.printf "  ✓ lm() via bridge: correct intercept (1.0)\n"
+        incr pass_count; Printf.printf "  success lm() via bridge: correct intercept (1.0)\n"
       | _ ->
-        incr fail_count; Printf.printf "  ✗ lm() via bridge: correct intercept\n    Expected: ~1.0\n    Got: %s\n" intercept_str)
+        incr fail_count; Printf.printf "  failure lm() via bridge: correct intercept\n    Expected: ~1.0\n    Got: %s\n" intercept_str)
    | _ ->
-     incr fail_count; Printf.printf "  ✗ lm() via bridge: correct slope\n    Could not extract estimates\n";
-     incr fail_count; Printf.printf "  ✗ lm() via bridge: correct intercept\n    Could not extract estimates\n");
+     incr fail_count; Printf.printf "  failure lm() via bridge: correct slope\n    Could not extract estimates\n";
+     incr fail_count; Printf.printf "  failure lm() via bridge: correct intercept\n    Could not extract estimates\n");
 
   (* r_squared should be 1.0 for perfect linear data *)
   let (v, _) = eval_string_env "model._model_data.r_squared" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ lm() via bridge: perfect R-squared\n"
+    incr pass_count; Printf.printf "  success lm() via bridge: perfect R-squared\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() via bridge: R-squared\n    Expected: 1.\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure lm() via bridge: R-squared\n    Expected: 1.\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -80,18 +80,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "cor(df.a, df.b)" env_cor in
   let result = Ast.Utils.value_to_string v in
   if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ cor() via bridge: perfect positive correlation\n"
+    incr pass_count; Printf.printf "  success cor() via bridge: perfect positive correlation\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ cor() via bridge: positive correlation\n    Expected: 1.\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure cor() via bridge: positive correlation\n    Expected: 1.\n    Got: %s\n" result
   end;
 
   (* Perfect negative correlation *)
   let (v, _) = eval_string_env "cor(df.a, df.c)" env_cor in
   let result = Ast.Utils.value_to_string v in
   if result = "-1." then begin
-    incr pass_count; Printf.printf "  ✓ cor() via bridge: perfect negative correlation\n"
+    incr pass_count; Printf.printf "  success cor() via bridge: perfect negative correlation\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ cor() via bridge: negative correlation\n    Expected: -1.\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure cor() via bridge: negative correlation\n    Expected: -1.\n    Got: %s\n" result
   end;
 
   print_newline ();

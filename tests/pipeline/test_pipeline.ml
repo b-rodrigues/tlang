@@ -17,23 +17,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "p.x" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = "10" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline node access via dot (x)\n"
+    incr pass_count; Printf.printf "  success pipeline node access via dot (x)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (x)\n    Expected: 10\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pipeline node access via dot (x)\n    Expected: 10\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "p.total" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = "30" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline node access via dot (total)\n"
+    incr pass_count; Printf.printf "  success pipeline node access via dot (total)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline node access via dot (total)\n    Expected: 30\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pipeline node access via dot (total)\n    Expected: 30\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "p.nonexistent" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = {|Error(KeyError: "Node `nonexistent` not found in Pipeline.")|} then begin
-    incr pass_count; Printf.printf "  ✓ missing pipeline node returns error\n"
+    incr pass_count; Printf.printf "  success missing pipeline node returns error\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ missing pipeline node returns error\n    Expected: Error(KeyError: ...)\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure missing pipeline node returns error\n    Expected: Error(KeyError: ...)\n    Got: %s\n" result
   end;
   print_newline ();
 
@@ -56,25 +56,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "pipeline_nodes(p)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = {|["x", "y", "total"]|} then begin
-    incr pass_count; Printf.printf "  ✓ pipeline_nodes() lists all nodes\n"
+    incr pass_count; Printf.printf "  success pipeline_nodes() lists all nodes\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline_nodes() lists all nodes\n    Expected: [\"x\", \"y\", \"total\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pipeline_nodes() lists all nodes\n    Expected: [\"x\", \"y\", \"total\"]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env {|pipeline_node(p, "total")|} env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = "30" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline_node() gets specific node value\n"
+    incr pass_count; Printf.printf "  success pipeline_node() gets specific node value\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline_node() gets specific node value\n    Expected: 30\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pipeline_node() gets specific node value\n    Expected: 30\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "pipeline_deps(p)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = {|{`x`: [], `y`: [], `total`: ["x", "y"]}|} then begin
-    incr pass_count; Printf.printf "  ✓ pipeline_deps() returns dependency graph\n"
+    incr pass_count; Printf.printf "  success pipeline_deps() returns dependency graph\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline_deps() returns dependency graph\n    Expected: {`x`: [], `y`: [], `total`: [\"x\", \"y\"]}\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pipeline_deps() returns dependency graph\n    Expected: {`x`: [], `y`: [], `total`: [\"x\", \"y\"]}\n    Got: %s\n" result
   end;
 
   test "pipeline_nodes on non-pipeline"
@@ -89,18 +89,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "pipeline_run(p)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if result = "Pipeline(3 nodes: [x, y, total])" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline_run() re-runs and returns same result\n"
+    incr pass_count; Printf.printf "  success pipeline_run() re-runs and returns same result\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline_run() re-runs and returns same result\n    Expected: Pipeline(3 nodes: [x, y, total])\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pipeline_run() re-runs and returns same result\n    Expected: Pipeline(3 nodes: [x, y, total])\n    Got: %s\n" result
   end;
 
   (* Re-run produces same node values *)
   let (rerun_result, _) = eval_string_env "p2 = pipeline_run(p); p2.total" env_p3 in
   let result = Ast.Utils.value_to_string rerun_result in
   if result = "30" then begin
-    incr pass_count; Printf.printf "  ✓ re-run preserves cached values\n"
+    incr pass_count; Printf.printf "  success re-run preserves cached values\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ re-run preserves cached values\n    Expected: 30\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure re-run preserves cached values\n    Expected: 30\n    Got: %s\n" result
   end;
 
   test "pipeline_run on non-pipeline"
@@ -167,17 +167,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "p.rows" env_p3_df in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline with DataFrame nrow\n"
+    incr pass_count; Printf.printf "  success pipeline with DataFrame nrow\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame nrow\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pipeline with DataFrame nrow\n    Expected: 3\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "p.cols" env_p3_df in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline with DataFrame ncol\n"
+    incr pass_count; Printf.printf "  success pipeline with DataFrame ncol\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline with DataFrame ncol\n    Expected: 2\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure pipeline with DataFrame ncol\n    Expected: 2\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p3 with _ -> ());
   print_newline ();
@@ -194,9 +194,9 @@ p_cross = pipeline {
   let (v_cross, _) = eval_string_env "pipeline_nodes(p_cross)" env_cross in
   let cross_nodes = Ast.Utils.value_to_string v_cross in
   if cross_nodes = "[\"a\", \"b\", \"c\"]" then begin
-    incr pass_count; Printf.printf "  ✓ pipeline implicit and explicit nodes parsed\n"
+    incr pass_count; Printf.printf "  success pipeline implicit and explicit nodes parsed\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pipeline explicit nodes failed\n    Got: %s\n" cross_nodes
+    incr fail_count; Printf.printf "  failure pipeline explicit nodes failed\n    Got: %s\n" cross_nodes
   end;
 
   Printf.printf "Phase 3 — Script Argument Support:\n";
@@ -214,9 +214,9 @@ p_cross = pipeline {
     "cfg = node(script = \"test_node_script.py\", runtime = Python); cfg.command"
     (Packages.init_env ()) in
   if String.starts_with ~prefix:"\"@script:" (Ast.Utils.value_to_string v_node_script_only) then begin
-    incr pass_count; Printf.printf "  ✓ node(script=\"path\") produces @script marker in command\n"
+    incr pass_count; Printf.printf "  success node(script=\"path\") produces @script marker in command\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ node(script=\"path\") did not produce @script marker\n    Got: %s\n" (Ast.Utils.value_to_string v_node_script_only)
+    incr fail_count; Printf.printf "  failure node(script=\"path\") did not produce @script marker\n    Got: %s\n" (Ast.Utils.value_to_string v_node_script_only)
   end;
 
   let both_err = "Error(ArityError: \"Provide either `command` or `script`, but not both.\")" in
@@ -224,27 +224,27 @@ p_cross = pipeline {
     "node(command = <{ 1 + 1 }>, script = \"test_node_script.py\", runtime = Python)"
     (Packages.init_env ()) in
   if Ast.Utils.value_to_string v_node_both = both_err then begin
-    incr pass_count; Printf.printf "  ✓ node rejects command+script together\n"
+    incr pass_count; Printf.printf "  success node rejects command+script together\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ node did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_node_both)
+    incr fail_count; Printf.printf "  failure node did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_node_both)
   end;
 
   let (v_pyn_both, _) = eval_string_env
     "pyn(command = <{ 1 + 1 }>, script = \"test_node_script.py\")"
     (Packages.init_env ()) in
   if Ast.Utils.value_to_string v_pyn_both = both_err then begin
-    incr pass_count; Printf.printf "  ✓ pyn rejects command+script together\n"
+    incr pass_count; Printf.printf "  success pyn rejects command+script together\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pyn did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_pyn_both)
+    incr fail_count; Printf.printf "  failure pyn did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_pyn_both)
   end;
 
   let (v_rn_both, _) = eval_string_env
     "rn(command = <{ 1 + 1 }>, script = \"test_node_script.R\")"
     (Packages.init_env ()) in
   if Ast.Utils.value_to_string v_rn_both = both_err then begin
-    incr pass_count; Printf.printf "  ✓ rn rejects command+script together\n"
+    incr pass_count; Printf.printf "  success rn rejects command+script together\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ rn did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_rn_both)
+    incr fail_count; Printf.printf "  failure rn did not reject command+script\n    Got: %s\n" (Ast.Utils.value_to_string v_rn_both)
   end;
 
   let no_cmd_err = "Error(ArityError: \"Either `command` or `script` must be provided.\")" in
@@ -252,18 +252,18 @@ p_cross = pipeline {
     "node(runtime = Python)"
     (Packages.init_env ()) in
   if Ast.Utils.value_to_string v_node_none = no_cmd_err then begin
-    incr pass_count; Printf.printf "  ✓ node without command or script raises ArityError\n"
+    incr pass_count; Printf.printf "  success node without command or script raises ArityError\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ node without command or script did not raise ArityError\n    Got: %s\n" (Ast.Utils.value_to_string v_node_none)
+    incr fail_count; Printf.printf "  failure node without command or script did not raise ArityError\n    Got: %s\n" (Ast.Utils.value_to_string v_node_none)
   end;
 
   let (v_pyn_none, _) = eval_string_env
     "pyn()"
     (Packages.init_env ()) in
   if Ast.Utils.value_to_string v_pyn_none = no_cmd_err then begin
-    incr pass_count; Printf.printf "  ✓ pyn without command or script raises ArityError\n"
+    incr pass_count; Printf.printf "  success pyn without command or script raises ArityError\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ pyn without command or script did not raise ArityError\n    Got: %s\n" (Ast.Utils.value_to_string v_pyn_none)
+    incr fail_count; Printf.printf "  failure pyn without command or script did not raise ArityError\n    Got: %s\n" (Ast.Utils.value_to_string v_pyn_none)
   end;
 
   let (v_node_noop, _) = eval_string_env
@@ -271,9 +271,9 @@ p_cross = pipeline {
     (Packages.init_env ()) in
   (match Ast.Utils.value_to_string v_node_noop with
    | s when String.starts_with ~prefix:"node<" s ->
-       incr pass_count; Printf.printf "  ✓ node(noop=true) without command or script is allowed\n"
+       incr pass_count; Printf.printf "  success node(noop=true) without command or script is allowed\n"
    | s ->
-       incr fail_count; Printf.printf "  ✗ node(noop=true) without command or script failed\n    Got: %s\n" s);
+       incr fail_count; Printf.printf "  failure node(noop=true) without command or script failed\n    Got: %s\n" s);
 
   Printf.printf "Phase 3 — Runtime Script Files (Python + R):\n";
   let command_exists cmd = Sys.command (Printf.sprintf "command -v %s >/dev/null 2>&1" cmd) = 0 in
@@ -288,12 +288,12 @@ ok = if (is_error(out)) (false) else ((read_node("py") == 42) && (read_node("rr"
 ok|} in
     let (v_script_runtime, _) = eval_string_env script_code (Packages.init_env ()) in
     if Ast.Utils.value_to_string v_script_runtime = "true" then begin
-      incr pass_count; Printf.printf "  ✓ runtime script path files execute for Python and R nodes\n"
+      incr pass_count; Printf.printf "  success runtime script path files execute for Python and R nodes\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ runtime script path files failed\n    Got: %s\n" (Ast.Utils.value_to_string v_script_runtime)
+      incr fail_count; Printf.printf "  failure runtime script path files failed\n    Got: %s\n" (Ast.Utils.value_to_string v_script_runtime)
     end
   end else begin
-    incr pass_count; Printf.printf "  ✓ skipped runtime script file test (requires nix-build, python, and Rscript)\n"
+    incr pass_count; Printf.printf "  success skipped runtime script file test (requires nix-build, python, and Rscript)\n"
   end;
 
   (try Sys.remove py_script with _ -> ());
@@ -303,9 +303,9 @@ ok|} in
   (* Verify that explain indicates the different nodes *)
   let (v_explain, _) = eval_string_env "explain(p_cross).node_count" env_cross in
   if Ast.Utils.value_to_string v_explain = "3" then begin
-    incr pass_count; Printf.printf "  ✓ cross-runtime node count correct\n"
+    incr pass_count; Printf.printf "  success cross-runtime node count correct\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ cross-runtime node count failed\n"
+    incr fail_count; Printf.printf "  failure cross-runtime node count failed\n"
   end;
 
   print_newline ()

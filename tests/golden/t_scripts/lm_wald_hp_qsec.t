@@ -5,4 +5,4 @@ m2 = lm(mpg ~ wt + hp + qsec, data: df)
 wh = wald_test(m2, terms: ["hp", "qsec"])
 
 write_csv(wh, "tests/golden/t_outputs/lm_wald_hp_qsec.csv")
-print("✓ lm_wald_hp_qsec complete")
+print("success lm_wald_hp_qsec complete")

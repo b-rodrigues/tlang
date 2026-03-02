@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/simple.csv")
 result = mutate(df, $cum_score = cumsum($score))
 write_csv(result, "tests/golden/t_outputs/simple_cumsum_score.csv")
-print("✓ cumsum(score) complete")
+print("success cumsum(score) complete")

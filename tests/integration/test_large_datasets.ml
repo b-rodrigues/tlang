@@ -22,18 +22,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let (v, _) = eval_string_env {|nrow(df)|} env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "1000" then begin
-    incr pass_count; Printf.printf "  ✓ read 1000-row CSV correctly\n"
+    incr pass_count; Printf.printf "  success read 1000-row CSV correctly\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ read 1000-row CSV correctly\n    Expected: 1000\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure read 1000-row CSV correctly\n    Expected: 1000\n    Got: %s\n" result
   end;
 
   (* Verify column count *)
   let (v, _) = eval_string_env {|ncol(df)|} env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ 1000-row CSV has 3 columns\n"
+    incr pass_count; Printf.printf "  success 1000-row CSV has 3 columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ 1000-row CSV has 3 columns\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure 1000-row CSV has 3 columns\n    Expected: 3\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -51,9 +51,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     if i mod 3 <> 0 && i mod 2 <> 0 then incr expected_a
   done;
   if result = string_of_int !expected_a then begin
-    incr pass_count; Printf.printf "  ✓ filter group A gives correct count (%d)\n" !expected_a
+    incr pass_count; Printf.printf "  success filter group A gives correct count (%d)\n" !expected_a
   end else begin
-    incr fail_count; Printf.printf "  ✗ filter group A gives correct count\n    Expected: %d\n    Got: %s\n" !expected_a result
+    incr fail_count; Printf.printf "  failure filter group A gives correct count\n    Expected: %d\n    Got: %s\n" !expected_a result
   end;
 
   (* Select subset of columns *)
@@ -62,9 +62,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "2" then begin
-    incr pass_count; Printf.printf "  ✓ select 2 columns from large dataset\n"
+    incr pass_count; Printf.printf "  success select 2 columns from large dataset\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ select 2 columns from large dataset\n    Expected: 2\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure select 2 columns from large dataset\n    Expected: 2\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -76,9 +76,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     env0 in
   let result = Ast.Utils.value_to_string v in
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ group_by on 1000-row dataset produces DataFrame\n"
+    incr pass_count; Printf.printf "  success group_by on 1000-row dataset produces DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by on 1000-row dataset produces DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure group_by on 1000-row dataset produces DataFrame\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -91,9 +91,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let result = Ast.Utils.value_to_string v in
   (* value > 100 means i * 10 > 100, i.e., i > 10, so rows 11-1000 = 990 rows *)
   if result = "990" then begin
-    incr pass_count; Printf.printf "  ✓ multi-stage pipeline: filter + select on large data\n"
+    incr pass_count; Printf.printf "  success multi-stage pipeline: filter + select on large data\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ multi-stage pipeline: filter + select on large data\n    Expected: 990\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure multi-stage pipeline: filter + select on large data\n    Expected: 990\n    Got: %s\n" result
   end;
 
   (* Mutate on large dataset *)
@@ -102,9 +102,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "4" then begin
-    incr pass_count; Printf.printf "  ✓ mutate adds column to large dataset\n"
+    incr pass_count; Printf.printf "  success mutate adds column to large dataset\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ mutate adds column to large dataset\n    Expected: 4\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure mutate adds column to large dataset\n    Expected: 4\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -116,9 +116,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     env0 in
   let result = Ast.Utils.value_to_string v in
   if result = "1000" then begin
-    incr pass_count; Printf.printf "  ✓ arrange desc on large dataset preserves row count\n"
+    incr pass_count; Printf.printf "  success arrange desc on large dataset preserves row count\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ arrange desc on large dataset preserves row count\n    Expected: 1000\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure arrange desc on large dataset preserves row count\n    Expected: 1000\n    Got: %s\n" result
   end;
 
   print_newline ();
@@ -135,9 +135,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     String.sub s 0 (String.length prefix) = prefix
   in
   if starts_with result "Vector[" then begin
-    incr pass_count; Printf.printf "  ✓ grouped summarize sum on large dataset returns Vector\n"
+    incr pass_count; Printf.printf "  success grouped summarize sum on large dataset returns Vector\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped summarize sum on large dataset returns Vector\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped summarize sum on large dataset returns Vector\n    Got: %s\n" result
   end;
 
   (* Clean up *)
@@ -164,9 +164,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     env2 in
   let result = Ast.Utils.value_to_string v in
   if result = "200" then begin
-    incr pass_count; Printf.printf "  ✓ 200 unique groups produces 200-row summary\n"
+    incr pass_count; Printf.printf "  success 200 unique groups produces 200-row summary\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ 200 unique groups produces 200-row summary\n    Expected: 200\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure 200 unique groups produces 200-row summary\n    Expected: 200\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_many with _ -> ());

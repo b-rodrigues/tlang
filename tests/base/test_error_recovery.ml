@@ -39,9 +39,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let result = Ast.Utils.value_to_string v in
   (* Each group has 2 values, so sd() should work for all groups *)
   if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ grouped summarize with sd (2 rows per group) returns DataFrame\n"
+    incr pass_count; Printf.printf "  success grouped summarize with sd (2 rows per group) returns DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped summarize with sd (2 rows per group) returns DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure grouped summarize with sd (2 rows per group) returns DataFrame\n    Got: %s\n" result
   end;
 
   (* Error propagation rules changed: arithmetic now propagates errors instead of TypeError *)
@@ -121,10 +121,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     String.sub s 0 (String.length prefix) = prefix
   in
   if starts_with result "Error(" then begin
-    incr pass_count; Printf.printf "  ✓ error in filter predicate propagates\n"
+    incr pass_count; Printf.printf "  success error in filter predicate propagates\n"
   end else begin
     (* It may also return 0 rows if nonexistent field is treated as falsy *)
-    incr pass_count; Printf.printf "  ✓ filter with nonexistent field handled (got: %s)\n" (String.sub result 0 (min 50 (String.length result)))
+    incr pass_count; Printf.printf "  success filter with nonexistent field handled (got: %s)\n" (String.sub result 0 (min 50 (String.length result)))
   end;
 
   (* Select nonexistent column in pipeline *)

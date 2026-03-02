@@ -28,9 +28,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     String.sub s 0 (String.length prefix) = prefix
   in
   if not (starts_with result "Error(") then begin
-    incr pass_count; Printf.printf "  ✓ lm() accepts multi-variable formula\n"
+    incr pass_count; Printf.printf "  success lm() accepts multi-variable formula\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() accepts multi-variable formula\n    Expected: success\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure lm() accepts multi-variable formula\n    Expected: success\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_mv with _ -> ());
@@ -50,10 +50,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|lm(data = df_na, formula = y ~ x)|} env_na in
   let result = Ast.Utils.value_to_string v in
   if starts_with result "Error(" then begin
-    incr pass_count; Printf.printf "  ✓ lm() with NA in predictor returns error\n"
+    incr pass_count; Printf.printf "  success lm() with NA in predictor returns error\n"
   end else begin
     (* If it succeeds, that's also acceptable (e.g., if NA rows are dropped) *)
-    incr pass_count; Printf.printf "  ✓ lm() with NA in predictor completes (may drop NA rows)\n"
+    incr pass_count; Printf.printf "  success lm() with NA in predictor completes (may drop NA rows)\n"
   end;
 
   (try Sys.remove csv_na with _ -> ());
@@ -72,9 +72,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|lm(data = df_zv, formula = y ~ x)|} env_zv in
   let result = Ast.Utils.value_to_string v in
   if starts_with result "Error(" then begin
-    incr pass_count; Printf.printf "  ✓ lm() with zero-variance predictor returns error\n"
+    incr pass_count; Printf.printf "  success lm() with zero-variance predictor returns error\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() with zero-variance predictor should return error\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure lm() with zero-variance predictor should return error\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_zv with _ -> ());
@@ -93,9 +93,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|lm(data = df_small, formula = y ~ x)|} env_small in
   let result = Ast.Utils.value_to_string v in
   if starts_with result "Error(" then begin
-    incr pass_count; Printf.printf "  ✓ lm() with 1 observation returns error\n"
+    incr pass_count; Printf.printf "  success lm() with 1 observation returns error\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ lm() with 1 observation should return error\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure lm() with 1 observation should return error\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_small with _ -> ());
@@ -133,9 +133,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "model._model_data.r_squared" env_perf in
   let result = Ast.Utils.value_to_string v in
   if result = "1." then begin
-    incr pass_count; Printf.printf "  ✓ perfect fit has R²=1.0\n"
+    incr pass_count; Printf.printf "  success perfect fit has R²=1.0\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ perfect fit has R²=1.0\n    Expected: 1.\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure perfect fit has R²=1.0\n    Expected: 1.\n    Got: %s\n" result
   end;
 
   (* Access slope (estimate[1]) and intercept (estimate[0]) via _tidy_df *)
@@ -146,17 +146,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      let intercept_str = Ast.Utils.value_to_string arr.(0) in
      (match float_of_string_opt slope_str with
       | Some slope when Float.abs (slope -. 1.0) < 0.001 ->
-        incr pass_count; Printf.printf "  ✓ perfect fit slope=1.0\n"
+        incr pass_count; Printf.printf "  success perfect fit slope=1.0\n"
       | _ ->
-        incr fail_count; Printf.printf "  ✗ perfect fit slope=1.0\n    Expected: ~1.0\n    Got: %s\n" slope_str);
+        incr fail_count; Printf.printf "  failure perfect fit slope=1.0\n    Expected: ~1.0\n    Got: %s\n" slope_str);
      (match float_of_string_opt intercept_str with
       | Some intercept when Float.abs intercept < 0.001 ->
-        incr pass_count; Printf.printf "  ✓ perfect fit intercept=0.0\n"
+        incr pass_count; Printf.printf "  success perfect fit intercept=0.0\n"
       | _ ->
-        incr fail_count; Printf.printf "  ✗ perfect fit intercept=0.0\n    Expected: ~0.0\n    Got: %s\n" intercept_str)
+        incr fail_count; Printf.printf "  failure perfect fit intercept=0.0\n    Expected: ~0.0\n    Got: %s\n" intercept_str)
    | _ ->
-     incr fail_count; Printf.printf "  ✗ perfect fit slope=1.0\n    Could not extract estimates\n";
-     incr fail_count; Printf.printf "  ✗ perfect fit intercept=0.0\n    Could not extract estimates\n");
+     incr fail_count; Printf.printf "  failure perfect fit slope=1.0\n    Could not extract estimates\n";
+     incr fail_count; Printf.printf "  failure perfect fit intercept=0.0\n    Could not extract estimates\n");
 
   (try Sys.remove csv_perf with _ -> ());
   print_newline ()

@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/simple.csv")
 result = mutate(df, $row_number_age = row_number($age))
 write_csv(result, "tests/golden/t_outputs/simple_row_number_age.csv")
-print("✓ row_number(age) complete")
+print("success row_number(age) complete")

@@ -17,5 +17,5 @@ if (is_error(res)) {
   print("Error writing dist_baselines.csv:")
   print(res)
 } else {
-  print("✓ dist_baselines complete")
+  print("success dist_baselines complete")
 }

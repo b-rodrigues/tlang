@@ -8,4 +8,4 @@ step2 = step1 |> mutate($mpg_vs_cyl_avg = $mpg - $cyl_mean_mpg)
 -- Step 3: drop intermediate column by selecting all original cols + result col
 result = step2 |> select($car_name, $mpg, $cyl, $disp, $hp, $drat, $wt, $qsec, $vs, $am, $gear, $carb, $mpg_vs_cyl_avg)
 write_csv(result, "tests/golden/t_outputs/mtcars_pipeline_groupby_mutate.csv")
-print("✓ group_by(cyl) %>% mutate(mpg_vs_cyl_avg = mpg - mean(mpg)) complete")
+print("success group_by(cyl) %>% mutate(mpg_vs_cyl_avg = mpg - mean(mpg)) complete")

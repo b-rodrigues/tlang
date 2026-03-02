@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/mtcars.csv")
 result = mutate(df, $cum_mpg = cumsum($mpg))
 write_csv(result, "tests/golden/t_outputs/mtcars_cumsum_mpg.csv")
-print("✓ cumsum(mpg) complete")
+print("success cumsum(mpg) complete")

@@ -10,4 +10,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_le_scalar.csv")
-print("✓ ndarray <= scalar complete")
+print("success ndarray <= scalar complete")

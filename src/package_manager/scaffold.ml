@@ -529,7 +529,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
       (* Git init *)
       if not opts.no_git then git_init dir;
       (* Success message *)
-      Printf.printf "✓ Package '%s' created successfully!\n\n" opts.target_name;
+      Printf.printf "success Package '%s' created successfully!\n\n" opts.target_name;
       Printf.printf "  %s/\n" dir;
       Printf.printf "  ├── DESCRIPTION.toml\n";
       Printf.printf "  ├── flake.nix\n";
@@ -632,7 +632,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       (* Git init *)
       if not opts.no_git then git_init dir;
       (* Success message *)
-      Printf.printf "✓ Project '%s' created successfully!\n\n" opts.target_name;
+      Printf.printf "success Project '%s' created successfully!\n\n" opts.target_name;
       Printf.printf "  %s/\n" dir;
       Printf.printf "  ├── tproject.toml\n";
       Printf.printf "  ├── flake.nix\n";

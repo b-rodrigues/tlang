@@ -3,4 +3,4 @@
 df = read_csv("tests/golden/data/mtcars.csv")
 result = summarize(df, $correlation = cor($mpg, $hp))
 write_csv(result, "tests/golden/t_outputs/cor_mpg_hp.csv")
-print("✓ cor(mpg, hp) complete")
+print("success cor(mpg, hp) complete")

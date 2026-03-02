@@ -161,7 +161,7 @@ let run_doctor () =
   let issues = doc_issues @ issues in
 
   if issues = [] then
-    Printf.printf "\n✓ Everything looks good!\n"
+    Printf.printf "\nsuccess Everything looks good!\n"
   else begin
     Printf.printf "\nFound %d issue%s:\n\n" (List.length issues) (if List.length issues > 1 then "s" else "");
     List.iter (fun i ->

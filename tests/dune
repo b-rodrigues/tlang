@@ -2,6 +2,12 @@
 (cram (enabled_if false))
 
 (executable
+ (name minimal_test)
+ (modules minimal_test test_arithmetic)
+ (libraries t_lang menhirLib otoml unix str)
+)
+
+(executable
  (name test_runner)
  (modules
    test_runner

@@ -13,10 +13,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Test 1: Arrow FFI availability flag *)
   let arrow_avail = Arrow_ffi.arrow_available in
   if arrow_avail then begin
-    incr pass_count; Printf.printf "  ✓ Arrow FFI marked as available\n"
+    incr pass_count; Printf.printf "  success Arrow FFI marked as available\n"
   end else begin
     (* Arrow not compiled with native FFI — still passes as this is expected *)
-    incr pass_count; Printf.printf "  ✓ Arrow FFI availability flag is set (value: %b)\n" arrow_avail
+    incr pass_count; Printf.printf "  success Arrow FFI availability flag is set (value: %b)\n" arrow_avail
   end;
 
   (* Test 2: Pure OCaml table creation *)
@@ -26,9 +26,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   ] in
   let tbl = Arrow_table.create cols 2 in
   if Arrow_table.num_rows tbl = 2 && Arrow_table.num_columns tbl = 2 then begin
-    incr pass_count; Printf.printf "  ✓ Pure OCaml table creation works\n"
+    incr pass_count; Printf.printf "  success Pure OCaml table creation works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Pure OCaml table creation failed\n"
+    incr fail_count; Printf.printf "  failure Pure OCaml table creation failed\n"
   end;
 
   (* Test 3: Schema extraction *)
@@ -36,17 +36,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if List.length schema = 2
      && List.assoc "name" schema = Arrow_table.ArrowString
      && List.assoc "age" schema = Arrow_table.ArrowInt64 then begin
-    incr pass_count; Printf.printf "  ✓ Schema extraction works\n"
+    incr pass_count; Printf.printf "  success Schema extraction works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Schema extraction failed\n"
+    incr fail_count; Printf.printf "  failure Schema extraction failed\n"
   end;
 
   (* Test 4: Column names *)
   let names = Arrow_table.column_names tbl in
   if names = ["name"; "age"] then begin
-    incr pass_count; Printf.printf "  ✓ Column names correct\n"
+    incr pass_count; Printf.printf "  success Column names correct\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Column names incorrect: [%s]\n"
+    incr fail_count; Printf.printf "  failure Column names incorrect: [%s]\n"
       (String.concat ", " names)
   end;
 
@@ -54,25 +54,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (match Arrow_table.get_column tbl "age" with
    | Some (Arrow_table.IntColumn data) ->
        if Array.length data = 2 && data.(0) = Some 30 && data.(1) = Some 25 then begin
-         incr pass_count; Printf.printf "  ✓ Column access returns correct data\n"
+         incr pass_count; Printf.printf "  success Column access returns correct data\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Column access data mismatch\n"
+         incr fail_count; Printf.printf "  failure Column access data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Column access failed or wrong type\n");
+       incr fail_count; Printf.printf "  failure Column access failed or wrong type\n");
 
   (* Test 6: has_column *)
   if Arrow_table.has_column tbl "name" && not (Arrow_table.has_column tbl "missing") then begin
-    incr pass_count; Printf.printf "  ✓ has_column works\n"
+    incr pass_count; Printf.printf "  success has_column works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ has_column failed\n"
+    incr fail_count; Printf.printf "  failure has_column failed\n"
   end;
 
   (* Test 7: native_handle is None for pure OCaml tables *)
   if tbl.native_handle = None then begin
-    incr pass_count; Printf.printf "  ✓ Pure OCaml table has no native_handle\n"
+    incr pass_count; Printf.printf "  success Pure OCaml table has no native_handle\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Pure OCaml table should not have native_handle\n"
+    incr fail_count; Printf.printf "  failure Pure OCaml table should not have native_handle\n"
   end;
 
   (* Test 8: arrow_type_of_tag *)
@@ -81,9 +81,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      && Arrow_table.arrow_type_of_tag 2 = Arrow_table.ArrowBoolean
      && Arrow_table.arrow_type_of_tag 3 = Arrow_table.ArrowString
      && Arrow_table.arrow_type_of_tag 99 = Arrow_table.ArrowNull then begin
-    incr pass_count; Printf.printf "  ✓ arrow_type_of_tag works\n"
+    incr pass_count; Printf.printf "  success arrow_type_of_tag works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ arrow_type_of_tag failed\n"
+    incr fail_count; Printf.printf "  failure arrow_type_of_tag failed\n"
   end;
   print_newline ();
 
@@ -93,18 +93,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let projected = Arrow_table.project tbl ["name"] in
   if Arrow_table.num_columns projected = 1
      && Arrow_table.column_names projected = ["name"] then begin
-    incr pass_count; Printf.printf "  ✓ Project (select) works\n"
+    incr pass_count; Printf.printf "  success Project (select) works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Project (select) failed\n"
+    incr fail_count; Printf.printf "  failure Project (select) failed\n"
   end;
 
   (* Test 10: Filter *)
   let mask = [| true; false |] in
   let filtered = Arrow_table.filter_rows tbl mask in
   if Arrow_table.num_rows filtered = 1 then begin
-    incr pass_count; Printf.printf "  ✓ Filter rows works\n"
+    incr pass_count; Printf.printf "  success Filter rows works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Filter rows failed (got %d rows)\n"
+    incr fail_count; Printf.printf "  failure Filter rows failed (got %d rows)\n"
       (Arrow_table.num_rows filtered)
   end;
 
@@ -113,9 +113,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let with_col = Arrow_table.add_column tbl "score" new_col in
   if Arrow_table.num_columns with_col = 3
      && Arrow_table.has_column with_col "score" then begin
-    incr pass_count; Printf.printf "  ✓ Add column works\n"
+    incr pass_count; Printf.printf "  success Add column works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Add column failed\n"
+    incr fail_count; Printf.printf "  failure Add column failed\n"
   end;
 
   (* Test 12: Take rows *)
@@ -124,14 +124,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (match Arrow_table.get_column taken "age" with
      | Some (Arrow_table.IntColumn data) ->
          if data.(0) = Some 25 && data.(1) = Some 30 then begin
-           incr pass_count; Printf.printf "  ✓ Take rows with reorder works\n"
+           incr pass_count; Printf.printf "  success Take rows with reorder works\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ Take rows data order incorrect\n"
+           incr fail_count; Printf.printf "  failure Take rows data order incorrect\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ Take rows column access failed\n")
+         incr fail_count; Printf.printf "  failure Take rows column access failed\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ Take rows failed\n"
+    incr fail_count; Printf.printf "  failure Take rows failed\n"
   end;
 
   (* Test 13: Sort by indices *)
@@ -139,12 +139,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (match Arrow_table.get_column sorted "name" with
    | Some (Arrow_table.StringColumn data) ->
        if data.(0) = Some "Bob" && data.(1) = Some "Alice" then begin
-         incr pass_count; Printf.printf "  ✓ Sort by indices works\n"
+         incr pass_count; Printf.printf "  success Sort by indices works\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Sort by indices data order incorrect\n"
+         incr fail_count; Printf.printf "  failure Sort by indices data order incorrect\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Sort by indices column access failed\n");
+       incr fail_count; Printf.printf "  failure Sort by indices column access failed\n");
   print_newline ();
 
   Printf.printf "Arrow Integration — Bridge (column_to_values):\n";
@@ -154,9 +154,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let values = Arrow_bridge.column_to_values int_col in
   let v_str = Array.to_list values |> List.map Ast.Utils.value_to_string |> String.concat ", " in
   if v_str = "1, NA(Int), 3" then begin
-    incr pass_count; Printf.printf "  ✓ IntColumn to values with NA\n"
+    incr pass_count; Printf.printf "  success IntColumn to values with NA\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ IntColumn to values: got [%s]\n" v_str
+    incr fail_count; Printf.printf "  failure IntColumn to values: got [%s]\n" v_str
   end;
 
   (* Test 15: Values to column conversion *)
@@ -165,12 +165,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (match col with
    | Arrow_table.IntColumn data ->
        if data.(0) = Some 10 && data.(1) = Some 20 && data.(2) = None then begin
-         incr pass_count; Printf.printf "  ✓ Values to IntColumn with NA\n"
+         incr pass_count; Printf.printf "  success Values to IntColumn with NA\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Values to IntColumn data mismatch\n"
+         incr fail_count; Printf.printf "  failure Values to IntColumn data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Values to column produced wrong type\n");
+       incr fail_count; Printf.printf "  failure Values to column produced wrong type\n");
 
   (* Test 16: Row to dict *)
   let dict = Arrow_bridge.row_to_dict tbl 0 in
@@ -178,9 +178,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let age_val = List.assoc "age" dict in
   if Ast.Utils.value_to_string name_val = {|"Alice"|}
      && Ast.Utils.value_to_string age_val = "30" then begin
-    incr pass_count; Printf.printf "  ✓ Row to dict works\n"
+    incr pass_count; Printf.printf "  success Row to dict works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Row to dict failed\n"
+    incr fail_count; Printf.printf "  failure Row to dict failed\n"
   end;
   print_newline ();
 
@@ -198,42 +198,42 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "nrow(df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV nrow = 3\n"
+    incr pass_count; Printf.printf "  success Arrow-backed CSV nrow = 3\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV nrow expected 3, got %s\n" result
+    incr fail_count; Printf.printf "  failure Arrow-backed CSV nrow expected 3, got %s\n" result
   end;
 
   let (v, _) = eval_string_env "ncol(df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV ncol = 3\n"
+    incr pass_count; Printf.printf "  success Arrow-backed CSV ncol = 3\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV ncol expected 3, got %s\n" result
+    incr fail_count; Printf.printf "  failure Arrow-backed CSV ncol expected 3, got %s\n" result
   end;
 
   let (v, _) = eval_string_env "colnames(df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "age", "score"]|} then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV colnames correct\n"
+    incr pass_count; Printf.printf "  success Arrow-backed CSV colnames correct\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV colnames: %s\n" result
+    incr fail_count; Printf.printf "  failure Arrow-backed CSV colnames: %s\n" result
   end;
 
   (* Test 18: Column access on Arrow-backed DataFrame *)
   let (v, _) = eval_string_env "df.name" env in
   let result = Ast.Utils.value_to_string v in
   if result = {|Vector["Alice", "Bob", "Charlie"]|} then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV column access (name)\n"
+    incr pass_count; Printf.printf "  success Arrow-backed CSV column access (name)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV column access (name): %s\n" result
+    incr fail_count; Printf.printf "  failure Arrow-backed CSV column access (name): %s\n" result
   end;
 
   let (v, _) = eval_string_env "df.age" env in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[30, 25, 35]" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV column access (age)\n"
+    incr pass_count; Printf.printf "  success Arrow-backed CSV column access (age)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV column access (age): %s\n" result
+    incr fail_count; Printf.printf "  failure Arrow-backed CSV column access (age): %s\n" result
   end;
 
   (* Test 19: Colcraft operations on Arrow-backed DataFrame *)
@@ -270,83 +270,83 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   ] 2 in
   let proj = Arrow_compute.project tbl3 ["a"; "c"] in
   if Arrow_table.num_columns proj = 2 && Arrow_table.column_names proj = ["a"; "c"] then begin
-    incr pass_count; Printf.printf "  ✓ Arrow_compute.project works\n"
+    incr pass_count; Printf.printf "  success Arrow_compute.project works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow_compute.project failed\n"
+    incr fail_count; Printf.printf "  failure Arrow_compute.project failed\n"
   end;
 
   (* Test 21: Arrow_compute.filter *)
   let filt = Arrow_compute.filter tbl3 [| true; false |] in
   if Arrow_table.num_rows filt = 1 then begin
-    incr pass_count; Printf.printf "  ✓ Arrow_compute.filter works\n"
+    incr pass_count; Printf.printf "  success Arrow_compute.filter works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow_compute.filter failed\n"
+    incr fail_count; Printf.printf "  failure Arrow_compute.filter failed\n"
   end;
 
   (* Test 22: Arrow_compute.add_column *)
   let new_c = Arrow_table.BoolColumn [| Some true; Some false |] in
   let added = Arrow_compute.add_column tbl3 "d" new_c in
   if Arrow_table.num_columns added = 4 then begin
-    incr pass_count; Printf.printf "  ✓ Arrow_compute.add_column works\n"
+    incr pass_count; Printf.printf "  success Arrow_compute.add_column works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow_compute.add_column failed\n"
+    incr fail_count; Printf.printf "  failure Arrow_compute.add_column failed\n"
   end;
 
   (* Test 23: Arrow_compute.sort_by_column on pure OCaml table (returns None) *)
   (match Arrow_compute.sort_by_column tbl3 "a" true with
    | None ->
-       incr pass_count; Printf.printf "  ✓ sort_by_column returns None for pure OCaml table\n"
+       incr pass_count; Printf.printf "  success sort_by_column returns None for pure OCaml table\n"
    | Some _ ->
-       incr pass_count; Printf.printf "  ✓ sort_by_column returned result (native available)\n");
+       incr pass_count; Printf.printf "  success sort_by_column returned result (native available)\n");
 
   (* Test 24: Arrow_compute.sort_by_indices *)
   let sorted_tbl = Arrow_compute.sort_by_indices tbl3 [| 1; 0 |] in
   (match Arrow_table.get_column sorted_tbl "a" with
    | Some (Arrow_table.IntColumn data) ->
        if data.(0) = Some 2 && data.(1) = Some 1 then begin
-         incr pass_count; Printf.printf "  ✓ Arrow_compute.sort_by_indices works\n"
+         incr pass_count; Printf.printf "  success Arrow_compute.sort_by_indices works\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Arrow_compute.sort_by_indices data order incorrect\n"
+         incr fail_count; Printf.printf "  failure Arrow_compute.sort_by_indices data order incorrect\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Arrow_compute.sort_by_indices failed\n");
+       incr fail_count; Printf.printf "  failure Arrow_compute.sort_by_indices failed\n");
 
   (* Test 25: Arrow_compute.add_scalar on pure OCaml table (returns None) *)
   (match Arrow_compute.add_scalar tbl3 "c" 10.0 with
    | None ->
-       incr pass_count; Printf.printf "  ✓ add_scalar returns None for pure OCaml table\n"
+       incr pass_count; Printf.printf "  success add_scalar returns None for pure OCaml table\n"
    | Some tbl_added ->
        (* If native Arrow is available, verify the operation *)
        (match Arrow_table.get_column tbl_added "c" with
         | Some (Arrow_table.FloatColumn data) when data.(0) = Some 11.0 ->
-            incr pass_count; Printf.printf "  ✓ add_scalar works with native backend\n"
+            incr pass_count; Printf.printf "  success add_scalar works with native backend\n"
         | _ ->
-            incr pass_count; Printf.printf "  ✓ add_scalar returned result (native available)\n"));
+            incr pass_count; Printf.printf "  success add_scalar returned result (native available)\n"));
 
   (* Test 26: Arrow_compute.multiply_scalar on pure OCaml table (returns None) *)
   (match Arrow_compute.multiply_scalar tbl3 "c" 2.0 with
    | None ->
-       incr pass_count; Printf.printf "  ✓ multiply_scalar returns None for pure OCaml table\n"
+       incr pass_count; Printf.printf "  success multiply_scalar returns None for pure OCaml table\n"
    | Some tbl_mult ->
        (match Arrow_table.get_column tbl_mult "c" with
         | Some (Arrow_table.FloatColumn data) when data.(0) = Some 2.0 ->
-            incr pass_count; Printf.printf "  ✓ multiply_scalar works with native backend\n"
+            incr pass_count; Printf.printf "  success multiply_scalar works with native backend\n"
         | _ ->
-            incr pass_count; Printf.printf "  ✓ multiply_scalar returned result (native available)\n"));
+            incr pass_count; Printf.printf "  success multiply_scalar returned result (native available)\n"));
 
   (* Test 27: Arrow_compute.subtract_scalar on pure OCaml table (returns None) *)
   (match Arrow_compute.subtract_scalar tbl3 "c" 0.5 with
    | None ->
-       incr pass_count; Printf.printf "  ✓ subtract_scalar returns None for pure OCaml table\n"
+       incr pass_count; Printf.printf "  success subtract_scalar returns None for pure OCaml table\n"
    | Some _ ->
-       incr pass_count; Printf.printf "  ✓ subtract_scalar returned result (native available)\n");
+       incr pass_count; Printf.printf "  success subtract_scalar returned result (native available)\n");
 
   (* Test 28: Arrow_compute.divide_scalar on pure OCaml table (returns None) *)
   (match Arrow_compute.divide_scalar tbl3 "c" 2.0 with
    | None ->
-       incr pass_count; Printf.printf "  ✓ divide_scalar returns None for pure OCaml table\n"
+       incr pass_count; Printf.printf "  success divide_scalar returns None for pure OCaml table\n"
    | Some _ ->
-       incr pass_count; Printf.printf "  ✓ divide_scalar returned result (native available)\n");
+       incr pass_count; Printf.printf "  success divide_scalar returned result (native available)\n");
   print_newline ();
 
   Printf.printf "Arrow Integration — Compute with Native Backend:\n";
@@ -402,26 +402,26 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let grouped = Arrow_compute.group_by group_tbl ["name"] in
   let n_groups = List.length grouped.Arrow_compute.ocaml_groups in
   if n_groups = 2 then begin
-    incr pass_count; Printf.printf "  ✓ group_by produces 2 groups for ['name']\n"
+    incr pass_count; Printf.printf "  success group_by produces 2 groups for ['name']\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by expected 2 groups, got %d\n" n_groups
+    incr fail_count; Printf.printf "  failure group_by expected 2 groups, got %d\n" n_groups
   end;
 
   (* Test 34: group_by preserves group order (insertion order) *)
   let first_key = fst (List.hd grouped.Arrow_compute.ocaml_groups) in
   if first_key = {|"Alice"|} then begin
-    incr pass_count; Printf.printf "  ✓ group_by preserves insertion order\n"
+    incr pass_count; Printf.printf "  success group_by preserves insertion order\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by first group expected \"Alice\", got %s\n" first_key
+    incr fail_count; Printf.printf "  failure group_by first group expected \"Alice\", got %s\n" first_key
   end;
 
   (* Test 35: group_by with multiple keys *)
   let grouped2 = Arrow_compute.group_by group_tbl ["name"; "dept"] in
   let n_groups2 = List.length grouped2.Arrow_compute.ocaml_groups in
   if n_groups2 = 4 then begin
-    incr pass_count; Printf.printf "  ✓ group_by with 2 keys produces 4 groups\n"
+    incr pass_count; Printf.printf "  success group_by with 2 keys produces 4 groups\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by with 2 keys expected 4 groups, got %d\n" n_groups2
+    incr fail_count; Printf.printf "  failure group_by with 2 keys expected 4 groups, got %d\n" n_groups2
   end;
 
   (* Test 36: group_aggregate sum *)
@@ -431,18 +431,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      | Some (Arrow_table.FloatColumn data) ->
          (* Alice: 90.0 + 85.0 + 95.0 = 270.0, Bob: 80.0 + 70.0 = 150.0 *)
          if data.(0) = Some 270.0 && data.(1) = Some 150.0 then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate sum is correct\n"
+           incr pass_count; Printf.printf "  success group_aggregate sum is correct\n"
          end else begin
            incr fail_count;
-           Printf.printf "  ✗ group_aggregate sum values incorrect: [%s]\n"
+           Printf.printf "  failure group_aggregate sum values incorrect: [%s]\n"
              (Array.to_list data |> List.map (fun v ->
                match v with Some f -> string_of_float f | None -> "NA")
              |> String.concat ", ")
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate sum column type mismatch\n")
+         incr fail_count; Printf.printf "  failure group_aggregate sum column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate sum expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  failure group_aggregate sum expected 2 rows, got %d\n"
       (Arrow_table.num_rows sum_result)
   end;
 
@@ -455,17 +455,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          let close a b = Float.abs (a -. b) < 0.001 in
          (match data.(0), data.(1) with
           | Some a, Some b when close a 90.0 && close b 75.0 ->
-              incr pass_count; Printf.printf "  ✓ group_aggregate mean is correct\n"
+              incr pass_count; Printf.printf "  success group_aggregate mean is correct\n"
           | _ ->
               incr fail_count;
-              Printf.printf "  ✗ group_aggregate mean values incorrect: [%s]\n"
+              Printf.printf "  failure group_aggregate mean values incorrect: [%s]\n"
                 (Array.to_list data |> List.map (fun v ->
                   match v with Some f -> string_of_float f | None -> "NA")
                 |> String.concat ", "))
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate mean column type mismatch\n")
+         incr fail_count; Printf.printf "  failure group_aggregate mean column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate mean expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  failure group_aggregate mean expected 2 rows, got %d\n"
       (Arrow_table.num_rows mean_result)
   end;
 
@@ -476,15 +476,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      | Some (Arrow_table.FloatColumn data) ->
          (* Alice: 3 rows, Bob: 2 rows *)
          if data.(0) = Some 3.0 && data.(1) = Some 2.0 then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate count is correct\n"
+           incr pass_count; Printf.printf "  success group_aggregate count is correct\n"
          end else begin
            incr fail_count;
-           Printf.printf "  ✗ group_aggregate count values incorrect\n"
+           Printf.printf "  failure group_aggregate count values incorrect\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate count column type mismatch\n")
+         incr fail_count; Printf.printf "  failure group_aggregate count column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate count expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  failure group_aggregate count expected 2 rows, got %d\n"
       (Arrow_table.num_rows count_result)
   end;
 
@@ -493,14 +493,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (match Arrow_table.get_column sum_result "name" with
      | Some (Arrow_table.StringColumn data) ->
          if data.(0) = Some "Alice" && data.(1) = Some "Bob" then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate result has correct key column\n"
+           incr pass_count; Printf.printf "  success group_aggregate result has correct key column\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ group_aggregate key column values incorrect\n"
+           incr fail_count; Printf.printf "  failure group_aggregate key column values incorrect\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate key column type mismatch\n")
+         incr fail_count; Printf.printf "  failure group_aggregate key column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate result missing key column 'name'\n"
+    incr fail_count; Printf.printf "  failure group_aggregate result missing key column 'name'\n"
   end;
 
   (* Test 40: group_by + summarize via T language *)
@@ -536,54 +536,54 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
    | Some col_view ->
      (match Arrow_column.zero_copy_view col_view with
       | None ->
-        incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for pure OCaml table\n"
+        incr pass_count; Printf.printf "  success zero_copy_view returns None for pure OCaml table\n"
       | Some _ ->
-        incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for pure OCaml table\n")
+        incr fail_count; Printf.printf "  failure zero_copy_view should return None for pure OCaml table\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed for pure OCaml table\n");
+     incr fail_count; Printf.printf "  failure get_column failed for pure OCaml table\n");
 
   (* Test 42: zero_copy_view returns None for string column (even native) *)
   (match Arrow_column.get_column ocaml_tbl "s" with
    | Some col_view ->
      (match Arrow_column.zero_copy_view col_view with
       | None ->
-        incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for string column\n"
+        incr pass_count; Printf.printf "  success zero_copy_view returns None for string column\n"
       | Some _ ->
-        incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for string column\n")
+        incr fail_count; Printf.printf "  failure zero_copy_view should return None for string column\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed for string column\n");
+     incr fail_count; Printf.printf "  failure get_column failed for string column\n");
 
   (* Test 43: column_view preserves column type *)
   (match Arrow_column.get_column ocaml_tbl "x" with
    | Some col_view ->
      if Arrow_column.column_type col_view = Arrow_table.ArrowFloat64 then begin
-       incr pass_count; Printf.printf "  ✓ column_view preserves Float64 type\n"
+       incr pass_count; Printf.printf "  success column_view preserves Float64 type\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ column_view type mismatch for Float64\n"
+       incr fail_count; Printf.printf "  failure column_view type mismatch for Float64\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  failure get_column failed\n");
 
   (match Arrow_column.get_column ocaml_tbl "y" with
    | Some col_view ->
      if Arrow_column.column_type col_view = Arrow_table.ArrowInt64 then begin
-       incr pass_count; Printf.printf "  ✓ column_view preserves Int64 type\n"
+       incr pass_count; Printf.printf "  success column_view preserves Int64 type\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ column_view type mismatch for Int64\n"
+       incr fail_count; Printf.printf "  failure column_view type mismatch for Int64\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  failure get_column failed\n");
 
   (* Test 44: column_view length is correct *)
   (match Arrow_column.get_column ocaml_tbl "x" with
    | Some col_view ->
      if Arrow_column.column_length col_view = 3 then begin
-       incr pass_count; Printf.printf "  ✓ column_view length is correct\n"
+       incr pass_count; Printf.printf "  success column_view length is correct\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ column_view length incorrect\n"
+       incr fail_count; Printf.printf "  failure column_view length incorrect\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  failure get_column failed\n");
 
   (* Test 45: zero_copy_view with native-backed CSV table *)
   let csv_zerocopy = "test_arrow_zerocopy.csv" in
@@ -603,16 +603,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
               let len = Bigarray.Array1.dim ba in
               let close a b = Float.abs (a -. b) < 1e-10 in
               if len = 3 && close ba.{0} 1.5 && close ba.{1} 2.5 && close ba.{2} 3.5 then begin
-                incr pass_count; Printf.printf "  ✓ FloatView zero-copy view is correct\n"
+                incr pass_count; Printf.printf "  success FloatView zero-copy view is correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ FloatView data mismatch (len=%d)\n" len
+                incr fail_count; Printf.printf "  failure FloatView data mismatch (len=%d)\n" len
               end
             | Some (Arrow_column.IntView _) ->
-              incr fail_count; Printf.printf "  ✗ Expected FloatView, got IntView\n"
+              incr fail_count; Printf.printf "  failure Expected FloatView, got IntView\n"
             | None ->
-              incr pass_count; Printf.printf "  ✓ zero_copy_view returned None (native buffer unavailable — ok)\n")
+              incr pass_count; Printf.printf "  success zero_copy_view returned None (native buffer unavailable — ok)\n")
          | None ->
-           incr fail_count; Printf.printf "  ✗ get_column failed for native float column\n");
+           incr fail_count; Printf.printf "  failure get_column failed for native float column\n");
 
         (* Test int64 zero-copy view *)
         (match Arrow_column.get_column native_tbl "val_i" with
@@ -621,39 +621,39 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
             | Some (Arrow_column.IntView ba) ->
               let len = Bigarray.Array1.dim ba in
               if len = 3 && ba.{0} = 10L && ba.{1} = 20L && ba.{2} = 30L then begin
-                incr pass_count; Printf.printf "  ✓ IntView zero-copy view is correct\n"
+                incr pass_count; Printf.printf "  success IntView zero-copy view is correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ IntView data mismatch (len=%d)\n" len
+                incr fail_count; Printf.printf "  failure IntView data mismatch (len=%d)\n" len
               end
             | Some (Arrow_column.FloatView _) ->
-              incr fail_count; Printf.printf "  ✗ Expected IntView, got FloatView\n"
+              incr fail_count; Printf.printf "  failure Expected IntView, got FloatView\n"
             | None ->
-              incr pass_count; Printf.printf "  ✓ zero_copy_view returned None for int column (native buffer unavailable — ok)\n")
+              incr pass_count; Printf.printf "  success zero_copy_view returned None for int column (native buffer unavailable — ok)\n")
          | None ->
-           incr fail_count; Printf.printf "  ✗ get_column failed for native int column\n");
+           incr fail_count; Printf.printf "  failure get_column failed for native int column\n");
 
         (* Test string column returns None *)
         (match Arrow_column.get_column native_tbl "name" with
          | Some col_view ->
            (match Arrow_column.zero_copy_view col_view with
             | None ->
-              incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for native string column\n"
+              incr pass_count; Printf.printf "  success zero_copy_view returns None for native string column\n"
             | Some _ ->
-              incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for string column\n")
+              incr fail_count; Printf.printf "  failure zero_copy_view should return None for string column\n")
          | None ->
-           incr fail_count; Printf.printf "  ✗ get_column failed for native string column\n")
+           incr fail_count; Printf.printf "  failure get_column failed for native string column\n")
 
       | None ->
         (* Arrow native not available — still pass since fallback is OK *)
-        incr pass_count; Printf.printf "  ✓ CSV read succeeded (pure OCaml fallback — zero-copy N/A)\n";
-        incr pass_count; Printf.printf "  ✓ (skipped native float view test)\n";
-        incr pass_count; Printf.printf "  ✓ (skipped native int view test)\n";
-        incr pass_count; Printf.printf "  ✓ (skipped native string column test)\n")
+        incr pass_count; Printf.printf "  success CSV read succeeded (pure OCaml fallback — zero-copy N/A)\n";
+        incr pass_count; Printf.printf "  success (skipped native float view test)\n";
+        incr pass_count; Printf.printf "  success (skipped native int view test)\n";
+        incr pass_count; Printf.printf "  success (skipped native string column test)\n")
    | Error msg ->
-     incr pass_count; Printf.printf "  ✓ CSV read returned error: %s (zero-copy tests skipped)\n" msg;
-     incr pass_count; Printf.printf "  ✓ (skipped native float view test)\n";
-     incr pass_count; Printf.printf "  ✓ (skipped native int view test)\n";
-     incr pass_count; Printf.printf "  ✓ (skipped native string column test)\n");
+     incr pass_count; Printf.printf "  success CSV read returned error: %s (zero-copy tests skipped)\n" msg;
+     incr pass_count; Printf.printf "  success (skipped native float view test)\n";
+     incr pass_count; Printf.printf "  success (skipped native int view test)\n";
+     incr pass_count; Printf.printf "  success (skipped native string column test)\n");
 
   (try Sys.remove csv_zerocopy with _ -> ());
 

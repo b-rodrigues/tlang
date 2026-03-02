@@ -10,4 +10,4 @@ result2 = select(result1, $response)
 result_final = mutate(result2, pearson: res_pear.resid)
 
 write_csv(result_final, "tests/golden/t_outputs/lm_residuals_m1.csv")
-print("✓ lm_residuals_m1 complete")
+print("success lm_residuals_m1 complete")

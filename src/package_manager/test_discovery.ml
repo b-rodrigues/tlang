@@ -163,9 +163,9 @@ let run_suite ?(verbose=false) (dir : string) : suite_result =
           else file
         in
         if r.success then
-          Printf.printf "  ✓ %s (%s)\n" short_name (format_duration r.duration)
+          Printf.printf "  success %s (%s)\n" short_name (format_duration r.duration)
         else begin
-          Printf.printf "  ✗ %s (%s)\n" short_name (format_duration r.duration);
+          Printf.printf "  failure %s (%s)\n" short_name (format_duration r.duration);
           if verbose then
             match r.error_msg with
             | Some msg -> Printf.printf "    → %s\n" msg
@@ -179,10 +179,10 @@ let run_suite ?(verbose=false) (dir : string) : suite_result =
       let failed = List.length results - passed in
       Printf.printf "\n";
       if failed = 0 then
-        Printf.printf "✓ All %d test%s passed (%s)\n"
+        Printf.printf "success All %d test%s passed (%s)\n"
           passed (if passed > 1 then "s" else "") (format_duration total_duration)
       else begin
-        Printf.printf "✗ %d/%d test%s failed (%s)\n\n"
+        Printf.printf "failure %d/%d test%s failed (%s)\n\n"
           failed (List.length results)
           (if List.length results > 1 then "s" else "")
           (format_duration total_duration);

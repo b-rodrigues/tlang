@@ -9,4 +9,4 @@ result = mutate(aug, actual: aug.mpg)
 result_final = select(result, $actual, $fitted, $resid)
 
 write_csv(result_final, "tests/golden/t_outputs/lm_augment_m1.csv")
-print("✓ lm_augment_m1 complete")
+print("success lm_augment_m1 complete")

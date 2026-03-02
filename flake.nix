@@ -37,7 +37,6 @@
             purrr
             broom
             jsonlite
-            arrow
             r2pmml
             faraway
             MASS
@@ -46,7 +45,6 @@
 
         python-with-packages = pkgs.python3.withPackages (p: with p; [
           pandas
-          pyarrow
           scikit-learn
           sklearn2pmml
           statsmodels

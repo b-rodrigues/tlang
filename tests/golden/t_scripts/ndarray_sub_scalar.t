@@ -9,4 +9,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_sub_scalar.csv")
-print("✓ ndarray sub scalar complete")
+print("success ndarray sub scalar complete")

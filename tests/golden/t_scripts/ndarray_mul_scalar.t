@@ -9,4 +9,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_mul_scalar.csv")
-print("✓ ndarray mul scalar complete")
+print("success ndarray mul scalar complete")

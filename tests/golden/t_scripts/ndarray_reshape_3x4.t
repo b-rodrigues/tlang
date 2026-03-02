@@ -8,4 +8,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_reshape_3x4.csv")
-print("✓ ndarray reshape 3x4 complete")
+print("success ndarray reshape 3x4 complete")

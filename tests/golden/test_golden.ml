@@ -51,18 +51,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "pipeline_deps(p)" env_g in
   let result = Ast.Utils.value_to_string v in
   if result = {|{`a`: [], `b`: [], `c`: ["a", "b"]}|} then begin
-    incr pass_count; Printf.printf "  ✓ golden: introspection deps\n"
+    incr pass_count; Printf.printf "  success golden: introspection deps\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: introspection deps\n    Expected: {`a`: [], `b`: [], `c`: [\"a\", \"b\"]}\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: introspection deps\n    Expected: {`a`: [], `b`: [], `c`: [\"a\", \"b\"]}\n    Got: %s\n" result
   end;
 
   (* Golden test 10: Pipeline re-run preserves values *)
   let (v, _) = eval_string_env "p2 = pipeline_run(p); p2.c" env_g in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: re-run preserves values\n"
+    incr pass_count; Printf.printf "  success golden: re-run preserves values\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: re-run preserves values\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: re-run preserves values\n    Expected: 3\n    Got: %s\n" result
   end;
 
   (* Golden test 11: Pipeline determinism *)
@@ -140,33 +140,33 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "p.rows" env_gd in
   let result = Ast.Utils.value_to_string v in
   if result = "5" then begin
-    incr pass_count; Printf.printf "  ✓ golden: data pipeline nrow\n"
+    incr pass_count; Printf.printf "  success golden: data pipeline nrow\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline nrow\n    Expected: 5\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: data pipeline nrow\n    Expected: 5\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "p.cols" env_gd in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: data pipeline ncol\n"
+    incr pass_count; Printf.printf "  success golden: data pipeline ncol\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline ncol\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: data pipeline ncol\n    Expected: 3\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "p.names" env_gd in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "value", "category"]|} then begin
-    incr pass_count; Printf.printf "  ✓ golden: data pipeline colnames\n"
+    incr pass_count; Printf.printf "  success golden: data pipeline colnames\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline colnames\n    Expected: [\"name\", \"value\", \"category\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: data pipeline colnames\n    Expected: [\"name\", \"value\", \"category\"]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "p.filtered_count" env_gd in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: data pipeline filtered count\n"
+    incr pass_count; Printf.printf "  success golden: data pipeline filtered count\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: data pipeline filtered count\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: data pipeline filtered count\n    Expected: 3\n    Got: %s\n" result
   end;
 
   (try Sys.remove csv_golden with _ -> ());
@@ -196,16 +196,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "nrow(df2)" env_rw in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: read->write->read roundtrip preserves rows\n"
+    incr pass_count; Printf.printf "  success golden: read->write->read roundtrip preserves rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: read->write->read roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: read->write->read roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "colnames(df2)" env_rw in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "value"]|} then begin
-    incr pass_count; Printf.printf "  ✓ golden: read->write->read roundtrip preserves columns\n"
+    incr pass_count; Printf.printf "  success golden: read->write->read roundtrip preserves columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: read->write->read roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: read->write->read roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
   end;
 
   (* Test: write_csv with custom separator and read back *)
@@ -217,16 +217,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "nrow(df3)" env_rw in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows\n"
+    incr pass_count; Printf.printf "  success golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "colnames(df3)" env_rw in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "value"]|} then begin
-    incr pass_count; Printf.printf "  ✓ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns\n"
+    incr pass_count; Printf.printf "  success golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns\n    Expected: [\"name\", \"value\"]\n    Got: %s\n" result
   end;
 
   (* Test: write empty DataFrame *)
@@ -243,9 +243,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "nrow(df_back)" env_empty in
   let result = Ast.Utils.value_to_string v in
   if result = "0" then begin
-    incr pass_count; Printf.printf "  ✓ golden: write empty DataFrame roundtrip\n"
+    incr pass_count; Printf.printf "  success golden: write empty DataFrame roundtrip\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write empty DataFrame roundtrip\n    Expected: 0\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: write empty DataFrame roundtrip\n    Expected: 0\n    Got: %s\n" result
   end;
 
   (* Test: write DataFrame with NA values *)
@@ -264,9 +264,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "nrow(df2)" env_na in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ golden: write NA DataFrame roundtrip preserves rows\n"
+    incr pass_count; Printf.printf "  success golden: write NA DataFrame roundtrip preserves rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ golden: write NA DataFrame roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure golden: write NA DataFrame roundtrip preserves rows\n    Expected: 3\n    Got: %s\n" result
   end;
 
   (* Clean up roundtrip test files *)

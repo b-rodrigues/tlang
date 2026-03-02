@@ -314,7 +314,7 @@ let cmd_publish () =
               match Release_manager.validate_changelog dir version with
               | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
               | Ok () ->
-                  Printf.printf "\n✓ Validation complete.\n";
+                  Printf.printf "\nsuccess Validation complete.\n";
                   Printf.printf "  - Git working directory is clean\n";
                   Printf.printf "  - Tests pass\n";
                   Printf.printf "  - CHANGELOG.md has entry for %s\n" version;
@@ -325,10 +325,10 @@ let cmd_publish () =
                     match Release_manager.create_git_tag version with
                     | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
                     | Ok tag ->
-                        Printf.printf "✓ Tag %s created locally.\n" tag;
+                        Printf.printf "success Tag %s created locally.\n" tag;
                         match Release_manager.push_git_tag tag with
                         | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
-                        | Ok () -> Printf.printf "✓ Tag %s pushed to remote.\n" tag
+                        | Ok () -> Printf.printf "success Tag %s pushed to remote.\n" tag
                   end else
                     Printf.printf "Aborted.\n"
 

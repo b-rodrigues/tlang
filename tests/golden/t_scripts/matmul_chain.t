@@ -13,4 +13,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/matmul_chain.csv")
-print("✓ matmul chain complete")
+print("success matmul chain complete")

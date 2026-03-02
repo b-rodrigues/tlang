@@ -95,76 +95,76 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "e = explain(df); e.kind" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = {|"dataframe"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame kind\n"
+    incr pass_count; Printf.printf "  success explain DataFrame kind\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame kind\n    Expected: \"dataframe\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame kind\n    Expected: \"dataframe\"\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "e = explain(df); e.nrow" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame nrow\n"
+    incr pass_count; Printf.printf "  success explain DataFrame nrow\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame nrow\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame nrow\n    Expected: 3\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "e = explain(df); e.ncol" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame ncol\n"
+    incr pass_count; Printf.printf "  success explain DataFrame ncol\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame ncol\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame ncol\n    Expected: 3\n    Got: %s\n" result
   end;
 
   (* Check NA stats *)
   let (v, _) = eval_string_env "e = explain(df); e.na_stats.age" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = "1" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame NA stats (age has 1 NA)\n"
+    incr pass_count; Printf.printf "  success explain DataFrame NA stats (age has 1 NA)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame NA stats (age has 1 NA)\n    Expected: 1\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame NA stats (age has 1 NA)\n    Expected: 1\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "e = explain(df); e.na_stats.score" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = "1" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame NA stats (score has 1 NA)\n"
+    incr pass_count; Printf.printf "  success explain DataFrame NA stats (score has 1 NA)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame NA stats (score has 1 NA)\n    Expected: 1\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame NA stats (score has 1 NA)\n    Expected: 1\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "e = explain(df); e.na_stats.name" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = "0" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame NA stats (name has 0 NAs)\n"
+    incr pass_count; Printf.printf "  success explain DataFrame NA stats (name has 0 NAs)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame NA stats (name has 0 NAs)\n    Expected: 0\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame NA stats (name has 0 NAs)\n    Expected: 0\n    Got: %s\n" result
   end;
 
   (* Check schema *)
   let (v, _) = eval_string_env "e = explain(df); type(e.schema)" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = {|"List"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame schema is a List\n"
+    incr pass_count; Printf.printf "  success explain DataFrame schema is a List\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame schema is a List\n    Expected: \"List\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame schema is a List\n    Expected: \"List\"\n    Got: %s\n" result
   end;
 
   (* Check example rows *)
   let (v, _) = eval_string_env "e = explain(df); type(e.example_rows)" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = {|"List"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame example_rows is a List\n"
+    incr pass_count; Printf.printf "  success explain DataFrame example_rows is a List\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame example_rows is a List\n    Expected: \"List\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame example_rows is a List\n    Expected: \"List\"\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "e = explain(df); length(e.example_rows)" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ explain DataFrame example_rows length (3 rows)\n"
+    incr pass_count; Printf.printf "  success explain DataFrame example_rows length (3 rows)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain DataFrame example_rows length (3 rows)\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain DataFrame example_rows length (3 rows)\n    Expected: 3\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p6 with _ -> ());
   print_newline ();
@@ -174,17 +174,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env "e = explain(p); e.kind" env_p6_pipe in
   let result = Ast.Utils.value_to_string v in
   if result = {|"pipeline"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain Pipeline kind\n"
+    incr pass_count; Printf.printf "  success explain Pipeline kind\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain Pipeline kind\n    Expected: \"pipeline\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain Pipeline kind\n    Expected: \"pipeline\"\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "e = explain(p); e.node_count" env_p6_pipe in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ explain Pipeline node_count\n"
+    incr pass_count; Printf.printf "  success explain Pipeline node_count\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain Pipeline node_count\n    Expected: 3\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  failure explain Pipeline node_count\n    Expected: 3\n    Got: %s\n" result
   end;
   print_newline ();
 

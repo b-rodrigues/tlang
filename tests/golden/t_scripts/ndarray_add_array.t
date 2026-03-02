@@ -10,4 +10,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/ndarray_add_array.csv")
-print("✓ ndarray add array complete")
+print("success ndarray add array complete")

@@ -6,10 +6,10 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let test_pm name check =
     if check () then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  success %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n" name
+      Printf.printf "  failure %s\n" name
     end
   in
 

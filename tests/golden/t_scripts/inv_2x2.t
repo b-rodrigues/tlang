@@ -9,4 +9,4 @@ result = [
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/inv_2x2.csv")
-print("✓ inv 2x2 complete")
+print("success inv 2x2 complete")

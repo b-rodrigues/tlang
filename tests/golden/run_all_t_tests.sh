@@ -35,11 +35,11 @@ for script in "$SCRIPT_DIR"/*.t; do
     echo "⚠ SKIPPED (not implemented)"
     ((skipped++))
   # Check if test succeeded (contains checkmark)
-  elif echo "$output" | grep -q "✓"; then
-    echo "✓ PASSED"
+  elif echo "$output" | grep -q "success"; then
+    echo "success PASSED"
     ((passed++))
   else
-    echo "❌ FAILED"
+    echo "failure FAILED"
     echo "   Output: $output"
     ((failed++))
   fi
@@ -52,9 +52,9 @@ echo "  Failed:  $failed"
 echo "  Skipped: $skipped"
 
 if [ $failed -eq 0 ]; then
-  echo "✅ All implemented tests passed!"
+  echo "success All implemented tests passed!"
   exit 0
 else
-  echo "❌ Some tests failed"
+  echo "failure Some tests failed"
   exit 1
 fi
