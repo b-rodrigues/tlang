@@ -44,7 +44,7 @@
           ];
         };
 
-        python-with-packages = pkgs.python3.withPackages (p: with p; [
+        python-with-packages = pkgs.python314.withPackages (p: with p; [
           pandas
           pyarrow
           scikit-learn
@@ -53,8 +53,7 @@
         ]);
 
         # Pin a specific version of OCaml for reproducibility.
-        # OCaml 5.1 is a modern, solid choice.
-        ocamlVersion = pkgs.ocaml-ng.ocamlPackages_5_1;
+        ocamlVersion = pkgs.ocaml-ng.ocamlPackages_5_4;
 
 
         # Build the T language executable
