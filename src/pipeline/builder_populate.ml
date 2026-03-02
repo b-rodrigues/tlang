@@ -15,8 +15,11 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
     |> List.concat
     |> eval_string_list
   in
+  let script_files =
+    List.filter_map (fun (_, s) -> s) p.p_scripts
+  in
   let missing_files =
-    get_all_files ()
+    (get_all_files () @ script_files)
     |> List.filter (fun f -> not (Sys.file_exists f))
   in
   if missing_files <> [] then

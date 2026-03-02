@@ -49,7 +49,8 @@ let emit_pipeline (p : Ast.pipeline_result) =
       let functions = match List.assoc_opt name p.p_functions with Some f -> f | None -> [] in
       let includes = match List.assoc_opt name p.p_includes with Some f -> f | None -> [] in
       let noop = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
-      emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes noop)
+      let script = match List.assoc_opt name p.p_scripts with Some s -> s | None -> None in
+      emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes noop script)
     |> String.concat "\n"
   in
   let final_copy =

@@ -68,6 +68,7 @@ and pipeline_result = {
   p_functions : (string * expr list) list;   (* Map node name -> function files *)
   p_includes : (string * expr list) list;    (* Map node name -> included files *)
   p_noops : (string * bool) list;            (* Map node name -> noop flag *)
+  p_scripts : (string * string option) list; (* Map node name -> optional script path *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)
@@ -91,6 +92,7 @@ and computed_node = {
 (** Metadata for an unbuilt node (first-class value from node() function) *)
 and unbuilt_node = {
   un_command : expr;
+  un_script : string option;  (* Path to an external script file (.R or .py) *)
   un_runtime : string;
   un_serializer : expr;
   un_deserializer : expr;

@@ -394,18 +394,63 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         match eval_expr env_ref (lookup_arg name (Value (VBool default))) with
         | VBool b -> b | _ -> default
       in
+      (* Evaluate the optional script argument — must be a string path to a .R or .py file *)
+      let script_path_opt =
+        match List.assoc_opt (Some "script") args with
+        | Some e ->
+            (match eval_expr env_ref e with
+             | VString s -> Some s
+             | VSymbol s -> Some s
+             | _ -> None)
+        | None -> None
+      in
+      let command = lookup_arg "command" (Value VNull) in
+      (* Validate: cannot use both 'command' and 'script' simultaneously *)
+      let has_command = command <> Value VNull in
+      if has_command && script_path_opt <> None then
+        Error.make_error TypeError "node() cannot use both 'command' and 'script' arguments — choose one."
+      else
       let default_runtime = match call with
         | Call { fn = Var "pyn"; _ } -> "Python"
         | Call { fn = Var "rn"; _ } -> "R"
         | _ -> "T"
       in
-      let runtime = eval_string "runtime" default_runtime in
-      let command = lookup_arg "command" (Value VNull) in
+      (* Auto-detect runtime from script extension when not explicitly given *)
+      let runtime =
+        let explicit = eval_string "runtime" "" in
+        if explicit <> "" then explicit
+        else match script_path_opt with
+          | Some path when Filename.check_suffix path ".R" -> "R"
+          | Some path when Filename.check_suffix path ".py" -> "Python"
+          | _ -> default_runtime
+      in
+      (* For script-based nodes, build un_command as a RawCode placeholder so that
+         free_vars analysis can detect pipeline dependencies from the script's identifiers. *)
+      let un_command, un_script =
+        match script_path_opt with
+        | Some path ->
+            let ids =
+              try
+                let ic = open_in path in
+                let content =
+                  Fun.protect ~finally:(fun () -> close_in ic) (fun () ->
+                    let n = in_channel_length ic in
+                    let buf = Bytes.create n in
+                    really_input ic buf 0 n;
+                    Bytes.to_string buf)
+                in
+                Ast.extract_identifiers content
+              with Sys_error _ | End_of_file -> []
+            in
+            (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
+        | None -> (command, None)
+      in
       if runtime <> "T" then
-        match command with
+        match un_command with
         | RawCode _ ->
             VNode {
-              un_command = command;
+              un_command;
+              un_script;
               un_runtime = runtime;
               un_serializer = lookup_arg "serializer" (Var "default");
               un_deserializer = lookup_arg "deserializer" (Var "default");
@@ -414,11 +459,12 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               un_noop = eval_bool "noop" false;
             }
         | _ -> 
-            let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode)." runtime in
+            let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R or .py file." runtime in
             Error.make_error TypeError msg
       else
         VNode {
-          un_command = command;
+          un_command;
+          un_script;
           un_runtime = runtime;
           un_serializer = lookup_arg "serializer" (Var "default");
           un_deserializer = lookup_arg "deserializer" (Var "default");
@@ -555,6 +601,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
 
   let default_un expr = {
     un_command = expr;
+    un_script = None;
     un_runtime = "T";
     un_serializer = Var "default";
     un_deserializer = Var "default";
@@ -575,6 +622,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       | VComputedNode cn ->
           Ok (name, {
             un_command = Value (VComputedNode cn);
+            un_script = None;
             un_runtime = cn.cn_runtime;
             un_serializer = Value (VString cn.cn_serializer);
             un_deserializer = Var "default";
@@ -758,6 +806,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       p_functions = List.map (fun (name, un) -> (name, un.un_functions)) desugared_nodes;
       p_includes = List.map (fun (name, un) -> (name, un.un_includes)) desugared_nodes;
       p_noops = List.map (fun (name, un) -> (name, un.un_noop)) desugared_nodes;
+      p_scripts = List.map (fun (name, un) -> (name, un.un_script)) desugared_nodes;
     }
 
 (** Re-run a pipeline *)
@@ -766,6 +815,7 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
   let desugared_nodes = List.map (fun (name, expr) ->
     (name, {
       Ast.un_command = expr;
+      un_script = (match List.assoc_opt name prev.p_scripts with Some s -> s | None -> None);
       un_runtime = List.assoc name prev.p_runtimes;
       un_serializer = List.assoc name prev.p_serializers;
       un_deserializer = List.assoc name prev.p_deserializers;
@@ -1094,6 +1144,7 @@ and eval_dot_access env_ref target_expr field =
   | VNode un ->
       (match field with
       | "command" -> VString (Nix_unparse.unparse_expr un.un_command)
+      | "script" -> (match un.un_script with Some p -> VString p | None -> VNull)
       | "runtime" -> VString un.un_runtime
       | "path" -> VString "<unbuilt>"
       | "serializer" -> VString (Nix_unparse.unparse_expr un.un_serializer)

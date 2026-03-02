@@ -207,4 +207,86 @@ p_cross = pipeline {
     incr fail_count; Printf.printf "  ✗ cross-runtime node count failed\n"
   end;
 
+  print_newline ();
+
+  Printf.printf "Phase 3 — Script-based Nodes:\n";
+  (* Test: node() with both command and script returns an error *)
+  test "node() cannot use both command and script"
+    {|node(command = <{ 1 + 1 }>, script = "test.R", runtime = R)|}
+    {|Error(TypeError: "node() cannot use both 'command' and 'script' arguments — choose one.")|};
+
+  (* Test: node() with script argument creates a VNode with the script path *)
+  let (v_script_node, _) = eval_string_env
+    {|node(script = "train_model.R", runtime = R)|}
+    (Packages.init_env ()) in
+  (match v_script_node with
+   | Ast.VNode un ->
+       if un.un_script = Some "train_model.R" && un.un_runtime = "R" then begin
+         incr pass_count; Printf.printf "  ✓ node() with script stores path and runtime\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ node() with script stores path and runtime\n    script=%s runtime=%s\n"
+           (match un.un_script with Some s -> s | None -> "None") un.un_runtime
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ node() with script should return VNode, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: runtime auto-detected from .R extension *)
+  let (v_r_auto, _) = eval_string_env
+    {|node(script = "my_script.R")|}
+    (Packages.init_env ()) in
+  (match v_r_auto with
+   | Ast.VNode un when un.un_runtime = "R" ->
+       incr pass_count; Printf.printf "  ✓ runtime auto-detected as R for .R script\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ runtime auto-detection for .R failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: runtime auto-detected from .py extension *)
+  let (v_py_auto, _) = eval_string_env
+    {|node(script = "my_script.py")|}
+    (Packages.init_env ()) in
+  (match v_py_auto with
+   | Ast.VNode un when un.un_runtime = "Python" ->
+       incr pass_count; Printf.printf "  ✓ runtime auto-detected as Python for .py script\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ runtime auto-detection for .py failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: script field accessible via dot access *)
+  let (v_dot_script, _) = eval_string_env
+    {|n = node(script = "fit.R", runtime = R); n.script|}
+    (Packages.init_env ()) in
+  let dot_script_s = Ast.Utils.value_to_string v_dot_script in
+  if dot_script_s = {|"fit.R"|} then begin
+    incr pass_count; Printf.printf "  ✓ node.script dot access returns script path\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ node.script dot access\n    Expected: \"fit.R\"\n    Got: %s\n" dot_script_s
+  end;
+
+  (* Test: script=null node returns null for .script *)
+  let (v_no_script, _) = eval_string_env
+    {|n = node(command = <{ 42 }>, runtime = R); n.script|}
+    (Packages.init_env ()) in
+  if Ast.Utils.value_to_string v_no_script = "null" then begin
+    incr pass_count; Printf.printf "  ✓ node without script returns null for .script\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ node without script .script field\n    Expected: null\n    Got: %s\n"
+      (Ast.Utils.value_to_string v_no_script)
+  end;
+
+  (* Test: pipeline with script-based node creates correct node structure *)
+  let (v_pipeline_script, _) = eval_string_env
+    {|p = pipeline {
+  data = [1, 2, 3]
+  result = node(script = "compute.R", runtime = R)
+}; pipeline_nodes(p)|}
+    (Packages.init_env ()) in
+  let pipeline_nodes_s = Ast.Utils.value_to_string v_pipeline_script in
+  if pipeline_nodes_s = {|["data", "result"]|} then begin
+    incr pass_count; Printf.printf "  ✓ pipeline with script node has correct node list\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline with script node\n    Expected: [\"data\", \"result\"]\n    Got: %s\n" pipeline_nodes_s
+  end;
+
   print_newline ()

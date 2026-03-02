@@ -56,6 +56,25 @@ p = pipeline {
 
 Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()` and `rn()` as shortcuts for Python and R runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
+### Using the `script` Argument
+
+Instead of inlining code with `command`, you can point a node to an external source file using the `script` argument. This works with `node()`, `pyn()`, and `rn()`. The `script` and `command` arguments are mutually exclusive.
+
+```t
+p = pipeline {
+  -- Execute an external R script
+  model = rn(script = "train_model.R", serializer = "pmml")
+
+  -- Execute an external Python script
+  predictions = pyn(script = "predict.py", deserializer = "pmml")
+
+  -- node() auto-detects the runtime from the file extension
+  summary = node(script = "summarise.R", serializer = "json")
+}
+```
+
+When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
+
 ---
 
 ## 3. Cross-Language Integration
