@@ -109,7 +109,13 @@ let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
   functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "trace_nodes";
-               "pipeline_to_frame"; "filter_node"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"];
+               "pipeline_to_frame"; "filter_node"; "mutate_node"; "rename_node"; "select_node"; "arrange_node";
+               "union"; "difference"; "intersect"; "patch";
+               "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
+               "chain"; "parallel";
+               "pipeline_edges"; "pipeline_roots"; "pipeline_leaves"; "pipeline_depth";
+               "pipeline_cycles"; "pipeline_summary"; "pipeline_validate"; "pipeline_assert";
+               "pipeline_print"; "pipeline_dot"];
 }
 
 let explain_package = {
@@ -474,6 +480,12 @@ let init_env () =
   let env = Rename_node.register env in
   let env = Select_node.register env in
   let env = Arrange_node.register env in
+  (* Phase 3 — Set operations & DAG-aware transformations *)
+  let env = Pipeline_set_ops.register env in
+  let env = Pipeline_dag_ops.register env in
+  (* Phase 4 — Composition & inspection utilities *)
+  let env = Pipeline_composition.register env in
+  let env = Pipeline_inspect2.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
