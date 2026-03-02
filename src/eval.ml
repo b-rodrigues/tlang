@@ -1167,10 +1167,16 @@ and eval_call env_ref fn_val raw_args =
       match expr with
       | ColumnRef _ -> (name, expr)  (* bare $col → keep, evaluates to VSymbol *)
       | _ when uses_nse expr ->
-          (* Complex expression with NSE → wrap in lambda *)
-          let desugared = desugar_nse_expr expr in
-          (name, Lambda { params = ["row"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
-                          body = desugared; env = None })
+          (* Complex expression with NSE → wrap in lambda, EXCEPT for positional Call
+             expressions (name = None, expr = Call _): those should be evaluated
+             directly so that their own eval_call handles inner ColumnRef args as
+             VSymbol values (e.g. select_node(p, $name, $runtime) as arg to colnames). *)
+          (match name, expr with
+           | None, Call _ -> (name, expr)
+           | _ ->
+               let desugared = desugar_nse_expr expr in
+               (name, Lambda { params = ["row"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
+                               body = desugared; env = None }))
       | _ -> (name, expr)
     ) args
   in
