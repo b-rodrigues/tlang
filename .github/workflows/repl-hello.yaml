@@ -40,7 +40,7 @@ jobs:
           skipPush: true
 
       - name: Build T
-        run: nix develop --accept-flake-config --command dune build
+        run: nix build
 
       - name: Print T welcome message
         run: echo ':quit' | ./result/bin/t repl
