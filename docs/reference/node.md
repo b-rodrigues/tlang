@@ -6,7 +6,8 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 ## Parameters
 
-- **command** (`Any`): The expression to evaluate inside the node.
+- **command** (`Any`): (Optional) The expression to evaluate inside the node. Mutually exclusive with `script`.
+- **script** (`String`): (Optional) Path to an external `.R` or `.py` file to execute as the node body. Mutually exclusive with `command`. The runtime is auto-detected from the file extension (`.R` → R, `.py` → Python) when not explicitly provided.
 - **runtime** (`Symbol`): (Optional) The runtime environment (T, R, Python). Default: T.
 - **serializer** (`Symbol`): (Optional) Custom serializer function. Default: default.
 - **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default: default.

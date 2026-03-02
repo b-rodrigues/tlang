@@ -7,7 +7,8 @@
 --# Used directly within a `pipeline { ... }` block to execute R code.
 --#
 --# @name rn
---# @param command :: Any The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks).
+--# @param command :: Any (Optional) The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
+--# @param script :: String (Optional) Path to an external `.R` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `R` automatically.
 --# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
 --# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.
 --# @param functions :: String | List[String] (Optional) R scripts to source before execution.

@@ -6,7 +6,8 @@ A convenience wrapper around `node()` with `runtime = "Python"`. Used directly w
 
 ## Parameters
 
-- **command** (`Any`): The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks).
+- **command** (`Any`): (Optional) The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
+- **script** (`String`): (Optional) Path to an external `.py` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Python` automatically.
 - **serializer** (`Symbol`): (Optional) Custom serializer function. Default: default.
 - **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default: default.
 - **functions** (`String`): | List[String] (Optional) Python files to source before execution.

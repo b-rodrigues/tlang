@@ -8,7 +8,8 @@
 --# enable cross-runtime evaluation.
 --#
 --# @name node
---# @param command :: Any The expression to evaluate inside the node.
+--# @param command :: Any (Optional) The expression to evaluate inside the node. Mutually exclusive with `script`.
+--# @param script :: String (Optional) Path to an external `.R` or `.py` file to execute as the node body. Mutually exclusive with `command`. The runtime is auto-detected from the file extension when not explicitly provided.
 --# @param runtime :: Symbol (Optional) The runtime environment (T, R, Python). Default = T.
 --# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
 --# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.

@@ -6,7 +6,8 @@ A convenience wrapper around `node()` with `runtime = "R"`. Used directly within
 
 ## Parameters
 
-- **command** (`Any`): The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks).
+- **command** (`Any`): (Optional) The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
+- **script** (`String`): (Optional) Path to an external `.R` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `R` automatically.
 - **serializer** (`Symbol`): (Optional) Custom serializer function. Default: default.
 - **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default: default.
 - **functions** (`String`): | List[String] (Optional) R scripts to source before execution.

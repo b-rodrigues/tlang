@@ -7,7 +7,8 @@
 --# Used directly within a `pipeline { ... }` block to execute Python code.
 --#
 --# @name pyn
---# @param command :: Any The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks).
+--# @param command :: Any (Optional) The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
+--# @param script :: String (Optional) Path to an external `.py` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Python` automatically.
 --# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
 --# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.
 --# @param functions :: String | List[String] (Optional) Python files to source before execution.

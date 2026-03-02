@@ -53,6 +53,18 @@ p = pipeline {
 build_pipeline(p)
 ```
 
+Alternatively, `node()`, `rn()`, and `pyn()` all accept a `script` argument pointing to an external `.R` or `.py` file instead of an inline `command`:
+
+```t
+p = pipeline {
+  model_r  = rn(script  = "train_model.R",  serializer = "pmml")
+  model_py = pyn(script = "train_model.py", serializer = "pmml")
+}
+build_pipeline(p)
+```
+
+The runtime is auto-detected from the file extension, so you can also use `node(script = "train_model.R")` without specifying `runtime = "R"` explicitly.
+
 ## Key Features
 
 - **🔒 Reproducibility-First**: Built on Nix flakes for bit-for-bit identical results across machines.
