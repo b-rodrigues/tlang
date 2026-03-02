@@ -1,6 +1,6 @@
 open Nix_utils
 
-let emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes noop =
+let emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes noop script =
   if noop then
     Printf.sprintf {|
   %s = pkgs.runCommand "%s" {} ''
@@ -581,6 +581,34 @@ def t_read_pmml(path):
   in
 
   let assign_script_lines =
+    match script with
+    | Some script_path ->
+        (* Script-based node: source the external script file.
+           The script should assign the result to a variable named after the node.
+           All pipeline dependencies are already available as variables from deps_script_lines.
+           Use shell_single_quote to safely embed the source/exec call in an echo command. *)
+        if runtime = "R" then
+          let r_source = shell_single_quote (Printf.sprintf {|source("%s")|} script_path) in
+          let r_ser = shell_single_quote (Printf.sprintf {|%s(%s, "$out/artifact")|} ser_call name) in
+          let r_class = shell_single_quote (Printf.sprintf {|writeLines(as.character(class(%s)[1]), "$out/class")|} name) in
+          Printf.sprintf {|      echo %s >> node_script.R
+      echo %s >> node_script.R
+      echo %s >> node_script.R|} r_source r_ser r_class
+        else if runtime = "Python" then
+          let py_exec = shell_single_quote (Printf.sprintf {|exec(open("%s").read(), globals())|} script_path) in
+          let py_ser = shell_single_quote (Printf.sprintf {|%s(%s, "$out/artifact")|} ser_call name) in
+          let py_class = shell_single_quote (Printf.sprintf {|with open("$out/class", "w") as f: f.write(type(%s).__name__)|} name) in
+          Printf.sprintf {|      echo %s >> node_script.py
+      echo %s >> node_script.py
+      echo %s >> node_script.py|} py_exec py_ser py_class
+        else
+          let t_import = shell_single_quote (Printf.sprintf {|      import "%s"|} script_path) in
+          Printf.sprintf {|      echo %s >> node_script.t
+      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
+      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} t_import ser_call name name
+    | None ->
     if runtime = "R" then
       if is_raw_code then
         Printf.sprintf {|      echo "%s <- local({" >> node_script.R
