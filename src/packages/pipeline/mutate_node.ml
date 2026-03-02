@@ -45,40 +45,59 @@ let register ~eval_call env =
                  | VBool b -> b
                  | _ -> false)
           in
-          (* Apply all mutations to the appropriate pipeline fields *)
+          (* Apply all mutations to the appropriate pipeline fields.
+             Collect the first type error if any mutation argument has the wrong type. *)
+          let first_error = ref None in
+          let check name type_name expected_type =
+            Printf.sprintf "Function `mutate_node`: `%s` must be a %s, got %s."
+              name expected_type (Utils.type_name type_name)
+          in
           let new_runtimes =
             match List.assoc_opt (Some "runtime") mutations with
             | None -> p.p_runtimes
             | Some (VString v) ->
                 List.map (fun (n, old) -> if matches n then (n, v) else (n, old)) p.p_runtimes
-            | Some _ ->
-                p.p_runtimes  (* ignore bad value; keep existing *)
+            | Some v ->
+                first_error := Some (Error.type_error (check "runtime" v "String"));
+                p.p_runtimes
           in
           let new_noops =
             match List.assoc_opt (Some "noop") mutations with
             | None -> p.p_noops
             | Some (VBool v) ->
                 List.map (fun (n, old) -> if matches n then (n, v) else (n, old)) p.p_noops
-            | Some _ -> p.p_noops
+            | Some v ->
+                if !first_error = None then
+                  first_error := Some (Error.type_error (check "noop" v "Bool"));
+                p.p_noops
           in
           let new_serializers =
             match List.assoc_opt (Some "serializer") mutations with
             | None -> p.p_serializers
             | Some (VString v) ->
-                List.map (fun (n, _old) ->
-                  if matches n then (n, Ast.Value (Ast.VString v)) else (n, _old)
+                List.map (fun (n, old) ->
+                  if matches n then (n, Ast.Value (Ast.VString v)) else (n, old)
                 ) p.p_serializers
-            | Some _ -> p.p_serializers
+            | Some v ->
+                if !first_error = None then
+                  first_error := Some (Error.type_error (check "serializer" v "String"));
+                p.p_serializers
           in
           let new_deserializers =
             match List.assoc_opt (Some "deserializer") mutations with
             | None -> p.p_deserializers
             | Some (VString v) ->
-                List.map (fun (n, _old) ->
-                  if matches n then (n, Ast.Value (Ast.VString v)) else (n, _old)
+                List.map (fun (n, old) ->
+                  if matches n then (n, Ast.Value (Ast.VString v)) else (n, old)
                 ) p.p_deserializers
-            | Some _ -> p.p_deserializers
+            | Some v ->
+                if !first_error = None then
+                  first_error := Some (Error.type_error (check "deserializer" v "String"));
+                p.p_deserializers
           in
+          match !first_error with
+          | Some e -> e
+          | None ->
           VPipeline {
             p with
             p_runtimes     = new_runtimes;

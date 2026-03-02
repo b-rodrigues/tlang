@@ -190,6 +190,11 @@ pipeline_to_frame(p) |> filter(\(row) row.noop == false) |> nrow|}
     {|mutate_node(42, $noop = true)|}
     {|Error(TypeError: "Function `mutate_node` expects a Pipeline as first argument.")|};
 
+  (* mutate_node wrong type for noop field *)
+  test "mutate_node errors on wrong noop type"
+    {|p = pipeline { a = 1 }; mutate_node(p, $noop = "yes")|}
+    {|Error(TypeError: "Function `mutate_node`: `noop` must be a Bool, got String.")|};
+
   print_newline ();
 
   Printf.printf "Phase 2 — rename_node:\n";

@@ -9,7 +9,7 @@ open Ast
 --#
 --# The columns returned are:
 --# - `name` — the node name (String)
---# - `runtime` — one of "T", "R", "python" (String)
+--# - `runtime` — one of "T", "R", "Python" (String)
 --# - `serializer` — e.g. "default", "pmml" (String)
 --# - `deserializer` — e.g. "default", "pmml" (String)
 --# - `noop` — whether the node is a no-op (Bool)
