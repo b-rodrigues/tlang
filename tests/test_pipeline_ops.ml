@@ -509,20 +509,14 @@ p |> prune |> pipeline_nodes|}
 p |> upstream_of("c") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  let result_set = String.concat "" (List.sort String.compare
-    (String.split_on_char ',' (String.concat "" (String.split_on_char '"'
-      (String.concat "" (String.split_on_char '[' (String.concat "" (String.split_on_char ']' result)))))))) in
-  let _ = result_set in
-  (* Check all expected names are present *)
-  if String.sub result 0 1 = "[" &&
-     (String.length result > 2) &&
-     (let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
-      contains result "a" && contains result "b" && contains result "c")
+  let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
+  if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" &&
+     not (contains result "\"d\"")
   then begin
     incr pass_count; Printf.printf "  ✓ upstream_of includes node and ancestors\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ upstream_of\n    Expected to contain a, b, c\n    Got: %s\n" result
+    Printf.printf "  ✗ upstream_of\n    Expected to contain a, b, c (not d)\n    Got: %s\n" result
   end;
 
   (* upstream_of: missing node *)
@@ -541,7 +535,7 @@ p |> downstream_of("a") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
-  if contains result "a" && contains result "b" && contains result "c" then begin
+  if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" then begin
     incr pass_count; Printf.printf "  ✓ downstream_of includes node and descendants\n"
   end else begin
     incr fail_count;
@@ -572,7 +566,7 @@ p |> subgraph("b") |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
-  if contains result "a" && contains result "b" && contains result "c" then begin
+  if contains result "\"a\"" && contains result "\"b\"" && contains result "\"c\"" then begin
     incr pass_count; Printf.printf "  ✓ subgraph of middle node returns full chain\n"
   end else begin
     incr fail_count;
@@ -592,19 +586,21 @@ p |> subgraph("b") |> pipeline_nodes|}
 
   Printf.printf "Phase 4 — chain:\n";
 
-  (* chain: wires matching names *)
+  (* chain: wires matching names using split sub-pipelines *)
+  (* p_full has a -> b -> c; split into upstream (a) and downstream (b, c with b still dep on a) *)
   let (v, _) = eval_string_env
-    {|p1 = pipeline { data = 1 }
-p2 = pipeline { model = data + 1 }
-p1 |> chain(p2) |> pipeline_nodes|}
+    {|p_full = pipeline { a = 1; b = a + 1; c = b + 1 }
+p1 = p_full |> upstream_of("a")
+p2 = p_full |> downstream_of("b")
+chain(p1, p2) |> pipeline_nodes|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   let contains s sub = try ignore (Str.search_forward (Str.regexp_string sub) s 0); true with Not_found -> false in
-  if contains result "data" && contains result "model" then begin
+  if contains result "a" && contains result "b" && contains result "c" then begin
     incr pass_count; Printf.printf "  ✓ chain merges connected pipelines\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ chain\n    Expected to contain data and model\n    Got: %s\n" result
+    Printf.printf "  ✗ chain\n    Expected to contain a, b, c\n    Got: %s\n" result
   end;
 
   (* chain: error when no shared deps *)
