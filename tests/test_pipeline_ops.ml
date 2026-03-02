@@ -495,7 +495,7 @@ p |> prune |> pipeline_nodes|}
   end;
 
   (* prune: single node pipeline stays as-is (it's both root and leaf) *)
-  test "prune single-node pipeline returns empty (lone leaf)"
+  test "prune single-node pipeline removes lone leaf node"
     {|p = pipeline { a = 1 }; p |> prune |> pipeline_nodes|}
     {|[]|};
 

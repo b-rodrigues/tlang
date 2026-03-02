@@ -302,8 +302,8 @@ let register env =
           else
             let ups   = ancestors name p.p_deps in
             let downs = descendants name p.p_deps in
-            (* Union of both sets *)
-            let keep = List.sort_uniq String.compare (ups @ downs) in
+            (* Union of both sets: ups already contains `name`; add downs entries not in ups *)
+            let keep = ups @ List.filter (fun n -> not (List.mem n ups)) downs in
             VPipeline (filter_pipeline keep p)
       | [VPipeline _; _] ->
           Error.type_error "Function `subgraph` expects a String node name."

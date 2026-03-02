@@ -249,7 +249,7 @@ let register env =
             errors := Printf.sprintf
               "Pipeline has dependency cycle(s) involving: %s."
               (String.concat ", " cycles) :: !errors;
-          VList (List.rev_map (fun msg -> (None, VString msg)) !errors)
+          VList (List.map (fun msg -> (None, VString msg)) (List.rev !errors))
       | [_] -> Error.type_error "Function `pipeline_validate` expects a Pipeline."
       | _ -> Error.arity_error_named "pipeline_validate" ~expected:1 ~received:(List.length args)
     ))
