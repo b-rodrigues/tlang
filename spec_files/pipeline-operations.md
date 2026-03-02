@@ -45,7 +45,7 @@ Each node in a pipeline must carry a well-defined metadata record with the follo
 | `noop` | `Bool` | |
 | `deps` | `List[String]` | Names of nodes this node depends on |
 | `depth` | `Int` | Topological depth in the DAG (computed, not stored) |
-| `command_type` | `String` | `"expr"` or `"script"` |
+| `command_type` | `String` | `"command"` or `"script"` |
 
 ### 1.2 Pipeline as Graph
 
