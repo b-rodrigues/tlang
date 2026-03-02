@@ -44,7 +44,7 @@
           ];
         };
 
-        python-with-packages = pkgs.python3.withPackages (p: with p; [
+        python-with-packages = pkgs.python314.withPackages (p: with p; [
           pandas
           pyarrow
           scikit-learn
