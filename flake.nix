@@ -36,6 +36,7 @@
             tidyr
             purrr
             broom
+            arrow
             jsonlite
             r2pmml
             faraway
@@ -45,6 +46,7 @@
 
         python-with-packages = pkgs.python3.withPackages (p: with p; [
           pandas
+          pyarrow
           scikit-learn
           sklearn2pmml
           statsmodels
@@ -223,6 +225,11 @@
             echo "  Rscript tests/golden/generate_datasets.R       - Generate test data"
             echo "  Rscript tests/golden/generate_expected.R       - Generate dplyr outputs"
             echo "  Rscript tests/golden/generate_expected_stats.R - Generate stats outputs"
+            echo ""
+            echo "Arrow integration tests:"
+            echo "  dune exec src/test_arrow_integration.exe"
+            echo "  dune exec src/test_owl_bridge.exe"
+            echo "  dune exec src/test_arrow_performance.exe"
             echo ""
             echo "Quick start: dune exec src/repl.exe"
             echo ""
