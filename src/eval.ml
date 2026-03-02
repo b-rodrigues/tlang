@@ -1167,10 +1167,12 @@ and eval_call env_ref fn_val raw_args =
       match expr with
       | ColumnRef _ -> (name, expr)  (* bare $col → keep, evaluates to VSymbol *)
       | _ when uses_nse expr ->
-          (* Complex expression with NSE → wrap in lambda, EXCEPT for positional Call
-             expressions (name = None, expr = Call _): those should be evaluated
-             directly so that their own eval_call handles inner ColumnRef args as
-             VSymbol values (e.g. select_node(p, $name, $runtime) as arg to colnames). *)
+          (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
+             Call expressions. A positional Call like select_node(p, $name, $runtime) passed
+             as an argument to colnames/nrow must be evaluated directly: its own eval_call
+             will handle the inner ColumnRef args as VSymbol values. Named Call expressions
+             (e.g. mutate($count = nrow($dept))) still need lambda wrapping to maintain
+             proper NSE row context in mutate/summarize. *)
           (match name, expr with
            | None, Call _ -> (name, expr)
            | _ ->
