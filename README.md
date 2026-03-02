@@ -5,7 +5,7 @@
 
 **T** is an experimental, **reproducibility- and pipeline-first** programming language for declarative data manipulation and statistical analysis. Built on the foundation of **Nix**, T is designed from the ground up to ensure that every analysis is a strictly defined, reproducible workflow. 
 
-Inspired by R's tidyverse and OCaml's type discipline, T provides a small, focused core for data wrangling, but its true strength lies in its **mandatory pipeline architecture**.
+Inspired by R's tidyverse and OCaml's type discipline, T provides a small, focused core for data wrangling, but its true strength lies in its **mandatory pipeline architecture** and **seamless integration with R and Python (and Julia in a future update)**.
 
 ### The Canonical T Script
 
