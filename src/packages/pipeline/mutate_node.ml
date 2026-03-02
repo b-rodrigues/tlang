@@ -95,16 +95,16 @@ let register ~eval_call env =
                   first_error := Some (Error.type_error (check "deserializer" v "String"));
                 p.p_deserializers
           in
-          match !first_error with
+          (match !first_error with
           | Some e -> e
           | None ->
-          VPipeline {
-            p with
-            p_runtimes     = new_runtimes;
-            p_noops        = new_noops;
-            p_serializers  = new_serializers;
-            p_deserializers = new_deserializers;
-          }
+              VPipeline {
+                p with
+                p_runtimes     = new_runtimes;
+                p_noops        = new_noops;
+                p_serializers  = new_serializers;
+                p_deserializers = new_deserializers;
+              })
       | (_, _) :: _ -> Error.type_error "Function `mutate_node` expects a Pipeline as first argument."
     ))
     env
