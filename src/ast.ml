@@ -30,6 +30,7 @@ type error_code =
   | ValueError
   | MatchError
   | SyntaxError
+  | ShellError
   | GenericError
 
 (** Structured error information *)
@@ -169,6 +170,7 @@ and expr =
   | IntentDef of (string * expr) list
   | Unquote of expr
   | UnquoteSplice of expr
+  | ShellExpr of string
 
   | Block of stmt list
 
@@ -265,6 +267,7 @@ module Utils = struct
     | ValueError -> "ValueError"
     | MatchError -> "MatchError"
     | SyntaxError -> "SyntaxError"
+    | ShellError -> "ShellError"
     | GenericError -> "GenericError"
 
   let na_type_to_string = function
@@ -355,7 +358,8 @@ module Utils = struct
     | UnquoteSplice e -> "!!!" ^ unparse_expr e
     | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
     | ListComp _ -> "[...]"
-    | IntentDef _ -> "intent { ... }"
+    | ShellExpr cmd -> "?(" ^ cmd ^ ")"
+  | IntentDef _ -> "intent { ... }"
 
   and unparse_stmt = function
     | Expression e -> unparse_expr e

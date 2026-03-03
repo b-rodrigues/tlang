@@ -39,6 +39,7 @@ let build_bracket_literal (items : bracket_item list) : Ast.expr =
 %token <string> IDENT
 %token <string> BACKTICK_IDENT
 %token <string> COLUMN_REF
+%token <string> SHELL_CMD
 /* Symbols and Operators */
 %token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
 %token COMMA COLON COLON_EQ DOT EQUALS ARROW DOTDOTDOT
@@ -277,6 +278,7 @@ primary_expr:
   | raw = RAW_CODE
     { let text = String.trim raw in
       RawCode { raw_text = text; raw_identifiers = Ast.extract_identifiers text } }
+  | cmd = SHELL_CMD { ShellExpr cmd }
   ;
 
 block_expr:

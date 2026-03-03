@@ -25,6 +25,7 @@
    test_typing_mode
    test_quotation
    test_pipeline_ops
+   test_shell
  )
  (libraries t_lang menhirLib otoml unix str)
 )

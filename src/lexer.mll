@@ -56,6 +56,7 @@ rule token = parse
 
   (* Raw code block: <{ ... }> for embedding foreign language code verbatim *)
   | "<{" { raw_code (Buffer.create 256) lexbuf }
+  | "?(" { shell_cmd (Buffer.create 128) 1 lexbuf }
 
   (* Symbols and Operators *)
   | '(' { LPAREN }   | ')' { RPAREN }
@@ -106,6 +107,16 @@ and raw_code buf = parse
   | '\n' { Lexing.new_line lexbuf; Buffer.add_char buf '\n'; raw_code buf lexbuf }
   | _ as c { Buffer.add_char buf c; raw_code buf lexbuf }
   | eof { raise (SyntaxError "Unterminated raw code block (missing '}>'))") }
+
+and shell_cmd buf depth = parse
+  | '(' { Buffer.add_char buf '('; shell_cmd buf (depth + 1) lexbuf }
+  | ')' {
+      if depth = 1 then SHELL_CMD (Buffer.contents buf)
+      else (Buffer.add_char buf ')'; shell_cmd buf (depth - 1) lexbuf)
+    }
+  | '\n' { Lexing.new_line lexbuf; Buffer.add_char buf '\n'; shell_cmd buf depth lexbuf }
+  | _ as c { Buffer.add_char buf c; shell_cmd buf depth lexbuf }
+  | eof { raise (SyntaxError "Unterminated shell command (missing ')')") }
 
 and read_string buf delim = parse
   | '"' | '\'' as c { if c = delim then STRING (Buffer.contents buf) else (Buffer.add_char buf c; read_string buf delim lexbuf) }

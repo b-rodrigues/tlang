@@ -1,0 +1,7 @@
+?(echo "Hello from shell!")
+let name = ?(whoami)
+print("Hello, " + name)
+?(cd /tmp)
+print("Current dir: " + ?(pwd))
+?(cd ~)
+print("Back home: " + ?(pwd))

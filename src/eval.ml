@@ -317,12 +317,69 @@ let rec extract_formula_vars (expr : Ast.expr) : string list =
   | _ -> []  (* Unsupported formula syntax *)
 
 (* Module-level mutable ref to track accumulated imports for pipeline propagation *)
+(* Module-level mutable ref to track accumulated imports for pipeline propagation *)
 let current_imports : Ast.stmt list ref = ref []
+
+let dedent s =
+  let lines = String.split_on_char '\n' s in
+  let non_empty_lines = List.filter (fun l -> String.trim l <> "") lines in
+  match non_empty_lines with
+  | [] -> s
+  | _ ->
+      let rec count_leading_spaces n s =
+        if n < String.length s && s.[n] = ' ' then count_leading_spaces (n + 1) s
+        else n
+      in
+      let indents = List.map (count_leading_spaces 0) non_empty_lines in
+      let min_indent = List.fold_left min (List.hd indents) (List.tl indents) in
+      let stripped_lines = List.map (fun l ->
+        if String.length l >= min_indent then String.sub l min_indent (String.length l - min_indent)
+        else String.trim l
+      ) lines in
+      String.trim (String.concat "\n" stripped_lines)
+
+let eval_shell_expr _env_ref cmd =
+  let cmd = dedent cmd in
+  let stripped = String.trim cmd in
+  if stripped = "cd" || String.starts_with ~prefix:"cd " stripped then
+    let path = if stripped = "cd" then Sys.getenv_opt "HOME" |> Option.value ~default:"."
+               else String.trim (String.sub stripped 3 (String.length stripped - 3)) in
+    let path = if String.starts_with ~prefix:"~" path then
+                 let home = Sys.getenv_opt "HOME" |> Option.value ~default:"." in
+                 home ^ String.sub path 1 (String.length path - 1)
+               else path in
+    try
+      Sys.chdir path;
+      VString ""
+    with Sys_error msg ->
+      Error.make_error ShellError ("No such directory: " ^ path ^ " (" ^ msg ^ ")")
+  else
+    try
+      let ic, oc, ec = Unix.open_process_full cmd (Unix.environment ()) in
+      let stdout_buf = Buffer.create 128 in
+      let stderr_buf = Buffer.create 128 in
+      (try
+        while true do Buffer.add_char stdout_buf (input_char ic) done
+      with End_of_file -> ());
+      (try
+        while true do Buffer.add_char stderr_buf (input_char ec) done
+      with End_of_file -> ());
+      let status = Unix.close_process_full (ic, oc, ec) in
+      match status with
+      | Unix.WEXITED 0 ->
+          VString (Buffer.contents stdout_buf)
+      | Unix.WEXITED _ ->
+          Error.make_error ShellError (Buffer.contents stderr_buf |> String.trim)
+      | _ ->
+          Error.make_error ShellError "Shell command failed"
+    with _ ->
+      Error.make_error ShellError "Failed to execute shell command"
 
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   match expr with
   | Unquote _ | UnquoteSplice _ ->
       make_error GenericError "!! and !!! can only be used inside expr() or other quoting contexts"
+  | ShellExpr cmd -> eval_shell_expr env_ref cmd
   | Value v -> v
   | Var s ->
       (match Env.find_opt s !env_ref with
@@ -548,6 +605,7 @@ and free_vars (expr : Ast.expr) : string list =
     | PipelineDef _ -> []
     | IntentDef pairs -> List.concat_map (fun (_, e) -> collect e) pairs
     | Unquote e | UnquoteSplice e -> collect e
+    | ShellExpr _ -> []
 
   and collect_stmt = function
     | Expression e -> collect e
@@ -1408,7 +1466,12 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
   | Expression e ->
       let env_ref = ref env in
       let v = eval_expr env_ref e in
-      (v, !env_ref)
+      (match e with
+       | ShellExpr _ ->
+           (match v with
+            | VString s -> print_string s; flush stdout; (VNull, !env_ref)
+            | _ -> (v, !env_ref))
+       | _ -> (v, !env_ref))
   | Assignment { name; expr; _ } ->
       if Env.mem name env then
         let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite." name in

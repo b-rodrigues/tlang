@@ -456,6 +456,61 @@ cumsum([1, NA, 3])         -- Vector[1, NA, NA]
 
 ---
 
+## Shell Escape (`?()`)
+
+The shell escape syntax allows you to execute arbitrary shell commands directly from within T. This is useful for interacting with the filesystem, running git commands, or using other CLI tools.
+
+### As a Statement
+
+When used as a standalone statement, the command is executed and its output is printed directly to `stdout`. The return value of the expression is `null`.
+
+```t
+?(ls -la)
+?(git status)
+```
+
+### As an Expression
+
+When used as part of an expression (e.g., in an assignment), the shell command's `stdout` is captured and returned as a `String`.
+
+```t
+files = ?(ls)
+let current_user = ?(whoami)
+```
+
+### Special Case: `cd`
+
+The `cd` command is special-cased to change the working directory of the T interpreter itself, rather than just a sub-shell.
+
+```t
+?(cd /tmp)
+?(pwd)       -- will show /tmp
+?(cd ~)      -- expands ~ correctly
+```
+
+### Multiline Commands
+
+Shell escapes support multiline commands. Indentation common to all non-empty lines is automatically stripped.
+
+```t
+?(
+  git add .
+  git commit -m "update"
+  git push
+)
+```
+
+### Error Handling
+
+If a shell command fails (returns a non-zero exit code), it produces a `ShellError` containing the `stderr` output.
+
+```t
+result = ?(ls /nonexistent)
+is_error(result)  -- true
+```
+
+---
+
 ## Pipelines
 
 Pipelines define named computation nodes with automatic dependency resolution:
