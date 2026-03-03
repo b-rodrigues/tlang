@@ -1,5 +1,6 @@
 let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Shell Escape:\n";
+  let old_cwd = Sys.getcwd () in
   test "simple echo" "out = ?<{echo hello}>; out" "\"hello\\n\"";
   test "expression capture" "out = ?<{echo -n 'hello world'}>; out" "\"hello world\"";
   test "multi-line command"
@@ -29,4 +30,6 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "res = ?<{cd /nonexistent_folder_abc}>; contains(error_message(res), \"/nonexistent_folder_abc\")"
     "true";
 
+  (* Restore CWD definitely *)
+  Sys.chdir old_cwd;
   print_newline ()
