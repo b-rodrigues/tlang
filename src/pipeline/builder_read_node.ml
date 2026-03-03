@@ -48,6 +48,14 @@ let read_node ?which_log name =
                 (match Arrow_io.read_ipc cn.Ast.cn_path with
                  | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
                  | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+              else if cn.Ast.cn_serializer = "csv" then
+                (try
+                  let ch = open_in cn.Ast.cn_path in
+                  let content = really_input_string ch (in_channel_length ch) in
+                  close_in ch;
+                  T_read_csv.parse_csv_string content
+                with exn ->
+                  Error.make_error FileError (Printf.sprintf "Failed to read CSV node `%s` from `%s`: %s" name cn.Ast.cn_path (Printexc.to_string exn)))
               else if cn.Ast.cn_serializer = "pmml" then
                 (match Pmml_utils.read_pmml cn.Ast.cn_path with
                  | Ok v -> v
