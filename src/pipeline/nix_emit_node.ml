@@ -18,11 +18,9 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
         List.exists (fun (_, e) -> match e with Ast.Value (Ast.VString s) | Ast.Var s -> s = name | _ -> false) items
     | _ -> false
   in
-  let is_builtin expr name = match expr with Ast.Value (Ast.VString s) -> s = name | _ -> false in
-  let is_pmml_ser = is_builtin serializer "pmml" in
+  let is_ser name = match serializer with Ast.Value (Ast.VString s) -> s = name | _ -> false in
+  let is_pmml_ser = is_ser "pmml" in
   let is_pmml_des = has_strategy "pmml" in
-  let is_json_des = has_strategy "json" in
-  let is_arrow_des = has_strategy "arrow" in
 
   let ext, extra_input = match runtime with
     | "R" -> 
@@ -71,10 +69,23 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
       funcs |> List.map (fun f -> Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote (Printf.sprintf "import \"%s\"" f))) |> String.concat "\n"
   in
   
-  let is_json_ser = match serializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
-  let is_arrow_ser = match serializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
-  let is_csv_ser = match serializer with Ast.Value (Ast.VString "csv") -> true | _ -> false in
-  let is_csv_des = has_strategy "csv" in
+  (* Use is_ser instead of is_builtin for serializer checks *)
+  let is_json_ser   = is_ser "json" in
+  let is_json_des   = has_strategy "json" in
+  let is_arrow_ser  = is_ser "arrow" in
+  let is_arrow_des  = has_strategy "arrow" in
+  let is_csv_ser    = is_ser "csv" in
+  let is_csv_des    = has_strategy "csv" in
+
+  (* Helper: inject runtime-specific helper code into the node script. *)
+  let make_injection ~enabled ~r_code ~py_code =
+    if enabled then
+      match runtime with
+      | "R"      -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" r_code
+      | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" py_code
+      | _        -> ""
+    else ""
+  in
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
@@ -499,46 +510,10 @@ def t_read_pmml(path):
     return Model.load(path)
 |} in
 
-  let json_injection =
-    if is_json_ser || is_json_des then
-      if runtime = "R" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_json_r_code
-      else if runtime = "Python" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_json_py_code
-      else ""
-    else ""
-  in
-
-  let arrow_injection =
-    if is_arrow_ser || is_arrow_des then
-      if runtime = "R" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_arrow_r_code
-      else if runtime = "Python" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_arrow_py_code
-      else ""
-    else ""
-  in
-
-  let pmml_injection =
-    if is_pmml_ser || is_pmml_des then
-      if runtime = "R" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_pmml_r_code
-      else if runtime = "Python" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pmml_py_code
-      else ""
-    else ""
-  in
-
-  let csv_injection =
-    if is_csv_ser || is_csv_des then
-      if runtime = "R" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_csv_r_code
-      else if runtime = "Python" then
-        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_csv_py_code
-      else ""
-    else ""
-  in
-
+  let json_injection   = make_injection ~enabled:(is_json_ser  || is_json_des)  ~r_code:t_json_r_code  ~py_code:t_json_py_code in
+  let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code in
+  let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code in
+  let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code in
   let pickle_injection =
     if runtime = "Python" then
       Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
@@ -566,14 +541,19 @@ def t_read_pmml(path):
       let strategy_is_string = match strategy_expr with Ast.Value (Ast.VString _) -> true | _ -> false in
       let strategy = Nix_unparse.expr_to_string strategy_expr in
       
+      (* Association list: strategy name -> read function name *)
+      let read_fns = [
+        "json",  "t_read_json";
+        "arrow", "t_read_arrow";
+        "pmml",  "t_read_pmml";
+        "csv",   "t_read_csv";
+      ] in
       if strategy = "default" then
         (if runtime = "R" then "readRDS" else "deserialize")
       else if strategy_is_string then
-        if strategy = "json" then "t_read_json"
-        else if strategy = "arrow" then "t_read_arrow"
-        else if strategy = "pmml" then "t_read_pmml"
-        else if strategy = "csv" then (if runtime = "R" then "t_read_csv" else "t_read_csv")
-        else strategy
+        (match List.assoc_opt strategy read_fns with
+         | Some fn -> fn
+         | None    -> strategy)
       else
         strategy
     in
@@ -591,14 +571,19 @@ def t_read_pmml(path):
   let ser_expr_is_string = match serializer with Ast.Value (Ast.VString _) -> true | _ -> false in
   let ser_s = Nix_unparse.expr_to_string serializer in
   let ser_call =
+    (* Association list: strategy name -> write function name *)
+    let write_fns = [
+      "json",  "t_write_json";
+      "arrow", "t_write_arrow";
+      "pmml",  "t_write_pmml";
+      "csv",   "t_write_csv";
+    ] in
     if ser_s = "default" then
       (if runtime = "R" then "saveRDS" else "serialize")
     else if ser_expr_is_string then
-      if ser_s = "json" then "t_write_json"
-      else if ser_s = "arrow" then "t_write_arrow"
-      else if ser_s = "pmml" then "t_write_pmml"
-      else if ser_s = "csv" then "t_write_csv"
-      else ser_s
+      (match List.assoc_opt ser_s write_fns with
+       | Some fn -> fn
+       | None    -> ser_s)
     else
       ser_s
   in
