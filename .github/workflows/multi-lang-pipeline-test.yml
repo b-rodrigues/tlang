@@ -121,14 +121,14 @@ jobs:
         print("Raw Value:")
         print(node_r)
         print("\nDataFrame Inspection:")
-        glimpse(node_r)
+        glimpse(read_csv(node_r.path))
 
         print("\n--- Node: summary_py ---")
         node_py = read_node("summary_py")
         print("Raw Value:")
         print(node_py)
         print("\nDataFrame Inspection:")
-        glimpse(node_py)
+        glimpse(read_csv(node_py.path))
 
         print("\n--- Node: final_results ---")
         res = read_node("final_results")
