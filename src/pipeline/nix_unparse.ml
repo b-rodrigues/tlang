@@ -86,7 +86,7 @@ and unparse_expr = function
   | RawCode { raw_text; _ } -> dedent raw_text
   | Unquote e -> "!!" ^ unparse_expr e
   | UnquoteSplice e -> "!!!" ^ unparse_expr e
-  | ShellExpr cmd -> "?(" ^ cmd ^ ")"
+  | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
   | PipelineDef _ | IntentDef _ | ListComp _ | Block _ ->
       "null"
 

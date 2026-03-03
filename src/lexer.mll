@@ -56,7 +56,7 @@ rule token = parse
 
   (* Raw code block: <{ ... }> for embedding foreign language code verbatim *)
   | "<{" { raw_code (Buffer.create 256) lexbuf }
-  | "?(" { shell_cmd (Buffer.create 128) 1 lexbuf }
+  | "?<{" { shell_cmd (Buffer.create 128) lexbuf }
 
   (* Symbols and Operators *)
   | '(' { LPAREN }   | ')' { RPAREN }
@@ -108,31 +108,11 @@ and raw_code buf = parse
   | _ as c { Buffer.add_char buf c; raw_code buf lexbuf }
   | eof { raise (SyntaxError "Unterminated raw code block (missing '}>'))") }
 
-and shell_cmd buf depth = parse
-  | '(' { Buffer.add_char buf '('; shell_cmd buf (depth + 1) lexbuf }
-  | ')' {
-      if depth = 1 then SHELL_CMD (Buffer.contents buf)
-      else (Buffer.add_char buf ')'; shell_cmd buf (depth - 1) lexbuf)
-    }
-  | '"' { Buffer.add_char buf '"'; shell_cmd_dquote buf depth lexbuf }
-  | '\'' { Buffer.add_char buf '\''; shell_cmd_squote buf depth lexbuf }
-  | '\n' { Lexing.new_line lexbuf; Buffer.add_char buf '\n'; shell_cmd buf depth lexbuf }
-  | _ as c { Buffer.add_char buf c; shell_cmd buf depth lexbuf }
-  | eof { raise (SyntaxError "Unterminated shell command (missing ')')") }
-
-and shell_cmd_dquote buf depth = parse
-  | '"' { Buffer.add_char buf '"'; shell_cmd buf depth lexbuf }
-  (* Pass any backslash-escape through to the shell verbatim (e.g. \" does not close the string) *)
-  | '\\' _ as s { Buffer.add_string buf s; shell_cmd_dquote buf depth lexbuf }
-  | '\n' { Lexing.new_line lexbuf; Buffer.add_char buf '\n'; shell_cmd_dquote buf depth lexbuf }
-  | _ as c { Buffer.add_char buf c; shell_cmd_dquote buf depth lexbuf }
-  | eof { raise (SyntaxError "Unterminated double-quoted string in shell command") }
-
-and shell_cmd_squote buf depth = parse
-  | '\'' { Buffer.add_char buf '\''; shell_cmd buf depth lexbuf }
-  | '\n' { Lexing.new_line lexbuf; Buffer.add_char buf '\n'; shell_cmd_squote buf depth lexbuf }
-  | _ as c { Buffer.add_char buf c; shell_cmd_squote buf depth lexbuf }
-  | eof { raise (SyntaxError "Unterminated single-quoted string in shell command") }
+and shell_cmd buf = parse
+  | "}>" { SHELL_CMD (Buffer.contents buf) }
+  | '\n' { Lexing.new_line lexbuf; Buffer.add_char buf '\n'; shell_cmd buf lexbuf }
+  | _ as c { Buffer.add_char buf c; shell_cmd buf lexbuf }
+  | eof { raise (SyntaxError "Unterminated shell command (missing '}>'))") }
 
 and read_string buf delim = parse
   | '"' | '\'' as c { if c = delim then STRING (Buffer.contents buf) else (Buffer.add_char buf c; read_string buf delim lexbuf) }

@@ -358,7 +358,7 @@ module Utils = struct
     | UnquoteSplice e -> "!!!" ^ unparse_expr e
     | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
     | ListComp _ -> "[...]"
-    | ShellExpr cmd -> "?(" ^ cmd ^ ")"
+    | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
   | IntentDef _ -> "intent { ... }"
 
   and unparse_stmt = function
