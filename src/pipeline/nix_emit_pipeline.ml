@@ -58,13 +58,29 @@ let emit_pipeline (p : Ast.pipeline_result) =
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
+  let is_csv_ser_or_des name =
+    let ser = List.assoc name p.p_serializers in
+    let des = List.assoc name p.p_deserializers in
+    (match ser with Value (VString "csv") -> true | _ -> false) ||
+    (match des with
+     | Value (VString "csv") -> true
+     | ListLit items -> List.exists (fun (_, e) -> match e with Value (VString "csv") -> true | _ -> false) items
+     | DictLit items -> List.exists (fun (_, e) -> match e with Value (VString "csv") -> true | _ -> false) items
+     | _ -> false)
+  in
+  let needs_py_csv = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "Python" && is_csv_ser_or_des name
+  ) in
+
   let r_extra_pkgs = 
     (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
     (if needs_r_pmml then " pkgs.rPackages.r2pmml pkgs.rPackages.XML" else "")
   in
   let py_extra_pkgs = 
     (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^
-    (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ps.statsmodels ]" else "")
+    (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ps.statsmodels ]" else "") ^
+    (if needs_py_csv then " ++ [ ps.pandas ]" else "")
   in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:

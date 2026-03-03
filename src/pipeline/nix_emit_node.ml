@@ -73,6 +73,8 @@ let emit_node (name, expr) deps import_lines runtime serializer deserializer fun
   
   let is_json_ser = match serializer with Ast.Value (Ast.VString "json") -> true | _ -> false in
   let is_arrow_ser = match serializer with Ast.Value (Ast.VString "arrow") -> true | _ -> false in
+  let is_csv_ser = match serializer with Ast.Value (Ast.VString "csv") -> true | _ -> false in
+  let is_csv_des = has_strategy "csv" in
 
   let t_json_r_code = {|
 t_write_json <- function(object, path) {
@@ -81,6 +83,32 @@ t_write_json <- function(object, path) {
 t_read_json <- function(path) {
   jsonlite::read_json(path, simplifyVector = TRUE)
 }
+|} in
+
+  let t_csv_r_code = {|
+t_write_csv <- function(object, path) {
+  if (inherits(object, "data.frame")) {
+    write.csv(object, path, row.names = FALSE)
+  } else {
+    write.csv(as.data.frame(object), path, row.names = FALSE)
+  }
+}
+t_read_csv <- function(path) {
+  read.csv(path, stringsAsFactors = FALSE)
+}
+|} in
+
+  let t_csv_py_code = {|
+import pandas as _pd
+def t_write_csv(obj, path):
+    if hasattr(obj, 'to_pandas'):
+        obj = obj.to_pandas()
+    if hasattr(obj, 'to_csv'):
+        obj.to_csv(path, index=False)
+    else:
+        _pd.DataFrame(obj).to_csv(path, index=False)
+def t_read_csv(path):
+    return _pd.read_csv(path)
 |} in
 
   let t_json_py_code = {|
@@ -501,6 +529,16 @@ def t_read_pmml(path):
     else ""
   in
 
+  let csv_injection =
+    if is_csv_ser || is_csv_des then
+      if runtime = "R" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_csv_r_code
+      else if runtime = "Python" then
+        Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_csv_py_code
+      else ""
+    else ""
+  in
+
   let pickle_injection =
     if runtime = "Python" then
       Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
@@ -534,6 +572,7 @@ def t_read_pmml(path):
         if strategy = "json" then "t_read_json"
         else if strategy = "arrow" then "t_read_arrow"
         else if strategy = "pmml" then "t_read_pmml"
+        else if strategy = "csv" then (if runtime = "R" then "t_read_csv" else "t_read_csv")
         else strategy
       else
         strategy
@@ -558,6 +597,7 @@ def t_read_pmml(path):
       if ser_s = "json" then "t_write_json"
       else if ser_s = "arrow" then "t_write_arrow"
       else if ser_s = "pmml" then "t_write_pmml"
+      else if ser_s = "csv" then "t_write_csv"
       else ser_s
     else
       ser_s
@@ -726,8 +766,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection pmml_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
+|} name name deps_inputs src_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
