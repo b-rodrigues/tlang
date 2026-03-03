@@ -31,7 +31,7 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
       let des = match List.assoc_opt name p.p_deserializers with Some s -> s | None -> Ast.Var "default" in
       let funcs = match List.assoc_opt name p.p_functions with Some f -> eval_string_list f | None -> [] in
       let rec requires_functions = function
-        | Ast.Value (Ast.VString s) -> not (List.mem s ["pmml"; "arrow"; "json"; "default"])
+        | Ast.Value (Ast.VString s) -> not (List.mem s ["pmml"; "arrow"; "json"; "csv"; "default"])
         | Ast.Var _ -> false (* They passed a variable natively, they handle imports *)
         | Ast.DotAccess _ | Ast.RawCode _ -> false
         | Ast.ListLit items -> List.exists (fun (_, e) -> requires_functions e) items
