@@ -93,6 +93,16 @@ def t_read_json(path):
         return json.load(f)
 |} in
 
+  let t_pickle_py_code = {|
+import pickle
+def serialize(obj, path):
+    with open(path, "wb") as f:
+        pickle.dump(obj, f)
+def deserialize(path):
+    with open(path, "rb") as f:
+        return pickle.load(f)
+|} in
+
   let t_arrow_r_code = {|
 t_write_arrow <- function(object, path) {
   arrow::write_ipc_file(as.data.frame(object), path)
@@ -491,6 +501,12 @@ def t_read_pmml(path):
     else ""
   in
 
+  let pickle_injection =
+    if runtime = "Python" then
+      Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
+    else ""
+  in
+
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
     let get_des_call dep_name =
@@ -709,8 +725,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection pmml_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
+|} name name deps_inputs src_block deps_exports ext json_injection arrow_injection pmml_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
