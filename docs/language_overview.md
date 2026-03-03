@@ -475,7 +475,7 @@ When used as part of an expression (e.g., in an assignment), the shell command's
 
 ```t
 files = ?(ls)
-let current_user = ?(whoami)
+current_user = ?(whoami)
 ```
 
 ### Special Case: `cd`
