@@ -547,23 +547,35 @@ def t_read_pmml(path):
 
   let is_raw_code = match expr with RawCode _ -> true | _ -> false in
 
+  let is_import_line line =
+    let l = String.trim line in
+    if runtime = "Python" then
+      String.starts_with ~prefix:"import " l || String.starts_with ~prefix:"from " l
+    else if runtime = "R" then
+      String.starts_with ~prefix:"library(" l || String.starts_with ~prefix:"require(" l
+    else false
+  in
+
   let hoisted_imports =
     if is_raw_code then
       let lines = String.split_on_char '\n' expr_s in
-      let is_import_line line =
-        let l = String.trim line in
-        if runtime = "Python" then
-          String.starts_with ~prefix:"import " l || String.starts_with ~prefix:"from " l
-        else if runtime = "R" then
-          String.starts_with ~prefix:"library(" l || String.starts_with ~prefix:"require(" l
-        else false
-      in
       let imports = List.filter is_import_line lines in
       if imports = [] then ""
       else
         let code = String.concat "\n" (List.map String.trim imports) in
         Printf.sprintf "      cat <<'EOF' >> node_script.%s\n%s\nEOF\n" ext code
     else ""
+  in
+
+  (* expr_s with import/library lines removed, for use in assignment wrappers *)
+  let expr_s_no_imports =
+    if is_raw_code then
+      let lines = String.split_on_char '\n' expr_s in
+      let non_imports = List.filter (fun l -> not (is_import_line l)) lines in
+      (* Remove leading/trailing blank lines after stripping *)
+      let non_imports = List.filter (fun l -> String.trim l <> "") non_imports in
+      String.concat "\n" non_imports
+    else expr_s
   in
 
   (* Check if raw code string contains a Python assignment to node_name.
@@ -617,7 +629,7 @@ def t_read_pmml(path):
 EOF
       echo "})" >> node_script.R
       echo "%s(%s, \"$out/artifact\")" >> node_script.R
-      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
+      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s_no_imports ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.R
 %s <- %s
@@ -634,12 +646,13 @@ EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
         else
-          (* Expression-style: wrap with assignment to node name *)
+          (* Expression-style: wrap with assignment to node name.
+             Use expr_s_no_imports since import lines are already hoisted above. *)
           Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = (%s)
 EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s_no_imports ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s
