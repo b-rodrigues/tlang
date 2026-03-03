@@ -9,8 +9,8 @@ let register env =
     --# baseline for object transport between runtimes in the sandbox interchange protocol.
     --#
     --# @name t_write_json
-    --# @param path :: String Path to the destination file.
     --# @param value :: Any The value to serialize.
+    --# @param path :: String Path to the destination file.
     --# @return :: Null
     --# @family json
     --# @export
@@ -18,11 +18,11 @@ let register env =
     Env.add "t_write_json"
       (make_builtin ~name:"t_write_json" 2 (fun args _env ->
         match args with
-        | [VString path; value] ->
+        | [value; VString path] ->
             (match Serialization.write_json path value with
             | Ok () -> VNull
             | Error msg -> Error.make_error FileError (Printf.sprintf "t_write_json failed: %s" msg))
-        | [_; _] -> Error.type_error "Function `t_write_json` expects (String, Any)."
+        | [_; _] -> Error.type_error "Function `t_write_json` expects (Any, String)."
         | _ -> Error.arity_error_named "t_write_json" ~expected:2 ~received:(List.length args)
       ))
       env
