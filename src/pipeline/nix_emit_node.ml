@@ -108,7 +108,9 @@ import pyarrow.ipc as ipc
 import pandas as pd
 
 def t_write_arrow(df, path):
-    if isinstance(df, pd.DataFrame):
+    if hasattr(df, 'to_arrow'):
+        table = df.to_arrow()
+    elif isinstance(df, pd.DataFrame):
         table = pa.Table.from_pandas(df)
     else:
         table = df
