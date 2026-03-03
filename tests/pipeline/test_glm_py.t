@@ -25,9 +25,8 @@ p = pipeline {
             # data_node is a pandas DataFrame
             y = data_node['y']
             X = sm.add_constant(data_node['x'])
-            fit = sm.GLM(y, X, family=sm.families.Binomial()).fit()
+            sm.GLM(y, X, family=sm.families.Binomial()).fit()
             # t_write_pmml uses the JPMML-StatsModels bridge for this
-            t_write_pmml(fit, "$out/artifact")
         }>,
         runtime = Python,
         serializer = "pmml",
