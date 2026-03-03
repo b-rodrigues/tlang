@@ -65,4 +65,59 @@ let register env =
     ))
     env
   in
+(*
+--# Split a string on a delimiter
+--#
+--# Splits a string into a list of substrings on each occurrence of `sep`.
+--# If `sep` is empty, splits into individual characters.
+--# Works transparently on ShellResult values (splits stdout).
+--#
+--# @name strsplit
+--# @param x :: String | ShellResult The string to split.
+--# @param sep :: String The delimiter to split on.
+--# @return :: List[String] A list of substrings.
+--# @example
+--#   strsplit("a,b,c", ",")
+--#   -- Returns = ["a", "b", "c"]
+--#   files = ?<{ls}>; strsplit(files, "\n")
+--# @family core
+--# @seealso join
+--# @export
+*)
+  let env = Env.add "strsplit"
+    (make_builtin ~name:"strsplit" 2 (fun args _env ->
+      let do_split s sep =
+        let parts =
+          if sep = "" then
+            List.init (String.length s) (fun i -> VString (String.make 1 s.[i]))
+          else if String.length sep = 1 then
+            List.map (fun p -> VString p) (String.split_on_char sep.[0] s)
+          else begin
+            let sep_len = String.length sep in
+            let s_len   = String.length s   in
+            let find_from start =
+              let rec find i =
+                if i + sep_len > s_len then None
+                else if String.sub s i sep_len = sep then Some i
+                else find (i + 1)
+              in find start
+            in
+            let rec loop acc start =
+              match find_from start with
+              | None   -> List.rev (VString (String.sub s start (s_len - start)) :: acc)
+              | Some i -> loop (VString (String.sub s start (i - start)) :: acc) (i + sep_len)
+            in
+            loop [] 0
+          end
+        in
+        VList (List.map (fun v -> (None, v)) parts)
+      in
+      match args with
+      | [VString s; VString sep]                     -> do_split s sep
+      | [VShellResult { sr_stdout; _ }; VString sep] -> do_split sr_stdout sep
+      | [_; _] -> Error.type_error "Function `strsplit` expects (String, String)."
+      | _      -> Error.arity_error_named "strsplit" ~expected:2 ~received:(List.length args)
+    ))
+    env
+  in
   env

@@ -331,11 +331,11 @@ let eval_shell_expr _env_ref cmd =
                  let home = Sys.getenv_opt "HOME" |> Option.value ~default:"." in
                  home ^ String.sub path 1 (String.length path - 1)
                else path in
-    try
+    (try
       Sys.chdir path;
-      VString ""
+      VShellResult { sr_stdout = ""; sr_stderr = ""; sr_exit_code = 0 }
     with Sys_error msg ->
-      Error.make_error ShellError ("No such directory: " ^ path ^ " (" ^ msg ^ ")")
+      VShellResult { sr_stdout = ""; sr_stderr = "No such directory: " ^ path ^ " (" ^ msg ^ ")"; sr_exit_code = 1 })
   else
     try
       let ic, oc, ec = Unix.open_process_full cmd (Unix.environment ()) in
@@ -349,25 +349,19 @@ let eval_shell_expr _env_ref cmd =
         while true do Buffer.add_char stderr_buf (input_char ec) done
       with End_of_file -> ());
       let status = Unix.close_process_full (ic, oc, ec) in
+      let stdout = Buffer.contents stdout_buf in
       let stderr = Buffer.contents stderr_buf |> String.trim in
-      (match status with
-      | Unix.WEXITED 0 ->
-          VString (Buffer.contents stdout_buf)
-      | Unix.WEXITED code ->
-          let msg =
-            if stderr = "" then Printf.sprintf "shell command failed with exit code %d" code
-            else stderr
-          in
-          Error.make_error ShellError msg
-      | Unix.WSIGNALED signal ->
-          Error.make_error ShellError (Printf.sprintf "shell command terminated by signal %d" signal)
-      | Unix.WSTOPPED signal ->
-          Error.make_error ShellError (Printf.sprintf "shell command stopped by signal %d" signal))
+      let exit_code = match status with
+        | Unix.WEXITED n  -> n
+        | Unix.WSIGNALED n -> -(abs n)
+        | Unix.WSTOPPED n  -> -(abs n)
+      in
+      VShellResult { sr_stdout = stdout; sr_stderr = stderr; sr_exit_code = exit_code }
     with
     | Unix.Unix_error (Unix.ENOENT, _, _) ->
-        Error.make_error ShellError "failed to execute shell command: command not found"
+        VShellResult { sr_stdout = ""; sr_stderr = "command not found"; sr_exit_code = 127 }
     | _ ->
-        Error.make_error ShellError "failed to execute shell command"
+        VShellResult { sr_stdout = ""; sr_stderr = "failed to execute shell command"; sr_exit_code = 1 }
 
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   match expr with
@@ -1203,6 +1197,13 @@ and eval_dot_access env_ref target_expr field =
       | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
       | "noop" -> VBool un.un_noop
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
+  | VShellResult sr ->
+      (match field with
+      | "stdout"    -> VString sr.sr_stdout
+      | "stderr"    -> VString sr.sr_stderr
+      | "exit_code" -> VInt sr.sr_exit_code
+      | _ -> Error.make_error Ast.KeyError
+               (Printf.sprintf "ShellResult has no field `%s`. Available fields: stdout, stderr, exit_code." field))
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot access field on NA."
   | other -> Error.type_error (Printf.sprintf "Cannot access field `%s` on %s." field (Utils.type_name other))
