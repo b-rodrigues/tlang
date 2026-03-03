@@ -317,26 +317,9 @@ let rec extract_formula_vars (expr : Ast.expr) : string list =
   | _ -> []  (* Unsupported formula syntax *)
 
 (* Module-level mutable ref to track accumulated imports for pipeline propagation *)
-(* Module-level mutable ref to track accumulated imports for pipeline propagation *)
 let current_imports : Ast.stmt list ref = ref []
 
-let dedent s =
-  let lines = String.split_on_char '\n' s in
-  let non_empty_lines = List.filter (fun l -> String.trim l <> "") lines in
-  match non_empty_lines with
-  | [] -> s
-  | _ ->
-      let rec count_leading_spaces n s =
-        if n < String.length s && s.[n] = ' ' then count_leading_spaces (n + 1) s
-        else n
-      in
-      let indents = List.map (count_leading_spaces 0) non_empty_lines in
-      let min_indent = List.fold_left min (List.hd indents) (List.tl indents) in
-      let stripped_lines = List.map (fun l ->
-        if String.length l >= min_indent then String.sub l min_indent (String.length l - min_indent)
-        else String.trim l
-      ) lines in
-      String.trim (String.concat "\n" stripped_lines)
+let dedent = Nix_unparse.dedent
 
 let eval_shell_expr _env_ref cmd =
   let cmd = dedent cmd in
@@ -356,6 +339,7 @@ let eval_shell_expr _env_ref cmd =
   else
     try
       let ic, oc, ec = Unix.open_process_full cmd (Unix.environment ()) in
+      close_out_noerr oc;
       let stdout_buf = Buffer.create 128 in
       let stderr_buf = Buffer.create 128 in
       (try
@@ -365,15 +349,25 @@ let eval_shell_expr _env_ref cmd =
         while true do Buffer.add_char stderr_buf (input_char ec) done
       with End_of_file -> ());
       let status = Unix.close_process_full (ic, oc, ec) in
-      match status with
+      let stderr = Buffer.contents stderr_buf |> String.trim in
+      (match status with
       | Unix.WEXITED 0 ->
           VString (Buffer.contents stdout_buf)
-      | Unix.WEXITED _ ->
-          Error.make_error ShellError (Buffer.contents stderr_buf |> String.trim)
-      | _ ->
-          Error.make_error ShellError "Shell command failed"
-    with _ ->
-      Error.make_error ShellError "Failed to execute shell command"
+      | Unix.WEXITED code ->
+          let msg =
+            if stderr = "" then Printf.sprintf "shell command failed with exit code %d" code
+            else stderr
+          in
+          Error.make_error ShellError msg
+      | Unix.WSIGNALED signal ->
+          Error.make_error ShellError (Printf.sprintf "shell command terminated by signal %d" signal)
+      | Unix.WSTOPPED signal ->
+          Error.make_error ShellError (Printf.sprintf "shell command stopped by signal %d" signal))
+    with
+    | Unix.Unix_error (Unix.ENOENT, _, _) ->
+        Error.make_error ShellError "failed to execute shell command: command not found"
+    | _ ->
+        Error.make_error ShellError "failed to execute shell command"
 
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   match expr with
