@@ -107,27 +107,27 @@ open Tdoc_json
 
 let get_string member default =
   match member with
-  | Some (JString s) -> s
+  | Some (`String s) -> s
   | _ -> default
 
 let get_string_opt member =
   match member with
-  | Some (JString s) -> Some s
+  | Some (`String s) -> Some s
   | _ -> None
 
 let get_bool member default =
   match member with
-  | Some (JBool b) -> b
+  | Some (`Bool b) -> b
   | _ -> default
 
 let get_int member default =
   match member with
-  | Some (JInt i) -> i
+  | Some (`Int i) -> i
   | _ -> default
 
 let get_list member f =
   match member with
-  | Some (JArray l) -> List.map f l
+  | Some (`List l) -> List.map f l
   | _ -> []
 
 let param_of_json json =
@@ -139,8 +139,8 @@ let param_of_json json =
 
 let return_doc_of_json json =
   match json with
-  | JNull -> None
-  | JObject _ ->
+  | `Null -> None
+  | `Assoc _ ->
       Some {
         type_info = get_string_opt (member "type" json);
         description = get_string (member "description" json) "";
@@ -149,7 +149,7 @@ let return_doc_of_json json =
 
 let intent_of_json json =
   match json with
-  | JObject _ ->
+  | `Assoc _ ->
       Some {
         purpose = get_string (member "purpose" json) "";
         use_when = get_string (member "use_when" json) "";
@@ -158,17 +158,19 @@ let intent_of_json json =
   | _ -> None
 
 let doc_entry_of_json json =
+  let return_json = match member "return" json with Some j -> j | None -> `Null in
+  let intent_json = match member "intent" json with Some j -> j | None -> `Null in
   {
     name = get_string (member "name" json) "unknown";
     description_brief = get_string (member "brief" json) "";
     description_full = get_string (member "full" json) "";
     params = get_list (member "params" json) param_of_json;
-    return_value = return_doc_of_json (match member "return" json with Some j -> j | None -> JNull);
+    return_value = return_doc_of_json return_json;
     examples = get_list (member "examples" json) (fun j -> get_string (Some j) "");
     see_also = get_list (member "see_also" json) (fun j -> get_string (Some j) "");
     family = get_string_opt (member "family" json);
     is_export = get_bool (member "export" json) true;
-    intent = intent_of_json (match member "intent" json with Some j -> j | None -> JNull);
+    intent = intent_of_json intent_json;
     package = get_string_opt (member "package" json);
     source_path = get_string (member "source" json) "";
     line_number = get_int (member "line" json) 0;

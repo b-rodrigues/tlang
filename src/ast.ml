@@ -30,6 +30,7 @@ type error_code =
   | ValueError
   | MatchError
   | SyntaxError
+  | ShellError
   | GenericError
 
 (** Structured error information *)
@@ -101,6 +102,15 @@ and unbuilt_node = {
   un_noop : bool;
 }
 
+(** Result of a ?<{...}> shell escape — carries stdout, stderr, and exit code.
+    Displays as a raw string (stdout) when printed, but exposes .stderr and
+    .exit_code as dot-access fields. *)
+and shell_result = {
+  sr_stdout    : string;
+  sr_stderr    : string;
+  sr_exit_code : int;
+}
+
 (** Runtime values *)
 and value =
   (* Scalar Types *)
@@ -130,6 +140,8 @@ and value =
   | VComputedNode of computed_node
   | VNode of unbuilt_node
   | VExpr of expr
+  (* Shell escape result *)
+  | VShellResult of shell_result
 
 
 
@@ -169,6 +181,7 @@ and expr =
   | IntentDef of (string * expr) list
   | Unquote of expr
   | UnquoteSplice of expr
+  | ShellExpr of string
 
   | Block of stmt list
 
@@ -265,6 +278,7 @@ module Utils = struct
     | ValueError -> "ValueError"
     | MatchError -> "MatchError"
     | SyntaxError -> "SyntaxError"
+    | ShellError -> "ShellError"
     | GenericError -> "GenericError"
 
   let na_type_to_string = function
@@ -307,6 +321,7 @@ module Utils = struct
     | VComputedNode _ -> "ComputedNode"
     | VNode _ -> "Node"
     | VExpr _ -> "Expression"
+    | VShellResult _ -> "ShellResult"
 
   let rec binop_to_string = function
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
@@ -355,7 +370,8 @@ module Utils = struct
     | UnquoteSplice e -> "!!!" ^ unparse_expr e
     | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
     | ListComp _ -> "[...]"
-    | IntentDef _ -> "intent { ... }"
+    | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
+  | IntentDef _ -> "intent { ... }"
 
   and unparse_stmt = function
     | Expression e -> unparse_expr e
@@ -443,9 +459,13 @@ module Utils = struct
           cn.cn_runtime cn.cn_serializer cn.cn_class cn.cn_path
     | VNode un ->
         Printf.sprintf "node<%s>(...)" un.un_runtime
+    | VShellResult { sr_stdout; _ } ->
+        (* Display as the raw stdout string so ?<{cmd}> behaves like a string *)
+        "\"" ^ String.escaped sr_stdout ^ "\""
 
   let value_to_raw_string = function
     | VString s -> s
+    | VShellResult { sr_stdout; _ } -> sr_stdout
     | VFloat f ->
         if f = floor f then
           let s = string_of_float f in

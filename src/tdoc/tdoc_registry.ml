@@ -46,9 +46,9 @@ let load_from_json filename =
     
     let json = Tdoc_json.from_string content in
     match json with
-    | Tdoc_json.JObject pairs ->
+    | `Assoc pairs ->
         (match List.assoc_opt "docs" pairs with
-        | Some (Tdoc_json.JArray docs) ->
+        | Some (`List docs) ->
             List.iter (fun doc_json ->
               let entry = Tdoc_types.doc_entry_of_json doc_json in
               let normalized_entry = { entry with source_path = normalize_path entry.source_path } in
@@ -59,4 +59,4 @@ let load_from_json filename =
   with
   | Sys_error msg -> Printf.eprintf "Warning: Could not load documentation: %s\n" msg
   | Tdoc_json.Json_error msg -> Printf.eprintf "Warning: Failed to parse documentation: %s\n" msg
-  | _ -> Printf.eprintf "Warning: Unknown error loading documentation\n"
+  | exn -> Printf.eprintf "Warning: Unknown error loading documentation: %s\n" (Printexc.to_string exn)

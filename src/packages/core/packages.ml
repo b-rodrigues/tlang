@@ -83,8 +83,10 @@ let stats_package = {
 
 let colcraft_package = {
   name = "colcraft";
-  description = "DataFrame manipulation verbs";
-  functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "ungroup"; "summarize"];
+  description = "DataFrame manipulation verbs and window functions";
+  functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "ungroup"; "summarize";
+               "ntile"; "dense_rank"; "row_number"; "min_rank"; "cume_dist"; "percent_rank";
+               "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum"];
 }
 
 let math_package = {

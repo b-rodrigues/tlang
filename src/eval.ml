@@ -319,10 +319,55 @@ let rec extract_formula_vars (expr : Ast.expr) : string list =
 (* Module-level mutable ref to track accumulated imports for pipeline propagation *)
 let current_imports : Ast.stmt list ref = ref []
 
+let dedent = Nix_unparse.dedent
+
+let eval_shell_expr _env_ref cmd =
+  let cmd = dedent cmd in
+  let stripped = String.trim cmd in
+  if stripped = "cd" || String.starts_with ~prefix:"cd " stripped then
+    let path = if stripped = "cd" then Sys.getenv_opt "HOME" |> Option.value ~default:"."
+               else String.trim (String.sub stripped 3 (String.length stripped - 3)) in
+    let path = if String.starts_with ~prefix:"~" path then
+                 let home = Sys.getenv_opt "HOME" |> Option.value ~default:"." in
+                 home ^ String.sub path 1 (String.length path - 1)
+               else path in
+    (try
+      Sys.chdir path;
+      VShellResult { sr_stdout = ""; sr_stderr = ""; sr_exit_code = 0 }
+    with Sys_error msg ->
+      VShellResult { sr_stdout = ""; sr_stderr = "No such directory: " ^ path ^ " (" ^ msg ^ ")"; sr_exit_code = 1 })
+  else
+    try
+      let ic, oc, ec = Unix.open_process_full cmd (Unix.environment ()) in
+      close_out_noerr oc;
+      let stdout_buf = Buffer.create 128 in
+      let stderr_buf = Buffer.create 128 in
+      (try
+        while true do Buffer.add_char stdout_buf (input_char ic) done
+      with End_of_file -> ());
+      (try
+        while true do Buffer.add_char stderr_buf (input_char ec) done
+      with End_of_file -> ());
+      let status = Unix.close_process_full (ic, oc, ec) in
+      let stdout = Buffer.contents stdout_buf in
+      let stderr = Buffer.contents stderr_buf |> String.trim in
+      let exit_code = match status with
+        | Unix.WEXITED n  -> n
+        | Unix.WSIGNALED n -> -(abs n)
+        | Unix.WSTOPPED n  -> -(abs n)
+      in
+      VShellResult { sr_stdout = stdout; sr_stderr = stderr; sr_exit_code = exit_code }
+    with
+    | Unix.Unix_error (Unix.ENOENT, _, _) ->
+        VShellResult { sr_stdout = ""; sr_stderr = "command not found"; sr_exit_code = 127 }
+    | _ ->
+        VShellResult { sr_stdout = ""; sr_stderr = "failed to execute shell command"; sr_exit_code = 1 }
+
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   match expr with
   | Unquote _ | UnquoteSplice _ ->
       make_error GenericError "!! and !!! can only be used inside expr() or other quoting contexts"
+  | ShellExpr cmd -> eval_shell_expr env_ref cmd
   | Value v -> v
   | Var s ->
       (match Env.find_opt s !env_ref with
@@ -548,6 +593,7 @@ and free_vars (expr : Ast.expr) : string list =
     | PipelineDef _ -> []
     | IntentDef pairs -> List.concat_map (fun (_, e) -> collect e) pairs
     | Unquote e | UnquoteSplice e -> collect e
+    | ShellExpr _ -> []
 
   and collect_stmt = function
     | Expression e -> collect e
@@ -1151,6 +1197,13 @@ and eval_dot_access env_ref target_expr field =
       | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
       | "noop" -> VBool un.un_noop
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
+  | VShellResult sr ->
+      (match field with
+      | "stdout"    -> VString sr.sr_stdout
+      | "stderr"    -> VString sr.sr_stderr
+      | "exit_code" -> VInt sr.sr_exit_code
+      | _ -> Error.make_error Ast.KeyError
+               (Printf.sprintf "ShellResult has no field `%s`. Available fields: stdout, stderr, exit_code." field))
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot access field on NA."
   | other -> Error.type_error (Printf.sprintf "Cannot access field `%s` on %s." field (Utils.type_name other))
@@ -1408,7 +1461,12 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
   | Expression e ->
       let env_ref = ref env in
       let v = eval_expr env_ref e in
-      (v, !env_ref)
+      (match e with
+       | ShellExpr _ ->
+           (match v with
+            | VString s -> print_string s; flush stdout; (VNull, !env_ref)
+            | _ -> (v, !env_ref))
+       | _ -> (v, !env_ref))
   | Assignment { name; expr; _ } ->
       if Env.mem name env then
         let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite." name in
