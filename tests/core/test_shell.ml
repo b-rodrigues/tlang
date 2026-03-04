@@ -40,6 +40,14 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "strsplit with newline"
     "lines = strsplit(?<{printf \"a\\nb\\nc\"}>  , \"\\n\"); length(lines)"
     "3";
+  
+  (* run() builtin tests *)
+  Printf.printf "run() builtin:\n";
+  test "run success" "run(\"echo hello\")" "\"hello\\n\"";
+  test "run command not found" "is_error(run(\"nosuchcommand_12345\"))" "true";
+  test "run failure" "is_error(run(\"ls /nonexistent_path_blah_blah\"))" "true";
+  test "run returns VString type" "type(run(\"echo hi\"))" "\"String\"";
+  test "run cd" "run(\"cd /tmp\")" "\"\"";
 
   (* Restore CWD *)
   Sys.chdir old_cwd;

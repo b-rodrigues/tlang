@@ -71,7 +71,7 @@ let core_package = {
   description = "Core utilities: printing, type inspection, data structures, strings";
   functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "sprintf"; "string"; "get";
                "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
-               "ifelse"; "case_when"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
+               "ifelse"; "case_when"; "run"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
 
@@ -384,6 +384,47 @@ let register env =
            | None -> VString (Printf.sprintf "No source metadata for `%s`" name))
       | [v] -> Error.type_error (Printf.sprintf "source: expected a Function, got %s." (Utils.type_name v))
       | _ -> Error.arity_error_named "source" ~expected:1 ~received:(List.length args)
+    ))
+    env
+  in
+
+(*
+--# Run a shell command
+--#
+--# Executes a shell command and returns its stdout as a string.
+--# Raises a ShellError if the command fails (non-zero exit code).
+--#
+--# @name run
+--# @param cmd :: String The shell command to execute.
+--# @return :: String The stdout of the command.
+--# @example
+--#   branch = run("git rev-parse --abbrev-ref HEAD")
+--#   print(branch)
+--# @family core
+--# @export
+*)
+  let env = Env.add "run"
+    (make_builtin_named ~name:"run" 1 (fun args env ->
+      match args with
+      | [(_, VString cmd)] | [(_, VSymbol cmd)] ->
+          (match Eval.eval_shell_expr (ref env) cmd with
+           | VShellResult { sr_exit_code = 0; sr_stdout; _ } ->
+               VString sr_stdout
+           | VShellResult { sr_exit_code; sr_stderr; _ } ->
+               let msg =
+                 if sr_stderr <> "" then
+                   Printf.sprintf "Command failed (exit %d): %s" sr_exit_code sr_stderr
+                 else
+                   Printf.sprintf "Command failed (exit %d)" sr_exit_code
+               in
+               Error.make_error ShellError msg
+           | VError _ as e -> e
+           | _ -> Error.make_error GenericError "eval_shell_expr returned unexpected value")
+      | [(_, other)] ->
+          Error.make_error TypeError
+            (Printf.sprintf "run() expects a String command, got %s" (Utils.type_name other))
+      | [] -> Error.make_error ArityError "run() requires a command argument"
+      | _  -> Error.make_error ArityError "run() takes exactly one argument"
     ))
     env
   in
