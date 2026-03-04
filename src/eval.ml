@@ -1464,7 +1464,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
       (match e with
        | ShellExpr _ ->
            (match v with
-            | VString s -> print_string s; flush stdout; (VNull, !env_ref)
+            | VShellResult sr -> print_string sr.sr_stdout; flush stdout; (VNull, !env_ref)
             | _ -> (v, !env_ref))
        | _ -> (v, !env_ref))
   | Assignment { name; expr; _ } ->
