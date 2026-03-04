@@ -185,20 +185,37 @@ let to_upper_impl args env = vectorize_unary to_upper_scalar args env
 (* Helper used by trim_start and trim_end — not exported *)
 let ltrim s =
   let len = String.length s in
-  let i = ref 0 in
-  while !i < len && (s.[!i] = ' ' || s.[!i] = '\t' || s.[!i] = '\n' || s.[!i] = '\r') do
-    incr i
-  done;
-  String.sub s !i (len - !i)
+  if len = 0 then s
+  else
+    let i = ref 0 in
+    while !i < len && (s.[!i] = ' ' || s.[!i] = '\t' || s.[!i] = '\n' || s.[!i] = '\r') do
+      incr i
+    done;
+    String.sub s !i (len - !i)
 
 let rtrim s =
   let len = String.length s in
-  let i = ref (len - 1) in
-  while !i >= 0 && (s.[!i] = ' ' || s.[!i] = '\t' || s.[!i] = '\n' || s.[!i] = '\r') do
-    decr i
-  done;
-  String.sub s 0 (!i + 1)
+  if len = 0 then s
+  else
+    let i = ref (len - 1) in
+    while !i >= 0 && (s.[!i] = ' ' || s.[!i] = '\t' || s.[!i] = '\n' || s.[!i] = '\r') do
+      decr i
+    done;
+    String.sub s 0 (!i + 1)
 
+(* Pre-compiled regexes for lines/words — avoid recompiling on every call *)
+let re_crlf = Str.regexp "\r\n"
+let re_whitespace = Str.regexp "[ \t]+"
+
+(*
+--# Trim whitespace
+--# Removes leading and trailing whitespace from a string. Vectorized.
+--# @name trim
+--# @param s :: String The string to trim.
+--# @return :: String The trimmed string.
+--# @family string
+--# @export
+*)
 let trim_scalar args _env =
   match args with
   | [VString s] -> VString (String.trim s)
@@ -206,6 +223,14 @@ let trim_scalar args _env =
 
 let trim_impl args env = vectorize_unary trim_scalar args env
 
+(*
+--# Trim leading whitespace
+--# @name trim_start
+--# @param s :: String
+--# @return :: String
+--# @family string
+--# @export
+*)
 let trim_start_scalar args _env =
   match args with
   | [VString s] -> VString (ltrim s)
@@ -213,6 +238,14 @@ let trim_start_scalar args _env =
 
 let trim_start_impl args env = vectorize_unary trim_start_scalar args env
 
+(*
+--# Trim trailing whitespace
+--# @name trim_end
+--# @param s :: String
+--# @return :: String
+--# @family string
+--# @export
+*)
 let trim_end_scalar args _env =
   match args with
   | [VString s] -> VString (rtrim s)
@@ -220,13 +253,20 @@ let trim_end_scalar args _env =
 
 let trim_end_impl args env = vectorize_unary trim_end_scalar args env
 
+(*
+--# Split string into lines
+--# Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
+--# @name lines
+--# @param s :: String | ShellResult
+--# @return :: List[String]
+--# @family string
+--# @seealso words, strsplit
+--# @export
+*)
 let lines_impl args _env =
   let do_lines s =
     (* Normalise \r\n to \n before splitting *)
-    let normalised =
-      let re = Str.regexp "\r\n" in
-      Str.global_replace re "\n" s
-    in
+    let normalised = Str.global_replace re_crlf "\n" s in
     (* Strip a single trailing newline if present *)
     let trimmed =
       let len = String.length normalised in
@@ -246,13 +286,24 @@ let lines_impl args _env =
            (Utils.type_name other))
   | _ -> Error.arity_error_named "lines" ~expected:1 ~received:(List.length args)
 
+(*
+--# Split string into words
+--# Splits on whitespace, collapsing consecutive spaces. Accepts ShellResult.
+--# Note: words splits on spaces and tabs only, not newlines. For line-by-line
+--# processing use lines() first, then words() on each line.
+--# @name words
+--# @param s :: String | ShellResult
+--# @return :: List[String]
+--# @family string
+--# @seealso lines, strsplit
+--# @export
+*)
 let words_impl args _env =
   let do_words s =
     let trimmed = String.trim s in
     if trimmed = "" then VList []
     else
-      let re = Str.regexp "[ \t]+" in
-      let parts = Str.split re trimmed in
+      let parts = Str.split re_whitespace trimmed in
       VList (List.map (fun w -> (None, VString w)) parts)
   in
   match args with
@@ -264,12 +315,22 @@ let words_impl args _env =
            (Utils.type_name other))
   | _ -> Error.arity_error_named "words" ~expected:1 ~received:(List.length args)
 
+(*
+--# Repeat a string
+--# @name str_repeat
+--# @param s :: String The string to repeat.
+--# @param n :: Int Number of repetitions.
+--# @return :: String
+--# @family string
+--# @export
+*)
 let str_repeat_scalar args _env =
   match args with
   | [VString s; VInt n] ->
       if n < 0 then
         Error.value_error "str_repeat: count must be non-negative."
       else
+        (* TODO: consider adding an upper bound on n to prevent OOM *)
         let buf = Buffer.create (String.length s * n) in
         for _ = 1 to n do Buffer.add_string buf s done;
         VString (Buffer.contents buf)
@@ -277,12 +338,23 @@ let str_repeat_scalar args _env =
 
 let str_repeat_impl args env = vectorize_binary str_repeat_scalar args env
 
+(*
+--# Named string interpolation
+--# Substitutes {name} placeholders using values from a Dict or named List.
+--# @name str_format
+--# @param fmt :: String The format string with {name} placeholders.
+--# @param values :: Dict | List The named values to substitute.
+--# @return :: String The formatted string.
+--# @family string
+--# @seealso sprintf
+--# @export
+*)
+(* TODO: support {{ as escape for literal { in format strings *)
 let str_format_impl args _env =
   match args with
-  | [VString fmt; VDict _] | [VString fmt; VList _] ->
-      (* Normalise: VList named items and VDict both become (string * string) list *)
+  | [VString fmt; (VDict _ | VList _) as values] ->
       let lookup =
-        match List.nth args 1 with
+        match values with
         | VDict d ->
             List.map (fun (k, v) -> (k, Ast.Utils.value_to_raw_string v)) d
         | VList items ->
@@ -291,7 +363,7 @@ let str_format_impl args _env =
               | Some k -> Some (k, Ast.Utils.value_to_raw_string v)
               | None   -> None
             ) items
-        | _ -> []
+        | _ -> (* unreachable — guarded by outer match *) []
       in
       let len = String.length fmt in
       let buf = Buffer.create len in
@@ -701,77 +773,6 @@ let strsplit_impl args _env =
 --# @export
 *)
 
-(*
---# Trim whitespace
---# Removes leading and trailing whitespace from a string. Vectorized.
---# @name trim
---# @param s :: String The string to trim.
---# @return :: String The trimmed string.
---# @family string
---# @export
-*)
-
-(*
---# Trim leading whitespace
---# @name trim_start
---# @param s :: String
---# @return :: String
---# @family string
---# @export
-*)
-
-(*
---# Trim trailing whitespace
---# @name trim_end
---# @param s :: String
---# @return :: String
---# @family string
---# @export
-*)
-
-(*
---# Split string into lines
---# Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
---# @name lines
---# @param s :: String | ShellResult
---# @return :: List[String]
---# @family string
---# @seealso words, strsplit
---# @export
-*)
-
-(*
---# Split string into words
---# Splits on whitespace, collapsing consecutive spaces. Accepts ShellResult.
---# @name words
---# @param s :: String | ShellResult
---# @return :: List[String]
---# @family string
---# @seealso lines, strsplit
---# @export
-*)
-
-(*
---# Repeat a string
---# @name str_repeat
---# @param s :: String The string to repeat.
---# @param n :: Int Number of repetitions.
---# @return :: String
---# @family string
---# @export
-*)
-
-(*
---# Named string interpolation
---# Substitutes {name} placeholders using values from a Dict or named List.
---# @name str_format
---# @param fmt :: String The format string with {name} placeholders.
---# @param values :: Dict | List The named values to substitute.
---# @return :: String The formatted string.
---# @family string
---# @seealso sprintf
---# @export
-*)
 
 let register env =
   let env = Env.add "is_empty" (make_builtin ~name:"is_empty" 1 is_empty_impl) env in
