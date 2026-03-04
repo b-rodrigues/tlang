@@ -78,5 +78,8 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "str_format list" "str_format(\"Host: {host}, Port: {port}\", [host: \"localhost\", port: \"5432\"])" "\"Host: localhost, Port: 5432\"";
   test "str_format missing" "str_format(\"Hello, {name}!\", [:])" {|Error(KeyError: "str_format: no value provided for key '{name}'.")|};
   test "str_format unclosed" "str_format(\"Hello, {name!\", [name: \"x\"])" {|Error(ValueError: "str_format: unclosed '{' in format string.")|};
+  test "str_format escape lbrace" "str_format(\"{{val}}\", [:])" "\"{val}\"";
+  test "str_format escape mixed" "str_format(\"{{{name}}}\", [name: \"x\"])" "\"{x}\"";
+  test "str_format escape only braces" "str_format(\"{{}}\", [:])" "\"{}\"";
 
   print_newline ()

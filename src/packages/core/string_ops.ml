@@ -341,6 +341,7 @@ let str_repeat_impl args env = vectorize_binary str_repeat_scalar args env
 (*
 --# Named string interpolation
 --# Substitutes {name} placeholders using values from a Dict or named List.
+--# Use {{ and }} to produce literal braces in the output.
 --# @name str_format
 --# @param fmt :: String The format string with {name} placeholders.
 --# @param values :: Dict | List The named values to substitute.
@@ -349,7 +350,6 @@ let str_repeat_impl args env = vectorize_binary str_repeat_scalar args env
 --# @seealso sprintf
 --# @export
 *)
-(* TODO: support {{ as escape for literal { in format strings *)
 let str_format_impl args _env =
   match args with
   | [VString fmt; (VDict _ | VList _) as values] ->
@@ -371,18 +371,27 @@ let str_format_impl args _env =
       let result = ref None in
       while !i < len && !result = None do
         if fmt.[!i] = '{' then begin
-          (* Find closing brace *)
-          match String.index_from_opt fmt (!i + 1) '}' with
-          | None ->
-              result := Some (Error.make_error ValueError
-                "str_format: unclosed '{' in format string.")
-          | Some j ->
-              let key = String.sub fmt (!i + 1) (j - !i - 1) in
-              (match List.assoc_opt key lookup with
-               | Some v -> Buffer.add_string buf v; i := j + 1
-               | None   ->
-                   result := Some (Error.make_error KeyError
-                     (Printf.sprintf "str_format: no value provided for key '{%s}'." key)))
+          (* {{ produces a literal { *)
+          if !i + 1 < len && fmt.[!i + 1] = '{' then begin
+            Buffer.add_char buf '{';
+            i := !i + 2
+          end else
+            (* Find closing brace for placeholder *)
+            match String.index_from_opt fmt (!i + 1) '}' with
+            | None ->
+                result := Some (Error.make_error ValueError
+                  "str_format: unclosed '{' in format string.")
+            | Some j ->
+                let key = String.sub fmt (!i + 1) (j - !i - 1) in
+                (match List.assoc_opt key lookup with
+                 | Some v -> Buffer.add_string buf v; i := j + 1
+                 | None   ->
+                     result := Some (Error.make_error KeyError
+                       (Printf.sprintf "str_format: no value provided for key '{%s}'." key)))
+        end else if fmt.[!i] = '}' && !i + 1 < len && fmt.[!i + 1] = '}' then begin
+          (* }} produces a literal } *)
+          Buffer.add_char buf '}';
+          i := !i + 2
         end else begin
           Buffer.add_char buf fmt.[!i];
           incr i
