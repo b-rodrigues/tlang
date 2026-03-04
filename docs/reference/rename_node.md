@@ -22,5 +22,5 @@ p |> rename_node("model_r", "model_r_v2")
 
 ## See Also
 
-[filter_node](filter_node.md), [mutate_node](mutate_node.md)
+[filter_node](filter_node.html), [mutate_node](mutate_node.html)
 

@@ -22,5 +22,5 @@ p |> rewire("model_py", replace = list(data = "data_v2"))
 
 ## See Also
 
-[rename_node](rename_node.md), [swap](swap.md)
+[rename_node](rename_node.html), [swap](swap.html)
 

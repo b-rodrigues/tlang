@@ -23,5 +23,5 @@ p |> filter_node($depth <= 2)
 
 ## See Also
 
-[rename_node](rename_node.md), [select_node](select_node.md), [mutate_node](mutate_node.md)
+[rename_node](rename_node.html), [select_node](select_node.html), [mutate_node](mutate_node.html)
 

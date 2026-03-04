@@ -21,5 +21,5 @@ min([1, 2, 3])
 
 ## See Also
 
-[max](max.md)
+[max](max.html)
 

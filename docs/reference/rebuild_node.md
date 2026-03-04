@@ -14,5 +14,5 @@ Returns: An updated ComputedNode pointing to the rebuilt artifact.
 
 ## See Also
 
-[inspect_node](inspect_node.md), [read_node](read_node.md)
+[inspect_node](inspect_node.html), [read_node](read_node.html)
 

@@ -23,5 +23,5 @@ p |> mutate_node($serializer = "pmml", where = $runtime == "R")
 
 ## See Also
 
-[rename_node](rename_node.md), [filter_node](filter_node.md)
+[rename_node](rename_node.html), [filter_node](filter_node.html)
 

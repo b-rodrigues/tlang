@@ -1,5 +1,7 @@
 # path_stem
 
+Get filename without extension
+
 ## Parameters
 
 - **path** (`String`): A file path.

@@ -22,5 +22,5 @@ write_csv(df, "output.csv")
 
 ## See Also
 
-[read_csv](read_csv.md)
+[read_csv](read_csv.html)
 

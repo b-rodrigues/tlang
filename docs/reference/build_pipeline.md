@@ -14,5 +14,5 @@ Returns: The output path (Nix store path or local fallback directory).
 
 ## See Also
 
-[read_node](read_node.md)
+[read_node](read_node.html)
 

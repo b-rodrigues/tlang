@@ -21,5 +21,5 @@ p |> downstream_of("data")
 
 ## See Also
 
-[subgraph](subgraph.md), [upstream_of](upstream_of.md)
+[subgraph](subgraph.html), [upstream_of](upstream_of.html)
 

@@ -21,5 +21,5 @@ sqrt(16)
 
 ## See Also
 
-[pow](pow.md)
+[pow](pow.html)
 

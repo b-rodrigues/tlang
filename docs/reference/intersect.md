@@ -21,5 +21,5 @@ p_full |> intersect(p_subset)
 
 ## See Also
 
-[patch](patch.md), [difference](difference.md), [union](union.md)
+[patch](patch.html), [difference](difference.html), [union](union.html)
 

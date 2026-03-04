@@ -14,5 +14,5 @@ Returns: | List[String] The object with cleaned names.
 
 ## See Also
 
-[colnames](colnames.md)
+[colnames](colnames.html)
 

@@ -21,5 +21,5 @@ string(123)
 
 ## See Also
 
-[join](join.md)
+[join](join.html)
 

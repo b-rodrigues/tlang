@@ -23,5 +23,5 @@ files = ?<{ls}>; strsplit(files, "\n")
 
 ## See Also
 
-[join](join.md)
+[join](join.html)
 

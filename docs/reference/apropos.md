@@ -21,5 +21,5 @@ apropos("stat")
 
 ## See Also
 
-[help](help.md)
+[help](help.html)
 

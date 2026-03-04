@@ -24,5 +24,5 @@ p |> arrange_node($depth, "desc")
 
 ## See Also
 
-[select_node](select_node.md), [filter_node](filter_node.md)
+[select_node](select_node.html), [filter_node](filter_node.html)
 

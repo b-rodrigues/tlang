@@ -15,5 +15,5 @@ Returns: The field value.
 
 ## See Also
 
-[intent_fields](intent_fields.md)
+[intent_fields](intent_fields.html)
 

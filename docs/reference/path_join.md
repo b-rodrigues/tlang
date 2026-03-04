@@ -1,5 +1,7 @@
 # path_join
 
+Join multiple path segments
+
 ## Parameters
 
 - **...** (`String`): One or more path segments to join.

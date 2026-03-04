@@ -16,5 +16,5 @@ packages()
 
 ## See Also
 
-[package_info](package_info.md)
+[package_info](package_info.html)
 

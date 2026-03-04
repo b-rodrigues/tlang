@@ -24,5 +24,5 @@ join(["a", "b", "c"])
 
 ## See Also
 
-[string](string.md)
+[string](string.html)
 

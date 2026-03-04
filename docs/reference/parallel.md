@@ -21,5 +21,5 @@ parallel(p_r_model, p_py_model)
 
 ## See Also
 
-[union](union.md), [chain](chain.md)
+[union](union.html), [chain](chain.html)
 

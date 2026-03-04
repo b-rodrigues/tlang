@@ -21,5 +21,5 @@ min_rank([1, 2, 2, 4])
 
 ## See Also
 
-[row_number](row_number.md), [dense_rank](dense_rank.md)
+[row_number](row_number.html), [dense_rank](dense_rank.html)
 

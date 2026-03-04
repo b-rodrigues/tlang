@@ -22,5 +22,5 @@ error("ValueError", "Must be positive")
 
 ## See Also
 
-[is_error](is_error.md), [assert](assert.md)
+[is_error](is_error.html), [assert](assert.html)
 

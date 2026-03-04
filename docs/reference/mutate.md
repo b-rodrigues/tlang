@@ -21,5 +21,5 @@ mutate(mtcars, $hp_per_wt = $hp / $wt)
 
 ## See Also
 
-[select](select.md), [summarize](summarize.md)
+[select](select.html), [summarize](summarize.html)
 

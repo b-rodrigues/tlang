@@ -14,5 +14,5 @@ Returns: The inverse matrix.
 
 ## See Also
 
-[matmul](matmul.md)
+[matmul](matmul.html)
 

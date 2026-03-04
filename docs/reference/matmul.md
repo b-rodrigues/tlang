@@ -15,5 +15,5 @@ Returns: The product of the two matrices.
 
 ## See Also
 
-[diag](diag.md), [kron](kron.md), [inv](inv.md)
+[diag](diag.html), [kron](kron.html), [inv](inv.html)
 

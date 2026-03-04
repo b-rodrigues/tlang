@@ -26,5 +26,5 @@ mean([1, NA, 3], na_rm = true)
 
 ## See Also
 
-[sum](sum.md), [sd](sd.md), [median](median.md)
+[sum](sum.html), [sd](sd.html), [median](median.html)
 

@@ -22,5 +22,5 @@ ndarray([[1, 2], [3, 4]])
 
 ## See Also
 
-[shape](shape.md), [reshape](reshape.md)
+[shape](shape.html), [reshape](reshape.html)
 

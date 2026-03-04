@@ -25,5 +25,5 @@ df = read_csv("data.csv", separator = ";")
 
 ## See Also
 
-[write_csv](write_csv.md)
+[write_csv](write_csv.html)
 

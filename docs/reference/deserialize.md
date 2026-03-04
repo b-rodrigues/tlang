@@ -14,5 +14,5 @@ Returns:
 
 ## See Also
 
-[serialize](serialize.md)
+[serialize](serialize.html)
 

@@ -21,5 +21,5 @@ p_prod |> patch(p_staging_overrides)
 
 ## See Also
 
-[intersect](intersect.md), [difference](difference.md), [union](union.md)
+[intersect](intersect.html), [difference](difference.html), [union](union.html)
 

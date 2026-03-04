@@ -20,5 +20,5 @@ ungroup(df)
 
 ## See Also
 
-[group_by](group_by.md)
+[group_by](group_by.html)
 

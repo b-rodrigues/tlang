@@ -25,5 +25,5 @@ cummean([1, NA, 3], na_rm = true)
 
 ## See Also
 
-[cumsum](cumsum.md), [mean](mean.md)
+[cumsum](cumsum.html), [mean](mean.html)
 

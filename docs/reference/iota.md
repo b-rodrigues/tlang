@@ -21,5 +21,5 @@ iota(3)
 
 ## See Also
 
-[ndarray](ndarray.md), [seq](seq.md)
+[ndarray](ndarray.html), [seq](seq.html)
 

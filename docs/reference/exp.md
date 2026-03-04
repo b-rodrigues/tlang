@@ -21,5 +21,5 @@ exp(1)
 
 ## See Also
 
-[pow](pow.md), [log](log.md)
+[pow](pow.html), [log](log.html)
 

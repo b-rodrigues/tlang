@@ -14,5 +14,5 @@ Returns: The dimensions of the array.
 
 ## See Also
 
-[reshape](reshape.md), [ndarray](ndarray.md)
+[reshape](reshape.html), [ndarray](ndarray.html)
 

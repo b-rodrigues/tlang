@@ -21,5 +21,5 @@ filter(mtcars, \(row) -> row.mpg > 20)
 
 ## See Also
 
-[arrange](arrange.md), [select](select.md)
+[arrange](arrange.html), [select](select.html)
 

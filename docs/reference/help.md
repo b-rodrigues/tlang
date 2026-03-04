@@ -21,5 +21,5 @@ help(print)
 
 ## See Also
 
-[apropos](apropos.md)
+[apropos](apropos.html)
 

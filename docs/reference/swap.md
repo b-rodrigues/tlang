@@ -22,5 +22,5 @@ p |> swap("model_r", node(command = <{ lm(y ~ x, data) }>, runtime = R))
 
 ## See Also
 
-[patch](patch.md), [rename_node](rename_node.md), [rewire](rewire.md)
+[patch](patch.html), [rename_node](rename_node.html), [rewire](rewire.html)
 

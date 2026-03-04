@@ -21,5 +21,5 @@ dense_rank([1, 2, 2, 4])
 
 ## See Also
 
-[min_rank](min_rank.md)
+[min_rank](min_rank.html)
 

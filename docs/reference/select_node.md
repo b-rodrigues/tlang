@@ -22,5 +22,5 @@ p |> select_node($name, $depth, $noop)
 
 ## See Also
 
-[arrange_node](arrange_node.md), [filter_node](filter_node.md), [pipeline_to_frame](pipeline_to_frame.md)
+[arrange_node](arrange_node.html), [filter_node](filter_node.html), [pipeline_to_frame](pipeline_to_frame.html)
 

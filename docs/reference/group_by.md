@@ -22,5 +22,5 @@ group_by(mtcars, $cyl, $gear)
 
 ## See Also
 
-[ungroup](ungroup.md), [summarize](summarize.md)
+[ungroup](ungroup.html), [summarize](summarize.html)
 

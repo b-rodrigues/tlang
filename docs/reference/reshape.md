@@ -21,5 +21,5 @@ reshape(arr, [4, 1])
 
 ## See Also
 
-[shape](shape.md), [ndarray](ndarray.md)
+[shape](shape.html), [ndarray](ndarray.html)
 

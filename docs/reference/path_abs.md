@@ -1,5 +1,7 @@
 # path_abs
 
+Resolve relative path to absolute
+
 ## Parameters
 
 - **path** (`String`): A relative or absolute path.

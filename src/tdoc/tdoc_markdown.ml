@@ -81,7 +81,7 @@ let generate_function_doc entry =
   
   if entry.see_also <> [] then begin
     Printf.bprintf buf "## See Also\n\n";
-    let links = List.map (fun s -> Printf.sprintf "[%s](%s.md)" s s) entry.see_also in
+    let links = List.map (fun s -> Printf.sprintf "[%s](%s.html)" s s) entry.see_also in
     Printf.bprintf buf "%s\n\n" (String.concat ", " links);
   end;
   
@@ -96,7 +96,7 @@ let generate_index entries =
   
   List.iter (fun e ->
     if e.is_export then
-      Printf.bprintf buf "| [%s](%s.md) | %s |\n" e.name e.name e.description_brief
+      Printf.bprintf buf "| [%s](%s.html) | %s |\n" e.name e.name e.description_brief
   ) (List.sort (fun a b -> String.compare a.name b.name) entries);
   
   Buffer.contents buf

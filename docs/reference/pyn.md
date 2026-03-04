@@ -20,5 +20,5 @@ Returns: The evaluated return value of the command.
 
 ## See Also
 
-[rn](rn.md), [node](node.md)
+[rn](rn.html), [node](node.html)
 

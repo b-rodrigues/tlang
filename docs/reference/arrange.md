@@ -23,5 +23,5 @@ arrange(mtcars, $mpg, "desc")
 
 ## See Also
 
-[group_by](group_by.md), [filter](filter.md)
+[group_by](group_by.html), [filter](filter.html)
 

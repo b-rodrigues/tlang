@@ -23,5 +23,5 @@ quantile(x, 0.5)
 
 ## See Also
 
-[mean](mean.md), [median](median.md)
+[mean](mean.html), [median](median.html)
 

@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 echo "Building HTML from Markdown via pandoc..."
 
 for file in *.md; do
-  if [ "$file" != "README.md" ] && [ "$file" != "code-of-ethics.md" ]; then
+  if [ "$file" != "README.md" ]; then
     filename="${file%.*}"
     echo "Compiling $file -> $filename.html"
     pandoc "$file" -o "$filename.html" \

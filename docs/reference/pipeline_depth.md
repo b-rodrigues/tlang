@@ -20,5 +20,5 @@ pipeline_depth(p)
 
 ## See Also
 
-[pipeline_to_frame](pipeline_to_frame.md), [pipeline_roots](pipeline_roots.md)
+[pipeline_to_frame](pipeline_to_frame.html), [pipeline_roots](pipeline_roots.html)
 

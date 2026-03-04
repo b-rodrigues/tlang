@@ -14,5 +14,5 @@ Returns: The intent fields.
 
 ## See Also
 
-[intent_get](intent_get.md)
+[intent_get](intent_get.html)
 

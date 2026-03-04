@@ -15,5 +15,5 @@ Returns: The deserialized value.
 
 ## See Also
 
-[inspect_pipeline](inspect_pipeline.md), [build_pipeline](build_pipeline.md)
+[inspect_pipeline](inspect_pipeline.html), [build_pipeline](build_pipeline.html)
 

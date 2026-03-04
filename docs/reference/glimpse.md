@@ -20,5 +20,5 @@ glimpse(mtcars)
 
 ## See Also
 
-[str](str.md), [colnames](colnames.md)
+[str](str.html), [colnames](colnames.html)
 

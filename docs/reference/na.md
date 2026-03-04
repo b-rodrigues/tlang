@@ -10,5 +10,5 @@ Returns:
 
 ## See Also
 
-[is_na](is_na.md)
+[is_na](is_na.html)
 

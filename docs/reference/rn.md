@@ -20,5 +20,5 @@ Returns: The evaluated return value of the command.
 
 ## See Also
 
-[pyn](pyn.md), [node](node.md)
+[pyn](pyn.html), [node](node.html)
 

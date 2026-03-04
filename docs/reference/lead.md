@@ -22,5 +22,5 @@ lead([1, 2, 3])
 
 ## See Also
 
-[lag](lag.md)
+[lag](lag.html)
 

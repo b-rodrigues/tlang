@@ -21,5 +21,5 @@ explain(1)
 
 ## See Also
 
-[str](str.md), [type](type.md)
+[str](str.html), [type](type.html)
 

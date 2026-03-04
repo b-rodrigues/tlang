@@ -1,5 +1,7 @@
 # path_dirname
 
+Get directory portion of a path
+
 ## Parameters
 
 - **path** (`String`): A file path.

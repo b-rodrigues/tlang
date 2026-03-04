@@ -14,5 +14,5 @@ Returns: The ranks (1 to n).
 
 ## See Also
 
-[dense_rank](dense_rank.md), [min_rank](min_rank.md)
+[dense_rank](dense_rank.html), [min_rank](min_rank.html)
 

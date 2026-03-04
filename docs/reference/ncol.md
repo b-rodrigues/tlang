@@ -20,5 +20,5 @@ ncol(mtcars)
 
 ## See Also
 
-[colnames](colnames.md), [nrow](nrow.md)
+[colnames](colnames.html), [nrow](nrow.html)
 

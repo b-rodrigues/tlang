@@ -21,5 +21,5 @@ p |> subgraph("model_r")
 
 ## See Also
 
-[downstream_of](downstream_of.md), [upstream_of](upstream_of.md)
+[downstream_of](downstream_of.html), [upstream_of](upstream_of.html)
 

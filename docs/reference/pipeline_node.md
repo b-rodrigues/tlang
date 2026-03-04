@@ -15,5 +15,5 @@ Returns: The value of the node.
 
 ## See Also
 
-[pipeline_nodes](pipeline_nodes.md)
+[pipeline_nodes](pipeline_nodes.html)
 

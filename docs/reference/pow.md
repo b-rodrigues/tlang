@@ -22,5 +22,5 @@ pow(2, 3)
 
 ## See Also
 
-[exp](exp.md), [sqrt](sqrt.md)
+[exp](exp.html), [sqrt](sqrt.html)
 

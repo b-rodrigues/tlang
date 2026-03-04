@@ -21,5 +21,5 @@ p |> upstream_of("predictions")
 
 ## See Also
 
-[subgraph](subgraph.md), [downstream_of](downstream_of.md)
+[subgraph](subgraph.html), [downstream_of](downstream_of.html)
 

@@ -21,5 +21,5 @@ pull(mtcars, "mpg")
 
 ## See Also
 
-[select](select.md)
+[select](select.html)
 

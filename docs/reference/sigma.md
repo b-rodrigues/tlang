@@ -21,5 +21,5 @@ s = sigma(model)
 
 ## See Also
 
-[dispersion](dispersion.md)
+[dispersion](dispersion.html)
 

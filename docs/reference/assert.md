@@ -22,5 +22,5 @@ assert(x > 0, "x must be positive")
 
 ## See Also
 
-[is_error](is_error.md), [error](error.md)
+[is_error](is_error.html), [error](error.html)
 

@@ -21,5 +21,5 @@ cumall([true, true, false, true])
 
 ## See Also
 
-[cumany](cumany.md)
+[cumany](cumany.html)
 

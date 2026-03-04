@@ -21,5 +21,5 @@ p_etl |> chain(p_model)
 
 ## See Also
 
-[union](union.md), [parallel](parallel.md)
+[union](union.html), [parallel](parallel.html)
 

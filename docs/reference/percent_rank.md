@@ -14,5 +14,5 @@ Returns: The percent rank.
 
 ## See Also
 
-[cume_dist](cume_dist.md)
+[cume_dist](cume_dist.html)
 

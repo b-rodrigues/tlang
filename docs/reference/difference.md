@@ -21,5 +21,5 @@ p_full |> difference(p_to_remove)
 
 ## See Also
 
-[patch](patch.md), [intersect](intersect.md), [union](union.md)
+[patch](patch.html), [intersect](intersect.html), [union](union.html)
 

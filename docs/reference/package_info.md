@@ -20,5 +20,5 @@ package_info("stats")
 
 ## See Also
 
-[packages](packages.md)
+[packages](packages.html)
 

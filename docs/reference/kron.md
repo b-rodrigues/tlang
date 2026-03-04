@@ -15,5 +15,5 @@ Returns: The Kronecker product.
 
 ## See Also
 
-[matmul](matmul.md)
+[matmul](matmul.html)
 

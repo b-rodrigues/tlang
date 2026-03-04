@@ -21,5 +21,5 @@ d = dispersion(model)
 
 ## See Also
 
-[sigma](sigma.md)
+[sigma](sigma.html)
 

@@ -20,5 +20,5 @@ pretty_print(df)
 
 ## See Also
 
-[print](print.md)
+[print](print.html)
 

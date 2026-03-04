@@ -22,5 +22,5 @@ sd([1, 2, 3, 4, 5])
 
 ## See Also
 
-[var](var.md), [mean](mean.md)
+[var](var.html), [mean](mean.html)
 

@@ -20,5 +20,5 @@ pipeline_roots(p)
 
 ## See Also
 
-[pipeline_nodes](pipeline_nodes.md), [pipeline_leaves](pipeline_leaves.md)
+[pipeline_nodes](pipeline_nodes.html), [pipeline_leaves](pipeline_leaves.html)
 

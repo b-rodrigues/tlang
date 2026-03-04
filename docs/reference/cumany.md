@@ -21,5 +21,5 @@ cumany([false, false, true, false])
 
 ## See Also
 
-[cumall](cumall.md)
+[cumall](cumall.html)
 

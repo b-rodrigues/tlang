@@ -21,5 +21,5 @@ cumsum([1, 2, 3])
 
 ## See Also
 
-[cummin](cummin.md), [cummax](cummax.md), [sum](sum.md)
+[cummin](cummin.html), [cummax](cummax.html), [sum](sum.html)
 

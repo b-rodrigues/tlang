@@ -22,5 +22,5 @@ summarize(group_by(mtcars, $cyl), $mean_hp = mean($hp))
 
 ## See Also
 
-[mutate](mutate.md), [group_by](group_by.md)
+[mutate](mutate.html), [group_by](group_by.html)
 

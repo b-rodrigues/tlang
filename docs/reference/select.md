@@ -21,5 +21,5 @@ select(mtcars, $mpg, $wt)
 
 ## See Also
 
-[mutate](mutate.md), [filter](filter.md)
+[mutate](mutate.html), [filter](filter.html)
 

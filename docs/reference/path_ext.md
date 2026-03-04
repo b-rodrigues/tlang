@@ -1,5 +1,7 @@
 # path_ext
 
+Get file extension
+
 ## Parameters
 
 - **path** (`String`): A file path.

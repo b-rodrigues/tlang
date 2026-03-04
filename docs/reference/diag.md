@@ -14,5 +14,5 @@ Returns: The diagonal matrix or vector.
 
 ## See Also
 
-[matmul](matmul.md)
+[matmul](matmul.html)
 

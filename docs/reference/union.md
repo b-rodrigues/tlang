@@ -21,5 +21,5 @@ p_etl |> union(p_model)
 
 ## See Also
 
-[rename_node](rename_node.md), [patch](patch.md), [intersect](intersect.md), [difference](difference.md)
+[rename_node](rename_node.html), [patch](patch.html), [intersect](intersect.html), [difference](difference.html)
 

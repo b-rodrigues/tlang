@@ -21,5 +21,5 @@ is_na(1)
 
 ## See Also
 
-[is_error](is_error.md), [na](na.md)
+[is_error](is_error.html), [na](na.html)
 

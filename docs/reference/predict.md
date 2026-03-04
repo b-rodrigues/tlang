@@ -22,5 +22,5 @@ preds = predict(mtcars, model)
 
 ## See Also
 
-[lm](lm.md)
+[lm](lm.html)
 

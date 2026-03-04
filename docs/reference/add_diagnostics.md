@@ -21,5 +21,5 @@ df = add_diagnostics(mtcars, model)
 
 ## See Also
 
-[lm](lm.md)
+[lm](lm.html)
 

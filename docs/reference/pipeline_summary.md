@@ -20,5 +20,5 @@ pipeline_summary(p)
 
 ## See Also
 
-[select_node](select_node.md), [pipeline_to_frame](pipeline_to_frame.md)
+[select_node](select_node.html), [pipeline_to_frame](pipeline_to_frame.html)
 

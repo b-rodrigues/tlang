@@ -22,5 +22,5 @@ conf_int(model, 0.99)
 
 ## See Also
 
-[summary](summary.md), [coef](coef.md)
+[summary](summary.html), [coef](coef.html)
 

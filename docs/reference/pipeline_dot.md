@@ -20,5 +20,5 @@ pipeline_dot(p)
 
 ## See Also
 
-[pipeline_edges](pipeline_edges.md), [pipeline_print](pipeline_print.md)
+[pipeline_edges](pipeline_edges.html), [pipeline_print](pipeline_print.html)
 

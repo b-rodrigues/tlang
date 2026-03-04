@@ -20,5 +20,5 @@ nrow(mtcars)
 
 ## See Also
 
-[length](length.md), [ncol](ncol.md)
+[length](length.html), [ncol](ncol.html)
 

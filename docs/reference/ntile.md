@@ -15,5 +15,5 @@ Returns: Bucket indices (1 to n).
 
 ## See Also
 
-[min_rank](min_rank.md)
+[min_rank](min_rank.html)
 

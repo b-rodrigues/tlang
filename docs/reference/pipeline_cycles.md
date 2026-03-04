@@ -20,5 +20,5 @@ pipeline_cycles(p)
 
 ## See Also
 
-[pipeline_assert](pipeline_assert.md), [pipeline_validate](pipeline_validate.md)
+[pipeline_assert](pipeline_assert.html), [pipeline_validate](pipeline_validate.html)
 

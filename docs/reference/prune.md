@@ -20,5 +20,5 @@ p |> difference(p_remove) |> prune
 
 ## See Also
 
-[difference](difference.md), [filter_node](filter_node.md)
+[difference](difference.html), [filter_node](filter_node.html)
 

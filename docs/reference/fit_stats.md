@@ -20,5 +20,5 @@ fit_stats(model)
 
 ## See Also
 
-[summary](summary.md), [lm](lm.md)
+[summary](summary.html), [lm](lm.html)
 

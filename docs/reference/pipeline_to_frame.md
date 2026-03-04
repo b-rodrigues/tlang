@@ -20,5 +20,5 @@ pipeline_to_frame(p)
 
 ## See Also
 
-[pipeline_nodes](pipeline_nodes.md), [select_node](select_node.md)
+[pipeline_nodes](pipeline_nodes.html), [select_node](select_node.html)
 

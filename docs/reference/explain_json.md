@@ -14,5 +14,5 @@ Returns: The JSON description.
 
 ## See Also
 
-[explain](explain.md)
+[explain](explain.html)
 

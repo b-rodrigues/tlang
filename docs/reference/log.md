@@ -21,5 +21,5 @@ log(2.71828)
 
 ## See Also
 
-[exp](exp.md)
+[exp](exp.html)
 

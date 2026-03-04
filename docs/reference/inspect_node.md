@@ -14,5 +14,5 @@ Returns: A dictionary with keys = name, runtime, path, serializer, class, depend
 
 ## See Also
 
-[rebuild_node](rebuild_node.md), [read_node](read_node.md)
+[rebuild_node](rebuild_node.html), [read_node](read_node.html)
 

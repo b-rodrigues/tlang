@@ -21,5 +21,5 @@ coefficients = s._tidy_df
 
 ## See Also
 
-[fit_stats](fit_stats.md), [lm](lm.md)
+[fit_stats](fit_stats.html), [lm](lm.html)
 
