@@ -178,7 +178,7 @@ let clean_one (name : string) : string =
 --# @param names :: Vector[String] The column names to clean.
 --# @return :: Vector[String] The cleaned column names.
 --# @family dataframe
---# @export
+--# @private
 *)
 let clean_names (names : string list) : string list =
   (* Apply single-name cleaning *)

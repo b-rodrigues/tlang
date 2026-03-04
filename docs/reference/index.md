@@ -30,7 +30,6 @@
 | [chain](chain.html) | Chain Two Pipelines |
 | [char_at](char_at.html) | Get character at index |
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
-| [clean_names](clean_names.html) | Clean Column Names |
 | [coef](coef.html) | Model Coefficients |
 | [colnames](colnames.html) | Get column names |
 | [compare](compare.html) | Compare Models |
@@ -52,7 +51,6 @@
 | [dataframe](dataframe.html) | Create a DataFrame |
 | [dense_rank](dense_rank.html) | Dense Rank |
 | [deserialize](deserialize.html) | Deserialize Value |
-| [deserialize_from_file](deserialize_from_file.html) | Binary Deserialization |
 | [df_residual](df_residual.html) | Residual Degrees of Freedom |
 | [diag](diag.html) | Create or extract diagonal |
 | [difference](difference.html) | Difference of Two Pipelines |
@@ -98,8 +96,6 @@
 | [is_error](is_error.html) | Check if a value is an Error |
 | [is_na](is_na.html) | Check for NA |
 | [join](join.html) | Join strings with a separator |
-| [json_escape](json_escape.html) | JSON String Escaper |
-| [json_unescape](json_unescape.html) | JSON String Unescaper |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
 | [lag](lag.html) | Lag values |
@@ -176,7 +172,6 @@
 | [read_csv](read_csv.html) | Read CSV file |
 | [read_file](read_file.html) | Read file contents |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
-| [read_registry](read_registry.html) | Registry Maintenance (Reader) |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
 | [rename_node](rename_node.html) | Rename a Pipeline Node |
 | [replace](replace.html) | Replace all occurrences |
@@ -197,7 +192,6 @@
 | [select_node](select_node.html) | Select Node Metadata Fields |
 | [seq](seq.html) | Generate a sequence of integers |
 | [serialize](serialize.html) | Serialize Value |
-| [serialize_to_file](serialize_to_file.html) | Binary Serialization |
 | [shape](shape.html) | Get NDArray dimensions |
 | [sigma](sigma.html) | Residual Standard Deviation |
 | [sign](sign.html) | Sign of number |
@@ -240,7 +234,6 @@
 | [type](type.html) | Get the type name of a value |
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Union of Two Pipelines |
-| [unknown](unknown.html) | Path manipulation builtins |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
 | [var](var.html) | Variance |
@@ -248,5 +241,4 @@
 | [wald_test](wald_test.html) | Joint Wald Test |
 | [winsorize](winsorize.html) | Winsorize values |
 | [write_csv](write_csv.html) | Write CSV file |
-| [write_registry](write_registry.html) | Registry Maintenance (Writer) |
 | [write_text](write_text.html) | Write text to a file |

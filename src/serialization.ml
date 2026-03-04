@@ -18,6 +18,7 @@ let ensure_parent_dir path =
 --# @param path :: String Destination file path.
 --# @param value :: Any The T value to serialize.
 --# @return :: Result[Null, String] Ok or error.
+--# @private
 *)
 let serialize_to_file path value =
   try
@@ -37,6 +38,7 @@ let serialize_to_file path value =
 --# @name deserialize_from_file
 --# @param path :: String Source file path.
 --# @return :: Result[Any, String] Value or error.
+--# @private
 *)
 let deserialize_from_file path =
   try
@@ -55,6 +57,7 @@ let deserialize_from_file path =
 --# @name json_escape
 --# @param s :: String The string to escape.
 --# @return :: String The escaped string.
+--# @private
 *)
 let json_escape s =
   let b = Buffer.create (String.length s + 8) in
@@ -76,6 +79,7 @@ let json_escape s =
 --# @name json_unescape
 --# @param s :: String The escaped string.
 --# @return :: String The literal string.
+--# @private
 *)
 let json_unescape s =
   let b = Buffer.create (String.length s) in
@@ -108,6 +112,7 @@ let json_unescape s =
 --# @param path :: String Destination file.
 --# @param entries :: List[(String, String)] Name-path pairs.
 --# @return :: Result[Null, String] Status.
+--# @private
 *)
 let write_registry path entries =
   try
@@ -133,6 +138,7 @@ let write_registry path entries =
 --# @name read_registry
 --# @param path :: String Source file.
 --# @return :: Result[List[(String, String)], String] Entries or error.
+--# @private
 *)
 let read_registry path =
   try

@@ -688,11 +688,13 @@ let () =
             ensure_dir out_dir;
             let entries = Tdoc_registry.get_all () in
             List.iter (fun (e : Tdoc_types.doc_entry) ->
-              let content = Tdoc_markdown.generate_function_doc e in
-              let path = Filename.concat out_dir (e.name ^ ".md") in
-              let ch = open_out path in
-              output_string ch content;
-              close_out ch
+              if e.is_export then begin
+                let content = Tdoc_markdown.generate_function_doc e in
+                let path = Filename.concat out_dir (e.name ^ ".md") in
+                let ch = open_out path in
+                output_string ch content;
+                close_out ch
+              end
             ) entries;
             let index_content = Tdoc_markdown.generate_index entries in
             let ch = open_out (Filename.concat out_dir "index.md") in

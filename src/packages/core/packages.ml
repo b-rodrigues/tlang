@@ -40,9 +40,10 @@ let ensure_docs_loaded () =
   Lazy.force docs_loaded
 
 let package_families = function
-  | "core" -> ["core"; "string"; "boolean"]
+  | "core" -> ["core"; "string"; "boolean"; "repl"; "package_manager"; "tdoc"]
   | "stats" -> ["stats"; "descriptive-statistics"]
-  | "base" | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" as pkg -> [pkg]
+  | "base" -> ["base"; "json"; "serialization"]
+  | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" as pkg -> [pkg]
   | _ -> []
 
 let dedup_sort_strings xs =

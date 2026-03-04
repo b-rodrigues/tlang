@@ -1,12 +1,7 @@
 open Ast
 
 (*
---# Path manipulation builtins
---#
---# Pure string operations that delegate to OCaml's Filename module.
---# No filesystem IO is performed — these are purely lexical path operations.
---#
---# @family core
+--# @private
 *)
 
 (** Extract a single string argument from a named-args list. *)
@@ -40,6 +35,8 @@ let normalize_path path =
   | parts -> String.concat "/" parts
 
 (*
+--# Join multiple path segments
+--#
 --# @name path_join
 --# @param ... :: String One or more path segments to join.
 --# @return :: String The joined path.
@@ -69,6 +66,8 @@ let builtin_path_join =
   )
 
 (*
+--# Get filename component of a path
+--#
 --# @name path_basename
 --# @param path :: String A file path.
 --# @return :: String The final component of the path.
@@ -85,6 +84,8 @@ let builtin_path_basename =
   )
 
 (*
+--# Get directory portion of a path
+--#
 --# @name path_dirname
 --# @param path :: String A file path.
 --# @return :: String The directory portion of the path.
@@ -101,6 +102,8 @@ let builtin_path_dirname =
   )
 
 (*
+--# Get file extension
+--#
 --# @name path_ext
 --# @param path :: String A file path.
 --# @return :: String | Null The file extension including the leading dot, or null if none.
@@ -121,6 +124,8 @@ let builtin_path_ext =
   )
 
 (*
+--# Get filename without extension
+--#
 --# @name path_stem
 --# @param path :: String A file path.
 --# @return :: String The filename without its extension.
@@ -140,6 +145,8 @@ let builtin_path_stem =
   )
 
 (*
+--# Resolve relative path to absolute
+--#
 --# @name path_abs
 --# @param path :: String A relative or absolute path.
 --# @return :: String The absolute path resolved against the current working directory.
