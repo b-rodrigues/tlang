@@ -404,7 +404,6 @@ let init_env () =
   let env = T_map.register ~eval_call:Eval.eval_call_immutable env in
   let env = Sum.register env in
   let env = T_get.register env in
-  let env = T_string.register env in
   let env = Help.register env in
   let env = String_ops.register env in
   let env = T_write_text.register env in
