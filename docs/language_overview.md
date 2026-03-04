@@ -542,7 +542,7 @@ All packages are loaded automatically at startup:
 
 | Package     | Functions                                               |
 |-------------|----------------------------------------------------------|
-| `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq` |
+| `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq`, `getwd`, `file_exists`, `dir_exists`, `read_file`, `list_files`, `env`, `path_join`, `path_basename`, `path_dirname`, `path_ext`, `path_stem`, `path_abs` |
 | `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`                   |
@@ -588,6 +588,34 @@ type(df)          -- "DataFrame"
 explain(df)       -- detailed DataFrame summary
 packages()        -- list of loaded packages
 package_info("stats")  -- package details
+```
+
+### Filesystem & Path Operations
+
+T provides a suite of functions for interacting with the filesystem and manipulating paths.
+
+#### Filesystem
+
+```t
+getwd()                        -- "/home/user/project"
+file_exists("data.csv")        -- true
+dir_exists("tests")            -- true
+list_files(".", pattern = ".t") -- ["test1.t", "test2.t"]
+read_file("config.json")       -- "{\"port\": 8080}"
+env("HOME")                    -- "/home/user"
+```
+
+#### Path Manipulation (Lexical)
+
+These functions are purely text-based and do not check the disk.
+
+```t
+path_join("dir", "sub", "f.txt") -- "dir/sub/f.txt"
+path_basename("/a/b/c.txt")      -- "c.txt"
+path_dirname("/a/b/c.txt")       -- "/a/b"
+path_ext("data.csv")             -- ".csv"
+path_stem("data.csv")            -- "data"
+path_abs("local.txt")            -- "/absolute/path/to/local.txt"
 ```
 
 ---

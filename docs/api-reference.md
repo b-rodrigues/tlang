@@ -9,6 +9,7 @@ Complete reference for all functions in T's standard library.
 
 ## Table of Contents
 
+- [Shell Interaction](#shell-interaction) — Executing commands from T
 - [Core Package](#core-package) — Basic functional utilities
 - [Base Package](#base-package) — Errors, NA, assertions
 - [Math Package](#math-package) — Mathematical functions
@@ -62,6 +63,27 @@ It is not used for general dictionary literals.
 
 An empty brace block `{}` parses as an empty block (`Block []`) and evaluates to `null` at runtime.
 Braces are never used for dictionary literals; dictionaries always use the bracket (`[...]`) syntax described above.
+ 
+---
+ 
+## Shell Interaction
+ 
+### Shell Escape (`?<{ ... }>`)
+ 
+T provides first-class support for executing shell commands using the `?<{ }>` syntax.
+ 
+- **As a Statement**: Prints output directly to `stdout`.
+- **As an Expression**: Captures `stdout` as a `String`.
+- **Error Handling**: Non-zero exit codes produce a `ShellError` containing `stderr`.
+- **Working Directory**: The `cd` command is special-cased to change the interpreter's working directory.
+ 
+**Examples:**
+```t
+?<{ls -la}>             -- Prints directory listing
+files = ?<{ls}>         -- Captures filenames in a string
+?<{cd /tmp}>            -- Changes working directory to /tmp
+```
+
 
 ---
 
@@ -323,6 +345,146 @@ is_error(42)             -- false
 is_error(error("msg"))   -- true
 is_error(1 / 0)          -- true
 ```
+ 
+---
+ 
+### `getwd()`
+ 
+Returns the current working directory of the T interpreter.
+ 
+**Returns:** `String` — Working directory path
+ 
+---
+ 
+### `file_exists(path)`
+ 
+Check if a regular file exists at the given path. Returns `false` for directories.
+ 
+**Parameters:**
+- `path` — File path (String or Symbol)
+ 
+**Returns:** `Bool`
+ 
+---
+ 
+### `dir_exists(path)`
+ 
+Check if a directory exists at the given path.
+ 
+**Parameters:**
+- `path` — Directory path (String or Symbol)
+ 
+**Returns:** `Bool`
+ 
+---
+ 
+### `read_file(path)`
+ 
+Read the entire contents of a file as a string.
+ 
+**Parameters:**
+- `path` — File path (String or Symbol)
+ 
+**Returns:** `String` or `Error(FileError)`
+ 
+---
+ 
+### `list_files(path, pattern)`
+ 
+List files and directories in a given path.
+ 
+**Parameters:**
+- `path` (optional) — Directory to list (default: ".")
+- `pattern` (optional) — Regex pattern to filter filenames
+ 
+**Returns:** `List[String]` or `Error(FileError)`
+ 
+---
+ 
+### `env(name)`
+ 
+Get the value of an environment variable.
+ 
+**Parameters:**
+- `name` — Environment variable name (String or Symbol)
+ 
+**Returns:** `String` or `null` if not found
+ 
+---
+ 
+### `exit(code)`
+ 
+Exits the T interpreter.
+ 
+**Parameters:**
+- `code` (optional) — Exit code integer (default: 0)
+ 
+---
+ 
+### `path_join(...)`
+ 
+Join multiple path segments using the system-specific separator.
+ 
+**Parameters:**
+- `...` — One or more path segments (String or Symbol)
+ 
+**Returns:** `String`
+ 
+---
+ 
+### `path_basename(path)`
+ 
+Get the filename/last component of a path.
+ 
+**Parameters:**
+- `path` — Path string
+ 
+**Returns:** `String`
+ 
+---
+ 
+### `path_dirname(path)`
+ 
+Get the directory portion of a path.
+ 
+**Parameters:**
+- `path` — Path string
+ 
+**Returns:** `String`
+ 
+---
+ 
+### `path_ext(path)`
+ 
+Get the file extension (including the dot). Returns `null` if no extension is found.
+ 
+**Parameters:**
+- `path` — Path string
+ 
+**Returns:** `String` or `null`
+ 
+---
+ 
+### `path_stem(path)`
+ 
+Get the filename without its extension.
+ 
+**Parameters:**
+- `path` — Path string
+ 
+**Returns:** `String`
+ 
+---
+ 
+### `path_abs(path)`
+ 
+Resolves a relative path to an absolute path against the current working directory.
+ 
+**Parameters:**
+- `path` — Path string
+ 
+**Returns:** `String`
+
 
 ---
 
