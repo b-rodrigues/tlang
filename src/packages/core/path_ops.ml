@@ -10,14 +10,14 @@ open Ast
 *)
 
 (** Extract a single string argument from a named-args list. *)
-let get_path_arg args =
+let get_path_arg fname args =
   match args with
   | [(_, VString s)] -> Ok s
   | [(_, VSymbol s)] -> Ok s
   | [(_, other)] ->
-      Error (Printf.sprintf "Expected String path, got %s" (Utils.type_name other))
-  | [] -> Error "Missing required path argument"
-  | _  -> Error "Too many arguments"
+      Error (Printf.sprintf "Function `%s` expects a String path, got %s." fname (Utils.type_name other))
+  | [] -> Error (Printf.sprintf "Function `%s` expects a String path argument." fname)
+  | _  -> Error (Printf.sprintf "Function `%s` expects exactly one path argument, got %d." fname (List.length args))
 
 (** Normalize a path by resolving . and .. segments.
     Does not access the filesystem — purely lexical. *)
@@ -75,7 +75,7 @@ let builtin_path_join =
 *)
 let builtin_path_basename =
   make_builtin_named ~name:"path_basename" 1 (fun args _env ->
-    match get_path_arg args with
+    match get_path_arg "path_basename" args with
     | Error msg -> Error.make_error TypeError msg
     | Ok path -> VString (Filename.basename path)
   )
@@ -89,7 +89,7 @@ let builtin_path_basename =
 *)
 let builtin_path_dirname =
   make_builtin_named ~name:"path_dirname" 1 (fun args _env ->
-    match get_path_arg args with
+    match get_path_arg "path_dirname" args with
     | Error msg -> Error.make_error TypeError msg
     | Ok path -> VString (Filename.dirname path)
   )
@@ -104,7 +104,7 @@ let builtin_path_dirname =
 *)
 let builtin_path_ext =
   make_builtin_named ~name:"path_ext" 1 (fun args _env ->
-    match get_path_arg args with
+    match get_path_arg "path_ext" args with
     | Error msg -> Error.make_error TypeError msg
     | Ok path ->
         (match Filename.extension path with
@@ -122,7 +122,7 @@ let builtin_path_ext =
 *)
 let builtin_path_stem =
   make_builtin_named ~name:"path_stem" 1 (fun args _env ->
-    match get_path_arg args with
+    match get_path_arg "path_stem" args with
     | Error msg -> Error.make_error TypeError msg
     | Ok path ->
         let base = Filename.basename path in
@@ -139,7 +139,7 @@ let builtin_path_stem =
 *)
 let builtin_path_abs =
   make_builtin_named ~name:"path_abs" 1 (fun args _env ->
-    match get_path_arg args with
+    match get_path_arg "path_abs" args with
     | Error msg -> Error.make_error TypeError msg
     | Ok path ->
         if not (Filename.is_relative path) then
