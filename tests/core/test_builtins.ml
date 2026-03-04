@@ -53,6 +53,37 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "env wrong type" {|env(42)|} {|Error(TypeError: "Function `env` expects a String, got Int.")|};
   print_newline ();
 
+  Printf.printf "Path Builtins:\n";
+  test "path_join two segments" {|path_join("/home/user", "data.csv")|} {|"/home/user/data.csv"|};
+  test "path_join three segments" {|path_join("/home/user", "project", "data.csv")|} {|"/home/user/project/data.csv"|};
+  test "path_join relative" {|path_join("relative", "path")|} {|"relative/path"|};
+  test "path_join single arg" {|path_join("/home")|} {|"/home"|};
+  test "path_join zero args" {|path_join()|} {|Error(ArityError: "path_join requires at least one argument")|};
+  test "path_join wrong type" {|path_join(42)|} {|Error(TypeError: "path_join: all arguments must be String, got Int")|};
+  test "path_basename full path" {|path_basename("/home/user/data.csv")|} {|"data.csv"|};
+  test "path_basename filename only" {|path_basename("data.csv")|} {|"data.csv"|};
+  test "path_basename wrong type" {|path_basename(42)|} {|Error(TypeError: "Function `path_basename` expects a String path, got Int.")|};
+  test "path_dirname full path" {|path_dirname("/home/user/data.csv")|} {|"/home/user"|};
+  test "path_dirname filename only" {|path_dirname("data.csv")|} {|"."|};
+  test "path_dirname root" {|path_dirname("/")|} {|"/"|};
+  test "path_dirname wrong type" {|path_dirname(42)|} {|Error(TypeError: "Function `path_dirname` expects a String path, got Int.")|};
+  test "path_ext with extension" {|path_ext("data.csv")|} {|".csv"|};
+  test "path_ext no extension" {|path_ext("Makefile")|} "null";
+  test "path_ext dotfile" {|path_ext(".hidden")|} "null";
+  test "path_ext last extension only" {|path_ext("archive.tar.gz")|} {|".gz"|};
+  test "path_ext wrong type" {|path_ext(42)|} {|Error(TypeError: "Function `path_ext` expects a String path, got Int.")|};
+  test "path_stem removes extension" {|path_stem("data.csv")|} {|"data"|};
+  test "path_stem no extension unchanged" {|path_stem("Makefile")|} {|"Makefile"|};
+  test "path_stem dotfile unchanged" {|path_stem(".hidden")|} {|".hidden"|};
+  test "path_stem last ext only" {|path_stem("archive.tar.gz")|} {|"archive.tar"|};
+  test "path_stem with full path" {|path_stem("/home/user/data.csv")|} {|"data"|};
+  test "path_stem wrong type" {|path_stem(42)|} {|Error(TypeError: "Function `path_stem` expects a String path, got Int.")|};
+  test "path_abs absolute unchanged" {|path_abs("/already/absolute")|} {|"/already/absolute"|};
+  test "path_abs relative becomes absolute" {|path_abs("data.csv") |> path_basename|} {|"data.csv"|};
+  test "path_abs relative starts with slash" {|starts_with(path_abs("data.csv"), "/")|} "true";
+  test "path_abs wrong type" {|path_abs(42)|} {|Error(TypeError: "Function `path_abs` expects a String path, got Int.")|};
+  print_newline ();
+
   Printf.printf "Error Handling:\n";
   test "error propagation in addition" "(1 / 0) + 1" {|Error(DivisionByZero: "Division by zero.")|};
   test "error in list" "[1, 1/0, 3]" {|Error(DivisionByZero: "Division by zero.")|};
