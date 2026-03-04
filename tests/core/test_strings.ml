@@ -55,4 +55,28 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "join scalar" "join(\"a\", \"-\")" "\"a\"";
   test "concat error" "\"a\" + \"b\"" {|Error(TypeError: "String concatenation with '+' is not supported. Use 'join([a, b], sep)' or 'paste(a, b, sep)' instead.")|};
 
+  Printf.printf "  Trim:\n";
+  test "trim both" "trim(\"  hello  \")" "\"hello\"";
+  test "trim start" "trim_start(\"  hello  \")" "\"hello  \"";
+  test "trim end" "trim_end(\"  hello  \")" "\"  hello\"";
+  test "trim newline" "trim(\"\\n\\t hello \\n\")" "\"hello\"";
+  
+  Printf.printf "  Lines & Words:\n";
+  test "lines basic" "lines(\"a\\nb\\nc\")" "[\"a\", \"b\", \"c\"]";
+  test "lines trailing" "lines(\"a\\nb\\nc\\n\")" "[\"a\", \"b\", \"c\"]";
+  test "lines windows" "lines(\"a\\r\\nb\\r\\nc\")" "[\"a\", \"b\", \"c\"]";
+  test "lines empty" "lines(\"\")" "[\"\"]";
+  test "words basic" "words(\"hello   world\")" "[\"hello\", \"world\"]";
+  test "words leading" "words(\"  leading and trailing  \")" "[\"leading\", \"and\", \"trailing\"]";
+  test "words empty" "words(\"\")" "[]";
+  
+  Printf.printf "  Repeat & Format:\n";
+  test "str_repeat" "str_repeat(\"x\", 3)" "\"xxx\"";
+  test "str_repeat zero" "str_repeat(\"x\", 0)" "\"\"";
+  test "str_repeat negative" "str_repeat(\"x\", -1)" {|Error(ValueError: "str_repeat: count must be non-negative.")|};
+  test "str_format dict" "str_format(\"Hello, {name}!\", [name: \"Bruno\"])" "\"Hello, Bruno!\"";
+  test "str_format list" "str_format(\"Host: {host}, Port: {port}\", [host: \"localhost\", port: \"5432\"])" "\"Host: localhost, Port: 5432\"";
+  test "str_format missing" "str_format(\"Hello, {name}!\", [:])" {|Error(KeyError: "str_format: no value provided for key '{name}'.")|};
+  test "str_format unclosed" "str_format(\"Hello, {name!\", [name: \"x\"])" {|Error(ValueError: "str_format: unclosed '{' in format string.")|};
+
   print_newline ()

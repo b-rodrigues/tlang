@@ -38,7 +38,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* strsplit integration *)
   test "strsplit with newline"
-    "lines = strsplit(?<{printf \"a\\nb\\nc\"}>  , \"\\n\"); length(lines)"
+    "my_lines = strsplit(?<{printf \"a\\nb\\nc\"}>  , \"\\n\"); length(my_lines)"
     "3";
   
   (* run() builtin tests *)

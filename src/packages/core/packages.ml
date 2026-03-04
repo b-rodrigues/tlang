@@ -71,6 +71,7 @@ let core_package = {
   description = "Core utilities: printing, type inspection, data structures, strings";
   functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "sprintf"; "string"; "get";
                "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
+               "trim"; "trim_start"; "trim_end"; "lines"; "words"; "str_repeat"; "str_format";
                "ifelse"; "case_when"; "run"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }

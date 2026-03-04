@@ -182,6 +182,149 @@ let to_upper_scalar args _env =
 
 let to_upper_impl args env = vectorize_unary to_upper_scalar args env
 
+(* Helper used by trim_start and trim_end — not exported *)
+let ltrim s =
+  let len = String.length s in
+  let i = ref 0 in
+  while !i < len && (s.[!i] = ' ' || s.[!i] = '\t' || s.[!i] = '\n' || s.[!i] = '\r') do
+    incr i
+  done;
+  String.sub s !i (len - !i)
+
+let rtrim s =
+  let len = String.length s in
+  let i = ref (len - 1) in
+  while !i >= 0 && (s.[!i] = ' ' || s.[!i] = '\t' || s.[!i] = '\n' || s.[!i] = '\r') do
+    decr i
+  done;
+  String.sub s 0 (!i + 1)
+
+let trim_scalar args _env =
+  match args with
+  | [VString s] -> VString (String.trim s)
+  | _ -> Error.type_error "trim expects a String."
+
+let trim_impl args env = vectorize_unary trim_scalar args env
+
+let trim_start_scalar args _env =
+  match args with
+  | [VString s] -> VString (ltrim s)
+  | _ -> Error.type_error "trim_start expects a String."
+
+let trim_start_impl args env = vectorize_unary trim_start_scalar args env
+
+let trim_end_scalar args _env =
+  match args with
+  | [VString s] -> VString (rtrim s)
+  | _ -> Error.type_error "trim_end expects a String."
+
+let trim_end_impl args env = vectorize_unary trim_end_scalar args env
+
+let lines_impl args _env =
+  let do_lines s =
+    (* Normalise \r\n to \n before splitting *)
+    let normalised =
+      let re = Str.regexp "\r\n" in
+      Str.global_replace re "\n" s
+    in
+    (* Strip a single trailing newline if present *)
+    let trimmed =
+      let len = String.length normalised in
+      if len > 0 && normalised.[len - 1] = '\n' then
+        String.sub normalised 0 (len - 1)
+      else normalised
+    in
+    let parts = String.split_on_char '\n' trimmed in
+    VList (List.map (fun line -> (None, VString line)) parts)
+  in
+  match args with
+  | [VString s]                        -> do_lines s
+  | [VShellResult { sr_stdout; _ }]    -> do_lines sr_stdout
+  | [other] ->
+      Error.type_error
+        (Printf.sprintf "lines expects a String or ShellResult, got %s"
+           (Utils.type_name other))
+  | _ -> Error.arity_error_named "lines" ~expected:1 ~received:(List.length args)
+
+let words_impl args _env =
+  let do_words s =
+    let trimmed = String.trim s in
+    if trimmed = "" then VList []
+    else
+      let re = Str.regexp "[ \t]+" in
+      let parts = Str.split re trimmed in
+      VList (List.map (fun w -> (None, VString w)) parts)
+  in
+  match args with
+  | [VString s]                     -> do_words s
+  | [VShellResult { sr_stdout; _ }] -> do_words sr_stdout
+  | [other] ->
+      Error.type_error
+        (Printf.sprintf "words expects a String or ShellResult, got %s"
+           (Utils.type_name other))
+  | _ -> Error.arity_error_named "words" ~expected:1 ~received:(List.length args)
+
+let str_repeat_scalar args _env =
+  match args with
+  | [VString s; VInt n] ->
+      if n < 0 then
+        Error.value_error "str_repeat: count must be non-negative."
+      else
+        let buf = Buffer.create (String.length s * n) in
+        for _ = 1 to n do Buffer.add_string buf s done;
+        VString (Buffer.contents buf)
+  | _ -> Error.type_error "str_repeat expects (String, Int)."
+
+let str_repeat_impl args env = vectorize_binary str_repeat_scalar args env
+
+let str_format_impl args _env =
+  match args with
+  | [VString fmt; VDict _] | [VString fmt; VList _] ->
+      (* Normalise: VList named items and VDict both become (string * string) list *)
+      let lookup =
+        match List.nth args 1 with
+        | VDict d ->
+            List.map (fun (k, v) -> (k, Ast.Utils.value_to_raw_string v)) d
+        | VList items ->
+            List.filter_map (fun (name_opt, v) ->
+              match name_opt with
+              | Some k -> Some (k, Ast.Utils.value_to_raw_string v)
+              | None   -> None
+            ) items
+        | _ -> []
+      in
+      let len = String.length fmt in
+      let buf = Buffer.create len in
+      let i   = ref 0 in
+      let result = ref None in
+      while !i < len && !result = None do
+        if fmt.[!i] = '{' then begin
+          (* Find closing brace *)
+          match String.index_from_opt fmt (!i + 1) '}' with
+          | None ->
+              result := Some (Error.make_error ValueError
+                "str_format: unclosed '{' in format string.")
+          | Some j ->
+              let key = String.sub fmt (!i + 1) (j - !i - 1) in
+              (match List.assoc_opt key lookup with
+               | Some v -> Buffer.add_string buf v; i := j + 1
+               | None   ->
+                   result := Some (Error.make_error KeyError
+                     (Printf.sprintf "str_format: no value provided for key '{%s}'." key)))
+        end else begin
+          Buffer.add_char buf fmt.[!i];
+          incr i
+        end
+      done;
+      (match !result with
+       | Some err -> err
+       | None     -> VString (Buffer.contents buf))
+  | [VString _; other] ->
+      Error.type_error
+        (Printf.sprintf "str_format expects a Dict or named List as the second argument, got %s"
+           (Utils.type_name other))
+  | _ -> Error.type_error "str_format expects (String, Dict) or (String, named List)."
+
 let length_scalar args _env =
   match args with
   | [VString _] -> Error.type_error "length does not work on strings. Use nchar() to get the number of characters in a string."
@@ -558,6 +701,78 @@ let strsplit_impl args _env =
 --# @export
 *)
 
+(*
+--# Trim whitespace
+--# Removes leading and trailing whitespace from a string. Vectorized.
+--# @name trim
+--# @param s :: String The string to trim.
+--# @return :: String The trimmed string.
+--# @family string
+--# @export
+*)
+
+(*
+--# Trim leading whitespace
+--# @name trim_start
+--# @param s :: String
+--# @return :: String
+--# @family string
+--# @export
+*)
+
+(*
+--# Trim trailing whitespace
+--# @name trim_end
+--# @param s :: String
+--# @return :: String
+--# @family string
+--# @export
+*)
+
+(*
+--# Split string into lines
+--# Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
+--# @name lines
+--# @param s :: String | ShellResult
+--# @return :: List[String]
+--# @family string
+--# @seealso words, strsplit
+--# @export
+*)
+
+(*
+--# Split string into words
+--# Splits on whitespace, collapsing consecutive spaces. Accepts ShellResult.
+--# @name words
+--# @param s :: String | ShellResult
+--# @return :: List[String]
+--# @family string
+--# @seealso lines, strsplit
+--# @export
+*)
+
+(*
+--# Repeat a string
+--# @name str_repeat
+--# @param s :: String The string to repeat.
+--# @param n :: Int Number of repetitions.
+--# @return :: String
+--# @family string
+--# @export
+*)
+
+(*
+--# Named string interpolation
+--# Substitutes {name} placeholders using values from a Dict or named List.
+--# @name str_format
+--# @param fmt :: String The format string with {name} placeholders.
+--# @param values :: Dict | List The named values to substitute.
+--# @return :: String The formatted string.
+--# @family string
+--# @seealso sprintf
+--# @export
+*)
+
 let register env =
   let env = Env.add "is_empty" (make_builtin ~name:"is_empty" 1 is_empty_impl) env in
   let env = Env.add "length" (make_builtin ~name:"length" 1 length_impl) env in
@@ -574,6 +789,13 @@ let register env =
   let env = Env.add "replace_first" (make_builtin ~name:"replace_first" 3 replace_first_impl) env in
   let env = Env.add "to_lower" (make_builtin ~name:"to_lower" 1 to_lower_impl) env in
   let env = Env.add "to_upper" (make_builtin ~name:"to_upper" 1 to_upper_impl) env in
+  let env = Env.add "trim"        (make_builtin ~name:"trim"        1 trim_impl)        env in
+  let env = Env.add "trim_start"  (make_builtin ~name:"trim_start"  1 trim_start_impl)  env in
+  let env = Env.add "trim_end"    (make_builtin ~name:"trim_end"    1 trim_end_impl)    env in
+  let env = Env.add "lines"       (make_builtin ~name:"lines"       1 lines_impl)       env in
+  let env = Env.add "words"       (make_builtin ~name:"words"       1 words_impl)       env in
+  let env = Env.add "str_repeat"  (make_builtin ~name:"str_repeat"  2 str_repeat_impl)  env in
+  let env = Env.add "str_format"  (make_builtin ~name:"str_format"  2 str_format_impl)  env in
   let env = Env.add "sprintf" (make_builtin ~name:"sprintf" ~variadic:true 1 sprintf_impl) env in
   let env = Env.add "join" (make_builtin ~name:"join" ~variadic:true 1 join_impl) env in
   let env = Env.add "string" (make_builtin ~name:"string" 1 string_impl) env in
