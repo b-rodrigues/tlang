@@ -47,14 +47,14 @@ let register env =
       | [(_, VString path)] | [(_, VSymbol path)] ->
           (try
             let ic = open_in path in
-            Fun.protect ~finally:(fun () -> close_in ic) (fun () ->
+            Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
               let n = in_channel_length ic in
               let buf = Bytes.create n in
               really_input ic buf 0 n;
               VString (Bytes.to_string buf)
             )
-          with Sys_error msg ->
-            Error.make_error FileError (Printf.sprintf "read_file: %s" msg))
+          with exn ->
+            Error.make_error FileError (Printf.sprintf "read_file: %s" (Printexc.to_string exn)))
       | [(_, other)] ->
           Error.type_error (Printf.sprintf "Function `read_file` expects a String, got %s." (Utils.type_name other))
       | _ -> Error.arity_error_named "read_file" ~expected:1 ~received:(List.length args)
@@ -64,38 +64,48 @@ let register env =
   let env = Env.add "list_files"
     (make_builtin_named ~name:"list_files" ~variadic:true 0 (fun args _env ->
       let positional = List.filter (fun (name, _) -> name = None) args in
+      let n_positional = List.length positional in
+      if n_positional > 1 then
+        Error.arity_error_named "list_files" ~expected:1 ~received:n_positional
+      else
       let path_result = match positional with
-        | (_, VString s) :: _ -> Ok s
-        | (_, VSymbol s) :: _ -> Ok s
-        | (_, other) :: _ ->
+        | [(_, VString s)] | [(_, VSymbol s)] -> Ok s
+        | [(_, other)] ->
             Error (Printf.sprintf "Function `list_files` expects a String path, got %s." (Utils.type_name other))
-        | [] -> Ok "."
+        | _ -> Ok "."
       in
       match path_result with
       | Error msg -> Error.type_error msg
       | Ok path ->
-          let pattern = match List.assoc_opt (Some "pattern") args with
-            | Some (VString s) -> Some s
-            | Some (VSymbol s) -> Some s
-            | _ -> None
+          let pattern_result = match List.assoc_opt (Some "pattern") args with
+            | Some (VString s) | Some (VSymbol s) ->
+                (match Str.regexp s with
+                 | exception Failure msg ->
+                     Error (Printf.sprintf "Invalid pattern for `list_files`: %s" msg)
+                 | re -> Ok (Some re))
+            | None -> Ok None
+            | Some other ->
+                Error (Printf.sprintf "Argument `pattern` of `list_files` must be a String, got %s." (Utils.type_name other))
           in
-          (try
-            let entries = Sys.readdir path in
-            let filenames = Array.to_list entries in
-            let filtered = match pattern with
-              | None -> filenames
-              | Some pat ->
-                  let re = Str.regexp pat in
-                  List.filter (fun name ->
-                    match Str.search_forward re name 0 with
-                    | exception Not_found -> false
-                    | _ -> true
-                  ) filenames
-            in
-            let sorted = List.sort String.compare filtered in
-            VList (List.map (fun name -> (None, VString name)) sorted)
-          with Sys_error msg ->
-            Error.make_error FileError (Printf.sprintf "list_files: %s" msg))
+          (match pattern_result with
+           | Error msg -> Error.type_error msg
+           | Ok compiled_pattern ->
+               (try
+                 let entries = Sys.readdir path in
+                 let filenames = Array.to_list entries in
+                 let filtered = match compiled_pattern with
+                   | None -> filenames
+                   | Some re ->
+                       List.filter (fun name ->
+                         match Str.search_forward re name 0 with
+                         | exception Not_found -> false
+                         | _ -> true
+                       ) filenames
+                 in
+                 let sorted = List.sort String.compare filtered in
+                 VList (List.map (fun name -> (None, VString name)) sorted)
+               with Sys_error msg ->
+                 Error.make_error FileError (Printf.sprintf "list_files: %s" msg)))
     ))
     env
   in
