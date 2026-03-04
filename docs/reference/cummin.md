@@ -8,15 +8,15 @@ Calculates the cumulative minimum of a vector.
 
 - **x** (`Vector`): The input numeric vector.
 
-## Returns
+## Returns:
 
-The cumulative minimum.
+Returns: The cumulative minimum.
 
 ## Examples
 
 ```t
 cummin([3, 2, 4, 1])
--- Returns: [3, 2, 2, 1]
+-- Returns = [3, 2, 2, 1]
 ```
 
 ## See Also

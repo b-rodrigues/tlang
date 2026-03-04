@@ -8,18 +8,18 @@ Returns a dictionary where keys are parameter names and values are their types. 
 
 - **fn** (`Function`): The function to inspect.
 
-## Returns
+## Returns:
 
-A dictionary of name: Type.
+Returns: A dictionary of name = Type.
 
 ## Examples
 
 ```t
 args(sqrt)
--- Returns: {x: "Number | Vector | NDArray"}
+-- Returns: {x = "Number | Vector | NDArray"}
 
-f = \(x: Int, y: Float -> Int) x + y
+f = \(x = Int, y = Float -> Int) x + y
 args(f)
--- Returns: {x: "Int", y: "Float"}
+-- Returns: {x: "Int", y = "Float"}
 ```
 

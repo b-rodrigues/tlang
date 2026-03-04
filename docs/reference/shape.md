@@ -8,9 +8,9 @@ Returns the shape of an NDArray as a list of integers.
 
 - **array** (`NDArray`): The array to inspect.
 
-## Returns
+## Returns:
 
-The dimensions of the array.
+Returns: The dimensions of the array.
 
 ## See Also
 

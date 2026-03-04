@@ -8,7 +8,7 @@ Returns the human-readable message associated with an error.
 
 - **x** (`Error`): The error value to inspect.
 
-## Returns
+## Returns:
 
-The error message.
+Returns: The error message.
 

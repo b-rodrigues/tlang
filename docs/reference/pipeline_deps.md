@@ -8,9 +8,9 @@ Returns a dictionary mapping node names to their dependencies.
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns
+## Returns:
 
-The dependency graph.
+Returns: The dependency graph.
 
 ## See Also
 

@@ -9,9 +9,9 @@ Extracts a single column from a DataFrame as a Vector.
 - **df** (`DataFrame`): The input DataFrame.
 - **col** (`String`): The column name.
 
-## Returns
+## Returns:
 
-The column data.
+Returns: The column data.
 
 ## Examples
 

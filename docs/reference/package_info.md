@@ -8,9 +8,9 @@ Returns metadata for a specific package, including its description and functions
 
 - **name** (`String`): The name of the package.
 
-## Returns
+## Returns:
 
-Package metadata.
+Returns: Package metadata.
 
 ## Examples
 

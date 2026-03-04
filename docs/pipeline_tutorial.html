@@ -151,6 +151,29 @@ for Python and R runtimes. T enforces cross-runtime safety: if a node
 with a non-<code>T</code> runtime depends on a <code>T</code> node, or
 vice versa, you should specify an explicit
 <code>serializer</code>/<code>deserializer</code>.</p>
+<h3 id="using-the-script-argument">Using the <code>script</code>
+Argument</h3>
+<p>Instead of inlining code with <code>command</code>, you can point a
+node to an external source file using the <code>script</code> argument.
+This works with <code>node()</code>, <code>pyn()</code>, and
+<code>rn()</code>. The <code>script</code> and <code>command</code>
+arguments are mutually exclusive.</p>
+<pre class="t"><code>p = pipeline {
+  -- Execute an external R script
+  model = rn(script = &quot;train_model.R&quot;, serializer = &quot;pmml&quot;)
+
+  -- Execute an external Python script
+  predictions = pyn(script = &quot;predict.py&quot;, deserializer = &quot;pmml&quot;)
+
+  -- node() auto-detects the runtime from the file extension
+  summary = node(script = &quot;summarise.R&quot;, serializer = &quot;json&quot;)
+}</code></pre>
+<p>When using <code>script</code>, the runtime is auto-detected from the
+file extension (<code>.R</code> → R, <code>.py</code> → Python) if not
+explicitly set via the <code>runtime</code> argument. T reads the script
+file to extract identifier references, allowing the pipeline dependency
+graph to be built correctly from variables referenced in the external
+file.</p>
 <hr />
 <h2 id="cross-language-integration">3. Cross-Language Integration</h2>
 <p>T is designed to orchestrate code across multiple languages. The
@@ -458,15 +481,15 @@ execution:</p>
 <code>populate_pipeline()</code> (or <code>build_pipeline()</code>).
 This ensures that non-interactive execution always produces reproducible
 Nix artifacts.</p>
-<div class="sourceCode" id="cb27"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — script defines and populates a pipeline</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.</span></span>
-<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the REPL for interactive exploration, or pass --unsafe to override.</span></span></code></pre></div>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — script defines and populates a pipeline</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the REPL for interactive exploration, or pass --unsafe to override.</span></span></code></pre></div>
 <p>A valid pipeline script looks like:</p>
 <pre class="t"><code>-- my_pipeline.t
 p = pipeline {
@@ -478,14 +501,14 @@ populate_pipeline(p, build = true)</code></pre>
 <h3 id="interactive-repl">Interactive (REPL)</h3>
 <p>The REPL is <strong>unrestricted</strong> — you can run any T code
 line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb29"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
 <hr />
 <h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each
@@ -555,22 +578,6 @@ e = explain(p)
 e.kind        -- &quot;pipeline&quot;
 e.node_count  -- 3</code></pre>
 <hr />
-<h2 id="best-practices">Best Practices</h2>
-<ol type="1">
-<li><strong>Name nodes descriptively</strong>: Use names like
-<code>raw_data</code>, <code>filtered_sales</code>,
-<code>summary_stats</code></li>
-<li><strong>Keep nodes focused</strong>: Each node should do one
-thing</li>
-<li><strong>Use pipes within nodes</strong>: Combine pipeline structure
-with pipe operator for readability</li>
-<li><strong>Inspect before consuming</strong>: Use
-<code>pipeline_nodes()</code> and <code>pipeline_deps()</code> to
-understand pipeline structure</li>
-<li><strong>Build incrementally</strong>: Start with data loading, add
-transformations one node at a time</li>
-</ol>
-<hr />
 <h2 id="skipping-nodes">19. Skipping Nodes</h2>
 <p>You can explicitly skip a node (and by extension, all nodes that
 depend on it) by passing the <code>noop = true</code> argument to the
@@ -591,6 +598,478 @@ depend on it) by passing the <code>noop = true</code> argument to the
 populate_pipeline(p, build = true)</code></pre>
 <p>In a Nix sandbox context, <code>noop</code> generates a lightweight
 stub instead of a real build derivation.</p>
+<hr />
+<h2 id="node-metadata">20. Node Metadata</h2>
+<p>Every node in a pipeline carries structured metadata that you can
+query and manipulate. The <code>pipeline_to_frame()</code> function
+converts this metadata into a DataFrame with one row per node.</p>
+<h3 id="pipeline_to_frame"><code>pipeline_to_frame</code></h3>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+pipeline_to_frame(p)
+-- DataFrame(3 rows x 8 cols: [name, runtime, serializer, deserializer, noop, deps, depth, command_type])</code></pre>
+<p>The columns returned are:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>String</td>
+<td>Unique node identifier</td>
+</tr>
+<tr>
+<td><code>runtime</code></td>
+<td>String</td>
+<td><code>"T"</code>, <code>"R"</code>, or <code>"Python"</code></td>
+</tr>
+<tr>
+<td><code>serializer</code></td>
+<td>String</td>
+<td>e.g. <code>"default"</code>, <code>"pmml"</code></td>
+</tr>
+<tr>
+<td><code>deserializer</code></td>
+<td>String</td>
+<td>e.g. <code>"default"</code>, <code>"pmml"</code></td>
+</tr>
+<tr>
+<td><code>noop</code></td>
+<td>Bool</td>
+<td>Whether the node is a no-op</td>
+</tr>
+<tr>
+<td><code>deps</code></td>
+<td>String</td>
+<td>Comma-separated dependency names</td>
+</tr>
+<tr>
+<td><code>depth</code></td>
+<td>Int</td>
+<td>Topological depth (roots = 0)</td>
+</tr>
+<tr>
+<td><code>command_type</code></td>
+<td>String</td>
+<td><code>"command"</code> or <code>"script"</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>pipeline_to_frame</code> is the foundation for inspection: you
+can use T’s standard <code>filter</code>, <code>select</code>, and
+<code>arrange</code> verbs on the resulting DataFrame.</p>
+<h3 id="pipeline_summary"><code>pipeline_summary</code></h3>
+<p><code>pipeline_summary(p)</code> is a convenience alias for
+<code>pipeline_to_frame(p)</code>:</p>
+<pre class="t"><code>pipeline_summary(p)
+-- same output as pipeline_to_frame(p)</code></pre>
+<h3 id="select_node"><code>select_node</code></h3>
+<p><code>select_node</code> returns a DataFrame with only the columns
+you request, using NSE <code>$field</code> references:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = node(command = &lt;{ 2 }&gt;, runtime = R, serializer = &quot;pmml&quot;)
+  c = b + 1
+}
+
+p |&gt; select_node($name, $runtime, $depth)
+-- DataFrame: name=&quot;a&quot;, runtime=&quot;T&quot;, depth=0
+--            name=&quot;b&quot;, runtime=&quot;R&quot;, depth=0
+--            name=&quot;c&quot;, runtime=&quot;T&quot;, depth=1</code></pre>
+<p>Available fields: <code>$name</code>, <code>$runtime</code>,
+<code>$serializer</code>, <code>$deserializer</code>,
+<code>$noop</code>, <code>$deps</code>, <code>$depth</code>,
+<code>$command_type</code>.</p>
+<hr />
+<h2 id="node-level-operations-_node-family">21. Node-Level Operations
+(<code>_node</code> family)</h2>
+<p>T provides a set of colcraft-style verbs for operating on pipeline
+nodes. These mirror the DataFrame API, using NSE <code>$field</code>
+references for node metadata fields.</p>
+<h3 id="filter_node"><code>filter_node</code></h3>
+<p>Returns a new pipeline containing only the nodes where the predicate
+is true. No DAG validity check is performed — if a retained node
+references a removed node, that surfaces at <code>build_pipeline</code>
+time.</p>
+<pre class="t"><code>p = pipeline {
+  load   = read_csv(&quot;data.csv&quot;)
+  model  = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = &quot;pmml&quot;)
+  score  = node(command = predict(model, load), deserializer = &quot;pmml&quot;)
+}
+
+-- Keep only R nodes
+p |&gt; filter_node($runtime == &quot;R&quot;) |&gt; pipeline_nodes
+-- [&quot;model&quot;]
+
+-- Keep only nodes with no noop flag
+p |&gt; filter_node($noop == false) |&gt; pipeline_nodes
+
+-- Keep only shallow nodes (root and depth-1 nodes)
+p |&gt; filter_node($depth &lt;= 1) |&gt; pipeline_nodes</code></pre>
+<h3 id="mutate_node"><code>mutate_node</code></h3>
+<p>Modifies metadata fields on all nodes, or scoped to a subset using
+the <code>where</code> argument:</p>
+<pre class="t"><code>-- Mark all nodes as noop
+p |&gt; mutate_node($noop = true)
+
+-- Mark only R nodes as noop (useful for skipping heavy computations)
+p |&gt; mutate_node($noop = true, where = $runtime == &quot;R&quot;)
+
+-- Override serializer for all nodes
+p |&gt; mutate_node($serializer = &quot;pmml&quot;, where = $runtime == &quot;R&quot;)</code></pre>
+<p>Mutable metadata fields: <code>noop</code> (Bool),
+<code>runtime</code> (String), <code>serializer</code> (String),
+<code>deserializer</code> (String).</p>
+<h3 id="rename_node"><code>rename_node</code></h3>
+<p>Renames a single node and automatically rewires all dependency edges
+that referenced the old name. This is the canonical way to resolve name
+collisions before set operations like <code>union</code>.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1 }
+
+p2 = p |&gt; rename_node(&quot;a&quot;, &quot;alpha&quot;)
+pipeline_nodes(p2)   -- [&quot;alpha&quot;, &quot;b&quot;]
+pipeline_deps(p2)    -- {`alpha`: [], `b`: [&quot;alpha&quot;]}</code></pre>
+<p>Attempting to rename to a name that already exists is an error:</p>
+<pre class="t"><code>p |&gt; rename_node(&quot;a&quot;, &quot;b&quot;)
+-- Error(ValueError: &quot;A node named `b` already exists in the Pipeline.&quot;)</code></pre>
+<h3 id="arrange_node"><code>arrange_node</code></h3>
+<p>Returns a new pipeline with nodes sorted by a metadata field. This
+affects only display/serialization order — the DAG determines execution
+order.</p>
+<pre class="t"><code>p = pipeline { z = 1; a = 2; m = 3 }
+
+p |&gt; arrange_node($name) |&gt; pipeline_nodes       -- [&quot;a&quot;, &quot;m&quot;, &quot;z&quot;]
+p |&gt; arrange_node($name, &quot;desc&quot;) |&gt; pipeline_nodes -- [&quot;z&quot;, &quot;m&quot;, &quot;a&quot;]
+
+-- Sort a chain by depth (shallowest first)
+p = pipeline { a = 1; b = a + 1; c = b + 1 }
+p |&gt; arrange_node($depth) |&gt; pipeline_nodes      -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
+<hr />
+<h2 id="set-operations">22. Set Operations</h2>
+<p>Pipelines can be treated as named sets of nodes. T provides four set
+operations that combine or subtract pipelines.</p>
+<blockquote>
+<p><strong>Immutability</strong>: All set operations return new
+Pipelines. The original pipelines are never modified.</p>
+<p><strong>Lazy validation</strong>: Set operations do not check DAG
+validity. If the result has dangling references, errors surface at
+<code>build_pipeline</code> or <code>pipeline_run</code> time.</p>
+</blockquote>
+<h3 id="union"><code>union</code></h3>
+<p>Merges two pipelines, including all nodes from both. Errors
+immediately on any name collision. Use <code>rename_node</code> to
+resolve collisions first.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw   = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+p_model = pipeline {
+  fit    = lm(clean, formula = y ~ x)
+  report = summary(fit)
+}
+
+p_full = p_etl |&gt; union(p_model)
+pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;, &quot;report&quot;]</code></pre>
+<p>If both pipelines have a node named <code>clean</code>:</p>
+<pre class="t"><code>p_etl |&gt; union(p_model)
+-- Error(ValueError: &quot;Function `union`: name collision(s) detected: clean. Use `rename_node` to resolve.&quot;)
+
+-- Fix: rename before merging
+p_model2 = p_model |&gt; rename_node(&quot;clean&quot;, &quot;clean_model&quot;)
+p_etl |&gt; union(p_model2)</code></pre>
+<h3 id="difference"><code>difference</code></h3>
+<p>Removes from the first pipeline all nodes whose names appear in the
+second pipeline. Nodes in the second pipeline that don’t exist in the
+first are silently ignored.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = 2; c = 3; d = 4 }
+p_remove = pipeline { b = 0; d = 0 }
+
+p |&gt; difference(p_remove) |&gt; pipeline_nodes  -- [&quot;a&quot;, &quot;c&quot;]</code></pre>
+<h3 id="intersect"><code>intersect</code></h3>
+<p>Retains only nodes present by name in both pipelines, using
+definitions from the first pipeline.</p>
+<pre class="t"><code>p1 = pipeline { a = 1; b = 2; c = 3 }
+p2 = pipeline { b = 99; c = 100; d = 4 }
+
+p1 |&gt; intersect(p2) |&gt; pipeline_nodes  -- [&quot;b&quot;, &quot;c&quot;] (p1&#39;s definitions)</code></pre>
+<h3 id="patch"><code>patch</code></h3>
+<p>Like <code>union</code>, but only updates nodes that already exist in
+the first pipeline — it will not add new nodes from the second pipeline.
+Ideal for overriding configurations without accidentally importing stray
+nodes.</p>
+<pre class="t"><code>p_prod = pipeline {
+  load  = read_csv(&quot;data.csv&quot;)
+  model = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = &quot;pmml&quot;)
+}
+
+p_overrides = pipeline {
+  model = rn(command = &lt;{ lm(y ~ x + z, data = load) }&gt;, serializer = &quot;pmml&quot;)
+  extra = 99  -- stray node
+}
+
+p_updated = p_prod |&gt; patch(p_overrides)
+pipeline_nodes(p_updated)  -- [&quot;load&quot;, &quot;model&quot;] — &quot;extra&quot; was not added</code></pre>
+<hr />
+<h2 id="dag-aware-transformations">23. DAG-Aware Transformations</h2>
+<p>These operations are structurally aware of the pipeline’s dependency
+graph and are used to replace node implementations, reroute edges, and
+extract subgraphs.</p>
+<h3 id="swap"><code>swap</code></h3>
+<p>Replaces a node’s implementation while preserving its existing
+dependency edges. The new node is specified as the third argument.</p>
+<pre class="t"><code>p = pipeline {
+  data  = read_csv(&quot;data.csv&quot;)
+  model = rn(command = &lt;{ lm(y ~ x, data = data) }&gt;, serializer = &quot;pmml&quot;)
+  score = node(command = predict(model, data), deserializer = &quot;pmml&quot;)
+}
+
+-- Replace the model node with a new implementation; edges to/from model are preserved
+new_model = rn(command = &lt;{ glm(y ~ x, data = data, family = binomial) }&gt;, serializer = &quot;pmml&quot;)
+p2 = p |&gt; swap(&quot;model&quot;, new_model)
+
+pipeline_deps(p2)
+-- `model` still depends on `data`, and `score` still depends on `model`</code></pre>
+<h3 id="rewire"><code>rewire</code></h3>
+<p>Reroutes a node’s declared dependencies. The <code>replace</code>
+argument maps old dependency names to new ones. Only the named node’s
+dependency list is updated.</p>
+<pre class="t"><code>p = pipeline {
+  data    = read_csv(&quot;data.csv&quot;)
+  data_v2 = read_csv(&quot;data_v2.csv&quot;)
+  model   = rn(command = &lt;{ lm(y ~ x, data) }&gt;, serializer = &quot;pmml&quot;)
+}
+
+-- Re-point model to use data_v2 instead of data
+p2 = p |&gt; rewire(&quot;model&quot;, replace = list(data = &quot;data_v2&quot;))
+pipeline_deps(p2)
+-- {`data`: [], `data_v2`: [], `model`: [&quot;data_v2&quot;]}</code></pre>
+<h3 id="prune"><code>prune</code></h3>
+<p>Removes all leaf nodes — nodes that nothing else depends on. This is
+useful for cleaning up intermediate pipelines after
+<code>filter_node</code> or <code>difference</code> operations that may
+leave orphaned utility nodes.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = 3 }
+-- `a` is depended on by `b`, so it is not a leaf.
+-- `b` depends on `a` but nothing depends on `b` — it is a leaf.
+-- `c` is independent and nothing depends on it — it is also a leaf.
+
+p |&gt; prune |&gt; pipeline_nodes  -- [&quot;a&quot;] (both b and c are leaves, removed)</code></pre>
+<p>You can chain <code>difference</code> and <code>prune</code> to strip
+unwanted branches in one step:</p>
+<pre class="t"><code>p_partial = p |&gt; difference(p_debug_nodes) |&gt; prune</code></pre>
+<h3 id="upstream_of"><code>upstream_of</code></h3>
+<p>Returns a new pipeline containing the named node and all its
+transitive ancestors (everything the node depends on, directly or
+indirectly).</p>
+<pre class="t"><code>p = pipeline {
+  raw     = read_csv(&quot;data.csv&quot;)
+  clean   = raw |&gt; filter($value &gt; 0)
+  model   = rn(command = &lt;{ lm(y ~ x, clean) }&gt;, serializer = &quot;pmml&quot;)
+  report  = summary(model)
+  sidebar = &quot;metadata&quot;
+}
+
+-- Everything needed to produce `model`
+p |&gt; upstream_of(&quot;model&quot;) |&gt; pipeline_nodes  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;model&quot;]
+-- sidebar is excluded because model doesn&#39;t depend on it</code></pre>
+<h3 id="downstream_of"><code>downstream_of</code></h3>
+<p>Returns a new pipeline containing the named node and all nodes that
+transitively depend on it (everything that uses this node, directly or
+indirectly).</p>
+<pre class="t"><code>-- Everything that is affected if `clean` changes
+p |&gt; downstream_of(&quot;clean&quot;) |&gt; pipeline_nodes  -- [&quot;clean&quot;, &quot;model&quot;, &quot;report&quot;]
+-- raw and sidebar are excluded</code></pre>
+<h3 id="subgraph"><code>subgraph</code></h3>
+<p>Returns the full connected component of a node — the union of its
+ancestors and descendants.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1; d = 99 }
+
+-- Everything connected to b (upstream and downstream)
+p |&gt; subgraph(&quot;b&quot;) |&gt; pipeline_nodes  -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;] — d is disconnected</code></pre>
+<hr />
+<h2 id="pipeline-composition">24. Pipeline Composition</h2>
+<p>These higher-level operators combine two complete, separately-defined
+pipelines into one.</p>
+<h3 id="chain"><code>chain</code></h3>
+<p>Connects two pipelines where the second pipeline’s nodes reference
+node names from the first as dependencies. T verifies that at least one
+such shared reference exists; if the two pipelines are completely
+disconnected, <code>chain</code> raises an error.</p>
+<pre class="t"><code>p_etl = pipeline {
+  raw   = read_csv(&quot;data.csv&quot;)
+  clean = raw |&gt; filter($value &gt; 0)
+}
+
+-- p_model references `clean` from p_etl — this is the wire
+p_model = pipeline {
+  fit    = lm(clean, formula = y ~ x)
+  report = summary(fit)
+}
+
+p_full = p_etl |&gt; chain(p_model)
+pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;, &quot;report&quot;]</code></pre>
+<p>If the two pipelines have no shared dependency names:</p>
+<pre class="t"><code>p_etl |&gt; chain(pipeline { x = 42 })
+-- Error(ValueError: &quot;Function `chain`: no shared dependency names found between the two pipelines.&quot;)</code></pre>
+<p><code>chain</code> is stricter than <code>union</code>: it requires
+an <em>intent</em> to connect the pipelines, catching accidental merges
+where no wiring was meant.</p>
+<h3 id="parallel"><code>parallel</code></h3>
+<p>Combines two pipelines that are intended to run independently. No
+dependency wiring is performed. Errors on name collision.</p>
+<pre class="t"><code>p_r_model = pipeline {
+  r_fit = rn(command = &lt;{ lm(y ~ x, data) }&gt;, serializer = &quot;pmml&quot;)
+}
+
+p_py_model = pipeline {
+  py_fit = pyn(
+    command = &lt;{
+      from sklearn.linear_model import LinearRegression
+      LinearRegression().fit(X, y)
+    }&gt;,
+    serializer = &quot;pmml&quot;
+  )
+}
+
+-- Both models will run independently
+p_both = parallel(p_r_model, p_py_model)
+pipeline_nodes(p_both)  -- [&quot;r_fit&quot;, &quot;py_fit&quot;]</code></pre>
+<hr />
+<h2 id="extended-inspection-api">25. Extended Inspection API</h2>
+<p>Beyond <code>pipeline_nodes</code> and <code>pipeline_deps</code>, T
+provides a complete structural inspection surface for pipelines.</p>
+<h3 id="boundary-nodes">Boundary Nodes</h3>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+pipeline_roots(p)   -- [&quot;a&quot;]  — nodes with no dependencies
+pipeline_leaves(p)  -- [&quot;c&quot;]  — nodes nothing depends on</code></pre>
+<h3 id="dependency-edges">Dependency Edges</h3>
+<p><code>pipeline_edges</code> returns a list of <code>[from, to]</code>
+pairs representing every edge in the DAG:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+pipeline_edges(p)  -- [[&quot;a&quot;, &quot;b&quot;], [&quot;b&quot;, &quot;c&quot;]]</code></pre>
+<p>This is useful for serializing the graph structure or feeding it to
+external tools.</p>
+<h3 id="topological-depth">Topological Depth</h3>
+<p><code>pipeline_depth</code> returns the maximum topological depth
+across all nodes (root nodes have depth 0):</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+pipeline_depth(p)  -- 2</code></pre>
+<h3 id="cycle-detection-1">Cycle Detection</h3>
+<p><code>pipeline_cycles</code> returns any node names involved in
+dependency cycles. A correctly formed pipeline always returns an empty
+list:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1 }
+pipeline_cycles(p)  -- []</code></pre>
+<h3 id="pipeline_print"><code>pipeline_print</code></h3>
+<p>Prints a human-readable summary of all nodes to stdout, including
+their runtime, depth, noop status, and dependency list:</p>
+<pre class="t"><code>p = pipeline {
+  a = 1
+  b = node(command = &lt;{ 2 }&gt;, runtime = R, serializer = &quot;pmml&quot;)
+  c = b + 1
+}
+
+pipeline_print(p)
+-- Pipeline (3 nodes):
+--   a                     runtime=T         depth=0  noop=false  deps=[]
+--   b                     runtime=R         depth=0  noop=false  deps=[]
+--   c                     runtime=T         depth=1  noop=false  deps=[b]</code></pre>
+<h3 id="pipeline_dot"><code>pipeline_dot</code></h3>
+<p>Exports the pipeline as a <a
+href="https://graphviz.org/">Graphviz</a> DOT string for
+visualization:</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1; c = b + 1 }
+
+dot = pipeline_dot(p)
+print(dot)
+-- digraph pipeline {
+--   rankdir=LR;
+--   node [shape=box];
+--   &quot;a&quot; [label=&quot;a\n[T]&quot;];
+--   &quot;b&quot; [label=&quot;b\n[T]&quot;];
+--   &quot;c&quot; [label=&quot;c\n[T]&quot;];
+--   &quot;a&quot; -&gt; &quot;b&quot;;
+--   &quot;b&quot; -&gt; &quot;c&quot;;
+-- }</code></pre>
+<p>Pipe the output to <code>dot -Tpng</code> or paste it into
+https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency
+graph.</p>
+<hr />
+<h2 id="pipeline-validation">26. Pipeline Validation</h2>
+<p>By design, T uses <strong>lazy validation</strong>: structural errors
+(missing dependencies, cycles) surface at <code>build_pipeline</code> or
+<code>pipeline_run</code> time, not at operation time. This allows you
+to compose and transform pipelines freely.</p>
+<p>When you want to validate eagerly, T provides opt-in validation
+utilities.</p>
+<h3 id="pipeline_validate"><code>pipeline_validate</code></h3>
+<p>Returns a list of validation error messages. An empty list means the
+pipeline is structurally valid. This function <strong>never
+throws</strong> — it reports problems as data.</p>
+<pre class="t"><code>p_good = pipeline { a = 1; b = a + 1 }
+pipeline_validate(p_good)  -- []
+
+-- Build a broken pipeline manually via difference
+p_broken = pipeline { a = 1; b = a + 1 } |&gt; filter_node($name == &quot;b&quot;)
+-- b now depends on a, but a was filtered out
+
+pipeline_validate(p_broken)
+-- [&quot;Node `b` depends on `a` which does not exist in the pipeline.&quot;]</code></pre>
+<p>Checks performed: 1. All referenced dependencies exist as nodes in
+the pipeline. 2. No dependency cycles.</p>
+<h3 id="pipeline_assert"><code>pipeline_assert</code></h3>
+<p>Like <code>pipeline_validate</code>, but <strong>throws</strong> the
+first error found instead of returning a list. Returns the pipeline
+unchanged if valid. This is useful as a guard at a pipeline’s
+construction site.</p>
+<pre class="t"><code>p = pipeline { a = 1; b = a + 1 }
+  |&gt; filter_node($depth == 0)    -- keeps a only
+  |&gt; pipeline_assert              -- succeeds, returns the pipeline
+
+-- Chaining validation into a construction expression:
+safe_pipeline = pipeline { a = 1; b = a + 1 }
+  |&gt; mutate_node($noop = true, where = $runtime == &quot;R&quot;)
+  |&gt; pipeline_assert</code></pre>
+<p>If validation fails:</p>
+<pre class="t"><code>p_broken |&gt; pipeline_assert
+-- Error(ValueError: &quot;Node `b` depends on `a` which does not exist in the pipeline.&quot;)</code></pre>
+<hr />
+<h2 id="best-practices">Best Practices</h2>
+<ol type="1">
+<li><strong>Name nodes descriptively</strong>: Use names like
+<code>raw_data</code>, <code>filtered_sales</code>,
+<code>summary_stats</code></li>
+<li><strong>Keep nodes focused</strong>: Each node should do one
+thing</li>
+<li><strong>Use pipes within nodes</strong>: Combine pipeline structure
+with pipe operator for readability</li>
+<li><strong>Inspect before consuming</strong>: Use
+<code>pipeline_nodes()</code>, <code>pipeline_deps()</code>, and
+<code>pipeline_to_frame()</code> to understand pipeline structure</li>
+<li><strong>Build incrementally</strong>: Start with data loading, add
+transformations one node at a time</li>
+<li><strong>Validate at construction time</strong>: Use
+<code>pipeline_assert</code> at the end of a construction chain to catch
+structural errors early</li>
+<li><strong>Compose with <code>chain</code> over
+<code>union</code></strong>: When two pipelines are intentionally
+connected, <code>chain</code> makes the dependency explicit; use
+<code>union</code> only when combining truly independent pipelines</li>
+<li><strong>Use <code>filter_node</code> + <code>upstream_of</code> for
+partial builds</strong>: Trim a large pipeline to just what you need
+before calling <code>build_pipeline</code></li>
+<li><strong>Resolve collisions with <code>rename_node</code> before set
+ops</strong>: Both <code>union</code> and <code>chain</code> enforce
+unique names; rename conflicting nodes before merging</li>
+</ol>
 <hr />
 <h2 id="complete-example">Complete Example</h2>
 <pre class="t"><code>-- A full data analysis pipeline

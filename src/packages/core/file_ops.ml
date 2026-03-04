@@ -1,6 +1,18 @@
 open Ast
 
 let register env =
+  (*
+  --# Get current working directory
+  --#
+  --# Returns the absolute path of the current working directory.
+  --#
+  --# @name getwd
+  --# @return :: String The current working directory.
+  --# @example
+  --#   getwd()
+  --# @family core
+  --# @export
+  *)
   let env = Env.add "getwd"
     (make_builtin_named ~name:"getwd" 0 (fun _args _env ->
       try VString (Sys.getcwd ())
@@ -9,6 +21,20 @@ let register env =
     ))
     env
   in
+  (*
+  --# Check if file exists
+  --#
+  --# Checks if a regular file exists at the given path.
+  --# Returns false if the path is a directory or does not exist.
+  --#
+  --# @name file_exists
+  --# @param path :: String The path to check.
+  --# @return :: Bool True if it's a regular file.
+  --# @example
+  --#   file_exists("data.csv")
+  --# @family core
+  --# @export
+  *)
   let env = Env.add "file_exists"
     (make_builtin_named ~name:"file_exists" 1 (fun args _env ->
       match args with
@@ -26,6 +52,19 @@ let register env =
     ))
     env
   in
+  (*
+  --# Check if directory exists
+  --#
+  --# Checks if a directory exists at the given path.
+  --#
+  --# @name dir_exists
+  --# @param path :: String The path to check.
+  --# @return :: Bool True if it's a directory.
+  --# @example
+  --#   dir_exists("tests")
+  --# @family core
+  --# @export
+  *)
   let env = Env.add "dir_exists"
     (make_builtin_named ~name:"dir_exists" 1 (fun args _env ->
       match args with
@@ -43,6 +82,19 @@ let register env =
     ))
     env
   in
+  (*
+  --# Read file contents
+  --#
+  --# Reads the entire content of a file into a string.
+  --#
+  --# @name read_file
+  --# @param path :: String The path to the file.
+  --# @return :: String The file content.
+  --# @example
+  --#   read_file("config.json")
+  --# @family core
+  --# @export
+  *)
   let env = Env.add "read_file"
     (make_builtin_named ~name:"read_file" 1 (fun args _env ->
       match args with
@@ -66,6 +118,21 @@ let register env =
     ))
     env
   in
+  (*
+  --# List files in directory
+  --#
+  --# Returns a list of files and directories in the specified path.
+  --# Supports an optional regex pattern for filtering.
+  --#
+  --# @name list_files
+  --# @param path :: String [Optional] The directory to list. Defaults to ".".
+  --# @param pattern :: String [Optional] Regex pattern to filter results.
+  --# @return :: List[String] List of filenames.
+  --# @example
+  --#   list_files(".", pattern = "\\.t$")
+  --# @family core
+  --# @export
+  *)
   let env = Env.add "list_files"
     (make_builtin_named ~name:"list_files" ~variadic:true 0 (fun args _env ->
       let positional = List.filter (fun (name, _) -> name = None) args in
@@ -114,6 +181,19 @@ let register env =
     ))
     env
   in
+  (*
+  --# Get environment variable
+  --#
+  --# Retrieves the value of an environment variable.
+  --#
+  --# @name env
+  --# @param name :: String The name of the environment variable.
+  --# @return :: String | Null The value of the variable, or null if not set.
+  --# @example
+  --#   env("HOME")
+  --# @family core
+  --# @export
+  *)
   let env = Env.add "env"
     (make_builtin_named ~name:"env" 1 (fun args _env ->
       match args with

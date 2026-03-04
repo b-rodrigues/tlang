@@ -9,9 +9,9 @@ Retrieves the value of a specific node in the pipeline.
 - **p** (`Pipeline`): The pipeline.
 - **name** (`String`): The node name.
 
-## Returns
+## Returns:
 
-The value of the node.
+Returns: The value of the node.
 
 ## See Also
 

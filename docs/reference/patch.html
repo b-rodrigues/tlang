@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Function Reference - patch</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="../index.html">Home</a> |
+        <a href="../getting-started.html">Get Started</a> |
+        <a href="../language_overview.html">Overview</a> |
+        <a href="../api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Function Reference - patch</h1>
+</header>
+<h1 id="patch">patch</h1>
+<p>Patch a Pipeline</p>
+<p>Updates nodes in <code>p1</code> with definitions from
+<code>p2</code>, but only for nodes that already exist in
+<code>p1</code>. New nodes from <code>p2</code> are not added. Useful
+for overriding node configurations without accidentally importing stray
+nodes.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><strong>p1</strong> (<code>Pipeline</code>): The base pipeline.</li>
+<li><strong>p2</strong> (<code>Pipeline</code>): The pipeline providing
+updated node definitions.</li>
+</ul>
+<h2 id="returns">Returns:</h2>
+<p>Returns: A new pipeline with matching nodes updated from
+<code>p2</code>.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>p_prod |&gt; patch(p_staging_overrides)</code></pre>
+<h2 id="see-also">See Also</h2>
+<p><a href="intersect.md">intersect</a>, <a
+href="difference.md">difference</a>, <a href="union.md">union</a></p>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

@@ -8,7 +8,7 @@ Parses a registry JSON file back into a list of name-path pairs.
 
 - **path** (`String`): Source file.
 
-## Returns
+## Returns:
 
-String)], String] Entries or error.
+Returns: String)], String] Entries or error.
 

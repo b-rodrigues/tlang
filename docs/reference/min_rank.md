@@ -8,15 +8,15 @@ Assigns the minimum rank to ties, leaving gaps in ranks.
 
 - **x** (`Vector`): The input vector.
 
-## Returns
+## Returns:
 
-The ranks.
+Returns: The ranks.
 
 ## Examples
 
 ```t
 min_rank([1, 2, 2, 4])
--- Returns: [1, 2, 2, 4]
+-- Returns = [1, 2, 2, 4]
 ```
 
 ## See Also

@@ -9,15 +9,15 @@ Calculates base raised to the power of exponent.
 - **base** (`Number`): | Vector | NDArray The base.
 - **exponent** (`Number`): The exponent.
 
-## Returns
+## Returns:
 
-| Vector | NDArray The result of base ^ exponent.
+Returns: | Vector | NDArray The result of base ^ exponent.
 
 ## Examples
 
 ```t
 pow(2, 3)
--- Returns: 8.0
+-- Returns = 8.0
 ```
 
 ## See Also

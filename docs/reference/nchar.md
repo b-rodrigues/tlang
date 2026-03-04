@@ -8,7 +8,7 @@ Returns the number of characters in a string. Vectorized.
 
 - **x** (`String`): | Vector[String] The input string(s).
 
-## Returns
+## Returns:
 
-| Vector[Int] The number of characters.
+Returns: | Vector[Int] The number of characters.
 

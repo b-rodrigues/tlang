@@ -10,7 +10,7 @@ Alias for `substring`. Returns the part of the string between `start` and `end` 
 - **start** (`Int`): The starting index (inclusive).
 - **end** (`Int`): The ending index (exclusive).
 
-## Returns
+## Returns:
 
-The extracted substring.
+Returns: The extracted substring.
 

@@ -9,14 +9,14 @@ Creates a list of integers from start to end (inclusive).
 - **start** (`Int`): Starting value.
 - **end** (`Int`): Ending value.
 
-## Returns
+## Returns:
 
-List of integers.
+Returns: List of integers.
 
 ## Examples
 
 ```t
 seq(1, 5)
--- Returns: [1, 2, 3, 4, 5]
+-- Returns = [1, 2, 3, 4, 5]
 ```
 

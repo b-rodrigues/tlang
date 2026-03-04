@@ -10,9 +10,9 @@ Computes the Pearson correlation coefficient between two vectors.
 - **y** (`Vector`): | List Second numeric vector.
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-## Returns
+## Returns:
 
-The correlation coefficient (-1 to 1).
+Returns: The correlation coefficient (-1 to 1).
 
 ## Examples
 

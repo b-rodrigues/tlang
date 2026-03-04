@@ -9,7 +9,7 @@ Serializes any T value to a file using OCaml's Marshal module.
 - **path** (`String`): Destination file path.
 - **value** (`Any`): The T value to serialize.
 
-## Returns
+## Returns:
 
-String] Ok or error.
+Returns: String] Ok or error.
 

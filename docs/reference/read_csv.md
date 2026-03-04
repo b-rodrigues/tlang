@@ -12,15 +12,15 @@ Reads a CSV file into a DataFrame.
 - **skip_lines** (`Int`): (Optional) Number of lines to skip at start.
 - **clean_colnames** (`Bool`): (Optional) Clean column names? (default false).
 
-## Returns
+## Returns:
 
-The loaded data.
+Returns: The loaded data.
 
 ## Examples
 
 ```t
 df = read_csv("data.csv")
-df = read_csv("data.csv", separator: ";")
+df = read_csv("data.csv", separator = ";")
 ```
 
 ## See Also

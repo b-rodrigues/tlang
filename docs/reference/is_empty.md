@@ -8,7 +8,7 @@ Returns true if the string has length 0.
 
 - **s** (`String`): The string to check.
 
-## Returns
+## Returns:
 
-True if empty, false otherwise.
+Returns: True if empty, false otherwise.
 

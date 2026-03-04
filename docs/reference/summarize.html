@@ -46,8 +46,8 @@ DataFrame.</li>
 <li><strong>…</strong> (<code>KeywordArgs</code>): Aggregations as name
 = expression pairs.</li>
 </ul>
-<h2 id="returns">Returns</h2>
-<p>The summarized DataFrame.</p>
+<h2 id="returns">Returns:</h2>
+<p>Returns: The summarized DataFrame.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>summarize(mtcars, $mean_mpg = mean($mpg))
 summarize(group_by(mtcars, $cyl), $mean_hp = mean($hp))</code></pre>

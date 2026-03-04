@@ -8,9 +8,9 @@ Returns a dictionary describing the structure and content of a value.
 
 - **x** (`Any`): The value to explain.
 
-## Returns
+## Returns:
 
-A structured description of the value.
+Returns: A structured description of the value.
 
 ## Examples
 

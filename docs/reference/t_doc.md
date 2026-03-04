@@ -8,9 +8,9 @@ Documentation tools. Call with "parse" to extract docs from `src/`, or "generate
 
 - **command** (`String`): Either "parse" or "generate".
 
-## Returns
+## Returns:
 
-
+Returns: 
 
 ## Examples
 

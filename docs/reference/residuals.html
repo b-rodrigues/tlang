@@ -44,14 +44,14 @@
 <li><strong>data</strong> (<code>DataFrame</code>): Input data.</li>
 <li><strong>model</strong> (<code>Model</code>): The model object.</li>
 <li><strong>type</strong> (<code>String</code>): (Optional) Type of
-residuals: “response” (default) or “pearson”.</li>
+residuals = “response” (default) or “pearson”.</li>
 </ul>
-<h2 id="returns">Returns</h2>
-<p>Columns: <code>actual</code>, <code>fitted</code>,
+<h2 id="returns">Returns:</h2>
+<p>Returns: Columns = <code>actual</code>, <code>fitted</code>,
 <code>resid</code>.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>res = residuals(mtcars, model)
-res_p = residuals(mtcars, model, type: &quot;pearson&quot;)</code></pre>
+res_p = residuals(mtcars, model, type = &quot;pearson&quot;)</code></pre>
 <footer>
     <hr class="footer-hr">
     <center>

@@ -8,15 +8,15 @@ Calculates the cumulative logical AND of a vector.
 
 - **x** (`Vector`): The input boolean vector.
 
-## Returns
+## Returns:
 
-The cumulative AND.
+Returns: The cumulative AND.
 
 ## Examples
 
 ```t
 cumall([true, true, false, true])
--- Returns: [true, true, false, false]
+-- Returns = [true, true, false, false]
 ```
 
 ## See Also

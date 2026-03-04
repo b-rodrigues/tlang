@@ -10,7 +10,7 @@ Compute sample covariance of two numeric vectors.
 - **y** (`Vector`): | List Second numeric input.
 - **na_rm** (`Bool`): = false Pairwise remove NA values.
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

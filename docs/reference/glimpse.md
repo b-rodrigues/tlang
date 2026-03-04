@@ -8,9 +8,9 @@ Prints a summary of the DataFrame structure, including dimensions, column names,
 
 - **df** (`DataFrame`): The input DataFrame.
 
-## Returns
+## Returns:
 
-
+Returns: 
 
 ## Examples
 

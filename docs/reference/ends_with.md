@@ -9,7 +9,7 @@ Returns true if `s` ends with the specified `suffix`.
 - **s** (`String`): The string to check.
 - **suffix** (`String`): The suffix to look for.
 
-## Returns
+## Returns:
 
-True if s ends with suffix.
+Returns: True if s ends with suffix.
 

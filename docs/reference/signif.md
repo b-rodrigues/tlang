@@ -9,7 +9,7 @@ Round to a fixed number of significant digits.
 - **x** (`Number`): | Vector | NDArray Numeric input.
 - **digits** (`Int`): Number of significant digits (> 0).
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

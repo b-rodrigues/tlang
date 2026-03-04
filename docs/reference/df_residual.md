@@ -8,14 +8,14 @@ Returns the residual degrees of freedom of a model.
 
 - **model** (`Model`): The model object.
 
-## Returns
+## Returns:
 
-The residual degrees of freedom.
+Returns: The residual degrees of freedom.
 
 ## Examples
 
 ```t
-model = lm(mpg ~ wt, data: mtcars)
+model = lm(mpg ~ wt, data = mtcars)
 df = df_residual(model)
 ```
 

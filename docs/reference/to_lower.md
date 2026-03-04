@@ -8,7 +8,7 @@ Converts all characters in the string to lowercase.
 
 - **s** (`String`): The string to convert.
 
-## Returns
+## Returns:
 
-The lowercase string.
+Returns: The lowercase string.
 

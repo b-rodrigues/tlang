@@ -45,11 +45,12 @@ for comparison.</p>
 <li><strong>…</strong> (<code>Variadic</code>): Models or a List of
 models to compare.</li>
 </ul>
-<h2 id="returns">Returns</h2>
-<p>A wide DataFrame with aligned terms and suffixed columns.</p>
+<h2 id="returns">Returns:</h2>
+<p>Returns: A wide DataFrame with aligned terms and suffixed
+columns.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>m1 = lm(mpg ~ wt, data: mtcars)
-m2 = lm(mpg ~ wt + hp, data: mtcars)
+<pre class="t"><code>m1 = lm(mpg ~ wt, data = mtcars)
+m2 = lm(mpg ~ wt + hp, data = mtcars)
 compare(m1, m2)</code></pre>
 <footer>
     <hr class="footer-hr">

@@ -9,7 +9,7 @@ Writes a string to a file at the specified path.
 - **path** (`String`): The file path.
 - **content** (`String`): The content to write.
 
-## Returns
+## Returns:
 
-
+Returns: 
 

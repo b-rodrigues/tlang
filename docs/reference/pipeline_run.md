@@ -8,9 +8,9 @@ Re-executes a pipeline from start to finish.
 
 - **p** (`Pipeline`): The pipeline to run.
 
-## Returns
+## Returns:
 
-The executed pipeline.
+Returns: The executed pipeline.
 
 ## See Also
 

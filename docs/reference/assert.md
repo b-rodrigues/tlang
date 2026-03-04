@@ -9,9 +9,9 @@ Checks if a condition is true, raising an error if false.
 - **condition** (`Bool`): The condition to check.
 - **message** (`String`): (Optional) Custom error message.
 
-## Returns
+## Returns:
 
-True if successful.
+Returns: True if successful.
 
 ## Examples
 

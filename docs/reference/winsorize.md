@@ -9,7 +9,7 @@ Clamp tails to specified quantile limits.
 - **x** (`Vector`): | List Numeric input.
 - **limits** (`Float`): | Vector[Float] One-sided or (lo, hi) limits in [0, 0.5).
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

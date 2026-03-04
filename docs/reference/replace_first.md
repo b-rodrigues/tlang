@@ -10,7 +10,7 @@ Replaces only the first occurrence of `old` with `new_` in `s`.
 - **old** (`String`): The substring to replace.
 - **new_** (`String`): The replacement string.
 
-## Returns
+## Returns:
 
-The modified string.
+Returns: The modified string.
 

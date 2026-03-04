@@ -10,9 +10,9 @@ Prints a visual dependency tree of the pipeline nodes.
 - **name** (`String`): (Optional) A specific node's name to trace.
 - **transitive** (`Bool`): (Optional) If true, mark transitive dependencies with '*'.
 
-## Returns
+## Returns:
 
-Returns invisibly. Prints to the console.
+Returns: Returns invisibly. Prints to the console.
 
 ## Examples
 

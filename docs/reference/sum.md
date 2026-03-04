@@ -9,17 +9,17 @@ Calculates the sum of values in a List or Vector.
 - **x** (`List[Number]`): | Vector[Number] The collection to sum.
 - **na_rm** (`Bool`): = false Remove NA values before summing.
 
-## Returns
+## Returns:
 
-| NA The sum of values.
+Returns: | NA The sum of values.
 
 ## Examples
 
 ```t
 sum([1, 2, 3])
--- Returns: 6
+-- Returns = 6
 
-sum([1, NA, 3], na_rm: true)
--- Returns: 4
+sum([1, NA, 3], na_rm = true)
+-- Returns = 4
 ```
 

@@ -8,9 +8,9 @@ Calculates the proportional rank (0 to 1).
 
 - **x** (`Vector`): The input vector.
 
-## Returns
+## Returns:
 
-The percent rank.
+Returns: The percent rank.
 
 ## See Also
 

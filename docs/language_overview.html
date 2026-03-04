@@ -499,6 +499,42 @@ cumany([false, true, false]) -- Vector[false, true, true]
 -- NA propagation
 cumsum([1, NA, 3])         -- Vector[1, NA, NA]</code></pre>
 <hr />
+<h2 id="shell-escape">Shell Escape (<code>?&lt;{ }&gt;</code>)</h2>
+<p>The shell escape syntax allows you to execute arbitrary shell
+commands directly from within T. This is useful for interacting with the
+filesystem, running git commands, or using other CLI tools.</p>
+<h3 id="as-a-statement">As a Statement</h3>
+<p>When used as a standalone statement, the command is executed and its
+output is printed directly to <code>stdout</code>. The return value of
+the expression is <code>null</code>.</p>
+<pre class="t"><code>?&lt;{ls -la}&gt;
+?&lt;{git status}&gt;</code></pre>
+<h3 id="as-an-expression">As an Expression</h3>
+<p>When used as part of an expression (e.g., in an assignment), the
+shell command’s <code>stdout</code> is captured and returned as a
+<code>String</code>.</p>
+<pre class="t"><code>files = ?&lt;{ls}&gt;
+current_user = ?&lt;{whoami}&gt;</code></pre>
+<h3 id="special-case-cd">Special Case: <code>cd</code></h3>
+<p>The <code>cd</code> command is special-cased to change the working
+directory of the T interpreter itself, rather than just a sub-shell.</p>
+<pre class="t"><code>?&lt;{cd /tmp}&gt;
+?&lt;{pwd}&gt;       -- will show /tmp
+?&lt;{cd ~}&gt;      -- expands ~ correctly</code></pre>
+<h3 id="multiline-commands">Multiline Commands</h3>
+<p>Shell escapes support multiline commands. Indentation common to all
+non-empty lines is automatically stripped.</p>
+<pre class="t"><code>?&lt;{
+  git add .
+  git commit -m &quot;update&quot;
+  git push
+}&gt;</code></pre>
+<h3 id="error-handling-1">Error Handling</h3>
+<p>If a shell command fails (returns a non-zero exit code), it produces
+a <code>ShellError</code> containing the <code>stderr</code> output.</p>
+<pre class="t"><code>result = ?&lt;{ls /nonexistent}&gt;
+is_error(result)  -- true</code></pre>
+<hr />
 <h2 id="pipelines">Pipelines</h2>
 <p>Pipelines define named computation nodes with automatic dependency
 resolution:</p>
@@ -539,7 +575,12 @@ execution in T, Python, and R - <strong>Re-run</strong>:
 <td><code>core</code></td>
 <td><code>print</code>, <code>type</code>, <code>length</code>,
 <code>head</code>, <code>tail</code>, <code>map</code>,
-<code>filter</code>, <code>sum</code>, <code>seq</code></td>
+<code>filter</code>, <code>sum</code>, <code>seq</code>,
+<code>getwd</code>, <code>file_exists</code>, <code>dir_exists</code>,
+<code>read_file</code>, <code>list_files</code>, <code>env</code>,
+<code>path_join</code>, <code>path_basename</code>,
+<code>path_dirname</code>, <code>path_ext</code>,
+<code>path_stem</code>, <code>path_abs</code></td>
 </tr>
 <tr>
 <td><code>base</code></td>
@@ -613,6 +654,25 @@ type(df)          -- &quot;DataFrame&quot;
 explain(df)       -- detailed DataFrame summary
 packages()        -- list of loaded packages
 package_info(&quot;stats&quot;)  -- package details</code></pre>
+<h3 id="filesystem-path-operations">Filesystem &amp; Path
+Operations</h3>
+<p>T provides a suite of functions for interacting with the filesystem
+and manipulating paths.</p>
+<h4 id="filesystem">Filesystem</h4>
+<pre class="t"><code>getwd()                        -- &quot;/home/user/project&quot;
+file_exists(&quot;data.csv&quot;)        -- true
+dir_exists(&quot;tests&quot;)            -- true
+list_files(&quot;.&quot;, pattern = &quot;.t&quot;) -- [&quot;test1.t&quot;, &quot;test2.t&quot;]
+read_file(&quot;config.json&quot;)       -- &quot;{\&quot;port\&quot;: 8080}&quot;
+env(&quot;HOME&quot;)                    -- &quot;/home/user&quot;</code></pre>
+<h4 id="path-manipulation-lexical">Path Manipulation (Lexical)</h4>
+<p>These functions are purely text-based and do not check the disk.</p>
+<pre class="t"><code>path_join(&quot;dir&quot;, &quot;sub&quot;, &quot;f.txt&quot;) -- &quot;dir/sub/f.txt&quot;
+path_basename(&quot;/a/b/c.txt&quot;)      -- &quot;c.txt&quot;
+path_dirname(&quot;/a/b/c.txt&quot;)       -- &quot;/a/b&quot;
+path_ext(&quot;data.csv&quot;)             -- &quot;.csv&quot;
+path_stem(&quot;data.csv&quot;)            -- &quot;data&quot;
+path_abs(&quot;local.txt&quot;)            -- &quot;/absolute/path/to/local.txt&quot;</code></pre>
 <hr />
 <h2 id="intent-blocks">Intent Blocks</h2>
 <p>Intent blocks provide structured metadata for LLM-assisted

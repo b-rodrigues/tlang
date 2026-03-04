@@ -8,9 +8,9 @@ Coerces a value to a float robustly. Handles strings with spaces, percentages, c
 
 - **x** (`Any`): The value to convert.
 
-## Returns
+## Returns:
 
-| NA The converted float.
+Returns: | NA The converted float.
 
 ## Examples
 

@@ -8,7 +8,7 @@ Scans a source file and extracts all T-Doc documentation blocks (lines starting 
 
 - **filename** (`String`): The path to the source file to parse.
 
-## Returns
+## Returns:
 
-A list of parsed documentation entries.
+Returns: A list of parsed documentation entries.
 

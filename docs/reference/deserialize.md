@@ -8,9 +8,9 @@ Deserializes a value from a `.tobj` file.
 
 - **path** (`String`): Input file path.
 
-## Returns
+## Returns:
 
-
+Returns: 
 
 ## See Also
 

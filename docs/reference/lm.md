@@ -9,9 +9,9 @@ Fits a linear regression model using Ordinary Least Squares (OLS).
 - **data** (`DataFrame`): The data to use.
 - **formula** (`Formula`): The model formula (e.g., mpg ~ wt + hp).
 
-## Returns
+## Returns:
 
-A model object containing coefficients, residuals, and statistics.
+Returns: A model object containing coefficients, residuals, and statistics.
 
 ## Examples
 

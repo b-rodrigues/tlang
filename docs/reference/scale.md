@@ -8,7 +8,7 @@ Standardize to z-scores using sample standard deviation.
 
 - **x** (`Vector`): | List Numeric input.
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

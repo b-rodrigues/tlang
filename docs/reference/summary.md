@@ -8,9 +8,9 @@ Returns a tidy DataFrame of regression coefficients and statistics.
 
 - **model** (`Model`): The model object (e.g., from lm()).
 
-## Returns
+## Returns:
 
-Tidy summary dictionary with `_tidy_df` and metadata.
+Returns: Tidy summary dictionary with `_tidy_df` and metadata.
 
 ## Examples
 

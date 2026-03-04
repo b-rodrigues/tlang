@@ -9,7 +9,7 @@ HELPER: Combines two matrices by columns.
 - **a** (`NDArray`): First matrix.
 - **b** (`NDArray`): Second matrix.
 
-## Returns
+## Returns:
 
-The combined matrix.
+Returns: The combined matrix.
 

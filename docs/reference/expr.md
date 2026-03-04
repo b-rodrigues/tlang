@@ -8,9 +8,9 @@ Captures the provided expression as an Expr object without evaluating it. Useful
 
 - **x** (`Any`): The expression to capture.
 
-## Returns
+## Returns:
 
-The captured expression object.
+Returns: The captured expression object.
 
 ## Examples
 

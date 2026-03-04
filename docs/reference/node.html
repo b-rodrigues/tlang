@@ -44,23 +44,28 @@ directly within a <code>pipeline { ... }</code> block to wrap
 expressions and enable cross-runtime evaluation.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>command</strong> (<code>Any</code>): The expression to
-evaluate inside the node.</li>
+<li><strong>command</strong> (<code>Any</code>): (Optional) The
+expression to evaluate inside the node. Mutually exclusive with
+<code>script</code>.</li>
+<li><strong>script</strong> (<code>String</code>): (Optional) Path to an
+external <code>.R</code> or <code>.py</code> file to execute as the node
+body. Mutually exclusive with <code>command</code>. The runtime is
+auto-detected from the file extension when not explicitly provided.</li>
 <li><strong>runtime</strong> (<code>Symbol</code>): (Optional) The
-runtime environment (T, R, Python). Default: T.</li>
+runtime environment (T, R, Python). Default = T.</li>
 <li><strong>serializer</strong> (<code>Symbol</code>): (Optional) Custom
-serializer function. Default: default.</li>
+serializer function. Default = default.</li>
 <li><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
-Custom deserializer function. Default: default.</li>
+Custom deserializer function. Default = default.</li>
 <li><strong>functions</strong> (<code>String</code>): | List[String]
 (Optional) Files to source before execution.</li>
 <li><strong>include</strong> (<code>String</code>): | List[String]
 (Optional) Additional files for the sandbox.</li>
 <li><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
-skip execution and generate a stub. Default: false.</li>
+skip execution and generate a stub. Default = false.</li>
 </ul>
-<h2 id="returns">Returns</h2>
-<p>The evaluated return value of the command.</p>
+<h2 id="returns">Returns:</h2>
+<p>Returns: The evaluated return value of the command.</p>
 <footer>
     <hr class="footer-hr">
     <center>

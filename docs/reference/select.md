@@ -9,9 +9,9 @@ Selects specific columns from a DataFrame.
 - **df** (`DataFrame`): The input DataFrame.
 - **...** (`Symbol`): Variable number of column names (e.g., $col1, $col2).
 
-## Returns
+## Returns:
 
-The DataFrame with selected columns.
+Returns: The DataFrame with selected columns.
 
 ## Examples
 

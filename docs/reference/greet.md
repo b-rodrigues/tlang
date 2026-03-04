@@ -8,9 +8,9 @@ A placeholder function that returns a friendly greeting.
 
 - **name** (`String`): The name of the person to greet.
 
-## Returns
+## Returns:
 
-A greeting message.
+Returns: A greeting message.
 
 ## Examples
 

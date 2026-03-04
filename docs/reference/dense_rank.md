@@ -8,15 +8,15 @@ Assigns ranks to unique values, with no gaps.
 
 - **x** (`Vector`): The input vector.
 
-## Returns
+## Returns:
 
-The ranks.
+Returns: The ranks.
 
 ## Examples
 
 ```t
 dense_rank([1, 2, 2, 4])
--- Returns: [1, 2, 2, 3]
+-- Returns = [1, 2, 2, 3]
 ```
 
 ## See Also

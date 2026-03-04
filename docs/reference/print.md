@@ -8,14 +8,14 @@ Prints one or more values to stdout, separated by spaces, followed by a newline.
 
 - **...** (`Any`): Values to print.
 
-## Returns
+## Returns:
 
-
+Returns: 
 
 ## Examples
 
 ```t
 print("Hello", "World")
--- Output: Hello World
+-- Output = Hello World
 ```
 

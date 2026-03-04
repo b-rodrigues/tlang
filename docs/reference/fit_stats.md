@@ -8,9 +8,9 @@ Returns a one-row DataFrame containing model-level statistics (R-squared, AIC, e
 
 - **model** (`Model`): The model object.
 
-## Returns
+## Returns:
 
-Model statistics.
+Returns: Model statistics.
 
 ## Examples
 

@@ -9,9 +9,9 @@ Aggregates a DataFrame to a single row (or one row per group).
 - **df** (`DataFrame`): The input DataFrame.
 - **...** (`KeywordArgs`): Aggregations as name = expression pairs.
 
-## Returns
+## Returns:
 
-The summarized DataFrame.
+Returns: The summarized DataFrame.
 
 ## Examples
 

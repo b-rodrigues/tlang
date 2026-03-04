@@ -9,14 +9,14 @@ Calculates predicted values for a linear model object. Supports models generated
 - **data** (`DataFrame`): The new data used for prediction.
 - **model** (`Model`): The linear model object.
 
-## Returns
+## Returns:
 
-The predicted values.
+Returns: The predicted values.
 
 ## Examples
 
 ```t
-model = lm(mpg ~ wt + hp, data: mtcars)
+model = lm(mpg ~ wt + hp, data = mtcars)
 preds = predict(mtcars, model)
 ```
 

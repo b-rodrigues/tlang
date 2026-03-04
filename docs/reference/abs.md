@@ -8,14 +8,14 @@ Returns the absolute value of a number or vector/ndarray elements.
 
 - **x** (`Number`): | Vector | NDArray The input value.
 
-## Returns
+## Returns:
 
-| Vector | NDArray The absolute value.
+Returns: | Vector | NDArray The absolute value.
 
 ## Examples
 
 ```t
 abs(-5)
--- Returns: 5
+-- Returns = 5
 ```
 

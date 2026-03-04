@@ -8,7 +8,7 @@ Alias behavior for z-score standardization.
 
 - **x** (`Vector`): | List Numeric input.
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

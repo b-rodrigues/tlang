@@ -9,9 +9,9 @@ Splits a numeric vector into intervals.
 - **x** (`Vector[Number]`): | List[Number] The vector to discretize.
 - **breaks** (`Int`): | Vector[Number] Number of bins or specific cut points.
 
-## Returns
+## Returns:
 
-Vector of interval labels.
+Returns: Vector of interval labels.
 
 ## Examples
 

@@ -10,9 +10,9 @@ Computes the quantile of a distribution at a specified probability.
 - **probs** (`Float`): The probability (0 to 1).
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-## Returns
+## Returns:
 
-The quantile value.
+Returns: The quantile value.
 
 ## Examples
 

@@ -9,9 +9,9 @@ Computes the Kronecker product of two matrices.
 - **a** (`NDArray`): First matrix.
 - **b** (`NDArray`): Second matrix.
 
-## Returns
+## Returns:
 
-The Kronecker product.
+Returns: The Kronecker product.
 
 ## See Also
 

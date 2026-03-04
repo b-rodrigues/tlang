@@ -8,15 +8,15 @@ Calculates the cumulative sum of a vector.
 
 - **x** (`Vector`): The input numeric vector.
 
-## Returns
+## Returns:
 
-The cumulative sum.
+Returns: The cumulative sum.
 
 ## Examples
 
 ```t
 cumsum([1, 2, 3])
--- Returns: [1, 3, 6]
+-- Returns = [1, 3, 6]
 ```
 
 ## See Also

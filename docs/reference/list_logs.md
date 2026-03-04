@@ -4,7 +4,7 @@ List Pipeline Logs
 
 Lists all available build logs in the `_pipeline/` directory.
 
-## Returns
+## Returns:
 
-A DataFrame of build log files with their modification times and sizes.
+Returns: A DataFrame of build log files with their modification times and sizes.
 

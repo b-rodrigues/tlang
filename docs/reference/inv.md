@@ -8,9 +8,9 @@ Computes the multiplicative inverse of a square matrix.
 
 - **matrix** (`NDArray`): The matrix to invert.
 
-## Returns
+## Returns:
 
-The inverse matrix.
+Returns: The inverse matrix.
 
 ## See Also
 

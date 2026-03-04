@@ -9,17 +9,17 @@ Concatenates items of a List or Vector into a single string, separated by `sep`.
 - **items** (`List`): | Vector The items to join.
 - **sep** (`String`): [Optional] The separator string. Defaults to "".
 
-## Returns
+## Returns:
 
-The joined string.
+Returns: The joined string.
 
 ## Examples
 
 ```t
 join(["a", "b", "c"], "-")
--- Returns: "a-b-c"
+-- Returns = "a-b-c"
 join(["a", "b", "c"])
--- Returns: "abc"
+-- Returns = "abc"
 ```
 
 ## See Also

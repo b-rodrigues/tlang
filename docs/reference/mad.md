@@ -9,7 +9,7 @@ Compute scaled MAD: 1.4826 * median(|x - median(x)|).
 - **x** (`Vector`): | List Numeric input.
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

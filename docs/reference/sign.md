@@ -8,7 +8,7 @@ Return -1, 0, or 1 depending on sign.
 
 - **x** (`Number`): | Vector | NDArray Numeric input.
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

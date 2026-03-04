@@ -46,6 +46,8 @@ in every T session</p>
 <hr />
 <h2 id="table-of-contents">Table of Contents</h2>
 <ul>
+<li><a href="#shell-interaction">Shell Interaction</a> — Executing
+commands from T</li>
 <li><a href="#core-package">Core Package</a> — Basic functional
 utilities</li>
 <li><a href="#base-package">Base Package</a> — Errors, NA,
@@ -101,6 +103,26 @@ dictionary literals.</p>
 (<code>Block []</code>) and evaluates to <code>null</code> at runtime.
 Braces are never used for dictionary literals; dictionaries always use
 the bracket (<code>[...]</code>) syntax described above.</p>
+<hr />
+<h2 id="shell-interaction">Shell Interaction</h2>
+<h3 id="shell-escape-...">Shell Escape
+(<code>?&lt;{ ... }&gt;</code>)</h3>
+<p>T provides first-class support for executing shell commands using the
+<code>?&lt;{ }&gt;</code> syntax.</p>
+<ul>
+<li><strong>As a Statement</strong>: Prints output directly to
+<code>stdout</code>.</li>
+<li><strong>As an Expression</strong>: Captures <code>stdout</code> as a
+<code>String</code>.</li>
+<li><strong>Error Handling</strong>: Non-zero exit codes produce a
+<code>ShellError</code> containing <code>stderr</code>.</li>
+<li><strong>Working Directory</strong>: The <code>cd</code> command is
+special-cased to change the interpreter’s working directory.</li>
+</ul>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>?&lt;{ls -la}&gt;             -- Prints directory listing
+files = ?&lt;{ls}&gt;         -- Captures filenames in a string
+?&lt;{cd /tmp}&gt;            -- Changes working directory to /tmp</code></pre>
 <hr />
 <h2 id="core-package">Core Package</h2>
 <p>Fundamental functional programming utilities.</p>
@@ -268,6 +290,86 @@ Error</p>
 <pre class="t"><code>is_error(42)             -- false
 is_error(error(&quot;msg&quot;))   -- true
 is_error(1 / 0)          -- true</code></pre>
+<hr />
+<h3 id="getwd"><code>getwd()</code></h3>
+<p>Returns the current working directory of the T interpreter.</p>
+<p><strong>Returns:</strong> <code>String</code> — Working directory
+path</p>
+<hr />
+<h3 id="file_existspath"><code>file_exists(path)</code></h3>
+<p>Check if a regular file exists at the given path. Returns
+<code>false</code> for directories.</p>
+<p><strong>Parameters:</strong> - <code>path</code> — File path (String
+or Symbol)</p>
+<p><strong>Returns:</strong> <code>Bool</code></p>
+<hr />
+<h3 id="dir_existspath"><code>dir_exists(path)</code></h3>
+<p>Check if a directory exists at the given path.</p>
+<p><strong>Parameters:</strong> - <code>path</code> — Directory path
+(String or Symbol)</p>
+<p><strong>Returns:</strong> <code>Bool</code></p>
+<hr />
+<h3 id="read_filepath"><code>read_file(path)</code></h3>
+<p>Read the entire contents of a file as a string.</p>
+<p><strong>Parameters:</strong> - <code>path</code> — File path (String
+or Symbol)</p>
+<p><strong>Returns:</strong> <code>String</code> or
+<code>Error(FileError)</code></p>
+<hr />
+<h3
+id="list_filespath-pattern"><code>list_files(path, pattern)</code></h3>
+<p>List files and directories in a given path.</p>
+<p><strong>Parameters:</strong> - <code>path</code> (optional) —
+Directory to list (default: “.”) - <code>pattern</code> (optional) —
+Regex pattern to filter filenames</p>
+<p><strong>Returns:</strong> <code>List[String]</code> or
+<code>Error(FileError)</code></p>
+<hr />
+<h3 id="envname"><code>env(name)</code></h3>
+<p>Get the value of an environment variable.</p>
+<p><strong>Parameters:</strong> - <code>name</code> — Environment
+variable name (String or Symbol)</p>
+<p><strong>Returns:</strong> <code>String</code> or <code>null</code> if
+not found</p>
+<hr />
+<h3 id="exitcode"><code>exit(code)</code></h3>
+<p>Exits the T interpreter.</p>
+<p><strong>Parameters:</strong> - <code>code</code> (optional) — Exit
+code integer (default: 0)</p>
+<hr />
+<h3 id="path_join..."><code>path_join(...)</code></h3>
+<p>Join multiple path segments using the system-specific separator.</p>
+<p><strong>Parameters:</strong> - <code>...</code> — One or more path
+segments (String or Symbol)</p>
+<p><strong>Returns:</strong> <code>String</code></p>
+<hr />
+<h3 id="path_basenamepath"><code>path_basename(path)</code></h3>
+<p>Get the filename/last component of a path.</p>
+<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
+<p><strong>Returns:</strong> <code>String</code></p>
+<hr />
+<h3 id="path_dirnamepath"><code>path_dirname(path)</code></h3>
+<p>Get the directory portion of a path.</p>
+<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
+<p><strong>Returns:</strong> <code>String</code></p>
+<hr />
+<h3 id="path_extpath"><code>path_ext(path)</code></h3>
+<p>Get the file extension (including the dot). Returns <code>null</code>
+if no extension is found.</p>
+<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
+<p><strong>Returns:</strong> <code>String</code> or
+<code>null</code></p>
+<hr />
+<h3 id="path_stempath"><code>path_stem(path)</code></h3>
+<p>Get the filename without its extension.</p>
+<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
+<p><strong>Returns:</strong> <code>String</code></p>
+<hr />
+<h3 id="path_abspath"><code>path_abs(path)</code></h3>
+<p>Resolves a relative path to an absolute path against the current
+working directory.</p>
+<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
+<p><strong>Returns:</strong> <code>String</code></p>
 <hr />
 <h2 id="base-package">Base Package</h2>
 <p>Error handling, NA values, and assertions.</p>

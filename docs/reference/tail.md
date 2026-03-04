@@ -9,16 +9,16 @@ Returns the last n items from a List, Vector, or DataFrame. For DataFrames, it r
 - **data** (`DataFrame`): | List | Vector The collection to slice.
 - **n** (`Int`): = 5 Number of items to return.
 
-## Returns
+## Returns:
 
-| List | Vector A subset of the input containing the last n items.
+Returns: | List | Vector A subset of the input containing the last n items.
 
 ## Examples
 
 ```t
-tail([1, 2, 3, 4, 5, 6], n: 3)
--- Returns: [4, 5, 6]
+tail([1, 2, 3, 4, 5, 6], n = 3)
+-- Returns = [4, 5, 6]
 
-df |> tail(n: 10)
+df |> tail(n = 10)
 ```
 

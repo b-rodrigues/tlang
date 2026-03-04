@@ -12,13 +12,13 @@ Evaluates a condition and returns values from `true_val` or `false_val` dependin
 - **missing** (`Any`): (Optional) Value to return when condition is NA.
 - **out_type** (`String`): (Optional) Explicit output type casting.
 
-## Returns
+## Returns:
 
-A vector of the resulting values.
+Returns: A vector of the resulting values.
 
 ## Examples
 
 ```t
-ifelse([true, false, NA], "Yes", "No", missing: "Unknown")
+ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 ```
 

@@ -8,7 +8,7 @@ Alias for `to_float`. Coerces a value to a numeric (float) robustly.
 
 - **x** (`Any`): The value to convert.
 
-## Returns
+## Returns:
 
-| NA The converted float.
+Returns: | NA The converted float.
 

@@ -8,9 +8,9 @@ Removes the grouping structure from a DataFrame.
 
 - **df** (`DataFrame`): The input DataFrame.
 
-## Returns
+## Returns:
 
-An ungrouped DataFrame.
+Returns: An ungrouped DataFrame.
 
 ## Examples
 

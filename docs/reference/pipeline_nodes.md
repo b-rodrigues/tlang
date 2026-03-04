@@ -8,9 +8,9 @@ Returns a list of node names in the pipeline.
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns
+## Returns:
 
-The node names.
+Returns: The node names.
 
 ## See Also
 

@@ -9,16 +9,16 @@ Formats a string using C-style format specifiers. Supports %s (string), %d (inte
 - **fmt** (`String`): The format string.
 - **...** (`Any`): Values to substitute in the format string.
 
-## Returns
+## Returns:
 
-The formatted string.
+Returns: The formatted string.
 
 ## Examples
 
 ```t
 sprintf("Hello, %s!", "world")
--- Returns: "Hello, world!"
-sprintf("Value: %d", 42)
--- Returns: "Value: 42"
+-- Returns = "Hello, world!"
+sprintf("Value = %d", 42)
+-- Returns: "Value = 42"
 ```
 

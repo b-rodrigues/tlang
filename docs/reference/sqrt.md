@@ -8,15 +8,15 @@ Calculates the square root of x.
 
 - **x** (`Number`): | Vector | NDArray The input value (must be non-negative).
 
-## Returns
+## Returns:
 
-| Vector | NDArray The square root.
+Returns: | Vector | NDArray The square root.
 
 ## Examples
 
 ```t
 sqrt(16)
--- Returns: 4.0
+-- Returns = 4.0
 ```
 
 ## See Also

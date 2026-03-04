@@ -8,9 +8,9 @@ Returns the rank of the current row, breaking ties by index.
 
 - **x** (`Vector`): The input vector.
 
-## Returns
+## Returns:
 
-The ranks (1 to n).
+Returns: The ranks (1 to n).
 
 ## See Also
 

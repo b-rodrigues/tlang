@@ -4,9 +4,9 @@ Boolean NA
 
 Represents a missing boolean value.
 
-## Returns
+## Returns:
 
-
+Returns: 
 
 ## See Also
 

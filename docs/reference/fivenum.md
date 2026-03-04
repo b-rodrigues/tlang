@@ -9,7 +9,7 @@ Return min, Q1, median, Q3, max.
 - **x** (`Vector`): | List Numeric input.
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

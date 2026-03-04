@@ -8,7 +8,7 @@ Return most frequent value.
 
 - **x** (`Vector`): | List Input values.
 
-## Returns
+## Returns:
 
-The most frequent value from the input (or NA if empty).
+Returns: The most frequent value from the input (or NA if empty).
 

@@ -8,15 +8,15 @@ Returns the maximum value in a vector or list.
 
 - **x** (`Vector`): | List The numeric data.
 
-## Returns
+## Returns:
 
-The maximum value.
+Returns: The maximum value.
 
 ## Examples
 
 ```t
 max([1, 2, 3])
--- Returns: 3.0
+-- Returns = 3.0
 ```
 
 ## See Also

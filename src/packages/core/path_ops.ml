@@ -45,6 +45,8 @@ let normalize_path path =
 --# @return :: String The joined path.
 --# @example
 --#   path_join("/home/user", "project", "data.csv")  # => "/home/user/project/data.csv"
+--# @family core
+--# @export
 *)
 let builtin_path_join =
   make_builtin_named ~name:"path_join" ~variadic:true 1 (fun args _env ->
@@ -72,6 +74,8 @@ let builtin_path_join =
 --# @return :: String The final component of the path.
 --# @example
 --#   path_basename("/home/user/data.csv")  # => "data.csv"
+--# @family core
+--# @export
 *)
 let builtin_path_basename =
   make_builtin_named ~name:"path_basename" 1 (fun args _env ->
@@ -86,6 +90,8 @@ let builtin_path_basename =
 --# @return :: String The directory portion of the path.
 --# @example
 --#   path_dirname("/home/user/data.csv")  # => "/home/user"
+--# @family core
+--# @export
 *)
 let builtin_path_dirname =
   make_builtin_named ~name:"path_dirname" 1 (fun args _env ->
@@ -101,6 +107,8 @@ let builtin_path_dirname =
 --# @example
 --#   path_ext("data.csv")    # => ".csv"
 --#   path_ext("Makefile")    # => null
+--# @family core
+--# @export
 *)
 let builtin_path_ext =
   make_builtin_named ~name:"path_ext" 1 (fun args _env ->
@@ -119,6 +127,8 @@ let builtin_path_ext =
 --# @example
 --#   path_stem("data.csv")        # => "data"
 --#   path_stem("archive.tar.gz")  # => "archive.tar"
+--# @family core
+--# @export
 *)
 let builtin_path_stem =
   make_builtin_named ~name:"path_stem" 1 (fun args _env ->
@@ -136,6 +146,8 @@ let builtin_path_stem =
 --# @example
 --#   path_abs("data.csv")          # => "/cwd/data.csv"
 --#   path_abs("/already/absolute") # => "/already/absolute"
+--# @family core
+--# @export
 *)
 let builtin_path_abs =
   make_builtin_named ~name:"path_abs" 1 (fun args _env ->

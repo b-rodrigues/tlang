@@ -9,14 +9,14 @@ Creates a new NDArray from a list or vector of data, optionally specifying the s
 - **data** (`List`): | Vector The data to populate the array. Can be nested lists.
 - **shape** (`List[Int]`): (Optional) The dimensions of the array.
 
-## Returns
+## Returns:
 
-The created N-dimensional array.
+Returns: The created N-dimensional array.
 
 ## Examples
 
 ```t
-ndarray([1, 2, 3, 4], shape: [2, 2])
+ndarray([1, 2, 3, 4], shape = [2, 2])
 ndarray([[1, 2], [3, 4]])
 ```
 

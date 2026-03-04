@@ -46,15 +46,15 @@ functions.</p>
 <li><strong>fn</strong> (<code>Function</code>): The function to
 inspect.</li>
 </ul>
-<h2 id="returns">Returns</h2>
-<p>A dictionary of name: Type.</p>
+<h2 id="returns">Returns:</h2>
+<p>Returns: A dictionary of name = Type.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>args(sqrt)
--- Returns: {x: &quot;Number | Vector | NDArray&quot;}
+-- Returns: {x = &quot;Number | Vector | NDArray&quot;}
 
-f = \(x: Int, y: Float -&gt; Int) x + y
+f = \(x = Int, y = Float -&gt; Int) x + y
 args(f)
--- Returns: {x: &quot;Int&quot;, y: &quot;Float&quot;}</code></pre>
+-- Returns: {x: &quot;Int&quot;, y = &quot;Float&quot;}</code></pre>
 <footer>
     <hr class="footer-hr">
     <center>

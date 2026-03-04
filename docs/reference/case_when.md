@@ -9,7 +9,7 @@ Evaluates multiple conditions and returns the corresponding value for the first 
 - **.default** (`Any`): (Optional) Default value if no condition is met.
 - **...** (`Formula`): Conditions and their corresponding return values.
 
-## Returns
+## Returns:
 
-A vector of the resulting values.
+Returns: A vector of the resulting values.
 

@@ -9,9 +9,9 @@ Computes confidence intervals for model coefficients based on the Student's t di
 - **model** (`Model`): The model object (e.g., from lm() or imported).
 - **level** (`Float`): Confidence level (default 0.95).
 
-## Returns
+## Returns:
 
-Columns: `term`, `lower`, `upper`.
+Returns: Columns = `term`, `lower`, `upper`.
 
 ## Examples
 

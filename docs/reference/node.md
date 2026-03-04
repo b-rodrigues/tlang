@@ -7,15 +7,15 @@ Configure execution settings such as the runtime and custom serialized methods f
 ## Parameters
 
 - **command** (`Any`): (Optional) The expression to evaluate inside the node. Mutually exclusive with `script`.
-- **script** (`String`): (Optional) Path to an external `.R` or `.py` file to execute as the node body. Mutually exclusive with `command`. The runtime is auto-detected from the file extension (`.R` → R, `.py` → Python) when not explicitly provided.
-- **runtime** (`Symbol`): (Optional) The runtime environment (T, R, Python). Default: T.
-- **serializer** (`Symbol`): (Optional) Custom serializer function. Default: default.
-- **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default: default.
+- **script** (`String`): (Optional) Path to an external `.R` or `.py` file to execute as the node body. Mutually exclusive with `command`. The runtime is auto-detected from the file extension when not explicitly provided.
+- **runtime** (`Symbol`): (Optional) The runtime environment (T, R, Python). Default = T.
+- **serializer** (`Symbol`): (Optional) Custom serializer function. Default = default.
+- **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default = default.
 - **functions** (`String`): | List[String] (Optional) Files to source before execution.
 - **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
-- **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default: false.
+- **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
-## Returns
+## Returns:
 
-The evaluated return value of the command.
+Returns: The evaluated return value of the command.
 

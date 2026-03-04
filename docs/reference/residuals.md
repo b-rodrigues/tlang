@@ -8,16 +8,16 @@ Computes residuals for a model given a dataset.
 
 - **data** (`DataFrame`): Input data.
 - **model** (`Model`): The model object.
-- **type** (`String`): (Optional) Type of residuals: "response" (default) or "pearson".
+- **type** (`String`): (Optional) Type of residuals = "response" (default) or "pearson".
 
-## Returns
+## Returns:
 
-Columns: `actual`, `fitted`, `resid`.
+Returns: Columns = `actual`, `fitted`, `resid`.
 
 ## Examples
 
 ```t
 res = residuals(mtcars, model)
-res_p = residuals(mtcars, model, type: "pearson")
+res_p = residuals(mtcars, model, type = "pearson")
 ```
 

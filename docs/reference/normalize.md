@@ -8,7 +8,7 @@ Min-max normalize values to [0, 1].
 
 - **x** (`Vector`): | List Numeric input.
 
-## Returns
+## Returns:
 
-| Vector Computed result (scalar or vectorized).
+Returns: | Vector Computed result (scalar or vectorized).
 

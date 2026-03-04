@@ -8,15 +8,15 @@ Converts any value to its string representation.
 
 - **x** (`Any`): The value to convert.
 
-## Returns
+## Returns:
 
-The string representation.
+Returns: The string representation.
 
 ## Examples
 
 ```t
 string(123)
--- Returns: "123"
+-- Returns = "123"
 ```
 
 ## See Also

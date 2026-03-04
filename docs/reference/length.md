@@ -8,7 +8,7 @@ Returns the number of elements in a collection (List, Vector, Dict). This functi
 
 - **x** (`List`): | Vector | Dict The collection to measure.
 
-## Returns
+## Returns:
 
-The number of elements.
+Returns: The number of elements.
 

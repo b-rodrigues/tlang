@@ -8,15 +8,15 @@ Calculates e raised to the power of x.
 
 - **x** (`Number`): | Vector | NDArray The exponent.
 
-## Returns
+## Returns:
 
-| Vector | NDArray The result of e^x.
+Returns: | Vector | NDArray The result of e^x.
 
 ## Examples
 
 ```t
 exp(1)
--- Returns: 2.71828...
+-- Returns = 2.71828...
 ```
 
 ## See Also

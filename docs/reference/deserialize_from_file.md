@@ -8,7 +8,7 @@ Reads a serialized T value from a file.
 
 - **path** (`String`): Source file path.
 
-## Returns
+## Returns:
 
-String] Value or error.
+Returns: String] Value or error.
 

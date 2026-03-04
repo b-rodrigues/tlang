@@ -45,10 +45,12 @@ statistics.</p>
 <li><strong>model</strong> (<code>Model</code>): The model object (e.g.,
 from lm()).</li>
 </ul>
-<h2 id="returns">Returns</h2>
-<p>Tidy summary of coefficients.</p>
+<h2 id="returns">Returns:</h2>
+<p>Returns: Tidy summary dictionary with <code>_tidy_df</code> and
+metadata.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>summary(model)</code></pre>
+<pre class="t"><code>s = summary(model)
+coefficients = s._tidy_df</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="fit_stats.md">fit_stats</a>, <a href="lm.md">lm</a></p>
 <footer>

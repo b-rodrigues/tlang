@@ -9,9 +9,9 @@ Retrieves a field from an Intent object.
 - **intent** (`Intent`): The intent object.
 - **key** (`String`): The field name.
 
-## Returns
+## Returns:
 
-The field value.
+Returns: The field value.
 
 ## See Also
 

@@ -4,9 +4,9 @@ String NA
 
 Represents a missing string value.
 
-## Returns
+## Returns:
 
-
+Returns: 
 
 ## See Also
 

@@ -8,9 +8,9 @@ Captures one or more expressions as a List of Expr values. Useful for metaprogra
 
 - **...** (`Any`): One or more expressions to capture.
 
-## Returns
+## Returns:
 
-A list of captured expressions.
+Returns: A list of captured expressions.
 
 ## Examples
 
