@@ -30,7 +30,7 @@ let normalize_path path =
         (match acc with
          | [] | [""] -> go acc rest
          | _ :: parent -> go parent rest)
-    | "" :: rest when acc <> [] -> go acc rest
+    | "" :: rest -> (match acc with [] -> go ("" :: acc) rest | _ -> go acc rest)
     | part :: rest -> go (part :: acc) rest
   in
   let normalized = go [] parts in
@@ -147,7 +147,7 @@ let builtin_path_abs =
         else
           match (try Ok (Sys.getcwd ()) with Sys_error msg -> Error msg) with
           | Error msg ->
-              Error.make_error RuntimeError
+              Error.runtime_error
                 (Printf.sprintf "path_abs: cannot get working directory: %s" msg)
           | Ok cwd ->
               VString (normalize_path (Filename.concat cwd path))

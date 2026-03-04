@@ -31,6 +31,7 @@ type error_code =
   | MatchError
   | SyntaxError
   | ShellError
+  | RuntimeError
   | GenericError
 
 (** Structured error information *)
@@ -279,6 +280,7 @@ module Utils = struct
     | MatchError -> "MatchError"
     | SyntaxError -> "SyntaxError"
     | ShellError -> "ShellError"
+    | RuntimeError -> "RuntimeError"
     | GenericError -> "GenericError"
 
   let na_type_to_string = function

@@ -77,3 +77,6 @@ let syntax_error msg =
 
 let match_error msg =
   make_error MatchError msg
+
+let runtime_error msg =
+  make_error RuntimeError msg

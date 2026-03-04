@@ -3,7 +3,9 @@ open Ast
 let register env =
   let env = Env.add "getwd"
     (make_builtin_named ~name:"getwd" 0 (fun _args _env ->
-      VString (Sys.getcwd ())
+      try VString (Sys.getcwd ())
+      with Sys_error msg ->
+        Error.runtime_error (Printf.sprintf "getwd: %s" msg)
     ))
     env
   in
@@ -53,7 +55,10 @@ let register env =
               really_input ic buf 0 n;
               VString (Bytes.to_string buf)
             )
-          with exn ->
+          with
+          | Sys_error msg ->
+            Error.make_error FileError (Printf.sprintf "read_file: %s" msg)
+          | exn ->
             Error.make_error FileError (Printf.sprintf "read_file: %s" (Printexc.to_string exn)))
       | [(_, other)] ->
           Error.type_error (Printf.sprintf "Function `read_file` expects a String, got %s." (Utils.type_name other))
