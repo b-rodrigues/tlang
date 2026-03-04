@@ -76,6 +76,8 @@ The runtime is auto-detected from the file extension, so you can also use `node(
 - **✨ Metaprogramming**: First-class quotation (`expr`), unquoting (`!!`, `!!!`), and evaluation (`eval`) for DSLs and code generation.
 - **💾 Computed Nodes**: Evaluation results are persisted as immutable, content-addressed artifacts for maximum reproducibility.
 
+Check out [this repository](https://github.com/b-rodrigues/t_demos) for many examples!
+
 ---
 
 ## Philosophy & Design
