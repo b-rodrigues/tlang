@@ -100,6 +100,13 @@ let unparse_import_stmt = function
         | None -> s.import_name
       ) names in
       Printf.sprintf "import %s[%s]" package (String.concat ", " name_strs)
+  | Ast.ImportFileFrom { filename; names } ->
+      let name_strs = List.map (fun (s : Ast.import_spec) ->
+        match s.import_alias with
+        | Some alias -> Printf.sprintf "%s=%s" alias s.import_name
+        | None -> s.import_name
+      ) names in
+      Printf.sprintf "import \"%s\"[%s]" filename (String.concat ", " name_strs)
   | Ast.Assignment { name; expr; _ } ->
       Printf.sprintf "%s = %s" name (unparse_expr expr)
   | _ -> ""
