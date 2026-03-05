@@ -1,0 +1,26 @@
+{
+  "name": "t-lang",
+  "displayName": "T Language Support",
+  "description": "Syntax highlighting for the T programming language.",
+  "version": "0.1.0",
+  "publisher": "t-lang",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "t",
+      "aliases": ["T", "tlang"],
+      "extensions": [".t"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "t",
+      "scopeName": "source.t",
+      "path": "./syntaxes/t.tmLanguage.json"
+    }]
+  }
+}

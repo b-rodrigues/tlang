@@ -3,6 +3,10 @@
 (* OCamllex lexer for the T language — Phase 0 Alpha *)
 open Parser (* The tokens are defined in parser.mly *)
 exception SyntaxError of string
+
+let is_ident_char = function
+  | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '$' -> true
+  | _ -> false
 }
 
 let digit = ['0'-'9']
