@@ -123,6 +123,12 @@ let is_incomplete input =
 
 (* --- Pretty-Printing for REPL --- *)
 
+let color_reset = "\027[0m"
+let color_bold = "\027[1m"
+let color_red = "\027[31m"
+let color_blue = "\027[34m"
+let color_gray = "\027[90m"
+
 (** Pretty-print a value for REPL display *)
 let repl_display_value v =
   let maybe_package_info v =
@@ -139,17 +145,75 @@ let repl_display_value v =
   in
   match v with
   | Ast.VNull -> ()
-  | Ast.VError _ | Ast.VDataFrame _ | Ast.VPipeline _ ->
+  | Ast.VError { code; message; context } ->
+      Printf.printf "%sError(%s):%s %s\n" color_red (Ast.Utils.error_code_to_string code) color_reset message;
+      if context <> [] then begin
+        Printf.printf "%sContext:%s\n" color_gray color_reset;
+        List.iter (fun (k, v) -> Printf.printf "  %s: %s\n" k (Ast.Utils.value_to_string v)) context
+      end;
+      flush stdout
+  | Ast.VDataFrame _ | Ast.VPipeline _ ->
       print_string (Pretty_print.pretty_print_value v);
       flush stdout
   | other ->
       (match maybe_package_info other with
       | Some (name, description, functions) ->
-          Printf.printf "\n  %s\n\n  %s\n\n  Functions (%d):\n"
-            name description (List.length functions);
+          Printf.printf "\n  %s%s%s\n\n  %s\n\n  %sFunctions (%d):%s\n"
+            color_bold name color_reset description color_blue (List.length functions) color_reset;
           List.iter (fun fn_name -> Printf.printf "    - %s\n" fn_name) functions;
           print_newline ()
-      | None -> print_endline (Ast.Utils.value_to_string other))
+      | None -> print_endline (Ast.Utils.value_to_string other));
+      flush stdout
+
+(* --- Magic Commands and Help --- *)
+
+let handle_magic line env mode base_keys =
+  let parts = String.split_on_char ' ' (String.sub line 1 (String.length line - 1)) |> List.filter (fun s -> s <> "") in
+  match parts with
+  | "time" :: expr_parts ->
+      let expr_str = String.concat " " expr_parts in
+      let start_time = Unix.gettimeofday () in
+      let (result, new_env) = parse_and_eval mode env expr_str in
+      let end_time = Unix.gettimeofday () in
+      repl_display_value result;
+      Printf.printf "%sExecution time: %.4f seconds%s\n" color_gray (end_time -. start_time) color_reset;
+      flush stdout;
+      (new_env, true)
+  | ["ls"] ->
+      let files = Sys.readdir "." |> Array.to_list in
+      List.iter (fun f -> Printf.printf "%s  " f) files;
+      print_newline ();
+      flush stdout;
+      (env, true)
+  | ["pwd"] ->
+      Printf.printf "%s\n" (Sys.getcwd ());
+      flush stdout;
+      (env, true)
+  | ["cd"; dir] ->
+      (try Sys.chdir dir with Sys_error msg -> Printf.printf "Error: %s\n" msg);
+      flush stdout;
+      (env, true)
+  | ["env"] ->
+      Array.iter print_endline (Unix.environment ());
+      flush stdout;
+      (env, true)
+  | ["history"] ->
+      Printf.printf "Command history showing is not fully implemented yet.\n";
+      flush stdout;
+      (env, true)
+  | ["objects"] | ["who"] ->
+      let names = Ast.Env.fold (fun k _ acc -> 
+        if not (Hashtbl.mem base_keys k) then k :: acc else acc
+      ) env [] |> List.sort String.compare in
+      Printf.printf "%sUser-defined objects (%d):%s\n" color_blue (List.length names) color_reset;
+      List.iter (fun n -> Printf.printf "  %s\n" n) names;
+      print_newline ();
+      flush stdout;
+      (env, true)
+  | _ ->
+      Printf.printf "Unknown magic command: %s\n" line;
+      flush stdout;
+      (env, true)
 
 (* --- CLI Commands --- *)
 
@@ -157,44 +221,27 @@ let print_help () =
   Printf.printf "T language — version %s\n\n" version;
   Printf.printf "Usage: t <command> [arguments]\n\n";
   Printf.printf "Commands:\n";
-  Printf.printf "  repl              Start the interactive REPL\n";
+  Printf.printf "  repl              Start the interactive REPL (default)\n";
   Printf.printf "  run <file.t>      Execute a T source file\n";
-  Printf.printf "  run --expr <expr> Execute a T expression directly (implicitly --unsafe)\n";
-  Printf.printf "  --mode <m>        Type-check mode: repl (default) or strict\n";
+  Printf.printf "  run --expr <expr> Execute a T expression directly\n";
+  Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
-  Printf.printf "  init package <n>  Create a new T package\n";
-  Printf.printf "  init project <n>  Create a new T project\n";
-
+  Printf.printf "  init package      Create a new T package\n";
+  Printf.printf "  init project      Create a new T project\n";
   Printf.printf "  test              Run tests in the current directory\n";
-  Printf.printf "  doctor            Check package configuration and health\n";
-  Printf.printf "  docs              Open package documentation\n";
-  Printf.printf "  doc               Generate documentation from source (--parse, --generate)\n";
-  Printf.printf "  update            Update dependencies (nix flake update)\n";
-  Printf.printf "  publish           Draft a new release (tag + push)\n";
+  Printf.printf "  doctor            Check package health\n";
+  Printf.printf "  docs              Open documentation\n";
   Printf.printf "  --help, -h        Show this help message\n";
-  Printf.printf "  --version, -v     Show version information\n";
-  Printf.printf "\nStandard packages (loaded by default):\n";
-  Printf.printf "  core              Printing, type inspection, data structures\n";
-  Printf.printf "  math              Pure numerical primitives (sqrt, abs, log, exp, pow)\n";
-  Printf.printf "  stats             Statistical summaries and models (mean, sd, lm, ...)\n";
-  Printf.printf "  colcraft          DataFrame manipulation (select, filter, mutate, ...)\n";
-  Printf.printf "  dataframe         DataFrame creation and introspection\n";
-  Printf.printf "  base              Assertions, NA handling, error utilities\n";
-  Printf.printf "  pipeline          Pipeline definition and introspection\n";
-  Printf.printf "  explain           Value introspection and intent blocks\n";
-  Printf.printf "\nExamples:\n";
-  Printf.printf "  t repl\n";
-  Printf.printf "  t run pipeline.t\n";
-  Printf.printf "  t explain 'read_csv(\"data.csv\")'\n";
-  Printf.printf "  t init package my-stats-pkg\n";
-  Printf.printf "  t init project my-analysis\n"
+  Printf.printf "  --version, -v     Show version\n";
+  Printf.printf "\nREPL Power Features:\n";
+  Printf.printf "  %%time <expr>      Time an expression\n";
+  Printf.printf "  %%objects          List user-defined objects\n"
 
 let print_version () =
   Printf.printf "T language version %s\n" version
 
 let cmd_run ?(unsafe=false) mode filename env =
   Packages.ensure_docs_loaded ();
-  (* Gate: non-interactive execution requires build_pipeline() unless --unsafe *)
   if not unsafe then begin
     try
       let ch = open_in filename in
@@ -205,12 +252,11 @@ let cmd_run ?(unsafe=false) mode filename env =
         let program = Parser.program Lexer.token lexbuf in
         if not (program_has_build_pipeline program) then begin
           Printf.eprintf "Error: non-interactive execution requires a pipeline.\n";
-          Printf.eprintf "Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.\n";
-          Printf.eprintf "Use the REPL for interactive exploration, or pass --unsafe to override.\n";
+          Printf.eprintf "Use --unsafe to override.\n";
           exit 1
         end
-      with _ -> ())  (* If parsing fails here, let the actual run_file handle the error *)
-    with _ -> ()  (* If file open fails, let run_file handle it *)
+      with _ -> ())
+    with _ -> ()
   end;
   let (result, _env) = run_file mode filename env in
   match result with
@@ -230,200 +276,105 @@ let cmd_run_expr mode expr env =
 
 let cmd_init_package args =
   match Scaffold.parse_init_flags args with
-  | Error msg -> 
-      (* If no args provided, default to interactive *)
-      if args = [] then
-        let opts = Scaffold.interactive_init "" in
-        match Scaffold.scaffold_package opts with
-        | Ok () -> Printf.printf "Package %s initialized successfully.\n" opts.target_name
-        | Error e -> Printf.eprintf "Error: %s\n" e; exit 1
-      else (Printf.eprintf "Error: %s\n" msg; exit 1)
+  | Error _ when args = [] ->
+      let opts = Scaffold.interactive_init "" in
+      (match Scaffold.scaffold_package opts with
+      | Ok () -> Printf.printf "Package initialized successfully.\n"
+      | Error e -> Printf.eprintf "Error: %s\n" e; exit 1)
+  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
   | Ok opts ->
       let opts = if opts.interactive then Scaffold.interactive_init opts.target_name else opts in
       match Scaffold.scaffold_package opts with
-      | Ok () -> Printf.printf "Package %s initialized successfully.\n" opts.target_name
+      | Ok () -> Printf.printf "Package initialized successfully.\n"
       | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
 let cmd_init_project args =
   match Scaffold.parse_init_flags args with
-  | Error msg -> 
-      (* If no args provided, default to interactive *)
-      if args = [] then
-        let opts = Scaffold.interactive_init ~placeholder:"my_project" "" in
-        match Scaffold.scaffold_project opts with
-        | Ok () -> Printf.printf "Project %s initialized successfully.\n" opts.target_name
-        | Error e -> Printf.eprintf "Error: %s\n" e; exit 1
-      else (Printf.eprintf "Error: %s\n" msg; exit 1)
+  | Error _ when args = [] ->
+      let opts = Scaffold.interactive_init ~placeholder:"my_project" "" in
+      (match Scaffold.scaffold_project opts with
+      | Ok () -> Printf.printf "Project initialized successfully.\n"
+      | Error e -> Printf.eprintf "Error: %s\n" e; exit 1)
+  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
   | Ok opts ->
       let opts = if opts.interactive then Scaffold.interactive_init ~placeholder:"my_project" opts.target_name else opts in
       match Scaffold.scaffold_project opts with
-      | Ok () -> Printf.printf "Project %s initialized successfully.\n" opts.target_name
+      | Ok () -> Printf.printf "Project initialized successfully.\n"
       | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
 let cmd_explain mode rest env =
   Packages.ensure_docs_loaded ();
-  let is_json = List.mem "--json" rest in
-  let expr_parts = List.filter (fun s -> s <> "--json") rest in
-  let expr_str = String.concat " " expr_parts in
-  if expr_str = "" then begin
-    Printf.eprintf "Usage: t explain <expression> [--json]\n"; exit 1
-  end else begin
+  let expr_str = String.concat " " (List.filter (fun s -> s <> "--json") rest) in
+  if expr_str = "" then (Printf.eprintf "Usage: t explain <expr>\n"; exit 1)
+  else begin
     let (result, env') = parse_and_eval mode env expr_str in
-    match result with
-    | Ast.VError { code; message; _ } ->
-        Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
-    | _ ->
-        let explain_expr = Printf.sprintf "explain(__explain_target__)" in
-        let env'' = Ast.Env.add "__explain_target__" result env' in
-        let (explain_result, _) = parse_and_eval mode env'' explain_expr in
-        if is_json then
-          print_endline (Ast.Utils.value_to_string explain_result)
-        else begin
-          let rec print_dict indent pairs =
-            List.iter (fun (k, v) ->
-              match v with
-              | Ast.VDict sub_pairs ->
-                  Printf.printf "%s%s:\n" indent k;
-                  print_dict (indent ^ "  ") sub_pairs
-              | Ast.VList items ->
-                  Printf.printf "%s%s: [%s]\n" indent k
-                    (String.concat ", " (List.map (fun (_, item) -> Ast.Utils.value_to_string item) items))
-              | _ ->
-                  Printf.printf "%s%s: %s\n" indent k (Ast.Utils.value_to_string v)
-            ) pairs
-          in
-          match explain_result with
-          | Ast.VDict pairs -> print_dict "" pairs
-          | Ast.VError { code; message; _ } ->
-              Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
-          | v -> print_endline (Ast.Utils.value_to_string v)
-        end
+    let explain_expr = "explain(__explain_target__)" in
+    let env'' = Ast.Env.add "__explain_target__" result env' in
+    let (explain_result, _) = parse_and_eval mode env'' explain_expr in
+    print_endline (Ast.Utils.value_to_string explain_result)
   end
 
 let cmd_test args =
   let verbose = List.mem "--verbose" args || List.mem "-v" args in
-  let dir = Sys.getcwd () in
-  let suite_result = Test_discovery.run_suite ~verbose dir in
-  if suite_result.failed > 0 then exit 1 else ()
+  let suite_result = Test_discovery.run_suite ~verbose (Sys.getcwd ()) in
+  if suite_result.failed > 0 then exit 1
 
-let cmd_doctor () =
-  Package_doctor.run_doctor ()
+let cmd_doctor () = Package_doctor.run_doctor ()
 
 let cmd_publish () =
   let dir = Sys.getcwd () in
   match Release_manager.get_package_version dir with
   | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
-  | Ok version ->
-      Printf.printf "Preparing to publish version %s...\n" version;
+  | Ok v ->
+      Printf.printf "Publishing v%s...\n" v;
       match Release_manager.validate_clean_git () with
       | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
       | Ok () ->
           match Release_manager.validate_tests_pass () with
           | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
           | Ok () ->
-              match Release_manager.validate_changelog dir version with
+              match Release_manager.create_git_tag v with
               | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
-              | Ok () ->
-                  Printf.printf "\n✓ Validation complete.\n";
-                  Printf.printf "  - Git working directory is clean\n";
-                  Printf.printf "  - Tests pass\n";
-                  Printf.printf "  - CHANGELOG.md has entry for %s\n" version;
-                  Printf.printf "\nProceed to tag and push v%s? [y/N] " version;
-                  flush stdout;
-                  let response = try read_line () with End_of_file -> "n" in
-                  if String.lowercase_ascii response = "y" then begin
-                    match Release_manager.create_git_tag version with
-                    | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
-                    | Ok tag ->
-                        Printf.printf "✓ Tag %s created locally.\n" tag;
-                        match Release_manager.push_git_tag tag with
-                        | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
-                        | Ok () -> Printf.printf "✓ Tag %s pushed to remote.\n" tag
-                  end else
-                    Printf.printf "Aborted.\n"
+              | Ok tag ->
+                  match Release_manager.push_git_tag tag with
+                  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+                  | Ok () -> Printf.printf "Successfully published %s\n" tag
 
-
-let cmd_docs () =
-  let dir = Sys.getcwd () in
-  match Documentation_manager.validate_docs dir with
-  | Ok () -> Documentation_manager.open_docs dir
-  | Error msg -> 
-      Printf.eprintf "Documentation check failed: %s\n" msg;
-      Printf.printf "Opening README as fallback...\n";
-      Documentation_manager.open_docs dir
+let cmd_docs () = Documentation_manager.open_docs (Sys.getcwd ())
 
 let recursive_files dir =
-  if not (Sys.file_exists dir && Sys.is_directory dir) then
-    []
-  else
   let rec walk acc d =
-    let entries = Sys.readdir d in
+    let entries = try Sys.readdir d with _ -> [||] in
     Array.fold_left (fun acc e ->
       let path = Filename.concat d e in
       if Sys.is_directory path then walk acc path
-      else if Filename.check_suffix path ".ml" || Filename.check_suffix path ".t" then path :: acc
+      else if Filename.check_suffix e ".ml" || Filename.check_suffix e ".t" then path :: acc
       else acc
     ) acc entries
-  in
-  walk [] dir
+  in walk [] dir
 
 let cmd_doc args =
   let do_parse = List.mem "--parse" args || args = [] in
   let do_gen = List.mem "--generate" args || args = [] in
   let dir = Sys.getcwd () in
   let src_dir = Filename.concat dir "src" in
-  
   if do_parse then begin
-    Printf.printf "Parsing documentation from %s...\n" src_dir;
-    let files = recursive_files src_dir in
-    List.iter (fun f ->
-      let docs = Tdoc_parser.parse_file f in
-      List.iter Tdoc_registry.register docs
-    ) files;
-    
-    let help_dir = Filename.concat dir "help" in
-    if not (Sys.file_exists help_dir) then Unix.mkdir help_dir 0o755;
-    
-    Tdoc_registry.to_json_file (Filename.concat help_dir "docs.json");
-    Printf.printf "Parsed %d functions.\n" (List.length (Tdoc_registry.get_all ()))
+    List.iter (fun f -> List.iter Tdoc_registry.register (Tdoc_parser.parse_file f)) (recursive_files src_dir);
+    Tdoc_registry.to_json_file (Filename.concat dir "help/docs.json")
   end;
-  
   if do_gen then begin
-    Printf.printf "Generating Markdown in docs/reference...\n";
-    let ensure_dir path =
-      if Sys.file_exists path then
-        (if not (Sys.is_directory path) then
-          failwith (Printf.sprintf "%s exists and is not a directory" path))
-      else
-        Unix.mkdir path 0o755
-    in
-    let docs_dir = Filename.concat dir "docs" in
-    ensure_dir docs_dir;
-    let out_dir = Filename.concat docs_dir "reference" in
-    ensure_dir out_dir;
-    let entries = Tdoc_registry.get_all () in
+    let out_dir = Filename.concat dir "docs/reference" in
+    if not (Sys.file_exists out_dir) then Unix.mkdir out_dir 0o755;
     List.iter (fun e ->
-      let content = Tdoc_markdown.generate_function_doc e in
-      let path = Filename.concat out_dir (e.name ^ ".md") in
-      let ch = open_out path in
-      output_string ch content;
-      close_out ch
-    ) entries;
-    (* Generate Index *)
-    let index_content = Tdoc_markdown.generate_index entries in
-    let ch = open_out (Filename.concat out_dir "index.md") in
-    output_string ch index_content;
-    close_out ch;
-    Printf.printf "Documentation generated in %s\n" out_dir
+      let ch = open_out (Filename.concat out_dir (e.Tdoc_types.name ^ ".md")) in
+      output_string ch (Tdoc_markdown.generate_function_doc e); close_out ch
+    ) (Tdoc_registry.get_all ())
   end
 
 let cmd_update () =
   match Update_manager.update_flake_lock () with
-  | Ok () -> Printf.printf "Dependencies updated successfully.\n"
+  | Ok () -> Printf.printf "Updated.\n"
   | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
-
-(* --- Interactive REPL --- *) 
-
 
 let get_nix_version () =
   try
@@ -432,17 +383,18 @@ let get_nix_version () =
     match Unix.close_process_in ch with
     | Unix.WEXITED 0 ->
         let parts = String.split_on_char ' ' line in
-        let rec last = function
-          | [] -> ""
-          | [x] -> x
-          | _ :: xs -> last xs
-        in
+        let rec last = function [] -> "" | [x] -> x | _ :: xs -> last xs in
         Some (last parts)
     | _ -> None
   with _ -> None
 
 let cmd_repl mode env =
   Packages.ensure_docs_loaded ();
+  
+  (* Track base environment keys to filter %objects *)
+  let base_keys = Hashtbl.create 200 in
+  Ast.Env.iter (fun k _ -> Hashtbl.add base_keys k ()) env;
+
   match get_nix_version () with
   | None ->
       Printf.eprintf "Nix not found! Install Nix to use T!\n";
@@ -473,14 +425,31 @@ let cmd_repl mode env =
   Symbol_table.register_keywords scope;
   Symbol_table.populate_from_env scope env;
 
+  LNoise.set_multiline true;
   LNoise.set_completion_callback (fun buffer completions ->
     let matches = Completion.complete scope ~buffer ~cursor:(String.length buffer) in
     List.iter (LNoise.add_completion completions) matches
   );
 
+  LNoise.set_hints_callback (fun buffer ->
+    let cursor = String.length buffer in
+    if cursor = 0 then None
+    else
+      let matches = Completion.complete scope ~buffer ~cursor in
+      match matches with
+      | m :: _ ->
+          let prefix = Completion.extract_prefix buffer cursor in
+          if String.length m > String.length prefix then
+             let hint = String.sub m (String.length buffer) (String.length m - String.length buffer) in
+             Some (hint, LNoise.White, false)
+          else None
+      | [] -> None
+  );
+
   flush stdout;
   let rec repl env =
-    match LNoise.linenoise "T> " with
+    let prompt = "T> " in
+    match LNoise.linenoise prompt with
     | None ->
         print_endline "\nGoodbye."
     | Some line ->
@@ -496,6 +465,14 @@ let cmd_repl mode env =
             Printf.printf "  :version      Show T language and Nix versions\n";
             Printf.printf "  :packages     List all currently loaded packages\n\n";
             
+            Printf.printf "Magic Commands:\n";
+            Printf.printf "  %%time <expr>  Time an expression\n";
+            Printf.printf "  %%ls           List directory contents\n";
+            Printf.printf "  %%pwd          Print working directory\n";
+            Printf.printf "  %%cd <dir>     Change directory\n";
+            Printf.printf "  %%env          List environment variables\n";
+            Printf.printf "  %%objects      List user-defined objects\n\n";
+
             Printf.printf "Resources:\n";
             Printf.printf "  Website:      https://tstats-project.org/\n";
             Printf.printf "  Bugs/Issues:  https://github.com/b-rodrigues/tlang/issues\n\n";
@@ -517,6 +494,14 @@ let cmd_repl mode env =
             print_newline ();
             flush stdout;
             repl env
+          end
+          else if String.length trimmed > 0 && trimmed.[0] = '%' then begin
+            let (new_env, handled) = handle_magic trimmed env mode base_keys in
+            if handled then (
+              ignore (LNoise.history_add line);
+              ignore (LNoise.history_save ~filename:history_file);
+              repl new_env
+            ) else repl env
           end
           else begin
             (* Multi-line input: accumulate lines while expression is incomplete *)
