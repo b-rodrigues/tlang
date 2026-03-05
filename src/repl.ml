@@ -159,6 +159,7 @@ let print_help () =
   Printf.printf "Commands:\n";
   Printf.printf "  repl              Start the interactive REPL\n";
   Printf.printf "  run <file.t>      Execute a T source file\n";
+  Printf.printf "  run --expr <expr> Execute a T expression directly (implicitly --unsafe)\n";
   Printf.printf "  --mode <m>        Type-check mode: repl (default) or strict\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
   Printf.printf "  init package <n>  Create a new T package\n";
@@ -212,6 +213,15 @@ let cmd_run ?(unsafe=false) mode filename env =
     with _ -> ()  (* If file open fails, let run_file handle it *)
   end;
   let (result, _env) = run_file mode filename env in
+  match result with
+  | Ast.VError { code; message; _ } ->
+      Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
+  | Ast.VNull -> ()
+  | v -> print_endline (Ast.Utils.value_to_string v)
+
+let cmd_run_expr mode expr env =
+  Packages.ensure_docs_loaded ();
+  let (result, _) = parse_and_eval mode env expr in
   match result with
   | Ast.VError { code; message; _ } ->
       Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
@@ -714,6 +724,9 @@ let () =
   let unsafe = List.mem "--unsafe" raw_args in
   let args = if unsafe then List.filter (fun s -> s <> "--unsafe") args else args in
   match args with
+  | _ :: "run" :: "--expr" :: expr :: _ ->
+      let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
+      cmd_run_expr script_mode expr env
   | _ :: "run" :: filename :: _ ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
       let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
