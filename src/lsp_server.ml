@@ -48,38 +48,73 @@ module Server = struct
     uri : DocumentUri.t;
     text : string;
     mutable scope : Symbol_table.scope;
+    mutable diagnostics : Diagnostic.t list;
   }
-
 
   type t = {
     documents : (DocumentUri.t, doc_state) Hashtbl.t;
     base_env : Ast.value Ast.Env.t;
   }
 
-
   let create () = {
     documents = Hashtbl.create 10;
     base_env = Packages.init_env ();
   }
 
+  let send_diagnostics uri diagnostics =
+    let json =
+      `Assoc
+        [
+          ("method", `String "textDocument/publishDiagnostics");
+          (
+            "params",
+            `Assoc
+              [
+                ("uri", `String (DocumentUri.to_string uri));
+                ("diagnostics", `List (List.map Diagnostic.yojson_of_t diagnostics));
+              ]
+          );
+        ]
+    in
+    Transport.write_message json
+
   let update_document server uri text =
     let scope = Symbol_table.create_scope () in
     Symbol_table.register_keywords scope;
     Symbol_table.populate_from_env scope server.base_env;
+    let diagnostics = ref [] in
     (try
-      let lexbuf = Lexing.from_string text in
-      let program = Parser.program Lexer.token lexbuf in
-      Analyzer.analyze program scope
-    with _ -> ());
-    Hashtbl.replace server.documents uri { uri; text; scope }
+       let lexbuf = Lexing.from_string text in
+       let program = Parser.program Lexer.token lexbuf in
+       Analyzer.analyze program scope
+     with
+     | Parser.Error ->
+         (* Simple error reporting for now - ideally we'd get position from lexbuf *)
+         let d =
+           Diagnostic.create ~range:(Range.create ~start:(Position.create ~line:0 ~character:0) ~end_:(Position.create ~line:0 ~character:0))
+             ~message:(`String "Syntax error") ~severity:DiagnosticSeverity.Error ()
+         in
+         diagnostics := [ d ]
+     | Lexer.SyntaxError msg ->
+         let d =
+           Diagnostic.create ~range:(Range.create ~start:(Position.create ~line:0 ~character:0) ~end_:(Position.create ~line:0 ~character:0))
+             ~message:(`String (Printf.sprintf "Lexer error: %s" msg)) ~severity:DiagnosticSeverity.Error ()
+         in
+         diagnostics := [ d ]
+     | _ -> ());
+    let doc = { uri; text; scope; diagnostics = !diagnostics } in
+    Hashtbl.replace server.documents uri doc;
+    send_diagnostics uri !diagnostics
 
   let handle_initialize _params =
     let capabilities = ServerCapabilities.create 
       ~textDocumentSync:(`TextDocumentSyncOptions (TextDocumentSyncOptions.create 
         ~openClose:true 
-        ~change:TextDocumentSyncKind.Full (* Simpler for now *)
+        ~change:TextDocumentSyncKind.Full
         ()))
       ~completionProvider:(CompletionOptions.create ~triggerCharacters:["."] ())
+      ~hoverProvider:(`Bool true)
+      ~definitionProvider:(`Bool true)
       ()
     in
     InitializeResult.create ~capabilities ()
@@ -101,6 +136,83 @@ module Server = struct
           ) matches
         else []
 
+  let handle_hover server (params : HoverParams.t) =
+    let uri = params.textDocument.uri in
+    match Hashtbl.find_opt server.documents uri with
+    | None -> None
+    | Some doc ->
+        let line = params.position.line in
+        let character = params.position.character in
+        let lines = String.split_on_char '\n' doc.text in
+        if line < List.length lines then
+          let line_text = List.nth lines line in
+          (* Simple word extraction at character *)
+          let rec get_word start_idx end_idx =
+            if start_idx < 0 || not (Lexer.is_ident_char line_text.[start_idx]) then
+              let s = start_idx + 1 in
+              let rec find_end idx =
+                if idx >= String.length line_text || not (Lexer.is_ident_char line_text.[idx]) then idx
+                else find_end (idx + 1)
+              in
+              let e = find_end character in
+              if s < e then Some (String.sub line_text s (e - s)) else None
+            else get_word (start_idx - 1) end_idx
+          in
+          match get_word character character with
+          | Some name -> (
+              match Symbol_table.lookup doc.scope name with
+              | Some sym ->
+                  let type_str =
+                    match sym.typ with
+                    | Some ty -> Semantic_type.to_string ty
+                    | None -> "Unknown"
+                  in
+                  let content = Printf.sprintf "**%s** : `%s`" sym.name type_str in
+                  let markup = MarkupContent.create ~kind:MarkupKind.Markdown ~value:content in
+                  Some (Hover.create ~contents:(`MarkupContent markup) ())
+              | None -> None)
+          | None -> None
+        else None
+
+  let handle_definition server (params : DefinitionParams.t) =
+    let uri = params.textDocument.uri in
+    match Hashtbl.find_opt server.documents uri with
+    | None -> None
+    | Some doc ->
+        let line = params.position.line in
+        let character = params.position.character in
+        let lines = String.split_on_char '\n' doc.text in
+        if line < List.length lines then
+          let line_text = List.nth lines line in
+          let rec get_word start_idx end_idx =
+            if start_idx < 0 || not (Lexer.is_ident_char line_text.[start_idx]) then
+              let s = start_idx + 1 in
+              let rec find_end idx =
+                if idx >= String.length line_text || not (Lexer.is_ident_char line_text.[idx]) then idx
+                else find_end (idx + 1)
+              in
+              let e = find_end character in
+              if s < e then Some (String.sub line_text s (e - s)) else None
+            else get_word (start_idx - 1) end_idx
+          in
+          match get_word character character with
+          | Some name -> (
+              (* Best effort: Find where 'name =' or 'name : type =' appears in the document *)
+              let assignment_re = Str.regexp (Printf.sprintf "^[ \t]*%s[ \t]*[:=]" (Str.quote name)) in
+              let rec find_in_lines idx = function
+                | [] -> None
+                | l :: rest ->
+                    if Str.string_match assignment_re l 0 then
+                      let range = Range.create 
+                        ~start:(Position.create ~line:idx ~character:0) 
+                        ~end_:(Position.create ~line:idx ~character:(String.length l)) in
+                      Some (`Location (Location.create ~uri ~range))
+                    else find_in_lines (idx + 1) rest
+              in
+              find_in_lines 0 lines)
+          | None -> None
+        else None
+
   let dispatch server (packet : Jsonrpc.Packet.t) =
     let params_to_yojson = function
       | None -> `Null
@@ -114,7 +226,6 @@ module Server = struct
             update_document server params.textDocument.uri params.textDocument.text
         | "textDocument/didChange" ->
             let params = DidChangeTextDocumentParams.t_of_yojson (params_to_yojson notif.params) in
-            (* For Full sync, the first content change is the whole text *)
             (match params.contentChanges with
             | [change] -> update_document server params.textDocument.uri change.text
             | _ -> ())
@@ -132,7 +243,23 @@ module Server = struct
         | "textDocument/completion" ->
             let params = CompletionParams.t_of_yojson (params_to_yojson req.params) in
             let items = handle_completion server params in
-            let result = `List (List.map CompletionItem.yojson_of_t items) in
+            let result = `List (List.map (fun i -> CompletionItem.yojson_of_t i) items) in
+            Transport.write_message (Jsonrpc.Response.ok req.id result |> Jsonrpc.Response.yojson_of_t)
+        | "textDocument/hover" ->
+            let params = HoverParams.t_of_yojson (params_to_yojson req.params) in
+            let result =
+              match handle_hover server params with
+              | Some h -> Hover.yojson_of_t h
+              | None -> `Null
+            in
+            Transport.write_message (Jsonrpc.Response.ok req.id result |> Jsonrpc.Response.yojson_of_t)
+        | "textDocument/definition" ->
+            let params = DefinitionParams.t_of_yojson (params_to_yojson req.params) in
+            let result =
+              match handle_definition server params with
+              | Some d -> Location.yojson_of_t (match d with `Location l -> l | _ -> failwith "unexpected")
+              | None -> `Null
+            in
             Transport.write_message (Jsonrpc.Response.ok req.id result |> Jsonrpc.Response.yojson_of_t)
         | _ ->
             let err = Jsonrpc.Response.Error.make ~code:MethodNotFound ~message:"Unknown method" () in
