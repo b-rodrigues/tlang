@@ -107,6 +107,8 @@ These rules are **mandatory** and apply to every line of OCaml code added or mod
 
 5. **No silent NA propagation.** Functions that receive NA values must either propagate the error explicitly or respect an `na_rm` parameter, consistent with the rest of the standard library.
 
+6. **Strict Variable Lookup & Known Symbols.** Unbound variables evaluate strictly to a `NameError`. They do not silently fall back to symbols. However, to support convenient "bare word" syntax in pipeline configurations, certain names (like `R`, `Python`, `T`, `write_rds`, `default`) are explicitly pre-registered as `VSymbol` in `src/packages/core/packages.ml` via the `known_symbols` list. **If you introduce a new runtime or a new standard serializer, you MUST add its name to `known_symbols`** so users can write `runtime = Julia` instead of `runtime = "Julia"`.
+
 **Pattern to follow** (from `src/packages/stats/mean.ml`):
 ```ocaml
 (* Good: return VError, never raise *)

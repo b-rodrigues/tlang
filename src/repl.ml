@@ -75,7 +75,7 @@ and stmt_has_build_pipeline = function
   | Ast.Expression e -> expr_has_build_pipeline e
   | Ast.Assignment { expr; _ } -> expr_has_build_pipeline expr
   | Ast.Reassignment { expr; _ } -> expr_has_build_pipeline expr
-  | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ -> false
+  | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _ -> false
 
 let program_has_build_pipeline (program : Ast.program) =
   List.exists stmt_has_build_pipeline program

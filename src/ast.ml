@@ -193,6 +193,7 @@ and stmt =
   | Import of string
   | ImportPackage of string
   | ImportFrom of { package: string; names: import_spec list }
+  | ImportFileFrom of { filename: string; names: import_spec list }
 
 and import_spec = {
   import_name: string;
@@ -383,6 +384,8 @@ module Utils = struct
     | ImportPackage s -> "import " ^ s
     | ImportFrom { package; names } -> 
         "import " ^ package ^ " [" ^ String.concat ", " (List.map (fun is -> is.import_name) names) ^ "]"
+    | ImportFileFrom { filename; names } -> 
+        "import \"" ^ filename ^ "\" [" ^ String.concat ", " (List.map (fun is -> is.import_name) names) ^ "]"
 
   and value_to_string = function
     | VInt n -> string_of_int n

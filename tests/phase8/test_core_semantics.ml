@@ -99,7 +99,7 @@ Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to bran
   test "bool * string error" {|true * "hello"|} {|Error(TypeError: "Operator `*` expects Bool and String.")|};
 
   (* Name errors *)
-  test "undefined variable" "undefined_var" "undefined_var";
+  test "undefined variable" "undefined_var" {|Error(NameError: "Name `undefined_var` is not defined.")|};
   test "undefined function call" "no_such_func(1)" {|Error(NameError: "Name `no_such_func` is not defined.")|};
   test "call non-function" "x = 42; x(1)" {|Error(TypeError: "Value of type Int is not callable.")|};
   print_newline ();

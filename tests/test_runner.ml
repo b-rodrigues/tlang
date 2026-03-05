@@ -98,6 +98,9 @@ let () =
   (* Pipeline operations tests (Phase 1 & 2) *)
   Test_pipeline_ops.run_tests pass_count fail_count eval_string eval_string_env test;
 
+  (* ImportFileFrom tests *)
+  Test_import_file_from.run_tests pass_count fail_count eval_string eval_string_env test;
+
   (* Summary *)
   let total = !pass_count + !fail_count in
   Printf.printf "=== Results: %d/%d passed ===\n" !pass_count total;

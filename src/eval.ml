@@ -44,7 +44,7 @@ and desugar_nse_stmt stmt =
   | Expression e -> Expression (desugar_nse_expr e)
   | Assignment { name; typ; expr } -> Assignment { name; typ; expr = desugar_nse_expr expr }
   | Reassignment { name; expr } -> Reassignment { name; expr = desugar_nse_expr expr }
-  | Import _ | ImportPackage _ | ImportFrom _ -> stmt
+  | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
 
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
@@ -71,7 +71,7 @@ and uses_nse_stmt stmt =
   | Expression e -> uses_nse e
   | Assignment { expr; _ } -> uses_nse expr
   | Reassignment { expr; _ } -> uses_nse expr
-  | Import _ | ImportPackage _ | ImportFrom _ -> false
+  | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> false
 
 (* --- Scalar and Broadcasting Logic --- *)
 
@@ -363,6 +363,15 @@ let eval_shell_expr _env_ref cmd =
     | _ ->
         VShellResult { sr_stdout = ""; sr_stderr = "failed to execute shell command"; sr_exit_code = 1 }
 
+(** Produce a NameError for `name`, lazily computing a "Did you mean …?"
+    suggestion only when we need to build the error value.
+    This avoids materializing Env.bindings on every unbound-variable access. *)
+let name_error_with_lazy_suggestion name env_ref =
+  let names = List.map fst (Env.bindings !env_ref) in
+  match Ast.suggest_name name names with
+  | Some suggestion -> Error.name_error_with_suggestion name suggestion
+  | None -> Error.name_error name
+
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   match expr with
   | Unquote _ | UnquoteSplice _ ->
@@ -375,7 +384,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       | None -> 
           (match !Ast.node_resolver s with
            | Some v -> v
-           | None -> VSymbol s)) (* Return bare words as Symbols for future NSE *)
+           | None -> name_error_with_lazy_suggestion s env_ref))
   
   | ColumnRef field ->
       (* Column references ($name) evaluate to a special symbol value
@@ -599,7 +608,7 @@ and free_vars (expr : Ast.expr) : string list =
     | Expression e -> collect e
     | Assignment { expr; _ } -> collect expr
     | Reassignment { expr; _ } -> collect expr
-    | Import _ | ImportPackage _ | ImportFrom _ -> []
+    | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> []
   in
   let vars = collect expr in
   List.sort_uniq String.compare vars
@@ -654,13 +663,18 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     un_noop = false;
   } in
 
-  (* Desugar nodes into enriched structures with defaults *)
+  (* Desugar nodes into enriched structures with defaults.
+     We evaluate potential node expressions early so pre-defined nodes
+     (e.g. `p = pipeline { data = data_node }`) are correctly imported.
+     If a NameError occurs (e.g. `b = a` referencing an undefined sibling `a`), 
+     we catch it and defer it as an unbuilt node so pipeline topological
+     sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
-    let is_node_expr = match node_expr with
-      | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+    let is_node_call = match node_expr with
+      | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
-    if is_node_expr then
+    if is_node_call then
       match eval_expr env_ref node_expr with
       | VNode un -> Ok (name, un)
       | VComputedNode cn ->
@@ -674,6 +688,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             un_includes = [];
             un_noop = false;
           })
+      | VError { code = NameError; _ } -> Ok (name, default_un node_expr)
       | VError _ as e -> Error e
       | _ -> Ok (name, default_un node_expr)
     else
@@ -1337,7 +1352,11 @@ and eval_call env_ref fn_val raw_args =
            | Some suggestion -> Error.name_error_with_suggestion s suggestion
            | None -> Error.name_error s)
 
-  | VError _ -> Error.type_error "Cannot call Error as a function."
+  (* Propagate the original error — the caller tried to invoke an error
+     value as a function.  We keep the original error (not a generic
+     TypeError) so that the root cause is visible.  Example:
+       x = 1 / 0; x(1)  →  Error(DivisionByZero: ...) *)
+  | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
 
@@ -1540,6 +1559,54 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
            current_imports := !current_imports @ [ImportFrom { package; names }];
            (VNull, new_env)
        | Error msg -> (make_error FileError msg, env))
+  | ImportFileFrom { filename; names } ->
+      (try
+        let ch = open_in filename in
+        let content = really_input_string ch (in_channel_length ch) in
+        close_in ch;
+        let lexbuf = Lexing.from_string content in
+        (try
+          let program = Parser.program Lexer.token lexbuf in
+          let (_v, temp_env) = eval_program program env in
+          let new_bindings = 
+            Env.fold (fun name value acc ->
+              if Env.mem name env then acc
+              else (name, value) :: acc
+            ) temp_env []
+          in
+          
+          let result_env_ref = ref env in
+          let missing_names = ref [] in
+          
+          List.iter (fun (spec : Ast.import_spec) ->
+            match List.assoc_opt spec.import_name new_bindings with
+            | None -> missing_names := spec.import_name :: !missing_names
+            | Some value ->
+                let target_name = match spec.import_alias with
+                  | Some alias -> alias
+                  | None -> spec.import_name
+                in
+                result_env_ref := Env.add target_name value !result_env_ref
+          ) names;
+          
+          if !missing_names <> [] then
+            let msg = Printf.sprintf "Name(s) not found in '%s': %s" filename (String.concat ", " (List.rev !missing_names)) in
+            (make_error NameError msg, env)
+          else begin
+            current_imports := !current_imports @ [ImportFileFrom { filename; names }];
+            (VNull, !result_env_ref)
+          end
+        with
+        | Lexer.SyntaxError msg ->
+            (make_error GenericError (Printf.sprintf "Import syntax error in '%s': %s" filename msg), env)
+        | Parser.Error ->
+            let pos = Lexing.lexeme_start_p lexbuf in
+            let msg = Printf.sprintf "Import parse error in '%s' at line %d, column %d"
+              filename pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
+            (make_error GenericError msg, env))
+      with
+      | Sys_error msg ->
+          (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
 
 and eval_program (program : program) (env : environment) : value * environment =
   let rec go env = function

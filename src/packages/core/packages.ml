@@ -624,5 +624,28 @@ let init_env () =
   (* Phase 7: Pretty-print and packages *)
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in
-  let env = register env in (* Defined above in this file *)
+  let env = register env in
+  (* Known symbols: bare words that should resolve to VSymbol rather than
+     NameError.  These are used as keyword-style arguments in node() and
+     related calls (e.g. `runtime = R`, `serializer = write_rds`).
+     Add new runtimes or serializer names here as they are introduced. *)
+  let known_symbols = [
+    (* Runtimes *)
+    "R"; "Python"; "T"; "Julia";
+    (* Serialization defaults *)
+    "default";
+    (* R serializers *)
+    "write_rds"; "read_rds";
+    (* Python serializers *)
+    "write_pkl"; "read_pkl";
+    (* Arrow serializers *)
+    "write_arrow"; "read_arrow";
+    (* JSON serializers *)
+    "write_json"; "read_json";
+    (* PMML *)
+    "pmml";
+  ] in
+  let env = List.fold_left (fun acc name ->
+    Env.add name (VSymbol name) acc
+  ) env known_symbols in
   env
