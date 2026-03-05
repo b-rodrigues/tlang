@@ -664,37 +664,35 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   } in
 
   (* Desugar nodes into enriched structures with defaults.
-     Var and ColumnRef are handled first without evaluation because they
-     represent inter-node references (e.g. `b = a + 1` references sibling
-     node `a`).  Evaluating them here would trigger a NameError under
-     strict lookup before topological sorting has a chance to resolve
-     them as pipeline dependencies. *)
+     We evaluate potential node expressions early so pre-defined nodes
+     (e.g. `p = pipeline { data = data_node }`) are correctly imported.
+     If a NameError occurs (e.g. `b = a` referencing an undefined sibling `a`), 
+     we catch it and defer it as an unbuilt node so pipeline topological
+     sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr with
-      | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+      | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
-    match node_expr with
-    | Var _ | ColumnRef _ -> Ok (name, default_un node_expr)
-    | _ ->
-      if is_node_call then
-        match eval_expr env_ref node_expr with
-        | VNode un -> Ok (name, un)
-        | VComputedNode cn ->
-            Ok (name, {
-              un_command = Value (VComputedNode cn);
-              un_script = None;
-              un_runtime = cn.cn_runtime;
-              un_serializer = Value (VString cn.cn_serializer);
-              un_deserializer = Var "default";
-              un_functions = [];
-              un_includes = [];
-              un_noop = false;
-            })
-        | VError _ as e -> Error e
-        | _ -> Ok (name, default_un node_expr)
-      else
-        Ok (name, default_un node_expr)
+    if is_node_call then
+      match eval_expr env_ref node_expr with
+      | VNode un -> Ok (name, un)
+      | VComputedNode cn ->
+          Ok (name, {
+            un_command = Value (VComputedNode cn);
+            un_script = None;
+            un_runtime = cn.cn_runtime;
+            un_serializer = Value (VString cn.cn_serializer);
+            un_deserializer = Var "default";
+            un_functions = [];
+            un_includes = [];
+            un_noop = false;
+          })
+      | VError { code = NameError; _ } -> Ok (name, default_un node_expr)
+      | VError _ as e -> Error e
+      | _ -> Ok (name, default_un node_expr)
+    else
+      Ok (name, default_un node_expr)
   in
 
   let rec desugar_all acc = function
