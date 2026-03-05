@@ -891,16 +891,58 @@ p_full = p_etl |> chain(p_model)
 pipeline_nodes(p_full)  -- ["raw", "clean", "fit", "report"]
 ```
 
-If the two pipelines have no shared dependency names:
-
-```t
-p_etl |> chain(pipeline { x = 42 })
--- Error(ValueError: "Function `chain`: no shared dependency names found between the two pipelines.")
-```
-
 `chain` is stricter than `union`: it requires an *intent* to connect the pipelines, catching accidental merges where no wiring was meant.
 
-### `parallel`
+### Cross-Pipeline Dependency Tracking: T vs. RawCode
+
+T's dependency tracking works differently depending on the node's runtime. This leads to a specific limitation when using `chain()` with R or Python pipelines.
+
+#### How T Detects Dependencies
+- **T Expressions**: T has a full understanding of its own syntax. When you use a variable that isn't defined inside the pipeline (and isn't in your global environment), T knows for certain it is an external dependency.
+- **RawCode (<{ ... }>)**: For R and Python, T uses a fast **lexical heuristic** (scanning for words) to find dependencies. It cannot reliably distinguish between a foreign function (like `lm()`) and a T variable from a different pipeline.
+
+#### The Limitation
+To avoid polluting your build environment with R/Python functions as Nix dependencies, T **ignores** external references inside RawCode blocks when they are not defined in the current pipeline block.
+
+**This means `chain()` will fail to automatically wire R/Python nodes to nodes in other pipelines.**
+
+#### The Solution: The T-Stub Workaround
+If you need an R or Python node to depend on a node from a separate pipeline via `chain()`, you must "bring" that dependency into the pipeline block using a T-expression stub.
+
+**❌ Broken: R node cannot "see" `raw_data` for chaining**
+```t
+p_data = pipeline { raw_data = read_csv("data.csv") }
+
+p_model = pipeline {
+  model = rn(<{ 
+    lm(mpg ~ hp, data = raw_data) 
+  }>)
+}
+
+-- Error: "no shared dependency names found"
+p_full = p_data |> chain(p_model)
+```
+
+**✅ Fixed: Use a T-stub to make the dependency explicit**
+```t
+p_data = pipeline { raw_data = read_csv("data.csv") }
+
+p_model = pipeline {
+  -- The T-stub: makes `raw_data` an explicit sibling of `model`
+  raw_data = raw_data  
+  
+  model = rn(<{ 
+    lm(mpg ~ hp, data = raw_data) 
+  }>)
+}
+
+-- Success! T sees `raw_data` as a T-expression dependency of the stub.
+p_full = p_data |> chain(p_model)
+```
+
+By defining `raw_data = raw_data` (or any name that matches the upstream output), you create a T-expression node. T *can* analyze the right-hand side of that assignment, detect the cross-pipeline dependency, and allow `chain()` to wire the pipelines together.
+
+---
 
 Combines two pipelines that are intended to run independently. No dependency wiring is performed. Errors on name collision.
 
