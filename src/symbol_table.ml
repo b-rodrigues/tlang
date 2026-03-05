@@ -7,11 +7,18 @@ type kind =
   | Column
   | Keyword
 
+type location = {
+  uri : string;
+  line : int;
+  character : int;
+}
+
 type symbol = {
   name : string;
   kind : kind;
   typ  : Semantic_type.t option;
   doc  : string option;
+  loc  : location option;
 }
 
 module NameMap = Map.Make(String)
@@ -35,7 +42,7 @@ let register_keywords scope =
     "true"; "false"; "null"; "NA"; "in"
   ] in
   List.iter (fun name ->
-    add scope { name; kind = Keyword; typ = None; doc = None }
+    add scope { name; kind = Keyword; typ = None; doc = None; loc = None }
   ) keywords
 
 let value_to_semantic_type = function
@@ -66,6 +73,6 @@ let populate_from_env scope env =
       | Ast.VBuiltin _ | Ast.VLambda _ -> Function
       | _ -> Variable
     in
-    add scope { name; kind; typ = value_to_semantic_type value; doc = None }
+    add scope { name; kind; typ = value_to_semantic_type value; doc = None; loc = None }
   ) env
 
