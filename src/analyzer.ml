@@ -36,10 +36,10 @@ let analyze_stmt scope stmt =
   match stmt with
   | Assignment { name; expr; _ } ->
       let ty = infer_type scope expr in
-      Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None; loc = None }
+      Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None }
   | Reassignment { name; expr } ->
       let ty = infer_type scope expr in
-      Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None; loc = None }
+      Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None }
 
   | _ -> ()
 

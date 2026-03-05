@@ -342,13 +342,20 @@ let cmd_publish () =
 
 let cmd_docs () = Documentation_manager.open_docs (Sys.getcwd ())
 
+let rec mkdir_p path =
+  if not (Sys.file_exists path) then begin
+    let parent = Filename.dirname path in
+    if parent <> path && parent <> "." && parent <> "/" then mkdir_p parent;
+    (try Unix.mkdir path 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
+  end
+
 let recursive_files dir =
   let rec walk acc d =
     let entries = try Sys.readdir d with _ -> [||] in
     Array.fold_left (fun acc e ->
-      let path = Filename.concat d e in
-      if Sys.is_directory path then walk acc path
-      else if Filename.check_suffix e ".ml" || Filename.check_suffix e ".t" then path :: acc
+      let p = Filename.concat d e in
+      if Sys.is_directory p then walk acc p
+      else if Filename.check_suffix e ".ml" || Filename.check_suffix e ".t" then p :: acc
       else acc
     ) acc entries
   in walk [] dir
@@ -360,11 +367,13 @@ let cmd_doc args =
   let src_dir = Filename.concat dir "src" in
   if do_parse then begin
     List.iter (fun f -> List.iter Tdoc_registry.register (Tdoc_parser.parse_file f)) (recursive_files src_dir);
-    Tdoc_registry.to_json_file (Filename.concat dir "help/docs.json")
+    let help_dir = Filename.concat dir "help" in
+    mkdir_p help_dir;
+    Tdoc_registry.to_json_file (Filename.concat help_dir "docs.json")
   end;
   if do_gen then begin
     let out_dir = Filename.concat dir "docs/reference" in
-    if not (Sys.file_exists out_dir) then Unix.mkdir out_dir 0o755;
+    mkdir_p out_dir;
     List.iter (fun e ->
       let ch = open_out (Filename.concat out_dir (e.Tdoc_types.name ^ ".md")) in
       output_string ch (Tdoc_markdown.generate_function_doc e); close_out ch
@@ -440,7 +449,7 @@ let cmd_repl mode env =
       | m :: _ ->
           let prefix = Completion.extract_prefix buffer cursor in
           if String.length m > String.length prefix then
-             let hint = String.sub m (String.length buffer) (String.length m - String.length buffer) in
+             let hint = String.sub m (String.length prefix) (String.length m - String.length prefix) in
              Some (hint, LNoise.White, false)
           else None
       | [] -> None
