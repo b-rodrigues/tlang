@@ -126,6 +126,8 @@ statement:
   | name = any_ident COLON_EQ e = expr
     { Reassignment { name; expr = e } }
   | IMPORT s = STRING { Import s }
+  | IMPORT s = STRING LBRACK skip_sep names = import_name_list RBRACK
+    { ImportFileFrom { filename = s; names } }
   | IMPORT id = any_ident LBRACK skip_sep names = import_name_list RBRACK
     { ImportFrom { package = id; names } }
   | IMPORT id = any_ident { ImportPackage id }

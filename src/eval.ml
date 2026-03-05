@@ -44,7 +44,7 @@ and desugar_nse_stmt stmt =
   | Expression e -> Expression (desugar_nse_expr e)
   | Assignment { name; typ; expr } -> Assignment { name; typ; expr = desugar_nse_expr expr }
   | Reassignment { name; expr } -> Reassignment { name; expr = desugar_nse_expr expr }
-  | Import _ | ImportPackage _ | ImportFrom _ -> stmt
+  | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
 
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
@@ -71,7 +71,7 @@ and uses_nse_stmt stmt =
   | Expression e -> uses_nse e
   | Assignment { expr; _ } -> uses_nse expr
   | Reassignment { expr; _ } -> uses_nse expr
-  | Import _ | ImportPackage _ | ImportFrom _ -> false
+  | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> false
 
 (* --- Scalar and Broadcasting Logic --- *)
 
@@ -599,7 +599,7 @@ and free_vars (expr : Ast.expr) : string list =
     | Expression e -> collect e
     | Assignment { expr; _ } -> collect expr
     | Reassignment { expr; _ } -> collect expr
-    | Import _ | ImportPackage _ | ImportFrom _ -> []
+    | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> []
   in
   let vars = collect expr in
   List.sort_uniq String.compare vars
@@ -1540,6 +1540,54 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
            current_imports := !current_imports @ [ImportFrom { package; names }];
            (VNull, new_env)
        | Error msg -> (make_error FileError msg, env))
+  | ImportFileFrom { filename; names } ->
+      (try
+        let ch = open_in filename in
+        let content = really_input_string ch (in_channel_length ch) in
+        close_in ch;
+        let lexbuf = Lexing.from_string content in
+        (try
+          let program = Parser.program Lexer.token lexbuf in
+          let (_v, temp_env) = eval_program program env in
+          let new_bindings = 
+            Env.fold (fun name value acc ->
+              if Env.mem name env then acc
+              else (name, value) :: acc
+            ) temp_env []
+          in
+          
+          let result_env_ref = ref env in
+          let missing_names = ref [] in
+          
+          List.iter (fun (spec : Ast.import_spec) ->
+            match List.assoc_opt spec.import_name new_bindings with
+            | None -> missing_names := spec.import_name :: !missing_names
+            | Some value ->
+                let target_name = match spec.import_alias with
+                  | Some alias -> alias
+                  | None -> spec.import_name
+                in
+                result_env_ref := Env.add target_name value !result_env_ref
+          ) names;
+          
+          if !missing_names <> [] then
+            let msg = Printf.sprintf "Name(s) not found in '%s': %s" filename (String.concat ", " (List.rev !missing_names)) in
+            (make_error NameError msg, env)
+          else begin
+            current_imports := !current_imports @ [ImportFileFrom { filename; names }];
+            (VNull, !result_env_ref)
+          end
+        with
+        | Lexer.SyntaxError msg ->
+            (make_error GenericError (Printf.sprintf "Import syntax error in '%s': %s" filename msg), env)
+        | Parser.Error ->
+            let pos = Lexing.lexeme_start_p lexbuf in
+            let msg = Printf.sprintf "Import parse error in '%s' at line %d, column %d"
+              filename pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
+            (make_error GenericError msg, env))
+      with
+      | Sys_error msg ->
+          (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
 
 and eval_program (program : program) (env : environment) : value * environment =
   let rec go env = function
