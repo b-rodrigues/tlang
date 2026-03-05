@@ -1,0 +1,158 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "T Language",
+    "scopeName": "source.t",
+    "patterns": [
+        {
+            "include": "#comment"
+        },
+        {
+            "include": "#string"
+        },
+        {
+            "include": "#keyword"
+        },
+        {
+            "include": "#builtin"
+        },
+        {
+            "include": "#nse_var"
+        },
+        {
+            "include": "#number"
+        },
+        {
+            "include": "#operator"
+        },
+        {
+            "include": "#foreign_block"
+        },
+        {
+            "include": "#shell_block"
+        }
+    ],
+    "repository": {
+        "comment": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-dash.t",
+                    "match": "--.*$"
+                }
+            ]
+        },
+        "string": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.t",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "match": "\\\\.",
+                            "name": "constant.character.escape.t"
+                        }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.t",
+                    "begin": "'",
+                    "end": "'",
+                    "patterns": [
+                        {
+                            "match": "\\\\.",
+                            "name": "constant.character.escape.t"
+                        }
+                    ]
+                },
+                {
+                    "name": "variable.other.backtick.t",
+                    "begin": "`",
+                    "end": "`"
+                }
+            ]
+        },
+        "keyword": {
+            "patterns": [
+                {
+                    "name": "keyword.control.t",
+                    "match": "\\b(if|else|import|function|pipeline|intent|true|false|null|NA|in)\\b"
+                }
+            ]
+        },
+        "builtin": {
+            "patterns": [
+                {
+                    "name": "support.function.t",
+                    "match": "\\b(read_csv|filter|mutate|summarize|select|arrange|group_by|node|rn|pyn|build_pipeline|print|mean|sqrt|predict|t_read_pmml|glimpse|nrow|ncol|colnames|clean_colnames|head|tail|join|split|slice)\\b"
+                }
+            ]
+        },
+        "nse_var": {
+            "patterns": [
+                {
+                    "name": "variable.other.nse.t",
+                    "match": "\\$[a-zA-Z_][a-zA-Z0-9_]*"
+                }
+            ]
+        },
+        "number": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.t",
+                    "match": "\\b\\d+(\\.\\d*)?\\b"
+                }
+            ]
+        },
+        "operator": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.t",
+                    "match": "(\\|>|\\?\\|>|:=|->|!!|!!!|==|!=|>=|<=|\\.\\+|\\.-|\\.\\*|\\.\\/|\\.\\=\\=|\\.\\!\\=|\\.<|\\.>|\\.<\\=|\\.>\\=|\\.&|\\.\\||\\.%|~|\\.\\.\\.)"
+                }
+            ]
+        },
+        "foreign_block": {
+            "name": "meta.foreign.block.t",
+            "begin": "<\\{",
+            "beginCaptures": {
+                "0": {
+                    "name": "punctuation.section.block.begin.t"
+                }
+            },
+            "end": "}>",
+            "endCaptures": {
+                "0": {
+                    "name": "punctuation.section.block.end.t"
+                }
+            },
+            "patterns": [
+                {
+                    "include": "source.r"
+                },
+                {
+                    "include": "source.python"
+                }
+            ]
+        },
+        "shell_block": {
+            "name": "meta.shell.block.t",
+            "begin": "\\?<\\{",
+            "beginCaptures": {
+                "0": {
+                    "name": "punctuation.section.block.begin.t"
+                }
+            },
+            "end": "}>",
+            "endCaptures": {
+                "0": {
+                    "name": "punctuation.section.block.end.t"
+                }
+            },
+            "patterns": [
+                {
+                    "include": "source.shell"
+                }
+            ]
+        }
+    }
+}
