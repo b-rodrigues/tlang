@@ -643,8 +643,6 @@ and topo_sort (nodes : (string * 'a) list) (deps : (string * string list) list) 
 
 (** Evaluate a pipeline definition *)
 and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
-  let node_names = List.map fst nodes in
-
   let default_un expr = {
     un_command = expr;
     un_script = None;
@@ -702,7 +700,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     if has_self_ref && not is_raw then
       invalid_arg ("Self-referential node detected in command for node: " ^ name)
     else
-      let node_deps = List.filter (fun v -> List.mem v node_names && v <> name) fv in
+      let node_deps = List.filter (fun v -> v <> name) fv in
       (name, node_deps)
   ) desugared_nodes in
 
@@ -733,12 +731,15 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     let my_runtime = un.un_runtime in
     let my_deps = List.assoc name deps in
     let offenders = List.filter (fun dname ->
-      let dep_runtime = List.assoc dname runtime_mapping in
-      dep_runtime <> my_runtime && un.un_deserializer = Var "default"
+      match List.assoc_opt dname runtime_mapping with
+      | Some dep_runtime -> dep_runtime <> my_runtime && un.un_deserializer = Var "default"
+      | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in
     if offenders <> [] then
+      let offender = List.hd offenders in
+      let offender_runtime = List.assoc offender runtime_mapping in
       Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
-             name my_runtime (List.hd offenders) (List.assoc (List.hd offenders) runtime_mapping))
+             name my_runtime offender offender_runtime)
     else None
   ) desugared_nodes in
 
