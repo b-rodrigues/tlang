@@ -101,15 +101,20 @@
 
           buildPhase = ''
             export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:$PKG_CONFIG_PATH"
-            dune build src/repl.exe
+            dune build src/repl.exe src/lsp_server.exe
           '';
 
           installPhase = ''
             mkdir -p $out/bin
             cp _build/default/src/repl.exe $out/bin/.t-unwrapped
+            cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
+            
             makeWrapper $out/bin/.t-unwrapped $out/bin/t \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}" \
               --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+              
+            makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}"
           '';
 
           meta = with pkgs.lib; {
