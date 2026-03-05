@@ -624,5 +624,13 @@ let init_env () =
   (* Phase 7: Pretty-print and packages *)
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in
-  let env = register env in (* Defined above in this file *)
+  let env = register env in
+  let env = Env.add "R" (VSymbol "R") env in
+  let env = Env.add "Python" (VSymbol "Python") env in
+  let env = Env.add "T" (VSymbol "T") env in
+  let env = Env.add "default" (VSymbol "default") env in
+  let env = Env.add "write_rds" (VSymbol "write_rds") env in
+  let env = Env.add "read_rds" (VSymbol "read_rds") env in
+  let env = Env.add "write_pkl" (VSymbol "write_pkl") env in
+  let env = Env.add "read_pkl" (VSymbol "read_pkl") env in
   env

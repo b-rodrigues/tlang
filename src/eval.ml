@@ -375,7 +375,11 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       | None -> 
           (match !Ast.node_resolver s with
            | Some v -> v
-           | None -> VSymbol s)) (* Return bare words as Symbols for future NSE *)
+           | None -> 
+               let names = List.map fst (Env.bindings !env_ref) in
+               match Ast.suggest_name s names with
+                 | Some suggestion -> Error.name_error_with_suggestion s suggestion
+                 | None -> Error.name_error s))
   
   | ColumnRef field ->
       (* Column references ($name) evaluate to a special symbol value
@@ -660,24 +664,27 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
-    if is_node_expr then
-      match eval_expr env_ref node_expr with
-      | VNode un -> Ok (name, un)
-      | VComputedNode cn ->
-          Ok (name, {
-            un_command = Value (VComputedNode cn);
-            un_script = None;
-            un_runtime = cn.cn_runtime;
-            un_serializer = Value (VString cn.cn_serializer);
-            un_deserializer = Var "default";
-            un_functions = [];
-            un_includes = [];
-            un_noop = false;
-          })
-      | VError _ as e -> Error e
-      | _ -> Ok (name, default_un node_expr)
-    else
-      Ok (name, default_un node_expr)
+    match node_expr with
+    | Var _ | ColumnRef _ -> Ok (name, default_un node_expr)
+    | _ ->
+      if is_node_expr then
+        match eval_expr env_ref node_expr with
+        | VNode un -> Ok (name, un)
+        | VComputedNode cn ->
+            Ok (name, {
+              un_command = Value (VComputedNode cn);
+              un_script = None;
+              un_runtime = cn.cn_runtime;
+              un_serializer = Value (VString cn.cn_serializer);
+              un_deserializer = Var "default";
+              un_functions = [];
+              un_includes = [];
+              un_noop = false;
+            })
+        | VError _ as e -> Error e
+        | _ -> Ok (name, default_un node_expr)
+      else
+        Ok (name, default_un node_expr)
   in
 
   let rec desugar_all acc = function
@@ -1337,7 +1344,7 @@ and eval_call env_ref fn_val raw_args =
            | Some suggestion -> Error.name_error_with_suggestion s suggestion
            | None -> Error.name_error s)
 
-  | VError _ -> Error.type_error "Cannot call Error as a function."
+  | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
 
