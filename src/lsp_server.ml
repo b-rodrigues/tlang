@@ -65,6 +65,7 @@ module Server = struct
     let json =
       `Assoc
         [
+          ("jsonrpc", `String "2.0");
           ("method", `String "textDocument/publishDiagnostics");
           (
             "params",
@@ -146,19 +147,24 @@ module Server = struct
         let lines = String.split_on_char '\n' doc.text in
         if line < List.length lines then
           let line_text = List.nth lines line in
-          (* Simple word extraction at character *)
-          let rec get_word start_idx end_idx =
-            if start_idx < 0 || not (Lexer.is_ident_char line_text.[start_idx]) then
-              let s = start_idx + 1 in
-              let rec find_end idx =
-                if idx >= String.length line_text || not (Lexer.is_ident_char line_text.[idx]) then idx
-                else find_end (idx + 1)
-              in
-              let e = find_end character in
-              if s < e then Some (String.sub line_text s (e - s)) else None
-            else get_word (start_idx - 1) end_idx
-          in
-          match get_word character character with
+          let line_len = String.length line_text in
+          if line_len = 0 then None
+          else
+            let max_idx = line_len - 1 in
+            let clamped_character = max 0 (min character max_idx) in
+            (* Simple word extraction at character *)
+            let rec get_word start_idx =
+              if start_idx < 0 || not (Lexer.is_ident_char line_text.[start_idx]) then
+                let s = start_idx + 1 in
+                let rec find_end idx =
+                  if idx >= line_len || not (Lexer.is_ident_char line_text.[idx]) then idx
+                  else find_end (idx + 1)
+                in
+                let e = find_end clamped_character in
+                if s < e then Some (String.sub line_text s (e - s)) else None
+              else get_word (start_idx - 1)
+            in
+            match get_word clamped_character with
           | Some name -> (
               match Symbol_table.lookup doc.scope name with
               | Some sym ->
@@ -184,18 +190,23 @@ module Server = struct
         let lines = String.split_on_char '\n' doc.text in
         if line < List.length lines then
           let line_text = List.nth lines line in
-          let rec get_word start_idx end_idx =
-            if start_idx < 0 || not (Lexer.is_ident_char line_text.[start_idx]) then
-              let s = start_idx + 1 in
-              let rec find_end idx =
-                if idx >= String.length line_text || not (Lexer.is_ident_char line_text.[idx]) then idx
-                else find_end (idx + 1)
-              in
-              let e = find_end character in
-              if s < e then Some (String.sub line_text s (e - s)) else None
-            else get_word (start_idx - 1) end_idx
-          in
-          match get_word character character with
+          let line_len = String.length line_text in
+          if line_len = 0 then None
+          else
+            let max_idx = line_len - 1 in
+            let clamped_character = max 0 (min character max_idx) in
+            let rec get_word start_idx =
+              if start_idx < 0 || not (Lexer.is_ident_char line_text.[start_idx]) then
+                let s = start_idx + 1 in
+                let rec find_end idx =
+                  if idx >= line_len || not (Lexer.is_ident_char line_text.[idx]) then idx
+                  else find_end (idx + 1)
+                in
+                let e = find_end clamped_character in
+                if s < e then Some (String.sub line_text s (e - s)) else None
+              else get_word (start_idx - 1)
+            in
+            match get_word clamped_character with
           | Some name -> (
               (* Best effort: Find where 'name =' or 'name : type =' appears in the document *)
               let assignment_re = Str.regexp (Printf.sprintf "^[ \t]*%s[ \t]*[:=]" (Str.quote name)) in
@@ -257,7 +268,8 @@ module Server = struct
             let params = DefinitionParams.t_of_yojson (params_to_yojson req.params) in
             let result =
               match handle_definition server params with
-              | Some d -> Location.yojson_of_t (match d with `Location l -> l | _ -> failwith "unexpected")
+              | Some (`Location l) -> Location.yojson_of_t l
+              | Some _ -> `Null
               | None -> `Null
             in
             Transport.write_message (Jsonrpc.Response.ok req.id result |> Jsonrpc.Response.yojson_of_t)
