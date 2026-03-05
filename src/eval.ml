@@ -692,7 +692,12 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   | Error err -> err
   | Ok desugared_nodes ->
   
-  (* Compute dependencies based on the 'command' part of the desugared node *)
+  (* Compute dependencies based on the 'command' part of the desugared node.
+     A free variable counts as a pipeline dependency iff it is:
+     (a) the name of another node defined in THIS pipeline block, or
+     (b) NOT bound in the outer environment at all — meaning it is an unresolved
+         reference intended to be satisfied by another pipeline via `chain`. *)
+  let node_names = List.map fst desugared_nodes in
   let deps = List.map (fun (name, un) ->
     let fv = free_vars un.un_command in
     let is_raw = match un.un_command with RawCode _ -> true | _ -> false in
@@ -700,9 +705,18 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     if has_self_ref && not is_raw then
       invalid_arg ("Self-referential node detected in command for node: " ^ name)
     else
-      let node_deps = List.filter (fun v -> v <> name) fv in
+      let node_deps = List.filter (fun v ->
+        v <> name && (
+          (* Always allow: explicit sibling node in this pipeline *)
+          List.mem v node_names ||
+          (* For T expressions only: unresolved names are cross-pipeline deps (chain) *)
+          (not is_raw && not (Env.mem v !env_ref))
+        )
+      ) fv in
       (name, node_deps)
   ) desugared_nodes in
+
+
 
   (* No-op propagation: if a node is noop, all its transitive dependents are noop *)
   let desugared_nodes =
