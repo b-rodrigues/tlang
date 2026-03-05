@@ -707,16 +707,16 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     else
       let node_deps = List.filter (fun v ->
         v <> name && (
-          (* Always allow: explicit sibling node in this pipeline *)
+          (* Always: sibling node in the same pipeline *)
           List.mem v node_names ||
-          (* For T expressions only: unresolved names are cross-pipeline deps (chain) *)
+          (* T expressions only: unresolved names are cross-pipeline deps (chain).
+             For RawCode (R/Python), we can't distinguish foreign identifiers from
+             intended cross-pipeline refs, so we conservatively exclude them. *)
           (not is_raw && not (Env.mem v !env_ref))
         )
       ) fv in
       (name, node_deps)
   ) desugared_nodes in
-
-
 
   (* No-op propagation: if a node is noop, all its transitive dependents are noop *)
   let desugared_nodes =

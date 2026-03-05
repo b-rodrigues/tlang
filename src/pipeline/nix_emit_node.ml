@@ -1,6 +1,12 @@
 open Nix_utils
 
-let emit_node (name, expr) deps import_lines runtime serializer deserializer functions includes noop script =
+let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer functions includes noop script =
+  (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
+     The evaluator already filters p_deps, but this guards against any edge cases. *)
+  let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
+
+
+
   if noop then
     Printf.sprintf {|
   %s = pkgs.runCommand "%s" {} ''
