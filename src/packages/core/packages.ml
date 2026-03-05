@@ -625,12 +625,27 @@ let init_env () =
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in
   let env = register env in
-  let env = Env.add "R" (VSymbol "R") env in
-  let env = Env.add "Python" (VSymbol "Python") env in
-  let env = Env.add "T" (VSymbol "T") env in
-  let env = Env.add "default" (VSymbol "default") env in
-  let env = Env.add "write_rds" (VSymbol "write_rds") env in
-  let env = Env.add "read_rds" (VSymbol "read_rds") env in
-  let env = Env.add "write_pkl" (VSymbol "write_pkl") env in
-  let env = Env.add "read_pkl" (VSymbol "read_pkl") env in
+  (* Known symbols: bare words that should resolve to VSymbol rather than
+     NameError.  These are used as keyword-style arguments in node() and
+     related calls (e.g. `runtime = R`, `serializer = write_rds`).
+     Add new runtimes or serializer names here as they are introduced. *)
+  let known_symbols = [
+    (* Runtimes *)
+    "R"; "Python"; "T"; "Julia";
+    (* Serialization defaults *)
+    "default";
+    (* R serializers *)
+    "write_rds"; "read_rds";
+    (* Python serializers *)
+    "write_pkl"; "read_pkl";
+    (* Arrow serializers *)
+    "write_arrow"; "read_arrow";
+    (* JSON serializers *)
+    "write_json"; "read_json";
+    (* PMML *)
+    "pmml";
+  ] in
+  let env = List.fold_left (fun acc name ->
+    Env.add name (VSymbol name) acc
+  ) env known_symbols in
   env

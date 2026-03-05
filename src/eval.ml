@@ -363,6 +363,15 @@ let eval_shell_expr _env_ref cmd =
     | _ ->
         VShellResult { sr_stdout = ""; sr_stderr = "failed to execute shell command"; sr_exit_code = 1 }
 
+(** Produce a NameError for `name`, lazily computing a "Did you mean …?"
+    suggestion only when we need to build the error value.
+    This avoids materializing Env.bindings on every unbound-variable access. *)
+let name_error_with_lazy_suggestion name env_ref =
+  let names = List.map fst (Env.bindings !env_ref) in
+  match Ast.suggest_name name names with
+  | Some suggestion -> Error.name_error_with_suggestion name suggestion
+  | None -> Error.name_error name
+
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   match expr with
   | Unquote _ | UnquoteSplice _ ->
@@ -375,11 +384,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       | None -> 
           (match !Ast.node_resolver s with
            | Some v -> v
-           | None -> 
-               let names = List.map fst (Env.bindings !env_ref) in
-               match Ast.suggest_name s names with
-                 | Some suggestion -> Error.name_error_with_suggestion s suggestion
-                 | None -> Error.name_error s))
+           | None -> name_error_with_lazy_suggestion s env_ref))
   
   | ColumnRef field ->
       (* Column references ($name) evaluate to a special symbol value
@@ -658,16 +663,21 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     un_noop = false;
   } in
 
-  (* Desugar nodes into enriched structures with defaults *)
+  (* Desugar nodes into enriched structures with defaults.
+     Var and ColumnRef are handled first without evaluation because they
+     represent inter-node references (e.g. `b = a + 1` references sibling
+     node `a`).  Evaluating them here would trigger a NameError under
+     strict lookup before topological sorting has a chance to resolve
+     them as pipeline dependencies. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
-    let is_node_expr = match node_expr with
-      | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+    let is_node_call = match node_expr with
+      | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
     match node_expr with
     | Var _ | ColumnRef _ -> Ok (name, default_un node_expr)
     | _ ->
-      if is_node_expr then
+      if is_node_call then
         match eval_expr env_ref node_expr with
         | VNode un -> Ok (name, un)
         | VComputedNode cn ->
@@ -1344,6 +1354,10 @@ and eval_call env_ref fn_val raw_args =
            | Some suggestion -> Error.name_error_with_suggestion s suggestion
            | None -> Error.name_error s)
 
+  (* Propagate the original error — the caller tried to invoke an error
+     value as a function.  We keep the original error (not a generic
+     TypeError) so that the root cause is visible.  Example:
+       x = 1 / 0; x(1)  →  Error(DivisionByZero: ...) *)
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
