@@ -90,7 +90,7 @@ let colcraft_package = {
   functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "ungroup"; "summarize";
                "ntile"; "dense_rank"; "row_number"; "min_rank"; "cume_dist"; "percent_rank";
                "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum";
-               "pivot_longer"; "pivot_wider"];
+               "pivot_longer"; "pivot_wider"; "complete"];
 }
 
 let math_package = {
@@ -546,6 +546,7 @@ let init_env () =
   let env = Window_cumulative.register env in
   let env = Pivot_longer.register env in
   let env = Pivot_wider.register env in
+  let env = T_complete.register env in
   (* Math package *)
   let env = T_sqrt.register env in
   let env = T_abs.register env in
