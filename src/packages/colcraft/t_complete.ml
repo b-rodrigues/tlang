@@ -8,7 +8,7 @@ open Arrow_table
 --#
 --# @name complete
 --# @param df :: DataFrame The DataFrame.
---# @param ... :: Symbol Variable number of column names to complete.
+--# @param ... :: Symbol Variable number of column names (use $col syntax).
 --# @param fill :: Dict (Optional) A dictionary supplying a single value to use instead of NA for missing combinations.
 --# @param explicit :: Bool (Optional) Should both implicit and explicit missing values be filled? (Default: true)
 --# @return :: DataFrame The completed DataFrame.

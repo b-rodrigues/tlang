@@ -8,11 +8,11 @@ open Arrow_table
 --#
 --# @name pivot_wider
 --# @param df :: DataFrame The DataFrame.
---# @param names_from :: String The column to get the name of the output column.
---# @param values_from :: String The column to get the cell values from.
+--# @param names_from :: Symbol The column whose values become output column names (use $col syntax).
+--# @param values_from :: Symbol The column whose values fill the new columns (use $col syntax).
 --# @return :: DataFrame The pivoted DataFrame.
 --# @example
---#   pivot_wider(df, "name", "value")
+--#   pivot_wider(df, names_from = $name, values_from = $value)
 --# @family colcraft
 --# @export
 *)
@@ -36,7 +36,7 @@ let register env =
           let names_from = match names_from_val with Some v -> (match Utils.extract_column_name v with Some s -> s | None -> "") | _ -> "" in
           let values_from = match values_from_val with Some v -> (match Utils.extract_column_name v with Some s -> s | None -> "") | _ -> "" in
           
-          if names_from = "" || values_from = "" then Error.make_error ValueError "Function `pivot_wider` requires `names_from` and `values_from` options." else
+          if names_from = "" || values_from = "" then Error.make_error ValueError "Function `pivot_wider` requires `names_from` and `values_from` as $column references." else
 
           (* Validate that names_from exists and is a String column, and that values_from exists *)
           let names_from_col = Arrow_table.get_column df.arrow_table names_from in
@@ -54,6 +54,10 @@ let register env =
           let orig_nrows = Arrow_table.num_rows df.arrow_table in
           let all_cols = Arrow_table.column_names df.arrow_table in
           let id_cols = List.filter (fun c -> c <> names_from && c <> values_from) all_cols in
+
+          (* Check for name collisions between pivot-generated columns and existing id columns *)
+          let collisions = List.filter (fun n -> List.mem n id_cols) pvt_names in
+          if collisions <> [] then Error.make_error ValueError (Printf.sprintf "Function `pivot_wider`: pivot column name(s) collide with existing columns: %s" (String.concat ", " collisions)) else
           
           (* Find unique rows across id_cols using structured value keys to avoid collisions *)
           let get_row_key i =
@@ -79,44 +83,55 @@ let register env =
           let final_row_keys = List.rev !row_keys in
           let final_row_keys_arr = Array.of_list final_row_keys in
           let new_nrows = Array.length final_row_keys_arr in
+
+          (* Precompute first-index and sorted-indices per key to avoid
+             re-sorting on every cell access (was O(n^2) before) *)
+          let first_index_tbl = Hashtbl.create new_nrows in
+          let sorted_indices_tbl = Hashtbl.create new_nrows in
+          Array.iter (fun key ->
+            if not (Hashtbl.mem first_index_tbl key) then begin
+              let sorted = Hashtbl.find_all row_groups key |> List.sort_uniq compare in
+              Hashtbl.replace first_index_tbl key (match sorted with hd::_ -> hd | [] -> 0);
+              Hashtbl.replace sorted_indices_tbl key sorted
+            end
+          ) final_row_keys_arr;
           
-          (* Reconstruct ID cols — use array indexing to avoid O(n^2) List.nth *)
+          (* Reconstruct ID cols — use precomputed first_index for O(1) lookup *)
           let new_id_columns = List.map (fun col_name ->
-            let first_idx_of_key key = match Hashtbl.find_all row_groups key |> List.sort_uniq compare with hd::_ -> hd | [] -> 0 in
             let col_data = match Arrow_table.get_column df.arrow_table col_name with
               | Some d -> d
               | None -> NullColumn orig_nrows
             in
+            let first_idx key = Hashtbl.find first_index_tbl key in
             let rep_col = match col_data with
-              | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key final_row_keys_arr.(i))))
-              | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key final_row_keys_arr.(i))))
-              | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key final_row_keys_arr.(i))))
-              | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key final_row_keys_arr.(i))))
+              | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+              | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+              | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+              | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
               | NullColumn _ -> NullColumn new_nrows
             in
             (col_name, rep_col)
           ) id_cols in
           
           (* Reconstruct values cols based on names_from values.
-             Sort indices for deterministic first-match behaviour when multiple rows share the same key. *)
+             Use precomputed sorted indices for deterministic first-match behaviour. *)
            let pivot_col_data = Arrow_table.get_column df.arrow_table values_from in
            let build_new_col name_val =
-             let sorted_indices_for key = Hashtbl.find_all row_groups key |> List.sort_uniq compare in
              match pivot_col_data with
              | Some (FloatColumn a) -> FloatColumn (Array.init new_nrows (fun i ->
-                   let indices = sorted_indices_for final_row_keys_arr.(i) in
+                   let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | Some (IntColumn a) -> IntColumn (Array.init new_nrows (fun i ->
-                   let indices = sorted_indices_for final_row_keys_arr.(i) in
+                   let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | Some (StringColumn a) -> StringColumn (Array.init new_nrows (fun i ->
-                   let indices = sorted_indices_for final_row_keys_arr.(i) in
+                   let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | Some (BoolColumn a) -> BoolColumn (Array.init new_nrows (fun i ->
-                   let indices = sorted_indices_for final_row_keys_arr.(i) in
+                   let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | _ -> NullColumn new_nrows

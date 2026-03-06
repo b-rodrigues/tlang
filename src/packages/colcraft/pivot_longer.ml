@@ -8,12 +8,12 @@ open Arrow_table
 --#
 --# @name pivot_longer
 --# @param df :: DataFrame The DataFrame.
---# @param cols :: List[String] The columns to pivot into longer format.
+--# @param cols :: List[Symbol] The columns to pivot into longer format (use $col syntax).
 --# @param names_to :: String The name of the new column to hold the column names.
 --# @param values_to :: String The name of the new column to hold the values.
 --# @return :: DataFrame The pivoted DataFrame.
 --# @example
---#   pivot_longer(df, ["A", "B"], "name", "value")
+--#   pivot_longer(df, [$A, $B], names_to = "name", values_to = "value")
 --# @family colcraft
 --# @export
 *)
@@ -65,8 +65,10 @@ let register env =
           let orig_nrows = Arrow_table.num_rows df.arrow_table in
           let new_nrows = orig_nrows * n_pivot_cols in
           
-          (* Verify that all pivot cols exist and have a consistent type for values, or fallback to mixed/string.
-             For simplicity, let's coerce all to float if numeric, or string if mixed. *)
+          (* Determine the output type for the values column:
+             - All-integer columns → IntColumn
+             - Mixed int/float    → FloatColumn (ints promoted)
+             - Anything else      → StringColumn (all values coerced to string) *)
            
           let pivot_types = List.map (fun c -> Arrow_table.get_column df.arrow_table c |> function Some col -> Arrow_table.column_type_of col | None -> ArrowNull) cols_to_pivot in
           let is_all_int = List.for_all (function ArrowInt64 | ArrowNull -> true | _ -> false) pivot_types in
