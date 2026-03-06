@@ -10,6 +10,7 @@ open Arrow_table
 --# @param df :: DataFrame The DataFrame.
 --# @param ... :: Symbol Variable number of column names to complete.
 --# @param fill :: Dict (Optional) A dictionary supplying a single value to use instead of NA for missing combinations.
+--# @param explicit :: Bool (Optional) Should both implicit and explicit missing values be filled? (Default: true)
 --# @return :: DataFrame The completed DataFrame.
 --# @example
 --#   complete(df, $group, $item_id, $item_name)
@@ -32,13 +33,13 @@ let register env =
         | _ -> []
       in
 
+      let explicit_val = match get_named "explicit" with
+        | Some (VBool b) -> b
+        | _ -> true
+      in
+      
       let id_cols_variants = match positional with _::tail -> tail | [] -> [] in
-      let id_cols = List.filter_map (fun v -> 
-        match v with 
-        | VSymbol s -> Some (if String.starts_with ~prefix:"$" s then String.sub s 1 (String.length s - 1) else s) 
-        | VString s -> Some s
-        | _ -> None
-      ) id_cols_variants in
+      let id_cols = List.filter_map Utils.extract_column_name id_cols_variants in
 
       match df_arg with
       | None -> Error.type_error "Function `complete` expects a DataFrame as first argument."
@@ -134,16 +135,28 @@ let register env =
                   match col_data with
                   | IntColumn a -> 
                       let fill_i = match fill_val with Some (VInt i) -> Some i | Some (VFloat f) -> Some (int_of_float f) | _ -> None in
-                      IntColumn (Array.init final_nrows (fun i -> match List.nth final_out_row_indices i with Some r -> (match a.(r) with Some x -> Some x | None -> fill_i) | None -> fill_i))
+                      IntColumn (Array.init final_nrows (fun i -> 
+                        match List.nth final_out_row_indices i with 
+                        | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_i else None)
+                        | None -> fill_i))
                   | FloatColumn a -> 
                       let fill_f = match fill_val with Some (VFloat f) -> Some f | Some (VInt i) -> Some (float_of_int i) | _ -> None in
-                      FloatColumn (Array.init final_nrows (fun i -> match List.nth final_out_row_indices i with Some r -> (match a.(r) with Some x -> Some x | None -> fill_f) | None -> fill_f))
+                      FloatColumn (Array.init final_nrows (fun i -> 
+                        match List.nth final_out_row_indices i with 
+                        | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_f else None)
+                        | None -> fill_f))
                   | StringColumn a -> 
                       let fill_s = match fill_val with Some (VString s) -> Some s | _ -> None in
-                      StringColumn (Array.init final_nrows (fun i -> match List.nth final_out_row_indices i with Some r -> (match a.(r) with Some x -> Some x | None -> fill_s) | None -> fill_s))
+                      StringColumn (Array.init final_nrows (fun i -> 
+                        match List.nth final_out_row_indices i with 
+                        | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_s else None)
+                        | None -> fill_s))
                   | BoolColumn a -> 
                       let fill_b = match fill_val with Some (VBool b) -> Some b | _ -> None in
-                      BoolColumn (Array.init final_nrows (fun i -> match List.nth final_out_row_indices i with Some r -> (match a.(r) with Some x -> Some x | None -> fill_b) | None -> fill_b))
+                      BoolColumn (Array.init final_nrows (fun i -> 
+                        match List.nth final_out_row_indices i with 
+                        | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_b else None)
+                        | None -> fill_b))
                   | NullColumn _ -> NullColumn final_nrows
             in
             (col_name, new_col_data)

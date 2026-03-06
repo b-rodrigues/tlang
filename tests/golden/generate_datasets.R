@@ -86,5 +86,14 @@ special_values <- tibble(
 write_csv(special_values, file.path(output_dir, "special_values.csv"))
 message("✓ Exported special_values.csv (6 rows × 3 cols)")
 
+# 11. Edge case: missing combinations for tidyr::complete
+df_missing <- tibble(
+   group = c(1, 1, 2),
+   item = c("a", "b", "a"),
+   value = c(10, 20, 30)
+)
+write_csv(df_missing, file.path(output_dir, "missing_combos.csv"))
+message("✓ Exported missing_combos.csv")
+
 message("\n✅ All datasets generated successfully!")
 message(sprintf("   Location: %s", normalizePath(output_dir)))

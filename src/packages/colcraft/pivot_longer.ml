@@ -41,13 +41,9 @@ let register env =
           let cols_to_pivot =
             match cols_val with
             | Some (VList items) -> 
-                List.filter_map (fun (_, v) -> 
-                  match v with 
-                  | VString s -> Some s 
-                  | VSymbol s -> Some (if String.starts_with ~prefix:"$" s then String.sub s 1 (String.length s - 1) else s)
-                  | _ -> None
-                ) items
-            | _ -> []
+                List.filter_map (fun (_, v) -> Utils.extract_column_name v) items
+            | Some v -> (match Utils.extract_column_name v with Some s -> [s] | None -> [])
+            | None -> []
           in
           
           if cols_to_pivot = [] then Error.make_error ValueError "Function `pivot_longer` requires at least one column to pivot." else
@@ -64,10 +60,11 @@ let register env =
           (* Verify that all pivot cols exist and have a consistent type for values, or fallback to mixed/string.
              For simplicity, let's coerce all to float if numeric, or string if mixed. *)
            
-          let pivot_types = List.map (fun c -> Arrow_table.column_type df.arrow_table c) cols_to_pivot in
-          let is_all_numeric = List.for_all (function Some ArrowInt64 | Some ArrowFloat64 | Some ArrowNull -> true | _ -> false) pivot_types in
+          let pivot_types = List.map (fun c -> Arrow_table.get_column df.arrow_table c |> function Some col -> Arrow_table.column_type_of col | None -> ArrowNull) cols_to_pivot in
+          let is_all_int = List.for_all (function ArrowInt64 | ArrowNull -> true | _ -> false) pivot_types in
+          let is_numeric = List.for_all (function ArrowInt64 | ArrowFloat64 | ArrowNull -> true | _ -> false) pivot_types in
           
-          (* Create new ID columns by repeating each value `n_pivot_cols` times *)
+          (* Create the ID columns by repeating rows *)
           let new_id_columns = List.map (fun col_name ->
             let col_data = match Arrow_table.get_column df.arrow_table col_name with
               | Some d -> d
@@ -88,15 +85,18 @@ let register env =
           let names_col_data = StringColumn (Array.init new_nrows (fun i -> Some pivot_names_arr.(i mod n_pivot_cols))) in
           
           (* Create values column *)
-          let build_values is_num = 
-            if is_num then
+          let build_values () = 
+            if is_all_int then
+              let arrays = List.map (fun c -> Arrow_table.get_int_column df.arrow_table c) cols_to_pivot |> Array.of_list in
+              IntColumn (Array.init new_nrows (fun i -> arrays.(i mod n_pivot_cols).(i / n_pivot_cols)))
+            else if is_numeric then
               let arrays = List.map (fun c -> Arrow_table.get_float_column df.arrow_table c) cols_to_pivot |> Array.of_list in
               FloatColumn (Array.init new_nrows (fun i -> arrays.(i mod n_pivot_cols).(i / n_pivot_cols)))
             else
               let arrays = List.map (fun c -> Arrow_table.get_string_column df.arrow_table c) cols_to_pivot |> Array.of_list in
               StringColumn (Array.init new_nrows (fun i -> arrays.(i mod n_pivot_cols).(i / n_pivot_cols)))
           in
-          let values_col_data = build_values is_all_numeric in
+          let values_col_data = build_values () in
           
           let new_columns = new_id_columns @ [(names_to, names_col_data); (values_to, values_col_data)] in
           let new_schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) new_columns in

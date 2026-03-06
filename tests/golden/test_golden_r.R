@@ -491,6 +491,22 @@ test_that("DISTRIBUTIONS: baselines match R", {
 })
 
 # ============================================================================
+# Test Suite 22: TIDYR
+# ============================================================================
+
+test_that("TIDYR: pivot_longer", {
+  compare_csvs("simple_pivot_longer")
+})
+
+test_that("TIDYR: pivot_wider", {
+  compare_csvs("simple_pivot_wider")
+})
+
+test_that("TIDYR: complete", {
+  compare_csvs("complete_missing")
+})
+
+# ============================================================================
 # SUMMARY REPORT
 # ============================================================================
 

@@ -19,6 +19,7 @@ open Arrow_table
 let register env =
   Env.add "pivot_wider"
     (make_builtin_named ~name:"pivot_wider" ~variadic:true 1 (fun named_args _env ->
+      let () = Printf.printf "DEBUG: pivot_wider entered\n" in
       let df_arg = match named_args with
         | (_, VDataFrame df) :: _ -> Some df
         | _ -> None
@@ -33,8 +34,8 @@ let register env =
           let names_from_val = match get_named "names_from" with Some v -> Some v | None -> (match positional with _::v::_ -> Some v | _ -> None) in
           let values_from_val = match get_named "values_from" with Some v -> Some v | None -> (match positional with _::_::v::_ -> Some v | _ -> None) in
           
-          let names_from = match names_from_val with Some (VString s) -> s | Some (VSymbol s) -> (if String.starts_with ~prefix:"$" s then String.sub s 1 (String.length s - 1) else s) | _ -> "" in
-          let values_from = match values_from_val with Some (VString s) -> s | Some (VSymbol s) -> (if String.starts_with ~prefix:"$" s then String.sub s 1 (String.length s - 1) else s) | _ -> "" in
+          let names_from = match names_from_val with Some v -> (match Utils.extract_column_name v with Some s -> s | None -> "") | _ -> "" in
+          let values_from = match values_from_val with Some v -> (match Utils.extract_column_name v with Some s -> s | None -> "") | _ -> "" in
           
           if names_from = "" || values_from = "" then Error.make_error ValueError "Function `pivot_wider` requires `names_from` and `values_from` options." else
           

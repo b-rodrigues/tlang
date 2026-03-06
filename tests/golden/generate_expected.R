@@ -5,6 +5,7 @@
 
 library(dplyr)
 library(readr)
+library(tidyr)
 
 data_dir <- "tests/golden/data"
 output_dir <- "tests/golden/expected"
@@ -306,4 +307,28 @@ iris %>%
     rep_all = gsub("s", "S", Species)
   ) %>%
   save_output("iris_strings", "String operations on Species")
+
+# ============================================================================
+# Test Suite 10: TIDYR operations
+# ============================================================================
+message("\n=== TIDYR Tests ===")
+
+simple_data <- read_csv(file.path(data_dir, "simple.csv"), show_col_types = FALSE)
+
+# Test 10.1: pivot_longer
+simple_data %>%
+  pivot_longer(c(age, score), names_to = "measure", values_to = "val") %>%
+  save_output("simple_pivot_longer", "pivot_longer(age, score)")
+
+# Test 10.2: pivot_wider
+simple_data %>%
+  select(id, name, score) %>%
+  pivot_wider(names_from = name, values_from = score) %>%
+  save_output("simple_pivot_wider", "pivot_wider(names_from = name, values_from = score)")
+
+# Test 10.3: complete
+df_missing <- read_csv(file.path(data_dir, "missing_combos.csv"), show_col_types = FALSE)
+df_missing %>%
+  complete(group, item, fill = list(value = 0)) %>%
+  save_output("complete_missing", "complete(group, item, fill = list(value = 0))")
 
