@@ -44,7 +44,7 @@
      pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2
    ; packages/colcraft
    t_select t_filter mutate arrange group_by ungroup summarize
-   window_rank window_offset window_cumulative
+   window_rank window_offset window_cumulative pivot_longer pivot_wider
    ; packages/math
    t_sqrt t_abs t_log t_exp pow ndarray t_iota round floor ceiling ceil trunc sign signif sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh
    ; packages/stats
