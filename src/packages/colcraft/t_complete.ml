@@ -62,12 +62,16 @@ let register env =
           in
 
           let unique_values_per_col = List.map (fun col ->
-            let values = ref [] in
+            let seen = Hashtbl.create orig_nrows in
+            let ordered = ref [] in
             for i = 0 to orig_nrows - 1 do
               let v = get_val col i in
-              if not (List.mem v !values) then values := v :: !values
+              if not (Hashtbl.mem seen v) then begin
+                Hashtbl.add seen v ();
+                ordered := v :: !ordered
+              end
             done;
-            (col, List.rev !values)
+            (col, List.rev !ordered)
           ) id_cols in
 
           (* Cartesian product of unique values *)
@@ -106,6 +110,9 @@ let register env =
           let final_out_row_indices = List.rev !out_row_indices in
           let final_combos = List.rev !combo_for_out_row in
           let final_nrows = List.length final_out_row_indices in
+          (* Convert to arrays for O(1) indexed access during column reconstruction *)
+          let final_out_row_indices_arr = Array.of_list final_out_row_indices in
+          let final_combos_arr = Array.of_list final_combos in
 
           (* Reconstruct columns *)
           let new_columns = List.map (fun col_name ->
@@ -123,7 +130,7 @@ let register env =
 
             let new_col_data = 
                if is_id_col then
-                  let extract_combo_val i = List.nth (List.nth final_combos i) id_idx in
+                  let extract_combo_val i = List.nth final_combos_arr.(i) id_idx in
                   match col_data with
                   | IntColumn _ -> IntColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VInt x -> Some x | _ -> None))
                   | FloatColumn _ -> FloatColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VFloat x -> Some x | _ -> None))
@@ -136,25 +143,25 @@ let register env =
                   | IntColumn a -> 
                       let fill_i = match fill_val with Some (VInt i) -> Some i | Some (VFloat f) -> Some (int_of_float f) | _ -> None in
                       IntColumn (Array.init final_nrows (fun i -> 
-                        match List.nth final_out_row_indices i with 
+                        match final_out_row_indices_arr.(i) with 
                         | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_i else None)
                         | None -> fill_i))
                   | FloatColumn a -> 
                       let fill_f = match fill_val with Some (VFloat f) -> Some f | Some (VInt i) -> Some (float_of_int i) | _ -> None in
                       FloatColumn (Array.init final_nrows (fun i -> 
-                        match List.nth final_out_row_indices i with 
+                        match final_out_row_indices_arr.(i) with 
                         | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_f else None)
                         | None -> fill_f))
                   | StringColumn a -> 
                       let fill_s = match fill_val with Some (VString s) -> Some s | _ -> None in
                       StringColumn (Array.init final_nrows (fun i -> 
-                        match List.nth final_out_row_indices i with 
+                        match final_out_row_indices_arr.(i) with 
                         | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_s else None)
                         | None -> fill_s))
                   | BoolColumn a -> 
                       let fill_b = match fill_val with Some (VBool b) -> Some b | _ -> None in
                       BoolColumn (Array.init final_nrows (fun i -> 
-                        match List.nth final_out_row_indices i with 
+                        match final_out_row_indices_arr.(i) with 
                         | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_b else None)
                         | None -> fill_b))
                   | NullColumn _ -> NullColumn final_nrows

@@ -47,11 +47,19 @@ let register env =
           in
           
           if cols_to_pivot = [] then Error.make_error ValueError "Function `pivot_longer` requires at least one column to pivot." else
-          
-          (* Identify id cols (columns not being pivoted) *)
+
+          (* Validate that all requested pivot columns exist *)
           let all_cols = Arrow_table.column_names df.arrow_table in
+          let missing_cols = List.filter (fun c -> not (List.mem c all_cols)) cols_to_pivot in
+          if missing_cols <> [] then Error.make_error KeyError (Printf.sprintf "Function `pivot_longer`: column(s) not found in DataFrame: %s" (String.concat ", " missing_cols)) else
+
+          (* Identify id cols (columns not being pivoted) *)
           let id_cols = List.filter (fun c -> not (List.mem c cols_to_pivot)) all_cols in
           
+          (* Check for name collisions with existing id columns *)
+          if List.mem names_to id_cols then Error.make_error ValueError (Printf.sprintf "Function `pivot_longer`: `names_to` value \"%s\" already exists as a column name." names_to) else
+          if List.mem values_to id_cols then Error.make_error ValueError (Printf.sprintf "Function `pivot_longer`: `values_to` value \"%s\" already exists as a column name." values_to) else
+
           (* Calculate new number of rows *)
           let n_pivot_cols = List.length cols_to_pivot in
           let orig_nrows = Arrow_table.num_rows df.arrow_table in
@@ -93,14 +101,26 @@ let register env =
               let arrays = List.map (fun c -> Arrow_table.get_float_column df.arrow_table c) cols_to_pivot |> Array.of_list in
               FloatColumn (Array.init new_nrows (fun i -> arrays.(i mod n_pivot_cols).(i / n_pivot_cols)))
             else
-              let arrays = List.map (fun c -> Arrow_table.get_string_column df.arrow_table c) cols_to_pivot |> Array.of_list in
+              (* Mixed types: coerce all column values to string to preserve data *)
+              let arrays = List.map (fun c ->
+                match Arrow_table.get_column df.arrow_table c with
+                | Some (StringColumn a) -> a
+                | Some (IntColumn a) -> Array.map (Option.map string_of_int) a
+                | Some (FloatColumn a) -> Array.map (Option.map string_of_float) a
+                | Some (BoolColumn a) -> Array.map (Option.map string_of_bool) a
+                | _ -> Array.make orig_nrows None
+              ) cols_to_pivot |> Array.of_list in
               StringColumn (Array.init new_nrows (fun i -> arrays.(i mod n_pivot_cols).(i / n_pivot_cols)))
           in
           let values_col_data = build_values () in
           
           let new_columns = new_id_columns @ [(names_to, names_col_data); (values_to, values_col_data)] in
           let new_schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) new_columns in
+          let new_group_keys =
+            let existing_cols = List.map fst new_schema in
+            List.filter (fun k -> List.mem k existing_cols) df.group_keys
+          in
           
-          VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = new_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = df.group_keys }
+          VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = new_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = new_group_keys }
     ))
     env

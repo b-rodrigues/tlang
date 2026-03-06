@@ -19,7 +19,6 @@ open Arrow_table
 let register env =
   Env.add "pivot_wider"
     (make_builtin_named ~name:"pivot_wider" ~variadic:true 1 (fun named_args _env ->
-      let () = Printf.printf "DEBUG: pivot_wider entered\n" in
       let df_arg = match named_args with
         | (_, VDataFrame df) :: _ -> Some df
         | _ -> None
@@ -38,6 +37,16 @@ let register env =
           let values_from = match values_from_val with Some v -> (match Utils.extract_column_name v with Some s -> s | None -> "") | _ -> "" in
           
           if names_from = "" || values_from = "" then Error.make_error ValueError "Function `pivot_wider` requires `names_from` and `values_from` options." else
+
+          (* Validate that names_from exists and is a String column, and that values_from exists *)
+          let names_from_col = Arrow_table.get_column df.arrow_table names_from in
+          let values_from_col = Arrow_table.get_column df.arrow_table values_from in
+          (match names_from_col with
+          | None -> Error.make_error KeyError (Printf.sprintf "Function `pivot_wider` expects `names_from` to refer to an existing column, but \"%s\" was not found." names_from)
+          | Some (StringColumn _) ->
+          (match values_from_col with
+          | None -> Error.make_error KeyError (Printf.sprintf "Function `pivot_wider` expects `values_from` to refer to an existing column, but \"%s\" was not found." values_from)
+          | Some _ ->
           
           let pvt_names_col = Arrow_table.get_string_column df.arrow_table names_from in
           let pvt_names = Array.to_list pvt_names_col |> List.filter_map (fun x -> x) |> List.sort_uniq String.compare in
@@ -46,16 +55,16 @@ let register env =
           let all_cols = Arrow_table.column_names df.arrow_table in
           let id_cols = List.filter (fun c -> c <> names_from && c <> values_from) all_cols in
           
-          (* Find unique rows across id_cols *)
-          let get_row_key i = 
+          (* Find unique rows across id_cols using structured value keys to avoid collisions *)
+          let get_row_key i =
             List.map (fun c ->
               match Arrow_table.get_column df.arrow_table c with
-              | Some (StringColumn a) -> (match a.(i) with Some s -> s | None -> "NA")
-              | Some (FloatColumn a) -> (match a.(i) with Some f -> string_of_float f | None -> "NA")
-              | Some (IntColumn a) -> (match a.(i) with Some i -> string_of_int i | None -> "NA")
-              | Some (BoolColumn a) -> (match a.(i) with Some b -> string_of_bool b | None -> "NA")
-              | _ -> "NA"
-            ) id_cols |> String.concat "|"
+              | Some (StringColumn a) -> (match a.(i) with Some s -> VString s | None -> VNull)
+              | Some (FloatColumn a) -> (match a.(i) with Some f -> VFloat f | None -> VNull)
+              | Some (IntColumn a) -> (match a.(i) with Some v -> VInt v | None -> VNull)
+              | Some (BoolColumn a) -> (match a.(i) with Some b -> VBool b | None -> VNull)
+              | _ -> VNull
+            ) id_cols
           in
           
           let row_groups = Hashtbl.create orig_nrows in
@@ -68,43 +77,46 @@ let register env =
           done;
           
           let final_row_keys = List.rev !row_keys in
-          let new_nrows = List.length final_row_keys in
+          let final_row_keys_arr = Array.of_list final_row_keys in
+          let new_nrows = Array.length final_row_keys_arr in
           
-          (* Reconstruct ID cols *)
+          (* Reconstruct ID cols — use array indexing to avoid O(n^2) List.nth *)
           let new_id_columns = List.map (fun col_name ->
-            let first_idx_of_key key = match Hashtbl.find_all row_groups key with hd::_ -> hd | [] -> 0 in
+            let first_idx_of_key key = match Hashtbl.find_all row_groups key |> List.sort_uniq compare with hd::_ -> hd | [] -> 0 in
             let col_data = match Arrow_table.get_column df.arrow_table col_name with
               | Some d -> d
               | None -> NullColumn orig_nrows
             in
             let rep_col = match col_data with
-              | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key (List.nth final_row_keys i))))
-              | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key (List.nth final_row_keys i))))
-              | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key (List.nth final_row_keys i))))
-              | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key (List.nth final_row_keys i))))
+              | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key final_row_keys_arr.(i))))
+              | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key final_row_keys_arr.(i))))
+              | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key final_row_keys_arr.(i))))
+              | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx_of_key final_row_keys_arr.(i))))
               | NullColumn _ -> NullColumn new_nrows
             in
             (col_name, rep_col)
           ) id_cols in
           
-          (* Reconstruct values cols based on names_from values *)
+          (* Reconstruct values cols based on names_from values.
+             Sort indices for deterministic first-match behaviour when multiple rows share the same key. *)
            let pivot_col_data = Arrow_table.get_column df.arrow_table values_from in
            let build_new_col name_val =
+             let sorted_indices_for key = Hashtbl.find_all row_groups key |> List.sort_uniq compare in
              match pivot_col_data with
-             | Some (FloatColumn a) -> FloatColumn (Array.init new_nrows (fun i -> 
-                   let indices = Hashtbl.find_all row_groups (List.nth final_row_keys i) in
+             | Some (FloatColumn a) -> FloatColumn (Array.init new_nrows (fun i ->
+                   let indices = sorted_indices_for final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
-             | Some (IntColumn a) -> IntColumn (Array.init new_nrows (fun i -> 
-                   let indices = Hashtbl.find_all row_groups (List.nth final_row_keys i) in
+             | Some (IntColumn a) -> IntColumn (Array.init new_nrows (fun i ->
+                   let indices = sorted_indices_for final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
-             | Some (StringColumn a) -> StringColumn (Array.init new_nrows (fun i -> 
-                   let indices = Hashtbl.find_all row_groups (List.nth final_row_keys i) in
+             | Some (StringColumn a) -> StringColumn (Array.init new_nrows (fun i ->
+                   let indices = sorted_indices_for final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
-             | Some (BoolColumn a) -> BoolColumn (Array.init new_nrows (fun i -> 
-                   let indices = Hashtbl.find_all row_groups (List.nth final_row_keys i) in
+             | Some (BoolColumn a) -> BoolColumn (Array.init new_nrows (fun i ->
+                   let indices = sorted_indices_for final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | _ -> NullColumn new_nrows
@@ -114,7 +126,11 @@ let register env =
            
            let new_columns = new_id_columns @ new_pivot_columns in
            let new_schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) new_columns in
+           let new_group_keys =
+             List.filter (fun key -> List.exists (fun (name, _) -> name = key) new_columns) df.group_keys
+           in
           
-          VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = new_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = df.group_keys }
+          VDataFrame { arrow_table = { schema = new_schema; columns = new_columns; nrows = new_nrows; native_handle = None } |> Arrow_table.materialize; group_keys = new_group_keys })
+          | Some _ -> Error.type_error (Printf.sprintf "Function `pivot_wider` expects `names_from` to refer to a String column, but \"%s\" has a non-String type." names_from))
     ))
     env
