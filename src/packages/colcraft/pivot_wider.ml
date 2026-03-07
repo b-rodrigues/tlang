@@ -33,6 +33,10 @@ let register env =
           let names_from_val = match get_named "names_from" with Some v -> Some v | None -> (match positional with _::v::_ -> Some v | _ -> None) in
           let values_from_val = match get_named "values_from" with Some v -> Some v | None -> (match positional with _::_::v::_ -> Some v | _ -> None) in
           
+          let is_string_arg = function Some (VString _) -> true | _ -> false in
+          if is_string_arg names_from_val then Error.type_error "Function `pivot_wider` expects $column names, but received a String for `names_from`. Use $col syntax instead of a string literal." else
+          if is_string_arg values_from_val then Error.type_error "Function `pivot_wider` expects $column names, but received a String for `values_from`. Use $col syntax instead of a string literal." else
+          
           let names_from = match names_from_val with Some v -> (match Utils.extract_column_name v with Some s -> s | None -> "") | _ -> "" in
           let values_from = match values_from_val with Some v -> (match Utils.extract_column_name v with Some s -> s | None -> "") | _ -> "" in
           

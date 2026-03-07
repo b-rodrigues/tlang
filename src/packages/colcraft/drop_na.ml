@@ -25,13 +25,12 @@ let register env =
       | VDataFrame df :: cols_variants ->
           let all_names = Arrow_table.column_names df.arrow_table in
 
-          (* Determine which columns to check, validating user-supplied column args *)
           let cols_to_check, parse_err =
             if cols_variants = [] then (all_names, None)
             else
               let parsed = List.filter_map Utils.extract_column_name cols_variants in
-              if parsed = [] then
-                ([], Some "Function `drop_na` expects column arguments using $col syntax.")
+              if List.length parsed <> List.length cols_variants then
+                ([], Some "Function `drop_na` expects all column arguments to use $col syntax.")
               else (parsed, None)
           in
 
