@@ -19,6 +19,8 @@ let column_to_values (col : Arrow_table.column_data) : value array =
       Array.make n (VNA NAGeneric)
   | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       Array.map (fun v -> match v with Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) a
+  | Arrow_table.ListColumn a ->
+      Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> VNA NAGeneric) a
 
 (** Convert a T value array to an Arrow column, inferring the type *)
 let values_to_column (values : value array) : Arrow_table.column_data =
@@ -117,6 +119,8 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
       | Arrow_table.NullColumn _ -> VNA NAGeneric
       | Arrow_table.DictionaryColumn (a, levels, ordered) ->
           (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric)
+      | Arrow_table.ListColumn a ->
+          (match a.(row_idx) with Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> VNA NAGeneric)
     in
     (name, v)
   ) table.schema

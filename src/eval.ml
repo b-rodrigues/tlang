@@ -1249,6 +1249,8 @@ and eval_call env_ref fn_val raw_args =
     List.map (fun (name, expr) ->
       match expr with
       | ColumnRef _ -> (name, expr)  (* bare $col → keep, evaluates to VSymbol *)
+      | ListLit items when List.for_all (fun (_, e) -> match e with ColumnRef _ -> true | _ -> false) items ->
+          (name, expr) (* list of bare $cols → keep as-is *)
       | _ when uses_nse expr ->
           (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
              Call expressions. A positional Call like select_node(p, $name, $runtime) passed

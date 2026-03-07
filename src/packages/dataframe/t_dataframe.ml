@@ -112,7 +112,9 @@ let register env =
                  | Arrow_table.NullColumn n ->
                      VVector (Array.make n (VNA NAGeneric))
                  | Arrow_table.DictionaryColumn (data, levels, ordered) ->
-                     VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data))
+                     VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data)
+                 | Arrow_table.ListColumn data ->
+                     VVector (Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> VNA NAGeneric) data))
         | _ -> Error.type_error "pull expects (DataFrame, column_name)."
       )) env in
   (*
@@ -132,6 +134,7 @@ let register env =
   *)
   let env = Env.add "to_array"
       (make_builtin ~name:"to_array" ~variadic:true 1 (fun args _env ->
+        (* ... existing to_array implementation ... *)
         match args with
         | [VDataFrame df] ->
              (* Auto-select all numeric columns *)
@@ -191,4 +194,16 @@ let register env =
              
         | _ -> Error.type_error "to_array expects (DataFrame, [column_names])."
       )) env in
+  let env = Env.add "nrow"
+    (make_builtin ~name:"nrow" 1 (fun args _env ->
+      match args with
+      | [VDataFrame df] -> VInt (Arrow_table.num_rows df.arrow_table)
+      | _ -> Error.type_error "nrow expects a DataFrame."
+    )) env in
+  let env = Env.add "ncol"
+    (make_builtin ~name:"ncol" 1 (fun args _env ->
+      match args with
+      | [VDataFrame df] -> VInt (Arrow_table.num_columns df.arrow_table)
+      | _ -> Error.type_error "ncol expects a DataFrame."
+    )) env in
   env

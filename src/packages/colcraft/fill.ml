@@ -197,6 +197,7 @@ let register env =
                       end;
                     DictionaryColumn (b, levels, ordered)
                 | NullColumn n -> NullColumn n
+                | ListColumn a -> ListColumn a
               in
               (col_name, new_arr)
             in

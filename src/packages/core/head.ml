@@ -44,12 +44,20 @@ let register env =
           take_head_df arrow_table group_keys n
       | [VDataFrame { arrow_table; group_keys }; VInt n] when n >= 0 ->
           take_head_df arrow_table group_keys n
-      | [VList []] -> Error.value_error "Function `head` called on empty List."
-      | [VList ((_, v) :: _)] -> v
-      | [VVector arr] when Array.length arr > 0 -> arr.(0)
-      | [VVector _] -> Error.value_error "Function `head` called on empty Vector."
+      | [VList items] ->
+          let n = match n_named with Some n -> n | None -> 5 in
+          VList (Utils.list_take n items)
+      | [VList items; VInt n] when n >= 0 ->
+          VList (Utils.list_take n items)
+      | [VVector arr] ->
+          let n = match n_named with Some n -> n | None -> 5 in
+          let take_n = min n (Array.length arr) in
+          VVector (Array.sub arr 0 take_n)
+      | [VVector arr; VInt n] when n >= 0 ->
+          let take_n = min n (Array.length arr) in
+          VVector (Array.sub arr 0 take_n)
       | [VNA _] -> Error.type_error "Function `head` cannot be called on NA."
-      | [_] -> Error.type_error "Function `head` expects a DataFrame or List."
+      | [_] -> Error.type_error "Function `head` expects a DataFrame, List, or Vector."
       | _ -> Error.arity_error_named "head" ~expected:1 ~received:(List.length args)
     ))
     env

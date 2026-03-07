@@ -1,6 +1,6 @@
 open Ast
 
-let is_sep_name = function Some "separator" -> true | _ -> false
+let is_sep_name = function Some "separator" | Some "sep" -> true | _ -> false
 
 (*
 --# Read CSV file

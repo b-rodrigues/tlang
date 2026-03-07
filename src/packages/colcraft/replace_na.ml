@@ -67,6 +67,9 @@ let register env =
                       | _ -> None
                     in
                     (col_name, DictionaryColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_i), levels, ordered))
+                | ListColumn a ->
+                    let fill_t = match replace_val with VDataFrame df -> Some df.arrow_table | _ -> None in
+                    (col_name, ListColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_t)))
               end
             | None -> (col_name, col_data)
           ) all_cols in

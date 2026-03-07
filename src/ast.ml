@@ -272,6 +272,10 @@ module Utils = struct
     | VSymbol s -> Some s
     | _ -> None
 
+  let rec list_take n = function
+    | [] -> []
+    | h :: t -> if n <= 0 then [] else h :: list_take (n - 1) t
+
   let error_code_to_string = function
     | TypeError -> "TypeError"
     | ArityError -> "ArityError"

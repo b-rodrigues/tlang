@@ -196,6 +196,7 @@ let register env =
                   | BoolColumn _ -> BoolColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VBool x -> Some x | _ -> None))
                   | NullColumn _ -> NullColumn final_nrows
                   | DictionaryColumn (_, levels, ordered) -> DictionaryColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VFactor (x, _, _) -> Some x | _ -> None), levels, ordered)
+                  | ListColumn _ -> ListColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VDataFrame df -> Some df.arrow_table | _ -> None))
                else
                   let fill_val = List.assoc_opt col_name fill_dict in
                   match col_data with
@@ -236,6 +237,12 @@ let register env =
                         match final_out_row_indices_arr.(i) with 
                         | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_i else None)
                         | None -> fill_i), levels, ordered)
+                  | ListColumn a ->
+                      let fill_t = match fill_val with Some (VDataFrame df) -> Some df.arrow_table | _ -> None in
+                      ListColumn (Array.init final_nrows (fun i -> 
+                        match final_out_row_indices_arr.(i) with 
+                        | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_t else None)
+                        | None -> fill_t))
             in
             (col_name, new_col_data)
 
