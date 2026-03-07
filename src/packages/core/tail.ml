@@ -71,7 +71,7 @@ let register env =
           let take_n = min n len in
           VVector (Array.sub arr (len - take_n) take_n)
       | [VNA _] -> Error.type_error "Function `tail` cannot be called on NA."
-      | [_] -> Error.type_error "Function `tail` expects a DataFrame or List."
-      | _ -> Error.arity_error_named "tail" ~expected:1 ~received:(List.length args)
+      | [_] -> Error.type_error "Function `tail` expects a DataFrame, List, or Vector."
+      | _ -> Error.arity_error_named "tail" ~expected:2 ~received:(List.length args)
     ))
     env
