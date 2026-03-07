@@ -26,7 +26,7 @@ Date and datetime parsing, extraction, formatting, and calendar arithmetic.
 | `as_date(x)` / `as_datetime(x)` | Convert strings and numeric offsets to date-like values |
 | `interval(start, end)` / `` `%within%`(x, interval) `` | Construct intervals and test whether a date-like value falls inside one |
 | `floor_date(x, unit)` / `ceiling_date(x, unit)` / `round_date(x, unit)` | Round date-like values to `second`, `minute`, `hour`, `day`, `month`, or `year` boundaries |
-| `with_tz(x, tz)` / `force_tz(x, tz)` | Update the timezone label attached to datetime values |
+| `with_tz(x, tz)` / `force_tz(x, tz)` | Current implementation treats timezones as labels only, so both update the attached timezone label without offset conversion |
 | `is_leap_year(x)` / `days_in_month(x)` | Calendar helpers for leap-year and month-length checks |
 | `is_date(x)` / `is_datetime(x)` / `is_period(x)` / `is_duration(x)` / `is_interval(x)` | Type predicates for chrono values |
 

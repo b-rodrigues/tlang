@@ -124,7 +124,7 @@ T includes a standard library (`colcraft`) for data manipulation with dplyr- and
 - `ends_with("suffix")`: Match columns whose names end with suffix
 - `contains("pattern")`: Match columns whose names contain a literal string
 - `everything()`: Select all remaining columns
-- `where(is_numeric)`: Select columns whose values satisfy a predicate helper
+- `where(is_numeric)`: Select columns whose values satisfy a builtin predicate helper
 - `matches("^prefix")`: Select columns whose names match a regex
 - `all_of(["a", "b"])`: Require an explicit set of column names
 - `any_of(["a", "missing"])`: Select only the names that are present
@@ -160,7 +160,7 @@ T includes a standard library (`colcraft`) for data manipulation with dplyr- and
 
 ### Chrono helpers
 - `floor_date(x, unit)` / `ceiling_date(x, unit)` / `round_date(x, unit)`: Round dates and datetimes to calendar boundaries
-- `with_tz(x, tz)` / `force_tz(x, tz)`: Update the timezone label associated with datetimes
+- `with_tz(x, tz)` / `force_tz(x, tz)`: Current implementation treats timezones as labels only, so both update the attached timezone label without offset conversion
 - `interval(start, end)`: Construct an interval from two date-like values
 - `` `%within%`(x, interval) ``: Test whether a date or datetime lies inside an interval
 - `is_leap_year(x)` / `days_in_month(x)`: Expose calendar helpers for leap years and month lengths
@@ -352,7 +352,7 @@ p |> pipeline_assert   -- throws on first error; returns pipeline if valid
 - `ends_with(suffix :: String) :: List[String]`
 - `contains(pattern :: String) :: List[String]`
 - `everything() :: List[String]`
-- `where(predicate :: Function) :: List[String]`
+- `where(predicate :: BuiltinFunction) :: List[String]`
 - `matches(pattern :: String) :: List[String]`
 - `all_of(cols :: List[String] | Vector[String]) :: List[String]`
 - `any_of(cols :: List[String] | Vector[String]) :: List[String]`
@@ -387,8 +387,8 @@ p |> pipeline_assert   -- throws on first error; returns pipeline if valid
 - `floor_date(x :: Date | Datetime, unit :: String) :: Date | Datetime`
 - `ceiling_date(x :: Date | Datetime, unit :: String) :: Date | Datetime`
 - `round_date(x :: Date | Datetime, unit :: String) :: Date | Datetime`
-- `with_tz(x :: Datetime, tz :: String) :: Datetime`
-- `force_tz(x :: Datetime, tz :: String) :: Datetime`
+- `with_tz(x :: Datetime, tz :: String) :: Datetime` (label-only in current implementation)
+- `force_tz(x :: Datetime, tz :: String) :: Datetime` (label-only in current implementation)
 - `is_leap_year(x :: Int | Date | Datetime) :: Bool`
 - `days_in_month(x :: Int, m :: Int) :: Int`
 

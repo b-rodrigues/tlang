@@ -620,8 +620,7 @@ and ceiling_temporal function_name unit = function
            function_name)
 
 and round_temporal function_name unit = function
-  | VDate _ as value
-  | VDatetime _ as value ->
+  | (VDate _ | VDatetime _) as value ->
       let floored = floor_temporal function_name unit value in
       let ceiled = ceiling_temporal function_name unit value in
       (match floored, ceiled with

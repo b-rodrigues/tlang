@@ -192,11 +192,11 @@ let where_impl args _env =
                  let column_value = VVector (Arrow_bridge.column_to_values column) in
                  match predicate.b_name with
                  | Some predicate_name when bool_of_type_predicate predicate_name column_value -> true
-                 | _ ->
-                     (match predicate.b_func [ (None, column_value) ] (ref Env.empty) with
-                      | VBool ok -> ok
-                      | _ -> false)))
-  | [_] -> Error.type_error "Function `where` expects a predicate function."
+                  | _ ->
+                      (match predicate.b_func [ (None, column_value) ] (ref Env.empty) with
+                       | VBool ok -> ok
+                       | _ -> false)))
+  | [_] -> Error.type_error "Function `where` expects a builtin predicate function."
   | _ -> Error.arity_error_named "where" ~expected:1 ~received:(List.length args)
 
 let register env =

@@ -409,7 +409,7 @@ let count_levels levels arr =
   ) arr;
   counts
 
-let remap_factor_array arr levels ordered new_levels remapping =
+let remap_factor_array arr _levels ordered new_levels remapping =
   let factor_arr = Array.map (function
     | VFactor (i, _, _) when i >= 0 && i < Array.length remapping ->
         let new_idx = remapping.(i) in

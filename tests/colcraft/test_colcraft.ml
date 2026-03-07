@@ -549,9 +549,15 @@ df |> filter($age > 25)
   test "semi_join filters left rows by match"
     {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = "id").x|}
     {|Vector["b"]|};
+  test "semi_join keeps only left columns"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = "id") |> ncol|}
+    "2";
   test "anti_join filters left rows without match"
     {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = "id").x|}
     {|Vector["a"]|};
+  test "anti_join keeps only left columns"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = "id") |> ncol|}
+    "2";
   test "bind_rows unions columns"
     {|bind_rows(dataframe([[id: 1, x: "a"]]), dataframe([[id: 2, y: "b"]])) |> ncol|}
     "3";

@@ -152,7 +152,7 @@ let merge_left_right ~left_names ~right_projection ~by left_row right_row_opt =
            (name, value))
   |> fun pairs -> pairs @ right_pairs
 
-let rows_to_dataframe column_order rows =
+let rows_to_dataframe ?(group_keys=[]) column_order rows =
   let nrows = List.length rows in
   let columns =
     List.map (fun name ->
@@ -163,10 +163,14 @@ let rows_to_dataframe column_order rows =
                | Some value -> value
                | None -> VNA NAGeneric) rows)
       in
-      (name, values)
-    ) column_order
+       (name, values)
+     ) column_order
   in
-  VDataFrame { arrow_table = Arrow_bridge.table_from_value_columns columns nrows; group_keys = [] }
+  let group_keys = List.filter (fun key -> List.mem key column_order) group_keys in
+  VDataFrame {
+    arrow_table = Arrow_bridge.table_from_value_columns columns nrows;
+    group_keys;
+  }
 
 let join_impl kind named_args _env =
   match positional_args named_args with
@@ -174,13 +178,15 @@ let join_impl kind named_args _env =
   | [VDataFrame left; VDataFrame right; _] ->
       (match parse_by named_args left.arrow_table right.arrow_table with
        | Error err -> err
-       | Ok by ->
-           let left_names = Arrow_table.column_names left.arrow_table in
-           let right_names = Arrow_table.column_names right.arrow_table in
-           let right_projection = right_projection left_names right_names by in
-           let output_columns =
-             left_names @ List.map snd right_projection
-           in
+        | Ok by ->
+            let left_names = Arrow_table.column_names left.arrow_table in
+            let right_names = Arrow_table.column_names right.arrow_table in
+            let right_projection = right_projection left_names right_names by in
+            let output_columns =
+              match kind with
+              | Semi | Anti -> left_names
+              | Left | Inner | Full -> left_names @ List.map snd right_projection
+            in
             let left_rows = table_rows left.arrow_table in
             let right_rows = table_rows right.arrow_table in
             let right_matches = Array.make (Array.length right_rows) false in
@@ -197,9 +203,9 @@ let join_impl kind named_args _env =
               right_rows;
             let joined_rows = ref [] in
             Array.iter (fun left_row ->
-              let key = key_of_row by left_row in
-              let matches =
-                match Hashtbl.find_opt right_index key with
+               let key = key_of_row by left_row in
+               let matches =
+                 match Hashtbl.find_opt right_index key with
                 | Some indices -> List.rev indices
                 | None -> []
               in
@@ -225,9 +231,9 @@ let join_impl kind named_args _env =
             let joined_rows =
               match kind with
               | Full ->
-                 let unmatched_right_rows =
-                   Array.to_list
-                     (Array.mapi (fun idx row -> (idx, row)) right_rows)
+                  let unmatched_right_rows =
+                    Array.to_list
+                      (Array.mapi (fun idx row -> (idx, row)) right_rows)
                    |> List.filter_map (fun (idx, row) ->
                         if right_matches.(idx) then
                           None
@@ -239,12 +245,20 @@ let join_impl kind named_args _env =
                               else
                                 (name, VNA NAGeneric)) left_names
                           in
-                          Some (merge_left_right ~left_names ~right_projection ~by left_stub (Some row)))
-                 in
+                           Some (merge_left_right ~left_names ~right_projection ~by left_stub (Some row)))
+                  in
                   List.rev !joined_rows @ unmatched_right_rows
               | _ -> List.rev !joined_rows
             in
-            rows_to_dataframe output_columns joined_rows)
+            let preserved_group_keys =
+              match kind with
+              | Left | Inner | Semi | Anti -> left.group_keys
+              | Full -> []
+            in
+            rows_to_dataframe ~group_keys:preserved_group_keys output_columns joined_rows)
+  | _ :: _ :: _ :: _ ->
+      Error.make_error ArityError
+        "Join functions accept exactly two positional DataFrame arguments and at most one join-key argument (or named `by`)."
   | _ :: _ ->
       Error.type_error "Join functions expect two DataFrames as the first positional arguments."
   | [] ->
