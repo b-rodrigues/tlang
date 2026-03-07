@@ -168,6 +168,9 @@ let get_column (t : t) (name : string) : column_data option =
             | ArrowString ->
                 Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
             | ArrowDate | ArrowTimestamp _ ->
+                (* Native Arrow date/timestamp extraction is not implemented in the
+                   current FFI layer yet, so date-like columns stay in the pure
+                   OCaml fallback path until those readers are added. *)
                 List.assoc_opt name t.columns
             | ArrowNull ->
                 Some (NullColumn t.nrows)
@@ -389,16 +392,22 @@ let materialize (t : t) : t =
   match t.native_handle with
   | Some handle when not handle.freed -> t
   | _ ->
-    (* Skip native materialization if any DictionaryColumn or ListColumn is present *)
+    (* Skip native materialization if any column type is not yet supported by the
+       Arrow FFI builders. Date and datetime columns are tracked in the schema,
+       but still remain in pure OCaml storage until their writer path is added. *)
     let has_complex = List.exists (fun (_, col) ->
       match col with DictionaryColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> true | _ -> false
     ) t.columns in
     if has_complex then t
     else
     let tag_of = function
-      | ArrowInt64 -> 0 | ArrowFloat64 -> 1 | ArrowBoolean -> 2 | ArrowString -> 3 | ArrowDate -> 4
-      | ArrowTimestamp _ -> 5 | ArrowNull -> 6 | ArrowDictionary -> 7
-      | ArrowList _ | ArrowStruct _ -> 8
+      | ArrowInt64 -> 0
+      | ArrowFloat64 -> 1
+      | ArrowBoolean -> 2
+      | ArrowString -> 3
+      | ArrowNull -> 6
+      | ArrowDictionary -> 7
+      | ArrowDate | ArrowTimestamp _ | ArrowList _ | ArrowStruct _ -> 8
     in
     let ffi_cols = List.map (fun (name, type_) ->
       let data = match List.assoc_opt name t.columns with

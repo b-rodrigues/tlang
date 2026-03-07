@@ -394,7 +394,14 @@ let scalar_component function_name fn value =
   let rec apply = function
     | VVector arr -> VVector (Array.map apply arr)
     | VNA _ -> VNA NAGeneric
-    | value -> (match fn value with Some out -> out | None -> Error.type_error (Printf.sprintf "Function `%s` expects a Date, Datetime, or Vector of them." function_name))
+    | value ->
+        (match fn value with
+         | Some out -> out
+         | None ->
+             Error.type_error
+               (Printf.sprintf
+                  "Function `%s` expects a Date, Datetime, or Vector of them."
+                  function_name))
   in
   apply value
 
@@ -405,13 +412,19 @@ let add_months_to_date year month day month_delta =
   let new_day = min day (days_in_month new_year new_month) in
   (new_year, new_month, new_day)
 
+let period_has_time_components period =
+  period.p_hours <> 0
+  || period.p_minutes <> 0
+  || period.p_seconds <> 0
+  || period.p_micros <> 0
+
 let add_period_to_value value period =
   match value with
   | VDate days ->
       let year, month, day = civil_from_days days in
       let year, month, day = add_months_to_date year month day (period.p_years * 12 + period.p_months) in
       let days = days_from_civil year month day + period.p_days in
-      if period.p_hours = 0 && period.p_minutes = 0 && period.p_seconds = 0 && period.p_micros = 0 then
+      if not (period_has_time_components period) then
         VDate days
       else
         VDatetime (
@@ -503,6 +516,46 @@ let simple_component extractor value =
   | _ -> None
 
 let register env =
+  let parse_date_result s fmt =
+    match parse_custom_format `Date s fmt None with
+    | Some v -> v
+    | None ->
+        Error.value_error
+          (Printf.sprintf
+             "Function `parse_date` could not parse %S with format %S."
+             s fmt)
+  in
+  let parse_date_vector_value fmt = function
+    | VString s ->
+        (match parse_custom_format `Date s fmt None with
+         | Some v -> v
+         | None -> VNA NAGeneric)
+    | VNA _ -> VNA NAGeneric
+    | _ -> VNA NAGeneric
+  in
+  let parse_datetime_result tz s fmt =
+    match parse_custom_format `Datetime s fmt tz with
+    | Some v -> v
+    | None ->
+        Error.value_error
+          (Printf.sprintf
+             "Function `parse_datetime` could not parse %S with format %S."
+             s fmt)
+  in
+  let parse_datetime_vector_value tz fmt = function
+    | VString s ->
+        (match parse_custom_format `Datetime s fmt tz with
+         | Some v -> v
+         | None -> VNA NAGeneric)
+    | VNA _ -> VNA NAGeneric
+    | _ -> VNA NAGeneric
+  in
+  let scalar_date_component name fn =
+    make_builtin ~name 1 (fun args _env ->
+      match args with
+      | [v] -> scalar_component name fn v
+      | _ -> Error.arity_error_named name ~expected:1 ~received:(List.length args))
+  in
   let add_simple_parser env name order =
     Env.add name (make_builtin ~name 1 (fun args _env ->
       match args with
@@ -543,19 +596,29 @@ let register env =
   let env = add_datetime_parser env "ymd_hms" `YMD 6 in
   let env = add_datetime_parser env "mdy_hms" `MDY 6 in
   let env = add_datetime_parser env "dmy_hms" `DMY 6 in
-  let env = Env.add "parse_date" (make_builtin ~name:"parse_date" 2 (fun args _env ->
-    match args with
-    | [VString s; VString fmt] -> (match parse_custom_format `Date s fmt None with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `parse_date` could not parse %S with format %S." s fmt))
-    | [VVector arr; VString fmt] -> VVector (Array.map (function VString s -> (match parse_custom_format `Date s fmt None with Some v -> v | None -> VNA NAGeneric) | VNA _ -> VNA NAGeneric | _ -> VNA NAGeneric) arr)
-    | [_; _] -> Error.type_error "Function `parse_date` expects (String, String) or (Vector[String], String)."
-    | _ -> Error.arity_error_named "parse_date" ~expected:2 ~received:(List.length args))) env in
+  let env =
+    Env.add "parse_date"
+      (make_builtin ~name:"parse_date" 2 (fun args _env ->
+         match args with
+         | [VString s; VString fmt] -> parse_date_result s fmt
+         | [VVector arr; VString fmt] ->
+             VVector (Array.map (parse_date_vector_value fmt) arr)
+         | [_; _] ->
+             Error.type_error
+               "Function `parse_date` expects (String, String) or (Vector[String], String)."
+         | _ ->
+             Error.arity_error_named "parse_date" ~expected:2
+               ~received:(List.length args)))
+      env
+  in
   let env = Env.add "parse_datetime" (make_builtin_named ~name:"parse_datetime" ~variadic:true 2 (fun named_args _env ->
     match string_named_arg "tz" None named_args with
     | Error err -> err
     | Ok tz ->
         (match positional_args named_args with
-         | [VString s; VString fmt] -> (match parse_custom_format `Datetime s fmt tz with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `parse_datetime` could not parse %S with format %S." s fmt))
-         | [VVector arr; VString fmt] -> VVector (Array.map (function VString s -> (match parse_custom_format `Datetime s fmt tz with Some v -> v | None -> VNA NAGeneric) | VNA _ -> VNA NAGeneric | _ -> VNA NAGeneric) arr)
+         | [VString s; VString fmt] -> parse_datetime_result tz s fmt
+         | [VVector arr; VString fmt] ->
+             VVector (Array.map (parse_datetime_vector_value tz fmt) arr)
          | [_; _] -> Error.type_error "Function `parse_datetime` expects (String, String) or (Vector[String], String)."
          | values -> Error.arity_error_named "parse_datetime" ~expected:2 ~received:(List.length values)))) env in
   let env = Env.add "today" (make_builtin ~name:"today" 0 (fun _args _env -> current_date_value ())) env in
@@ -563,7 +626,7 @@ let register env =
     match string_named_arg "tz" None named_args with
     | Ok tz -> current_datetime_value tz
     | Error err -> err)) env in
-  let env = Env.add "year" (make_builtin ~name:"year" 1 (fun args _env -> match args with [v] -> scalar_component "year" (simple_component (fun (y, _, _) -> y)) v | _ -> Error.arity_error_named "year" ~expected:1 ~received:(List.length args))) env in
+  let env = Env.add "year" (scalar_date_component "year" (simple_component (fun (y, _, _) -> y))) env in
   let env = Env.add "month" (make_builtin_named ~name:"month" ~variadic:true 1 (fun named_args _env ->
     match bool_named_arg "label" false named_args with
     | Error err -> err
@@ -571,9 +634,21 @@ let register env =
         (match positional_args named_args with
          | [v] -> scalar_component "month" (month_value label) v
          | values -> Error.arity_error_named "month" ~expected:1 ~received:(List.length values)))) env in
-  let env = Env.add "day" (make_builtin ~name:"day" 1 (fun args _env -> match args with [v] -> scalar_component "day" (simple_component (fun (_, _, d) -> d)) v | _ -> Error.arity_error_named "day" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "mday" (make_builtin ~name:"mday" 1 (fun args _env -> match args with [v] -> scalar_component "mday" (simple_component (fun (_, _, d) -> d)) v | _ -> Error.arity_error_named "mday" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "yday" (make_builtin ~name:"yday" 1 (fun args _env -> match args with [v] -> scalar_component "yday" (fun value -> match value with VDate days -> let y, m, d = civil_from_days days in Some (VInt (day_of_year y m d)) | VDatetime (micros, _) -> let y, m, d, _, _, _, _ = split_datetime_micros micros in Some (VInt (day_of_year y m d)) | _ -> None) v | _ -> Error.arity_error_named "yday" ~expected:1 ~received:(List.length args))) env in
+  let env = Env.add "day" (scalar_date_component "day" (simple_component (fun (_, _, d) -> d))) env in
+  let env = Env.add "mday" (scalar_date_component "mday" (simple_component (fun (_, _, d) -> d))) env in
+  let env =
+    Env.add "yday"
+      (scalar_date_component "yday" (fun value ->
+           match value with
+           | VDate days ->
+               let y, m, d = civil_from_days days in
+               Some (VInt (day_of_year y m d))
+           | VDatetime (micros, _) ->
+               let y, m, d, _, _, _, _ = split_datetime_micros micros in
+               Some (VInt (day_of_year y m d))
+           | _ -> None))
+      env
+  in
   let env = Env.add "wday" (make_builtin_named ~name:"wday" ~variadic:true 1 (fun named_args _env ->
     match bool_named_arg "label" false named_args, int_named_arg "week_start" 7 named_args with
     | Ok label, Ok week_start ->
@@ -593,15 +668,85 @@ let register env =
          | [v] -> scalar_component "wday" fn v
          | values -> Error.arity_error_named "wday" ~expected:1 ~received:(List.length values))
     | Error err, _ | _, Error err -> err)) env in
-  let env = Env.add "week" (make_builtin ~name:"week" 1 (fun args _env -> match args with [v] -> scalar_component "week" (fun value -> match value with VDate days -> Some (VInt (snd (iso_week_and_year days))) | VDatetime (micros, _) -> let y, m, d, _, _, _, _ = split_datetime_micros micros in Some (VInt (snd (iso_week_and_year (days_from_civil y m d)))) | _ -> None) v | _ -> Error.arity_error_named "week" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "isoweek" (make_builtin ~name:"isoweek" 1 (fun args _env -> match args with [v] -> scalar_component "isoweek" (fun value -> match value with VDate days -> Some (VInt (snd (iso_week_and_year days))) | VDatetime (micros, _) -> let y, m, d, _, _, _, _ = split_datetime_micros micros in Some (VInt (snd (iso_week_and_year (days_from_civil y m d)))) | _ -> None) v | _ -> Error.arity_error_named "isoweek" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "isoyear" (make_builtin ~name:"isoyear" 1 (fun args _env -> match args with [v] -> scalar_component "isoyear" (fun value -> match value with VDate days -> Some (VInt (fst (iso_week_and_year days))) | VDatetime (micros, _) -> let y, m, d, _, _, _, _ = split_datetime_micros micros in Some (VInt (fst (iso_week_and_year (days_from_civil y m d)))) | _ -> None) v | _ -> Error.arity_error_named "isoyear" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "quarter" (make_builtin ~name:"quarter" 1 (fun args _env -> match args with [v] -> scalar_component "quarter" (fun value -> match month_value false value with Some (VInt month) -> Some (VInt (((month - 1) / 3) + 1)) | _ -> None) v | _ -> Error.arity_error_named "quarter" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "semester" (make_builtin ~name:"semester" 1 (fun args _env -> match args with [v] -> scalar_component "semester" (fun value -> match month_value false value with Some (VInt month) -> Some (VInt (((month - 1) / 6) + 1)) | _ -> None) v | _ -> Error.arity_error_named "semester" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "hour" (make_builtin ~name:"hour" 1 (fun args _env -> match args with [v] -> scalar_component "hour" (fun value -> match value with VDate _ -> Some (VInt 0) | VDatetime (micros, _) -> let _, _, _, h, _, _, _ = split_datetime_micros micros in Some (VInt h) | _ -> None) v | _ -> Error.arity_error_named "hour" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "minute" (make_builtin ~name:"minute" 1 (fun args _env -> match args with [v] -> scalar_component "minute" (fun value -> match value with VDate _ -> Some (VInt 0) | VDatetime (micros, _) -> let _, _, _, _, m, _, _ = split_datetime_micros micros in Some (VInt m) | _ -> None) v | _ -> Error.arity_error_named "minute" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "second" (make_builtin ~name:"second" 1 (fun args _env -> match args with [v] -> scalar_component "second" (fun value -> match value with VDate _ -> Some (VFloat 0.0) | VDatetime (micros, _) -> let _, _, _, _, _, s, us = split_datetime_micros micros in Some (VFloat (float_of_int s +. (float_of_int us /. 1_000_000.0))) | _ -> None) v | _ -> Error.arity_error_named "second" ~expected:1 ~received:(List.length args))) env in
-  let env = Env.add "tz" (make_builtin ~name:"tz" 1 (fun args _env -> match args with [v] -> scalar_component "tz" (fun value -> match value with VDate _ | VDatetime (_, None) -> Some (VString "UTC") | VDatetime (_, Some zone) -> Some (VString zone) | _ -> None) v | _ -> Error.arity_error_named "tz" ~expected:1 ~received:(List.length args))) env in
+  let week_component value =
+    match value with
+    | VDate days -> Some (VInt (snd (iso_week_and_year days)))
+    | VDatetime (micros, _) ->
+        let y, m, d, _, _, _, _ = split_datetime_micros micros in
+        Some (VInt (snd (iso_week_and_year (days_from_civil y m d))))
+    | _ -> None
+  in
+  let env = Env.add "week" (scalar_date_component "week" week_component) env in
+  let env = Env.add "isoweek" (scalar_date_component "isoweek" week_component) env in
+  let env =
+    Env.add "isoyear"
+      (scalar_date_component "isoyear" (fun value ->
+           match value with
+           | VDate days -> Some (VInt (fst (iso_week_and_year days)))
+           | VDatetime (micros, _) ->
+               let y, m, d, _, _, _, _ = split_datetime_micros micros in
+               Some (VInt (fst (iso_week_and_year (days_from_civil y m d))))
+           | _ -> None))
+      env
+  in
+  let env =
+    Env.add "quarter"
+      (scalar_date_component "quarter" (fun value ->
+           match month_value false value with
+           | Some (VInt month) -> Some (VInt (((month - 1) / 3) + 1))
+           | _ -> None))
+      env
+  in
+  let env =
+    Env.add "semester"
+      (scalar_date_component "semester" (fun value ->
+           match month_value false value with
+           | Some (VInt month) -> Some (VInt (((month - 1) / 6) + 1))
+           | _ -> None))
+      env
+  in
+  let env =
+    Env.add "hour"
+      (scalar_date_component "hour" (fun value ->
+           match value with
+           | VDate _ -> Some (VInt 0)
+           | VDatetime (micros, _) ->
+               let _, _, _, h, _, _, _ = split_datetime_micros micros in
+               Some (VInt h)
+           | _ -> None))
+      env
+  in
+  let env =
+    Env.add "minute"
+      (scalar_date_component "minute" (fun value ->
+           match value with
+           | VDate _ -> Some (VInt 0)
+           | VDatetime (micros, _) ->
+               let _, _, _, _, m, _, _ = split_datetime_micros micros in
+               Some (VInt m)
+           | _ -> None))
+      env
+  in
+  let env =
+    Env.add "second"
+      (scalar_date_component "second" (fun value ->
+           match value with
+           | VDate _ -> Some (VFloat 0.0)
+           | VDatetime (micros, _) ->
+               let _, _, _, _, _, s, us = split_datetime_micros micros in
+               Some (VFloat (float_of_int s +. (float_of_int us /. 1_000_000.0)))
+           | _ -> None))
+      env
+  in
+  let env =
+    Env.add "tz"
+      (scalar_date_component "tz" (fun value ->
+           match value with
+           | VDate _ | VDatetime (_, None) -> Some (VString "UTC")
+           | VDatetime (_, Some zone) -> Some (VString zone)
+           | _ -> None))
+      env
+  in
   let env = add_period_ctor env "years" (fun n -> { empty_period with p_years = n }) in
   let env = add_period_ctor env "months" (fun n -> { empty_period with p_months = n }) in
   let env = add_period_ctor env "weeks" (fun n -> { empty_period with p_days = n * 7 }) in
@@ -612,12 +757,44 @@ let register env =
   let env = add_period_ctor env "milliseconds" (fun n -> { empty_period with p_micros = n * 1000 }) in
   let env = add_period_ctor env "microseconds" (fun n -> { empty_period with p_micros = n }) in
   let env = add_period_ctor env "nanoseconds" (fun n -> { empty_period with p_micros = n / 1000 }) in
-  let env = Env.add "make_period" (make_builtin_named ~name:"make_period" ~variadic:true 0 (fun named_args _env ->
-    let get_int name = match find_named_arg name named_args with Some (VInt n) -> Ok n | None -> Ok 0 | Some v -> Error (Error.type_error (Printf.sprintf "Argument `%s` must be Int, got %s." name (Utils.type_name v))) in
-    match get_int "years", get_int "months", get_int "days", get_int "hours", get_int "minutes", get_int "seconds" with
-    | Ok years, Ok months, Ok days, Ok hours, Ok minutes, Ok seconds ->
-        VPeriod { empty_period with p_years = years; p_months = months; p_days = days; p_hours = hours; p_minutes = minutes; p_seconds = seconds }
-    | Error err, _, _, _, _, _ | _, Error err, _, _, _, _ | _, _, Error err, _, _, _ | _, _, _, Error err, _, _ | _, _, _, _, Error err, _ | _, _, _, _, _, Error err -> err)) env in
+  let env =
+    Env.add "make_period"
+      (make_builtin_named ~name:"make_period" ~variadic:true 0 (fun named_args _env ->
+         let get_int name =
+           match find_named_arg name named_args with
+           | Some (VInt n) -> Ok n
+           | None -> Ok 0
+           | Some v ->
+               Error
+                 (Error.type_error
+                    (Printf.sprintf
+                       "Argument `%s` must be Int, got %s."
+                       name (Utils.type_name v)))
+         in
+         let ( let* ) result f =
+           match result with
+           | Ok value -> f value
+           | Error err -> Error err
+         in
+         match
+           let* years = get_int "years" in
+           let* months = get_int "months" in
+           let* days = get_int "days" in
+           let* hours = get_int "hours" in
+           let* minutes = get_int "minutes" in
+           let* seconds = get_int "seconds" in
+           Ok { empty_period with
+                p_years = years;
+                p_months = months;
+                p_days = days;
+                p_hours = hours;
+                p_minutes = minutes;
+                p_seconds = seconds; }
+         with
+         | Ok period -> VPeriod period
+         | Error err -> err))
+      env
+  in
   let env =
     List.fold_left (fun env (name, getter) ->
       Env.add name (make_builtin ~name 1 (fun args _env ->
@@ -637,7 +814,7 @@ let register env =
   let env = Env.add "format_date" (make_builtin ~name:"format_date" 2 (fun args _env ->
     match args with
     | [VDate days; VString fmt] -> VString (format_datetime_value (Int64.mul (Int64.of_int days) micros_per_day) None fmt)
-    | [VDatetime (micros, _); VString fmt] -> VString (format_datetime_value micros None fmt)
+    | [VDatetime (micros, tz); VString fmt] -> VString (format_datetime_value micros tz fmt)
     | [_; _] -> Error.type_error "Function `format_date` expects (Date, String)."
     | _ -> Error.arity_error_named "format_date" ~expected:2 ~received:(List.length args))) env in
   let env = Env.add "format_datetime" (make_builtin ~name:"format_datetime" 2 (fun args _env ->

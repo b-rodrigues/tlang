@@ -6,6 +6,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "date components extract values" {|[year(ymd("2024-07-04")), month(ymd("2024-07-04")), day(ymd("2024-07-04"))]|} "[2024, 7, 4]";
   test "month label works" {|month(ymd("2024-07-04"), label = true)|} {|"Jul"|};
   test "date arithmetic with months clamps end of month" {|ymd("2024-01-31") + months(1)|} "Date(2024-02-29)";
+  test "date arithmetic with months clamps non-leap year" {|ymd("2023-01-31") + months(1)|} "Date(2023-02-28)";
   test "date subtraction returns period" {|ymd("2024-07-04") - ymd("2024-01-01")|} "Period(years=0, months=0, days=185, hours=0, minutes=0, seconds=0, micros=0)";
   test "format_date renders tokens" {|format_date(ymd("2024-07-04"), "%B %d, %Y")|} {|"July 04, 2024"|};
   test "type predicates recognize date types" {|[is_date(ymd("2024-01-01")), is_datetime(ymd_hms("2024-01-01 00:00:00"))]|} "[true, true]";
