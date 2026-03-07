@@ -377,9 +377,9 @@ crossing(x = 1:3, y = c("a", "b")) %>%
   save_output("crossing_x_y", "crossing(x = 1:3, y = c('a', 'b'))")
 
 # ============================================================================
-# Test Suite 11: FACTOR operations
+# Test Suite 23: FACTOR operations
 # ============================================================================
-message("\n=== FACTOR Tests ===")
+message("\n=== Test Suite 23: FACTOR Tests ===")
 
 # Test 11.1: Basic factor creation
 simple_data %>%

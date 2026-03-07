@@ -380,7 +380,7 @@ df |> mutate($size_fct = factor($size, levels = ["small", "medium", "large"]))
 
 ### as_factor() — Coerce to Factor
 
-Coerces a column to a factor string.
+Coerces a column to a factor (categorical) value, deriving levels from the unique values present.
 
 ```t
 df |> mutate($category = as_factor($category))

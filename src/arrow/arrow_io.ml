@@ -260,22 +260,24 @@ let read_csv (path : string) : (Arrow_table.t, string) result =
 (* CSV Writing                                                           *)
 (* ===================================================================== *)
 
+(** Quote a string field for CSV output if it contains the separator, quotes, or newlines *)
+let csv_quote_string ~sep s =
+  let has_sep = String.length sep > 0 && String.contains s sep.[0] in
+  if has_sep || String.contains s '"' || String.contains s '\n' then
+    "\"" ^ String.concat "\"\"" (String.split_on_char '"' s) ^ "\""
+  else s
+
 (** Convert a column value to CSV field string *)
 let value_to_csv_field ~sep = function
   | Ast.VInt n -> string_of_int n
   | Ast.VFloat f -> string_of_float f
   | Ast.VBool b -> if b then "true" else "false"
-  | Ast.VString s -> 
-      (* Quote strings if they contain the separator, quotes, or newlines *)
-      let has_sep = String.length sep > 0 && String.contains s sep.[0] in
-      if has_sep || String.contains s '"' || String.contains s '\n' then
-        "\"" ^ String.concat "\"\"" (String.split_on_char '"' s) ^ "\""
-      else s
+  | Ast.VString s -> csv_quote_string ~sep s
   | Ast.VNA _ -> "NA"
   | Ast.VNull -> ""
   | Ast.VFactor (idx, levels, _) ->
       (match List.nth_opt levels idx with
-       | Some s -> s (* TODO: handle quoting/escaping similar to VString if needed *)
+       | Some s -> csv_quote_string ~sep s
        | None -> "NA")
   | _ -> ""
 

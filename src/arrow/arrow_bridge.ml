@@ -30,6 +30,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
   let has_factor = ref false in
   let factor_levels = ref [] in
   let factor_ordered = ref false in
+  let factor_inconsistent = ref false in
   let all_na = ref true in
   Array.iter (fun v ->
     match v with
@@ -38,25 +39,34 @@ let values_to_column (values : value array) : Arrow_table.column_data =
     | VBool _ -> has_bool := true; all_na := false
     | VString _ -> has_string := true; all_na := false
     | VFactor (_, levels, ordered) ->
-        has_factor := true;
         all_na := false;
-        if !factor_levels = [] then factor_levels := levels;
-        if not !factor_ordered then factor_ordered := ordered
+        (match !factor_levels with
+         | [] ->
+             has_factor := true;
+             factor_levels := levels;
+             factor_ordered := ordered
+         | existing when existing <> levels ->
+             (* Inconsistent level sets across factor values; fall back to string *)
+             factor_inconsistent := true
+         | _ ->
+             has_factor := true;
+             if not !factor_ordered then factor_ordered := ordered)
     | VNA _ -> ()
     | _ -> has_string := true; all_na := false  (* fallback to string *)
   ) values;
   if !all_na then
     Arrow_table.NullColumn (Array.length values)
-  else if !has_factor then
+  else if !has_factor && not !factor_inconsistent then
     Arrow_table.DictionaryColumn (Array.map (function
       | VFactor (i, _, _) -> Some i
       | VNA _ -> None
       | _ -> None
     ) values, !factor_levels, !factor_ordered)
-  else if !has_string then
+  else if !has_string || !factor_inconsistent then
     Arrow_table.StringColumn (Array.map (fun v ->
       match v with
       | VString s -> Some s
+      | VFactor (i, levels, _) -> (match List.nth_opt levels i with Some s -> Some s | None -> None)
       | VNA _ -> None
       | v -> Some (Utils.value_to_string v)
     ) values)
