@@ -89,6 +89,7 @@ let register env =
               | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)))
               | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)))
               | NullColumn _ -> NullColumn new_nrows
+              | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)), levels, ordered)
             in
             (col_name, rep_col)
           ) id_cols in

@@ -134,6 +134,7 @@ and value =
   | VNA of na_type
   | VError of error_info
   | VNull
+  | VFactor of int * string list * bool
   (* Phase 6: Intent block value *)
   | VIntent of intent_block
   (* Formula value *)
@@ -322,6 +323,7 @@ module Utils = struct
     | VPipeline _ -> "Pipeline"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
+    | VFactor _ -> "Factor"
     | VIntent _ -> "Intent"
     | VFormula _ -> "Formula"
     | VComputedNode _ -> "ComputedNode"
@@ -453,6 +455,10 @@ module Utils = struct
     | VError { code; message; _ } ->
         "Error(" ^ error_code_to_string code ^ ": \"" ^ message ^ "\")"
     | VNull -> "null"
+    | VFactor (idx, levels, ordered) ->
+        let level_str = match List.nth_opt levels idx with Some s -> "\"" ^ String.escaped s ^ "\"" | None -> "NA" in
+        let ord_str = if ordered then ", ordered=true" else "" in
+        Printf.sprintf "Factor(%s%s)" level_str ord_str
     | VIntent { intent_fields } ->
         let field_to_string (k, v) = k ^ ": \"" ^ String.escaped v ^ "\"" in
         "Intent{" ^ (intent_fields |> List.map field_to_string |> String.concat ", ") ^ "}"

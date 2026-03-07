@@ -11,6 +11,7 @@ type arrow_type =
   | ArrowBoolean
   | ArrowString
   | ArrowNull
+  | ArrowDictionary
 
 (** Typed columnar data with explicit nullability (NA support) *)
 type column_data =
@@ -19,6 +20,7 @@ type column_data =
   | BoolColumn of bool option array
   | StringColumn of string option array
   | NullColumn of int
+  | DictionaryColumn of int option array * string list * bool
 
 (** Schema: ordered list of (column_name, column_type) *)
 type arrow_schema = (string * arrow_type) list
@@ -47,6 +49,7 @@ let column_length = function
   | BoolColumn a -> Array.length a
   | StringColumn a -> Array.length a
   | NullColumn n -> n
+  | DictionaryColumn (a, _, _) -> Array.length a
 
 let column_type_of = function
   | IntColumn _ -> ArrowInt64
@@ -54,6 +57,7 @@ let column_type_of = function
   | BoolColumn _ -> ArrowBoolean
   | StringColumn _ -> ArrowString
   | NullColumn _ -> ArrowNull
+  | DictionaryColumn _ -> ArrowDictionary
 
 let arrow_type_to_string = function
   | ArrowInt64 -> "Int64"
@@ -61,6 +65,7 @@ let arrow_type_to_string = function
   | ArrowBoolean -> "Boolean"
   | ArrowString -> "String"
   | ArrowNull -> "Null"
+  | ArrowDictionary -> "Dictionary"
 
 (** Convert a type_tag int (from FFI) to arrow_type *)
 let arrow_type_of_tag = function
@@ -142,7 +147,10 @@ let get_column (t : t) (name : string) : column_data option =
            | ArrowString ->
                Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
            | ArrowNull ->
-               Some (NullColumn t.nrows))
+               Some (NullColumn t.nrows)
+           | ArrowDictionary ->
+               (* FFI reading of dictionary/factors not yet implemented, fallback to None *)
+               None)
   | _ ->
       (* Fallback to pure OCaml *)
       List.assoc_opt name t.columns
@@ -260,6 +268,7 @@ let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int
   | BoolColumn a -> BoolColumn (pick a)
   | StringColumn a -> StringColumn (pick a)
   | NullColumn _ -> NullColumn new_nrows
+  | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (pick a, levels, ordered)
 
 (** Filter rows using a boolean mask *)
 let filter_rows (t : t) (mask : bool array) : t =
@@ -302,6 +311,7 @@ let take_rows (t : t) (indices : int list) : t =
     | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
     | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
     | NullColumn _ -> NullColumn new_nrows
+    | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))), levels, ordered)
   in
   let columns = List.map (fun (name, col) -> (name, take_col col)) source_columns in
   { schema = t.schema; columns; nrows = new_nrows; native_handle = None }
@@ -326,6 +336,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
     | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(indices.(i))))
     | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
     | NullColumn _ -> NullColumn n
+    | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
   in
   let columns = List.map (fun (name, col) -> (name, sort_col col)) source_columns in
   { schema = t.schema; columns; nrows = n; native_handle = None }
@@ -337,7 +348,7 @@ let materialize (t : t) : t =
   | Some handle when not handle.freed -> t
   | _ ->
     let tag_of = function
-      | ArrowInt64 -> 0 | ArrowFloat64 -> 1 | ArrowBoolean -> 2 | ArrowString -> 3 | ArrowNull -> 4
+      | ArrowInt64 -> 0 | ArrowFloat64 -> 1 | ArrowBoolean -> 2 | ArrowString -> 3 | ArrowNull -> 4 | ArrowDictionary -> 5
     in
     let ffi_cols = List.map (fun (name, type_) ->
       let data = match List.assoc_opt name t.columns with
@@ -345,6 +356,7 @@ let materialize (t : t) : t =
         | Some (FloatColumn a) -> Array.map (Option.map Obj.repr) a
         | Some (BoolColumn a) -> Array.map (Option.map Obj.repr) a
         | Some (StringColumn a) -> Array.map (Option.map Obj.repr) a
+        | Some (DictionaryColumn (a, _, _)) -> Array.map (Option.map Obj.repr) a
         | Some (NullColumn n) -> Array.make n None
         | None -> Array.make t.nrows None
       in

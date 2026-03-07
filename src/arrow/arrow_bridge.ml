@@ -17,6 +17,8 @@ let column_to_values (col : Arrow_table.column_data) : value array =
       Array.map (fun v -> match v with Some s -> VString s | None -> VNA NAString) a
   | Arrow_table.NullColumn n ->
       Array.make n (VNA NAGeneric)
+  | Arrow_table.DictionaryColumn (a, levels, ordered) ->
+      Array.map (fun v -> match v with Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) a
 
 (** Convert a T value array to an Arrow column, inferring the type *)
 let values_to_column (values : value array) : Arrow_table.column_data =
@@ -25,6 +27,9 @@ let values_to_column (values : value array) : Arrow_table.column_data =
   let has_float = ref false in
   let has_bool = ref false in
   let has_string = ref false in
+  let has_factor = ref false in
+  let factor_levels = ref [] in
+  let factor_ordered = ref false in
   let all_na = ref true in
   Array.iter (fun v ->
     match v with
@@ -32,11 +37,22 @@ let values_to_column (values : value array) : Arrow_table.column_data =
     | VFloat _ -> has_float := true; all_na := false
     | VBool _ -> has_bool := true; all_na := false
     | VString _ -> has_string := true; all_na := false
+    | VFactor (_, levels, ordered) ->
+        has_factor := true;
+        all_na := false;
+        if !factor_levels = [] then factor_levels := levels;
+        if not !factor_ordered then factor_ordered := ordered
     | VNA _ -> ()
     | _ -> has_string := true; all_na := false  (* fallback to string *)
   ) values;
   if !all_na then
     Arrow_table.NullColumn (Array.length values)
+  else if !has_factor then
+    Arrow_table.DictionaryColumn (Array.map (function
+      | VFactor (i, _, _) -> Some i
+      | VNA _ -> None
+      | _ -> None
+    ) values, !factor_levels, !factor_ordered)
   else if !has_string then
     Arrow_table.StringColumn (Array.map (fun v ->
       match v with
@@ -89,6 +105,8 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
       | Arrow_table.StringColumn a ->
           (match a.(row_idx) with Some s -> VString s | None -> VNA NAString)
       | Arrow_table.NullColumn _ -> VNA NAGeneric
+      | Arrow_table.DictionaryColumn (a, levels, ordered) ->
+          (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric)
     in
     (name, v)
   ) table.schema

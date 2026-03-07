@@ -212,6 +212,8 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   | VShellResult { sr_stdout; _ } ->
       (* Serialize shell result as its stdout string *)
       `String sr_stdout
+  | VFactor _ ->
+      invalid_arg "value_to_yojson: VFactor is not supported for JSON serialization"
 
 let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   match j with

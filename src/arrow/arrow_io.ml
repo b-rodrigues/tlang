@@ -109,6 +109,9 @@ let build_column (values : string array) (col_type : Arrow_table.arrow_type) : A
       ) values)
   | Arrow_table.ArrowNull ->
       Arrow_table.NullColumn (Array.length values)
+  | Arrow_table.ArrowDictionary ->
+      (* FFI loading of dictionary not fully mapped in IO yet *)
+      Arrow_table.StringColumn (Array.map (fun s -> if is_na_string s then None else Some s) values)
 
 (** Parse a CSV string into an Arrow table (pure OCaml fallback) *)
 let parse_csv_string (content : string) : (Arrow_table.t, string) result =
@@ -270,6 +273,10 @@ let value_to_csv_field ~sep = function
       else s
   | Ast.VNA _ -> "NA"
   | Ast.VNull -> ""
+  | Ast.VFactor (idx, levels, _) ->
+      (match List.nth_opt levels idx with
+       | Some s -> s (* TODO: handle quoting/escaping similar to VString if needed *)
+       | None -> "NA")
   | _ -> ""
 
 (** Write an Arrow table to a CSV file *)

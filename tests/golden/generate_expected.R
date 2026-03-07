@@ -376,4 +376,20 @@ fruits %>%
 crossing(x = 1:3, y = c("a", "b")) %>%
   save_output("crossing_x_y", "crossing(x = 1:3, y = c('a', 'b'))")
 
+# ============================================================================
+# Test Suite 11: FACTOR operations
+# ============================================================================
+message("\n=== FACTOR Tests ===")
+
+# Test 11.1: Basic factor creation
+simple_data %>%
+  mutate(name_fct = factor(name, levels = rev(unique(name)))) %>%
+  save_output("factor_basic", "mutate(name_fct = factor(name))")
+
+# Test 11.2: Factor arrange
+crossing(size = c("medium", "small", "large"), id = c(1, 2)) %>%
+  mutate(size_fct = factor(size, levels = c("small", "medium", "large"))) %>%
+  arrange(size_fct) %>%
+  save_output("factor_arrange", "arrange(size_fct)")
+
 

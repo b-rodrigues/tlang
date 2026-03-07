@@ -113,6 +113,7 @@ let register env =
               | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
               | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
               | NullColumn _ -> NullColumn new_nrows
+              | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))), levels, ordered)
             in
             (col_name, rep_col)
           ) id_cols in
