@@ -65,7 +65,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -93,7 +93,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -121,7 +121,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -149,7 +149,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -177,7 +177,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -205,7 +205,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
