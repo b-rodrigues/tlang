@@ -2,7 +2,7 @@
 
 > Practical examples of data wrangling with T's core verbs
 
-T provides six core data manipulation functions in the `colcraft` package: `select()`, `filter()`, `mutate()`, `arrange()`, `group_by()`, and `summarize()`. All functions take a DataFrame as their first argument and return a new DataFrame, making them composable with the pipe operator.
+T provides a powerful suite of data manipulation functions in the `colcraft` package, inspired by `dplyr` and `tidyr`. These functions take a DataFrame as their first argument and return a new DataFrame, making them highly composable with the pipe operator.
 
 ---
 
@@ -15,6 +15,7 @@ df = read_csv("employees.csv")
 nrow(df)      -- 100
 ncol(df)      -- 5
 colnames(df)  -- ["name", "age", "score", "dept", "salary"]
+```
 
 ### glimpse() — Inspect DataFrame Structure
 
@@ -241,6 +242,123 @@ df |> group_by($dept)
 ```
 
 ---
+
+## Reshaping Data (tidyr)
+
+T includes a robust implementation of tidying functions for reshaping your data.
+
+### pivot_longer() — Lengthen Data
+
+Pivots data from wide to long format by consolidating multiple columns into name-value pairs.
+
+```t
+-- Pivot age and score into a single "measure" column
+df |> pivot_longer($age, $score, names_to = "measure", values_to = "val")
+
+-- Resulting columns: name, dept, salary, measure, val
+```
+
+### pivot_wider() — Widen Data
+
+Pivots data from long to wide format by spreading unique values across multiple columns.
+
+```t
+-- Widen by department names, using salary as values
+df |> select($name, $dept, $salary)
+   |> pivot_wider(names_from = $dept, values_from = $salary)
+```
+
+### separate() — Split Columns
+
+Splits a single character column into multiple columns based on a delimiter.
+
+```t
+-- Split a "date" column into "year", "month", "day"
+df |> separate($date, into = ["year", "month", "day"], sep = "-")
+```
+
+### unite() — Combine Columns
+
+Combines multiple columns into a single character column.
+
+```t
+-- Combine year, month, day into a single "full_date" column
+df |> unite("full_date", $year, $month, $day, sep = "-")
+```
+
+---
+
+## Missing Value Handling
+
+### drop_na() — Remove NAs
+
+Removes rows containing missing values in the specified columns.
+
+```t
+-- Remove rows where Ozone or Solar.R are NA
+df |> drop_na($Ozone, $`Solar.R`) -- Dots in names require backticks
+```
+
+### replace_na() — Replace NAs
+
+Replaces missing values with a specific constant for each column.
+
+```t
+-- Replace NAs in Ozone with 0
+df |> replace_na([Ozone: 0, `Solar.R`: 0])
+```
+
+### fill() — Fill Gaps
+
+Propagates non-missing values in a specific direction.
+
+```t
+-- Fill missing categories downwards
+df |> fill($category, .direction = "down")
+```
+
+---
+
+## Completing and Expanding Data
+
+### complete() — Make Implicit Missing Values Explicit
+
+Ensures all combinations of the specified columns exist in the data.
+
+```t
+-- Ensure every item has a row for every group
+df |> complete($group, $item_id, fill = [value: 0])
+```
+
+### expand() — Generate All Combinations
+
+Generates all unique combinations of variables found in a dataset.
+
+```t
+-- Every combination of type and size, regardless of whether it exists in df
+df |> expand($type, $size)
+```
+
+### crossing() — Cartesian Product
+
+Creates a new DataFrame from the cross-product of inputs.
+
+```t
+-- Independent of any existing DataFrame
+crossing(x = [1, 2, 3], y = ["a", "b"])
+```
+
+### nesting() — Restrict Combinations
+
+Used inside `expand()` or `complete()` to only include combinations already present in the data.
+
+```t
+-- Only combinations of type and size that actually appear in the data
+df |> expand(nesting($type, $size))
+```
+
+---
+
 
 ## Grouped Mutate — Group-Wise Transformations
 

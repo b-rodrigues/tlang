@@ -95,5 +95,42 @@ df_missing <- tibble(
 write_csv(df_missing, file.path(output_dir, "missing_combos.csv"))
 message("✓ Exported missing_combos.csv")
 
+# 12. Fill data
+fill_data <- tibble(
+  id = 1:5,
+  category = c("A", NA, NA, "B", NA),
+  value = c(10, 20, 30, 40, 50)
+)
+write_csv(fill_data, file.path(output_dir, "fill_data.csv"))
+message("✓ Exported fill_data.csv")
+
+# 13. Separate data
+separate_data <- tibble(
+  id = 1:3,
+  date = c("2023-01-01", "2023-02-15", "2023-03-30")
+)
+write_csv(separate_data, file.path(output_dir, "separate_data.csv"))
+message("✓ Exported separate_data.csv")
+
+# 14. Unite data
+unite_data <- tibble(
+  id = 1:3,
+  year = c(2021, 2022, 2023),
+  month = c("Jan", "Feb", "Mar"),
+  day = c(1, 15, 30)
+)
+write_csv(unite_data, file.path(output_dir, "unite_data.csv"))
+message("✓ Exported unite_data.csv")
+
+# 15. Fruits data for expand/nesting
+fruits <- tibble(
+  type = c("apple", "orange", "apple", "orange", "orange", "orange"),
+  year = c(2010, 2010, 2012, 2010, 2011, 2012),
+  size = c("XS", "S", "M", "S", "S", "M")
+)
+write_csv(fruits, file.path(output_dir, "fruits.csv"))
+message("✓ Exported fruits.csv")
+
+
 message("\n✅ All datasets generated successfully!")
 message(sprintf("   Location: %s", normalizePath(output_dir)))

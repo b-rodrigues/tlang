@@ -8,12 +8,12 @@ open Arrow_table
 --#
 --# @name pivot_longer
 --# @param df :: DataFrame The DataFrame.
---# @param cols :: List[Symbol] The columns to pivot into longer format (use $col syntax).
---# @param names_to :: String The name of the new column to hold the column names.
---# @param values_to :: String The name of the new column to hold the values.
+--# @param ... :: Symbol The columns to pivot into longer format (use $col syntax).
+--# @param names_to :: String (Optional) The name of the new column to hold the column names. Defaults to "name".
+--# @param values_to :: String (Optional) The name of the new column to hold the values. Defaults to "value".
 --# @return :: DataFrame The pivoted DataFrame.
 --# @example
---#   pivot_longer(df, [$A, $B], names_to = "name", values_to = "value")
+--#   pivot_longer(df, $A, $B, names_to = "name", values_to = "value")
 --# @family colcraft
 --# @export
 *)
@@ -31,22 +31,25 @@ let register env =
       match df_arg with
       | None -> Error.type_error "Function `pivot_longer` expects a DataFrame as first argument."
       | Some df ->
-          let cols_val = match get_named "cols" with Some v -> Some v | None -> (match positional with _::v::_ -> Some v | _ -> None) in
-          let names_to_val = match get_named "names_to" with Some v -> Some v | None -> (match positional with _::_::v::_ -> Some v | _ -> None) in
-          let values_to_val = match get_named "values_to" with Some v -> Some v | None -> (match positional with _::_::_::v::_ -> Some v | _ -> None) in
-          
-          let names_to = match names_to_val with Some (VString s) -> s | _ -> "name" in
-          let values_to = match values_to_val with Some (VString s) -> s | _ -> "value" in
+          let names_to = match get_named "names_to" with Some (VString s) -> s | _ -> "name" in
+          let values_to = match get_named "values_to" with Some (VString s) -> s | _ -> "value" in
           
           let cols_to_pivot =
-            match cols_val with
+            match get_named "cols" with
             | Some (VList items) -> 
                 List.filter_map (fun (_, v) -> Utils.extract_column_name v) items
             | Some v -> (match Utils.extract_column_name v with Some s -> [s] | None -> [])
-            | None -> []
+            | None ->
+                (* Extract from positional arguments, excluding the first one (df)
+                   and excluding trailing strings which might be names_to/values_to *)
+                match positional with
+                | _ :: rest ->
+                    let col_candidates = List.filter (fun v -> not (Utils.is_string v)) rest in
+                    List.filter_map Utils.extract_column_name col_candidates
+                | _ -> []
           in
           
-          if cols_to_pivot = [] then Error.make_error ValueError "Function `pivot_longer` requires at least one column to pivot." else
+          if cols_to_pivot = [] then Error.make_error ValueError "Function `pivot_longer` requires at least one column to pivot (use $col syntax)." else
 
           (* Validate that all requested pivot columns exist *)
           let all_cols = Arrow_table.column_names df.arrow_table in

@@ -1,0 +1,5 @@
+-- Test: expand(nesting($type, $size))
+df = read_csv("tests/golden/data/fruits.csv")
+result = df |> expand(nesting($type, $size))
+write_csv(result, "tests/golden/t_outputs/expand_nesting.csv")
+print("✓ expand_nesting complete")

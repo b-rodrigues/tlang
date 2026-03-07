@@ -1,0 +1,5 @@
+-- Test: unite("full_date", $year, $month, $day, sep = "-")
+df = read_csv("tests/golden/data/unite_data.csv")
+result = df |> unite("full_date", $year, $month, $day, sep = "-")
+write_csv(result, "tests/golden/t_outputs/unite_date.csv")
+print("✓ unite_date complete")
