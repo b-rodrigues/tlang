@@ -506,6 +506,38 @@ test_that("TIDYR: complete", {
   compare_csvs("complete_missing")
 })
 
+test_that("TIDYR: fill", {
+  compare_csvs("fill_down")
+})
+
+test_that("TIDYR: separate", {
+  compare_csvs("separate_date")
+})
+
+test_that("TIDYR: unite", {
+  compare_csvs("unite_date")
+})
+
+test_that("TIDYR: drop_na", {
+  compare_csvs("drop_na_ozone_solar")
+})
+
+test_that("TIDYR: replace_na", {
+  compare_csvs("replace_na_ozone_solar")
+})
+
+test_that("TIDYR: expand", {
+  compare_csvs("expand_type_size")
+})
+
+test_that("TIDYR: nesting", {
+  compare_csvs("expand_nesting")
+})
+
+test_that("TIDYR: crossing", {
+  compare_csvs("crossing_x_y")
+})
+
 # ============================================================================
 # SUMMARY REPORT
 # ============================================================================

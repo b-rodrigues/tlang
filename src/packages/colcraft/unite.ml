@@ -34,12 +34,24 @@ let register env =
       let get_named k = List.find_map (fun (nk, v) -> if nk = Some k then Some v else None) named_args in
       let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) named_args in
       
-      let new_col_name = match get_named "col" with
-        | Some (VString s) -> s
-        | _ -> (match positional with _::VString s:: _ -> s | _ -> "")
+      let (col_from_named, new_col_name) = match get_named "col" with
+        | Some (VString s) -> (true, s)
+        | _ ->
+            (match positional with
+             | _ :: VString s :: _ -> (false, s)
+             | _ -> (false, ""))
       in
       
-      let cols_variants = match positional with _::_::tail -> tail | _::_ -> [] | _ -> [] in
+      let cols_variants =
+        match positional with
+        | _ :: _ when col_from_named ->
+            (* col provided as named arg: positional = [df, first_src_col, ...] *)
+            (match positional with _ :: tail -> tail | _ -> [])
+        | _ :: _ :: tail ->
+            (* col provided positionally: positional = [df, new_col_name, first_src_col, ...] *)
+            tail
+        | _ -> []
+      in
       let cols_to_unite = List.filter_map Utils.extract_column_name cols_variants in
       
       let sep = match get_named "sep" with

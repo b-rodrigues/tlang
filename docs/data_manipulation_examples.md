@@ -355,6 +355,9 @@ Used inside `expand()` or `complete()` to only include combinations already pres
 ```t
 -- Only combinations of type and size that actually appear in the data
 df |> expand(nesting($type, $size))
+
+-- In complete(): use nesting() to restrict some columns to existing combinations
+df |> complete($group, nesting($item_id, $item_name))
 ```
 
 ---

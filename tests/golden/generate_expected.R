@@ -362,14 +362,7 @@ airquality %>%
   save_output("replace_na_ozone_solar", "replace_na(list(Ozone = 0, Solar.R = 0))")
 
 # Test 10.9: expand
-fruits <- tibble(
-  type = c("apple", "orange", "apple", "orange", "orange", "orange"),
-  year = c(2010, 2010, 2012, 2010, 2011, 2012),
-  size = factor(
-    c("XS", "S", "M", "S", "S", "M"),
-    levels = c("XS", "S", "M", "L")
-  )
-)
+fruits <- read_csv(file.path(data_dir, "fruits.csv"), show_col_types = FALSE)
 fruits %>%
   expand(type, size) %>%
   save_output("expand_type_size", "expand(type, size)")
