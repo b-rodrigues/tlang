@@ -24,6 +24,10 @@ Date and datetime parsing, extraction, formatting, and calendar arithmetic.
 | `format_date(x, format)` | Format a date-like value as a string |
 | `format_datetime(x, format)` | Format a datetime-like value as a string |
 | `as_date(x)` / `as_datetime(x)` | Convert strings and numeric offsets to date-like values |
+| `interval(start, end)` / `` `%within%`(x, interval) `` | Construct intervals and test whether a date-like value falls inside one |
+| `floor_date(x, unit)` / `ceiling_date(x, unit)` / `round_date(x, unit)` | Round date-like values to `second`, `minute`, `hour`, `day`, `month`, or `year` boundaries |
+| `with_tz(x, tz)` / `force_tz(x, tz)` | Update the timezone label attached to datetime values |
+| `is_leap_year(x)` / `days_in_month(x)` | Calendar helpers for leap-year and month-length checks |
 | `is_date(x)` / `is_datetime(x)` / `is_period(x)` / `is_duration(x)` / `is_interval(x)` | Type predicates for chrono values |
 
 ## Notes
@@ -33,6 +37,7 @@ Date and datetime parsing, extraction, formatting, and calendar arithmetic.
 - Parsing helpers accept either a single string or a `Vector[String]`.
 - Component extractors are vectorized over `Vector` inputs.
 - Date arithmetic supports expressions like `ymd("2024-01-31") + months(1)`.
+- Rounding helpers preserve the input kind: `Date` values stay dates for day/month/year rounding, while `Datetime` values preserve their timezone label.
 
 ## Examples
 
@@ -47,6 +52,8 @@ format_date(d, "%Y-%m-%d")      -- "2024-07-04"
 ymd("2024-01-31") + months(1)   -- Date(2024-02-29)
 parse_date("15 Jan 2024", "%d %b %Y")
 parse_datetime("2024-07-04 14:30:45", "%Y-%m-%d %H:%M:%S")
+floor_date(dt, "hour")
+`%within%`(d, interval(ymd("2024-07-01"), ymd("2024-07-31")))
 ```
 
 ## Status

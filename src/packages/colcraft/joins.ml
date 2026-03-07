@@ -106,7 +106,7 @@ let make_name_unique used base =
     if List.mem candidate !used then
       loop (idx + 1)
     else begin
-      used := !used @ [candidate];
+      used := candidate :: !used;
       candidate
     end
   in
@@ -122,11 +122,9 @@ let right_projection left_names right_names by =
         if List.mem name left_names then name ^ "_y" else name
       in
       let output_name = make_name_unique used base in
-      acc @ [(name, output_name)]
+      (name, output_name) :: acc
   ) [] right_names
-
-let make_empty_row columns =
-  List.map (fun name -> (name, VNA NAGeneric)) columns
+  |> List.rev
 
 let merge_left_right ~left_names ~right_projection ~by left_row right_row_opt =
   let right_lookup name =
@@ -183,49 +181,50 @@ let join_impl kind named_args _env =
            let output_columns =
              left_names @ List.map snd right_projection
            in
-           let left_rows = table_rows left.arrow_table in
-           let right_rows = table_rows right.arrow_table in
-           let right_matches = Array.make (Array.length right_rows) false in
-           let right_index = Hashtbl.create 32 in
-           Array.iteri (fun idx row ->
-             let key = key_of_row by row in
-             let existing =
-               match Hashtbl.find_opt right_index key with
-               | Some indices -> indices
-               | None -> []
-             in
-             Hashtbl.replace right_index key (existing @ [idx])
-           ) right_rows;
-           let joined_rows = ref [] in
-           Array.iter (fun left_row ->
-             let key = key_of_row by left_row in
-             let matches =
-               match Hashtbl.find_opt right_index key with
-               | Some indices -> indices
-               | None -> []
-             in
-             match kind, matches with
-             | Anti, [] ->
-                 joined_rows := !joined_rows @ [List.map (fun name -> (name, assoc_value left_row name)) left_names]
-             | Anti, _ -> ()
-             | Semi, [] -> ()
-             | Semi, _ ->
-                 joined_rows := !joined_rows @ [List.map (fun name -> (name, assoc_value left_row name)) left_names]
-             | (Left | Full), [] ->
-                 joined_rows :=
-                   !joined_rows @ [merge_left_right ~left_names ~right_projection ~by left_row None]
-             | Inner, [] -> ()
-             | _, indices ->
-                 List.iter (fun idx ->
-                   right_matches.(idx) <- true;
-                   joined_rows :=
-                     !joined_rows
-                     @ [merge_left_right ~left_names ~right_projection ~by left_row (Some right_rows.(idx))]
-                 ) indices
-           ) left_rows;
-           let joined_rows =
-             match kind with
-             | Full ->
+            let left_rows = table_rows left.arrow_table in
+            let right_rows = table_rows right.arrow_table in
+            let right_matches = Array.make (Array.length right_rows) false in
+            let right_index = Hashtbl.create 32 in
+            Array.iteri
+              (fun idx row ->
+                let key = key_of_row by row in
+                let existing =
+                  match Hashtbl.find_opt right_index key with
+                  | Some indices -> indices
+                  | None -> []
+                in
+                Hashtbl.replace right_index key (idx :: existing))
+              right_rows;
+            let joined_rows = ref [] in
+            Array.iter (fun left_row ->
+              let key = key_of_row by left_row in
+              let matches =
+                match Hashtbl.find_opt right_index key with
+                | Some indices -> List.rev indices
+                | None -> []
+              in
+              match kind, matches with
+              | Anti, [] ->
+                  joined_rows := List.map (fun name -> (name, assoc_value left_row name)) left_names :: !joined_rows
+              | Anti, _ -> ()
+              | Semi, [] -> ()
+              | Semi, _ ->
+                  joined_rows := List.map (fun name -> (name, assoc_value left_row name)) left_names :: !joined_rows
+              | (Left | Full), [] ->
+                  joined_rows :=
+                    merge_left_right ~left_names ~right_projection ~by left_row None :: !joined_rows
+              | Inner, [] -> ()
+              | _, indices ->
+                  List.iter (fun idx ->
+                    right_matches.(idx) <- true;
+                    joined_rows :=
+                      merge_left_right ~left_names ~right_projection ~by left_row (Some right_rows.(idx))
+                      :: !joined_rows
+                  ) indices
+            ) left_rows;
+            let joined_rows =
+              match kind with
+              | Full ->
                  let unmatched_right_rows =
                    Array.to_list
                      (Array.mapi (fun idx row -> (idx, row)) right_rows)
@@ -242,10 +241,10 @@ let join_impl kind named_args _env =
                           in
                           Some (merge_left_right ~left_names ~right_projection ~by left_stub (Some row)))
                  in
-                 !joined_rows @ unmatched_right_rows
-             | _ -> !joined_rows
-           in
-           rows_to_dataframe output_columns joined_rows)
+                  List.rev !joined_rows @ unmatched_right_rows
+              | _ -> List.rev !joined_rows
+            in
+            rows_to_dataframe output_columns joined_rows)
   | _ :: _ ->
       Error.type_error "Join functions expect two DataFrames as the first positional arguments."
   | [] ->

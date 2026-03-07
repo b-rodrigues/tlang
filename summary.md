@@ -101,6 +101,15 @@ T includes a standard library (`colcraft`) for data manipulation with dplyr- and
 - `separate_rows(df, $col, sep = "[^A-Za-z0-9]+")`: Split values and expand into new rows
 - `uncount(df, $weights, .remove = true)`: Duplicate rows according to a weight column
 
+### Multi-table verbs
+- `left_join(df1, df2, by = "id")`: Keep all left-hand rows and append matching right-hand columns
+- `inner_join(df1, df2, by = "id")`: Keep only matching rows from both inputs
+- `full_join(df1, df2, by = "id")`: Keep matching rows plus unmatched rows from both inputs
+- `semi_join(df1, df2, by = "id")`: Keep left-hand rows that have at least one match
+- `anti_join(df1, df2, by = "id")`: Keep left-hand rows that have no match
+- `bind_rows(df1, df2, ...)`: Stack DataFrames by rows, filling missing columns with `NA`
+- `bind_cols(df1, df2, ...)`: Combine DataFrames side-by-side by columns
+
 ### Missing value handling
 - `drop_na(df, ...)`: Drop rows with NA in any (or specified) columns
 - `replace_na(df, replace = [col: value, ...])`: Replace NA with specified values per column (pass a Dict using T's `[key: value, ...]` literal syntax)
@@ -115,6 +124,10 @@ T includes a standard library (`colcraft`) for data manipulation with dplyr- and
 - `ends_with("suffix")`: Match columns whose names end with suffix
 - `contains("pattern")`: Match columns whose names contain a literal string
 - `everything()`: Select all remaining columns
+- `where(is_numeric)`: Select columns whose values satisfy a predicate helper
+- `matches("^prefix")`: Select columns whose names match a regex
+- `all_of(["a", "b"])`: Require an explicit set of column names
+- `any_of(["a", "missing"])`: Select only the names that are present
 
 ### Factor (categorical) support
 - `factor(x, levels = [], ordered = false)`: Convert vector to factor with explicit levels (sorted by default)
@@ -127,8 +140,30 @@ T includes a standard library (`colcraft`) for data manipulation with dplyr- and
 - `fct_reorder(f, x, .desc = false)`: Reorder levels by median of another variable
 - `fct_relevel(f, $level1, ..., after = 0)`: Move specified levels to a given position
 - `fct_lump_n(x, n = 10, other_level = "Other")`: Keep top n levels, collapse the rest
+- `fct_lump_min(x, min, other_level = "Other")`: Collapse levels that appear fewer than `min` times
+- `fct_lump_prop(x, prop, other_level = "Other")`: Collapse levels whose observed proportion is below `prop`
 - `fct_infreq(x)`: Reorder levels by decreasing frequency
 - `fct_collapse(x, new_level = [$old1, $old2], ...)`: Collapse multiple levels into one
+- `fct_other(x, keep = [...], drop = [...], other_level = "Other")`: Keep or drop specific levels by moving the rest to `Other`
+- `fct_drop(x)`: Remove unused levels from factor metadata
+- `fct_expand(x, ...)`: Add new potential levels without changing existing observations
+- `fct_c(x1, x2, ...)`: Concatenate factor vectors while unifying their levels
+
+### String helpers
+- `str_extract(s, pattern)`: Return the first regex match (or first capture group when present)
+- `str_extract_all(s, pattern)`: Return every regex match as a list
+- `str_detect(s, pattern)`: Vectorized regex predicate
+- `str_pad(s, width, side = "left", pad = " ")`: Pad strings to a target width
+- `str_trunc(s, width, side = "right", ellipsis = "...")`: Truncate strings with an ellipsis
+- `str_flatten(x, collapse = "")`: Collapse a vector or list into a single string
+- `str_count(s, pattern)`: Count regex matches
+
+### Chrono helpers
+- `floor_date(x, unit)` / `ceiling_date(x, unit)` / `round_date(x, unit)`: Round dates and datetimes to calendar boundaries
+- `with_tz(x, tz)` / `force_tz(x, tz)`: Update the timezone label associated with datetimes
+- `interval(start, end)`: Construct an interval from two date-like values
+- `` `%within%`(x, interval) ``: Test whether a date or datetime lies inside an interval
+- `is_leap_year(x)` / `days_in_month(x)`: Expose calendar helpers for leap years and month lengths
 
 ### Window functions (for use inside `mutate`)
 - **Ranking**: `row_number(x)`, `min_rank(x)`, `dense_rank(x)`, `percent_rank(x)`, `cume_dist(x)`, `ntile(x, n)`
@@ -294,6 +329,15 @@ p |> pipeline_assert   -- throws on first error; returns pipeline if valid
 - `separate_rows(df :: DataFrame, $col, sep = "[^A-Za-z0-9]+") :: DataFrame`
 - `uncount(df :: DataFrame, $weights, .remove = true) :: DataFrame`
 
+### Colcraft — Multi-table
+- `left_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
+- `inner_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
+- `full_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
+- `semi_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
+- `anti_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
+- `bind_rows(...) :: DataFrame`
+- `bind_cols(...) :: DataFrame`
+
 ### Colcraft — Missing Values
 - `drop_na(df :: DataFrame, ...) :: DataFrame`
 - `replace_na(df :: DataFrame, replace :: Dict) :: DataFrame`
@@ -308,6 +352,14 @@ p |> pipeline_assert   -- throws on first error; returns pipeline if valid
 - `ends_with(suffix :: String) :: List[String]`
 - `contains(pattern :: String) :: List[String]`
 - `everything() :: List[String]`
+- `where(predicate :: Function) :: List[String]`
+- `matches(pattern :: String) :: List[String]`
+- `all_of(cols :: List[String] | Vector[String]) :: List[String]`
+- `any_of(cols :: List[String] | Vector[String]) :: List[String]`
+- `is_numeric(x :: Any) :: Bool`
+- `is_character(x :: Any) :: Bool`
+- `is_logical(x :: Any) :: Bool`
+- `is_factor(x :: Any) :: Bool`
 
 ### Colcraft — Factors
 - `factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
@@ -320,8 +372,25 @@ p |> pipeline_assert   -- throws on first error; returns pipeline if valid
 - `fct_reorder(f :: Vector, x :: Vector, .desc = false) :: Vector`
 - `fct_relevel(f :: Vector, ..., after = 0) :: Vector`
 - `fct_lump_n(x :: Vector, n = 10, other_level = "Other") :: Vector`
+- `fct_lump_min(x :: Vector, min :: Int, other_level = "Other") :: Vector`
+- `fct_lump_prop(x :: Vector, prop :: Float, other_level = "Other") :: Vector`
 - `fct_infreq(x :: Vector) :: Vector`
 - `fct_collapse(x :: Vector, new_level = [$old1, ...], ...) :: Vector`
+- `fct_other(x :: Vector, keep = [], drop = [], other_level = "Other") :: Vector`
+- `fct_drop(x :: Vector) :: Vector`
+- `fct_expand(x :: Vector, ...) :: Vector`
+- `fct_c(... :: Vector) :: Vector`
+
+### Chrono
+- `interval(start :: Date | Datetime, end :: Date | Datetime) :: Interval`
+- `` `%within%`(x :: Date | Datetime, iv :: Interval) :: Bool ``
+- `floor_date(x :: Date | Datetime, unit :: String) :: Date | Datetime`
+- `ceiling_date(x :: Date | Datetime, unit :: String) :: Date | Datetime`
+- `round_date(x :: Date | Datetime, unit :: String) :: Date | Datetime`
+- `with_tz(x :: Datetime, tz :: String) :: Datetime`
+- `force_tz(x :: Datetime, tz :: String) :: Datetime`
+- `is_leap_year(x :: Int | Date | Datetime) :: Bool`
+- `days_in_month(x :: Int, m :: Int) :: Int`
 
 ### Colcraft — Window Functions
 - `row_number(x :: Vector) :: Vector`

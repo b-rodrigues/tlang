@@ -419,6 +419,18 @@ let remap_factor_array arr levels ordered new_levels remapping =
   ) arr in
   VVector factor_arr
 
+let append_unique_levels base candidates =
+  let seen = Hashtbl.create (List.length base + List.length candidates) in
+  List.iter (fun level -> Hashtbl.replace seen level ()) base;
+  let extras_rev = ref [] in
+  List.iter (fun level ->
+    if not (Hashtbl.mem seen level) then begin
+      Hashtbl.replace seen level ();
+      extras_rev := level :: !extras_rev
+    end
+  ) candidates;
+  base @ List.rev !extras_rev
+
 let string_values_of function_name value =
   match value with
   | VString s -> Ok [s]
@@ -466,14 +478,14 @@ let fct_lump_min_impl (args : (string option * value) list) _env =
                List.mapi (fun idx level -> (idx, level)) levels
                |> List.filter (fun (idx, _) -> counts.(idx) >= min_count)
              in
-             if List.length kept_levels = List.length levels then
-               VVector arr
-             else
-                let new_levels = List.map snd kept_levels @ [other_level] in
-               let other_idx = List.length new_levels - 1 in
-               let remapping = Array.make (List.length levels) other_idx in
-               List.iteri (fun new_idx (old_idx, _) -> remapping.(old_idx) <- new_idx) kept_levels;
-               remap_factor_array arr levels ordered new_levels remapping
+              if List.length kept_levels = List.length levels then
+                VVector arr
+              else
+                let new_levels = List.rev (other_level :: List.rev (List.map snd kept_levels)) in
+                let other_idx = List.length new_levels - 1 in
+                let remapping = Array.make (List.length levels) other_idx in
+                List.iteri (fun new_idx (old_idx, _) -> remapping.(old_idx) <- new_idx) kept_levels;
+                remap_factor_array arr levels ordered new_levels remapping
          | None -> VVector arr)
   | _ -> Error.make_error Ast.ArityError "fct_lump_min expects a factor vector and minimum count"
 
@@ -512,10 +524,10 @@ let fct_lump_prop_impl (args : (string option * value) list) _env =
                     |> List.filter (fun (idx, _) ->
                          total > 0.0 && (float_of_int counts.(idx) /. total) >= prop)
                   in
-                  if List.length kept_levels = List.length levels then
-                    VVector arr
-                  else
-                    let new_levels = List.map snd kept_levels @ [other_level] in
+                   if List.length kept_levels = List.length levels then
+                     VVector arr
+                   else
+                    let new_levels = List.rev (other_level :: List.rev (List.map snd kept_levels)) in
                     let other_idx = List.length new_levels - 1 in
                     let remapping = Array.make (List.length levels) other_idx in
                     List.iteri (fun new_idx (old_idx, _) -> remapping.(old_idx) <- new_idx) kept_levels;
@@ -587,28 +599,34 @@ let fct_drop_impl args _env =
 
 let fct_expand_impl (args : (string option * value) list) _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
-  let gather names value =
+  let candidate_levels value =
     match value with
-    | VString s -> if List.mem s names then names else names @ [s]
+    | VString s -> [s]
     | VVector arr ->
         Array.fold_left (fun acc item ->
           match item with
-          | VString s when not (List.mem s acc) -> acc @ [s]
+          | VString s -> s :: acc
           | _ -> acc
-        ) names arr
+        ) [] arr
+        |> List.rev
     | VList items ->
         List.fold_left (fun acc (_, item) ->
           match item with
-          | VString s when not (List.mem s acc) -> acc @ [s]
+          | VString s -> s :: acc
           | _ -> acc
-        ) names items
-    | _ -> names
+        ) [] items
+        |> List.rev
+    | _ -> []
   in
   match positional with
   | VVector arr :: extra_levels ->
       (match find_first_factor_in_array arr with
        | Some (levels, ordered) ->
-           let new_levels = List.fold_left gather levels extra_levels in
+           let new_levels =
+             List.fold_left (fun acc value ->
+               append_unique_levels acc (candidate_levels value)
+             ) levels extra_levels
+           in
            let remapping = Array.init (List.length levels) Fun.id in
            remap_factor_array arr levels ordered new_levels remapping
        | None -> VVector arr)
@@ -656,9 +674,7 @@ let fct_c_impl (args : (string option * value) list) _env =
             | scalar ->
                 labels_of_values [scalar] |> List.filter_map Fun.id
           in
-          List.fold_left (fun inner level ->
-            if List.mem level inner then inner else inner @ [level]
-          ) acc levels_to_add
+          append_unique_levels acc levels_to_add
         ) [] values
       in
       let remap = Hashtbl.create (List.length unified_levels) in

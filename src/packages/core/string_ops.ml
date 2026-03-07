@@ -423,6 +423,8 @@ let compile_regexp function_name pattern =
   with Failure msg ->
     Error (Error.value_error (Printf.sprintf "Function `%s` received an invalid regex: %s" function_name msg))
 
+(* Prefer the first capture group when present; otherwise fall back to the
+   full regex match so plain patterns still behave intuitively. *)
 let regex_match_value s =
   try Str.matched_group 1 s with
   | Invalid_argument _ | Not_found -> Str.matched_string s

@@ -535,13 +535,18 @@ let floor_datetime_unit unit micros tz =
   | "year" -> VDatetime (datetime_of_components year 1 1 0 0 0 0, tz)
   | _ -> VDatetime (micros, tz)
 
+let shift_floor_datetime unit micros tz delta =
+  match floor_datetime_unit unit micros tz with
+  | VDatetime (ts, _) -> VDatetime (Int64.add ts delta, tz)
+  | _ -> VDatetime (micros, tz)
+
 let next_datetime_boundary unit micros tz =
   let year, month, day, hour, minute, second, _ = split_datetime_micros micros in
   match unit with
-  | "second" -> VDatetime (Int64.add (match floor_datetime_unit unit micros tz with VDatetime (ts, _) -> ts | _ -> micros) micros_per_second, tz)
-  | "minute" -> VDatetime (Int64.add (match floor_datetime_unit unit micros tz with VDatetime (ts, _) -> ts | _ -> micros) micros_per_minute, tz)
-  | "hour" -> VDatetime (Int64.add (match floor_datetime_unit unit micros tz with VDatetime (ts, _) -> ts | _ -> micros) micros_per_hour, tz)
-  | "day" -> VDatetime (Int64.add (match floor_datetime_unit unit micros tz with VDatetime (ts, _) -> ts | _ -> micros) micros_per_day, tz)
+  | "second" -> shift_floor_datetime unit micros tz micros_per_second
+  | "minute" -> shift_floor_datetime unit micros tz micros_per_minute
+  | "hour" -> shift_floor_datetime unit micros tz micros_per_hour
+  | "day" -> shift_floor_datetime unit micros tz micros_per_day
   | "month" ->
       let next_year, next_month, _ = add_months_to_date year month 1 1 in
       VDatetime (datetime_of_components next_year next_month 1 0 0 0 0, tz)
@@ -698,7 +703,6 @@ let rec days_in_month_impl args _env =
   | [VVector arr] ->
       VVector (Array.map (fun value ->
         match days_in_month_impl [value] _env with
-        | VInt n -> VInt n
         | VError _ as err -> err
         | other -> other
       ) arr)
