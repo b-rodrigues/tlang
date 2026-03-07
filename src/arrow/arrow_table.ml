@@ -149,8 +149,10 @@ let get_column (t : t) (name : string) : column_data option =
            | ArrowNull ->
                Some (NullColumn t.nrows)
            | ArrowDictionary ->
-               (* FFI reading of dictionary/factors not yet implemented. *)
-               (* Fall back to the pure-OCaml t.columns representation when available. *)
+               (* Dictionary/factor columns are never materialized into native Arrow tables
+                  (see `materialize`), so this case should not occur in practice.
+                  Fall back to the pure-OCaml representation; for native-backed tables
+                  with no columns list, this returns None. *)
                List.assoc_opt name t.columns)
   | _ ->
       (* Fallback to pure OCaml *)
@@ -343,11 +345,20 @@ let sort_by_indices (t : t) (indices : int array) : t =
   { schema = t.schema; columns; nrows = n; native_handle = None }
 
 (** Materialize a pure OCaml table into a native Arrow-backed one.
-    Returns the table itself if it already has a native_handle. *)
+    Returns the table itself if it already has a native_handle.
+    Tables containing DictionaryColumn (factor) data are not materialized
+    since the Arrow FFI builder does not yet support dictionary arrays;
+    keeping them in pure OCaml form ensures columns remain accessible. *)
 let materialize (t : t) : t =
   match t.native_handle with
   | Some handle when not handle.freed -> t
   | _ ->
+    (* Skip native materialization if any DictionaryColumn is present *)
+    let has_dictionary = List.exists (fun (_, col) ->
+      match col with DictionaryColumn _ -> true | _ -> false
+    ) t.columns in
+    if has_dictionary then t
+    else
     let tag_of = function
       | ArrowInt64 -> 0 | ArrowFloat64 -> 1 | ArrowBoolean -> 2 | ArrowString -> 3 | ArrowNull -> 4 | ArrowDictionary -> 5
     in

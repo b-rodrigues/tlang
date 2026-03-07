@@ -225,7 +225,13 @@ let register env =
                         | None -> fill_b))
                   | NullColumn _ -> NullColumn final_nrows
                   | DictionaryColumn (a, levels, ordered) ->
-                      let fill_i = match fill_val with Some (VFactor (i, _, _)) -> Some i | _ -> None in
+                      let fill_i = match fill_val with
+                        | Some (VFactor (i, factor_levels, factor_ordered))
+                          when factor_levels = levels && factor_ordered = ordered ->
+                            Some i
+                        | Some (VString s) -> Factors.level_index_of levels s
+                        | _ -> None
+                      in
                       DictionaryColumn (Array.init final_nrows (fun i -> 
                         match final_out_row_indices_arr.(i) with 
                         | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_i else None)
