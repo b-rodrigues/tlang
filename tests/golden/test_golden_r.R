@@ -550,6 +550,30 @@ test_that("FACTOR: arrange by level order", {
   compare_csvs("factor_arrange")
 })
 
+test_that("FACTOR: fct_rev", {
+  compare_csvs("factor_fct_rev")
+})
+
+test_that("FACTOR: fct_recode", {
+  compare_csvs("factor_fct_recode")
+})
+
+test_that("FACTOR: fct_collapse", {
+  compare_csvs("factor_fct_collapse")
+})
+
+test_that("FACTOR: fct_lump_n", {
+  compare_csvs("factor_fct_lump_n")
+})
+
+test_that("FACTOR: fct_reorder", {
+  compare_csvs("factor_fct_reorder")
+})
+
+test_that("FACTOR: month sort", {
+  compare_csvs("factor_months_sort")
+})
+
 # ============================================================================
 # SUMMARY REPORT
 # ============================================================================

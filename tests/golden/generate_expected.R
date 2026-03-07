@@ -381,15 +381,51 @@ crossing(x = 1:3, y = c("a", "b")) %>%
 # ============================================================================
 message("\n=== Test Suite 23: FACTOR Tests ===")
 
-# Test 11.1: Basic factor creation
+# Test 23.1: Basic factor creation
 simple_data %>%
   mutate(name_fct = factor(name, levels = rev(unique(name)))) %>%
-  save_output("factor_basic", "mutate(name_fct = factor(name))")
+  save_output("factor_basic", "factor(name, levels=...)")
 
-# Test 11.2: Factor arrange
+# Test 23.2: Factor arrange
 crossing(size = c("medium", "small", "large"), id = c(1, 2)) %>%
   mutate(size_fct = factor(size, levels = c("small", "medium", "large"))) %>%
   arrange(size_fct) %>%
   save_output("factor_arrange", "arrange(size_fct)")
+
+# Test 23.3: fct_rev
+simple_data %>%
+  mutate(name_fct = factor(name), name_rev = forcats::fct_rev(name_fct)) %>%
+  save_output("factor_fct_rev", "fct_rev(name_fct)")
+
+# Test 23.4: fct_recode
+simple_data %>%
+  mutate(name_fct = factor(name), 
+         name_rec = forcats::fct_recode(name_fct, "ALICE" = "Alice", "BOB" = "Bob")) %>%
+  save_output("factor_fct_recode", "fct_recode(name_fct, ...)")
+
+# Test 23.5: fct_collapse
+mtcars %>%
+  mutate(cyl_fct = factor(cyl),
+         cyl_coll = forcats::fct_collapse(cyl_fct, "small" = "4", "large" = c("6", "8"))) %>%
+  save_output("factor_fct_collapse", "fct_collapse(cyl_fct, ...)")
+
+# Test 23.6: fct_lump_n
+iris %>%
+  mutate(species_lump = forcats::fct_lump_n(Species, n = 2)) %>%
+  save_output("factor_fct_lump_n", "fct_lump_n(Species, n=2)")
+
+# Test 23.7: fct_reorder
+mtcars %>%
+  mutate(cyl_fct = factor(cyl),
+         cyl_reord = forcats::fct_reorder(cyl_fct, mpg)) %>%
+  save_output("factor_fct_reorder", "fct_reorder(cyl_fct, mpg)")
+
+# Test 23.8: Months example from spec
+months_df <- data.frame(m = c("Dec", "Apr", "Jan", "Mar"))
+month_levels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+months_df %>%
+  mutate(m_fct = factor(m, levels = month_levels)) %>%
+  arrange(m_fct) %>%
+  save_output("factor_months_sort", "factor(months) sort")
 
 

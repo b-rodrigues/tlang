@@ -41,6 +41,7 @@
             r2pmml
             faraway
             MASS
+            forcats
           ];
         };
 
