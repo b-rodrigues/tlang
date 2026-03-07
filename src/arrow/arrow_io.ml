@@ -109,8 +109,8 @@ let build_column (values : string array) (col_type : Arrow_table.arrow_type) : A
       ) values)
   | Arrow_table.ArrowNull ->
       Arrow_table.NullColumn (Array.length values)
-  | Arrow_table.ArrowDictionary ->
-      (* FFI loading of dictionary not fully mapped in IO yet *)
+  | Arrow_table.ArrowDictionary | Arrow_table.ArrowList _ | Arrow_table.ArrowStruct _ ->
+      (* FFI loading of complex types not fully mapped in IO yet *)
       Arrow_table.StringColumn (Array.map (fun s -> if is_na_string s then None else Some s) values)
 
 (** Parse a CSV string into an Arrow table (pure OCaml fallback) *)

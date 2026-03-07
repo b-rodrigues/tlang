@@ -90,7 +90,9 @@ let colcraft_package = {
   functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "ungroup"; "summarize";
                "ntile"; "dense_rank"; "row_number"; "min_rank"; "cume_dist"; "percent_rank";
                "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum";
-               "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "factor"; "as_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "levels"; "ordered"];
+               "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "factor"; "as_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "levels"; "ordered"; 
+               "rename"; "relocate"; "starts_with"; "ends_with"; "contains"; "everything"; "distinct"; "slice"; "slice_max"; "slice_min"; "count"; 
+               "nest"; "unnest"; "separate_rows"; "uncount"];
 }
 
 let math_package = {
@@ -554,6 +556,17 @@ let init_env () =
   let env = Replace_na.register env in
   let env = Expand.register env in
   let env = Factors.register env in
+  let env = Rename.register env in
+  let env = Relocate.register env in
+  let env = Selection_helpers.register env in
+  let env = Distinct.register env in
+  let env = Slice.register env in
+  let env = Count.register env in
+  let env = Slice_min_max.register env in
+  let env = Nest.register env in
+  let env = Unnest.register env in
+  let env = Separate_rows.register env in
+  let env = Uncount.register env in
   (* Math package *)
   let env = T_sqrt.register env in
   let env = T_abs.register env in

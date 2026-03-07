@@ -43,6 +43,9 @@ let take_rows = Arrow_table.take_rows
 (** Sort table by indices — delegates to Arrow_table.sort_by_indices *)
 let sort_by_indices = Arrow_table.sort_by_indices
 
+(** Rename columns — delegates to Arrow_table.rename_columns *)
+let rename_columns = Arrow_table.rename_columns
+
 (** Sort table by column name using native Arrow sort when available.
     Returns a new table sorted by the given column.
     Falls back to None when no native handle is present. *)

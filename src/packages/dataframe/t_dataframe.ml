@@ -112,7 +112,9 @@ let register env =
                  | Arrow_table.NullColumn n ->
                      VVector (Array.make n (VNA NAGeneric))
                  | Arrow_table.DictionaryColumn (data, levels, ordered) ->
-                     VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data))
+                     VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data)
+                 | Arrow_table.ListColumn data ->
+                     VVector (Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> VNA NAGeneric) data))
         | _ -> Error.type_error "pull expects (DataFrame, column_name)."
       )) env in
   (*
@@ -132,6 +134,7 @@ let register env =
   *)
   let env = Env.add "to_array"
       (make_builtin ~name:"to_array" ~variadic:true 1 (fun args _env ->
+        (* ... existing to_array implementation ... *)
         match args with
         | [VDataFrame df] ->
              (* Auto-select all numeric columns *)

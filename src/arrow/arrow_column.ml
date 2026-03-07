@@ -86,6 +86,8 @@ let get_value_at (view : column_view) (idx : int) : Ast.value =
     | Arrow_table.NullColumn _ -> Ast.VNA Ast.NAGeneric
     | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       (match a.(idx) with Some i -> Ast.VFactor (i, levels, ordered) | None -> Ast.VNA Ast.NAGeneric)
+    | Arrow_table.ListColumn a ->
+      (match a.(idx) with Some t -> Ast.VDataFrame { arrow_table = t; group_keys = [] } | None -> Ast.VNA Ast.NAGeneric)
 
 (** Get a slice (sub-view) of a column view.
     Returns a new column_view covering [start, start+length) of the original.
@@ -107,6 +109,8 @@ let get_slice (view : column_view) (start : int) (len : int) : column_view =
       Arrow_table.NullColumn actual_len
     | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       Arrow_table.DictionaryColumn (Array.sub a actual_start actual_len, levels, ordered)
+    | Arrow_table.ListColumn a ->
+      Arrow_table.ListColumn (Array.sub a actual_start actual_len)
   in
   { backing = view.backing; column_name = view.column_name; data = slice_data }
 

@@ -90,6 +90,7 @@ let register env =
               | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)))
               | NullColumn _ -> NullColumn new_nrows
               | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)), levels, ordered)
+              | ListColumn a -> ListColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)))
             in
             (col_name, rep_col)
           ) id_cols in
