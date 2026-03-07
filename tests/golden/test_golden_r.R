@@ -575,6 +575,18 @@ test_that("FACTOR: month sort", {
 })
 
 # ============================================================================
+# Test Suite 24: CHRONO
+# ============================================================================
+
+test_that("CHRONO: parsing and component extraction", {
+  compare_csvs("chrono_components")
+})
+
+test_that("CHRONO: filter and arrange on parsed dates", {
+  compare_csvs("chrono_filter_arrange")
+})
+
+# ============================================================================
 # SUMMARY REPORT
 # ============================================================================
 
