@@ -62,10 +62,10 @@ let column_type_of = function
   | StringColumn _ -> ArrowString
   | NullColumn _ -> ArrowNull
   | DictionaryColumn _ -> ArrowDictionary
-  | ListColumn a -> 
-      (match a.(0) with 
-       | Some t -> ArrowList (ArrowStruct t.schema) (* Approximate for now *)
-       | None -> ArrowList ArrowNull)
+  | ListColumn a ->
+      (match Array.find_opt Option.is_some a with
+       | Some (Some t) -> ArrowList (ArrowStruct t.schema)
+       | _ -> ArrowList ArrowNull)
 
 let arrow_type_to_string = function
   | ArrowInt64 -> "Int64"
@@ -399,16 +399,40 @@ let materialize (t : t) : t =
 
 (** Rename columns based on an old_name -> new_name mapping. *)
 let rename_columns (t : t) (mapping : (string * string) list) : t =
-  let new_schema = List.map (fun (name, type_) ->
-    match List.assoc_opt name (List.map (fun (new_n, old_n) -> (old_n, new_n)) mapping) with
-    | Some new_name -> (new_name, type_)
-    | None -> (name, type_)
-  ) t.schema in
-  (* If native, we must materialize to reflect the name change in OCaml land. *)
-  let t = if t.native_handle <> None then materialize t else t in
-  let new_columns = List.map (fun (name, data) ->
-    match List.assoc_opt name (List.map (fun (new_n, old_n) -> (old_n, new_n)) mapping) with
-    | Some new_name -> (new_name, data)
-    | None -> (name, data)
-  ) t.columns in
+  let old_to_new = List.map (fun (new_n, old_n) -> (old_n, new_n)) mapping in
+  let new_schema =
+    List.map
+      (fun (name, type_) ->
+        match List.assoc_opt name old_to_new with
+        | Some new_name -> (new_name, type_)
+        | None -> (name, type_))
+      t.schema
+  in
+  (* For native-backed tables, load each column into pure OCaml storage first
+     so we don't lose data when renaming (materialize only converts pure→native). *)
+  let t =
+    match t.native_handle with
+    | Some _ ->
+        let loaded_columns =
+          List.map
+            (fun (name, _) ->
+              let col =
+                match get_column t name with
+                | Some c -> c
+                | None -> NullColumn t.nrows
+              in
+              (name, col))
+            t.schema
+        in
+        { t with columns = loaded_columns; native_handle = None }
+    | None -> t
+  in
+  let new_columns =
+    List.map
+      (fun (name, data) ->
+        match List.assoc_opt name old_to_new with
+        | Some new_name -> (new_name, data)
+        | None -> (name, data))
+      t.columns
+  in
   { t with schema = new_schema; columns = new_columns; native_handle = None }

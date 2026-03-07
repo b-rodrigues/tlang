@@ -12,13 +12,13 @@ let slice_impl args _env =
       if idx_list_raw = [] && indices_val <> VList [] && indices_val <> VVector [||] then
         Error.type_error "Function `slice` expects a Vector or List of integer indices."
       else
-        let idx_list = List.filter_map (function
-          | VInt i when i >= 1 && i <= n -> Some (i - 1)
-          | VInt i -> Some i
-          | _ -> None
-        ) idx_list_raw in
-        let sub_table = Arrow_table.take_rows df.arrow_table idx_list in
-        VDataFrame { df with arrow_table = sub_table }
+        let int_indices = List.filter_map (function VInt i -> Some i | _ -> None) idx_list_raw in
+        let has_out_of_bounds = List.exists (fun i -> i < 0 || i >= n) int_indices in
+        if has_out_of_bounds then
+          Error.make_error ValueError "Function `slice` index out of range (indices must be 0-based and within [0, nrow-1])."
+        else
+          let sub_table = Arrow_table.take_rows df.arrow_table int_indices in
+          VDataFrame { df with arrow_table = sub_table }
   | [_; _] -> Error.type_error "Function `slice` expects a DataFrame and a Vector of indices."
   | _ -> Error.make_error ArityError "Function `slice` requires a DataFrame and an index vector."
 

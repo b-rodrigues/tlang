@@ -194,16 +194,4 @@ let register env =
              
         | _ -> Error.type_error "to_array expects (DataFrame, [column_names])."
       )) env in
-  let env = Env.add "nrow"
-    (make_builtin ~name:"nrow" 1 (fun args _env ->
-      match args with
-      | [VDataFrame df] -> VInt (Arrow_table.num_rows df.arrow_table)
-      | _ -> Error.type_error "nrow expects a DataFrame."
-    )) env in
-  let env = Env.add "ncol"
-    (make_builtin ~name:"ncol" 1 (fun args _env ->
-      match args with
-      | [VDataFrame df] -> VInt (Arrow_table.num_columns df.arrow_table)
-      | _ -> Error.type_error "ncol expects a DataFrame."
-    )) env in
   env

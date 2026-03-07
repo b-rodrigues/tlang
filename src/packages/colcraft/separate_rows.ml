@@ -8,7 +8,7 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
         | [(_, v)] -> Utils.extract_column_name v
         | _ -> None
       in
-      let sep = match List.assoc_opt (Some "sep") rest with Some (VString s) -> s | _ -> "[^[:alnum:]]+" in
+      let sep = match List.assoc_opt (Some "sep") rest with Some (VString s) -> s | _ -> "[^A-Za-z0-9]+" in
 
       (match col_to_sep with
        | None -> Error.make_error ArityError "separate_rows expects a column to separate ($col)."

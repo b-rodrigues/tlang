@@ -22,10 +22,39 @@ let unnest_impl (named_args : (string option * value) list) _env =
                let final_nrows = ref 0 in
                Array.iter (function Some t -> final_nrows := !final_nrows + t.nrows | None -> ()) data;
                
-               if !final_nrows = 0 then
-                 (* Return empty dataframe with correct schema if possible *)
-                 VDataFrame { df with arrow_table = Arrow_table.empty }
-               else
+               if !final_nrows = 0 then begin
+                 (* Return a 0-row DataFrame that preserves the expected schema:
+                    other columns + the nested columns from the first non-null sub-table. *)
+                 let nested_schema =
+                   match Array.to_list data |> List.find_opt (function Some _ -> true | None -> false) with
+                   | Some (Some t) -> t.schema
+                   | _ -> []
+                 in
+                 let other_schema =
+                   List.filter_map (fun (n, t) ->
+                     if n = col_name then None else Some (n, t)
+                   ) df.arrow_table.schema
+                 in
+                 let zero_col (_, t) name =
+                   let col = match t with
+                     | ArrowInt64 -> IntColumn [||]
+                     | ArrowFloat64 -> FloatColumn [||]
+                     | ArrowBoolean -> BoolColumn [||]
+                     | ArrowString -> StringColumn [||]
+                     | _ -> NullColumn 0
+                   in
+                   (name, col)
+                 in
+                 let other_cols = List.map (fun (n, t) -> zero_col (n, t) n) other_schema in
+                 let nested_cols = List.map (fun (n, t) -> zero_col (n, t) n) nested_schema in
+                 let final_table = {
+                   Arrow_table.schema = other_schema @ nested_schema;
+                   columns = other_cols @ nested_cols;
+                   nrows = 0;
+                   native_handle = None;
+                 } in
+                 VDataFrame { arrow_table = final_table; group_keys = df.group_keys }
+               end else
                  (* 2. Extract nested columns schema from first non-empty nested table *)
                  let nested_schema = match Array.to_list data |> List.find_opt (function Some t -> t.nrows > 0 | None -> false) with
                    | Some (Some t) -> t.schema
