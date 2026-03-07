@@ -1,7 +1,7 @@
 -- Test: chrono parsing and component extraction
 df = dataframe([
-  {label: "leap", date_str: "2024-01-31", ts_str: "2024-07-04 14:30:45", custom_date: "15 Jan 2024"},
-  {label: "common", date_str: "2023-01-31", ts_str: "2024-01-15 09:05:07", custom_date: "03 Feb 2025"}
+  [label: "leap", date_str: "2024-01-31", ts_str: "2024-07-04 14:30:45", custom_date: "15 Jan 2024"],
+  [label: "common", date_str: "2023-01-31", ts_str: "2024-01-15 09:05:07", custom_date: "03 Feb 2025"]
 ])
 
 result = df

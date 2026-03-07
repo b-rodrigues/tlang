@@ -1,8 +1,8 @@
 -- Test: chrono comparison, filter, and arrange integration
 df = dataframe([
-  {name: "b", date_str: "2024-02-10"},
-  {name: "a", date_str: "2023-12-31"},
-  {name: "c", date_str: "2024-01-15"}
+  [name: "b", date_str: "2024-02-10"],
+  [name: "a", date_str: "2023-12-31"],
+  [name: "c", date_str: "2024-01-15"]
 ])
 
 result = df
