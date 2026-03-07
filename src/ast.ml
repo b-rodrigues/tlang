@@ -260,12 +260,15 @@ module Utils = struct
 
   (** Extract column name from a runtime value, supporting NSE ($column) syntax.
       Used by data verbs (select, arrange, group_by, etc.) to accept
-      $column_name NSE syntax. *)
+      $column_name NSE syntax.  String arguments are intentionally rejected;
+      users should write $col, not "col". *)
+  let is_string = function VString _ -> true | _ -> false
+  let is_symbol = function VSymbol _ -> true | _ -> false
+  
   let extract_column_name = function
     | VSymbol s when String.length s > 0 && s.[0] = '$' ->
         Some (String.sub s 1 (String.length s - 1))
     | VSymbol s -> Some s
-    | VString s -> Some s
     | _ -> None
 
   let error_code_to_string = function

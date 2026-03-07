@@ -97,6 +97,7 @@ rule token = parse
 
   (* Column references with $ prefix — must come before identifiers *)
   | '$' (identifier as col) { COLUMN_REF col }
+  | '$' '`' ([^'`']* as col) '`' { COLUMN_REF col }
 
   (* Identifiers must be matched after keywords *)
   | identifier as lxm { IDENT lxm }

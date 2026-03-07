@@ -5,6 +5,7 @@
 
 library(dplyr)
 library(readr)
+library(tidyr)
 
 data_dir <- "tests/golden/data"
 output_dir <- "tests/golden/expected"
@@ -306,4 +307,73 @@ iris %>%
     rep_all = gsub("s", "S", Species)
   ) %>%
   save_output("iris_strings", "String operations on Species")
+
+# ============================================================================
+# Test Suite 10: TIDYR operations
+# ============================================================================
+message("\n=== TIDYR Tests ===")
+
+simple_data <- read_csv(file.path(data_dir, "simple.csv"), show_col_types = FALSE)
+
+# Test 10.1: pivot_longer
+simple_data %>%
+  pivot_longer(c(age, score), names_to = "measure", values_to = "val") %>%
+  save_output("simple_pivot_longer", "pivot_longer(age, score)")
+
+# Test 10.2: pivot_wider
+simple_data %>%
+  select(id, name, score) %>%
+  pivot_wider(names_from = name, values_from = score) %>%
+  save_output("simple_pivot_wider", "pivot_wider(names_from = name, values_from = score)")
+
+# Test 10.3: complete
+df_missing <- read_csv(file.path(data_dir, "missing_combos.csv"), show_col_types = FALSE)
+df_missing %>%
+  complete(group, item, fill = list(value = 0)) %>%
+  save_output("complete_missing", "complete(group, item, fill = list(value = 0))")
+
+# Test 10.4: fill
+fill_data <- read_csv(file.path(data_dir, "fill_data.csv"), show_col_types = FALSE)
+fill_data %>%
+  fill(category, .direction = "down") %>%
+  save_output("fill_down", "fill(category, .direction = 'down')")
+
+# Test 10.5: separate
+separate_data <- read_csv(file.path(data_dir, "separate_data.csv"), show_col_types = FALSE)
+separate_data %>%
+  separate(date, into = c("year", "month", "day"), sep = "-") %>%
+  save_output("separate_date", "separate(date, into = c('year', 'month', 'day'))")
+
+# Test 10.6: unite
+unite_data <- read_csv(file.path(data_dir, "unite_data.csv"), show_col_types = FALSE)
+unite_data %>%
+  unite("full_date", year, month, day, sep = "-") %>%
+  save_output("unite_date", "unite('full_date', year, month, day)")
+
+# Test 10.7: drop_na
+airquality <- read_csv(file.path(data_dir, "airquality.csv"), show_col_types = FALSE)
+airquality %>%
+  drop_na(Ozone, Solar.R) %>%
+  save_output("drop_na_ozone_solar", "drop_na(Ozone, Solar.R)")
+
+# Test 10.8: replace_na
+airquality %>%
+  replace_na(list(Ozone = 0, Solar.R = 0)) %>%
+  save_output("replace_na_ozone_solar", "replace_na(list(Ozone = 0, Solar.R = 0))")
+
+# Test 10.9: expand
+fruits <- read_csv(file.path(data_dir, "fruits.csv"), show_col_types = FALSE)
+fruits %>%
+  expand(type, size) %>%
+  save_output("expand_type_size", "expand(type, size)")
+
+# Test 10.10: nesting
+fruits %>%
+  expand(nesting(type, size)) %>%
+  save_output("expand_nesting", "expand(nesting(type, size))")
+
+# Test 10.11: crossing
+crossing(x = 1:3, y = c("a", "b")) %>%
+  save_output("crossing_x_y", "crossing(x = 1:3, y = c('a', 'b'))")
+
 

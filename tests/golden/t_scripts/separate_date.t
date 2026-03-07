@@ -1,0 +1,5 @@
+-- Test: separate(date, into = ["year", "month", "day"], sep = "-")
+df = read_csv("tests/golden/data/separate_data.csv")
+result = df |> separate($date, into = ["year", "month", "day"], sep = "-")
+write_csv(result, "tests/golden/t_outputs/separate_date.csv")
+print("✓ separate_date complete")
