@@ -1,0 +1,39 @@
+name: Factor Roundtrip E2E
+
+on:
+  push:
+    branches: [ factors, main ]
+  pull_request:
+    branches: [ factors, main ]
+
+jobs:
+  factor-roundtrip-e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+    - name: Build T and Run Roundtrip
+      run: |
+        # 1. Build T from current commit
+        nix build .#default --accept-flake-config
+        TLANG_BIN=$(pwd)/result/bin/t
+        
+        # 2. Run the roundtrip test script
+        # This script creates a pipeline with R, T, and Python nodes
+        # to verify Factor serialization/deserialization via Arrow.
+        nix develop --accept-flake-config --command "$TLANG_BIN" run tests/pipeline/test_factor_roundtrip.t --unsafe
