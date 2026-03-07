@@ -15,4 +15,67 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "Vector[2024, 2025]";
   test "today returns date type" {|type(today())|} {|"Date"|};
   test "now returns datetime type" {|type(now())|} {|"Datetime"|};
+  print_newline ();
+
+  Printf.printf "Chrono JSON serialization:\n";
+
+  let date_json =
+    Serialization.value_to_yojson (Ast.VDate (Chrono.days_from_civil 2024 1 15))
+  in
+  if date_json = `String "2024-01-15" then begin
+    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes dates\n"
+  end else begin
+    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes dates\n"
+  end;
+
+  let datetime_json =
+    Serialization.value_to_yojson
+      (Ast.VDatetime (Chrono.datetime_of_components 2024 1 15 9 30 0 123456, Some "UTC"))
+  in
+  if datetime_json = `String "2024-01-15T09:30:00.123456Z[UTC]" then begin
+    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes datetimes\n"
+  end else begin
+    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes datetimes\n"
+  end;
+
+  let period_json =
+    Serialization.value_to_yojson
+      (Ast.VPeriod { p_years = 1; p_months = 2; p_days = 3; p_hours = 4; p_minutes = 5; p_seconds = 6; p_micros = 7 })
+  in
+  if period_json =
+      `Assoc [
+        ("years", `Int 1); ("months", `Int 2); ("days", `Int 3);
+        ("hours", `Int 4); ("minutes", `Int 5); ("seconds", `Int 6); ("micros", `Int 7)
+      ] then begin
+    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes periods\n"
+  end else begin
+    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes periods\n"
+  end;
+
+  let duration_json = Serialization.value_to_yojson (Ast.VDuration 12.5) in
+  if duration_json = `Float 12.5 then begin
+    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes durations\n"
+  end else begin
+    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes durations\n"
+  end;
+
+  let interval_json =
+    Serialization.value_to_yojson
+      (Ast.VInterval {
+         iv_start = Chrono.datetime_of_components 2024 1 15 9 30 0 0;
+         iv_end = Chrono.datetime_of_components 2024 1 15 10 0 0 0;
+         iv_tz = Some "UTC";
+       })
+  in
+  if interval_json =
+      `Assoc [
+        ("start", `String "2024-01-15T09:30:00Z[UTC]");
+        ("end", `String "2024-01-15T10:00:00Z[UTC]");
+        ("timezone", `String "UTC");
+      ] then begin
+    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes intervals\n"
+  end else begin
+    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes intervals\n"
+  end;
+
   print_newline ()
