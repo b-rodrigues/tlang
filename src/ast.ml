@@ -15,6 +15,7 @@ type na_type =
   | NAInt
   | NAFloat
   | NAString
+  | NADate
   | NAGeneric
 
 (** Symbolic error codes *)
@@ -112,6 +113,22 @@ and shell_result = {
   sr_exit_code : int;
 }
 
+and period = {
+  p_years : int;
+  p_months : int;
+  p_days : int;
+  p_hours : int;
+  p_minutes : int;
+  p_seconds : int;
+  p_micros : int;
+}
+
+and interval = {
+  iv_start : int64;
+  iv_end : int64;
+  iv_tz : string option;
+}
+
 (** Runtime values *)
 and value =
   (* Scalar Types *)
@@ -120,6 +137,8 @@ and value =
   | VBool of bool
   | VString of string
   | VSymbol of symbol
+  | VDate of int
+  | VDatetime of int64 * string option
   (* General-Purpose Containers *)
   | VList of (string option * value) list
   | VDict of (string * value) list
@@ -135,6 +154,9 @@ and value =
   | VError of error_info
   | VNull
   | VFactor of int * string list * bool
+  | VPeriod of period
+  | VDuration of float
+  | VInterval of interval
   (* Phase 6: Intent block value *)
   | VIntent of intent_block
   (* Formula value *)
@@ -297,6 +319,7 @@ module Utils = struct
     | NAInt -> "Int"
     | NAFloat -> "Float"
     | NAString -> "String"
+    | NADate -> "Date"
     | NAGeneric -> ""
 
   let rec typ_to_string = function
@@ -322,12 +345,16 @@ module Utils = struct
   let type_name = function
     | VInt _ -> "Int" | VFloat _ -> "Float"
     | VBool _ -> "Bool" | VString _ -> "String"
-    | VSymbol _ -> "Symbol" | VList _ -> "List" | VDict _ -> "Dict"
+    | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
+    | VList _ -> "List" | VDict _ -> "Dict"
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
     | VPipeline _ -> "Pipeline"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
     | VFactor _ -> "Factor"
+    | VPeriod _ -> "Period"
+    | VDuration _ -> "Duration"
+    | VInterval _ -> "Interval"
     | VIntent _ -> "Intent"
     | VFormula _ -> "Formula"
     | VComputedNode _ -> "ComputedNode"
@@ -402,6 +429,31 @@ module Utils = struct
     | VBool b -> string_of_bool b
     | VString s -> "\"" ^ String.escaped s ^ "\""
     | VSymbol s -> s
+    | VDate days ->
+        let tm = Unix.gmtime (float_of_int days *. 86400.) in
+        Printf.sprintf "Date(%04d-%02d-%02d)" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+    | VDatetime (micros, tz) ->
+        let seconds = Int64.to_float micros /. 1_000_000.0 in
+        let tm = Unix.gmtime seconds in
+        let micros_part =
+          let raw = Int64.rem micros 1_000_000L |> Int64.to_int in
+          if raw < 0 then raw + 1_000_000 else raw
+        in
+        let base =
+          Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d"
+            (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+            tm.tm_hour tm.tm_min tm.tm_sec
+        in
+        let frac =
+          if micros_part = 0 then ""
+          else Printf.sprintf ".%06d" micros_part
+        in
+        let tz_suffix =
+          match tz with
+          | Some name when name <> "" -> "[" ^ name ^ "]"
+          | _ -> "[UTC]"
+        in
+        "Datetime(" ^ base ^ frac ^ "Z" ^ tz_suffix ^ ")"
     | VList items ->
         let item_to_string = function
           | (Some name, v) -> name ^ ": " ^ value_to_string v
@@ -463,6 +515,16 @@ module Utils = struct
         let level_str = match List.nth_opt levels idx with Some s -> "\"" ^ String.escaped s ^ "\"" | None -> "NA" in
         let ord_str = if ordered then ", ordered=true" else "" in
         Printf.sprintf "Factor(%s%s)" level_str ord_str
+    | VPeriod p ->
+        Printf.sprintf
+          "Period(years=%d, months=%d, days=%d, hours=%d, minutes=%d, seconds=%d, micros=%d)"
+          p.p_years p.p_months p.p_days p.p_hours p.p_minutes p.p_seconds p.p_micros
+    | VDuration seconds ->
+        Printf.sprintf "Duration(%g)" seconds
+    | VInterval iv ->
+        let start_s = value_to_string (VDatetime (iv.iv_start, iv.iv_tz)) in
+        let end_s = value_to_string (VDatetime (iv.iv_end, iv.iv_tz)) in
+        Printf.sprintf "Interval(start=%s, end=%s)" start_s end_s
     | VIntent { intent_fields } ->
         let field_to_string (k, v) = k ^ ": \"" ^ String.escaped v ^ "\"" in
         "Intent{" ^ (intent_fields |> List.map field_to_string |> String.concat ", ") ^ "}"
@@ -607,5 +669,4 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VExpr _, TExpr -> true
 
   | _ -> false
-
 

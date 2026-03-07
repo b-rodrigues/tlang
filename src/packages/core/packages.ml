@@ -43,7 +43,7 @@ let package_families = function
   | "core" -> ["core"; "string"; "boolean"; "repl"; "package_manager"; "tdoc"]
   | "stats" -> ["stats"; "descriptive-statistics"]
   | "base" -> ["base"; "json"; "serialization"]
-  | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" as pkg -> [pkg]
+  | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" | "chrono" as pkg -> [pkg]
   | _ -> []
 
 let dedup_sort_strings xs =
@@ -107,6 +107,22 @@ let base_package = {
   functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_message"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"];
 }
 
+let chrono_package = {
+  name = "chrono";
+  description = "Date and datetime parsing, extraction, and arithmetic";
+  functions = [
+    "ymd"; "mdy"; "dmy"; "ydm";
+    "ymd_h"; "ymd_hm"; "ymd_hms"; "mdy_hms"; "dmy_hms";
+    "parse_date"; "parse_datetime"; "today"; "now";
+    "year"; "month"; "day"; "mday"; "yday"; "wday"; "week"; "isoweek"; "isoyear"; "quarter"; "semester";
+    "hour"; "minute"; "second"; "tz";
+    "years"; "months"; "weeks"; "days"; "hours"; "minutes"; "seconds"; "milliseconds"; "microseconds"; "nanoseconds";
+    "make_period"; "period_years"; "period_months"; "period_days"; "period_hours"; "period_minutes"; "period_seconds";
+    "format_date"; "format_datetime"; "as_date"; "as_datetime";
+    "is_date"; "is_datetime"; "is_period"; "is_duration"; "is_interval";
+  ];
+}
+
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
@@ -136,6 +152,7 @@ let explain_package = {
 let all_packages = [
   core_package;
   base_package;
+  chrono_package;
   math_package;
   stats_package;
   dataframe_package;
@@ -464,6 +481,8 @@ let init_env () =
   let env = Serialize.register env in
   let env = Deserialize.register env in
   let env = T_json.register env in
+  (* Chrono package *)
+  let env = Chrono.register env in
   (* Dataframe package *)
   let env = T_dataframe.register env in
   let env = T_read_csv.register env in

@@ -10,6 +10,8 @@ type arrow_type =
   | ArrowFloat64
   | ArrowBoolean
   | ArrowString
+  | ArrowDate
+  | ArrowTimestamp of string option
   | ArrowNull
   | ArrowDictionary
   | ArrowList of arrow_type
@@ -30,6 +32,8 @@ type column_data =
   | FloatColumn of float option array
   | BoolColumn of bool option array
   | StringColumn of string option array
+  | DateColumn of int option array
+  | DatetimeColumn of int64 option array * string option
   | NullColumn of int
   | DictionaryColumn of int option array * string list * bool
   | ListColumn of t option array
@@ -51,6 +55,8 @@ let column_length = function
   | FloatColumn a -> Array.length a
   | BoolColumn a -> Array.length a
   | StringColumn a -> Array.length a
+  | DateColumn a -> Array.length a
+  | DatetimeColumn (a, _) -> Array.length a
   | NullColumn n -> n
   | DictionaryColumn (a, _, _) -> Array.length a
   | ListColumn a -> Array.length a
@@ -60,6 +66,8 @@ let column_type_of = function
   | FloatColumn _ -> ArrowFloat64
   | BoolColumn _ -> ArrowBoolean
   | StringColumn _ -> ArrowString
+  | DateColumn _ -> ArrowDate
+  | DatetimeColumn (_, tz) -> ArrowTimestamp tz
   | NullColumn _ -> ArrowNull
   | DictionaryColumn _ -> ArrowDictionary
   | ListColumn a ->
@@ -72,6 +80,9 @@ let arrow_type_to_string = function
   | ArrowFloat64 -> "Float64"
   | ArrowBoolean -> "Boolean"
   | ArrowString -> "String"
+  | ArrowDate -> "Date"
+  | ArrowTimestamp None -> "Datetime(UTC)"
+  | ArrowTimestamp (Some tz) -> "Datetime(" ^ tz ^ ")"
   | ArrowNull -> "Null"
   | ArrowDictionary -> "Dictionary"
   | ArrowList _ -> "List"
@@ -154,11 +165,13 @@ let get_column (t : t) (name : string) : column_data option =
                Some (FloatColumn (Arrow_ffi.arrow_read_float64_column array_ptr))
            | ArrowBoolean ->
                Some (BoolColumn (Arrow_ffi.arrow_read_boolean_column array_ptr))
-           | ArrowString ->
-               Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
-           | ArrowNull ->
-               Some (NullColumn t.nrows)
-           | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
+            | ArrowString ->
+                Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
+            | ArrowDate | ArrowTimestamp _ ->
+                List.assoc_opt name t.columns
+            | ArrowNull ->
+                Some (NullColumn t.nrows)
+            | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
                (* Dictionary, List and Struct are handled via pure OCaml storage fallback *)
                List.assoc_opt name t.columns)
   | _ ->
@@ -281,6 +294,8 @@ let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int
   | FloatColumn a -> FloatColumn (pick a)
   | BoolColumn a -> BoolColumn (pick a)
   | StringColumn a -> StringColumn (pick a)
+  | DateColumn a -> DateColumn (pick a)
+  | DatetimeColumn (a, tz) -> DatetimeColumn (pick a, tz)
   | NullColumn _ -> NullColumn new_nrows
   | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (pick a, levels, ordered)
   | ListColumn a -> ListColumn (pick a)
@@ -292,6 +307,8 @@ let take_col (col : column_data) (idx_arr : int array) (new_nrows : int) : colum
   | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
   | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
   | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
+  | DateColumn a -> DateColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
+  | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))), tz)
   | NullColumn _ -> NullColumn new_nrows
   | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))), levels, ordered)
   | ListColumn a -> ListColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
@@ -353,6 +370,8 @@ let sort_by_indices (t : t) (indices : int array) : t =
     | FloatColumn a -> FloatColumn (Array.init n (fun i -> a.(indices.(i))))
     | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(indices.(i))))
     | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
+    | DateColumn a -> DateColumn (Array.init n (fun i -> a.(indices.(i))))
+    | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(indices.(i))), tz)
     | NullColumn _ -> NullColumn n
     | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
     | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
@@ -372,13 +391,14 @@ let materialize (t : t) : t =
   | _ ->
     (* Skip native materialization if any DictionaryColumn or ListColumn is present *)
     let has_complex = List.exists (fun (_, col) ->
-      match col with DictionaryColumn _ | ListColumn _ -> true | _ -> false
+      match col with DictionaryColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> true | _ -> false
     ) t.columns in
     if has_complex then t
     else
     let tag_of = function
-      | ArrowInt64 -> 0 | ArrowFloat64 -> 1 | ArrowBoolean -> 2 | ArrowString -> 3 | ArrowNull -> 4 | ArrowDictionary -> 5
-      | ArrowList _ | ArrowStruct _ -> 6
+      | ArrowInt64 -> 0 | ArrowFloat64 -> 1 | ArrowBoolean -> 2 | ArrowString -> 3 | ArrowDate -> 4
+      | ArrowTimestamp _ -> 5 | ArrowNull -> 6 | ArrowDictionary -> 7
+      | ArrowList _ | ArrowStruct _ -> 8
     in
     let ffi_cols = List.map (fun (name, type_) ->
       let data = match List.assoc_opt name t.columns with
@@ -386,6 +406,8 @@ let materialize (t : t) : t =
         | Some (FloatColumn a) -> Array.map (Option.map Obj.repr) a
         | Some (BoolColumn a) -> Array.map (Option.map Obj.repr) a
         | Some (StringColumn a) -> Array.map (Option.map Obj.repr) a
+        | Some (DateColumn a) -> Array.map (Option.map Obj.repr) a
+        | Some (DatetimeColumn (a, _)) -> Array.map (Option.map Obj.repr) a
         | Some (DictionaryColumn (a, _, _)) -> Array.map (Option.map Obj.repr) a
         | Some (ListColumn _) -> Array.make t.nrows None (* Should be unreachable due to has_complex check *)
         | Some (NullColumn n) -> Array.make n None
