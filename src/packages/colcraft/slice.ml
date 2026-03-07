@@ -1,6 +1,6 @@
 open Ast
 
-let slice_impl args _env =
+let slice_impl args env =
   match args with
   | [VDataFrame df; indices_val] ->
       let n = Arrow_table.num_rows df.arrow_table in
@@ -19,8 +19,11 @@ let slice_impl args _env =
         else
           let sub_table = Arrow_table.take_rows df.arrow_table int_indices in
           VDataFrame { df with arrow_table = sub_table }
-  | [_; _] -> Error.type_error "Function `slice` expects a DataFrame and a Vector of indices."
-  | _ -> Error.make_error ArityError "Function `slice` requires a DataFrame and an index vector."
+  | [VString _; VInt _; VInt _] ->
+      String_ops.substring_impl args env
+  | _ when List.length args = 3 -> 
+       Error.arity_error_named "slice" ~expected:2 ~received:3
+  | _ -> Error.make_error ArityError "Function `slice` requires a DataFrame and an index vector, or a String and start/end indices."
 
 let register env =
-  Env.add "slice" (make_builtin ~name:"slice" 2 slice_impl) env
+  Env.add "slice" (make_builtin ~name:"slice" ~variadic:true 2 slice_impl) env

@@ -45,14 +45,19 @@ let register env =
       | [VDataFrame { arrow_table; group_keys }; VInt n] when n >= 0 ->
           take_head_df arrow_table group_keys n
       | [VList items] ->
-          let n = match n_named with Some n -> n | None -> 5 in
-          VList (Utils.list_take n items)
+          (match n_named with
+           | Some n -> VList (Utils.list_take n items)
+           | None -> (match items with h :: _ -> snd h | [] -> VNA NAGeneric))
       | [VList items; VInt n] when n >= 0 ->
           VList (Utils.list_take n items)
       | [VVector arr] ->
-          let n = match n_named with Some n -> n | None -> 5 in
-          let take_n = min n (Array.length arr) in
-          VVector (Array.sub arr 0 take_n)
+          let n_opt = n_named in
+          (match n_opt with
+           | Some n -> 
+               let take_n = min n (Array.length arr) in
+               VVector (Array.sub arr 0 take_n)
+           | None -> 
+               if Array.length arr > 0 then arr.(0) else VNA NAGeneric)
       | [VVector arr; VInt n] when n >= 0 ->
           let take_n = min n (Array.length arr) in
           VVector (Array.sub arr 0 take_n)

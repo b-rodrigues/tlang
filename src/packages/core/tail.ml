@@ -45,11 +45,31 @@ let register env =
           take_tail_df arrow_table group_keys n
       | [VDataFrame { arrow_table; group_keys }; VInt n] when n >= 0 ->
           take_tail_df arrow_table group_keys n
-      | [VList []] -> Error.value_error "Function `tail` called on empty List."
-      | [VList (_ :: rest)] -> VList rest
-      | [VVector arr] when Array.length arr > 0 ->
-          VVector (Array.sub arr 1 (Array.length arr - 1))
-      | [VVector _] -> Error.value_error "Function `tail` called on empty Vector."
+      | [VList items] ->
+          (match n_named with
+           | Some n -> 
+               let len = List.length items in
+               let take_n = min n len in
+               VList (List.filteri (fun i _ -> i >= len - take_n) items)
+           | None -> (match items with _ :: rest -> VList rest | [] -> VList []))
+      | [VList items; VInt n] when n >= 0 ->
+          let len = List.length items in
+          let take_n = min n len in
+          VList (List.filteri (fun i _ -> i >= len - take_n) items)
+      | [VVector arr] ->
+          (match n_named with
+           | Some n ->
+               let len = Array.length arr in
+               let take_n = min n len in
+               VVector (Array.sub arr (len - take_n) take_n)
+           | None ->
+               if Array.length arr > 0 then
+                 VVector (Array.sub arr 1 (Array.length arr - 1))
+               else VVector [||])
+      | [VVector arr; VInt n] when n >= 0 ->
+          let len = Array.length arr in
+          let take_n = min n len in
+          VVector (Array.sub arr (len - take_n) take_n)
       | [VNA _] -> Error.type_error "Function `tail` cannot be called on NA."
       | [_] -> Error.type_error "Function `tail` expects a DataFrame or List."
       | _ -> Error.arity_error_named "tail" ~expected:1 ~received:(List.length args)

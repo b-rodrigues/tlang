@@ -41,7 +41,7 @@ let register env =
                       | Some (Error e) -> Error e
                       | _ -> Ok (List.map (fun r -> match r with Ok s -> s | _ -> "") names))
                  | other -> Error (Error.type_error ("Matcher returned " ^ Utils.value_to_string other)))
-            | _ -> Error (Error.type_error "Function `select` expects $column, string, or matcher.")
+            | _ -> Error (Error.type_error "Function `select` expects $column syntax.")
           in
           let all_names_results = List.map process_col col_args in
           (match List.find_opt (fun r -> match r with Error _ -> true | _ -> false) all_names_results with
