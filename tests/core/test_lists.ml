@@ -7,4 +7,13 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "length" "length([1, 2, 3])" "3";
   test "head" "head([1, 2, 3])" "1";
   test "tail" "tail([1, 2, 3])" "[2, 3]";
+  test "head extra positional arity reports optional second arg"
+    "head([1, 2, 3], 1, 0)"
+    {|Error(ArityError: "Function `head` expects 2 arguments but received 3.")|};
+  test "tail extra positional arity reports optional second arg"
+    "tail([1, 2, 3], 1, 0)"
+    {|Error(ArityError: "Function `tail` expects 2 arguments but received 3.")|};
+  test "tail wrong type mentions vector support"
+    {|tail("abc")|}
+    {|Error(TypeError: "Function `tail` expects a DataFrame, List, or Vector.")|};
   print_newline ()
