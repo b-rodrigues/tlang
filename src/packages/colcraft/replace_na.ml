@@ -58,6 +58,15 @@ let register env =
                     let fill_b = match replace_val with VBool b -> Some b | _ -> None in
                     (col_name, BoolColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_b)))
                 | NullColumn n -> (col_name, NullColumn n)
+                | DictionaryColumn (a, levels, ordered) ->
+                    let fill_i = match replace_val with
+                      | VFactor (i, factor_levels, factor_ordered)
+                        when factor_levels = levels && factor_ordered = ordered ->
+                          Some i
+                      | VString s -> Factors.level_index_of levels s
+                      | _ -> None
+                    in
+                    (col_name, DictionaryColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_i), levels, ordered))
               end
             | None -> (col_name, col_data)
           ) all_cols in

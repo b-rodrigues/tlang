@@ -43,6 +43,7 @@ let register env =
                      | (VFloat x, VFloat y) -> compare x y
                      | (VString x, VString y) -> String.compare x y
                      | (VBool x, VBool y) -> compare x y
+                     | (VFactor (x, _, _), VFactor (y, _, _)) -> compare x y
                      | (VNA _, _) -> 1
                      | (_, VNA _) -> -1
                      | _ -> 0
@@ -72,6 +73,7 @@ let register env =
                      | (VFloat x, VFloat y) -> compare y x
                      | (VString x, VString y) -> String.compare y x
                      | (VBool x, VBool y) -> compare y x
+                     | (VFactor (x, _, _), VFactor (y, _, _)) -> compare y x
                      | (VNA _, _) -> 1
                      | (_, VNA _) -> -1
                      | _ -> 0

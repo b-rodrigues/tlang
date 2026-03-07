@@ -362,6 +362,39 @@ df |> complete($group, nesting($item_id, $item_name))
 
 ---
 
+## Factors — Categorical Variables
+
+Create categorical data with defined levels. Factors respect their level order when sorting, rather than alphabetical order.
+
+### factor() — Create a Factor
+
+Creates a factor from a vector or column, optionally specifying levels.
+
+```t
+-- Create a factor from a vector
+let f = factor(["low", "high", "medium"], levels = ["low", "medium", "high"])
+
+-- Create a factor column using mutate
+df |> mutate($size_fct = factor($size, levels = ["small", "medium", "large"]))
+```
+
+### as_factor() — Coerce to Factor
+
+Coerces a column to a factor (categorical) value, deriving levels from the unique values present.
+
+```t
+df |> mutate($category = as_factor($category))
+```
+
+### fct_infreq() — Reorder Levels by Frequency
+
+Reorders factor levels in descending order of frequency.
+
+```t
+df |> mutate($category = fct_infreq($category))
+```
+
+---
 
 ## Grouped Mutate — Group-Wise Transformations
 

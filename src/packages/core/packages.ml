@@ -90,7 +90,7 @@ let colcraft_package = {
   functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "ungroup"; "summarize";
                "ntile"; "dense_rank"; "row_number"; "min_rank"; "cume_dist"; "percent_rank";
                "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum";
-               "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"];
+               "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "factor"; "as_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "levels"; "ordered"];
 }
 
 let math_package = {
@@ -553,6 +553,7 @@ let init_env () =
   let env = Drop_na.register env in
   let env = Replace_na.register env in
   let env = Expand.register env in
+  let env = Factors.register env in
   (* Math package *)
   let env = T_sqrt.register env in
   let env = T_abs.register env in

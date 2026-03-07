@@ -110,7 +110,9 @@ let register env =
                  | Arrow_table.BoolColumn data ->
                      VVector (Array.map (function Some b -> VBool b | None -> VNA NAGeneric) data)
                  | Arrow_table.NullColumn n ->
-                     VVector (Array.make n (VNA NAGeneric)))
+                     VVector (Array.make n (VNA NAGeneric))
+                 | Arrow_table.DictionaryColumn (data, levels, ordered) ->
+                     VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data))
         | _ -> Error.type_error "pull expects (DataFrame, column_name)."
       )) env in
   (*
