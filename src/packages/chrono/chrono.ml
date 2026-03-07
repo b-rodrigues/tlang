@@ -624,11 +624,12 @@ and round_temporal function_name unit = function
       let floored = floor_temporal function_name unit value in
       let ceiled = ceiling_temporal function_name unit value in
       (match floored, ceiled with
-       | VError _ as err, _ | _, VError _ as err -> err
+       | VError _ as err, _ -> err
+       | _, VError _ as err -> err
        | _ ->
-           if temporal_distance value floored <= temporal_distance ceiled value then
-             floored
-           else
+            if temporal_distance value floored <= temporal_distance ceiled value then
+              floored
+            else
              ceiled)
   | VVector arr -> VVector (Array.map (round_temporal function_name unit) arr)
   | VNA _ -> VNA NAGeneric
