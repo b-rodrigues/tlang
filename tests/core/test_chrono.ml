@@ -11,7 +11,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "format_date renders tokens" {|format_date(ymd("2024-07-04"), "%B %d, %Y")|} {|"July 04, 2024"|};
   test "type predicates recognize date types" {|[is_date(ymd("2024-01-01")), is_datetime(ymd_hms("2024-01-01 00:00:00"))]|} "[true, true]";
   test "vectorized year works on pulled dates"
-    {|df = dataframe([{s: "2024-01-01"}, {s: "2025-02-03"}]); year(ymd(pull(df, "s")))|}
+    {|df = dataframe([[s: "2024-01-01"], [s: "2025-02-03"]]); year(ymd(pull(df, "s")))|}
     "Vector[2024, 2025]";
   test "today returns date type" {|type(today())|} {|"Date"|};
   test "now returns datetime type" {|type(now())|} {|"Datetime"|};
