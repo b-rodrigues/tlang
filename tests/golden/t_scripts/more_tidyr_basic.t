@@ -28,3 +28,4 @@ print(count(mt, $cyl))
 
 print("--- slice_max ---")
 print(slice_max(mt, $mpg, n = 3))
+print("✓ more_tidyr_basic complete")
