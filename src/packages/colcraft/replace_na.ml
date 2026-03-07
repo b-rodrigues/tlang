@@ -57,6 +57,15 @@ let register env =
                 | BoolColumn a ->
                     let fill_b = match replace_val with VBool b -> Some b | _ -> None in
                     (col_name, BoolColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_b)))
+                | DateColumn a ->
+                    let fill_d = match replace_val with VDate d -> Some d | _ -> None in
+                    (col_name, DateColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_d)))
+                | DatetimeColumn (a, tz) ->
+                    let fill_dt = match replace_val with
+                      | VDatetime (ts, fill_tz) when fill_tz = tz -> Some ts
+                      | _ -> None
+                    in
+                    (col_name, DatetimeColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_dt), tz))
                 | NullColumn n -> (col_name, NullColumn n)
                 | DictionaryColumn (a, levels, ordered) ->
                     let fill_i = match replace_val with
@@ -70,7 +79,7 @@ let register env =
                 | ListColumn a ->
                     let fill_t = match replace_val with VDataFrame df -> Some df.arrow_table | _ -> None in
                     (col_name, ListColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_t)))
-              end
+               end
             | None -> (col_name, col_data)
           ) all_cols in
           
