@@ -29,18 +29,111 @@ result = if (x > 5) "high" else "low"
 -- |> passes left-hand to right-hand, short-circuits on Error
 -- ?|> forwards left-hand to right-hand even if it is an Error for recovery
 [1, 2, 3] |> map(\(v) v * v) |> sum
+
+-- Import a whole package
+import mypackage
+
+-- Import specific names from a package
+import mypackage [fn1, fn2]
+
+-- Import specific names from another .t file
+import "helpers.t" [clean_data, normalize]
+
+-- Sequence generation
+seq(5)                         -- [1, 2, 3, 4, 5]
+seq(1, 10, by = 2)             -- [1, 3, 5, 7, 9]
 ```
+
+## Tooling
+
+### REPL
+The T REPL (`dune exec src/repl.exe`) supports:
+- **Readline editing** with arrow keys, history navigation
+- **Persistent history** in `~/.t_history` (up to 1000 entries)
+- **Ghost hints**: greyed-out inline completions from history
+- **Multi-line input**: automatically detected for open brackets, parens, braces
+- **Magic commands**: `:help`, `:quit`, `:clear` (or prefix `run_file("path.t")` to execute a script)
+
+### Language Server Protocol (LSP)
+T ships a native LSP server (`t-lsp`) that integrates with VS Code and other editors:
+- **Completion**: symbol, variable, function, and DataFrame column completion
+- **Go to Definition**: jump to where a binding is defined
+- **Hover info**: inline documentation from `--#` docstrings
+- **Diagnostics**: parse and type errors shown inline
+Configure your editor to launch `t-lsp` as the language server for `.t` files.
 
 ## Data Manipulation (Data Verbs)
 
-T includes a standard library (`colcraft`) for data manipulation with dplyr-like verbs:
+T includes a standard library (`colcraft`) for data manipulation with dplyr- and tidyr-like verbs. All verbs require NSE (`$col`) syntax for column references.
 
+### Core dplyr-style verbs
 - `select($col1, $col2)`: Select columns
 - `filter($age > 25)`: Filter rows
 - `mutate($bonus = $salary * 0.1)`: Create/modify columns using NSE lambdas
 - `arrange($age, "desc")`: Sort rows
 - `group_by($dept)`: Group data for aggregation
 - `summarize($avg = mean($salary))`: Aggregate data per group
+
+### Column management
+- `rename($new_name = $old_name, ...)`: Rename columns
+- `relocate($col, .before = $ref_col)` / `relocate($col, .after = $ref_col)`: Reorder columns
+- `distinct($col1, $col2, .keep_all = false)`: Keep unique rows
+- `count($col1, $col2, name = "n")`: Count observations by group
+
+### Row selection
+- `slice(df, indices)`: Select rows by integer index (0-based)
+- `slice_min(df, order_by = $col, n = 1)`: Keep rows with smallest values
+- `slice_max(df, order_by = $col, n = 1)`: Keep rows with largest values
+- `head(df, n = 6)`: First n rows of a DataFrame, List, or Vector
+- `tail(df, n = 6)`: Last n rows of a DataFrame, List, or Vector
+
+### Data reshaping (tidyr-style)
+- `pivot_longer(df, $col1, $col2, names_to = "name", values_to = "value")`: Widen → long
+- `pivot_wider(df, names_from = $col, values_from = $col)`: Long → wide
+- `complete(df, $col1, $col2, fill = [:], explicit = true)`: Make implicit missing values explicit
+- `expand(df, $col1, $col2)`: Create all combinations of column values
+- `crossing(...)`: Cartesian product of vectors/lists (de-duplicated and sorted)
+- `nesting(...)`: Helper used inside `expand`/`complete` to restrict to observed combinations
+
+### String & column splitting/joining
+- `separate(df, $col, into = ["a", "b"], sep = "[^[:alnum:]]+", remove = true)`: Split one column into many
+- `unite(df, "new_col", $col1, $col2, sep = "_", remove = true)`: Combine columns into one
+- `separate_rows(df, $col, sep = "[^A-Za-z0-9]+")`: Split values and expand into new rows
+- `uncount(df, $weights, .remove = true)`: Duplicate rows according to a weight column
+
+### Missing value handling
+- `drop_na(df, ...)`: Drop rows with NA in any (or specified) columns
+- `replace_na(df, replace = [col: value, ...])`: Replace NA with specified values per column (pass a Dict using T's `[key: value, ...]` literal syntax)
+- `fill(df, $col, .direction = "down")`: Fill NA using adjacent values (`"down"`, `"up"`, `"downup"`, `"updown"`)
+
+### Nested data
+- `nest(df, $col1, $col2, name = "data")`: Collapse columns into a list-column of sub-DataFrames
+- `unnest(df, $col)`: Expand a list-column of DataFrames back into rows
+
+### Selection helpers (use inside `select`)
+- `starts_with("prefix")`: Match columns whose names start with prefix
+- `ends_with("suffix")`: Match columns whose names end with suffix
+- `contains("pattern")`: Match columns whose names contain a literal string
+- `everything()`: Select all remaining columns
+
+### Factor (categorical) support
+- `factor(x, levels = [], ordered = false)`: Convert vector to factor with explicit levels (sorted by default)
+- `fct(x, levels = [], ordered = false)`: Like `factor` but levels follow first-appearance order
+- `ordered(x, levels)`: Shorthand for `factor(..., ordered = true)`
+- `as_factor(x)`: Alias for `factor()`
+- `levels(x)`: Extract level labels from a factor
+- `fct_rev(x)`: Reverse level order
+- `fct_recode(x, new = $old, ...)`: Rename individual levels
+- `fct_reorder(f, x, .desc = false)`: Reorder levels by median of another variable
+- `fct_relevel(f, $level1, ..., after = 0)`: Move specified levels to a given position
+- `fct_lump_n(x, n = 10, other_level = "Other")`: Keep top n levels, collapse the rest
+- `fct_infreq(x)`: Reorder levels by decreasing frequency
+- `fct_collapse(x, new_level = [$old1, $old2], ...)`: Collapse multiple levels into one
+
+### Window functions (for use inside `mutate`)
+- **Ranking**: `row_number(x)`, `min_rank(x)`, `dense_rank(x)`, `percent_rank(x)`, `cume_dist(x)`, `ntile(x, n)`
+- **Cumulative**: `cumsum(x)`, `cummin(x)`, `cummax(x)`, `cummean(x, na_rm = false)`, `cumall(x)`, `cumany(x)`
+- **Offset**: `lag(x, n = 1)`, `lead(x, n = 1)`
 
 Example:
 ```t
@@ -49,6 +142,15 @@ result = df
   |> filter($age >= 18)
   |> group_by($category)
   |> summarize($avg_spend = mean($spend, na_rm = true), $count = nrow($category))
+
+-- Pivot to wide format
+wide = result |> pivot_wider(names_from = $category, values_from = $avg_spend)
+
+-- Window functions inside mutate
+ranked = df |> mutate($rank = dense_rank($salary), $delta = $salary - lag($salary))
+
+-- Factor encoding
+df2 = df |> mutate($dept = fct($dept) |> fct_reorder($salary))
 ```
 
 ## Pipelines and Polyglot Nodes
@@ -132,9 +234,12 @@ p |> pipeline_assert   -- throws on first error; returns pipeline if valid
 - `print(value :: Any) :: Null`
 - `type(value :: Any) :: String`
 - `length(list :: List) :: Int`
+- `head(x :: DataFrame | List | Vector, n = 6) :: DataFrame | List | Vector`
+- `tail(x :: DataFrame | List | Vector, n = 6) :: DataFrame | List | Vector`
 - `map(list :: List, fn :: Function) :: List`
 - `filter(list :: List, fn :: Function) :: List`
 - `sum(list :: List, na_rm = false) :: Number`
+- `seq(start = 1, end :: Int, by = 1) :: List[Int]`
 - `pow(base :: Number, exp :: Number) :: Float`
 - `sqrt(value :: Number) :: Float`
 - `abs(value :: Number) :: Number`
@@ -159,6 +264,80 @@ p |> pipeline_assert   -- throws on first error; returns pipeline if valid
 - `nrow(df :: DataFrame) :: Int`
 - `ncol(df :: DataFrame) :: Int`
 - `colnames(df :: DataFrame) :: List[String]`
+
+### Colcraft — Core dplyr-style
+- `select(df :: DataFrame, ...) :: DataFrame`
+- `filter(df :: DataFrame, predicate :: NSE) :: DataFrame`
+- `mutate(df :: DataFrame, ...) :: DataFrame`
+- `arrange(df :: DataFrame, $col, direction = "asc") :: DataFrame`
+- `group_by(df :: DataFrame, ...) :: DataFrame`
+- `summarize(df :: DataFrame, ...) :: DataFrame`
+- `rename(df :: DataFrame, $new = $old, ...) :: DataFrame`
+- `relocate(df :: DataFrame, ..., .before :: Symbol, .after :: Symbol) :: DataFrame`
+- `distinct(df :: DataFrame, ..., .keep_all = false) :: DataFrame`
+- `count(df :: DataFrame, ..., name = "n") :: DataFrame`
+- `slice(df :: DataFrame, indices :: Vector | List) :: DataFrame`
+- `slice_min(df :: DataFrame, order_by :: Symbol, n = 1) :: DataFrame`
+- `slice_max(df :: DataFrame, order_by :: Symbol, n = 1) :: DataFrame`
+
+### Colcraft — Reshaping (tidyr-style)
+- `pivot_longer(df :: DataFrame, ..., names_to = "name", values_to = "value") :: DataFrame`
+- `pivot_wider(df :: DataFrame, names_from :: Symbol, values_from :: Symbol) :: DataFrame`
+- `complete(df :: DataFrame, ..., fill = [:], explicit = true) :: DataFrame`
+- `expand(df :: DataFrame, ...) :: DataFrame`
+- `crossing(...) :: DataFrame`
+- `nesting(...) :: Any`
+
+### Colcraft — Strings & Rows
+- `separate(df :: DataFrame, $col, into :: List[String], sep = "[^[:alnum:]]+", remove = true) :: DataFrame`
+- `unite(df :: DataFrame, col :: String, ..., sep = "_", remove = true) :: DataFrame`
+- `separate_rows(df :: DataFrame, $col, sep = "[^A-Za-z0-9]+") :: DataFrame`
+- `uncount(df :: DataFrame, $weights, .remove = true) :: DataFrame`
+
+### Colcraft — Missing Values
+- `drop_na(df :: DataFrame, ...) :: DataFrame`
+- `replace_na(df :: DataFrame, replace :: Dict) :: DataFrame`
+- `fill(df :: DataFrame, ..., .direction = "down") :: DataFrame`
+
+### Colcraft — Nested Data
+- `nest(df :: DataFrame, ..., name = "data") :: DataFrame`
+- `unnest(df :: DataFrame, $col) :: DataFrame`
+
+### Colcraft — Selection Helpers
+- `starts_with(prefix :: String) :: List[String]`
+- `ends_with(suffix :: String) :: List[String]`
+- `contains(pattern :: String) :: List[String]`
+- `everything() :: List[String]`
+
+### Colcraft — Factors
+- `factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
+- `fct(x :: Vector | List, levels = [], ordered = false) :: Vector`
+- `ordered(x :: Vector | List, levels :: Vector | List) :: Vector`
+- `as_factor(x :: Vector | List) :: Vector`
+- `levels(x :: Vector) :: Vector`
+- `fct_rev(x :: Vector) :: Vector`
+- `fct_recode(x :: Vector, $new = $old, ...) :: Vector`
+- `fct_reorder(f :: Vector, x :: Vector, .desc = false) :: Vector`
+- `fct_relevel(f :: Vector, ..., after = 0) :: Vector`
+- `fct_lump_n(x :: Vector, n = 10, other_level = "Other") :: Vector`
+- `fct_infreq(x :: Vector) :: Vector`
+- `fct_collapse(x :: Vector, new_level = [$old1, ...], ...) :: Vector`
+
+### Colcraft — Window Functions
+- `row_number(x :: Vector) :: Vector`
+- `min_rank(x :: Vector) :: Vector`
+- `dense_rank(x :: Vector) :: Vector`
+- `percent_rank(x :: Vector) :: Vector`
+- `cume_dist(x :: Vector) :: Vector`
+- `ntile(x :: Vector, n :: Int) :: Vector`
+- `cumsum(x :: Vector) :: Vector`
+- `cummin(x :: Vector) :: Vector`
+- `cummax(x :: Vector) :: Vector`
+- `cummean(x :: Vector, na_rm = false) :: Vector`
+- `cumall(x :: Vector) :: Vector`
+- `cumany(x :: Vector) :: Vector`
+- `lag(x :: Vector, n = 1) :: Vector`
+- `lead(x :: Vector, n = 1) :: Vector`
 
 ### Pipeline
 
