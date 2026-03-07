@@ -39,7 +39,12 @@ let register env =
       match df_arg with
       | None -> Error.type_error "Function `fill` expects a DataFrame as first argument."
       | Some df ->
-          if cols_to_fill = [] then VDataFrame df else
+          let valid_directions = ["down"; "up"; "downup"; "updown"] in
+          if not (List.mem direction valid_directions) then
+            Error.type_error (Printf.sprintf "Function `fill` received invalid `.direction` value: \"%s\". Supported values are: down, up, downup, updown." direction)
+          else if cols_to_fill = [] then
+            Error.type_error "Function `fill` expects at least one column to fill using $col syntax."
+          else
           
           let orig_nrows = Arrow_table.num_rows df.arrow_table in
           let all_cols = Arrow_table.column_names df.arrow_table in

@@ -153,8 +153,8 @@ let expand_impl named_args _env =
 --# @export
 *)
 let crossing_impl named_args _env =
-  let inputs = List.map (fun (name, v) ->
-    let col_name = match name with Some s -> s | None -> "col" in
+  let inputs = List.mapi (fun i (name, v) ->
+    let col_name = match name with Some s -> s | None -> "col" ^ string_of_int (i + 1) in
     let vals = match v with
       | VVector a -> Array.to_list a |> unique_sorted
       | VList l -> List.map snd l |> unique_sorted
@@ -165,24 +165,40 @@ let crossing_impl named_args _env =
   
   if inputs = [] then VDataFrame { arrow_table = Arrow_table.create [] 0; group_keys = [] } else
   
-  let combo_lists = List.map (fun (_, vals) -> List.map (fun v -> [v]) vals) inputs in
-  let final_combos = cartesian combo_lists |> List.map List.flatten in
-  let nrows = List.length final_combos in
-  let combos_arr = Array.of_list final_combos in
-  
-  let columns = List.mapi (fun i (name, _) ->
-    let data = Array.init nrows (fun row_idx -> match List.nth_opt combos_arr.(row_idx) i with Some v -> v | None -> VNA NAGeneric) in
-    let col = match data.(0) with
-      | VInt _ -> IntColumn (Array.map (function VInt x -> Some x | _ -> None) data)
-      | VFloat _ -> FloatColumn (Array.map (function VFloat x -> Some x | VInt x -> Some (float_of_int x) | _ -> None) data)
-      | VString _ -> StringColumn (Array.map (function VString x -> Some x | _ -> None) data)
-      | VBool _ -> BoolColumn (Array.map (function VBool x -> Some x | _ -> None) data)
-      | _ -> NullColumn nrows
-    in (name, col)
-  ) inputs in
-  
-  let schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) columns in
-  VDataFrame { arrow_table = { schema; columns; nrows; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+  (* Handle the case where any input has zero values: return empty DataFrame *)
+  if List.exists (fun (_, vals) -> vals = []) inputs then begin
+    let columns = List.map (fun (name, vals) ->
+      (* Infer type from first element if available; empty inputs fall through to NullColumn *)
+      let col = match vals with
+        | (VInt _) :: _ -> IntColumn (Array.make 0 None)
+        | (VFloat _) :: _ -> FloatColumn (Array.make 0 None)
+        | (VString _) :: _ -> StringColumn (Array.make 0 None)
+        | (VBool _) :: _ -> BoolColumn (Array.make 0 None)
+        | _ -> NullColumn 0  (* empty list or unrecognised type *)
+      in (name, col)
+    ) inputs in
+    let schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) columns in
+    VDataFrame { arrow_table = { schema; columns; nrows = 0; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+  end else begin
+    let combo_lists = List.map (fun (_, vals) -> List.map (fun v -> [v]) vals) inputs in
+    let final_combos = cartesian combo_lists |> List.map List.flatten in
+    let nrows = List.length final_combos in
+    let combos_arr = Array.of_list final_combos in
+    
+    let columns = List.mapi (fun i (name, _) ->
+      let data = Array.init nrows (fun row_idx -> match List.nth_opt combos_arr.(row_idx) i with Some v -> v | None -> VNA NAGeneric) in
+      let col = match data.(0) with
+        | VInt _ -> IntColumn (Array.map (function VInt x -> Some x | _ -> None) data)
+        | VFloat _ -> FloatColumn (Array.map (function VFloat x -> Some x | VInt x -> Some (float_of_int x) | _ -> None) data)
+        | VString _ -> StringColumn (Array.map (function VString x -> Some x | _ -> None) data)
+        | VBool _ -> BoolColumn (Array.map (function VBool x -> Some x | _ -> None) data)
+        | _ -> NullColumn nrows
+      in (name, col)
+    ) inputs in
+    
+    let schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) columns in
+    VDataFrame { arrow_table = { schema; columns; nrows; native_handle = None } |> Arrow_table.materialize; group_keys = [] }
+  end
 
 (*
 --# Helper to find combinations present in data

@@ -1,19 +1,28 @@
 open Ast
 open Arrow_table
 
+(* expand_input describes one "slot" of the cartesian product:
+   - Single: all unique values of a single column
+   - Nested: all existing row-wise combinations of a group of columns *)
+type expand_input =
+  | Single of string * value list
+  | Nested of string list * (value list) list
+
 (*
 --# Complete a data frame
 --#
 --# Turns implicit missing values into explicit missing values.
+--# Supports nesting() to restrict combinations to those present in the data.
 --#
 --# @name complete
 --# @param df :: DataFrame The DataFrame.
---# @param ... :: Symbol Variable number of column names (use $col syntax).
+--# @param ... :: Symbol | Call Variable number of column names (use $col syntax) or nesting(...) calls.
 --# @param fill :: Dict (Optional) A dictionary supplying a single value to use instead of NA for missing combinations.
 --# @param explicit :: Bool (Optional) Should both implicit and explicit missing values be filled? (Default: true)
 --# @return :: DataFrame The completed DataFrame.
 --# @example
 --#   complete(df, $group, $item_id, $item_name)
+--#   complete(df, $group, nesting($item_id, $item_name))
 --# @family colcraft
 --# @export
 *)
@@ -39,19 +48,15 @@ let register env =
       in
       
       let id_cols_variants = match positional with _::tail -> tail | [] -> [] in
-      let id_cols = List.filter_map Utils.extract_column_name id_cols_variants in
 
       match df_arg with
       | None -> Error.type_error "Function `complete` expects a DataFrame as first argument."
       | Some df ->
-          if id_cols = [] then Error.make_error ValueError "Function `complete` requires at least one column." else
           
           let orig_nrows = Arrow_table.num_rows df.arrow_table in
           let all_cols = Arrow_table.column_names df.arrow_table in
-          let missing_cols = List.filter (fun c -> not (List.mem c all_cols)) id_cols in
-          if missing_cols <> [] then Error.make_error KeyError (Printf.sprintf "Column(s) not found: %s" (String.concat ", " missing_cols)) else
 
-          (* Gather unique values for each id_col *)
+          (* Gather a single value from a column at a given row index *)
           let get_val col i =
             match Arrow_table.get_column df.arrow_table col with
              | Some (StringColumn a) -> (match a.(i) with Some x -> VString x | None -> VNA NAGeneric)
@@ -61,7 +66,8 @@ let register env =
              | _ -> VNA NAGeneric
           in
 
-          let unique_values_per_col = List.map (fun col ->
+          (* Get unique values for a single column (insertion-order preserved) *)
+          let get_unique_vals col =
             let seen = Hashtbl.create orig_nrows in
             let ordered = ref [] in
             for i = 0 to orig_nrows - 1 do
@@ -71,8 +77,54 @@ let register env =
                 ordered := v :: !ordered
               end
             done;
-            (col, List.rev !ordered)
-          ) id_cols in
+            List.rev !ordered
+          in
+
+          (* Get unique row-wise combinations for a set of columns (sorted) *)
+          let get_nested_combos cols =
+            let seen = Hashtbl.create orig_nrows in
+            let ordered = ref [] in
+            for i = 0 to orig_nrows - 1 do
+              let row = List.map (fun c -> get_val c i) cols in
+              if not (Hashtbl.mem seen row) then begin
+                Hashtbl.add seen row ();
+                ordered := row :: !ordered
+              end
+            done;
+            List.rev !ordered
+          in
+
+          (* Parse each positional arg into an expand_input.
+             nesting() returns a VDict with key "__nesting__" (see expand.ml:nesting_impl);
+             we detect this marker here to restrict those columns to existing combinations. *)
+          let expand_inputs = List.filter_map (fun v ->
+            match v with
+            | VDict d when List.mem_assoc "__nesting__" d ->
+                (* Dict produced by nesting(): cols holds the column symbol list *)
+                let cols = match List.assoc_opt "cols" d with
+                  | Some (VList l) -> List.filter_map (fun (_, sv) -> Utils.extract_column_name sv) l
+                  | _ -> []
+                in
+                if cols = [] then None
+                else Some (Nested (cols, get_nested_combos cols))
+            | _ ->
+                (match Utils.extract_column_name v with
+                 | Some col -> Some (Single (col, get_unique_vals col))
+                 | None -> None)
+          ) id_cols_variants in
+
+          if expand_inputs = [] then
+            Error.make_error ValueError "Function `complete` requires at least one column or nesting() expression."
+          else
+
+          (* Flat list of all id column names, in order *)
+          let id_cols = List.concat_map (function
+            | Single (n, _) -> [n]
+            | Nested (ns, _) -> ns
+          ) expand_inputs in
+
+          let missing_cols = List.filter (fun c -> not (List.mem c all_cols)) id_cols in
+          if missing_cols <> [] then Error.make_error KeyError (Printf.sprintf "Column(s) not found: %s" (String.concat ", " missing_cols)) else
 
           (* Cartesian product of unique values *)
           let rec cartesian lists =
@@ -82,7 +134,13 @@ let register env =
                 let t_prod = cartesian t in
                 List.concat (List.map (fun elm -> List.map (fun t_line -> elm :: t_line) t_prod) h)
           in
-          let combos = cartesian (List.map snd unique_values_per_col) in
+          (* Each expand_input contributes one "slot": Single -> list of single-element lists;
+             Nested -> list of multi-element lists (the existing combinations). *)
+          let combo_lists = List.map (function
+            | Single (_, vals) -> List.map (fun v -> [v]) vals
+            | Nested (_, combos) -> combos
+          ) expand_inputs in
+          let combos = cartesian combo_lists |> List.map List.flatten in
           
           let combo_to_rows = Hashtbl.create orig_nrows in
           for i = 0 to orig_nrows - 1 do
