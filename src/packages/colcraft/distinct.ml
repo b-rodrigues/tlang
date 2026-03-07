@@ -22,9 +22,8 @@ let distinct_impl (named_args : (string option * value) list) _env =
       let row_indices = ref [] in
       for i = 0 to nrows - 1 do
         let key_vals = List.map (fun col -> col.(i)) key_col_values in
-        let key_str = String.concat "|" (List.map Utils.value_to_string key_vals) in
-        if not (Hashtbl.mem seen key_str) then begin
-          Hashtbl.add seen key_str true;
+        if not (Hashtbl.mem seen key_vals) then begin
+          Hashtbl.add seen key_vals true;
           row_indices := i :: !row_indices
         end
       done;
