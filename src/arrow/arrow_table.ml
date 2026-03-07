@@ -149,8 +149,9 @@ let get_column (t : t) (name : string) : column_data option =
            | ArrowNull ->
                Some (NullColumn t.nrows)
            | ArrowDictionary ->
-               (* FFI reading of dictionary/factors not yet implemented, fallback to None *)
-               None)
+               (* FFI reading of dictionary/factors not yet implemented. *)
+               (* Fall back to the pure-OCaml t.columns representation when available. *)
+               List.assoc_opt name t.columns)
   | _ ->
       (* Fallback to pure OCaml *)
       List.assoc_opt name t.columns

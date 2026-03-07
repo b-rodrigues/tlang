@@ -1,11 +1,15 @@
 (* src/packages/colcraft/factors.ml *)
 open Ast
 
-let as_string_list values =
+(* Convert values to optional strings: NA values become None (and are preserved
+   as VNA in the output factor), non-string values are stringified.
+   None entries are excluded from level derivation. *)
+let as_string_list_opt values =
   let rec aux acc = function
     | [] -> List.rev acc
-    | VString s :: t -> aux (s :: acc) t
-    | v :: t -> aux (Utils.value_to_string v :: acc) t
+    | VNA _ :: t -> aux (None :: acc) t
+    | VString s :: t -> aux (Some s :: acc) t
+    | v :: t -> aux (Some (Utils.value_to_string v) :: acc) t
   in aux [] values
 
 let factor_impl (args : (string option * value) list) _env =
@@ -19,41 +23,40 @@ let factor_impl (args : (string option * value) list) _env =
         | VList l -> List.map snd l
         | _ -> [x_val]
       in
-      let strings = as_string_list items in
-      
-      let unique_levels = 
-        strings
-        |> List.sort_uniq String.compare
-      in
-      
+      let string_opts = as_string_list_opt items in
+
+      (* Only non-NA values contribute to level derivation *)
+      let non_na_strings = List.filter_map Fun.id string_opts in
+      let unique_levels = List.sort_uniq String.compare non_na_strings in
+
       let levels =
         match List.assoc_opt "levels" named with
-        | Some (VVector a) -> as_string_list (Array.to_list a)
-        | Some (VList l) -> as_string_list (List.map snd l)
+        | Some (VVector a) -> List.filter_map Fun.id (as_string_list_opt (Array.to_list a))
+        | Some (VList l) -> List.filter_map Fun.id (as_string_list_opt (List.map snd l))
         | _ -> unique_levels
       in
-      
+
       let ordered =
         match List.assoc_opt "ordered" named with
         | Some (VBool b) -> b
         | _ -> false
       in
-      
-      let factor_arr = Array.of_list strings |> Array.map (fun s ->
-        match List.find_index (fun l -> l = s) levels with
-        | Some idx -> VFactor (idx, levels, ordered)
-        | None -> VNA Ast.NAGeneric (* NA if not in levels *)
+
+      (* Pre-compute level -> index table for O(1) lookup per element *)
+      let level_tbl = Hashtbl.create (List.length levels) in
+      List.iteri (fun i l -> Hashtbl.add level_tbl l i) levels;
+
+      let factor_arr = Array.of_list string_opts |> Array.map (function
+        | None -> VNA Ast.NAGeneric
+        | Some s ->
+            (match Hashtbl.find_opt level_tbl s with
+             | Some idx -> VFactor (idx, levels, ordered)
+             | None -> VNA Ast.NAGeneric (* NA if value is not in levels *))
       ) in
       VVector factor_arr
 
 let as_factor_impl args env =
   factor_impl args env
-
-let fct_reorder_impl _args _env =
-  (* Simplistic implementation: this should ideally resolve another column and compute aggregating function.
-     For this spec, we will return an error or basic implementation if full isn't required by tests right now.
-     Given the scope, let's implement a dummy or error if unsupported. *)
-  Error.make_error Ast.TypeError "fct_reorder not fully implemented"
 
 let fct_infreq_impl args _env =
   let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
@@ -67,18 +70,35 @@ let fct_infreq_impl args _env =
       if not c then VVector arr
       else
         let counts = Hashtbl.create (List.length levels) in
-        List.iter (fun v -> match v with VFactor(i, _, _) -> Hashtbl.replace counts i ((match Hashtbl.find_opt counts i with Some c -> c | None -> 0) + 1) | _ -> ()) factors;
-        
-        let new_levels = levels |> List.mapi (fun i l -> (i, l, match Hashtbl.find_opt counts i with Some c -> c | None -> 0))
+        List.iter (fun v -> match v with
+          | VFactor(i, _, _) ->
+              let prev = match Hashtbl.find_opt counts i with Some c -> c | None -> 0 in
+              Hashtbl.replace counts i (prev + 1)
+          | _ -> ()
+        ) factors;
+
+        let new_levels = levels
+          |> List.mapi (fun i l -> (i, l, match Hashtbl.find_opt counts i with Some c -> c | None -> 0))
           |> List.sort (fun (_, _, c1) (_, _, c2) -> compare c2 c1)
           |> List.map (fun (_, l, _) -> l)
         in
-        
+
+        (* Pre-compute new level -> index table for O(1) remapping *)
+        let new_level_tbl = Hashtbl.create (List.length new_levels) in
+        List.iteri (fun i l -> Hashtbl.add new_level_tbl l i) new_levels;
+
         let factor_arr = Array.map (fun v -> match v with
-          | VFactor (i, _, _) -> 
-              let s = List.nth levels i in
-              let new_idx = match List.find_index (fun l -> l = s) new_levels with Some idx -> idx | None -> 0 in
-              VFactor (new_idx, new_levels, ordered)
+          | VFactor (i, _, _) ->
+              (match List.nth_opt levels i with
+               | Some s ->
+                   let new_idx = match Hashtbl.find_opt new_level_tbl s with
+                     | Some idx -> idx
+                     | None -> 0
+                   in
+                   VFactor (new_idx, new_levels, ordered)
+               | None ->
+                   (* Out-of-range factor index; treat as NA to avoid crashing *)
+                   VNA Ast.NAGeneric)
           | _ -> v
         ) arr in
         VVector factor_arr
@@ -87,6 +107,5 @@ let fct_infreq_impl args _env =
 let register env =
   let env = Env.add "factor" (make_builtin_named ~name:"factor" ~variadic:true 1 factor_impl) env in
   let env = Env.add "as_factor" (make_builtin_named ~name:"as_factor" ~variadic:true 1 as_factor_impl) env in
-  let env = Env.add "fct_reorder" (make_builtin_named ~name:"fct_reorder" ~variadic:true 1 fct_reorder_impl) env in
   let env = Env.add "fct_infreq" (make_builtin_named ~name:"fct_infreq" ~variadic:true 1 fct_infreq_impl) env in
   env
