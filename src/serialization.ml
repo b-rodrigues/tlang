@@ -193,10 +193,10 @@ let json_datetime_string micros tz =
   in
   let tz_suffix =
     match tz with
-    | Some name when name <> "" -> "[" ^ name ^ "]"
-    | _ -> "[UTC]"
+    | Some name when name <> "" -> "Z[" ^ name ^ "]"
+    | _ -> "Z"
   in
-  base ^ frac ^ "Z" ^ tz_suffix
+  base ^ frac ^ tz_suffix
 
 let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   match v with
