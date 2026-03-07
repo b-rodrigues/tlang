@@ -418,6 +418,224 @@ let length_scalar args _env =
 
 let length_impl args env = length_scalar args env
 
+let compile_regexp function_name pattern =
+  try Ok (Str.regexp pattern)
+  with Failure msg ->
+    Error (Error.value_error (Printf.sprintf "Function `%s` received an invalid regex: %s" function_name msg))
+
+let regex_match_value s =
+  try Str.matched_group 1 s with
+  | Invalid_argument _ | Not_found -> Str.matched_string s
+
+let all_regex_matches re s =
+  let len = String.length s in
+  let rec loop pos acc =
+    if pos > len then
+      List.rev acc
+    else
+      match Str.search_forward re s pos with
+      | _ ->
+          let matched = regex_match_value s in
+          let end_pos = Str.match_end () in
+          let next_pos = if end_pos = pos then pos + 1 else end_pos in
+          loop next_pos (matched :: acc)
+      | exception Not_found -> List.rev acc
+  in
+  loop 0 []
+
+let str_extract_scalar args _env =
+  match args with
+  | [VString s; VString pattern] ->
+      (match compile_regexp "str_extract" pattern with
+       | Error err -> err
+       | Ok re ->
+           (match Str.search_forward re s 0 with
+            | _ -> VString (regex_match_value s)
+            | exception Not_found -> VNA NAString))
+  | [VNA _; _] | [_; VNA _] -> VNA NAString
+  | _ -> Error.type_error "str_extract expects (String, String)."
+
+let str_extract_impl args env = vectorize_binary str_extract_scalar args env
+
+let str_extract_all_scalar args _env =
+  match args with
+  | [VString s; VString pattern] ->
+      (match compile_regexp "str_extract_all" pattern with
+       | Error err -> err
+       | Ok re ->
+           all_regex_matches re s
+           |> List.map (fun matched -> (None, VString matched))
+           |> fun items -> VList items)
+  | [VNA _; _] | [_; VNA _] -> VList []
+  | _ -> Error.type_error "str_extract_all expects (String, String)."
+
+let str_extract_all_impl args env = vectorize_binary str_extract_all_scalar args env
+
+let str_detect_scalar args _env =
+  match args with
+  | [VString s; VString pattern] ->
+      (match compile_regexp "str_detect" pattern with
+       | Error err -> err
+       | Ok re ->
+           (match Str.search_forward re s 0 with
+            | _ -> VBool true
+            | exception Not_found -> VBool false))
+  | [VNA _; _] | [_; VNA _] -> VNA NABool
+  | _ -> Error.type_error "str_detect expects (String, String)."
+
+let str_detect_impl args env = vectorize_binary str_detect_scalar args env
+
+let str_count_scalar args _env =
+  match args with
+  | [VString s; VString pattern] ->
+      (match compile_regexp "str_count" pattern with
+       | Error err -> err
+       | Ok re -> VInt (List.length (all_regex_matches re s)))
+  | [VNA _; _] | [_; VNA _] -> VNA NAInt
+  | _ -> Error.type_error "str_count expects (String, String)."
+
+let str_count_impl args env = vectorize_binary str_count_scalar args env
+
+let string_named_or_positional function_name name named_args position default =
+  let positional = List.filter_map (function None, v -> Some v | _ -> None) named_args in
+  match List.find_map (function Some n, v when n = name -> Some v | _ -> None) named_args with
+  | Some (VString s) -> Ok s
+  | Some v ->
+      Error
+        (Error.type_error
+           (Printf.sprintf "Argument `%s` to `%s` must be String, got %s."
+              name function_name (Utils.type_name v)))
+  | None ->
+      (match List.nth_opt positional position with
+       | Some (VString s) -> Ok s
+       | Some v ->
+           Error
+             (Error.type_error
+                (Printf.sprintf "Argument `%s` to `%s` must be String, got %s."
+                   name function_name (Utils.type_name v)))
+       | None -> Ok default)
+
+let repeat_to_length pad needed =
+  if needed <= 0 then ""
+  else
+    let pad_len = String.length pad in
+    let rec loop remaining acc =
+      if remaining <= 0 then
+        String.concat "" (List.rev acc)
+      else if remaining >= pad_len then
+        loop (remaining - pad_len) (pad :: acc)
+      else
+        loop 0 (String.sub pad 0 remaining :: acc)
+    in
+    loop needed []
+
+let map_string_value function_name fn value =
+  let rec apply = function
+    | VVector arr -> VVector (Array.map apply arr)
+    | VList items -> VList (List.map (fun (name, item) -> (name, apply item)) items)
+    | VNA _ -> VNA NAString
+    | VString s -> fn s
+    | _ ->
+        Error.type_error
+          (Printf.sprintf "Function `%s` expects a String or Vector[String]." function_name)
+  in
+  apply value
+
+let str_pad_impl named_args _env =
+  let positional = List.filter_map (function None, v -> Some v | _ -> None) named_args in
+  match positional with
+  | [value; VInt width]
+  | [value; VInt width; _]
+  | [value; VInt width; _; _] ->
+      (match string_named_or_positional "str_pad" "side" named_args 2 "left",
+             string_named_or_positional "str_pad" "pad" named_args 3 " " with
+       | Error err, _ | _, Error err -> err
+       | Ok side, Ok pad ->
+           if width < 0 then
+             Error.value_error "Function `str_pad` width must be non-negative."
+           else if pad = "" then
+             Error.value_error "Function `str_pad` pad must not be empty."
+           else
+             map_string_value "str_pad" (fun s ->
+               let len = String.length s in
+               if len >= width then
+                 VString s
+               else
+                 let needed = width - len in
+                 let pad_text = repeat_to_length pad needed in
+                 match side with
+                 | "left" -> VString (pad_text ^ s)
+                 | "right" -> VString (s ^ pad_text)
+                 | "both" ->
+                     let left = needed / 2 in
+                     let right = needed - left in
+                     VString (repeat_to_length pad left ^ s ^ repeat_to_length pad right)
+                 | _ ->
+                     Error.value_error
+                       (Printf.sprintf "Function `str_pad` side must be \"left\", \"right\", or \"both\", got %S." side)
+             ) value)
+  | [_; _] ->
+      Error.type_error "Function `str_pad` expects (String, Int, side = String, pad = String)."
+  | values -> Error.arity_error_named "str_pad" ~expected:2 ~received:(List.length values)
+
+let str_trunc_impl named_args _env =
+  let positional = List.filter_map (function None, v -> Some v | _ -> None) named_args in
+  match positional with
+  | [value; VInt width]
+  | [value; VInt width; _]
+  | [value; VInt width; _; _] ->
+      (match string_named_or_positional "str_trunc" "side" named_args 2 "right",
+             string_named_or_positional "str_trunc" "ellipsis" named_args 3 "..." with
+       | Error err, _ | _, Error err -> err
+       | Ok side, Ok ellipsis ->
+           if width < 0 then
+             Error.value_error "Function `str_trunc` width must be non-negative."
+           else
+             map_string_value "str_trunc" (fun s ->
+               let len = String.length s in
+               if len <= width then
+                 VString s
+               else if width <= String.length ellipsis then
+                 VString (String.sub ellipsis 0 width)
+               else
+                 let keep = width - String.length ellipsis in
+                 match side with
+                 | "right" -> VString (String.sub s 0 keep ^ ellipsis)
+                 | "left" -> VString (ellipsis ^ String.sub s (len - keep) keep)
+                 | "center" ->
+                     let left_keep = keep / 2 in
+                     let right_keep = keep - left_keep in
+                     VString
+                       (String.sub s 0 left_keep
+                        ^ ellipsis
+                        ^ String.sub s (len - right_keep) right_keep)
+                 | _ ->
+                     Error.value_error
+                       (Printf.sprintf "Function `str_trunc` side must be \"left\", \"right\", or \"center\", got %S." side)
+             ) value)
+  | [_; _] ->
+      Error.type_error "Function `str_trunc` expects (String, Int, side = String, ellipsis = String)."
+  | values -> Error.arity_error_named "str_trunc" ~expected:2 ~received:(List.length values)
+
+let str_flatten_impl named_args _env =
+  let positional = List.filter_map (function None, v -> Some v | _ -> None) named_args in
+  match string_named_or_positional "str_flatten" "collapse" named_args 1 "" with
+  | Error err -> err
+  | Ok collapse ->
+      let flatten values =
+        values
+        |> List.map Ast.Utils.value_to_raw_string
+        |> String.concat collapse
+        |> fun s -> VString s
+      in
+      (match positional with
+       | [VVector arr] -> flatten (Array.to_list arr)
+       | [VList items] -> flatten (List.map snd items)
+       | [value] -> VString (Ast.Utils.value_to_raw_string value)
+       | values ->
+           Error.arity_error_named "str_flatten" ~expected:1
+             ~received:(List.length values))
+
 let nchar_scalar args _env =
   match args with
   | [VString s] -> VInt (String.length s)
@@ -806,6 +1024,13 @@ let register env =
   let env = Env.add "words"       (make_builtin ~name:"words"       1 words_impl)       env in
   let env = Env.add "str_repeat"  (make_builtin ~name:"str_repeat"  2 str_repeat_impl)  env in
   let env = Env.add "str_format"  (make_builtin ~name:"str_format"  2 str_format_impl)  env in
+  let env = Env.add "str_extract" (make_builtin ~name:"str_extract" 2 str_extract_impl) env in
+  let env = Env.add "str_extract_all" (make_builtin ~name:"str_extract_all" 2 str_extract_all_impl) env in
+  let env = Env.add "str_detect" (make_builtin ~name:"str_detect" 2 str_detect_impl) env in
+  let env = Env.add "str_pad" (make_builtin_named ~name:"str_pad" ~variadic:true 2 str_pad_impl) env in
+  let env = Env.add "str_trunc" (make_builtin_named ~name:"str_trunc" ~variadic:true 2 str_trunc_impl) env in
+  let env = Env.add "str_flatten" (make_builtin_named ~name:"str_flatten" ~variadic:true 1 str_flatten_impl) env in
+  let env = Env.add "str_count" (make_builtin ~name:"str_count" 2 str_count_impl) env in
   let env = Env.add "sprintf" (make_builtin ~name:"sprintf" ~variadic:true 1 sprintf_impl) env in
   let env = Env.add "join" (make_builtin ~name:"join" ~variadic:true 1 join_impl) env in
   let env = Env.add "string" (make_builtin ~name:"string" 1 string_impl) env in
