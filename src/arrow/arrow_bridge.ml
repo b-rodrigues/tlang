@@ -15,6 +15,10 @@ let column_to_values (col : Arrow_table.column_data) : value array =
       Array.map (fun v -> match v with Some b -> VBool b | None -> VNA NABool) a
   | Arrow_table.StringColumn a ->
       Array.map (fun v -> match v with Some s -> VString s | None -> VNA NAString) a
+  | Arrow_table.DateColumn a ->
+      Array.map (fun v -> match v with Some d -> VDate d | None -> VNA NADate) a
+  | Arrow_table.DatetimeColumn (a, tz) ->
+      Array.map (fun v -> match v with Some ts -> VDatetime (ts, tz) | None -> VNA NADate) a
   | Arrow_table.NullColumn n ->
       Array.make n (VNA NAGeneric)
   | Arrow_table.DictionaryColumn (a, levels, ordered) ->
@@ -29,6 +33,8 @@ let values_to_column (values : value array) : Arrow_table.column_data =
   let has_float = ref false in
   let has_bool = ref false in
   let has_string = ref false in
+  let has_date = ref false in
+  let has_datetime = ref false in
   let has_factor = ref false in
   let factor_levels = ref [] in
   let factor_ordered = ref false in
@@ -40,6 +46,8 @@ let values_to_column (values : value array) : Arrow_table.column_data =
     | VFloat _ -> has_float := true; all_na := false
     | VBool _ -> has_bool := true; all_na := false
     | VString _ -> has_string := true; all_na := false
+    | VDate _ -> has_date := true; all_na := false
+    | VDatetime _ -> has_datetime := true; all_na := false
     | VFactor (_, levels, ordered) ->
         all_na := false;
         (match !factor_levels with
@@ -64,6 +72,26 @@ let values_to_column (values : value array) : Arrow_table.column_data =
       | VNA _ -> None
       | _ -> None
     ) values, !factor_levels, !factor_ordered)
+  else if !has_datetime && not (!has_int || !has_float || !has_bool || !has_string || !has_date || !has_factor) then
+    let tz =
+      Array.fold_left (fun acc v ->
+        match acc, v with
+        | Some tz, _ -> Some tz
+        | None, VDatetime (_, tz) -> tz
+        | None, _ -> None
+      ) None values
+    in
+    Arrow_table.DatetimeColumn (Array.map (function
+      | VDatetime (ts, _) -> Some ts
+      | VNA _ -> None
+      | _ -> None
+    ) values, tz)
+  else if !has_date && not (!has_int || !has_float || !has_bool || !has_string || !has_datetime || !has_factor) then
+    Arrow_table.DateColumn (Array.map (function
+      | VDate d -> Some d
+      | VNA _ -> None
+      | _ -> None
+    ) values)
   else if !has_string || !factor_inconsistent then
     Arrow_table.StringColumn (Array.map (fun v ->
       match v with
@@ -116,6 +144,10 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
           (match a.(row_idx) with Some b -> VBool b | None -> VNA NABool)
       | Arrow_table.StringColumn a ->
           (match a.(row_idx) with Some s -> VString s | None -> VNA NAString)
+      | Arrow_table.DateColumn a ->
+          (match a.(row_idx) with Some d -> VDate d | None -> VNA NADate)
+      | Arrow_table.DatetimeColumn (a, tz) ->
+          (match a.(row_idx) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
       | Arrow_table.NullColumn _ -> VNA NAGeneric
       | Arrow_table.DictionaryColumn (a, levels, ordered) ->
           (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric)

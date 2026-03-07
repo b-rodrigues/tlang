@@ -41,11 +41,13 @@ let register env =
                      match (a, b) with
                      | (VInt x, VInt y) -> compare x y
                      | (VFloat x, VFloat y) -> compare x y
-                     | (VString x, VString y) -> String.compare x y
-                     | (VBool x, VBool y) -> compare x y
-                     | (VFactor (x, _, _), VFactor (y, _, _)) -> compare x y
-                     | (VNA _, _) -> 1
-                     | (_, VNA _) -> -1
+                      | (VString x, VString y) -> String.compare x y
+                      | (VBool x, VBool y) -> compare x y
+                      | (VDate x, VDate y) -> compare x y
+                      | (VDatetime (x, _), VDatetime (y, _)) -> Int64.compare x y
+                      | (VFactor (x, _, _), VFactor (y, _, _)) -> compare x y
+                      | (VNA _, _) -> 1
+                      | (_, VNA _) -> -1
                      | _ -> 0
                    in
                    Array.stable_sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;
@@ -71,11 +73,13 @@ let register env =
                      match (a, b) with
                      | (VInt x, VInt y) -> compare y x
                      | (VFloat x, VFloat y) -> compare y x
-                     | (VString x, VString y) -> String.compare y x
-                     | (VBool x, VBool y) -> compare y x
-                     | (VFactor (x, _, _), VFactor (y, _, _)) -> compare y x
-                     | (VNA _, _) -> 1
-                     | (_, VNA _) -> -1
+                      | (VString x, VString y) -> String.compare y x
+                      | (VBool x, VBool y) -> compare y x
+                      | (VDate x, VDate y) -> compare y x
+                      | (VDatetime (x, _), VDatetime (y, _)) -> Int64.compare y x
+                      | (VFactor (x, _, _), VFactor (y, _, _)) -> compare y x
+                      | (VNA _, _) -> 1
+                      | (_, VNA _) -> -1
                      | _ -> 0
                    in
                    Array.stable_sort (fun i j -> compare_values col_values.(i) col_values.(j)) indices;

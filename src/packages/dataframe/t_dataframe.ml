@@ -107,10 +107,14 @@ let register env =
                      VVector (Array.map (function Some i -> VInt i | None -> VNA NAGeneric) data)
                  | Arrow_table.StringColumn data ->
                      VVector (Array.map (function Some s -> VString s | None -> VNA NAGeneric) data)
-                 | Arrow_table.BoolColumn data ->
-                     VVector (Array.map (function Some b -> VBool b | None -> VNA NAGeneric) data)
-                 | Arrow_table.NullColumn n ->
-                     VVector (Array.make n (VNA NAGeneric))
+                  | Arrow_table.BoolColumn data ->
+                      VVector (Array.map (function Some b -> VBool b | None -> VNA NAGeneric) data)
+                  | Arrow_table.DateColumn data ->
+                      VVector (Array.map (function Some d -> VDate d | None -> VNA NADate) data)
+                  | Arrow_table.DatetimeColumn (data, tz) ->
+                      VVector (Array.map (function Some ts -> VDatetime (ts, tz) | None -> VNA NADate) data)
+                  | Arrow_table.NullColumn n ->
+                      VVector (Array.make n (VNA NAGeneric))
                  | Arrow_table.DictionaryColumn (data, levels, ordered) ->
                      VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data)
                  | Arrow_table.ListColumn data ->

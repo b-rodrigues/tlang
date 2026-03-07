@@ -386,5 +386,151 @@ df |> filter($age > 25)
 
   print_newline ();
 
+  Printf.printf "Phase 4 — complete():\n";
+
+  let env_complete = Packages.init_env () in
+  let (_, env_complete) = eval_string_env
+    {|df_dates = dataframe([
+  [group: "a", d: ymd("2024-01-01"), value: 1],
+  [group: "a", d: ymd("2024-01-02"), value: 2],
+  [group: "b", d: ymd("2024-01-01"), value: 3]
+])|}
+    env_complete in
+
+  let (v, env_complete) =
+    eval_string_env {|result_dates = complete(df_dates, $group, $d, fill = [value: 0]); nrow(result_dates)|} env_complete in
+  let result = Ast.Utils.value_to_string v in
+  if result = "4" then begin
+    incr pass_count; Printf.printf "  ✓ complete expands date id columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ complete expands date id columns\n    Expected: 4\n    Got: %s\n" result
+  end;
+
+  let (v, env_complete) = eval_string_env {|day(result_dates.d)|} env_complete in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1, 2, 1, 2]" then begin
+    incr pass_count; Printf.printf "  ✓ complete preserves date id values\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ complete preserves date id values\n    Expected: Vector[1, 2, 1, 2]\n    Got: %s\n" result
+  end;
+
+  let (v, env_complete) = eval_string_env {|result_dates.value|} env_complete in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1, 2, 3, 0]" then begin
+    incr pass_count; Printf.printf "  ✓ complete fills missing date combinations\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ complete fills missing date combinations\n    Expected: Vector[1, 2, 3, 0]\n    Got: %s\n" result
+  end;
+
+  let (_, env_complete) = eval_string_env
+    {|df_datetimes = dataframe([
+  [group: "a", ts: ymd_hms("2024-01-01 09:00:00"), value: 1],
+  [group: "a", ts: ymd_hms("2024-01-01 10:00:00"), value: 3],
+  [group: "b", ts: ymd_hms("2024-01-01 09:00:00"), value: 2]
+])|}
+    env_complete in
+
+  let (v, env_complete) =
+    eval_string_env {|result_datetimes = complete(df_datetimes, $group, $ts, fill = [value: 0]); nrow(result_datetimes)|} env_complete in
+  let result = Ast.Utils.value_to_string v in
+  if result = "4" then begin
+    incr pass_count; Printf.printf "  ✓ complete expands datetime id columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ complete expands datetime id columns\n    Expected: 4\n    Got: %s\n" result
+  end;
+
+  let (v, env_complete) = eval_string_env {|hour(result_datetimes.ts)|} env_complete in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[9, 10, 9, 10]" then begin
+    incr pass_count; Printf.printf "  ✓ complete preserves datetime id values\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ complete preserves datetime id values\n    Expected: Vector[9, 10, 9, 10]\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env {|result_datetimes.value|} env_complete in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1, 3, 2, 0]" then begin
+    incr pass_count; Printf.printf "  ✓ complete fills missing datetime combinations\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ complete fills missing datetime combinations\n    Expected: Vector[1, 3, 2, 0]\n    Got: %s\n" result
+  end;
+
+  print_newline ();
+
+  Printf.printf "Phase 4 — date/datetime colcraft regressions:\n";
+
+  let env_dates = Packages.init_env () in
+  let (_, env_dates) = eval_string_env
+    {|df_wider = dataframe([
+  [d: ymd("2024-01-01"), name: "x", score: 1],
+  [d: ymd("2024-01-01"), name: "y", score: 2],
+  [d: ymd("2024-01-02"), name: "x", score: 3],
+  [d: ymd("2024-01-02"), name: "y", score: 4]
+])|}
+    env_dates in
+  let (v, env_dates) =
+    eval_string_env {|result_wider = pivot_wider(df_wider, names_from = $name, values_from = $score); day(result_wider.d)|} env_dates in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1, 2]" then begin
+    incr pass_count; Printf.printf "  ✓ pivot_wider preserves date id columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pivot_wider preserves date id columns\n    Expected: Vector[1, 2]\n    Got: %s\n" result
+  end;
+
+  let (_, env_dates) = eval_string_env
+    {|df_longer = dataframe([
+  [ts: ymd_hms("2024-01-01 09:00:00"), a: 1, b: 2],
+  [ts: ymd_hms("2024-01-01 10:00:00"), a: 3, b: 4]
+])|}
+    env_dates in
+  let (v, env_dates) =
+    eval_string_env {|result_longer = pivot_longer(df_longer, $a, $b, names_to = "name", values_to = "value"); hour(result_longer.ts)|} env_dates in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[9, 9, 10, 10]" then begin
+    incr pass_count; Printf.printf "  ✓ pivot_longer preserves datetime id columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pivot_longer preserves datetime id columns\n    Expected: Vector[9, 9, 10, 10]\n    Got: %s\n" result
+  end;
+
+  let (_, env_dates) = eval_string_env
+    {|df_fill = dataframe([
+  [d: ymd("2024-01-01")],
+  [d: NA],
+  [d: ymd("2024-01-03")]
+])|}
+    env_dates in
+  let (v, env_dates) = eval_string_env {|result_fill = fill(df_fill, $d); day(result_fill.d)|} env_dates in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1, 1, 3]" then begin
+    incr pass_count; Printf.printf "  ✓ fill propagates date values\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ fill propagates date values\n    Expected: Vector[1, 1, 3]\n    Got: %s\n" result
+  end;
+
+  let (_, env_dates) = eval_string_env
+    {|df_replace = dataframe([
+  [d: ymd("2024-01-01"), ts: ymd_hms("2024-01-01 09:00:00")],
+  [d: NA, ts: NA]
+])|}
+    env_dates in
+  let (v, env_dates) =
+    eval_string_env {|result_replace = replace_na(df_replace, [d: ymd("2024-01-02"), ts: ymd_hms("2024-01-01 10:00:00")]); day(result_replace.d)|} env_dates in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1, 2]" then begin
+    incr pass_count; Printf.printf "  ✓ replace_na fills date columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ replace_na fills date columns\n    Expected: Vector[1, 2]\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env {|hour(result_replace.ts)|} env_dates in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[9, 10]" then begin
+    incr pass_count; Printf.printf "  ✓ replace_na fills datetime columns\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ replace_na fills datetime columns\n    Expected: Vector[9, 10]\n    Got: %s\n" result
+  end;
+
+  print_newline ();
+
   (* Clean up Phase 4 CSV *)
   (try Sys.remove csv_p4 with _ -> ())

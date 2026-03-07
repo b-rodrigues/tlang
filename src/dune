@@ -36,7 +36,9 @@
    t_print t_type args head tail is_error t_seq t_map sum pretty_print packages t_get help string_ops t_boolean t_write_text converters file_ops path_ops
     ; packages/base
     t_assert is_na na error_mod error_utils serialize deserialize t_json
-   ; packages/dataframe
+    ; packages/chrono
+    chrono
+    ; packages/dataframe
    t_read_csv t_write_csv t_read_arrow t_write_arrow t_dataframe colnames nrow ncol clean_colnames glimpse
     ; packages/pipeline
     pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node

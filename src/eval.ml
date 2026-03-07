@@ -83,6 +83,23 @@ let eval_scalar_binop op v1 v2 =
   (* Propagate errors first *)
   | (_, VError _, _) -> v1
   | (_, _, VError _) -> v2
+  | ((Plus | Minus), (VDate _ | VDatetime _), VNA _) -> VNA NAGeneric
+  | ((Plus | Minus), VNA _, (VDate _ | VDatetime _ | VPeriod _)) -> VNA NAGeneric
+  | ((Plus | Minus), (VDate _ | VDatetime _), VPeriod p) ->
+      if op = Plus then Chrono.add_period_to_value v1 p
+      else Chrono.add_period_to_value v1 (Chrono.negate_period p)
+  | (Plus, VPeriod p1, VPeriod p2) ->
+      VPeriod {
+        p_years = p1.p_years + p2.p_years;
+        p_months = p1.p_months + p2.p_months;
+        p_days = p1.p_days + p2.p_days;
+        p_hours = p1.p_hours + p2.p_hours;
+        p_minutes = p1.p_minutes + p2.p_minutes;
+        p_seconds = p1.p_seconds + p2.p_seconds;
+        p_micros = p1.p_micros + p2.p_micros;
+      }
+  | (Minus, (VDate _ | VDatetime _), (VDate _ | VDatetime _)) ->
+      Chrono.date_diff_period v1 v2
   (* Then handle NA *)
   | (_, VNA _, _) | (_, _, VNA _) ->
       Error.type_error "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
@@ -129,21 +146,29 @@ let eval_scalar_binop op v1 v2 =
   | (Lt, VFloat a, VFloat b) -> VBool (a < b)
   | (Lt, VInt a, VFloat b) -> VBool (float_of_int a < b)
   | (Lt, VFloat a, VInt b) -> VBool (a < float_of_int b)
+  | (Lt, VDate a, VDate b) -> VBool (a < b)
+  | (Lt, VDatetime (a, _), VDatetime (b, _)) -> VBool (Int64.compare a b < 0)
 
   | (Gt, VInt a, VInt b) -> VBool (a > b)
   | (Gt, VFloat a, VFloat b) -> VBool (a > b)
   | (Gt, VInt a, VFloat b) -> VBool (float_of_int a > b)
   | (Gt, VFloat a, VInt b) -> VBool (a > float_of_int b)
+  | (Gt, VDate a, VDate b) -> VBool (a > b)
+  | (Gt, VDatetime (a, _), VDatetime (b, _)) -> VBool (Int64.compare a b > 0)
 
   | (LtEq, VInt a, VInt b) -> VBool (a <= b)
   | (LtEq, VFloat a, VFloat b) -> VBool (a <= b)
   | (LtEq, VInt a, VFloat b) -> VBool (float_of_int a <= b)
   | (LtEq, VFloat a, VInt b) -> VBool (a <= float_of_int b)
+  | (LtEq, VDate a, VDate b) -> VBool (a <= b)
+  | (LtEq, VDatetime (a, _), VDatetime (b, _)) -> VBool (Int64.compare a b <= 0)
 
   | (GtEq, VInt a, VInt b) -> VBool (a >= b)
   | (GtEq, VFloat a, VFloat b) -> VBool (a >= b)
   | (GtEq, VInt a, VFloat b) -> VBool (float_of_int a >= b)
   | (GtEq, VFloat a, VInt b) -> VBool (a >= float_of_int b)
+  | (GtEq, VDate a, VDate b) -> VBool (a >= b)
+  | (GtEq, VDatetime (a, _), VDatetime (b, _)) -> VBool (Int64.compare a b >= 0)
 
   (* Boolean / Bitwise *)
   | (BitAnd, VInt a, VInt b) -> VInt (a land b)

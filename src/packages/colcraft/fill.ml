@@ -65,7 +65,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -93,7 +93,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -121,7 +121,7 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -149,7 +149,35 @@ let register env =
                         | Some _ as v -> last := v
                         | None -> b.(i) <- !last
                       done;
-                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) || (direction = "updown" && Array.exists Option.is_none b) then
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
+                      begin
+                        last := None;
+                        for i = orig_nrows - 1 downto 0 do
+                          match b.(i) with
+                          | Some _ as v -> last := v
+                          | None -> b.(i) <- !last
+                        done;
+                        if direction = "updown" then
+                           begin
+                             last := None;
+                             for i = 0 to orig_nrows - 1 do
+                               match b.(i) with
+                               | Some _ as v -> last := v
+                               | None -> b.(i) <- !last
+                             done
+                            end
+                       end;
+                    BoolColumn b
+                | DateColumn a ->
+                    let b = Array.copy a in
+                    let last = ref None in
+                    if direction = "down" || direction = "downup" then
+                      for i = 0 to orig_nrows - 1 do
+                        match b.(i) with
+                        | Some _ as v -> last := v
+                        | None -> b.(i) <- !last
+                      done;
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
                       begin
                         last := None;
                         for i = orig_nrows - 1 downto 0 do
@@ -167,7 +195,35 @@ let register env =
                              done
                            end
                       end;
-                    BoolColumn b
+                    DateColumn b
+                | DatetimeColumn (a, tz) ->
+                    let b = Array.copy a in
+                    let last = ref None in
+                    if direction = "down" || direction = "downup" then
+                      for i = 0 to orig_nrows - 1 do
+                        match b.(i) with
+                        | Some _ as v -> last := v
+                        | None -> b.(i) <- !last
+                      done;
+                    if direction = "up" || direction = "updown" || (direction = "downup" && Array.exists Option.is_none b) then
+                      begin
+                        last := None;
+                        for i = orig_nrows - 1 downto 0 do
+                          match b.(i) with
+                          | Some _ as v -> last := v
+                          | None -> b.(i) <- !last
+                        done;
+                        if direction = "updown" then
+                           begin
+                             last := None;
+                             for i = 0 to orig_nrows - 1 do
+                               match b.(i) with
+                               | Some _ as v -> last := v
+                               | None -> b.(i) <- !last
+                             done
+                           end
+                      end;
+                    DatetimeColumn (b, tz)
                 | DictionaryColumn (a, levels, ordered) ->
                     let b = Array.copy a in
                     let last = ref None in

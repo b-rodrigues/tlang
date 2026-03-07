@@ -83,6 +83,10 @@ let get_value_at (view : column_view) (idx : int) : Ast.value =
       (match a.(idx) with Some b -> Ast.VBool b | None -> Ast.VNA Ast.NABool)
     | Arrow_table.StringColumn a ->
       (match a.(idx) with Some s -> Ast.VString s | None -> Ast.VNA Ast.NAString)
+    | Arrow_table.DateColumn a ->
+      (match a.(idx) with Some d -> Ast.VDate d | None -> Ast.VNA Ast.NADate)
+    | Arrow_table.DatetimeColumn (a, tz) ->
+      (match a.(idx) with Some ts -> Ast.VDatetime (ts, tz) | None -> Ast.VNA Ast.NADate)
     | Arrow_table.NullColumn _ -> Ast.VNA Ast.NAGeneric
     | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       (match a.(idx) with Some i -> Ast.VFactor (i, levels, ordered) | None -> Ast.VNA Ast.NAGeneric)
@@ -105,6 +109,10 @@ let get_slice (view : column_view) (start : int) (len : int) : column_view =
       Arrow_table.BoolColumn (Array.sub a actual_start actual_len)
     | Arrow_table.StringColumn a ->
       Arrow_table.StringColumn (Array.sub a actual_start actual_len)
+    | Arrow_table.DateColumn a ->
+      Arrow_table.DateColumn (Array.sub a actual_start actual_len)
+    | Arrow_table.DatetimeColumn (a, tz) ->
+      Arrow_table.DatetimeColumn (Array.sub a actual_start actual_len, tz)
     | Arrow_table.NullColumn _ ->
       Arrow_table.NullColumn actual_len
     | Arrow_table.DictionaryColumn (a, levels, ordered) ->

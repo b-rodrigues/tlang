@@ -5,7 +5,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|"List"|};
   test "packages count"
     "length(packages())"
-    "8";
+    "9";
   test "package_info stats"
     {|package_info("stats").name|}
     {|"stats"|};

@@ -657,6 +657,34 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (try Sys.remove csv_zerocopy with _ -> ());
 
+  Printf.printf "Arrow Integration — Temporal parsing:\n";
+
+  (match Arrow_io.build_column [| "2024-01-15"; "NA" |] Arrow_table.ArrowDate with
+   | Arrow_table.DateColumn data ->
+       if data.(0) = Some (Chrono.days_from_civil 2024 1 15) && data.(1) = None then begin
+         incr pass_count; Printf.printf "  ✓ build_column parses ArrowDate values\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ build_column ArrowDate data mismatch\n"
+       end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ build_column ArrowDate returned wrong column type\n");
+
+  (match Arrow_io.build_column
+           [| "2024-01-15T09:30:00.123456"; "NA" |]
+           (Arrow_table.ArrowTimestamp (Some "UTC")) with
+   | Arrow_table.DatetimeColumn (data, tz) ->
+       if data.(0) = Some (Chrono.datetime_of_components 2024 1 15 9 30 0 123456)
+          && data.(1) = None
+          && tz = Some "UTC" then begin
+         incr pass_count; Printf.printf "  ✓ build_column parses ArrowTimestamp values\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ build_column ArrowTimestamp data mismatch\n"
+       end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ build_column ArrowTimestamp returned wrong column type\n");
+
+  print_newline ();
+
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
   print_newline ()

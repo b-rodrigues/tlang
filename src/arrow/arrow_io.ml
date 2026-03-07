@@ -84,6 +84,27 @@ let infer_column_type (values : string list) : Arrow_table.arrow_type =
         if all_bool then Arrow_table.ArrowBoolean
         else Arrow_table.ArrowString
 
+let parse_date_value (s : string) : int option =
+  match Chrono.parse_custom_format `Date (String.trim s) "%Y-%m-%d" None with
+  | Some (Ast.VDate days) -> Some days
+  | _ -> None
+
+let parse_datetime_value (s : string) (tz : string option) : int64 option =
+  let trimmed = String.trim s in
+  let rec try_formats = function
+    | [] -> None
+    | fmt :: rest ->
+        match Chrono.parse_custom_format `Datetime trimmed fmt tz with
+        | Some (Ast.VDatetime (micros, _)) -> Some micros
+        | _ -> try_formats rest
+  in
+  try_formats [
+    "%Y-%m-%dT%H:%M:%S";
+    "%Y-%m-%d %H:%M:%S";
+    "%Y-%m-%dT%H:%M:%SZ";
+    "%Y-%m-%d %H:%M:%SZ";
+  ]
+
 (** Build a typed Arrow column from raw strings *)
 let build_column (values : string array) (col_type : Arrow_table.arrow_type) : Arrow_table.column_data =
   match col_type with
@@ -107,6 +128,16 @@ let build_column (values : string array) (col_type : Arrow_table.arrow_type) : A
         if is_na_string s then None
         else Some (String.trim s)
       ) values)
+  | Arrow_table.ArrowDate ->
+      Arrow_table.DateColumn (Array.map (fun s ->
+        if is_na_string s then None
+        else parse_date_value s
+      ) values)
+  | Arrow_table.ArrowTimestamp tz ->
+      Arrow_table.DatetimeColumn (Array.map (fun s ->
+        if is_na_string s then None
+        else parse_datetime_value s tz
+      ) values, tz)
   | Arrow_table.ArrowNull ->
       Arrow_table.NullColumn (Array.length values)
   | Arrow_table.ArrowDictionary | Arrow_table.ArrowList _ | Arrow_table.ArrowStruct _ ->

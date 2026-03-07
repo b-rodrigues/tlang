@@ -65,15 +65,17 @@ let register env =
           
           (* Find unique rows across id_cols using structured value keys to avoid collisions *)
           let get_row_key i =
-            List.map (fun c ->
-              match Arrow_table.get_column df.arrow_table c with
-              | Some (StringColumn a) -> (match a.(i) with Some s -> VString s | None -> VNull)
-              | Some (FloatColumn a) -> (match a.(i) with Some f -> VFloat f | None -> VNull)
-              | Some (IntColumn a) -> (match a.(i) with Some v -> VInt v | None -> VNull)
-              | Some (BoolColumn a) -> (match a.(i) with Some b -> VBool b | None -> VNull)
-              | _ -> VNull
-            ) id_cols
-          in
+             List.map (fun c ->
+               match Arrow_table.get_column df.arrow_table c with
+               | Some (StringColumn a) -> (match a.(i) with Some s -> VString s | None -> VNull)
+               | Some (FloatColumn a) -> (match a.(i) with Some f -> VFloat f | None -> VNull)
+               | Some (IntColumn a) -> (match a.(i) with Some v -> VInt v | None -> VNull)
+               | Some (BoolColumn a) -> (match a.(i) with Some b -> VBool b | None -> VNull)
+               | Some (DateColumn a) -> (match a.(i) with Some d -> VDate d | None -> VNull)
+               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some ts -> VDatetime (ts, tz) | None -> VNull)
+               | _ -> VNull
+             ) id_cols
+           in
           
           let row_groups = Hashtbl.create orig_nrows in
           let row_keys = ref [] in
@@ -107,15 +109,17 @@ let register env =
               | None -> NullColumn orig_nrows
             in
             let first_idx key = Hashtbl.find first_index_tbl key in
-            let rep_col = match col_data with
-              | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-              | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-              | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-              | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-              | NullColumn _ -> NullColumn new_nrows
-              | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))), levels, ordered)
-              | ListColumn a -> ListColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-            in
+             let rep_col = match col_data with
+               | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+               | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+               | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+               | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+               | DateColumn a -> DateColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+               | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))), tz)
+               | NullColumn _ -> NullColumn new_nrows
+               | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))), levels, ordered)
+               | ListColumn a -> ListColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+             in
             (col_name, rep_col)
           ) id_cols in
           

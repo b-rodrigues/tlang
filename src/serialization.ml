@@ -175,12 +175,37 @@ let json_dict pairs =
   ) pairs)) ^
   "\n}"
 
+let json_date_string days =
+  let year, month, day = Chrono.civil_from_days days in
+  Printf.sprintf "%04d-%02d-%02d" year month day
+
+let json_datetime_string micros tz =
+  let year, month, day, hour, minute, second, micros_part =
+    Chrono.split_datetime_micros micros
+  in
+  let base =
+    Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d"
+      year month day hour minute second
+  in
+  let frac =
+    if micros_part = 0 then ""
+    else Printf.sprintf ".%06d" micros_part
+  in
+  let tz_suffix =
+    match tz with
+    | Some name when name <> "" -> "Z[" ^ name ^ "]"
+    | _ -> "Z"
+  in
+  base ^ frac ^ tz_suffix
+
 let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   match v with
   | VInt i -> `Int i
   | VFloat f -> `Float f
   | VBool b -> `Bool b
   | VString s -> `String s
+  | VDate days -> `String (json_date_string days)
+  | VDatetime (micros, tz) -> `String (json_datetime_string micros tz)
   | VNull -> `Null
   | VList items -> `List (List.map (fun (_, v) -> value_to_yojson v) items)
   | VDict pairs -> `Assoc (List.map (fun (k, v) -> (k, value_to_yojson v)) pairs)
@@ -212,6 +237,27 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   | VShellResult { sr_stdout; _ } ->
       (* Serialize shell result as its stdout string *)
       `String sr_stdout
+  | VPeriod p ->
+      `Assoc [
+        ("years", `Int p.p_years);
+        ("months", `Int p.p_months);
+        ("days", `Int p.p_days);
+        ("hours", `Int p.p_hours);
+        ("minutes", `Int p.p_minutes);
+        ("seconds", `Int p.p_seconds);
+        ("micros", `Int p.p_micros);
+      ]
+  | VDuration seconds ->
+      `Float seconds
+  | VInterval iv ->
+      `Assoc [
+        ("start", `String (json_datetime_string iv.iv_start iv.iv_tz));
+        ("end", `String (json_datetime_string iv.iv_end iv.iv_tz));
+        ("timezone",
+         (match iv.iv_tz with
+          | Some tz -> `String tz
+          | None -> `Null));
+      ]
   | VFactor _ ->
       invalid_arg "value_to_yojson: VFactor is not supported for JSON serialization"
 
