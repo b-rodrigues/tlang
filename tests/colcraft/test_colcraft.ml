@@ -391,9 +391,9 @@ df |> filter($age > 25)
   let env_complete = Packages.init_env () in
   let (_, env_complete) = eval_string_env
     {|df_dates = dataframe([
-  {group: "a", d: ymd("2024-01-01"), value: 1},
-  {group: "a", d: ymd("2024-01-02"), value: 2},
-  {group: "b", d: ymd("2024-01-01"), value: 3}
+  [group: "a", d: ymd("2024-01-01"), value: 1],
+  [group: "a", d: ymd("2024-01-02"), value: 2],
+  [group: "b", d: ymd("2024-01-01"), value: 3]
 ])|}
     env_complete in
 
@@ -424,9 +424,9 @@ df |> filter($age > 25)
 
   let (_, env_complete) = eval_string_env
     {|df_datetimes = dataframe([
-  {group: "a", ts: ymd_hms("2024-01-01 09:00:00"), value: 1},
-  {group: "a", ts: ymd_hms("2024-01-01 10:00:00"), value: 3},
-  {group: "b", ts: ymd_hms("2024-01-01 09:00:00"), value: 2}
+  [group: "a", ts: ymd_hms("2024-01-01 09:00:00"), value: 1],
+  [group: "a", ts: ymd_hms("2024-01-01 10:00:00"), value: 3],
+  [group: "b", ts: ymd_hms("2024-01-01 09:00:00"), value: 2]
 ])|}
     env_complete in
 
@@ -462,10 +462,10 @@ df |> filter($age > 25)
   let env_dates = Packages.init_env () in
   let (_, env_dates) = eval_string_env
     {|df_wider = dataframe([
-  {d: ymd("2024-01-01"), name: "x", score: 1},
-  {d: ymd("2024-01-01"), name: "y", score: 2},
-  {d: ymd("2024-01-02"), name: "x", score: 3},
-  {d: ymd("2024-01-02"), name: "y", score: 4}
+  [d: ymd("2024-01-01"), name: "x", score: 1],
+  [d: ymd("2024-01-01"), name: "y", score: 2],
+  [d: ymd("2024-01-02"), name: "x", score: 3],
+  [d: ymd("2024-01-02"), name: "y", score: 4]
 ])|}
     env_dates in
   let (v, env_dates) =
@@ -479,8 +479,8 @@ df |> filter($age > 25)
 
   let (_, env_dates) = eval_string_env
     {|df_longer = dataframe([
-  {ts: ymd_hms("2024-01-01 09:00:00"), a: 1, b: 2},
-  {ts: ymd_hms("2024-01-01 10:00:00"), a: 3, b: 4}
+  [ts: ymd_hms("2024-01-01 09:00:00"), a: 1, b: 2],
+  [ts: ymd_hms("2024-01-01 10:00:00"), a: 3, b: 4]
 ])|}
     env_dates in
   let (v, env_dates) =
@@ -494,9 +494,9 @@ df |> filter($age > 25)
 
   let (_, env_dates) = eval_string_env
     {|df_fill = dataframe([
-  {d: ymd("2024-01-01")},
-  {d: NA},
-  {d: ymd("2024-01-03")}
+  [d: ymd("2024-01-01")],
+  [d: NA],
+  [d: ymd("2024-01-03")]
 ])|}
     env_dates in
   let (v, env_dates) = eval_string_env {|result_fill = fill(df_fill, $d); day(result_fill.d)|} env_dates in
@@ -509,8 +509,8 @@ df |> filter($age > 25)
 
   let (_, env_dates) = eval_string_env
     {|df_replace = dataframe([
-  {d: ymd("2024-01-01"), ts: ymd_hms("2024-01-01 09:00:00")},
-  {d: NA, ts: NA}
+  [d: ymd("2024-01-01"), ts: ymd_hms("2024-01-01 09:00:00")],
+  [d: NA, ts: NA]
 ])|}
     env_dates in
   let (v, env_dates) =
