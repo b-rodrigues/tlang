@@ -16,6 +16,23 @@ save_output <- function(df, name, operation) {
                   operation, name, nrow(df), ncol(df)))
 }
 
+add_month_clamped <- function(x, n = 1L) {
+  lt <- as.POSIXlt(x, tz = "UTC")
+  year <- lt$year + 1900L
+  month <- lt$mon + 1L
+  day <- lt$mday
+
+  month_index <- year * 12L + (month - 1L) + as.integer(n)
+  new_year <- month_index %/% 12L
+  new_month <- month_index %% 12L + 1L
+
+  first_of_target <- as.Date(sprintf("%04d-%02d-01", new_year, new_month))
+  first_of_following <- seq(first_of_target, by = "month", length.out = 2)[2]
+  last_day <- as.integer(format(first_of_following - 1, "%d"))
+
+  as.Date(sprintf("%04d-%02d-%02d", new_year, new_month, min(day, last_day)))
+}
+
 message("=== CHRONO Tests ===")
 
 component_df <- tibble(
@@ -37,7 +54,7 @@ component_df <- tibble(
     quarter_num = ((month_num - 1) %/% 3) + 1L,
     next_month_fmt = vapply(
       d,
-      function(x) format(seq(x, by = "month", length.out = 2)[2], "%Y-%m-%d"),
+      function(x) format(add_month_clamped(x), "%Y-%m-%d"),
       character(1)
     ),
     custom_fmt = format(custom, "%Y-%m-%d"),
