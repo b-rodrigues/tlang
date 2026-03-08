@@ -541,7 +541,7 @@ let shift_floor_datetime unit micros tz delta =
   | _ -> VDatetime (micros, tz)
 
 let next_datetime_boundary unit micros tz =
-  let year, month, day, hour, minute, second, _ = split_datetime_micros micros in
+  let year, month, _, _, _, _, _ = split_datetime_micros micros in
   match unit with
   | "second" -> shift_floor_datetime unit micros tz micros_per_second
   | "minute" -> shift_floor_datetime unit micros tz micros_per_minute
@@ -555,7 +555,7 @@ let next_datetime_boundary unit micros tz =
   | _ -> VDatetime (micros, tz)
 
 let floor_date_unit unit days =
-  let year, month, day = civil_from_days days in
+  let year, month, _ = civil_from_days days in
   match unit with
   | "day" -> VDate days
   | "month" -> VDate (days_from_civil year month 1)
@@ -710,7 +710,7 @@ let rec days_in_month_impl args _env =
       Error.type_error "Function `days_in_month` expects (Int, Int) or a Date/Datetime."
   | [_; _] ->
       Error.type_error "Function `days_in_month` expects (Int, Int) or a Date/Datetime."
-  | values ->
+  | _ ->
       Error.make_error ArityError "Function `days_in_month` expects either 1 or 2 arguments."
 
 let interval_impl args _env =
