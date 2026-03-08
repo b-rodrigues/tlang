@@ -11,6 +11,16 @@ let metadata_key = "__tlang_internal_import_origins__"
 let is_internal_key name =
   name = metadata_key
 
+let startup_rename_warning_message () =
+  String.concat "\n"
+    [ "Warning: package function names may be renamed to avoid silent conflicts."
+    ; "  - If an imported package conflicts with a built-in function, T keeps the built-in name"
+    ; "    and renames the imported function to <package>_<function>."
+    ; "  - If two imported user packages conflict, both functions are renamed to"
+    ; "    <package>_<function>."
+    ; "These renames prevent one package from silently overwriting another."
+    ]
+
 let origin_to_string = function
   | Builtin -> "B"
   | ImportedPackage pkg -> "P" ^ pkg

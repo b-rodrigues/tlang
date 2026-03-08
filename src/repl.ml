@@ -409,16 +409,17 @@ let cmd_repl mode env =
       Printf.eprintf "Nix not found! Install Nix to use T!\n";
       exit 1
   | Some nix_version ->
-  Printf.printf "T, a reproducibility-first programming language for declarative\n";
-  Printf.printf "data manipulation and statistical analysis.\n";
-  Printf.printf "Version %s using Nix %s\n" version nix_version;
-  Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
-  Printf.printf "This software is in alpha and is entirely LLM-generated — caveat emptor.\n";
-  Printf.printf "Website: https://tstats-project.org\n";
-  Printf.printf "Contributions are welcome!\n";
-  Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
-  
-  (* Try to load documentation *)
+      Printf.printf "T, a reproducibility-first programming language for declarative\n";
+      Printf.printf "data manipulation and statistical analysis.\n";
+      Printf.printf "Version %s using Nix %s\n" version nix_version;
+      Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
+      Printf.printf "This software is in alpha and is entirely LLM-generated — caveat emptor.\n";
+      Printf.printf "Website: https://tstats-project.org\n";
+      Printf.printf "Contributions are welcome!\n";
+      Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
+      Printf.printf "%s\n\n" (Import_registry.startup_rename_warning_message ());
+
+      (* Try to load documentation *)
   let docs_path = "help/docs.json" in
   if Sys.file_exists docs_path then begin
     Tdoc_registry.load_from_json docs_path
