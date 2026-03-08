@@ -1456,10 +1456,18 @@ and eval_call env_ref fn_val raw_args =
       (match Env.find_opt s !env_ref with
        | Some fn -> eval_call env_ref fn raw_args
        | None ->
-         let names = List.map fst (Env.bindings !env_ref) in
-         match Ast.suggest_name s names with
-           | Some suggestion -> Error.name_error_with_suggestion s suggestion
-           | None -> Error.name_error s)
+           (* Special case: symbols starting with $ are column references.
+              Wrap them in a row-accessor lambda so they are callable by verbs (NSE). *)
+           if String.length s > 0 && s.[0] = '$' then
+             let field = String.sub s 1 (String.length s - 1) in
+             let fn = VLambda { params = ["row"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
+                                body = DotAccess { target = Var "row"; field }; env = Some !env_ref } in
+             eval_call env_ref fn raw_args
+           else
+             let names = List.map fst (Env.bindings !env_ref) in
+             match Ast.suggest_name s names with
+               | Some suggestion -> Error.name_error_with_suggestion s suggestion
+               | None -> Error.name_error s)
 
   (* Propagate the original error — the caller tried to invoke an error
      value as a function.  We keep the original error (not a generic
