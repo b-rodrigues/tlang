@@ -31,6 +31,16 @@
  (libraries t_lang menhirLib otoml unix str)
 )
 
+(executable
+ (name test_arrow_native_runner)
+ (modules
+   test_arrow_native_runner
+   test_arrow_integration
+   test_arrow_performance
+ )
+ (libraries t_lang menhirLib otoml unix str)
+)
+
 (rule
  (target docs.json)
  (deps ../help/docs.json)

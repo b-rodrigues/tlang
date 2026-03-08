@@ -4,6 +4,22 @@
 (* at various dataset sizes (10k, 100k, 1M rows).                       *)
 (* Validates correctness and measures execution time.                    *)
 
+let env_flag name =
+  match Sys.getenv_opt name with
+  | Some ("1" | "true" | "yes" | "on") -> true
+  | _ -> false
+
+let require_native_arrow = env_flag "TLANG_REQUIRE_ARROW_NATIVE"
+
+let pass_or_fail_native_requirement pass_count fail_count message =
+  if require_native_arrow then begin
+    incr fail_count;
+    Printf.printf "  ✗ %s\n" message
+  end else begin
+    incr pass_count;
+    Printf.printf "  ✓ %s\n" message
+  end
+
 (** Generate a test table with n rows and 3 numeric columns + 1 string group column.
     Columns: id (int), value (float), group (string), extra (float) *)
 let generate_test_table (n : int) (n_groups : int) : Arrow_table.t =
@@ -31,7 +47,58 @@ let time_it (f : unit -> 'a) : float * 'a =
   let t1 = Sys.time () in
   (t1 -. t0, result)
 
+let with_temp_native_csv rows f =
+  let path = Filename.temp_file "tlang_arrow_native_perf_" ".csv" in
+  let oc = open_out path in
+  output_string oc "id,value,group\n";
+  for i = 0 to rows - 1 do
+    Printf.fprintf oc "%d,%.1f,group_%d\n" (i + 1) (float_of_int (i mod 100) +. 0.5) (i mod 100)
+  done;
+  close_out oc;
+  Fun.protect
+    ~finally:(fun () -> try Sys.remove path with Sys_error _ -> ())
+    (fun () -> f path)
+
 let run_tests pass_count fail_count _eval_string _eval_string_env _test =
+  Printf.printf "Arrow Performance — Native Backend Smoke:\n";
+
+  with_temp_native_csv 10000 (fun path ->
+    match Arrow_io.read_csv path with
+    | Ok tbl ->
+      (match tbl.native_handle with
+       | Some _ ->
+         incr pass_count; Printf.printf "  ✓ Native CSV read retained Arrow handle\n";
+         (match Arrow_column.get_column tbl "value" with
+          | Some col_view ->
+            (match Arrow_column.zero_copy_view col_view with
+             | Some (Arrow_column.FloatView _) ->
+               incr pass_count; Printf.printf "  ✓ Native float column exposes zero-copy view\n"
+             | Some (Arrow_column.IntView _) ->
+               incr fail_count; Printf.printf "  ✗ Native float column returned IntView\n"
+             | None ->
+               pass_or_fail_native_requirement pass_count fail_count
+                 "native float zero-copy benchmark smoke is unavailable")
+          | None ->
+            incr fail_count; Printf.printf "  ✗ Missing `value` column in native benchmark smoke table\n");
+         let (t_sum_native, native_sum) =
+           time_it (fun () -> Arrow_compute.sum_column tbl "value")
+         in
+         (match native_sum with
+          | Some sum when sum > 0.0 ->
+            incr pass_count;
+            Printf.printf "  ✓ Native sum benchmark smoke completed in %.4fs (sum=%.1f)\n"
+              t_sum_native sum
+          | _ ->
+            incr fail_count;
+            Printf.printf "  ✗ Native sum benchmark smoke failed\n")
+       | None ->
+         pass_or_fail_native_requirement pass_count fail_count
+           "CSV benchmark smoke fell back to pure OCaml storage")
+    | Error msg ->
+      pass_or_fail_native_requirement pass_count fail_count
+        (Printf.sprintf "native CSV benchmark smoke failed: %s" msg));
+  print_newline ();
+
   Printf.printf "Arrow Performance — Column View Access:\n";
 
   (* Test 1: Column view creation on 10k rows *)
