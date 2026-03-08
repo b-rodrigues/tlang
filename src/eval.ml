@@ -485,6 +485,26 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              | _ ->
                  Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
       in
+      let lookup_runtime_args () =
+        let rec is_arg_value = function
+          | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
+          | VList items -> List.for_all (fun (_, v) -> is_arg_value v) items
+          | _ -> false
+        in
+        match List.assoc_opt (Some "args") args with
+        | None -> Ok []
+        | Some e ->
+            (match eval_expr env_ref e with
+             | VDict pairs ->
+                  (match List.find_opt (fun (_, v) -> not (is_arg_value v)) pairs with
+                   | None -> Ok pairs
+                   | Some (key, _) ->
+                       Error (Error.type_error
+                                (Printf.sprintf "Function `%s` expects runtime arg `%s` to be a String, Symbol, Int, Float, Bool, Null, or List of those values." fn_name key)))
+             | VNull -> Ok []
+             | _ ->
+                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict." fn_name)))
+      in
       let lookup_list name =
         match List.assoc_opt (Some name) args with
         | Some (ListLit items) -> List.map snd items
@@ -499,8 +519,8 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         match eval_expr env_ref (lookup_arg name (Value (VBool default))) with
         | VBool b -> b | _ -> default
       in
-      (* Evaluate the optional script argument — must be a string path to a .R or .py file *)
-      let script_path_opt =
+      (* Evaluate the optional script argument — must be a string path to a .R, .py, or .qmd file *)
+      let explicit_script_path_opt =
         match List.assoc_opt (Some "script") args with
         | Some e ->
             (match eval_expr env_ref e with
@@ -510,78 +530,97 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         | None -> None
       in
       let command = lookup_arg "command" (Value VNull) in
-      (* Validate: cannot use both 'command' and 'script' simultaneously *)
-      let has_command = command <> Value VNull in
-      if has_command && script_path_opt <> None then
-        Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
-      else
-        let default_runtime = match call with
-          | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
-          | Call { fn = Var "rn"; _ } -> "R"
-          | _ -> "T"
-        in
-      (* Auto-detect runtime from script extension when not explicitly given *)
-      let runtime =
-        let explicit = eval_string "runtime" "" in
-        if explicit <> "" then explicit
-        else match script_path_opt with
-          | Some path when Filename.check_suffix path ".R" -> "R"
-          | Some path when Filename.check_suffix path ".py" -> "Python"
-          | _ -> default_runtime
-      in
-      (* For script-based nodes, build un_command as a RawCode placeholder so that
-         free_vars analysis can detect pipeline dependencies from the script's identifiers. *)
-      let un_command, un_script =
-        match script_path_opt with
-        | Some path ->
-            let ids =
-              try
-                let ic = open_in path in
-                let content =
-                  Fun.protect ~finally:(fun () -> close_in ic) (fun () ->
-                    let n = in_channel_length ic in
-                    let buf = Bytes.create n in
-                    really_input ic buf 0 n;
-                    Bytes.to_string buf)
-                in
-                Ast.extract_identifiers content
-              with Sys_error _ | End_of_file -> []
+      (match lookup_env_vars (), lookup_runtime_args () with
+      | Error err, _ | _, Error err -> err
+      | Ok un_env_vars, Ok un_args ->
+          let arg_path_opt =
+            let find_path key =
+              match List.assoc_opt key un_args with
+              | Some (VString s) -> Some s
+              | Some (VSymbol s) -> Some s
+              | _ -> None
             in
-            (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
-        | None -> (command, None)
-      in
-      (match lookup_env_vars () with
-      | Error err -> err
-      | Ok un_env_vars ->
-          if runtime <> "T" then
-            match un_command with
-            | RawCode _ ->
+            List.find_map find_path [ "path"; "file"; "qmd_file"; "input" ]
+          in
+          let has_command = command <> Value VNull in
+          let execution_path_opt =
+            match explicit_script_path_opt with
+            | Some _ as s -> s
+            | None -> if has_command then None else arg_path_opt
+          in
+          if has_command && explicit_script_path_opt <> None then
+            Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
+          else
+            let default_runtime = match call with
+              | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
+              | Call { fn = Var "rn"; _ } -> "R"
+              | _ -> "T"
+            in
+            (* Auto-detect runtime from script/arg extension only if not explicit *)
+            let runtime =
+              let explicit = eval_string "runtime" "" in
+              if explicit <> "" then explicit
+              else match explicit_script_path_opt with
+                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | _ -> default_runtime)
+                | None -> (match arg_path_opt with
+                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | _ -> default_runtime)
+                    | _ -> default_runtime)
+            in
+            if has_command && runtime = "Quarto" then
+              Error.make_error TypeError "Quarto nodes require a script and do not support inlined `command` blocks."
+            else
+              let un_command, un_script =
+                match execution_path_opt with
+                | Some path ->
+                    let ids = try
+                      let ic = open_in path in
+                      let content = Fun.protect ~finally:(fun () -> close_in ic) (fun () ->
+                        let n = in_channel_length ic in
+                        let buf = Bytes.create n in
+                        really_input ic buf 0 n;
+                        Bytes.to_string buf)
+                      in Ast.extract_identifiers content
+                    with Sys_error _ | End_of_file -> []
+                    in (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
+                | None -> (command, None)
+              in
+              let base_includes = lookup_list "includes" in
+              let un_includes =
+                match arg_path_opt with
+                | Some p when has_command ->
+                    let already_included = List.exists (function Value (VString s) | Value (VSymbol s) -> s = p | _ -> false) base_includes in
+                    if already_included then base_includes else base_includes @ [Value (VString p)]
+                | _ -> base_includes
+              in
+              if runtime = "Quarto" && un_script = None then
+                Error.make_error TypeError
+                  "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
+              else if runtime <> "T" && runtime <> "Quarto" then
+                match un_command with
+                | RawCode _ ->
+                    VNode {
+                      un_command; un_script; un_runtime = runtime;
+                      un_serializer = lookup_arg "serializer" (Var "default");
+                      un_deserializer = lookup_arg "deserializer" (Var "default");
+                      un_env_vars; un_args;
+                      un_functions = lookup_list "functions";
+                      un_includes;
+                      un_noop = eval_bool "noop" false;
+                    }
+                | _ ->
+                    let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, or .qmd file." runtime in
+                    Error.make_error TypeError msg
+              else
                 VNode {
-                  un_command;
-                  un_script;
-                  un_runtime = runtime;
+                  un_command; un_script; un_runtime = runtime;
                   un_serializer = lookup_arg "serializer" (Var "default");
                   un_deserializer = lookup_arg "deserializer" (Var "default");
-                  un_env_vars;
+                  un_env_vars; un_args;
                   un_functions = lookup_list "functions";
-                  un_includes = lookup_list "includes";
+                  un_includes;
                   un_noop = eval_bool "noop" false;
                 }
-            | _ ->
-                let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R or .py file." runtime in
-                Error.make_error TypeError msg
-          else
-            VNode {
-              un_command;
-              un_script;
-              un_runtime = runtime;
-              un_serializer = lookup_arg "serializer" (Var "default");
-              un_deserializer = lookup_arg "deserializer" (Var "default");
-              un_env_vars;
-              un_functions = lookup_list "functions";
-              un_includes = lookup_list "includes";
-              un_noop = eval_bool "noop" false;
-            })
+)
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args
@@ -594,7 +633,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env_ref e)) pairs)
   | DotAccess { target; field } -> eval_dot_access env_ref target field
   | RawCode _ ->
-      make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated in T. They are only valid inside `node(command = ..., runtime = T|R|Python|Julia)`."
+      make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated directly in T. Use them only in `node(command = ..., runtime = R|Python|Julia)`-style foreign-runtime nodes. Quarto nodes work differently: they require a `.qmd` script and do not support raw code blocks."
   | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
   | Block stmts -> eval_block env_ref stmts
   | PipelineDef nodes -> eval_pipeline env_ref nodes
@@ -715,6 +754,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     un_serializer = Var "default";
     un_deserializer = Var "default";
     un_env_vars = [];
+    un_args = [];
     un_functions = [];
     un_includes = [];
     un_noop = false;
@@ -742,6 +782,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             un_serializer = Value (VString cn.cn_serializer);
             un_deserializer = Var "default";
             un_env_vars = [];
+            un_args = [];
             un_functions = [];
             un_includes = [];
             un_noop = false;
@@ -819,7 +860,10 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     let my_deps = List.assoc name deps in
     let offenders = List.filter (fun dname ->
       match List.assoc_opt dname runtime_mapping with
-      | Some dep_runtime -> dep_runtime <> my_runtime && un.un_deserializer = Var "default"
+      | Some dep_runtime -> 
+          dep_runtime <> my_runtime && 
+          my_runtime <> "Quarto" && 
+          un.un_deserializer = Var "default"
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in
     if offenders <> [] then
@@ -938,6 +982,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       p_serializers = List.map (fun (name, un) -> (name, un.un_serializer)) desugared_nodes;
       p_deserializers = List.map (fun (name, un) -> (name, un.un_deserializer)) desugared_nodes;
       p_env_vars = List.map (fun (name, un) -> (name, un.un_env_vars)) desugared_nodes;
+      p_args = List.map (fun (name, un) -> (name, un.un_args)) desugared_nodes;
       p_functions = List.map (fun (name, un) -> (name, un.un_functions)) desugared_nodes;
       p_includes = List.map (fun (name, un) -> (name, un.un_includes)) desugared_nodes;
       p_noops = List.map (fun (name, un) -> (name, un.un_noop)) desugared_nodes;
@@ -955,6 +1000,7 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
       un_serializer = List.assoc name prev.p_serializers;
       un_deserializer = List.assoc name prev.p_deserializers;
       un_env_vars = (match List.assoc_opt name prev.p_env_vars with Some vars -> vars | None -> []);
+      un_args = (match List.assoc_opt name prev.p_args with Some runtime_args -> runtime_args | None -> []);
       un_functions = List.assoc name prev.p_functions;
       un_includes = List.assoc name prev.p_includes;
       un_noop = List.assoc name prev.p_noops;
@@ -1285,6 +1331,7 @@ and eval_dot_access env_ref target_expr field =
       | "path" -> VString "<unbuilt>"
       | "serializer" -> VString (Nix_unparse.unparse_expr un.un_serializer)
       | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
+      | "args" -> VDict un.un_args
       | "noop" -> VBool un.un_noop
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
   | VShellResult sr ->

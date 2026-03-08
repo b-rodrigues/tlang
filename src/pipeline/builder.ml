@@ -6,3 +6,4 @@ include Builder_internal
 include Builder_populate
 include Builder_inspect
 include Builder_read_node
+include Builder_copy

@@ -1,0 +1,100 @@
+name: Quarto Runtime E2E
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  quarto-e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v13
+      with:
+        name: rstats-on-nix
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        skipPush: true
+
+    - name: Initialize and Run Quarto Pipeline
+      env:
+        TLANG_FLAKE_URL: git+file://${{ github.workspace }}
+      run: |
+        # 1. Build T from current commit
+        nix build .#default --accept-flake-config
+        TLANG_BIN=$(pwd)/result/bin/t
+        
+        # 2. Create a clean workspace
+        cd ..
+        mkdir quarto_test_workspace
+        cd quarto_test_workspace
+        
+        # 3. Initialize a new project
+        $TLANG_BIN init project my_quarto_project --no-git
+        cd my_quarto_project
+        
+        # 4. Configure Project
+        printf '%s\n' \
+          '[project]' \
+          'name = "my_quarto_project"' \
+          '' \
+          '[r-dependencies]' \
+          'packages = ["jsonlite"]' \
+          '' \
+          '[additional-tools]' \
+          'packages = ["quarto", "which"]' \
+          > tproject.toml
+        
+        # 5. Sync dependencies
+        $TLANG_BIN update
+        
+        # 6. Prepare Files
+        mkdir -p tests/pipeline
+        cp ${{ github.workspace }}/tests/pipeline/test_quarto.qmd tests/pipeline/
+        cp ${{ github.workspace }}/tests/pipeline/test_quarto.t .
+        
+        # 7. Run the pipeline (this also runs pipeline_copy() at the end)
+        nix develop --accept-flake-config --command $TLANG_BIN run test_quarto.t
+        
+        # 8. Verify the local copy exists and post to summary
+        echo "### Quarto Render Result" >> $GITHUB_STEP_SUMMARY
+        
+        REPORT_FILE="pipeline-output/report/artifact/test_quarto.html"
+        if [ -f "$REPORT_FILE" ]; then
+          echo "Successfully copied report to local directory: \`$REPORT_FILE\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Rendered HTML Preview:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`html" >> $GITHUB_STEP_SUMMARY
+          cat "$REPORT_FILE" | head -n 50 >> $GITHUB_STEP_SUMMARY
+          echo "..." >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          
+          # Verify the store path substitution happened
+          if grep -q "/nix/store/.*-data/artifact" "$REPORT_FILE"; then
+            echo "✅ **Verification Success**: \`read_node(\"data\")\` was correctly substituted with the Nix store path." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Verification Failure**: Store path not found in output HTML." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+        else
+          echo "❌ **Error**: \`pipeline-output/report/artifact/test_quarto.html\` not found." >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi

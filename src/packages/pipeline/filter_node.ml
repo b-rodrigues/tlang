@@ -48,6 +48,7 @@ let register ~eval_call env =
             p_serializers  = List.filter (fun (n, _) -> keep_set n) p.p_serializers;
             p_deserializers = List.filter (fun (n, _) -> keep_set n) p.p_deserializers;
             p_env_vars     = List.filter (fun (n, _) -> keep_set n) p.p_env_vars;
+            p_args         = List.filter (fun (n, _) -> keep_set n) p.p_args;
             p_functions    = List.filter (fun (n, _) -> keep_set n) p.p_functions;
             p_includes     = List.filter (fun (n, _) -> keep_set n) p.p_includes;
             p_noops        = List.filter (fun (n, _) -> keep_set n) p.p_noops;

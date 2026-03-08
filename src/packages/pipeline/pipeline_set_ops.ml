@@ -14,6 +14,7 @@ let filter_pipeline (names : string list) (p : pipeline_result) : pipeline_resul
     p_serializers  = List.filter (fun (n, _) -> keep n) p.p_serializers;
     p_deserializers = List.filter (fun (n, _) -> keep n) p.p_deserializers;
     p_env_vars     = List.filter (fun (n, _) -> keep n) p.p_env_vars;
+    p_args         = List.filter (fun (n, _) -> keep n) p.p_args;
     p_functions    = List.filter (fun (n, _) -> keep n) p.p_functions;
     p_includes     = List.filter (fun (n, _) -> keep n) p.p_includes;
     p_noops        = List.filter (fun (n, _) -> keep n) p.p_noops;
@@ -71,14 +72,15 @@ let register env =
               p_exprs        = merge_new p1.p_exprs p2.p_exprs;
               p_deps         = merge_new p1.p_deps p2.p_deps;
               p_imports      = p1.p_imports @ p2.p_imports;
-              p_runtimes     = merge_new p1.p_runtimes p2.p_runtimes;
-              p_serializers  = merge_new p1.p_serializers p2.p_serializers;
-              p_deserializers = merge_new p1.p_deserializers p2.p_deserializers;
-              p_env_vars     = merge_new p1.p_env_vars p2.p_env_vars;
-              p_functions    = merge_new p1.p_functions p2.p_functions;
-              p_includes     = merge_new p1.p_includes p2.p_includes;
-              p_noops        = merge_new p1.p_noops p2.p_noops;
-              p_scripts      = merge_new p1.p_scripts p2.p_scripts;
+               p_runtimes     = merge_new p1.p_runtimes p2.p_runtimes;
+               p_serializers  = merge_new p1.p_serializers p2.p_serializers;
+               p_deserializers = merge_new p1.p_deserializers p2.p_deserializers;
+               p_env_vars     = merge_new p1.p_env_vars p2.p_env_vars;
+               p_args         = merge_new p1.p_args p2.p_args;
+               p_functions    = merge_new p1.p_functions p2.p_functions;
+               p_includes     = merge_new p1.p_includes p2.p_includes;
+               p_noops        = merge_new p1.p_noops p2.p_noops;
+               p_scripts      = merge_new p1.p_scripts p2.p_scripts;
             }
       | [_; _] -> Error.type_error "Function `union` expects two Pipeline arguments."
       | _ -> Error.arity_error_named "union" ~expected:2 ~received:(List.length args)
@@ -175,14 +177,15 @@ let register env =
             p_exprs        = merge_patch p1.p_exprs p2.p_exprs;
             p_deps         = merge_patch p1.p_deps p2.p_deps;
             p_imports      = p1.p_imports;
-            p_runtimes     = merge_patch p1.p_runtimes p2.p_runtimes;
-            p_serializers  = merge_patch p1.p_serializers p2.p_serializers;
-            p_deserializers = merge_patch p1.p_deserializers p2.p_deserializers;
-            p_env_vars     = merge_patch p1.p_env_vars p2.p_env_vars;
-            p_functions    = merge_patch p1.p_functions p2.p_functions;
-            p_includes     = merge_patch p1.p_includes p2.p_includes;
-            p_noops        = merge_patch p1.p_noops p2.p_noops;
-            p_scripts      = merge_patch p1.p_scripts p2.p_scripts;
+             p_runtimes     = merge_patch p1.p_runtimes p2.p_runtimes;
+             p_serializers  = merge_patch p1.p_serializers p2.p_serializers;
+             p_deserializers = merge_patch p1.p_deserializers p2.p_deserializers;
+             p_env_vars     = merge_patch p1.p_env_vars p2.p_env_vars;
+             p_args         = merge_patch p1.p_args p2.p_args;
+             p_functions    = merge_patch p1.p_functions p2.p_functions;
+             p_includes     = merge_patch p1.p_includes p2.p_includes;
+             p_noops        = merge_patch p1.p_noops p2.p_noops;
+             p_scripts      = merge_patch p1.p_scripts p2.p_scripts;
           }
       | [_; _] -> Error.type_error "Function `patch` expects two Pipeline arguments."
       | _ -> Error.arity_error_named "patch" ~expected:2 ~received:(List.length args)

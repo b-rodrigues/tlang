@@ -238,10 +238,25 @@ p_cross = pipeline {
     let sort_vars vars = List.sort (fun (k1, _) (k2, _) -> String.compare k1 k2) vars in
     sort_vars left = sort_vars right
   in
+  let same_runtime_args left right =
+    let sort_args runtime_args = List.sort (fun (k1, _) (k2, _) -> String.compare k1 k2) runtime_args in
+    sort_args left = sort_args right
+  in
+  let contains_substring s sub =
+    let s_len = String.length s in
+    let sub_len = String.length sub in
+    let rec loop idx =
+      if sub_len = 0 then true
+      else if idx + sub_len > s_len then false
+      else if String.sub s idx sub_len = sub then true
+      else loop (idx + 1)
+    in
+    loop 0
+  in
   (match v_py_node with
    | Ast.VNode un
-     when un.un_runtime = "Python"
-          && same_env_vars un.un_env_vars [("API_KEY", Ast.VString "secret"); ("RETRIES", Ast.VInt 3)] ->
+      when un.un_runtime = "Python"
+           && same_env_vars un.un_env_vars [("API_KEY", Ast.VString "secret"); ("RETRIES", Ast.VInt 3)] ->
        incr pass_count; Printf.printf "  ✓ py() stores env_vars on the node\n"
    | other ->
        incr fail_count; Printf.printf "  ✗ py() env_vars parsing failed: %s\n"
@@ -250,6 +265,54 @@ p_cross = pipeline {
   test "node env_vars must be a dict"
     {|node(command = 1, env_vars = 1)|}
     {|Error(TypeError: "Function `node` expects `env_vars` to be a Dict.")|};
+
+  test "node args must be a dict"
+    {|node(runtime = Quarto, args = 1)|}
+    {|Error(TypeError: "Function `node` expects `args` to be a Dict.")|};
+
+  test "node args values must stay shallow"
+    {|node(runtime = Quarto, args = [path: "report.qmd", extra: [nested: [too_deep: 1]]])|}
+    {|Error(TypeError: "Function `node` expects runtime arg `extra` to be a String, Symbol, Int, Float, Bool, Null, or List of those values.")|};
+
+  test "quarto node requires qmd path"
+    {|node(runtime = Quarto, args = [subcommand: "render"])|}
+    {|Error(TypeError: "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file.")|};
+
+  test "quarto node command conflict (explicit script)"
+    {|node(command = <{ 1 + 1 }>, script = "report.qmd", runtime = Quarto)|}
+    {|Error(TypeError: "node() cannot use both 'command' and 'script' arguments — choose one.")|};
+ 
+  test "quarto node command conflict (inlined command)"
+    {|node(command = <{ 1 + 1 }>, runtime = Quarto, args = [path: "report.qmd"])|}
+    {|Error(TypeError: "Quarto nodes require a script and do not support inlined `command` blocks.")|};
+ 
+  let (v_r_mixed, _) = eval_string_env
+    {|rn(command = <{ read_csv(path) }>, args = [path: "data.csv"])|}
+    (Packages.init_env ()) in
+  (match v_r_mixed with
+   | Ast.VNode un when un.un_runtime = "R" && List.exists (function Ast.Value (VString "data.csv") -> true | _ -> false) un.un_includes ->
+       incr pass_count; Printf.printf "  ✓ R node supports both command and args.path (auto-included)\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ R node command/args mixed test failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  let (v_quarto_node, _) = eval_string_env
+    {|node(runtime = Quarto, args = [subcommand: "render", path: "report.qmd", to: "html", standalone: true])|}
+    (Packages.init_env ()) in
+  (match v_quarto_node with
+   | Ast.VNode un
+     when un.un_runtime = "Quarto"
+          && un.un_script = Some "report.qmd"
+          && same_runtime_args un.un_args [
+               ("subcommand", Ast.VString "render");
+               ("path", Ast.VString "report.qmd");
+               ("to", Ast.VString "html");
+               ("standalone", Ast.VBool true);
+             ] ->
+       incr pass_count; Printf.printf "  ✓ node() stores Quarto runtime args and qmd path\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ Quarto node args parsing failed: %s\n"
+         (Ast.Utils.value_to_string other));
 
   let (v_py_pipeline, _) = eval_string_env
     {|pipeline {
@@ -289,21 +352,85 @@ p_cross = pipeline {
               | _ -> false)
          | _ -> false
        in
-       let nix = Nix_emit_pipeline.emit_pipeline p in
-       let contains s sub =
-         try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
-         with Not_found -> false
-       in
-       let has_model_mode = contains nix {|"MODEL_MODE" = "train";|} in
-       let has_retries = contains nix {|"RETRIES" = "2";|} in
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_model_mode = contains_substring nix {|"MODEL_MODE" = "train";|} in
+        let has_retries = contains_substring nix {|"RETRIES" = "2";|} in
        if rerun_has_envs && has_model_mode && has_retries then begin
          incr pass_count; Printf.printf "  ✓ pipeline preserves and emits node env_vars\n"
        end else begin
          incr fail_count; Printf.printf "  ✗ pipeline env_vars preservation/emission failed\n"
        end
    | other ->
-       incr fail_count; Printf.printf "  ✗ pipeline with env_vars should return VPipeline, got: %s\n"
-         (Ast.Utils.value_to_string other));
+        incr fail_count; Printf.printf "  ✗ pipeline with env_vars should return VPipeline, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let quarto_script = "test_quarto_report.qmd" in
+  let quarto_dep_node = "data" in
+  Fun.protect
+    ~finally:(fun () -> try Sys.remove quarto_script with _ -> ())
+    (fun () ->
+      let oc_quarto = open_out quarto_script in
+      output_string oc_quarto (Printf.sprintf "```{r}\nread_node(\"%s\")\n```\n" quarto_dep_node);
+      close_out oc_quarto;
+      let (v_quarto_pipeline, _) = eval_string_env
+        (Printf.sprintf
+           {|pipeline {
+  %s = 1
+  report = node(runtime = Quarto, args = [subcommand: "render", path: "%s", to: "html", standalone: true])
+}|}
+           quarto_dep_node
+           quarto_script)
+        (Packages.init_env ()) in
+      match v_quarto_pipeline with
+      | Ast.VPipeline p ->
+          let runtime_ok = List.assoc_opt "report" p.p_runtimes = Some "Quarto" in
+          let args_ok =
+            match List.assoc_opt "report" p.p_args with
+            | Some runtime_args ->
+                same_runtime_args runtime_args [
+                  ("subcommand", Ast.VString "render");
+                  ("path", Ast.VString quarto_script);
+                  ("to", Ast.VString "html");
+                  ("standalone", Ast.VBool true);
+                ]
+            | None -> false
+          in
+          let script_ok = List.assoc_opt "report" p.p_scripts = Some (Some quarto_script) in
+          let nix = Nix_emit_pipeline.emit_pipeline p in
+          let has_quarto = contains_substring nix "pkgs.quarto" in
+          let has_render = contains_substring nix "cli_args+=('render')" in
+          let has_path = contains_substring nix (Printf.sprintf "cli_args+=('%s')" quarto_script) in
+          let has_to = contains_substring nix "cli_args+=('--to')" && contains_substring nix "cli_args+=('html')" in
+          let has_flag = contains_substring nix "cli_args+=('--standalone')" in
+          let has_read_node_sub = contains_substring nix "sed -i -e" && contains_substring nix (Printf.sprintf "$T_NODE_%s/artifact" quarto_dep_node) in
+          if runtime_ok && args_ok && script_ok && has_quarto && has_render && has_path && has_to && has_flag && has_read_node_sub then begin
+            incr pass_count; Printf.printf "  ✓ pipeline preserves and emits Quarto runtime args\n"
+          end else begin
+            incr fail_count; Printf.printf "  ✗ Quarto pipeline preservation/emission failed\n"
+          end
+      | other ->
+          incr fail_count; Printf.printf "  ✗ pipeline with Quarto node should return VPipeline, got: %s\n"
+            (Ast.Utils.value_to_string other));
+
+  test "pipeline_copy validates node type"
+    {|pipeline_copy(node = 1)|}
+    {|Error(TypeError: "Function `pipeline_copy` expects `node` to be a String, Symbol, or Null.")|};
+
+  test "pipeline_copy validates target_dir type"
+    {|pipeline_copy(target_dir = 1)|}
+    {|Error(TypeError: "Function `pipeline_copy` expects `target_dir` to be a String or Symbol.")|};
+
+  test "pipeline_copy validates dir_mode type"
+    {|pipeline_copy(dir_mode = 755)|}
+    {|Error(TypeError: "Function `pipeline_copy` expects `dir_mode` to be a String.")|};
+
+  test "pipeline_copy validates file_mode type"
+    {|pipeline_copy(file_mode = 644)|}
+    {|Error(TypeError: "Function `pipeline_copy` expects `file_mode` to be a String.")|};
+
+  test "pipeline_copy validates mode contents"
+    {|pipeline_copy(dir_mode = "0755; rm -rf /")|}
+    {|Error(GenericError: "Invalid file or directory mode: expected octal string like 0755 or 0644.")|};
 
   (* Test: runtime auto-detected from .R extension *)
   let (v_r_auto, _) = eval_string_env
@@ -324,7 +451,17 @@ p_cross = pipeline {
    | Ast.VNode un when un.un_runtime = "Python" ->
        incr pass_count; Printf.printf "  ✓ runtime auto-detected as Python for .py script\n"
    | other ->
-       incr fail_count; Printf.printf "  ✗ runtime auto-detection for .py failed: %s\n"
+        incr fail_count; Printf.printf "  ✗ runtime auto-detection for .py failed: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_quarto_auto, _) = eval_string_env
+    {|node(script = "paper.qmd")|}
+    (Packages.init_env ()) in
+  (match v_quarto_auto with
+   | Ast.VNode un when un.un_runtime = "Quarto" ->
+       incr pass_count; Printf.printf "  ✓ runtime auto-detected as Quarto for .qmd script\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ runtime auto-detection for .qmd failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* Test: script field accessible via dot access *)

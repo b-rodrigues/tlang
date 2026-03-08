@@ -1200,7 +1200,7 @@ cumsum([1, NA, 3])           -- Vector[1, NA, NA]</code></pre>
 <h2 id="pipeline-package">Pipeline Package</h2>
 <p>Pipeline introspection and management.</p>
 <h3
-id="nodecommand-runtime-t-serializer-default-deserializer-default-functions-include-noop-false"><code>node(command, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false)</code></h3>
+id="nodecommand-runtime-t-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>node(command, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node.</p>
 <p><strong>Parameters:</strong></p>
@@ -1214,6 +1214,8 @@ named).</li>
 mechanism.</li>
 <li><code>deserializer</code> (optional) — Read artifact overriding
 mechanism.</li>
+<li><code>env_vars</code> (optional) — Dictionary of environment
+variables to pass into the Nix sandbox.</li>
 <li><code>functions</code> (optional) — Code files to source before
 execution.</li>
 <li><code>include</code> (optional) — Additional files to bring into the
@@ -1235,7 +1237,9 @@ include = &quot;config.yml&quot;
 }</code></pre>
 <hr />
 <h3
-id="pyncommand-serializer-default-deserializer-default-functions-include-noop-false"><code>pyn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)</code></h3>
+id="pycommand-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>py(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+<h3
+id="pyncommand-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>pyn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure a Python Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Python"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Python code.</p>
@@ -1247,6 +1251,8 @@ node (must be enclosed in <code>&lt;{ ... }&gt;</code> blocks).</li>
 Default: <code>default</code>.</li>
 <li><code>deserializer</code> (optional) — Custom deserializer function.
 Default: <code>default</code>.</li>
+<li><code>env_vars</code> (optional) — Dictionary of environment
+variables to pass into the Nix sandbox.</li>
 <li><code>functions</code> (optional) — Python files to source before
 execution.</li>
 <li><code>include</code> (optional) — Additional files for the
@@ -1258,7 +1264,7 @@ generate a stub. Default: <code>false</code>.</li>
 <p>The evaluated return value of the command.</p>
 <hr />
 <h3
-id="rncommand-serializer-default-deserializer-default-functions-include-noop-false"><code>rn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)</code></h3>
+id="rncommand-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>rn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure an R Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "R"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute R code.</p>
@@ -1270,6 +1276,8 @@ within a <code>pipeline { ... }</code> block to execute R code.</p>
 Default: <code>default</code>.</li>
 <li><code>deserializer</code> (optional) — Custom deserializer function.
 Default: <code>default</code>.</li>
+<li><code>env_vars</code> (optional) — Dictionary of environment
+variables to pass into the Nix sandbox.</li>
 <li><code>functions</code> (optional) — R scripts to source before
 execution.</li>
 <li><code>include</code> (optional) — Additional files for the

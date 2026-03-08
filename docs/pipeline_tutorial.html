@@ -685,7 +685,80 @@ p |&gt; select_node($name, $runtime, $depth)
 <code>$noop</code>, <code>$deps</code>, <code>$depth</code>,
 <code>$command_type</code>.</p>
 <hr />
-<h2 id="node-level-operations-_node-family">21. Node-Level Operations
+<h2 id="environment-variables">21. Environment Variables</h2>
+<p>Pipeline nodes can pass environment variables into the Nix build
+sandbox via the <code>env_vars</code> named argument on
+<code>node()</code>, <code>py()</code>/<code>pyn()</code>, and
+<code>rn()</code>. This allows nodes to configure their build-time
+execution environment without embedding those values directly into the
+command body.</p>
+<pre class="t"><code>p = pipeline {
+  model = rn(
+    command = &lt;{ train_model(data) }&gt;,
+    env_vars = [
+      MODEL_MODE: &quot;train&quot;,
+      RETRIES: 2,
+      DEBUG: true
+    ]
+  )
+}</code></pre>
+<h3 id="supported-types">Supported Types</h3>
+<p>The <code>env_vars</code> dictionary supports the following
+scalar-like values:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Example</th>
+<th>Nix Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>String</strong></td>
+<td><code>"train"</code></td>
+<td><code>"train"</code></td>
+</tr>
+<tr>
+<td><strong>Symbol</strong></td>
+<td><code>train</code></td>
+<td><code>"train"</code></td>
+</tr>
+<tr>
+<td><strong>Int</strong></td>
+<td><code>2</code></td>
+<td><code>"2"</code></td>
+</tr>
+<tr>
+<td><strong>Float</strong></td>
+<td><code>3.14</code></td>
+<td><code>"3.14"</code> (up to 15 significant digits)</td>
+</tr>
+<tr>
+<td><strong>Bool</strong></td>
+<td><code>true</code></td>
+<td><code>"true"</code></td>
+</tr>
+<tr>
+<td><strong>Null</strong></td>
+<td><code>null</code></td>
+<td>(Omitted from derivation)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="validation">Validation</h3>
+<p>T performs early validation on environment variables: -
+<code>env_vars</code> must be a dictionary. - Unsupported types (like
+Lists or nested Dicts) trigger a structured type error during pipeline
+construction. - <code>null</code> values are silently omitted from the
+generated Nix derivation instead of being materialized as empty
+strings.</p>
+<p>These variables are automatically threaded into the generated
+<code>stdenv.mkDerivation</code> and are available via standard system
+methods (e.g., <code>Sys.getenv()</code> in R or <code>os.environ</code>
+in Python) during the Nix build step.</p>
+<hr />
+<h2 id="node-level-operations-_node-family">22. Node-Level Operations
 (<code>_node</code> family)</h2>
 <p>T provides a set of colcraft-style verbs for operating on pipeline
 nodes. These mirror the DataFrame API, using NSE <code>$field</code>
@@ -749,7 +822,7 @@ p |&gt; arrange_node($name, &quot;desc&quot;) |&gt; pipeline_nodes -- [&quot;z&q
 p = pipeline { a = 1; b = a + 1; c = b + 1 }
 p |&gt; arrange_node($depth) |&gt; pipeline_nodes      -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
 <hr />
-<h2 id="set-operations">22. Set Operations</h2>
+<h2 id="set-operations">23. Set Operations</h2>
 <p>Pipelines can be treated as named sets of nodes. T provides four set
 operations that combine or subtract pipelines.</p>
 <blockquote>
@@ -815,7 +888,7 @@ p_overrides = pipeline {
 p_updated = p_prod |&gt; patch(p_overrides)
 pipeline_nodes(p_updated)  -- [&quot;load&quot;, &quot;model&quot;] — &quot;extra&quot; was not added</code></pre>
 <hr />
-<h2 id="dag-aware-transformations">23. DAG-Aware Transformations</h2>
+<h2 id="dag-aware-transformations">24. DAG-Aware Transformations</h2>
 <p>These operations are structurally aware of the pipeline’s dependency
 graph and are used to replace node implementations, reroute edges, and
 extract subgraphs.</p>
@@ -892,7 +965,7 @@ ancestors and descendants.</p>
 -- Everything connected to b (upstream and downstream)
 p |&gt; subgraph(&quot;b&quot;) |&gt; pipeline_nodes  -- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;] — d is disconnected</code></pre>
 <hr />
-<h2 id="pipeline-composition">24. Pipeline Composition</h2>
+<h2 id="pipeline-composition">25. Pipeline Composition</h2>
 <p>These higher-level operators combine two complete, separately-defined
 pipelines into one.</p>
 <h3 id="chain"><code>chain</code></h3>
@@ -978,6 +1051,7 @@ matches the upstream output), you create a T-expression node. T
 cross-pipeline dependency, and allow <code>chain()</code> to wire the
 pipelines together.</p>
 <hr />
+<h2 id="parallel-execution">26. Parallel Execution</h2>
 <p>Combines two pipelines that are intended to run independently. No
 dependency wiring is performed. Errors on name collision.</p>
 <pre class="t"><code>p_r_model = pipeline {
@@ -998,7 +1072,7 @@ p_py_model = pipeline {
 p_both = parallel(p_r_model, p_py_model)
 pipeline_nodes(p_both)  -- [&quot;r_fit&quot;, &quot;py_fit&quot;]</code></pre>
 <hr />
-<h2 id="extended-inspection-api">25. Extended Inspection API</h2>
+<h2 id="extended-inspection-api">27. Extended Inspection API</h2>
 <p>Beyond <code>pipeline_nodes</code> and <code>pipeline_deps</code>, T
 provides a complete structural inspection surface for pipelines.</p>
 <h3 id="boundary-nodes">Boundary Nodes</h3>
@@ -1061,7 +1135,7 @@ print(dot)
 https://dreampuf.github.io/GraphvizOnline/ to render a visual dependency
 graph.</p>
 <hr />
-<h2 id="pipeline-validation">26. Pipeline Validation</h2>
+<h2 id="pipeline-validation">28. Pipeline Validation</h2>
 <p>By design, T uses <strong>lazy validation</strong>: structural errors
 (missing dependencies, cycles) surface at <code>build_pipeline</code> or
 <code>pipeline_run</code> time, not at operation time. This allows you

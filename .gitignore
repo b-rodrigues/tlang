@@ -21,3 +21,4 @@ tests/golden/coverage.csv
 _build_cflags_override.sexp
 result
 _pipeline/
+pipeline-output/

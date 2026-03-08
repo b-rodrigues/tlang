@@ -135,17 +135,39 @@ repository):</p>
 class="sourceCode toml"><code class="sourceCode toml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[dependencies]</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Example: depend on a git repository</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="dt">my-lib</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/my-lib&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v1.0.0&quot;</span><span class="op"> }</span></span></code></pre></div>
-<p>After modifying dependencies, run <code>t update</code> to sync your
-<code>flake.nix</code> and lock file:</p>
+<h3 id="system-tools-and-latex">2.1 System Tools and LaTeX</h3>
+<p>You can also declare system-level tools and LaTeX packages required
+for your package development or documentation.</p>
+<h4 id="additional-development-tools">Additional Development Tools</h4>
+<p>Under <code>[additional-tools]</code>, you can add any package from
+Nixpkgs. These tools will be available in your <code>nix develop</code>
+shell:</p>
 <div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t update</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Syncing</span> 1 dependency<span class="er">(</span><span class="ex">ies</span><span class="kw">)</span> <span class="ex">from</span> DESCRIPTION.toml → flake.nix...</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> nix flake update...</span></code></pre></div>
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Tools for building, documenting, or testing your package</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;git&quot;</span><span class="op">,</span> <span class="st">&quot;jq&quot;</span><span class="op">,</span> <span class="st">&quot;gawk&quot;</span><span class="op">,</span> <span class="st">&quot;pandoc&quot;</span><span class="op">]</span></span></code></pre></div>
+<h4 id="latex-for-documentation">LaTeX for Documentation</h4>
+<p>If your documentation requires LaTeX (e.g., for formulas), use the
+<code>[latex]</code> section. T provides <code>texlive</code> based on
+<code>scheme-small</code>. You only need to list additional
+packages:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[latex]</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># LaTeX packages for math formulas or advanced formatting</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;amsmath&quot;</span><span class="op">,</span> <span class="st">&quot;blindtext&quot;</span><span class="op">,</span> <span class="st">&quot;physics&quot;</span><span class="op">]</span></span></code></pre></div>
+<p>After modifying dependencies or updating the
+<code>[additional-tools]</code> or <code>[latex]</code> sections, run
+<code>t update</code> to sync your <code>flake.nix</code> and lock
+file:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t update</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Syncing</span> 1 dependency<span class="er">(</span><span class="ex">ies</span><span class="kw">)</span> <span class="ex">from</span> DESCRIPTION.toml → flake.nix...</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> nix flake update...</span></code></pre></div>
 <p>This regenerates <code>flake.nix</code> so new dependencies appear as
 proper flake inputs, then locks them. After updating, re-enter the
 development shell:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span></code></pre></div>
 <h2 id="writing-code">3. Writing Code</h2>
 <p>Write your T code in <code>src/</code>. For example,
 <code>src/stats_helpers.t</code>:</p>
@@ -163,11 +185,11 @@ _validate_weights = \(w) {
 default</strong>. To hide an internal helper, add <code>@private</code>
 to its T-Doc block.</p>
 <p>You can test your code interactively in the REPL:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> import <span class="st">&quot;src/stats_helpers.t&quot;</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> weighted_mean<span class="er">(</span><span class="ex">[1,</span> 2, 3], [0.5, 0.3, 0.2]<span class="kw">)</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ex">1.7</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> import <span class="st">&quot;src/stats_helpers.t&quot;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> weighted_mean<span class="er">(</span><span class="ex">[1,</span> 2, 3], [0.5, 0.3, 0.2]<span class="kw">)</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ex">1.7</span></span></code></pre></div>
 <h2 id="testing">4. Testing</h2>
 <p>T has a built-in test runner. Tests are <code>.t</code> files in the
 <code>tests/</code> directory.</p>
@@ -177,8 +199,8 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="
 assert(stats.mean([1, 2, 3]) == 2.0)
 assert(stats.mean([-1, -1]) == -1.0)</code></pre>
 <p>Run all tests with:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
 <h2 id="documentation">5. Documentation</h2>
 <p>T packages use <strong>T-Doc</strong>, a comment-based documentation
 system. Documentation lives in source files close to the code and is
@@ -215,25 +237,25 @@ mark as public (this is the default, so usually not needed).</p>
 <h3 id="generating-documentation">Generating Documentation</h3>
 <p>To generate the documentation files in
 <code>docs/reference/</code>:</p>
-<div class="sourceCode" id="cb10"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doc <span class="at">--parse</span> <span class="at">--generate</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doc <span class="at">--parse</span> <span class="at">--generate</span></span></code></pre></div>
 <p>This will: 1. Scan your <code>src/</code> directory for
 <code>--#</code> blocks. 2. Generate Markdown files for each function in
 <code>docs/reference/</code>. 3. Generate a
 <code>docs/reference/index.md</code> listing all exported functions.</p>
 <h3 id="viewing-documentation">Viewing Documentation</h3>
 <p>You can view your documentation locally using:</p>
-<div class="sourceCode" id="cb11"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t docs</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t docs</span></code></pre></div>
 <p>This opens <code>docs/index.md</code> (or <code>README.md</code>) in
 your system viewer. You can link to your reference documentation from
 there.</p>
 <h2 id="quality-control">6. Quality Control</h2>
 <p>Before publishing, run <code>t doctor</code> to check your package
 for common issues:</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doctor</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Everything looks good!</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doctor</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Everything looks good!</span></code></pre></div>
 <p>It checks for: - Required files (<code>DESCRIPTION.toml</code>,
 <code>flake.nix</code>). - Valid directory structure. - Documentation
 existence. - Nix installation.</p>
@@ -247,13 +269,13 @@ version.</li>
 <li>Commit all changes to git.</li>
 <li>Run <code>t publish</code>.</li>
 </ol>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t publish</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Preparing</span> to publish version 0.1.0...</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Validation complete.</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Proceed</span> to tag and push v0.1.0<span class="pp">?</span> <span class="pp">[</span><span class="ss">y/N</span><span class="pp">]</span> y</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Tag v0.1.0 pushed to remote.</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t publish</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Preparing</span> to publish version 0.1.0...</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Validation complete.</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Proceed</span> to tag and push v0.1.0<span class="pp">?</span> <span class="pp">[</span><span class="ss">y/N</span><span class="pp">]</span> y</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Tag v0.1.0 pushed to remote.</span></code></pre></div>
 <p>This will run your tests, verify the changelog, and push a git tag to
 your repository.</p>
 <h2 id="how-others-import-your-package">8. How Others Import Your
@@ -261,9 +283,9 @@ Package</h2>
 <p>Once published, other packages or projects can depend on yours by
 adding it to their <code>DESCRIPTION.toml</code> or
 <code>tproject.toml</code>:</p>
-<div class="sourceCode" id="cb14"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[dependencies]</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="dt">advanced-stats</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/advanced-stats&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.1.0&quot;</span><span class="op"> }</span></span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[dependencies]</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="dt">advanced-stats</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/advanced-stats&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.1.0&quot;</span><span class="op"> }</span></span></code></pre></div>
 <p>Then in their T code, they can import your package:</p>
 <pre class="t"><code>-- Import everything (all public functions)
 import advanced_stats

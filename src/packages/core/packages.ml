@@ -134,7 +134,7 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "trace_nodes";
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "pipeline_copy"; "trace_nodes";
                "pipeline_to_frame"; "filter_node"; "mutate_node"; "rename_node"; "select_node"; "arrange_node";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
@@ -543,6 +543,7 @@ let init_env () =
   let env = Populate_pipeline.register env in
   let env = Inspect_pipeline.register env in
   let env = Read_node.register env in
+  let env = Pipeline_copy.register env in
   let env = Trace_nodes.register env in
   let env = Pipeline_to_frame.register env in
   let env = Filter_node.register ~eval_call:Eval.eval_call_immutable env in
@@ -677,7 +678,7 @@ let init_env () =
      Add new runtimes or serializer names here as they are introduced. *)
   let known_symbols = [
     (* Runtimes *)
-    "R"; "Python"; "T"; "Julia";
+    "R"; "Python"; "T"; "Julia"; "Quarto";
     (* Serialization defaults *)
     "default";
     (* R serializers *)
