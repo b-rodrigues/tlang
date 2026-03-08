@@ -360,6 +360,50 @@ min_version = "0.5.0"
     has "packages.default" && has "pname = \"t-my-pkg\""
     && has "my-pkg" && has "version = \"0.2.0\"");
 
+  test_pm "generate project flake with additional_tools" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.5.0" ~deps:[]
+      ~additional_tools:["pandoc"; "jq"] () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "additionalTools" && has "pandoc" && has "jq"
+    && has "++ additionalTools");
+
+  test_pm "generate project flake with latex_pkgs" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.5.0" ~deps:[]
+      ~latex_pkgs:["amsmath"; "hyperref"] () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "latex-env" && has "texlive.combine"
+    && has "scheme-small" && has "amsmath" && has "hyperref");
+
+  test_pm "generate package flake with additional_tools and latex_pkgs" (fun () ->
+    let flake = Nix_generator.generate_package_flake
+      ~package_name:"my-pkg" ~package_version:"0.2.0"
+      ~nixpkgs_date:"2026-02-10" ~t_version:"0.5.0" ~deps:[]
+      ~additional_tools:["pandoc"] ~latex_pkgs:["amsmath"] () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    (* The definitions "additionalTools = ..." and "latex-env = ..." only appear
+       in the let...in block; references in buildInputs lack the " = " suffix *)
+    has "additionalTools = " && has "latex-env = " && has "texlive.combine"
+    && has "amsmath" && has "pandoc"
+    (* buildInputs should reference latex-env and ++ additionalTools *)
+    && has "latex-env\n" && has "++ additionalTools");
+
+  test_pm "invalid nix identifiers are rejected from additional_tools" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.5.0" ~deps:[]
+      ~additional_tools:["valid-pkg"; "$(evil)"; "valid_pkg2"; "bad pkg"] () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "valid-pkg" && has "valid_pkg2"
+    && not (has "$(evil)") && not (has "bad pkg"));
+
   print_newline ();
 
   (* ===================================================== *)

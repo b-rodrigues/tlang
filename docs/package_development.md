@@ -58,9 +58,7 @@ If your documentation requires LaTeX (e.g., for formulas), use the `[latex]` sec
 packages = ["amsmath", "blindtext", "physics"]
 ```
 
-Run `t update` to apply these changes.
-
-After modifying dependencies, run `t update` to sync your `flake.nix` and lock file:
+After modifying dependencies or updating the `[additional-tools]` or `[latex]` sections, run `t update` to sync your `flake.nix` and lock file:
 
 ```bash
 $ t update
