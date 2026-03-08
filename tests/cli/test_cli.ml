@@ -1,4 +1,34 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests pass_count fail_count _eval_string _eval_string_env test =
+  (* This test module uses the shared test-runner signature even though it
+     only needs the generic `test` helper and local counter refs. *)
+  let contains text substring =
+    let text_len = String.length text in
+    let substring_len = String.length substring in
+    if substring_len = 0 then
+      true
+    else begin
+      let rec loop index =
+        if index + substring_len > text_len then
+          false
+        else if String.sub text index substring_len = substring then
+          true
+        else
+          loop (index + 1)
+      in
+      loop 0
+    end
+  in
+
+  let test_message name predicate =
+    if predicate then begin
+      incr pass_count;
+      Printf.printf "  ✓ %s\n" name
+    end else begin
+      incr fail_count;
+      Printf.printf "  ✗ %s\n" name
+    end
+  in
+
   Printf.printf "Phase 7 — CLI: packages() builtin:\n";
   test "packages returns list"
     "type(packages())"
@@ -53,6 +83,13 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "package_info non-string"
     "package_info(42)"
     {|Error(TypeError: "Function `package_info` expects a string argument.")|};
+  let warning = Import_registry.startup_rename_warning_message () in
+  test_message "startup rename warning mentions builtin conflicts"
+    (contains warning "built-in function");
+  test_message "startup rename warning mentions package-prefixed names"
+    (contains warning "<package>_<function>");
+  test_message "startup rename warning explains why names change"
+    (contains warning "silently overwriting another");
   print_newline ();
 
   Printf.printf "Phase 7 — Pretty-print builtin:\n";

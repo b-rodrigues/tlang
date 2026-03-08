@@ -705,4 +705,4 @@ let init_env () =
   let env = List.fold_left (fun acc name ->
     Env.add name (VSymbol name) acc
   ) env known_symbols in
-  env
+  Import_registry.mark_builtin_bindings env
