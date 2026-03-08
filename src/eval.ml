@@ -550,7 +550,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
         | None -> (command, None)
       in
-      match lookup_env_vars () with
+      (match lookup_env_vars () with
       | Error err -> err
       | Ok un_env_vars ->
           if runtime <> "T" then
@@ -581,7 +581,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               un_functions = lookup_list "functions";
               un_includes = lookup_list "includes";
               un_noop = eval_bool "noop" false;
-            }
+            })
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args

@@ -254,7 +254,7 @@ p_cross = pipeline {
   let (v_py_pipeline, _) = eval_string_env
     {|pipeline {
   data = 1
-  step = py(command = <{ data + 1 }>, env_vars = [MODE: "fast"])
+  step = py(command = <{ data + 1 }>, env_vars = [MODE: "fast"], deserializer = "json")
 }|}
     (Packages.init_env ()) in
   (match v_py_pipeline with
@@ -276,7 +276,7 @@ p_cross = pipeline {
 
   let (v_env_pipeline, _) = eval_string_env
     {|pipeline {
-  model = rn(command = <{ 1 + 1 }>, env_vars = [MODEL_MODE: "train", RETRIES: 2])
+  model = rn(command = <{ 1 + 1 }>, env_vars = [MODEL_MODE: "train", RETRIES: 2], deserializer = "json")
 }|}
     (Packages.init_env ()) in
   (match v_env_pipeline with
