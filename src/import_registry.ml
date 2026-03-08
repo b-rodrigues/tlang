@@ -15,9 +15,9 @@ let startup_rename_warning_message () =
   String.concat "\n"
     [ "Warning: package function names may be renamed to avoid silent conflicts."
     ; "  - If an imported package conflicts with a built-in function, T keeps the built-in name"
-    ; "    and renames the imported function to <package>_<function>."
+    ; "    and renames the imported function to <package>_<function> (for example, stats_mean)."
     ; "  - If two imported user packages conflict, both functions are renamed to"
-    ; "    <package>_<function>."
+    ; "    <package>_<function> (for example, alpha_filter and beta_filter)."
     ; "These renames prevent one package from silently overwriting another."
     ]
 
