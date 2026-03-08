@@ -175,9 +175,7 @@ let get_column (t : t) (name : string) : column_data option =
                  | ArrowTimestamp tz -> DatetimeColumn ([||], tz)
                  | ArrowNull -> NullColumn 0
                  | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
-                     (match List.assoc_opt name t.columns with
-                      | Some col -> col
-                      | None -> NullColumn 0))
+                     NullColumn 0)
              else None
          | Some array_ptr ->
            match col_type with
