@@ -861,7 +861,10 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     let my_deps = List.assoc name deps in
     let offenders = List.filter (fun dname ->
       match List.assoc_opt dname runtime_mapping with
-      | Some dep_runtime -> dep_runtime <> my_runtime && un.un_deserializer = Var "default"
+      | Some dep_runtime -> 
+          dep_runtime <> my_runtime && 
+          my_runtime <> "Quarto" && 
+          un.un_deserializer = Var "default"
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in
     if offenders <> [] then
