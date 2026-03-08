@@ -242,6 +242,17 @@ p_cross = pipeline {
     let sort_args runtime_args = List.sort (fun (k1, _) (k2, _) -> String.compare k1 k2) runtime_args in
     sort_args left = sort_args right
   in
+  let contains_substring s sub =
+    let s_len = String.length s in
+    let sub_len = String.length sub in
+    let rec loop idx =
+      if sub_len = 0 then true
+      else if idx + sub_len > s_len then false
+      else if String.sub s idx sub_len = sub then true
+      else loop (idx + 1)
+    in
+    loop 0
+  in
   (match v_py_node with
    | Ast.VNode un
       when un.un_runtime = "Python"
@@ -258,6 +269,14 @@ p_cross = pipeline {
   test "node args must be a dict"
     {|node(runtime = Quarto, args = 1)|}
     {|Error(TypeError: "Function `node` expects `args` to be a Dict.")|};
+
+  test "node args values must stay shallow"
+    {|node(runtime = Quarto, args = [path: "report.qmd", extra: [nested: [too_deep: 1]]])|}
+    {|Error(TypeError: "Function `node` expects runtime arg `extra` to be a String, Symbol, Int, Float, Bool, Null, or List of those values.")|};
+
+  test "quarto node requires qmd path"
+    {|node(runtime = Quarto, args = [subcommand: "render"])|}
+    {|Error(TypeError: "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file.")|};
 
   let (v_quarto_node, _) = eval_string_env
     {|node(runtime = Quarto, args = [subcommand: "render", path: "report.qmd", to: "html", standalone: true])|}
@@ -315,13 +334,9 @@ p_cross = pipeline {
               | _ -> false)
          | _ -> false
        in
-       let nix = Nix_emit_pipeline.emit_pipeline p in
-       let contains s sub =
-         try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
-         with Not_found -> false
-       in
-       let has_model_mode = contains nix {|"MODEL_MODE" = "train";|} in
-       let has_retries = contains nix {|"RETRIES" = "2";|} in
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_model_mode = contains_substring nix {|"MODEL_MODE" = "train";|} in
+        let has_retries = contains_substring nix {|"RETRIES" = "2";|} in
        if rerun_has_envs && has_model_mode && has_retries then begin
          incr pass_count; Printf.printf "  ✓ pipeline preserves and emits node env_vars\n"
        end else begin
@@ -332,52 +347,52 @@ p_cross = pipeline {
           (Ast.Utils.value_to_string other));
 
   let quarto_script = "test_quarto_report.qmd" in
-  let oc_quarto = open_out quarto_script in
-  output_string oc_quarto "```{r}\nread_node(\"data\")\n```\n";
-  close_out oc_quarto;
-  let (v_quarto_pipeline, _) = eval_string_env
-    (Printf.sprintf
-       {|pipeline {
-  data = 1
+  let quarto_dep_node = "data" in
+  Fun.protect
+    ~finally:(fun () -> try Sys.remove quarto_script with _ -> ())
+    (fun () ->
+      let oc_quarto = open_out quarto_script in
+      output_string oc_quarto (Printf.sprintf "```{r}\nread_node(\"%s\")\n```\n" quarto_dep_node);
+      close_out oc_quarto;
+      let (v_quarto_pipeline, _) = eval_string_env
+        (Printf.sprintf
+           {|pipeline {
+  %s = 1
   report = node(runtime = Quarto, args = [subcommand: "render", path: "%s", to: "html", standalone: true])
 }|}
-       quarto_script)
-    (Packages.init_env ()) in
-  (match v_quarto_pipeline with
-   | Ast.VPipeline p ->
-       let runtime_ok = List.assoc_opt "report" p.p_runtimes = Some "Quarto" in
-       let args_ok =
-         match List.assoc_opt "report" p.p_args with
-         | Some runtime_args ->
-             same_runtime_args runtime_args [
-               ("subcommand", Ast.VString "render");
-               ("path", Ast.VString quarto_script);
-               ("to", Ast.VString "html");
-               ("standalone", Ast.VBool true);
-             ]
-         | None -> false
-       in
-       let script_ok = List.assoc_opt "report" p.p_scripts = Some (Some quarto_script) in
-       let nix = Nix_emit_pipeline.emit_pipeline p in
-       let contains s sub =
-         try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
-         with Not_found -> false
-       in
-       let has_quarto = contains nix "pkgs.quarto" in
-       let has_render = contains nix "cli_args+=('render')" in
-       let has_path = contains nix (Printf.sprintf "cli_args+=('%s')" quarto_script) in
-       let has_to = contains nix "cli_args+=('--to')" && contains nix "cli_args+=('html')" in
-       let has_flag = contains nix "cli_args+=('--standalone')" in
-       let has_read_node_sub = contains nix "read_node(\\\"data\\\")" && contains nix "$T_NODE_data/artifact" in
-       if runtime_ok && args_ok && script_ok && has_quarto && has_render && has_path && has_to && has_flag && has_read_node_sub then begin
-         incr pass_count; Printf.printf "  ✓ pipeline preserves and emits Quarto runtime args\n"
-       end else begin
-         incr fail_count; Printf.printf "  ✗ Quarto pipeline preservation/emission failed\n"
-       end
-   | other ->
-       incr fail_count; Printf.printf "  ✗ pipeline with Quarto node should return VPipeline, got: %s\n"
-         (Ast.Utils.value_to_string other));
-  (try Sys.remove quarto_script with _ -> ());
+           quarto_dep_node
+           quarto_script)
+        (Packages.init_env ()) in
+      match v_quarto_pipeline with
+      | Ast.VPipeline p ->
+          let runtime_ok = List.assoc_opt "report" p.p_runtimes = Some "Quarto" in
+          let args_ok =
+            match List.assoc_opt "report" p.p_args with
+            | Some runtime_args ->
+                same_runtime_args runtime_args [
+                  ("subcommand", Ast.VString "render");
+                  ("path", Ast.VString quarto_script);
+                  ("to", Ast.VString "html");
+                  ("standalone", Ast.VBool true);
+                ]
+            | None -> false
+          in
+          let script_ok = List.assoc_opt "report" p.p_scripts = Some (Some quarto_script) in
+          let nix = Nix_emit_pipeline.emit_pipeline p in
+          let has_quarto = contains_substring nix "pkgs.quarto" in
+          let has_render = contains_substring nix "cli_args+=('render')" in
+          let has_path = contains_substring nix (Printf.sprintf "cli_args+=('%s')" quarto_script) in
+          let has_to = contains_substring nix "cli_args+=('--to')" && contains_substring nix "cli_args+=('html')" in
+          let has_flag = contains_substring nix "cli_args+=('--standalone')" in
+          let has_read_node_sub = contains_substring nix "sed -i -e" && contains_substring nix (Printf.sprintf "$T_NODE_%s/artifact" quarto_dep_node) in
+          if runtime_ok && args_ok && script_ok && has_quarto && has_render && has_path && has_to && has_flag && has_read_node_sub then begin
+            incr pass_count; Printf.printf "  ✓ pipeline preserves and emits Quarto runtime args\n"
+          end else begin
+            incr fail_count; Printf.printf "  ✗ Quarto pipeline preservation/emission failed\n"
+          end
+      | other ->
+          incr fail_count; Printf.printf "  ✗ pipeline with Quarto node should return VPipeline, got: %s\n"
+            (Ast.Utils.value_to_string other));
 
   (* Test: runtime auto-detected from .R extension *)
   let (v_r_auto, _) = eval_string_env

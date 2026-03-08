@@ -590,7 +590,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             in
             if runtime = "Quarto" && un_script = None then
               Error.make_error TypeError
-                "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file` to point to a `.qmd` file."
+                "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
             else if runtime <> "T" && runtime <> "Quarto" then
               match un_command with
               | RawCode _ ->
@@ -634,7 +634,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env_ref e)) pairs)
   | DotAccess { target; field } -> eval_dot_access env_ref target field
   | RawCode _ ->
-      make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated in T. They are only valid inside `node(command = ..., runtime = T|R|Python|Julia|Quarto)`."
+      make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated directly in T. Use them only in `node(command = ..., runtime = R|Python|Julia)`-style foreign-runtime nodes. Quarto nodes work differently: they require a `.qmd` script and do not support raw code blocks."
   | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
   | Block stmts -> eval_block env_ref stmts
   | PipelineDef nodes -> eval_pipeline env_ref nodes

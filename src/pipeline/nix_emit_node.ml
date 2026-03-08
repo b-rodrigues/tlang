@@ -76,7 +76,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VNull -> None
     | _ -> None
   in
-  let runtime_arg_values = function
+  let arg_value_to_strings = function
     | Ast.VList items ->
         items
         |> List.map snd
@@ -86,27 +86,27 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
          | Some s -> [s]
          | None -> [])
   in
-  let normalize_flag_key key =
+  let flag_key_to_cli_format key =
     String.map (fun c -> if c = '_' then '-' else c) key
   in
   let quarto_cli_tokens =
     if runtime <> "Quarto" then
       []
     else
-      let reserved_keys = [ "subcommand"; "path"; "file"; "qmd_file"; "input"; "output_dir"; "output-dir" ] in
+      (* These keys are handled specially for Quarto nodes: `subcommand` and the
+         input-file keys are emitted positionally, while `output_dir` is reserved
+         so Quarto outputs always land under $out/artifact. *)
+      let reserved_keys = [ "subcommand"; "path"; "file"; "qmd_file"; "input"; "output_dir" ] in
       let lookup_values key =
         match List.assoc_opt key runtime_args with
-        | Some value -> runtime_arg_values value
+        | Some value -> arg_value_to_strings value
         | None -> []
       in
       let find_first_values keys =
-        let rec loop = function
-          | [] -> []
-          | key :: rest ->
-              let values = lookup_values key in
-              if values <> [] then values else loop rest
-        in
-        loop keys
+        Option.value ~default:[] (List.find_map (fun key ->
+          let values = lookup_values key in
+          if values = [] then None else Some values
+        ) keys)
       in
       let subcommand_tokens =
         match lookup_values "subcommand" with
@@ -124,7 +124,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
           if List.mem key reserved_keys then
             None
           else
-            let flag = "--" ^ normalize_flag_key key in
+            let flag = "--" ^ flag_key_to_cli_format key in
             let tokens =
               match value with
               | Ast.VBool true -> [ flag ]
@@ -679,9 +679,17 @@ def t_read_pmml(path):
     | "Quarto", Some script_path ->
         deps
         |> List.map (fun d ->
+          let double_quoted_read_node = Printf.sprintf {|read_node(\\"%s\\")|} d in
+          let double_quoted_store_path = Printf.sprintf {|\\"$T_NODE_%s/artifact\\"|} d in
+          let single_quoted_read_node = Printf.sprintf {|read_node('%s')|} d in
+          let single_quoted_store_path = Printf.sprintf {|'$T_NODE_%s/artifact'|} d in
           Printf.sprintf
-            {|      sed -i -e "s|read_node(\\"%s\\")|\\"$T_NODE_%s/artifact\\"|g" -e "s|read_node('%s')|'$T_NODE_%s/artifact'|g" %s|}
-            d d d d (shell_single_quote script_path))
+            {|      sed -i -e "s|%s|%s|g" -e "s|%s|%s|g" %s|}
+            double_quoted_read_node
+            double_quoted_store_path
+            single_quoted_read_node
+            single_quoted_store_path
+            (shell_single_quote script_path))
         |> String.concat "\n"
     | _ -> ""
   in
