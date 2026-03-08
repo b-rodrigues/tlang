@@ -354,7 +354,7 @@ min_version = "0.5.0"
   test_pm "generate package flake" (fun () ->
     let flake = Nix_generator.generate_package_flake
       ~package_name:"my-pkg" ~package_version:"0.2.0"
-      ~nixpkgs_date:"2026-02-10" ~t_version:"0.5.0" ~deps:[] in
+      ~nixpkgs_date:"2026-02-10" ~t_version:"0.5.0" ~deps:[] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
     has "packages.default" && has "pname = \"t-my-pkg\""

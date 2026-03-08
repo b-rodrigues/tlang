@@ -188,7 +188,7 @@ let generate_package_flake
     ~(deps : dependency list)
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
-    : string =
+    () : string =
   let buf = Buffer.create 2048 in
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =
@@ -319,7 +319,7 @@ let install_flake
       generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~additional_tools ~latex_pkgs ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
-        ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs
+        ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ()
   in
   if dry_run then begin
     Printf.printf "=== Dry run: flake.nix would be written to %s ===\n\n" flake_path;
