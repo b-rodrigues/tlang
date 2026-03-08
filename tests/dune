@@ -12,6 +12,7 @@
    test_math test_stats test_broom_golden test_explain_tests
    test_cli
    test_golden test_boolean_golden test_core_semantics test_in test_operators test_bitwise_error
+   test_arrow_helpers
    test_arrow_integration
    test_owl_bridge
    test_arrow_performance
@@ -34,6 +35,7 @@
 (executable
  (name test_arrow_native_runner)
  (modules
+   test_arrow_helpers
    test_arrow_native_runner
    test_arrow_integration
    test_arrow_performance

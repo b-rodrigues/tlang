@@ -7,22 +7,6 @@
 (* - Column data extraction                                             *)
 (* - CSV reading with native fallback                                   *)
 
-let env_flag name =
-  match Sys.getenv_opt name with
-  | Some ("1" | "true" | "yes" | "on") -> true
-  | _ -> false
-
-let require_native_arrow = env_flag "TLANG_REQUIRE_ARROW_NATIVE"
-
-let pass_or_fail_native_requirement pass_count fail_count message =
-  if require_native_arrow then begin
-    incr fail_count;
-    Printf.printf "  ✗ %s\n" message
-  end else begin
-    incr pass_count;
-    Printf.printf "  ✓ %s\n" message
-  end
-
 let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Arrow Integration — FFI Infrastructure:\n";
 
@@ -626,7 +610,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
             | Some (Arrow_column.IntView _) ->
               incr fail_count; Printf.printf "  ✗ Expected FloatView, got IntView\n"
              | None ->
-               pass_or_fail_native_requirement pass_count fail_count
+               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                  "zero_copy_view returned None for native float column")
           | None ->
             incr fail_count; Printf.printf "  ✗ get_column failed for native float column\n");
@@ -645,7 +629,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
             | Some (Arrow_column.FloatView _) ->
               incr fail_count; Printf.printf "  ✗ Expected IntView, got FloatView\n"
              | None ->
-               pass_or_fail_native_requirement pass_count fail_count
+               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                  "zero_copy_view returned None for native int column")
           | None ->
             incr fail_count; Printf.printf "  ✗ get_column failed for native int column\n");
@@ -662,22 +646,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
            incr fail_count; Printf.printf "  ✗ get_column failed for native string column\n")
 
        | None ->
-         pass_or_fail_native_requirement pass_count fail_count
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
            "CSV read did not retain a native Arrow handle";
-         pass_or_fail_native_requirement pass_count fail_count
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
            "native float zero-copy smoke test skipped";
-         pass_or_fail_native_requirement pass_count fail_count
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
            "native int zero-copy smoke test skipped";
-         pass_or_fail_native_requirement pass_count fail_count
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
            "native string zero-copy smoke test skipped")
     | Error msg ->
-      pass_or_fail_native_requirement pass_count fail_count
+      Test_arrow_helpers.record_native_requirement_result pass_count fail_count
         (Printf.sprintf "CSV read failed for native smoke test: %s" msg);
-      pass_or_fail_native_requirement pass_count fail_count
+      Test_arrow_helpers.record_native_requirement_result pass_count fail_count
         "native float zero-copy smoke test skipped";
-      pass_or_fail_native_requirement pass_count fail_count
+      Test_arrow_helpers.record_native_requirement_result pass_count fail_count
         "native int zero-copy smoke test skipped";
-      pass_or_fail_native_requirement pass_count fail_count
+      Test_arrow_helpers.record_native_requirement_result pass_count fail_count
         "native string zero-copy smoke test skipped");
 
   (try Sys.remove csv_zerocopy with _ -> ());
