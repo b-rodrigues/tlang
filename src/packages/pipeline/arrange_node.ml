@@ -61,6 +61,7 @@ let register env =
           p_runtimes     = reorder p.p_runtimes;
           p_serializers  = reorder p.p_serializers;
           p_deserializers = reorder p.p_deserializers;
+          p_env_vars     = reorder p.p_env_vars;
           p_functions    = reorder p.p_functions;
           p_includes     = reorder p.p_includes;
           p_noops        = reorder p.p_noops;

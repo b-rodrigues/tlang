@@ -68,6 +68,7 @@ and pipeline_result = {
   p_runtimes : (string * string) list;       (* Map node name -> runtime *)
   p_serializers : (string * expr) list;      (* Map node name -> serializer expr *)
   p_deserializers : (string * expr) list;    (* Map node name -> deserializer expr *)
+  p_env_vars : (string * (string * value) list) list;  (* Map node name -> build env vars *)
   p_functions : (string * expr list) list;   (* Map node name -> function files *)
   p_includes : (string * expr list) list;    (* Map node name -> included files *)
   p_noops : (string * bool) list;            (* Map node name -> noop flag *)
@@ -99,6 +100,7 @@ and unbuilt_node = {
   un_runtime : string;
   un_serializer : expr;
   un_deserializer : expr;
+  un_env_vars : (string * value) list;
   un_functions : expr list;
   un_includes : expr list;
   un_noop : bool;
@@ -669,4 +671,3 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VExpr _, TExpr -> true
 
   | _ -> false
-

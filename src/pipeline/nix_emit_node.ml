@@ -1,6 +1,6 @@
 open Nix_utils
 
-let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer functions includes noop script =
+let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars functions includes noop script =
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
@@ -61,6 +61,28 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   in
   let funcs = eval_string_list functions in
   let _incs = eval_string_list includes in
+
+  let env_value_to_string = function
+    | Ast.VString s -> Some s
+    | Ast.VSymbol s -> Some s
+    | Ast.VInt i -> Some (string_of_int i)
+    (* 15 significant digits is enough to round-trip IEEE-754 doubles predictably
+       for environment-variable use without forcing trailing noise. *)
+    | Ast.VFloat f -> Some (Printf.sprintf "%.15g" f)
+    | Ast.VBool true -> Some "true"
+    | Ast.VBool false -> Some "false"
+    | Ast.VNull -> None
+    | _ -> None
+  in
+  let env_var_block =
+    env_vars
+    |> List.filter_map (fun (key, value) ->
+      match env_value_to_string value with
+      | Some s -> Some (Printf.sprintf "    %s = %s;" (nix_double_quote key) (nix_double_quote s))
+      | None -> None
+    )
+    |> String.concat "\n"
+  in
 
   let src_block = "    src = sources;" in
 
@@ -742,6 +764,7 @@ EOF
     buildInputs = [ tBin %s ];
     T_JPMML_STATSMODELS_JAR = "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar";
 %s
+%s
     buildCommand = ''
       cp -r $src/* . || true
       chmod -R u+w .
@@ -762,4 +785,4 @@ EOF
       %s
     '';
   };
-|} name name deps_inputs src_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd

@@ -449,15 +449,41 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             | other -> other)
        | _ -> make_error ArityError "eval() expects exactly 1 argument")
 
-  | (Call { fn = Var "node"; args } | Call { fn = Var "pyn"; args } | Call { fn = Var "rn"; args }) as call ->
+  | (Call { fn = Var "node"; args } | Call { fn = Var "py"; args } | Call { fn = Var "pyn"; args } | Call { fn = Var "rn"; args }) as call ->
+      let fn_name = match call with
+        | Call { fn = Var "py"; _ } -> "py"
+        | Call { fn = Var "pyn"; _ } -> "pyn"
+        | Call { fn = Var "rn"; _ } -> "rn"
+        | _ -> "node"
+      in
       let lookup_arg name default =
         match List.assoc_opt (Some name) args with
         | Some e -> e
-        | None -> (match name with
-                   | "command" ->
-                       (match List.filter (fun (k, _) -> k = None) args with
-                        | [(_, c)] -> c | _ -> default)
-                   | _ -> default)
+        | None ->
+            (match name with
+             | "command" ->
+                 (match List.filter (fun (k, _) -> k = None) args with
+                  | [(_, c)] -> c | _ -> default)
+             | _ -> default)
+      in
+      let lookup_env_vars () =
+        let is_env_value = function
+          | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
+          | _ -> false
+        in
+        match List.assoc_opt (Some "env_vars") args with
+        | None -> Ok []
+        | Some e ->
+            (match eval_expr env_ref e with
+             | VDict pairs ->
+                  (match List.find_opt (fun (_, v) -> not (is_env_value v)) pairs with
+                   | None -> Ok pairs
+                   | Some (key, _) ->
+                       Error (Error.type_error
+                                (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." fn_name key)))
+             | VNull -> Ok []
+             | _ ->
+                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
       in
       let lookup_list name =
         match List.assoc_opt (Some name) args with
@@ -487,13 +513,13 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       (* Validate: cannot use both 'command' and 'script' simultaneously *)
       let has_command = command <> Value VNull in
       if has_command && script_path_opt <> None then
-        Error.make_error TypeError "node() cannot use both 'command' and 'script' arguments — choose one."
+        Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
       else
-      let default_runtime = match call with
-        | Call { fn = Var "pyn"; _ } -> "Python"
-        | Call { fn = Var "rn"; _ } -> "R"
-        | _ -> "T"
-      in
+        let default_runtime = match call with
+          | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
+          | Call { fn = Var "rn"; _ } -> "R"
+          | _ -> "T"
+        in
       (* Auto-detect runtime from script extension when not explicitly given *)
       let runtime =
         let explicit = eval_string "runtime" "" in
@@ -524,33 +550,38 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
         | None -> (command, None)
       in
-      if runtime <> "T" then
-        match un_command with
-        | RawCode _ ->
+      (match lookup_env_vars () with
+      | Error err -> err
+      | Ok un_env_vars ->
+          if runtime <> "T" then
+            match un_command with
+            | RawCode _ ->
+                VNode {
+                  un_command;
+                  un_script;
+                  un_runtime = runtime;
+                  un_serializer = lookup_arg "serializer" (Var "default");
+                  un_deserializer = lookup_arg "deserializer" (Var "default");
+                  un_env_vars;
+                  un_functions = lookup_list "functions";
+                  un_includes = lookup_list "includes";
+                  un_noop = eval_bool "noop" false;
+                }
+            | _ ->
+                let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R or .py file." runtime in
+                Error.make_error TypeError msg
+          else
             VNode {
               un_command;
               un_script;
               un_runtime = runtime;
               un_serializer = lookup_arg "serializer" (Var "default");
               un_deserializer = lookup_arg "deserializer" (Var "default");
+              un_env_vars;
               un_functions = lookup_list "functions";
               un_includes = lookup_list "includes";
               un_noop = eval_bool "noop" false;
-            }
-        | _ -> 
-            let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R or .py file." runtime in
-            Error.make_error TypeError msg
-      else
-        VNode {
-          un_command;
-          un_script;
-          un_runtime = runtime;
-          un_serializer = lookup_arg "serializer" (Var "default");
-          un_deserializer = lookup_arg "deserializer" (Var "default");
-          un_functions = lookup_list "functions";
-          un_includes = lookup_list "includes";
-          un_noop = eval_bool "noop" false;
-        }
+            })
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args
@@ -683,6 +714,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     un_runtime = "T";
     un_serializer = Var "default";
     un_deserializer = Var "default";
+    un_env_vars = [];
     un_functions = [];
     un_includes = [];
     un_noop = false;
@@ -696,7 +728,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr with
-      | Call { fn = Var "node"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+      | Call { fn = Var "node"; _ } | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
     if is_node_call then
@@ -709,6 +741,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             un_runtime = cn.cn_runtime;
             un_serializer = Value (VString cn.cn_serializer);
             un_deserializer = Var "default";
+            un_env_vars = [];
             un_functions = [];
             un_includes = [];
             un_noop = false;
@@ -904,6 +937,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       p_runtimes = runtime_mapping;
       p_serializers = List.map (fun (name, un) -> (name, un.un_serializer)) desugared_nodes;
       p_deserializers = List.map (fun (name, un) -> (name, un.un_deserializer)) desugared_nodes;
+      p_env_vars = List.map (fun (name, un) -> (name, un.un_env_vars)) desugared_nodes;
       p_functions = List.map (fun (name, un) -> (name, un.un_functions)) desugared_nodes;
       p_includes = List.map (fun (name, un) -> (name, un.un_includes)) desugared_nodes;
       p_noops = List.map (fun (name, un) -> (name, un.un_noop)) desugared_nodes;
@@ -920,6 +954,7 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
       un_runtime = List.assoc name prev.p_runtimes;
       un_serializer = List.assoc name prev.p_serializers;
       un_deserializer = List.assoc name prev.p_deserializers;
+      un_env_vars = (match List.assoc_opt name prev.p_env_vars with Some vars -> vars | None -> []);
       un_functions = List.assoc name prev.p_functions;
       un_includes = List.assoc name prev.p_includes;
       un_noop = List.assoc name prev.p_noops;

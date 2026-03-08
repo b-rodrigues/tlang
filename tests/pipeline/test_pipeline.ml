@@ -220,15 +220,89 @@ p_cross = pipeline {
     {|node(script = "train_model.R", runtime = R)|}
     (Packages.init_env ()) in
   (match v_script_node with
-   | Ast.VNode un ->
-       if un.un_script = Some "train_model.R" && un.un_runtime = "R" then begin
-         incr pass_count; Printf.printf "  ✓ node() with script stores path and runtime\n"
+    | Ast.VNode un ->
+        if un.un_script = Some "train_model.R" && un.un_runtime = "R" then begin
+          incr pass_count; Printf.printf "  ✓ node() with script stores path and runtime\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ node() with script stores path and runtime\n    script=%s runtime=%s\n"
+            (match un.un_script with Some s -> s | None -> "None") un.un_runtime
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ node() with script returned unexpected value: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_py_node, _) = eval_string_env
+    {|py(command = <{ x + 1 }>, env_vars = [API_KEY: "secret", RETRIES: 3])|}
+    (Packages.init_env ()) in
+  let same_env_vars left right =
+    let sort_vars vars = List.sort (fun (k1, _) (k2, _) -> String.compare k1 k2) vars in
+    sort_vars left = sort_vars right
+  in
+  (match v_py_node with
+   | Ast.VNode un
+     when un.un_runtime = "Python"
+          && same_env_vars un.un_env_vars [("API_KEY", Ast.VString "secret"); ("RETRIES", Ast.VInt 3)] ->
+       incr pass_count; Printf.printf "  ✓ py() stores env_vars on the node\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ py() env_vars parsing failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  test "node env_vars must be a dict"
+    {|node(command = 1, env_vars = 1)|}
+    {|Error(TypeError: "Function `node` expects `env_vars` to be a Dict.")|};
+
+  let (v_py_pipeline, _) = eval_string_env
+    {|pipeline {
+  data = 1
+  step = py(command = <{ data + 1 }>, env_vars = [MODE: "fast"], deserializer = "json")
+}|}
+    (Packages.init_env ()) in
+  (match v_py_pipeline with
+   | Ast.VPipeline p ->
+       let runtime_ok = List.assoc_opt "step" p.p_runtimes = Some "Python" in
+       let env_ok =
+         match List.assoc_opt "step" p.p_env_vars with
+         | Some vars -> same_env_vars vars [("MODE", Ast.VString "fast")]
+         | None -> false
+       in
+       if runtime_ok && env_ok then begin
+         incr pass_count; Printf.printf "  ✓ py() nodes are desugared with env_vars in pipelines\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ node() with script stores path and runtime\n    script=%s runtime=%s\n"
-           (match un.un_script with Some s -> s | None -> "None") un.un_runtime
+         incr fail_count; Printf.printf "  ✗ py() pipeline desugaring failed\n"
        end
    | other ->
-       incr fail_count; Printf.printf "  ✗ node() with script should return VNode, got: %s\n"
+       incr fail_count; Printf.printf "  ✗ py() pipeline should return VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  let (v_env_pipeline, _) = eval_string_env
+    {|pipeline {
+  model = rn(command = <{ 1 + 1 }>, env_vars = [MODEL_MODE: "train", RETRIES: 2], deserializer = "json")
+}|}
+    (Packages.init_env ()) in
+  (match v_env_pipeline with
+   | Ast.VPipeline p ->
+       let rerun_has_envs =
+         match Eval.rerun_pipeline (ref (Packages.init_env ())) p with
+         | Ast.VPipeline rerun ->
+             (match List.assoc_opt "model" rerun.p_env_vars with
+              | Some vars -> same_env_vars vars [("MODEL_MODE", Ast.VString "train"); ("RETRIES", Ast.VInt 2)]
+              | _ -> false)
+         | _ -> false
+       in
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let contains s sub =
+         try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
+         with Not_found -> false
+       in
+       let has_model_mode = contains nix {|"MODEL_MODE" = "train";|} in
+       let has_retries = contains nix {|"RETRIES" = "2";|} in
+       if rerun_has_envs && has_model_mode && has_retries then begin
+         incr pass_count; Printf.printf "  ✓ pipeline preserves and emits node env_vars\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ pipeline env_vars preservation/emission failed\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ pipeline with env_vars should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* Test: runtime auto-detected from .R extension *)
