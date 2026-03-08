@@ -102,16 +102,110 @@ let load_current_dependencies () =
   else
     Error "No tproject.toml or DESCRIPTION.toml found in the current directory."
 
+let is_safe_git_location url =
+  let len = String.length url in
+  let rec check i =
+    if i >= len then
+      true
+    else
+      match url.[i] with
+      | '\000' | '\n' | '\r' -> false
+      | _ -> check (i + 1)
+  in
+  len > 0 && url.[0] <> '-' && check 0
+
+let run_git_ls_remote_tags url =
+  if not (is_safe_git_location url) then
+    Error "invalid repository location"
+  else
+    try
+      let argv = [| "git"; "ls-remote"; "--tags"; url |] in
+      let ch_in, ch_out, ch_err =
+        Unix.open_process_args_full "git" argv (Unix.environment ())
+      in
+      close_out ch_out;
+      let out_buf = Buffer.create 1024 in
+      let err_buf = Buffer.create 1024 in
+      let buf = Bytes.create 4096 in
+      let fd_out = Unix.descr_of_in_channel ch_in in
+      let fd_err = Unix.descr_of_in_channel ch_err in
+      let rec drain out_open err_open =
+        if not out_open && not err_open then
+          ()
+        else
+          let read_fds =
+            [] |> (fun acc -> if out_open then fd_out :: acc else acc)
+               |> (fun acc -> if err_open then fd_err :: acc else acc)
+          in
+          let ready, _, _ = Unix.select read_fds [] [] (-1.) in
+          let out_open =
+            if out_open && List.mem fd_out ready then (
+              let n =
+                try input ch_in buf 0 (Bytes.length buf) with
+                | End_of_file -> 0
+              in
+              if n = 0 then
+                false
+              else (
+                Buffer.add_subbytes out_buf buf 0 n;
+                true
+              )
+            ) else out_open
+          in
+          let err_open =
+            if err_open && List.mem fd_err ready then (
+              let n =
+                try input ch_err buf 0 (Bytes.length buf) with
+                | End_of_file -> 0
+              in
+              if n = 0 then
+                false
+              else (
+                Buffer.add_subbytes err_buf buf 0 n;
+                true
+              )
+            ) else err_open
+          in
+          drain out_open err_open
+      in
+      drain true true;
+      let status = Unix.close_process_full (ch_in, ch_out, ch_err) in
+      match status with
+      | Unix.WEXITED 0 -> Ok (String.trim (Buffer.contents out_buf))
+      | Unix.WEXITED _ ->
+          let err_output = String.trim (Buffer.contents err_buf) in
+          let lower_err = String.lowercase_ascii err_output in
+          if err_output = "" then
+            Error "git ls-remote failed"
+          else if String.starts_with ~prefix:"fatal" lower_err then
+            Error "repository access failed"
+          else
+            Error "git ls-remote reported an error"
+      | Unix.WSIGNALED _ | Unix.WSTOPPED _ -> Error "git ls-remote terminated unexpectedly"
+    with _ -> Error "git ls-remote invocation failed"
+
+let remote_tag_warning_message dep_name reason =
+  match reason with
+  | "invalid repository location" ->
+      Printf.sprintf
+        "Warning: Failed to check remote tags for `%s`. Verify the dependency git location in your TOML file.\n%!"
+        dep_name
+  | "repository access failed" ->
+      Printf.sprintf
+        "Warning: Failed to check remote tags for `%s`. Verify the repository URL and your access to it.\n%!"
+        dep_name
+  | _ ->
+      Printf.sprintf
+        "Warning: Failed to check remote tags for `%s`. Verify git is available and try again.\n%!"
+        dep_name
+
 let check_dependency_remote_tag dep =
   match Scaffold.parse_semver dep.tag with
   | None -> None
   | Some current_semver ->
-      let cmd = Printf.sprintf "git ls-remote --tags %s" (Filename.quote dep.git_url) in
-      match run_command cmd with
+      match run_git_ls_remote_tags dep.git_url with
       | Error msg ->
-          Printf.eprintf
-            "Warning: Failed to check remote tags for `%s`: %s\n%!"
-            dep.dep_name msg;
+          Printf.eprintf "%s" (remote_tag_warning_message dep.dep_name msg);
           None
       | Ok output ->
           match latest_semver_tag (parse_remote_tag_refs output) with
