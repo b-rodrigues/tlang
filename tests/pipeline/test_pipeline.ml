@@ -278,6 +278,10 @@ p_cross = pipeline {
     {|node(runtime = Quarto, args = [subcommand: "render"])|}
     {|Error(TypeError: "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file.")|};
 
+  test "node command conflicts with args-derived script path"
+    {|node(command = <{ 1 + 1 }>, runtime = Quarto, args = [path: "report.qmd"])|}
+    {|Error(TypeError: "node() cannot use 'command' together with a script path (from 'script' or args.path/file/qmd_file/input) — choose one.")|};
+
   let (v_quarto_node, _) = eval_string_env
     {|node(runtime = Quarto, args = [subcommand: "render", path: "report.qmd", to: "html", standalone: true])|}
     (Packages.init_env ()) in
@@ -393,6 +397,26 @@ p_cross = pipeline {
       | other ->
           incr fail_count; Printf.printf "  ✗ pipeline with Quarto node should return VPipeline, got: %s\n"
             (Ast.Utils.value_to_string other));
+
+  test "pipeline_copy validates node type"
+    {|pipeline_copy(node = 1)|}
+    {|Error(TypeError: "Function `pipeline_copy` expects `node` to be a String, Symbol, or Null.")|};
+
+  test "pipeline_copy validates target_dir type"
+    {|pipeline_copy(target_dir = 1)|}
+    {|Error(TypeError: "Function `pipeline_copy` expects `target_dir` to be a String or Symbol.")|};
+
+  test "pipeline_copy validates dir_mode type"
+    {|pipeline_copy(dir_mode = 755)|}
+    {|Error(TypeError: "Function `pipeline_copy` expects `dir_mode` to be a String.")|};
+
+  test "pipeline_copy validates file_mode type"
+    {|pipeline_copy(file_mode = 644)|}
+    {|Error(TypeError: "Function `pipeline_copy` expects `file_mode` to be a String.")|};
+
+  test "pipeline_copy validates mode contents"
+    {|pipeline_copy(dir_mode = "0755; rm -rf /")|}
+    {|Error(GenericError: "Invalid file or directory mode: expected octal string like 0755 or 0644.")|};
 
   (* Test: runtime auto-detected from .R extension *)
   let (v_r_auto, _) = eval_string_env

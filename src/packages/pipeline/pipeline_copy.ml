@@ -27,30 +27,37 @@ let register env =
   in
 
   let copy_fn named_args _env =
-    let node_name = 
-      match get_arg "node" 1 VNull named_args with
-      | VString s -> Some s
-      | VSymbol s -> Some s
-      | _ -> None
-    in
-    let target_dir = 
-      match get_arg "target_dir" 2 (VString "pipeline-output") named_args with
-      | VString s -> s
-      | VSymbol s -> s
-      | _ -> "pipeline-output"
-    in
-    let dir_mode = 
-      match get_arg "dir_mode" 3 (VString "0755") named_args with
-      | VString s -> s
-      | _ -> "0755"
-    in
-    let file_mode = 
-      match get_arg "file_mode" 4 (VString "0644") named_args with
-      | VString s -> s
-      | _ -> "0644"
-    in
-    
-    Builder.pipeline_copy ~node_name ~target_dir ~dir_mode ~file_mode ()
+    match get_arg "node" 1 VNull named_args with
+    | VNull ->
+        (match get_arg "target_dir" 2 (VString "pipeline-output") named_args with
+         | VString target_dir | VSymbol target_dir ->
+             (match get_arg "dir_mode" 3 (VString "0755") named_args with
+              | VString dir_mode ->
+                  (match get_arg "file_mode" 4 (VString "0644") named_args with
+                   | VString file_mode ->
+                       Builder.pipeline_copy ~node_name:None ~target_dir ~dir_mode ~file_mode ()
+                   | _ ->
+                       Error.type_error "Function `pipeline_copy` expects `file_mode` to be a String.")
+              | _ ->
+                  Error.type_error "Function `pipeline_copy` expects `dir_mode` to be a String."))
+         | _ ->
+             Error.type_error "Function `pipeline_copy` expects `target_dir` to be a String or Symbol.")
+    | VString node_name | VSymbol node_name ->
+        (match get_arg "target_dir" 2 (VString "pipeline-output") named_args with
+         | VString target_dir | VSymbol target_dir ->
+             (match get_arg "dir_mode" 3 (VString "0755") named_args with
+              | VString dir_mode ->
+                  (match get_arg "file_mode" 4 (VString "0644") named_args with
+                   | VString file_mode ->
+                       Builder.pipeline_copy ~node_name:(Some node_name) ~target_dir ~dir_mode ~file_mode ()
+                   | _ ->
+                       Error.type_error "Function `pipeline_copy` expects `file_mode` to be a String.")
+              | _ ->
+                  Error.type_error "Function `pipeline_copy` expects `dir_mode` to be a String."))
+         | _ ->
+             Error.type_error "Function `pipeline_copy` expects `target_dir` to be a String or Symbol.")
+    | _ ->
+        Error.type_error "Function `pipeline_copy` expects `node` to be a String, Symbol, or Null."
   in
 
   env
