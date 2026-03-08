@@ -73,7 +73,7 @@ let substring_scalar args _env =
         Error.value_error "Invalid substring indices."
       else
         VString (String.sub s start (end_ - start))
-  | _ -> Error.type_error "substring expects (string, int, int)."
+  | _ -> Error.type_error "str_substring expects (string, int, int)."
 
 let substring_impl args env = vectorize_ternary substring_scalar args env
 
@@ -155,7 +155,7 @@ let replace_scalar args _env =
   | [VString s; VString old; VString new_] ->
       let regex = Str.regexp_string old in
       VString (Str.global_replace regex new_ s)
-  | _ -> Error.type_error "replace expects (string, string, string)."
+  | _ -> Error.type_error "str_replace expects (string, string, string)."
 
 let replace_impl args env = vectorize_ternary replace_scalar args env
 
@@ -210,7 +210,7 @@ let re_whitespace = Str.regexp "[ \t]+"
 (*
 --# Trim whitespace
 --# Removes leading and trailing whitespace from a string. Vectorized.
---# @name trim
+--# @name str_trim
 --# @param s :: String The string to trim.
 --# @return :: String The trimmed string.
 --# @family string
@@ -219,7 +219,7 @@ let re_whitespace = Str.regexp "[ \t]+"
 let trim_scalar args _env =
   match args with
   | [VString s] -> VString (String.trim s)
-  | _ -> Error.type_error "trim expects a String."
+  | _ -> Error.type_error "str_trim expects a String."
 
 let trim_impl args env = vectorize_unary trim_scalar args env
 
@@ -256,11 +256,11 @@ let trim_end_impl args env = vectorize_unary trim_end_scalar args env
 (*
 --# Split string into lines
 --# Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
---# @name lines
+--# @name str_lines
 --# @param s :: String | ShellResult
 --# @return :: List[String]
 --# @family string
---# @seealso words, strsplit
+--# @seealso str_words, str_split
 --# @export
 *)
 let lines_impl args _env =
@@ -282,20 +282,20 @@ let lines_impl args _env =
   | [VShellResult { sr_stdout; _ }]    -> do_lines sr_stdout
   | [other] ->
       Error.type_error
-        (Printf.sprintf "lines expects a String or ShellResult, got %s"
+        (Printf.sprintf "str_lines expects a String or ShellResult, got %s"
            (Utils.type_name other))
-  | _ -> Error.arity_error_named "lines" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "str_lines" ~expected:1 ~received:(List.length args)
 
 (*
 --# Split string into words
 --# Splits on whitespace, collapsing consecutive spaces. Accepts ShellResult.
 --# Note: words splits on spaces and tabs only, not newlines. For line-by-line
---# processing use lines() first, then words() on each line.
---# @name words
+--# processing use str_lines() first, then str_words() on each line.
+--# @name str_words
 --# @param s :: String | ShellResult
 --# @return :: List[String]
 --# @family string
---# @seealso lines, strsplit
+--# @seealso str_lines, str_split
 --# @export
 *)
 let words_impl args _env =
@@ -311,9 +311,9 @@ let words_impl args _env =
   | [VShellResult { sr_stdout; _ }] -> do_words sr_stdout
   | [other] ->
       Error.type_error
-        (Printf.sprintf "words expects a String or ShellResult, got %s"
+        (Printf.sprintf "str_words expects a String or ShellResult, got %s"
            (Utils.type_name other))
-  | _ -> Error.arity_error_named "words" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "str_words" ~expected:1 ~received:(List.length args)
 
 (*
 --# Repeat a string
@@ -347,7 +347,7 @@ let str_repeat_impl args env = vectorize_binary str_repeat_scalar args env
 --# @param values :: Dict | List The named values to substitute.
 --# @return :: String The formatted string.
 --# @family string
---# @seealso sprintf
+--# @seealso str_sprintf
 --# @export
 *)
 let str_format_impl args _env =
@@ -408,7 +408,7 @@ let str_format_impl args _env =
 
 let length_scalar args _env =
   match args with
-  | [VString _] -> Error.type_error "length does not work on strings. Use nchar() to get the number of characters in a string."
+  | [VString _] -> Error.type_error "length does not work on strings. Use str_nchar() to get the number of characters in a string."
   | [VList items] -> VInt (List.length items)
   | [VDict pairs] -> VInt (List.length pairs)
   | [VVector arr] -> VInt (Array.length arr)
@@ -641,7 +641,7 @@ let str_flatten_impl named_args _env =
 let nchar_scalar args _env =
   match args with
   | [VString s] -> VInt (String.length s)
-  | _ -> Error.type_error "nchar expects a string."
+  | _ -> Error.type_error "str_nchar expects a string."
 
 let nchar_impl args env = vectorize_unary nchar_scalar args env
  
@@ -672,7 +672,7 @@ let sprintf_impl args _env =
         )
       in
       go 0 vals
-  | _ -> Error.type_error "sprintf expects a format string as the first argument."
+  | _ -> Error.type_error "str_sprintf expects a format string as the first argument."
 
 let join_impl args _env =
   match args with
@@ -692,12 +692,12 @@ let join_impl args _env =
       VString (Ast.Utils.value_to_raw_string val_)
   | [val_; VString _] ->
       VString (Ast.Utils.value_to_raw_string val_)
-  | _ -> Error.type_error "Function `join` expects (list/vector, [separator]) or (value, [separator])."
+  | _ -> Error.type_error "Function `str_join` expects (list/vector, [separator]) or (value, [separator])."
 
 let string_impl args _env =
   match args with
   | [v] -> VString (Ast.Utils.value_to_raw_string v)
-  | _ -> Error.type_error "Function `string` expects a single argument."
+  | _ -> Error.type_error "Function `str_string` expects a single argument."
 
 let strsplit_impl args _env =
   let do_split s sep =
@@ -729,8 +729,8 @@ let strsplit_impl args _env =
   match args with
   | [VString s; VString sep]                     -> do_split s sep
   | [VShellResult { sr_stdout; _ }; VString sep] -> do_split sr_stdout sep
-  | [_; _] -> Error.type_error "Function `strsplit` expects (String, String)."
-  | _      -> Error.arity_error_named "strsplit" ~expected:2 ~received:(List.length args)
+  | [_; _] -> Error.type_error "Function `str_split` expects (String, String)."
+  | _      -> Error.arity_error_named "str_split" ~expected:2 ~received:(List.length args)
 
 (*
 --# Format a string
@@ -738,14 +738,14 @@ let strsplit_impl args _env =
 --# Formats a string using C-style format specifiers.
 --# Supports %s (string), %d (integer), %f (float), and %% (literal %).
 --#
---# @name sprintf
+--# @name str_sprintf
 --# @param fmt :: String The format string.
 --# @param ... :: Any Values to substitute in the format string.
 --# @return :: String The formatted string.
 --# @example
---#   sprintf("Hello, %s!", "world")
+--#   str_sprintf("Hello, %s!", "world")
 --#   -- Returns = "Hello, world!"
---#   sprintf("Value = %d", 42)
+--#   str_sprintf("Value = %d", 42)
 --#   -- Returns: "Value = 42"
 --# @family string
 --# @export
@@ -768,7 +768,7 @@ let strsplit_impl args _env =
 --#
 --# Returns the number of characters in a string. Vectorized.
 --#
---# @name nchar
+--# @name str_nchar
 --# @param x :: String | Vector[String] The input string(s).
 --# @return :: Int | Vector[Int] The number of characters.
 --# @family string
@@ -780,7 +780,7 @@ let strsplit_impl args _env =
 --#
 --# Returns the number of elements in a collection (List, Vector, Dict).
 --# This function is NOT vectorized - it always returns the count of elements.
---# For getting the number of characters in a string, use nchar() instead.
+--# For getting the number of characters in a string, use str_nchar() instead.
 --#
 --# @name length
 --# @param x :: List | Vector | Dict The collection to measure.
@@ -794,7 +794,7 @@ let strsplit_impl args _env =
 --#
 --# Returns the part of the string between `start` and `end` indices.
 --#
---# @name substring
+--# @name str_substring
 --# @param s :: String The input string.
 --# @param start :: Int The starting index (inclusive).
 --# @param end :: Int The ending index (exclusive).
@@ -806,7 +806,7 @@ let strsplit_impl args _env =
 (*
 --# Extract slice
 --#
---# Alias for `substring`. Returns the part of the string between `start` and `end` indices.
+--# Alias for `str_substring`. Returns the part of the string between `start` and `end` indices.
 --#
 --# @name slice
 --# @param s :: String The input string.
@@ -900,7 +900,7 @@ let strsplit_impl args _env =
 --#
 --# Replaces all occurrences of `old` with `new_` in `s`.
 --#
---# @name replace
+--# @name str_replace
 --# @param s :: String The input string.
 --# @param old :: String The substring to replace.
 --# @param new_ :: String The replacement string.
@@ -952,17 +952,17 @@ let strsplit_impl args _env =
 --#
 --# Concatenates items of a List or Vector into a single string, separated by `sep`.
 --#
---# @name join
+--# @name str_join
 --# @param items :: List | Vector The items to join.
 --# @param sep :: String [Optional] The separator string. Defaults to "".
 --# @return :: String The joined string.
 --# @example
---#   join(["a", "b", "c"], "-")
+--#   str_join(["a", "b", "c"], "-")
 --#   -- Returns = "a-b-c"
---#   join(["a", "b", "c"])
+--#   str_join(["a", "b", "c"])
 --#   -- Returns = "abc"
---# @family core
---# @seealso string
+--# @family string
+--# @seealso str_string
 --# @export
 *)
 
@@ -971,14 +971,14 @@ let strsplit_impl args _env =
 --#
 --# Converts any value to its string representation.
 --#
---# @name string
+--# @name str_string
 --# @param x :: Any The value to convert.
 --# @return :: String The string representation.
 --# @example
---#   string(123)
+--#   str_string(123)
 --#   -- Returns = "123"
---# @family core
---# @seealso join
+--# @family string
+--# @seealso str_join
 --# @export
 *)
 
@@ -989,16 +989,16 @@ let strsplit_impl args _env =
 --# If `sep` is empty, splits into individual characters.
 --# Works transparently on ShellResult values (splits stdout).
 --#
---# @name strsplit
+--# @name str_split
 --# @param x :: String | ShellResult The string to split.
 --# @param sep :: String The delimiter to split on.
 --# @return :: List[String] A list of substrings.
 --# @example
---#   strsplit("a,b,c", ",")
+--#   str_split("a,b,c", ",")
 --#   -- Returns = ["a", "b", "c"]
---#   files = ?<{ls}>; strsplit(files, "\n")
---# @family core
---# @seealso join
+--#   files = ?<{ls}>; str_split(files, "\n")
+--# @family string
+--# @seealso str_join
 --# @export
 *)
 
@@ -1006,8 +1006,8 @@ let strsplit_impl args _env =
 let register env =
   let env = Env.add "is_empty" (make_builtin ~name:"is_empty" 1 is_empty_impl) env in
   let env = Env.add "length" (make_builtin ~name:"length" 1 length_impl) env in
-  let env = Env.add "nchar" (make_builtin ~name:"nchar" 1 nchar_impl) env in
-  let env = Env.add "substring" (make_builtin ~name:"substring" 3 substring_impl) env in
+  let env = Env.add "str_nchar" (make_builtin ~name:"str_nchar" 1 nchar_impl) env in
+  let env = Env.add "str_substring" (make_builtin ~name:"str_substring" 3 substring_impl) env in
   let env = Env.add "slice" (make_builtin ~name:"slice" 3 substring_impl) env in
   let env = Env.add "char_at" (make_builtin ~name:"char_at" 2 char_at_impl) env in
   let env = Env.add "index_of" (make_builtin ~name:"index_of" 2 index_of_impl) env in
@@ -1015,15 +1015,15 @@ let register env =
   let env = Env.add "contains" (make_builtin ~name:"contains" 2 contains_impl) env in
   let env = Env.add "starts_with" (make_builtin ~name:"starts_with" 2 starts_with_impl) env in
   let env = Env.add "ends_with" (make_builtin ~name:"ends_with" 2 ends_with_impl) env in
-  let env = Env.add "replace" (make_builtin ~name:"replace" 3 replace_impl) env in
+  let env = Env.add "str_replace" (make_builtin ~name:"str_replace" 3 replace_impl) env in
   let env = Env.add "replace_first" (make_builtin ~name:"replace_first" 3 replace_first_impl) env in
   let env = Env.add "to_lower" (make_builtin ~name:"to_lower" 1 to_lower_impl) env in
   let env = Env.add "to_upper" (make_builtin ~name:"to_upper" 1 to_upper_impl) env in
-  let env = Env.add "trim"        (make_builtin ~name:"trim"        1 trim_impl)        env in
+  let env = Env.add "str_trim"    (make_builtin ~name:"str_trim"    1 trim_impl)        env in
   let env = Env.add "trim_start"  (make_builtin ~name:"trim_start"  1 trim_start_impl)  env in
   let env = Env.add "trim_end"    (make_builtin ~name:"trim_end"    1 trim_end_impl)    env in
-  let env = Env.add "lines"       (make_builtin ~name:"lines"       1 lines_impl)       env in
-  let env = Env.add "words"       (make_builtin ~name:"words"       1 words_impl)       env in
+  let env = Env.add "str_lines"   (make_builtin ~name:"str_lines"   1 lines_impl)       env in
+  let env = Env.add "str_words"   (make_builtin ~name:"str_words"   1 words_impl)       env in
   let env = Env.add "str_repeat"  (make_builtin ~name:"str_repeat"  2 str_repeat_impl)  env in
   let env = Env.add "str_format"  (make_builtin ~name:"str_format"  2 str_format_impl)  env in
   let env = Env.add "str_extract" (make_builtin ~name:"str_extract" 2 str_extract_impl) env in
@@ -1033,8 +1033,8 @@ let register env =
   let env = Env.add "str_trunc" (make_builtin_named ~name:"str_trunc" ~variadic:true 2 str_trunc_impl) env in
   let env = Env.add "str_flatten" (make_builtin_named ~name:"str_flatten" ~variadic:true 1 str_flatten_impl) env in
   let env = Env.add "str_count" (make_builtin ~name:"str_count" 2 str_count_impl) env in
-  let env = Env.add "sprintf" (make_builtin ~name:"sprintf" ~variadic:true 1 sprintf_impl) env in
-  let env = Env.add "join" (make_builtin ~name:"join" ~variadic:true 1 join_impl) env in
-  let env = Env.add "string" (make_builtin ~name:"string" 1 string_impl) env in
-  let env = Env.add "strsplit" (make_builtin ~name:"strsplit" 2 strsplit_impl) env in
+  let env = Env.add "str_sprintf" (make_builtin ~name:"str_sprintf" ~variadic:true 1 sprintf_impl) env in
+  let env = Env.add "str_join" (make_builtin ~name:"str_join" ~variadic:true 1 join_impl) env in
+  let env = Env.add "str_string" (make_builtin ~name:"str_string" 1 string_impl) env in
+  let env = Env.add "str_split" (make_builtin ~name:"str_split" 2 strsplit_impl) env in
   env

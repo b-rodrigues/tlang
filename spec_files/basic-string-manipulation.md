@@ -15,7 +15,7 @@ Think: low-level operations.
 ## 1. Basic Inspection
 
 ```t
-length(s)
+str_nchar(s)
 is_empty(s)
 ```
 
@@ -24,7 +24,7 @@ is_empty(s)
 ## 2. Basic Substring Operations
 
 ```t
-substring(s, start, end)
+str_substring(s, start, end)
 slice(s, start, end)          # alias or alternative
 char_at(s, i)
 ```
@@ -50,7 +50,7 @@ Literal matching only.
 ## 4. Basic Modification (Literal)
 
 ```t
-replace(s, old, new)
+str_replace(s, old, new)
 replace_first(s, old, new)
 ```
 

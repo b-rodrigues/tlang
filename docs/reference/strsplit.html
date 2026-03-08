@@ -36,7 +36,7 @@
 <header id="title-block-header">
 <h1 class="title">T Function Reference - strsplit</h1>
 </header>
-<h1 id="strsplit">strsplit</h1>
+<h1 id="str_split">str_split</h1>
 <p>Split a string on a delimiter</p>
 <p>Splits a string into a list of substrings on each occurrence of
 <code>sep</code>. If <code>sep</code> is empty, splits into individual
@@ -52,11 +52,11 @@ on.</li>
 <h2 id="returns">Returns:</h2>
 <p>Returns: A list of substrings.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>strsplit(&quot;a,b,c&quot;, &quot;,&quot;)
+<pre class="t"><code>str_split(&quot;a,b,c&quot;, &quot;,&quot;)
 -- Returns = [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]
-files = ?&lt;{ls}&gt;; strsplit(files, &quot;\n&quot;)</code></pre>
+files = ?&lt;{ls}&gt;; str_split(files, &quot;\n&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="join.html">join</a></p>
+<p><a href="join.html">str_join</a></p>
 <footer>
     <hr class="footer-hr">
     <center>

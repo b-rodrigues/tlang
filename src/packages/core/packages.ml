@@ -40,7 +40,8 @@ let ensure_docs_loaded () =
   Lazy.force docs_loaded
 
 let package_families = function
-  | "core" -> ["core"; "string"; "boolean"; "repl"; "package_manager"; "tdoc"]
+  | "core" -> ["core"; "boolean"; "repl"; "package_manager"; "tdoc"]
+  | "strcraft" -> ["strcraft"; "string"]
   | "stats" -> ["stats"; "descriptive-statistics"]
   | "base" -> ["base"; "json"; "serialization"]
   | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" | "chrono" as pkg -> [pkg]
@@ -68,12 +69,19 @@ let package_functions pkg =
 (** Standard package definitions *)
 let core_package = {
   name = "core";
-  description = "Core utilities: printing, type inspection, data structures, strings";
-  functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "sprintf"; "string"; "get";
-               "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
-               "trim"; "trim_start"; "trim_end"; "lines"; "words"; "str_repeat"; "str_format"; "str_extract"; "str_extract_all"; "str_detect"; "str_pad"; "str_trunc"; "str_flatten"; "str_count";
+  description = "Core utilities: printing, type inspection, data structures";
+  functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get";
                "ifelse"; "case_when"; "run"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
+}
+
+let strcraft_package = {
+  name = "strcraft";
+  description = "String inspection, transformation, and formatting";
+  functions = ["str_nchar"; "is_empty"; "str_substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with";
+               "str_replace"; "replace_first"; "to_lower"; "to_upper"; "str_trim"; "trim_start"; "trim_end"; "str_lines"; "str_words"; "str_repeat";
+               "str_format"; "str_extract"; "str_extract_all"; "str_detect"; "str_pad"; "str_trunc"; "str_flatten"; "str_count";
+               "str_sprintf"; "str_join"; "str_string"; "str_split"];
 }
 
 let stats_package = {
@@ -153,6 +161,7 @@ let explain_package = {
 (** All standard packages *)
 let all_packages = [
   core_package;
+  strcraft_package;
   base_package;
   chrono_package;
   math_package;
@@ -469,11 +478,12 @@ let init_env () =
   let env = Sum.register env in
   let env = T_get.register env in
   let env = Help.register env in
-  let env = String_ops.register env in
   let env = T_write_text.register env in
   let env = Converters.register env in
   let env = File_ops.register env in
   let env = Path_ops.register env in
+  (* Strcraft package *)
+  let env = String_ops.register env in
   (* Base package *)
   let env = T_assert.register env in
   let env = Is_na.register env in

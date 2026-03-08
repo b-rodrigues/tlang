@@ -36,7 +36,7 @@ print(p)
 
 print("Running build_pipeline(p)...")
 p_store_path = build_pipeline(p)
-print(join(["Pipeline built at: ", p_store_path], sep=""))
+print(str_join(["Pipeline built at: ", p_store_path], sep=""))
 
 print("Verifying individual nodes via read_node:")
 print("config_node data:")

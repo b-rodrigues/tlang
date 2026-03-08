@@ -27,7 +27,7 @@ This document outlines the planned extensions for the `colcraft`, `strings`, `fa
 ### Formatting & Cleaning (Priority: Medium)
 - **`str_pad(s, width, side, pad)`**: Vectorized padding for alignment.
 - **`str_trunc(s, width, side, ellipsis)`**: Truncate strings with ellipses.
-- **`str_flatten(v, collapse)`**: Collapse a vector into a single string (different from `join` as it targets vector-to-scalar reduction).
+- **`str_flatten(v, collapse)`**: Collapse a vector into a single string (different from `str_join` as it targets vector-to-scalar reduction).
 - **`str_count(s, pattern)`**: Count occurrences of a regex pattern.
 
 ---

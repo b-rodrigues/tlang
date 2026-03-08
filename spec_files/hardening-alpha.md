@@ -386,7 +386,7 @@ NameError: 'slect' is not defined
 -- Could suggest: Did you mean 'select'?
 
 TypeError: Cannot add Int and String
--- Could suggest: Try converting String to Int with int() or Int to String with string()
+-- Could suggest: Try converting String to Int with int() or Int to String with str_string()
 
 ArityError: Function expects 2 arguments, got 1
 -- Could suggest: Missing argument at position 2
@@ -928,7 +928,7 @@ Each feature must have corresponding tests in the test suite.
 - [ ] DataFrame with 10,000 rows
 - [ ] DataFrame with 100 columns
 - [ ] Deeply nested lists (10+ levels)
-- [ ] Large string (>1MB)
+- [ ] Large str_string (>1MB)
 
 #### NA Edge Cases
 - [ ] All NA values in column

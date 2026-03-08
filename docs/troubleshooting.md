@@ -163,7 +163,7 @@ Error(NameError: ...)
 -- Error: Cannot add String and Int
 
 -- Workaround: Convert manually or use string concatenation with print
--- Note: Alpha does not have a string() conversion function yet
+-- Note: Alpha does not have a str_string() conversion function yet
 -- Use print for output instead:
 print("Age: ")
 print(25)

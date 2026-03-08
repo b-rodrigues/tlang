@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - string_manipulation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    div.sourceCode{overflow: auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="index.html">Home</a> |
+        <a href="getting-started.html">Get Started</a> |
+        <a href="language_overview.html">Overview</a> |
+        <a href="api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Programming Language - string_manipulation</h1>
+</header>
+<h1 id="string-manipulation-in-t">String Manipulation in T</h1>
+<p>This guide explains how string manipulation functions are named in T, when the <code>str_</code> prefix is used, and which related helpers intentionally keep their original names.</p>
+<hr />
+<h2 id="the-basic-rule">The Basic Rule</h2>
+<p>String transformation and formatting functions in T use the <code>str_</code> prefix.</p>
+<p>This makes it easier to distinguish them from:</p>
+<ul>
+<li>generic helpers in other packages,</li>
+<li>functions that have non-string behavior,</li>
+<li>selection helpers used in data manipulation.</li>
+</ul>
+<p>Examples:</p>
+<pre><code>str_nchar("hello")          -- 5
+str_substring("hello", 1, 4) -- "ell"
+str_replace("banana", "a", "o") -- "bonono"
+str_trim("  hello  ")       -- "hello"
+str_join(["a", "b", "c"], "-") -- "a-b-c"
+str_string(42)               -- "42"
+str_split("a,b,c", ",")    -- ["a", "b", "c"]</code></pre>
+<hr />
+<h2 id="functions-that-use-str_">Functions That Use <code>str_</code></h2>
+<p>The shorter string-focused helpers follow this naming convention:</p>
+<ul>
+<li><code>str_nchar()</code></li>
+<li><code>str_substring()</code></li>
+<li><code>str_replace()</code></li>
+<li><code>str_trim()</code></li>
+<li><code>str_lines()</code></li>
+<li><code>str_words()</code></li>
+<li><code>str_sprintf()</code></li>
+<li><code>str_join()</code></li>
+<li><code>str_string()</code></li>
+<li><code>str_split()</code></li>
+</ul>
+<p>The <code>strsplit()</code> name was normalized to <code>str_split()</code> to match the rest of the string API.</p>
+<hr />
+<h2 id="why-some-names-stay-unchanged">Why Some Names Stay Unchanged</h2>
+<p>Not every string-related helper is renamed.</p>
+<p>Some functions deliberately keep their original names because they are already descriptive, are shared with another subsystem, or would become awkward if prefixed.</p>
+<p>Examples that remain unchanged include:</p>
+<ul>
+<li><code>contains()</code></li>
+<li><code>starts_with()</code></li>
+<li><code>ends_with()</code></li>
+<li><code>replace_first()</code></li>
+<li><code>trim_start()</code></li>
+<li><code>trim_end()</code></li>
+<li><code>char_at()</code></li>
+<li><code>index_of()</code></li>
+<li><code>last_index_of()</code></li>
+<li><code>to_lower()</code></li>
+<li><code>to_upper()</code></li>
+<li><code>is_empty()</code></li>
+<li><code>slice()</code></li>
+</ul>
+<p>In particular, <code>contains()</code>, <code>starts_with()</code>, and <code>ends_with()</code> are also used as column-selection helpers in <code>colcraft</code>, so keeping those names makes the data-manipulation API more consistent.</p>
+<hr />
+<h2 id="common-patterns">Common Patterns</h2>
+<h3 id="inspecting-strings">Inspecting strings</h3>
+<pre><code>str_nchar("hello")
+is_empty("")
+contains("tlang", "lang")
+starts_with("prefix", "pre")
+ends_with("suffix", "fix")</code></pre>
+<h3 id="extracting-and-modifying-text">Extracting and modifying text</h3>
+<pre><code>str_substring("abcdef", 1, 4)
+char_at("abcdef", 2)
+str_replace("banana", "a", "o")
+replace_first("banana", "a", "o")</code></pre>
+<h3 id="cleaning-and-splitting-text">Cleaning and splitting text</h3>
+<pre><code>str_trim("  hello  ")
+trim_start("  hello  ")
+trim_end("  hello  ")
+str_lines("a
+b
+c")
+str_words("hello   world")
+str_split("a,b,c", ",")</code></pre>
+<h3 id="formatting-and-conversion">Formatting and conversion</h3>
+<pre><code>str_sprintf("Hello, %s!", "world")
+str_join(["red", "green", "blue"], ", ")
+str_string(3.14)</code></pre>
+<hr />
+<h2 id="selection-helpers-vs-string-helpers">Selection Helpers vs String Helpers</h2>
+<p>When working with DataFrames, some names such as <code>starts_with()</code> and <code>contains()</code> can be used for column selection:</p>
+<pre><code>df |&gt; select(starts_with("petal"))
+df |&gt; select(contains("width"))</code></pre>
+<p>When called with string arguments, the same names still behave as string predicates:</p>
+<pre><code>starts_with("petal_width", "petal")
+contains("petal_width", "width")</code></pre>
+<p>That is why these names are intentionally left without the <code>str_</code> prefix.</p>
+<hr />
+<h2 id="related-reference-pages">Related Reference Pages</h2>
+<p>For per-function details, see the reference pages:</p>
+<ul>
+<li><a href="reference/nchar.html"><code>str_nchar</code></a></li>
+<li><a href="reference/substring.html"><code>str_substring</code></a></li>
+<li><a href="reference/replace.html"><code>str_replace</code></a></li>
+<li><a href="reference/sprintf.html"><code>str_sprintf</code></a></li>
+<li><a href="reference/join.html"><code>str_join</code></a></li>
+<li><a href="reference/string.html"><code>str_string</code></a></li>
+<li><a href="reference/strsplit.html"><code>str_split</code></a></li>
+<li><a href="reference/contains.html"><code>contains</code></a></li>
+<li><a href="reference/starts_with.html"><code>starts_with</code></a></li>
+<li><a href="reference/ends_with.html"><code>ends_with</code></a></li>
+</ul>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

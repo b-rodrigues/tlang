@@ -1,4 +1,4 @@
-# nchar
+# str_nchar
 
 Get character count
 

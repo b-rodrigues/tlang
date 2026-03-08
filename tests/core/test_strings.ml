@@ -14,18 +14,18 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "  Inspection:\n";
   test "is_empty true" "is_empty(\"\")" "true";
   test "is_empty false" "is_empty(\"a\")" "false";
-  test "length string error" "length(\"hello\")" {|Error(TypeError: "length does not work on strings. Use nchar() to get the number of characters in a string.")|};
+  test "length string error" "length(\"hello\")" {|Error(TypeError: "length does not work on strings. Use str_nchar() to get the number of characters in a string.")|};
   test "length list" "length([1, 2, 3])" "3";
   test "length vector" "length(seq(1, 10))" "10";
   test "length vector of strings" "length([\"a\", \"bc\"])" "2";
-  test "nchar string" "nchar(\"hello\")" "5";
-  test "nchar vector" "nchar([\"a\", \"bc\"])" "[1, 2]";
+  test "nchar string" "str_nchar(\"hello\")" "5";
+  test "nchar vector" "str_nchar([\"a\", \"bc\"])" "[1, 2]";
   
   Printf.printf "  Substrings:\n";
-  test "substring simple" "substring(\"hello\", 1, 3)" "\"el\"";
+  test "substring simple" "str_substring(\"hello\", 1, 3)" "\"el\"";
   test "slice alias" "slice(\"hello\", 0, 5)" "\"hello\"";
   test "char_at" "char_at(\"abc\", 1)" "\"b\"";
-  test "substring out of bounds" "substring(\"a\", 0, 2)" {|Error(ValueError: "Invalid substring indices.")|};
+  test "substring out of bounds" "str_substring(\"a\", 0, 2)" {|Error(ValueError: "Invalid substring indices.")|};
   
   Printf.printf "  Search:\n";
   test "index_of found" "index_of(\"hello\", \"l\")" "2";
@@ -38,7 +38,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "ends_with true" "ends_with(\"suffix\", \"fix\")" "true";
   
   Printf.printf "  Modification:\n";
-  test "replace all" "replace(\"banana\", \"a\", \"o\")" "\"bonono\"";
+  test "replace all" "str_replace(\"banana\", \"a\", \"o\")" "\"bonono\"";
   test "replace first" "replace_first(\"banana\", \"a\", \"o\")" "\"bonana\"";
   
   Printf.printf "  Case:\n";
@@ -47,28 +47,28 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   
   Printf.printf "  Vectorization:\n";
   test "to_upper vector" "to_upper([\"hello\", \"world\"])" "[\"HELLO\", \"WORLD\"]";
-  test "substring vector" "substring([\"hello\", \"world\"], 1, 3)" "[\"el\", \"or\"]";
+  test "substring vector" "str_substring([\"hello\", \"world\"], 1, 3)" "[\"el\", \"or\"]";
   test "contains vector scalar" "contains([\"hello\", \"help\"], \"lo\")" "[true, false]";
 
-  test "join list" "join([\"a\", \"b\", \"c\"], \"-\")" "\"a-b-c\"";
-  test "join vector" "join(seq(1, 3), \", \")" "\"1, 2, 3\"";
-  test "join scalar" "join(\"a\", \"-\")" "\"a\"";
-  test "concat error" "\"a\" + \"b\"" {|Error(TypeError: "String concatenation with '+' is not supported. Use 'join([a, b], sep)' or 'paste(a, b, sep)' instead.")|};
+  test "join list" "str_join([\"a\", \"b\", \"c\"], \"-\")" "\"a-b-c\"";
+  test "join vector" "str_join(seq(1, 3), \", \")" "\"1, 2, 3\"";
+  test "join scalar" "str_join(\"a\", \"-\")" "\"a\"";
+  test "concat error" "\"a\" + \"b\"" {|Error(TypeError: "String concatenation with '+' is not supported. Use 'str_join([a, b], sep)' or 'paste(a, b, sep)' instead.")|};
 
   Printf.printf "  Trim:\n";
-  test "trim both" "trim(\"  hello  \")" "\"hello\"";
+  test "trim both" "str_trim(\"  hello  \")" "\"hello\"";
   test "trim start" "trim_start(\"  hello  \")" "\"hello  \"";
   test "trim end" "trim_end(\"  hello  \")" "\"  hello\"";
-  test "trim newline" "trim(\"\\n\\t hello \\n\")" "\"hello\"";
+  test "trim newline" "str_trim(\"\\n\\t hello \\n\")" "\"hello\"";
   
   Printf.printf "  Lines & Words:\n";
-  test "lines basic" "lines(\"a\\nb\\nc\")" "[\"a\", \"b\", \"c\"]";
-  test "lines trailing" "lines(\"a\\nb\\nc\\n\")" "[\"a\", \"b\", \"c\"]";
-  test "lines windows" "lines(\"a\\r\\nb\\r\\nc\")" "[\"a\", \"b\", \"c\"]";
-  test "lines empty" "lines(\"\")" "[\"\"]";
-  test "words basic" "words(\"hello   world\")" "[\"hello\", \"world\"]";
-  test "words leading" "words(\"  leading and trailing  \")" "[\"leading\", \"and\", \"trailing\"]";
-  test "words empty" "words(\"\")" "[]";
+  test "lines basic" "str_lines(\"a\\nb\\nc\")" "[\"a\", \"b\", \"c\"]";
+  test "lines trailing" "str_lines(\"a\\nb\\nc\\n\")" "[\"a\", \"b\", \"c\"]";
+  test "lines windows" "str_lines(\"a\\r\\nb\\r\\nc\")" "[\"a\", \"b\", \"c\"]";
+  test "lines empty" "str_lines(\"\")" "[\"\"]";
+  test "words basic" "str_words(\"hello   world\")" "[\"hello\", \"world\"]";
+  test "words leading" "str_words(\"  leading and trailing  \")" "[\"leading\", \"and\", \"trailing\"]";
+  test "words empty" "str_words(\"\")" "[]";
   
   Printf.printf "  Repeat & Format:\n";
   test "str_repeat" "str_repeat(\"x\", 3)" "\"xxx\"";

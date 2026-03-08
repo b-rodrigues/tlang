@@ -1,4 +1,4 @@
-# string
+# str_string
 
 Convert to string
 
@@ -15,11 +15,11 @@ Returns: The string representation.
 ## Examples
 
 ```t
-string(123)
+str_string(123)
 -- Returns = "123"
 ```
 
 ## See Also
 
-[join](join.html)
+[str_join](join.html)
 

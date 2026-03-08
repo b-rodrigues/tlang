@@ -505,7 +505,7 @@ process_data = \(df)
 
 ```t
 if (age < 0 or age > 150)
-  error("ValidationError", "Age must be between 0 and 150, got: " + string(age))
+  error("ValidationError", "Age must be between 0 and 150, got: " + str_string(age))
 ```
 
 **Bad**: Vague messages

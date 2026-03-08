@@ -353,9 +353,9 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb26-1"><a hre
 <span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  | _ -&gt; <span class="co">(* ... *)</span></span></code></pre></div>
 <p><strong>In T code</strong>:</p>
 <pre class="t"><code>x = 10
-print(&quot;DEBUG: x = &quot; + string(x))
+print(&quot;DEBUG: x = &quot; + str_string(x))
 result = x * 2
-print(&quot;DEBUG: result = &quot; + string(result))</code></pre>
+print(&quot;DEBUG: result = &quot; + str_string(result))</code></pre>
 <h3 id="trace-execution">Trace Execution</h3>
 <p><strong>Enable tracing</strong> (modify <code>eval.ml</code>):</p>
 <div class="sourceCode" id="cb28"><pre
@@ -444,7 +444,7 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb41-1"><a hre
 <pre class="t"><code>start = time()  -- If time() function exists
 -- ... computation ...
 end = time()
-print(&quot;Elapsed: &quot; + string(end - start))</code></pre>
+print(&quot;Elapsed: &quot; + str_string(end - start))</code></pre>
 <p><strong>In OCaml</strong>:</p>
 <div class="sourceCode" id="cb43"><pre
 class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> start_time = Unix.gettimeofday () <span class="kw">in</span></span>
