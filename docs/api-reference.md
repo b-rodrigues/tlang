@@ -63,20 +63,20 @@ It is not used for general dictionary literals.
 
 An empty brace block `{}` parses as an empty block (`Block []`) and evaluates to `null` at runtime.
 Braces are never used for dictionary literals; dictionaries always use the bracket (`[...]`) syntax described above.
- 
+
 ---
- 
+
 ## Shell Interaction
- 
+
 ### Shell Escape (`?<{ ... }>`)
- 
+
 T provides first-class support for executing shell commands using the `?<{ }>` syntax.
- 
+
 - **As a Statement**: Prints output directly to `stdout`.
 - **As an Expression**: Captures `stdout` as a `String`.
 - **Error Handling**: Non-zero exit codes produce a `ShellError` containing `stderr`.
 - **Working Directory**: The `cd` command is special-cased to change the interpreter's working directory.
- 
+
 **Examples:**
 ```t
 ?<{ls -la}>             -- Prints directory listing
@@ -96,9 +96,13 @@ Fundamental functional programming utilities.
 Print a value to standard output.
 
 **Parameters:**
+
+
 - `value` — Any value to print
 
-**Returns:** The printed value (for chaining)
+**Returns:**
+
+The printed value (for chaining)
 
 **Examples:**
 ```t
@@ -115,9 +119,13 @@ x = 10 |> print |> \(v) v * 2  -- Prints 10, returns 20
 Pretty-print a value with detailed formatting (for DataFrames, structures, etc.).
 
 **Parameters:**
+
+
 - `value` — Any value
 
-**Returns:** The value (for chaining)
+**Returns:**
+
+The value (for chaining)
 
 **Examples:**
 ```t
@@ -131,9 +139,13 @@ pretty_print(df)  -- Formatted DataFrame output
 Get the type name of a value as a string.
 
 **Parameters:**
+
+
 - `value` — Any value
 
-**Returns:** `String` — Type name
+**Returns:**
+
+`String` — Type name
 
 **Examples:**
 ```t
@@ -155,9 +167,13 @@ type(df)             -- "DataFrame"
 Convert a value to an integer robustly. Handles strings with spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'. Also propagates vectorization over Collections.
 
 **Parameters:**
+
+
 - `value` — Any value (String, Bool, Float, List, Vector)
 
-**Returns:** `Int`, `NA`, or a Collection of `Int`/`NA`
+**Returns:**
+
+`Int`, `NA`, or a Collection of `Int`/`NA`
 
 **Examples:**
 ```t
@@ -178,9 +194,13 @@ to_integer(["1", "2"])   -- [1, 2]
 Convert a value to a float robustly. `to_numeric` is an alias for `to_float`. Handles strings with spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'. Also propagates vectorization over Collections.
 
 **Parameters:**
+
+
 - `value` — Any value (String, Bool, Int, List, Vector)
 
-**Returns:** `Float`, `NA`, or a Collection of `Float`/`NA`
+**Returns:**
+
+`Float`, `NA`, or a Collection of `Float`/`NA`
 
 **Examples:**
 ```t
@@ -201,9 +221,13 @@ to_numeric(["1", "2"])   -- [1.0, 2.0]
 Get the number of elements in a collection.
 
 **Parameters:**
+
+
 - `collection` — List, Vector, or String
 
-**Returns:** `Int` — Number of elements
+**Returns:**
+
+`Int` — Number of elements
 
 **Examples:**
 ```t
@@ -219,10 +243,14 @@ length([])             -- 0
 Get the first element(s) of a collection. For DataFrames, returns the first `n` rows (default 5). For Lists, returns the first element.
 
 **Parameters:**
+
+
 - `collection` — List or DataFrame
 - `n` (optional) — Number of rows for DataFrames (default: 5); not used for Lists
 
-**Returns:** Single element (for Lists) or DataFrame (for DataFrames)
+**Returns:**
+
+Single element (for Lists) or DataFrame (for DataFrames)
 
 **Examples:**
 ```t
@@ -239,10 +267,14 @@ head(df, n = 10)             -- first 10 rows
 For DataFrames, returns the last `n` rows (default 5). For Lists, returns all elements except the first.
 
 **Parameters:**
+
+
 - `collection` — List or DataFrame
 - `n` (optional) — Number of rows for DataFrames (default: 5); not used for Lists
 
-**Returns:** List (for Lists) or DataFrame (for DataFrames)
+**Returns:**
+
+List (for Lists) or DataFrame (for DataFrames)
 
 **Examples:**
 ```t
@@ -259,10 +291,14 @@ tail(df, n = 10)        -- last 10 rows
 Apply a function to each element of a collection.
 
 **Parameters:**
+
+
 - `collection` — List or Vector
 - `fn` — Function to apply: `\(x) ...`
 
-**Returns:** List (or Vector) of results
+**Returns:**
+
+List (or Vector) of results
 
 **Examples:**
 ```t
@@ -278,10 +314,14 @@ map([1, 2, 3], \(x) x + 10)          -- [11, 12, 13]
 Keep only elements that satisfy a predicate.
 
 **Parameters:**
+
+
 - `collection` — List or Vector
 - `predicate` — Function returning Bool: `\(x) ...`
 
-**Returns:** List (or Vector) of matching elements
+**Returns:**
+
+List (or Vector) of matching elements
 
 **Examples:**
 ```t
@@ -297,9 +337,13 @@ filter(["a", "ab", "abc"], \(s) length(s) > 1)  -- ["ab", "abc"]
 Sum all numeric elements.
 
 **Parameters:**
+
+
 - `collection` — List or Vector of numbers
 
-**Returns:** `Int` or `Float` — Sum
+**Returns:**
+
+`Int` or `Float` — Sum
 
 **Examples:**
 ```t
@@ -315,11 +359,15 @@ sum([])                 -- 0
 Generate a sequence of numbers.
 
 **Parameters:**
+
+
 - `start` — Starting value
 - `end` — Ending value (inclusive)
 - `step` (optional) — Increment (default: 1)
 
-**Returns:** List of numbers
+**Returns:**
+
+List of numbers
 
 **Examples:**
 ```t
@@ -335,9 +383,13 @@ seq(5, 1, -1)   -- [5, 4, 3, 2, 1]
 Check if a value is an error.
 
 **Parameters:**
+
+
 - `value` — Any value
 
-**Returns:** `Bool` — true if value is an Error
+**Returns:**
+
+`Bool` — true if value is an Error
 
 **Examples:**
 ```t
@@ -345,145 +397,193 @@ is_error(42)             -- false
 is_error(error("msg"))   -- true
 is_error(1 / 0)          -- true
 ```
- 
+
 ---
- 
+
 ### `getwd()`
- 
+
 Returns the current working directory of the T interpreter.
- 
-**Returns:** `String` — Working directory path
- 
+
+**Returns:**
+
+`String` — Working directory path
+
 ---
- 
+
 ### `file_exists(path)`
- 
+
 Check if a regular file exists at the given path. Returns `false` for directories.
- 
+
 **Parameters:**
+
+
 - `path` — File path (String or Symbol)
- 
-**Returns:** `Bool`
- 
+
+**Returns:**
+
+`Bool`
+
 ---
- 
+
 ### `dir_exists(path)`
- 
+
 Check if a directory exists at the given path.
- 
+
 **Parameters:**
+
+
 - `path` — Directory path (String or Symbol)
- 
-**Returns:** `Bool`
- 
+
+**Returns:**
+
+`Bool`
+
 ---
- 
+
 ### `read_file(path)`
- 
+
 Read the entire contents of a file as a string.
- 
+
 **Parameters:**
+
+
 - `path` — File path (String or Symbol)
- 
-**Returns:** `String` or `Error(FileError)`
- 
+
+**Returns:**
+
+`String` or `Error(FileError)`
+
 ---
- 
+
 ### `list_files(path, pattern)`
- 
+
 List files and directories in a given path.
- 
+
 **Parameters:**
+
+
 - `path` (optional) — Directory to list (default: ".")
 - `pattern` (optional) — Regex pattern to filter filenames
- 
-**Returns:** `List[String]` or `Error(FileError)`
- 
+
+**Returns:**
+
+`List[String]` or `Error(FileError)`
+
 ---
- 
+
 ### `env(name)`
- 
+
 Get the value of an environment variable.
- 
+
 **Parameters:**
+
+
 - `name` — Environment variable name (String or Symbol)
- 
-**Returns:** `String` or `null` if not found
- 
+
+**Returns:**
+
+`String` or `null` if not found
+
 ---
- 
+
 ### `exit(code)`
- 
+
 Exits the T interpreter.
- 
+
 **Parameters:**
+
+
 - `code` (optional) — Exit code integer (default: 0)
- 
+
 ---
- 
+
 ### `path_join(...)`
- 
+
 Join multiple path segments using the system-specific separator.
- 
+
 **Parameters:**
+
+
 - `...` — One or more path segments (String or Symbol)
- 
-**Returns:** `String`
- 
+
+**Returns:**
+
+`String`
+
 ---
- 
+
 ### `path_basename(path)`
- 
+
 Get the filename/last component of a path.
- 
+
 **Parameters:**
+
+
 - `path` — Path string
- 
-**Returns:** `String`
- 
+
+**Returns:**
+
+`String`
+
 ---
- 
+
 ### `path_dirname(path)`
- 
+
 Get the directory portion of a path.
- 
+
 **Parameters:**
+
+
 - `path` — Path string
- 
-**Returns:** `String`
- 
+
+**Returns:**
+
+`String`
+
 ---
- 
+
 ### `path_ext(path)`
- 
+
 Get the file extension (including the dot). Returns `null` if no extension is found.
- 
+
 **Parameters:**
+
+
 - `path` — Path string
- 
-**Returns:** `String` or `null`
- 
+
+**Returns:**
+
+`String` or `null`
+
 ---
- 
+
 ### `path_stem(path)`
- 
+
 Get the filename without its extension.
- 
+
 **Parameters:**
+
+
 - `path` — Path string
- 
-**Returns:** `String`
- 
+
+**Returns:**
+
+`String`
+
 ---
- 
+
 ### `path_abs(path)`
- 
+
 Resolves a relative path to an absolute path against the current working directory.
- 
+
 **Parameters:**
+
+
 - `path` — Path string
- 
-**Returns:** `String`
+
+**Returns:**
+
+`String`
 
 
 ---
@@ -497,10 +597,14 @@ Error handling, NA values, and assertions.
 Create an error value.
 
 **Parameters:**
+
+
 - `message` — Error message string
 - `code` (optional) — Error code string
 
-**Returns:** `Error` value
+**Returns:**
+
+`Error` value
 
 **Examples:**
 ```t
@@ -524,9 +628,13 @@ Check if a value is an error (see Core package).
 Get the error code from an Error value.
 
 **Parameters:**
+
+
 - `err` — Error value
 
-**Returns:** `String` — Error code
+**Returns:**
+
+`String` — Error code
 
 **Examples:**
 ```t
@@ -544,9 +652,13 @@ error_code(e2)  -- "TypeError"
 Get the error message from an Error value.
 
 **Parameters:**
+
+
 - `err` — Error value
 
-**Returns:** `String` — Error message
+**Returns:**
+
+`String` — Error message
 
 **Examples:**
 ```t
@@ -564,9 +676,13 @@ error_message(e2)  -- "Division by zero"
 Get additional context from an Error value (if available).
 
 **Parameters:**
+
+
 - `err` — Error value
 
-**Returns:** `String` — Context information
+**Returns:**
+
+`String` — Context information
 
 **Examples:**
 ```t
@@ -580,10 +696,14 @@ error_context(e)  -- Additional debugging information
 Assert that a condition is true; error if false.
 
 **Parameters:**
+
+
 - `condition` — Boolean expression
 - `message` (optional) — Custom error message
 
-**Returns:** `true` if condition holds
+**Returns:**
+
+`true` if condition holds
 
 **Examples:**
 ```t
@@ -610,7 +730,9 @@ is_na(x)  -- true
 
 Create typed NA values.
 
-**Returns:** Typed NA value
+**Returns:**
+
+Typed NA value
 
 **Examples:**
 ```t
@@ -627,9 +749,13 @@ na_string()  -- NA(String)
 Check if a value is NA.
 
 **Parameters:**
+
+
 - `value` — Any value
 
-**Returns:** `Bool` — true if value is NA
+**Returns:**
+
+`Bool` — true if value is NA
 
 **Examples:**
 ```t
@@ -650,9 +776,13 @@ Mathematical functions operating on scalars and vectors.
 Square root.
 
 **Parameters:**
+
+
 - `x` — Number (Int or Float)
 
-**Returns:** `Float`
+**Returns:**
+
+`Float`
 
 **Examples:**
 ```t
@@ -669,9 +799,13 @@ sqrt(-1)     -- Error (negative input)
 Absolute value.
 
 **Parameters:**
+
+
 - `x` — Number
 
-**Returns:** Same type as input
+**Returns:**
+
+Same type as input
 
 **Examples:**
 ```t
@@ -687,9 +821,13 @@ abs(0)       -- 0
 Natural logarithm (base e).
 
 **Parameters:**
+
+
 - `x` — Number (must be > 0)
 
-**Returns:** `Float`
+**Returns:**
+
+`Float`
 
 **Examples:**
 ```t
@@ -707,9 +845,13 @@ log(-1)      -- Error (log of negative)
 Exponential function (e^x).
 
 **Parameters:**
+
+
 - `x` — Number
 
-**Returns:** `Float`
+**Returns:**
+
+`Float`
 
 **Examples:**
 ```t
@@ -725,10 +867,14 @@ exp(2)       -- 7.38905609893
 Power function (base^exponent).
 
 **Parameters:**
+
+
 - `base` — Number
 - `exponent` — Number
 
-**Returns:** `Float`
+**Returns:**
+
+`Float`
 
 **Examples:**
 ```t
@@ -745,10 +891,14 @@ pow(2, -1)   -- 0.5
 Minimum value.
 
 **Parameters:**
+
+
 - `x, y` — Two numbers, OR
 - `collection` — List or Vector
 
-**Returns:** Minimum value
+**Returns:**
+
+Minimum value
 
 **Examples:**
 ```t
@@ -764,10 +914,14 @@ min([])             -- Error
 Maximum value.
 
 **Parameters:**
+
+
 - `x, y` — Two numbers, OR
 - `collection` — List or Vector
 
-**Returns:** Maximum value
+**Returns:**
+
+Maximum value
 
 **Examples:**
 ```t
@@ -787,10 +941,14 @@ Statistical functions for data analysis.
 Arithmetic mean (average).
 
 **Parameters:**
+
+
 - `collection` — List or Vector of numbers
 - `na_rm` (optional) — If true, skip NA values (default: false)
 
-**Returns:** `Float` — Mean value
+**Returns:**
+
+`Float` — Mean value
 
 **Examples:**
 ```t
@@ -808,10 +966,14 @@ mean([NA, NA], na_rm = true)       -- NA(Float)
 Standard deviation (sample).
 
 **Parameters:**
+
+
 - `collection` — List or Vector of numbers
 - `na_rm` (optional) — If true, skip NA values (default: false)
 
-**Returns:** `Float` — Standard deviation
+**Returns:**
+
+`Float` — Standard deviation
 
 **Examples:**
 ```t
@@ -828,11 +990,15 @@ sd([5, 5, 5])                       -- 0.0 (no variation)
 Compute quantile/percentile.
 
 **Parameters:**
+
+
 - `collection` — List or Vector of numbers
 - `p` — Probability (0.0 to 1.0)
 - `na_rm` (optional) — If true, skip NA values (default: false)
 
-**Returns:** `Float` — Quantile value
+**Returns:**
+
+`Float` — Quantile value
 
 **Examples:**
 ```t
@@ -849,11 +1015,15 @@ quantile([1, NA, 3], 0.5, na_rm = true)  -- 2.0
 Pearson correlation coefficient.
 
 **Parameters:**
+
+
 - `x` — List or Vector of numbers
 - `y` — List or Vector of numbers (same length as x)
 - `na_rm` (optional) — If true, use pairwise deletion for NA (default: false)
 
-**Returns:** `Float` — Correlation (-1.0 to 1.0)
+**Returns:**
+
+`Float` — Correlation (-1.0 to 1.0)
 
 **Examples:**
 ```t
@@ -870,10 +1040,14 @@ cor([1, NA, 3], [2, 4, NA], na_rm = true)  -- 1.0 (uses [1,3] and [2,4])
 Fit a linear regression model (ordinary least squares).
 
 **Parameters:**
+
+
 - `data` — DataFrame
 - `formula` — Formula object (`y ~ x1 + x2`)
 
-**Returns:** Model object. Use `summary()` and `fit_stats()` to inspect.
+**Returns:**
+
+Model object. Use `summary()` and `fit_stats()` to inspect.
 
 **Examples:**
 ```t
@@ -888,9 +1062,13 @@ print(model)
 Get a tidy DataFrame of model coefficients. Similar to `broom::tidy()` in R.
 
 **Parameters:**
+
+
 - `model` — Linear model object (from `lm()` or imported via PMML)
 
-**Returns:** DataFrame with columns: `term`, `estimate`, `std_error`, `statistic`, `p_value`.
+**Returns:**
+
+DataFrame with columns: `term`, `estimate`, `std_error`, `statistic`, `p_value`.
 
 **Examples:**
 ```t
@@ -904,9 +1082,13 @@ summary(model)
 Get a single-row DataFrame of model-level statistics. Similar to `broom::glance()` in R.
 
 **Parameters:**
+
+
 - `model` — Linear model object
 
-**Returns:** DataFrame with statistics like `r_squared`, `AIC`, `BIC`, `sigma`, etc.
+**Returns:**
+
+DataFrame with statistics like `r_squared`, `AIC`, `BIC`, `sigma`, etc.
 
 **Examples:**
 ```t
@@ -920,10 +1102,14 @@ fit_stats(model)
 Augment data with per-observation diagnostics. Similar to `broom::augment()` in R.
 
 **Parameters:**
+
+
 - `model` — Linear model object
 - `data` — Original DataFrame used for fitting
 
-**Returns:** DataFrame with original columns plus diagnostics (`.fitted`, `.resid`, etc.).
+**Returns:**
+
+DataFrame with original columns plus diagnostics (`.fitted`, `.resid`, etc.).
 
 **Examples:**
 ```t
@@ -937,10 +1123,14 @@ add_diagnostics(model, data = df)
 Perform vectorized prediction on a new DataFrame.
 
 **Parameters:**
+
+
 - `data` — DataFrame containing predictor columns
 - `model` — Linear model object
 
-**Returns:** Vector of predicted values.
+**Returns:**
+
+Vector of predicted values.
 
 **Examples:**
 ```t
@@ -958,13 +1148,17 @@ CSV I/O and DataFrame introspection.
 Read a CSV file into a DataFrame.
 
 **Parameters:**
+
+
 - `path` — File path (String)
 - `separator` (optional) — Column separator (default: ",")
 - `skip_lines` (optional) — Number of lines to skip at start (default: 0)
 - `skip_header` (optional) — If true, treat first row as data (default: false)
 - `clean_colnames` (optional) — If true, normalize column names (default: false)
 
-**Returns:** `DataFrame`
+**Returns:**
+
+`DataFrame`
 
 **Examples:**
 ```t
@@ -981,11 +1175,15 @@ df = read_csv("messy.csv", clean_colnames = true)
 Write a DataFrame to a CSV file.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame to write
 - `path` — Output file path (String)
 - `separator` (optional) — Column separator (default: ",")
 
-**Returns:** `null`
+**Returns:**
+
+`null`
 
 **Examples:**
 ```t
@@ -1000,9 +1198,13 @@ write_csv(df, "output.tsv", separator = "\t")
 Get number of rows.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame
 
-**Returns:** `Int` — Row count
+**Returns:**
+
+`Int` — Row count
 
 **Examples:**
 ```t
@@ -1016,9 +1218,13 @@ nrow(df)  -- 100
 Get number of columns.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame
 
-**Returns:** `Int` — Column count
+**Returns:**
+
+`Int` — Column count
 
 **Examples:**
 ```t
@@ -1032,9 +1238,13 @@ ncol(df)  -- 5
 Get column names.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame
 
-**Returns:** List of Strings
+**Returns:**
+
+List of Strings
 
 **Examples:**
 ```t
@@ -1048,9 +1258,13 @@ colnames(df)  -- ["name", "age", "dept", "salary"]
 Get a compact overview of a DataFrame, showing column names, types, and example values. Similar to dplyr's `glimpse()`.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame
 
-**Returns:** Dict with `kind`, `nrow`, `ncol`, and `columns` (list of column summaries)
+**Returns:**
+
+Dict with `kind`, `nrow`, `ncol`, and `columns` (list of column summaries)
 
 **Examples:**
 ```t
@@ -1065,10 +1279,14 @@ glimpse(df)
 Normalize column names to safe identifiers.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame, OR
 - `names` — List of Strings
 
-**Returns:** DataFrame with cleaned names, OR List of cleaned Strings
+**Returns:**
+
+DataFrame with cleaned names, OR List of cleaned Strings
 
 **Transformations:**
 1. Symbol expansion: `%` → `percent`, `€` → `euro`, `$` → `dollar`, etc.
@@ -1103,10 +1321,14 @@ Data manipulation verbs and window functions.
 Select columns by name. Supports dollar-prefix NSE syntax.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame
 - `...columns` — Column references (`$name`)
 
-**Returns:** DataFrame with selected columns
+**Returns:**
+
+DataFrame with selected columns
 
 **Examples:**
 ```t
@@ -1121,10 +1343,14 @@ df |> select($dept)
 Filter rows by condition. Supports NSE expressions with dollar-prefix column references.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame
 - `predicate` — NSE expression (`$age > 25`)
 
-**Returns:** DataFrame with matching rows
+**Returns:**
+
+DataFrame with matching rows
 
 **Examples:**
 ```t
@@ -1149,7 +1375,9 @@ Add or transform a column. Supports `$col = expr` named-arg syntax with NSE.
 - `fn` — Function taking row dict: `\(row) ...`, OR
 - `value` — Constant value for all rows
 
-**Returns:** DataFrame with new/modified column
+**Returns:**
+
+DataFrame with new/modified column
 
 **Examples:**
 ```t
@@ -1171,11 +1399,15 @@ df |> group_by($dept) |> mutate($dept_size, \(g) nrow(g))
 Sort rows by column. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame
 - `column` — Column reference (`$age`)
 - `direction` (optional) — "asc" or "desc" (default: "asc")
 
-**Returns:** Sorted DataFrame
+**Returns:**
+
+Sorted DataFrame
 
 **Examples:**
 ```t
@@ -1190,10 +1422,14 @@ df |> arrange($salary, "desc")
 Group by one or more columns. Supports dollar-prefix NSE for column names.
 
 **Parameters:**
+
+
 - `dataframe` — DataFrame
 - `...columns` — Column references (`$dept`)
 
-**Returns:** Grouped DataFrame
+**Returns:**
+
+Grouped DataFrame
 
 **Usage:**
 ```t
@@ -1225,7 +1461,9 @@ Aggregate grouped data. Supports `$col = expr` named-arg syntax with NSE.
 - `new_col` — Column reference (`$count`)
 - `fn` — Aggregation function: `\(group) ...`
 
-**Returns:** DataFrame with one row per group
+**Returns:**
+
+DataFrame with one row per group
 
 **Examples:**
 ```t
@@ -1245,9 +1483,13 @@ df |> group_by($dept) |> summarize($count, \(g) nrow(g))
 Remove grouping from a DataFrame.
 
 **Parameters:**
+
+
 - `grouped_df` — Grouped DataFrame
 
-**Returns:** Ungrouped DataFrame
+**Returns:**
+
+Ungrouped DataFrame
 
 **Examples:**
 ```t
@@ -1267,9 +1509,13 @@ Window functions compute values across rows without collapsing them.
 Assign unique row numbers.
 
 **Parameters:**
+
+
 - `vector` — Vector or List
 
-**Returns:** Vector of row numbers (1, 2, 3, ...), NA for NA positions
+**Returns:**
+
+Vector of row numbers (1, 2, 3, ...), NA for NA positions
 
 **Examples:**
 ```t
@@ -1284,9 +1530,13 @@ row_number([3, NA, 1])       -- Vector[2, NA, 1]
 Minimum rank (gaps after ties).
 
 **Parameters:**
+
+
 - `vector` — Vector or List
 
-**Returns:** Vector of ranks
+**Returns:**
+
+Vector of ranks
 
 **Examples:**
 ```t
@@ -1301,9 +1551,13 @@ min_rank([3, NA, 1, 3])      -- Vector[2, NA, 1, 2]
 Dense rank (no gaps).
 
 **Parameters:**
+
+
 - `vector` — Vector or List
 
-**Returns:** Vector of ranks
+**Returns:**
+
+Vector of ranks
 
 **Examples:**
 ```t
@@ -1318,9 +1572,13 @@ dense_rank([10, 10, 20])     -- Vector[1, 1, 2]
 Cumulative distribution (proportion ≤ value).
 
 **Parameters:**
+
+
 - `vector` — Vector or List
 
-**Returns:** Vector of Float (0.0 to 1.0)
+**Returns:**
+
+Vector of Float (0.0 to 1.0)
 
 **Examples:**
 ```t
@@ -1334,9 +1592,13 @@ cume_dist([1, 2, 3])         -- Vector[0.333..., 0.666..., 1.0]
 Percent rank ((rank - 1) / (n - 1)).
 
 **Parameters:**
+
+
 - `vector` — Vector or List
 
-**Returns:** Vector of Float (0.0 to 1.0)
+**Returns:**
+
+Vector of Float (0.0 to 1.0)
 
 **Examples:**
 ```t
@@ -1350,10 +1612,14 @@ percent_rank([1, 2, 3])      -- Vector[0.0, 0.5, 1.0]
 Divide into n groups.
 
 **Parameters:**
+
+
 - `vector` — Vector or List
 - `n` — Number of groups (Int)
 
-**Returns:** Vector of group numbers (1 to n)
+**Returns:**
+
+Vector of group numbers (1 to n)
 
 **Examples:**
 ```t
@@ -1370,10 +1636,14 @@ ntile([1, 2, 3, 4, 5], 3)    -- Vector[1, 1, 2, 2, 3]
 Shift values forward (add NA at start).
 
 **Parameters:**
+
+
 - `vector` — Vector or List
 - `n` (optional) — Number of positions (default: 1)
 
-**Returns:** Vector with shifted values
+**Returns:**
+
+Vector with shifted values
 
 **Examples:**
 ```t
@@ -1389,10 +1659,14 @@ lag([1, NA, 3])              -- Vector[NA, 1, NA]
 Shift values backward (add NA at end).
 
 **Parameters:**
+
+
 - `vector` — Vector or List
 - `n` (optional) — Number of positions (default: 1)
 
-**Returns:** Vector with shifted values
+**Returns:**
+
+Vector with shifted values
 
 **Examples:**
 ```t
@@ -1482,6 +1756,8 @@ Pipeline introspection and management.
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
 **Parameters:**
+
+
 - `command` — The expression to evaluate (positional or named).
 - `runtime` (optional) — The runtime environment (`T`, `R`, `Python`). Default: `T`.
 - `serializer` (optional) — Write artifact overriding mechanism.
@@ -1490,18 +1766,20 @@ Configure execution settings such as the runtime and custom serialized methods f
 - `include` (optional) — Additional files to bring into the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub.
 
-**Returns:** The evaluated return value of the node `command`.
+**Returns:**
+
+The evaluated return value of the node `command`.
 
 **Examples:**
 ```t
 p = pipeline {
-  y = node(command = x + 5, runtime = T)
-  z = node(
-    command = build_model(y),
-    runtime = R,
-    functions = ["utils.R"],
-    include = "config.yml"
-  )
+y = node(command = x + 5, runtime = T)
+z = node(
+command = build_model(y),
+runtime = R,
+functions = ["utils.R"],
+include = "config.yml"
+)
 }
 ```
 
@@ -1512,6 +1790,8 @@ p = pipeline {
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
 **Parameters:**
+
+
 - `command` — The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks).
 - `serializer` (optional) — Custom serializer function. Default: `default`.
 - `deserializer` (optional) — Custom deserializer function. Default: `default`.
@@ -1519,7 +1799,9 @@ Configure a Python Pipeline Node. A convenience wrapper around `node()` with `ru
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
 
-**Returns:** The evaluated return value of the command.
+**Returns:**
+
+The evaluated return value of the command.
 
 ---
 
@@ -1528,6 +1810,8 @@ Configure a Python Pipeline Node. A convenience wrapper around `node()` with `ru
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
 **Parameters:**
+
+
 - `command` — The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks).
 - `serializer` (optional) — Custom serializer function. Default: `default`.
 - `deserializer` (optional) — Custom deserializer function. Default: `default`.
@@ -1535,7 +1819,9 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
 
-**Returns:** The evaluated return value of the command.
+**Returns:**
+
+The evaluated return value of the command.
 
 ---
 
@@ -1544,9 +1830,13 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 Get all node names in a pipeline.
 
 **Parameters:**
+
+
 - `pipeline` — Pipeline object
 
-**Returns:** List of Strings (node names)
+**Returns:**
+
+List of Strings (node names)
 
 **Examples:**
 ```t
@@ -1561,10 +1851,14 @@ pipeline_nodes(p)  -- ["x", "y", "z"]
 Get dependencies of a specific node.
 
 **Parameters:**
+
+
 - `pipeline` — Pipeline object
 - `node_name` — Name of the node (String)
 
-**Returns:** List of Strings (dependency names)
+**Returns:**
+
+List of Strings (dependency names)
 
 **Examples:**
 ```t
@@ -1580,10 +1874,14 @@ pipeline_deps(p, "x")  -- []
 Get the value of a specific node.
 
 **Parameters:**
+
+
 - `pipeline` — Pipeline object
 - `node_name` — Name of the node (String)
 
-**Returns:** Node value
+**Returns:**
+
+Node value
 
 **Examples:**
 ```t
@@ -1599,9 +1897,13 @@ pipeline_node(p, "doubled") -- 20
 Re-execute a pipeline in-memory.
 
 **Parameters:**
+
+
 - `pipeline` — Pipeline object
 
-**Returns:** Pipeline object with updated values
+**Returns:**
+
+Pipeline object with updated values
 
 **Examples:**
 ```t
@@ -1616,10 +1918,14 @@ p2 = pipeline_run(p)
 Prepare pipeline infrastructure in `_pipeline/`.
 
 **Parameters:**
+
+
 - `pipeline` — Pipeline object
 - `build` (optional) — If true, triggers a Nix build of all nodes.
 
-**Returns:** Success message or Error.
+**Returns:**
+
+Success message or Error.
 
 **Examples:**
 ```t
@@ -1634,6 +1940,8 @@ populate_pipeline(p, build = true)
 Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run with `t run`.
 
 **Parameters:**
+
+
 - `pipeline` — Pipeline object
 
 ---
@@ -1643,10 +1951,14 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 Read a materialized artifact from a previous build.
 
 **Parameters:**
+
+
 - `name` — Name of the node to read (String)
 - `which_log` (optional) — Regex pattern or filename of a specific build log. Defaults to latest.
 
-**Returns:** Deserialized value.
+**Returns:**
+
+Deserialized value.
 
 **Examples:**
 ```t
@@ -1661,9 +1973,13 @@ read_node("model_v1", which_log = "20260221")
 View build status and output paths for a pipeline build.
 
 **Parameters:**
+
+
 - `which_log` (optional) — Specific build log to inspect.
 
-**Returns:** DataFrame with columns: `node`, `success`, `path`, `output`.
+**Returns:**
+
+DataFrame with columns: `node`, `success`, `path`, `output`.
 
 ---
 
@@ -1671,7 +1987,9 @@ View build status and output paths for a pipeline build.
 
 List all available build logs in `_pipeline/`.
 
-**Returns:** DataFrame with columns: `filename`, `mod_time`, `size_kb`.
+**Returns:**
+
+DataFrame with columns: `filename`, `mod_time`, `size_kb`.
 
 ---
 
@@ -1684,9 +2002,13 @@ Introspection and LLM tooling.
 Get detailed explanation of a value. For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation.
 
 **Parameters:**
+
+
 - `value` — Any value
 
-**Returns:** Dict with introspection data
+**Returns:**
+
+Dict with introspection data
 
 **Examples:**
 ```t
@@ -1709,9 +2031,13 @@ explain(df).example_rows  -- first 5 rows as list of dicts
 Export value metadata as JSON (for LLM consumption).
 
 **Parameters:**
+
+
 - `value` — Any value
 
-**Returns:** JSON String
+**Returns:**
+
+JSON String
 
 **Examples:**
 ```t
@@ -1726,9 +2052,13 @@ explain_json(df)
 Get all fields from an intent block.
 
 **Parameters:**
+
+
 - `intent` — Intent object
 
-**Returns:** Dict of field names to values
+**Returns:**
+
+Dict of field names to values
 
 **Examples:**
 ```t
@@ -1744,10 +2074,14 @@ intent_fields(i)
 Get a specific field from an intent block.
 
 **Parameters:**
+
+
 - `intent` — Intent object
 - `field` — Field name (String)
 
-**Returns:** Field value
+**Returns:**
+
+Field value
 
 **Examples:**
 ```t

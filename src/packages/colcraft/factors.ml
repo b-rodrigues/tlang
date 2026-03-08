@@ -400,6 +400,296 @@ let fct_collapse_impl (args : (string option * value) list) _env =
          | None -> VVector arr)
   | _ -> Error.make_error Ast.ArityError "fct_collapse expects at least 1 argument"
 
+let count_levels levels arr =
+  let counts = Array.make (List.length levels) 0 in
+  Array.iter (function
+    | VFactor (i, _, _) when i >= 0 && i < Array.length counts ->
+        counts.(i) <- counts.(i) + 1
+    | _ -> ()
+  ) arr;
+  counts
+
+let remap_factor_array arr _levels ordered new_levels remapping =
+  let factor_arr = Array.map (function
+    | VFactor (i, _, _) when i >= 0 && i < Array.length remapping ->
+        let new_idx = remapping.(i) in
+        if new_idx < 0 then VNA Ast.NAGeneric else VFactor (new_idx, new_levels, ordered)
+    | VFactor _ -> VNA Ast.NAGeneric
+    | value -> value
+  ) arr in
+  VVector factor_arr
+
+let append_unique_levels base candidates =
+  let seen = Hashtbl.create (List.length base + List.length candidates) in
+  List.iter (fun level -> Hashtbl.replace seen level ()) base;
+  let extras_rev = ref [] in
+  List.iter (fun level ->
+    if not (Hashtbl.mem seen level) then begin
+      Hashtbl.replace seen level ();
+      extras_rev := level :: !extras_rev
+    end
+  ) candidates;
+  base @ List.rev !extras_rev
+
+let string_values_of function_name value =
+  match value with
+  | VString s -> Ok [s]
+  | VVector arr ->
+      Array.fold_right (fun item acc ->
+        match item, acc with
+        | VString s, Ok values -> Ok (s :: values)
+        | _, Ok _ ->
+            Error
+              (Error.type_error
+                 (Printf.sprintf "Function `%s` expects string level names." function_name))
+        | _, Error err -> Error err
+      ) arr (Ok [])
+  | VList items ->
+      List.fold_right (fun (_, item) acc ->
+        match item, acc with
+        | VString s, Ok values -> Ok (s :: values)
+        | _, Ok _ ->
+            Error
+              (Error.type_error
+                 (Printf.sprintf "Function `%s` expects string level names." function_name))
+        | _, Error err -> Error err
+      ) items (Ok [])
+  | _ ->
+      Error
+        (Error.type_error
+           (Printf.sprintf "Function `%s` expects string level names." function_name))
+
+let fct_lump_min_impl (args : (string option * value) list) _env =
+  let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
+  let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
+  match positional with
+  | [VVector arr; VInt min_count] ->
+      if Array.length arr = 0 then VVector [||]
+      else
+        (match find_first_factor_in_array arr with
+         | Some (levels, ordered) ->
+             let other_level =
+               match List.assoc_opt "other_level" named with
+               | Some (VString s) -> s
+               | _ -> "Other"
+             in
+             let counts = count_levels levels arr in
+             let kept_levels =
+               List.mapi (fun idx level -> (idx, level)) levels
+               |> List.filter (fun (idx, _) -> counts.(idx) >= min_count)
+             in
+              if List.length kept_levels = List.length levels then
+                VVector arr
+              else
+                let new_levels = List.rev (other_level :: List.rev (List.map snd kept_levels)) in
+                let other_idx = List.length new_levels - 1 in
+                let remapping = Array.make (List.length levels) other_idx in
+                List.iteri (fun new_idx (old_idx, _) -> remapping.(old_idx) <- new_idx) kept_levels;
+                remap_factor_array arr levels ordered new_levels remapping
+         | None -> VVector arr)
+  | _ -> Error.make_error Ast.ArityError "fct_lump_min expects a factor vector and minimum count"
+
+let fct_lump_prop_impl (args : (string option * value) list) _env =
+  let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
+  let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
+  let prop_of_value = function
+    | VFloat f -> Some f
+    | VInt i -> Some (float_of_int i)
+    | _ -> None
+  in
+  match positional with
+  | [VVector arr; prop_value] ->
+      (match prop_of_value prop_value with
+       | None ->
+           Error.type_error "Function `fct_lump_prop` expects a numeric proportion."
+       | Some prop ->
+           if prop < 0.0 || prop > 1.0 then
+             Error.value_error "Function `fct_lump_prop` proportion must be between 0 and 1."
+           else if Array.length arr = 0 then
+             VVector [||]
+           else
+             (match find_first_factor_in_array arr with
+              | Some (levels, ordered) ->
+                  let other_level =
+                    match List.assoc_opt "other_level" named with
+                    | Some (VString s) -> s
+                    | _ -> "Other"
+                  in
+                  let counts = count_levels levels arr in
+                  let total =
+                    Array.fold_left ( + ) 0 counts |> float_of_int
+                  in
+                  let kept_levels =
+                    List.mapi (fun idx level -> (idx, level)) levels
+                    |> List.filter (fun (idx, _) ->
+                         total > 0.0 && (float_of_int counts.(idx) /. total) >= prop)
+                  in
+                   if List.length kept_levels = List.length levels then
+                     VVector arr
+                   else
+                    let new_levels = List.rev (other_level :: List.rev (List.map snd kept_levels)) in
+                    let other_idx = List.length new_levels - 1 in
+                    let remapping = Array.make (List.length levels) other_idx in
+                    List.iteri (fun new_idx (old_idx, _) -> remapping.(old_idx) <- new_idx) kept_levels;
+                    remap_factor_array arr levels ordered new_levels remapping
+              | None -> VVector arr))
+  | _ -> Error.make_error Ast.ArityError "fct_lump_prop expects a factor vector and proportion"
+
+let fct_other_impl (args : (string option * value) list) _env =
+  let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
+  let named = List.filter_map (fun (k, v) -> match k with Some n -> Some (n, v) | None -> None) args in
+  let extract_names field =
+    match List.assoc_opt field named with
+    | Some value ->
+        string_values_of "fct_other" value
+    | None -> Ok []
+  in
+  match positional with
+  | [VVector arr] ->
+      (match find_first_factor_in_array arr, extract_names "keep", extract_names "drop" with
+       | Some (levels, ordered), Ok keep, Ok drop ->
+           if keep <> [] && drop <> [] then
+             Error.value_error "Function `fct_other` accepts either `keep` or `drop`, not both."
+           else
+             let other_level =
+               match List.assoc_opt "other_level" named with
+               | Some (VString s) -> s
+               | _ -> "Other"
+             in
+             let keep_levels =
+               if keep <> [] then keep else List.filter (fun level -> not (List.mem level drop)) levels
+             in
+             let kept_present = List.filter (fun level -> List.mem level keep_levels) levels in
+             let new_levels =
+               if List.length kept_present = List.length levels then kept_present
+               else kept_present @ [other_level]
+             in
+             let other_idx = List.length new_levels - 1 in
+             let remapping = Array.make (List.length levels) other_idx in
+             List.iteri (fun old_idx level ->
+               match List.find_index (( = ) level) kept_present with
+               | Some new_idx -> remapping.(old_idx) <- new_idx
+               | None -> ()
+             ) levels;
+             remap_factor_array arr levels ordered new_levels remapping
+       | None, _, _ -> VVector arr
+       | _, Error err, _ | _, _, Error err -> err)
+  | _ -> Error.make_error Ast.ArityError "fct_other expects a factor vector"
+
+let fct_drop_impl args _env =
+  match args with
+  | [VVector arr] ->
+      (match find_first_factor_in_array arr with
+       | Some (levels, ordered) ->
+           let used = Array.make (List.length levels) false in
+           Array.iter (function
+             | VFactor (i, _, _) when i >= 0 && i < Array.length used -> used.(i) <- true
+             | _ -> ()
+           ) arr;
+           let kept_levels =
+             List.mapi (fun idx level -> (idx, level)) levels
+             |> List.filter (fun (idx, _) -> used.(idx))
+           in
+           let new_levels = List.map snd kept_levels in
+           let remapping = Array.make (List.length levels) (-1) in
+           List.iteri (fun new_idx (old_idx, _) -> remapping.(old_idx) <- new_idx) kept_levels;
+           remap_factor_array arr levels ordered new_levels remapping
+       | None -> VVector arr)
+  | _ -> Error.make_error Ast.ArityError "fct_drop expects 1 argument"
+
+let fct_expand_impl (args : (string option * value) list) _env =
+  let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
+  let candidate_levels value =
+    match value with
+    | VString s -> [s]
+    | VVector arr ->
+        Array.fold_left (fun acc item ->
+          match item with
+          | VString s -> s :: acc
+          | _ -> acc
+        ) [] arr
+        |> List.rev
+    | VList items ->
+        List.fold_left (fun acc (_, item) ->
+          match item with
+          | VString s -> s :: acc
+          | _ -> acc
+        ) [] items
+        |> List.rev
+    | _ -> []
+  in
+  match positional with
+  | VVector arr :: extra_levels ->
+      (match find_first_factor_in_array arr with
+       | Some (levels, ordered) ->
+           let new_levels =
+             List.fold_left (fun acc value ->
+               append_unique_levels acc (candidate_levels value)
+             ) levels extra_levels
+           in
+           let remapping = Array.init (List.length levels) Fun.id in
+           remap_factor_array arr levels ordered new_levels remapping
+       | None -> VVector arr)
+  | _ -> Error.make_error Ast.ArityError "fct_expand expects a factor vector and optional levels"
+
+let fct_c_impl (args : (string option * value) list) _env =
+  let positional = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
+  let extract_values value =
+    match value with
+    | VVector arr -> Array.to_list arr
+    | VList items -> List.map snd items
+    | scalar -> [scalar]
+  in
+  let labels_of_values values =
+    List.map (function
+      | VFactor (idx, levels, _) -> List.nth_opt levels idx
+      | VString s -> Some s
+      | VNA _ -> None
+      | other -> Some (Utils.value_to_string other)
+    ) values
+  in
+  match positional with
+  | [] -> Error.make_error Ast.ArityError "fct_c expects at least one factor vector"
+  | values ->
+      let concatenated = List.concat_map extract_values values in
+      let ordered =
+        List.for_all (function
+          | VVector arr ->
+              (match find_first_factor_in_array arr with
+               | Some (_, is_ordered) -> is_ordered
+               | None -> true)
+          | _ -> true) values
+      in
+      let unified_levels =
+        List.fold_left (fun acc value ->
+          let levels_to_add =
+            match value with
+            | VVector arr ->
+                (match find_first_factor_in_array arr with
+                 | Some (levels, _) -> levels
+                 | None ->
+                     labels_of_values (Array.to_list arr) |> List.filter_map Fun.id)
+            | VList items ->
+                labels_of_values (List.map snd items) |> List.filter_map Fun.id
+            | scalar ->
+                labels_of_values [scalar] |> List.filter_map Fun.id
+          in
+          append_unique_levels acc levels_to_add
+        ) [] values
+      in
+      let remap = Hashtbl.create (List.length unified_levels) in
+      List.iteri (fun idx level -> Hashtbl.replace remap level idx) unified_levels;
+      let factor_values =
+        labels_of_values concatenated
+        |> List.map (function
+             | None -> VNA Ast.NAGeneric
+             | Some label ->
+                 (match Hashtbl.find_opt remap label with
+                  | Some idx -> VFactor (idx, unified_levels, ordered)
+                  | None -> VNA Ast.NAGeneric))
+      in
+      VVector (Array.of_list factor_values)
+
 let register env =
   let env = Env.add "factor" (make_builtin_named ~name:"factor" ~variadic:true 1 factor_impl) env in
   let env = Env.add "as_factor" (make_builtin_named ~name:"as_factor" ~variadic:true 1 as_factor_impl) env in
@@ -409,8 +699,14 @@ let register env =
   let env = Env.add "fct_recode" (make_builtin_named ~name:"fct_recode" ~variadic:true 1 fct_recode_impl) env in
   let env = Env.add "fct_reorder" (make_builtin_named ~name:"fct_reorder" ~variadic:true 2 fct_reorder_impl) env in
   let env = Env.add "fct_lump_n" (make_builtin_named ~name:"fct_lump_n" ~variadic:true 1 fct_lump_n_impl) env in
+  let env = Env.add "fct_lump_min" (make_builtin_named ~name:"fct_lump_min" ~variadic:true 2 fct_lump_min_impl) env in
+  let env = Env.add "fct_lump_prop" (make_builtin_named ~name:"fct_lump_prop" ~variadic:true 2 fct_lump_prop_impl) env in
   let env = Env.add "fct" (make_builtin_named ~name:"fct" ~variadic:true 1 fct_impl) env in
   let env = Env.add "fct_relevel" (make_builtin_named ~name:"fct_relevel" ~variadic:true 1 fct_relevel_impl) env in
   let env = Env.add "fct_collapse" (make_builtin_named ~name:"fct_collapse" ~variadic:true 1 fct_collapse_impl) env in
+  let env = Env.add "fct_other" (make_builtin_named ~name:"fct_other" ~variadic:true 1 fct_other_impl) env in
+  let env = Env.add "fct_drop" (make_builtin ~name:"fct_drop" 1 fct_drop_impl) env in
+  let env = Env.add "fct_expand" (make_builtin_named ~name:"fct_expand" ~variadic:true 1 fct_expand_impl) env in
+  let env = Env.add "fct_c" (make_builtin_named ~name:"fct_c" ~variadic:true 1 fct_c_impl) env in
   let env = Env.add "ordered" (make_builtin_named ~name:"ordered" ~variadic:true 1 ordered_impl) env in
   env

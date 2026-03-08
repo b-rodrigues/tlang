@@ -532,5 +532,70 @@ df |> filter($age > 25)
 
   print_newline ();
 
+  Printf.printf "Phase 4 — joins, binders, and extended selectors:\n";
+
+  test "left_join keeps left rows"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = "id") |> nrow|}
+    "2";
+  test "left_join fills unmatched with NA"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = "id").y|}
+    {|Vector[NA(String), "two"]|};
+  test "inner_join keeps matches only"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); inner_join(left, right, by = "id") |> nrow|}
+    "1";
+  test "full_join includes unmatched right rows"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); full_join(left, right, by = "id").id|}
+    "Vector[1, 2, 3]";
+  test "semi_join filters left rows by match"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = "id").x|}
+    {|Vector["b"]|};
+  test "semi_join keeps only left columns"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = "id") |> ncol|}
+    "2";
+  test "anti_join filters left rows without match"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = "id").x|}
+    {|Vector["a"]|};
+  test "anti_join keeps only left columns"
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = "id") |> ncol|}
+    "2";
+  test "bind_rows unions columns"
+    {|bind_rows(dataframe([[id: 1, x: "a"]]), dataframe([[id: 2, y: "b"]])) |> ncol|}
+    "3";
+  test "bind_rows fills missing columns"
+    {|bind_rows(dataframe([[id: 1, x: "a"]]), dataframe([[id: 2, y: "b"]])).y|}
+    {|Vector[NA(String), "b"]|};
+  test "bind_cols combines columns"
+    {|bind_cols(dataframe([[id: 1], [id: 2]]), dataframe([[value: "a"], [value: "b"]])).value|}
+    {|Vector["a", "b"]|};
+  test "select where numeric columns"
+    {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, where(is_numeric)) |> ncol|}
+    "2";
+  test "select matches regex"
+    {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, matches("^s")) |> ncol|}
+    "1";
+  test "select all_of names"
+    {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, all_of(["name", "score"])) |> ncol|}
+    "2";
+  test "select any_of ignores missing names"
+    {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, any_of(["name", "missing"])) |> ncol|}
+    "1";
+  test "fct_lump_min groups infrequent levels"
+    {|levels(fct_lump_min(fct(["a", "a", "b", "c"]), 2))|}
+    {|Vector["a", "Other"]|};
+  test "fct_other keeps selected levels"
+    {|levels(fct_other(fct(["a", "b", "c"]), keep = ["a"]))|}
+    {|Vector["a", "Other"]|};
+  test "fct_drop removes unused levels"
+    {|levels(fct_drop(factor(["a", "b"], levels = ["a", "b", "c"])))|}
+    {|Vector["a", "b"]|};
+  test "fct_expand adds levels"
+    {|levels(fct_expand(fct(["a"]), "b", "c"))|}
+    {|Vector["a", "b", "c"]|};
+  test "fct_c unifies levels"
+    {|levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))|}
+    {|Vector["a", "b", "c"]|};
+
+  print_newline ();
+
   (* Clean up Phase 4 CSV *)
   (try Sys.remove csv_p4 with _ -> ())

@@ -81,5 +81,13 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "str_format escape lbrace" "str_format(\"{{val}}\", [:])" "\"{val}\"";
   test "str_format escape mixed" "str_format(\"{{{name}}}\", [name: \"x\"])" "\"{x}\"";
   test "str_format escape only braces" "str_format(\"{{}}\", [:])" "\"{}\"";
+  test "str_extract first match" "str_extract(\"abc123def\", \"[0-9]+\")" "\"123\"";
+  test "str_extract no match" "str_extract(\"abcdef\", \"[0-9]+\")" "NA(String)";
+  test "str_extract_all matches" "str_extract_all(\"a1b22\", \"[0-9]+\")" "[\"1\", \"22\"]";
+  test "str_detect regex" "str_detect([\"abc\", \"123\"], \"^[a-z]+$\")" "[true, false]";
+  test "str_pad left" "str_pad(\"7\", 3, side = \"left\", pad = \"0\")" "\"007\"";
+  test "str_trunc right" "str_trunc(\"abcdefgh\", 5)" "\"ab...\"";
+  test "str_flatten collapse" "str_flatten([\"a\", \"b\", \"c\"], collapse = \"-\")" "\"a-b-c\"";
+  test "str_count regex" "str_count(\"banana\", \"a\")" "3";
 
   print_newline ()

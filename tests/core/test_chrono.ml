@@ -10,6 +10,18 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "date subtraction returns period" {|ymd("2024-07-04") - ymd("2024-01-01")|} "Period(years=0, months=0, days=185, hours=0, minutes=0, seconds=0, micros=0)";
   test "format_date renders tokens" {|format_date(ymd("2024-07-04"), "%B %d, %Y")|} {|"July 04, 2024"|};
   test "type predicates recognize date types" {|[is_date(ymd("2024-01-01")), is_datetime(ymd_hms("2024-01-01 00:00:00"))]|} "[true, true]";
+  test "floor_date rounds down hour" {|floor_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T09:00:00Z[UTC])";
+  test "ceiling_date rounds up hour" {|ceiling_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T10:00:00Z[UTC])";
+  test "round_date rounds to nearest hour" {|round_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T10:00:00Z[UTC])";
+  test "with_tz updates timezone label" {|with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T09:30:00Z[Europe/Paris])";
+  test "force_tz updates timezone label" {|force_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T09:30:00Z[Europe/Paris])";
+  test "is_leap_year on integer" {|is_leap_year(2024)|} "true";
+  test "days_in_month on integers" {|days_in_month(2024, 2)|} "29";
+  test "within interval" {|`%within%`(ymd("2024-01-15"), interval(ymd("2024-01-01"), ymd("2024-01-31")))|} "true";
+  test "make_date creates valid date" {|make_date(year=2024, month=2, day=29)|} "Date(2024-02-29)";
+  test "make_datetime creates valid datetime" {|make_datetime(year=2024, month=2, day=29, hour=13, min=40)|} "Datetime(2024-02-29T13:40:00Z[UTC])";
+  test "am returns true for morning" {|am(ymd_hms("2024-01-15 09:30:00"))|} "true";
+  test "pm returns true for afternoon" {|pm(ymd_hms("2024-01-15 13:30:00"))|} "true";
   test "vectorized year works on pulled dates"
     {|df = dataframe([[s: "2024-01-01"], [s: "2025-02-03"]]); year(ymd(pull(df, "s")))|}
     "Vector[2024, 2025]";

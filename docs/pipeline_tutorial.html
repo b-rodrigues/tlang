@@ -913,13 +913,71 @@ p_model = pipeline {
 
 p_full = p_etl |&gt; chain(p_model)
 pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;, &quot;report&quot;]</code></pre>
-<p>If the two pipelines have no shared dependency names:</p>
-<pre class="t"><code>p_etl |&gt; chain(pipeline { x = 42 })
--- Error(ValueError: &quot;Function `chain`: no shared dependency names found between the two pipelines.&quot;)</code></pre>
 <p><code>chain</code> is stricter than <code>union</code>: it requires
 an <em>intent</em> to connect the pipelines, catching accidental merges
 where no wiring was meant.</p>
-<h3 id="parallel"><code>parallel</code></h3>
+<h3 id="cross-pipeline-dependency-tracking-t-vs.-rawcode">Cross-Pipeline
+Dependency Tracking: T vs. RawCode</h3>
+<p>T’s dependency tracking works differently depending on the node’s
+runtime. This leads to a specific limitation when using
+<code>chain()</code> with R or Python pipelines.</p>
+<h4 id="how-t-detects-dependencies">How T Detects Dependencies</h4>
+<ul>
+<li><strong>T Expressions</strong>: T has a full understanding of its
+own syntax. When you use a variable that isn’t defined inside the
+pipeline (and isn’t in your global environment), T knows for certain it
+is an external dependency.</li>
+<li><strong>RawCode (&lt;{ … }&gt;)</strong>: For R and Python, T uses a
+fast <strong>lexical heuristic</strong> (scanning for words) to find
+dependencies. It cannot reliably distinguish between a foreign function
+(like <code>lm()</code>) and a T variable from a different
+pipeline.</li>
+</ul>
+<h4 id="the-limitation">The Limitation</h4>
+<p>To avoid polluting your build environment with R/Python functions as
+Nix dependencies, T <strong>ignores</strong> external references inside
+RawCode blocks when they are not defined in the current pipeline
+block.</p>
+<p><strong>This means <code>chain()</code> will fail to automatically
+wire R/Python nodes to nodes in other pipelines.</strong></p>
+<h4 id="the-solution-the-t-stub-workaround">The Solution: The T-Stub
+Workaround</h4>
+<p>If you need an R or Python node to depend on a node from a separate
+pipeline via <code>chain()</code>, you must “bring” that dependency into
+the pipeline block using a T-expression stub.</p>
+<p><strong>❌ Broken: R node cannot “see” <code>raw_data</code> for
+chaining</strong></p>
+<pre class="t"><code>p_data = pipeline { raw_data = read_csv(&quot;data.csv&quot;) }
+
+p_model = pipeline {
+  model = rn(&lt;{ 
+    lm(mpg ~ hp, data = raw_data) 
+  }&gt;)
+}
+
+-- Error: &quot;no shared dependency names found&quot;
+p_full = p_data |&gt; chain(p_model)</code></pre>
+<p><strong>✅ Fixed: Use a T-stub to make the dependency
+explicit</strong></p>
+<pre class="t"><code>p_data = pipeline { raw_data = read_csv(&quot;data.csv&quot;) }
+
+p_model = pipeline {
+  -- The T-stub: makes `raw_data` an explicit sibling of `model`
+  raw_data = raw_data  
+  
+  model = rn(&lt;{ 
+    lm(mpg ~ hp, data = raw_data) 
+  }&gt;)
+}
+
+-- Success! T sees `raw_data` as a T-expression dependency of the stub.
+p_full = p_data |&gt; chain(p_model)</code></pre>
+<p>By defining <code>raw_data = raw_data</code> (or any name that
+matches the upstream output), you create a T-expression node. T
+<em>can</em> analyze the right-hand side of that assignment, detect the
+cross-pipeline dependency, and allow <code>chain()</code> to wire the
+pipelines together.</p>
+<hr />
 <p>Combines two pipelines that are intended to run independently. No
 dependency wiring is performed. Errors on name collision.</p>
 <pre class="t"><code>p_r_model = pipeline {

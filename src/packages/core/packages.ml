@@ -71,7 +71,7 @@ let core_package = {
   description = "Core utilities: printing, type inspection, data structures, strings";
   functions = ["print"; "type"; "args"; "length"; "nchar"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "join"; "sprintf"; "string"; "get";
                "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with"; "replace"; "replace_first"; "to_lower"; "to_upper"; 
-               "trim"; "trim_start"; "trim_end"; "lines"; "words"; "str_repeat"; "str_format";
+               "trim"; "trim_start"; "trim_end"; "lines"; "words"; "str_repeat"; "str_format"; "str_extract"; "str_extract_all"; "str_detect"; "str_pad"; "str_trunc"; "str_flatten"; "str_count";
                "ifelse"; "case_when"; "run"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
@@ -90,8 +90,9 @@ let colcraft_package = {
   functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "ungroup"; "summarize";
                "ntile"; "dense_rank"; "row_number"; "min_rank"; "cume_dist"; "percent_rank";
                "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum";
-               "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "factor"; "as_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "levels"; "ordered"; 
-               "rename"; "relocate"; "starts_with"; "ends_with"; "contains"; "everything"; "distinct"; "slice"; "slice_max"; "slice_min"; "count"; 
+               "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "factor"; "as_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "fct_lump_min"; "fct_lump_prop"; "fct_other"; "fct_drop"; "fct_expand"; "fct_c"; "levels"; "ordered";
+               "rename"; "relocate"; "starts_with"; "ends_with"; "contains"; "everything"; "where"; "matches"; "all_of"; "any_of"; "is_numeric"; "is_character"; "is_logical"; "is_factor"; "distinct"; "slice"; "slice_max"; "slice_min"; "count";
+               "left_join"; "inner_join"; "full_join"; "semi_join"; "anti_join"; "bind_rows"; "bind_cols";
                "nest"; "unnest"; "separate_rows"; "uncount"];
 }
 
@@ -118,8 +119,9 @@ let chrono_package = {
     "hour"; "minute"; "second"; "tz";
     "years"; "months"; "weeks"; "days"; "hours"; "minutes"; "seconds"; "milliseconds"; "microseconds"; "nanoseconds";
     "make_period"; "period_years"; "period_months"; "period_days"; "period_hours"; "period_minutes"; "period_seconds";
-    "format_date"; "format_datetime"; "as_date"; "as_datetime";
+    "format_date"; "format_datetime"; "as_date"; "as_datetime"; "interval";
     "is_date"; "is_datetime"; "is_period"; "is_duration"; "is_interval";
+    "floor_date"; "ceiling_date"; "round_date"; "with_tz"; "force_tz"; "%within%"; "is_leap_year"; "days_in_month";
   ];
 }
 
@@ -578,6 +580,7 @@ let init_env () =
   let env = Rename.register env in
   let env = Relocate.register env in
   let env = Selection_helpers.register env in
+  let env = Joins.register env in
   let env = Distinct.register env in
   let env = Slice.register env in
   let env = Count.register env in

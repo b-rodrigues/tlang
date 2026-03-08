@@ -515,6 +515,242 @@ let simple_component extractor value =
       Some (VInt (extractor (year, month, day)))
   | _ -> None
 
+let parse_round_unit function_name = function
+  | "second" | "minute" | "hour" | "day" | "month" | "year" as unit_name -> Ok unit_name
+  | other ->
+      Error
+        (Error.value_error
+           (Printf.sprintf
+              "Function `%s` unit must be one of \"second\", \"minute\", \"hour\", \"day\", \"month\", or \"year\", got %S."
+              function_name other))
+
+let floor_datetime_unit unit micros tz =
+  let year, month, day, hour, minute, second, _ = split_datetime_micros micros in
+  match unit with
+  | "second" -> VDatetime (datetime_of_components year month day hour minute second 0, tz)
+  | "minute" -> VDatetime (datetime_of_components year month day hour minute 0 0, tz)
+  | "hour" -> VDatetime (datetime_of_components year month day hour 0 0 0, tz)
+  | "day" -> VDatetime (datetime_of_components year month day 0 0 0 0, tz)
+  | "month" -> VDatetime (datetime_of_components year month 1 0 0 0 0, tz)
+  | "year" -> VDatetime (datetime_of_components year 1 1 0 0 0 0, tz)
+  | _ -> VDatetime (micros, tz)
+
+let shift_floor_datetime unit micros tz delta =
+  match floor_datetime_unit unit micros tz with
+  | VDatetime (ts, _) -> VDatetime (Int64.add ts delta, tz)
+  | _ -> VDatetime (micros, tz)
+
+let next_datetime_boundary unit micros tz =
+  let year, month, _, _, _, _, _ = split_datetime_micros micros in
+  match unit with
+  | "second" -> shift_floor_datetime unit micros tz micros_per_second
+  | "minute" -> shift_floor_datetime unit micros tz micros_per_minute
+  | "hour" -> shift_floor_datetime unit micros tz micros_per_hour
+  | "day" -> shift_floor_datetime unit micros tz micros_per_day
+  | "month" ->
+      let next_year, next_month, _ = add_months_to_date year month 1 1 in
+      VDatetime (datetime_of_components next_year next_month 1 0 0 0 0, tz)
+  | "year" ->
+      VDatetime (datetime_of_components (year + 1) 1 1 0 0 0 0, tz)
+  | _ -> VDatetime (micros, tz)
+
+let floor_date_unit unit days =
+  let year, month, _ = civil_from_days days in
+  match unit with
+  | "day" -> VDate days
+  | "month" -> VDate (days_from_civil year month 1)
+  | "year" -> VDate (days_from_civil year 1 1)
+  | _ ->
+      Error.type_error
+        "Date rounding only supports units \"day\", \"month\", and \"year\" for Date values."
+
+let next_date_boundary unit days =
+  let year, month, _ = civil_from_days days in
+  match unit with
+  | "day" -> VDate (days + 1)
+  | "month" ->
+      let next_year, next_month, _ = add_months_to_date year month 1 1 in
+      VDate (days_from_civil next_year next_month 1)
+  | "year" -> VDate (days_from_civil (year + 1) 1 1)
+  | _ ->
+      Error.type_error
+        "Date rounding only supports units \"day\", \"month\", and \"year\" for Date values."
+
+let compare_temporal a b =
+  match a, b with
+  | VDate d1, VDate d2 -> compare d1 d2
+  | VDatetime (t1, _), VDatetime (t2, _) -> Int64.compare t1 t2
+  | _ -> 0
+
+let temporal_distance a b =
+  match a, b with
+  | VDate d1, VDate d2 -> float_of_int (abs (d1 - d2))
+  | VDatetime (t1, _), VDatetime (t2, _) ->
+      Int64.abs (Int64.sub t1 t2) |> Int64.to_float
+  | _ -> infinity
+
+let rec floor_temporal function_name unit = function
+  | VDate days -> floor_date_unit unit days
+  | VDatetime (micros, tz) -> floor_datetime_unit unit micros tz
+  | VVector arr -> VVector (Array.map (floor_temporal function_name unit) arr)
+  | VNA _ -> VNA NAGeneric
+  | _ ->
+      Error.type_error
+        (Printf.sprintf
+           "Function `%s` expects a Date, Datetime, or Vector of them."
+           function_name)
+
+and ceiling_temporal function_name unit = function
+  | VDate days as value ->
+      (match floor_date_unit unit days with
+       | VError _ as err -> err
+       | floored ->
+           if compare_temporal floored value = 0 then floored
+           else next_date_boundary unit days)
+  | VDatetime (micros, tz) as value ->
+      let floored = floor_datetime_unit unit micros tz in
+      if compare_temporal floored value = 0 then floored
+      else next_datetime_boundary unit micros tz
+  | VVector arr -> VVector (Array.map (ceiling_temporal function_name unit) arr)
+  | VNA _ -> VNA NAGeneric
+  | _ ->
+      Error.type_error
+        (Printf.sprintf
+           "Function `%s` expects a Date, Datetime, or Vector of them."
+           function_name)
+
+and round_temporal function_name unit = function
+  | (VDate _ | VDatetime _) as value ->
+      let floored = floor_temporal function_name unit value in
+      let ceiled = ceiling_temporal function_name unit value in
+      (match floored, ceiled with
+       | VError _ as err, _ -> err
+       | _, (VError _ as err) -> err
+       | _ ->
+            if temporal_distance value floored <= temporal_distance ceiled value then
+              floored
+            else
+             ceiled)
+  | VVector arr -> VVector (Array.map (round_temporal function_name unit) arr)
+  | VNA _ -> VNA NAGeneric
+  | _ ->
+      Error.type_error
+        (Printf.sprintf
+           "Function `%s` expects a Date, Datetime, or Vector of them."
+           function_name)
+
+let round_date_impl function_name kind args _env =
+  match args with
+  | [value; VString unit_name] ->
+      (match parse_round_unit function_name unit_name with
+       | Error err -> err
+       | Ok unit ->
+           (match kind with
+            | `Floor -> floor_temporal function_name unit value
+            | `Ceiling -> ceiling_temporal function_name unit value
+            | `Round -> round_temporal function_name unit value))
+  | [_; _] ->
+      Error.type_error
+        (Printf.sprintf "Function `%s` expects (Date|Datetime, String)." function_name)
+  | values -> Error.arity_error_named function_name ~expected:2 ~received:(List.length values)
+
+let rec relabel_timezone function_name timezone = function
+  | VDatetime (micros, _) -> VDatetime (micros, Some timezone)
+  | VVector arr -> VVector (Array.map (relabel_timezone function_name timezone) arr)
+  | VNA _ -> VNA NAGeneric
+  | _ ->
+      Error.type_error
+        (Printf.sprintf
+           "Function `%s` expects a Datetime or Vector of datetimes."
+           function_name)
+
+let timezone_impl function_name args _env =
+  match args with
+  | [value; VString timezone] -> relabel_timezone function_name timezone value
+  | [_; _] ->
+      Error.type_error
+        (Printf.sprintf "Function `%s` expects (Datetime, String)." function_name)
+  | values -> Error.arity_error_named function_name ~expected:2 ~received:(List.length values)
+
+let leap_year_impl args _env =
+  let rec apply = function
+    | VInt year -> VBool (is_leap_year year)
+    | VDate days ->
+        let year, _, _ = civil_from_days days in
+        VBool (is_leap_year year)
+    | VDatetime (micros, _) ->
+        let year, _, _, _, _, _, _ = split_datetime_micros micros in
+        VBool (is_leap_year year)
+    | VVector arr -> VVector (Array.map apply arr)
+    | VNA _ -> VNA NABool
+    | _ ->
+        Error.type_error
+          "Function `is_leap_year` expects an Int year, Date, Datetime, or Vector of them."
+  in
+  match args with
+  | [value] -> apply value
+  | values -> Error.arity_error_named "is_leap_year" ~expected:1 ~received:(List.length values)
+
+let rec days_in_month_impl args _env =
+  match args with
+  | [VInt year; VInt month] -> VInt (days_in_month year month)
+  | [VDate days] ->
+      let year, month, _ = civil_from_days days in
+      VInt (days_in_month year month)
+  | [VDatetime (micros, _)] ->
+      let year, month, _, _, _, _, _ = split_datetime_micros micros in
+      VInt (days_in_month year month)
+  | [VVector arr] ->
+      VVector (Array.map (fun value ->
+        match days_in_month_impl [value] _env with
+        | VError _ as err -> err
+        | other -> other
+      ) arr)
+  | [_] ->
+      Error.type_error "Function `days_in_month` expects (Int, Int) or a Date/Datetime."
+  | [_; _] ->
+      Error.type_error "Function `days_in_month` expects (Int, Int) or a Date/Datetime."
+  | _ ->
+      Error.make_error ArityError "Function `days_in_month` expects either 1 or 2 arguments."
+
+let interval_impl args _env =
+  let instant_and_tz = function
+    | VDate days -> Ok (Int64.mul (Int64.of_int days) micros_per_day, None)
+    | VDatetime (micros, tz) -> Ok (micros, tz)
+    | _ -> Error (Error.type_error "Function `interval` expects Date or Datetime arguments.")
+  in
+  match args with
+  | [start_value; end_value] ->
+      (match instant_and_tz start_value, instant_and_tz end_value with
+       | Ok (start_micros, start_tz), Ok (end_micros, end_tz) ->
+           if Int64.compare start_micros end_micros > 0 then
+             Error.value_error "Function `interval` requires `start` to be less than or equal to `end`."
+           else
+             VInterval {
+               iv_start = start_micros;
+               iv_end = end_micros;
+               iv_tz = (match start_tz with Some _ -> start_tz | None -> end_tz);
+             }
+       | Error err, _ | _, Error err -> err)
+  | values -> Error.arity_error_named "interval" ~expected:2 ~received:(List.length values)
+
+let within_impl args _env =
+  let rec apply interval = function
+    | VDate days ->
+        let instant = Int64.mul (Int64.of_int days) micros_per_day in
+        VBool (Int64.compare instant interval.iv_start >= 0 && Int64.compare instant interval.iv_end <= 0)
+    | VDatetime (micros, _) ->
+        VBool (Int64.compare micros interval.iv_start >= 0 && Int64.compare micros interval.iv_end <= 0)
+    | VVector arr -> VVector (Array.map (apply interval) arr)
+    | VNA _ -> VNA NABool
+    | _ ->
+        Error.type_error "Function `%within%` expects a Date, Datetime, or Vector of them."
+  in
+  match args with
+  | [value; VInterval interval] -> apply interval value
+  | [_; _] -> Error.type_error "Function `%within%` expects (Date|Datetime, Interval)."
+  | values -> Error.arity_error_named "%within%" ~expected:2 ~received:(List.length values)
+
 let register env =
   let parse_date_result s fmt =
     match parse_custom_format `Date s fmt None with
@@ -885,4 +1121,69 @@ let register env =
   let env = add_predicate env "is_period" (function VPeriod _ -> true | _ -> false) in
   let env = add_predicate env "is_duration" (function VDuration _ -> true | _ -> false) in
   let env = add_predicate env "is_interval" (function VInterval _ -> true | _ -> false) in
+  let env = Env.add "floor_date" (make_builtin ~name:"floor_date" 2 (round_date_impl "floor_date" `Floor)) env in
+  let env = Env.add "ceiling_date" (make_builtin ~name:"ceiling_date" 2 (round_date_impl "ceiling_date" `Ceiling)) env in
+  let env = Env.add "round_date" (make_builtin ~name:"round_date" 2 (round_date_impl "round_date" `Round)) env in
+  let env = Env.add "with_tz" (make_builtin ~name:"with_tz" 2 (timezone_impl "with_tz")) env in
+  let env = Env.add "force_tz" (make_builtin ~name:"force_tz" 2 (timezone_impl "force_tz")) env in
+  let env = Env.add "interval" (make_builtin ~name:"interval" 2 interval_impl) env in
+  let env = Env.add "%within%" (make_builtin ~name:"%within%" 2 within_impl) env in
+  let env = Env.add "is_leap_year" (make_builtin ~name:"is_leap_year" 1 leap_year_impl) env in
+  let env = Env.add "days_in_month" (make_builtin ~name:"days_in_month" ~variadic:true 1 days_in_month_impl) env in
+  let env = Env.add "make_date" (make_builtin_named ~name:"make_date" ~variadic:true 0 (fun named_args _env ->
+    let get_int name default = match int_named_arg name default named_args with Ok v -> Ok v | Error e -> Error e in
+    let ( let* ) result f = match result with Ok value -> f value | Error err -> Error err in
+    match
+      let* year = get_int "year" 1970 in
+      let* month = get_int "month" 1 in
+      let* day = get_int "day" 1 in
+      Ok (year, month, day)
+    with
+    | Ok (y, m, d) ->
+        if is_valid_date y m d then
+          VDate (days_from_civil y m d)
+        else
+          Error.value_error (Printf.sprintf "Invalid date components: %04d-%02d-%02d" y m d)
+    | Error err -> err)) env in
+  let env = Env.add "make_datetime" (make_builtin_named ~name:"make_datetime" ~variadic:true 0 (fun named_args _env ->
+    let get_int name default = match int_named_arg name default named_args with Ok v -> Ok v | Error e -> Error e in
+    let ( let* ) result f = match result with Ok value -> f value | Error err -> Error err in
+    match
+      let* year = get_int "year" 1970 in
+      let* month = get_int "month" 1 in
+      let* day = get_int "day" 1 in
+      let* hour = get_int "hour" 0 in
+      let* min = get_int "min" 0 in
+      let* sec = get_int "sec" 0 in
+      let* tz = string_named_arg "tz" (Some "UTC") named_args in
+      Ok (year, month, day, hour, min, sec, tz)
+    with
+    | Ok (y, mo, d, h, m, s, tz) ->
+        if is_valid_date y mo d && is_valid_time h m s 0 then
+          VDatetime (datetime_of_components y mo d h m s 0, tz)
+        else
+          Error.value_error (Printf.sprintf "Invalid datetime components: %04d-%02d-%02d %02d:%02d:%02d" y mo d h m s)
+    | Error err -> err)) env in
+  let env =
+    Env.add "am"
+      (scalar_date_component "am" (fun value ->
+           match value with
+           | VDate _ -> Some (VBool true)
+           | VDatetime (micros, _) ->
+               let _, _, _, h, _, _, _ = split_datetime_micros micros in
+               Some (VBool (h < 12))
+           | _ -> None))
+      env
+  in
+  let env =
+    Env.add "pm"
+      (scalar_date_component "pm" (fun value ->
+           match value with
+           | VDate _ -> Some (VBool false)
+           | VDatetime (micros, _) ->
+               let _, _, _, h, _, _, _ = split_datetime_micros micros in
+               Some (VBool (h >= 12))
+           | _ -> None))
+      env
+  in
   env

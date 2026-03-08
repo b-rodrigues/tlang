@@ -61,15 +61,15 @@ let generate_function_doc entry =
     Printf.bprintf buf "## Parameters\n\n";
     List.iter (fun (p : param_doc) ->
       let type_str = match p.type_info with Some t -> " (`" ^ t ^ "`)" | None -> "" in
-      Printf.bprintf buf "- **%s**%s: %s\n" p.name type_str p.description
+      Printf.bprintf buf "- **%s**%s: %s\n\n" p.name type_str p.description
     ) entry.params;
     Buffer.add_string buf "\n";
   end;
   
   begin match entry.return_value with
   | Some r ->
-      Printf.bprintf buf "## Returns:\n\n";
-      Printf.bprintf buf "Returns: %s\n\n" r.description
+      Printf.bprintf buf "## Returns\n\n";
+      Printf.bprintf buf "%s\n\n" r.description
   | None -> ()
   end;
   
