@@ -227,8 +227,55 @@ p_cross = pipeline {
          incr fail_count; Printf.printf "  ✗ node() with script stores path and runtime\n    script=%s runtime=%s\n"
            (match un.un_script with Some s -> s | None -> "None") un.un_runtime
        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ node() with script should return VNode, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_py_node, _) = eval_string_env
+    {|py(command = <{ x + 1 }>, env_vars = [API_KEY: "secret", RETRIES: 3])|}
+    (Packages.init_env ()) in
+  (match v_py_node with
+   | Ast.VNode un
+     when un.un_runtime = "Python"
+          && un.un_env_vars = [("API_KEY", Ast.VString "secret"); ("RETRIES", Ast.VInt 3)] ->
+       incr pass_count; Printf.printf "  ✓ py() stores env_vars on the node\n"
    | other ->
-       incr fail_count; Printf.printf "  ✗ node() with script should return VNode, got: %s\n"
+       incr fail_count; Printf.printf "  ✗ py() env_vars parsing failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  test "node env_vars must be a dict"
+    {|node(command = 1, env_vars = 1)|}
+    {|Error(TypeError: "Function `node` expects `env_vars` to be a Dict.")|};
+
+  let (v_env_pipeline, _) = eval_string_env
+    {|pipeline {
+  model = rn(command = <{ 1 + 1 }>, env_vars = [MODEL_MODE: "train", RETRIES: 2])
+}|}
+    (Packages.init_env ()) in
+  (match v_env_pipeline with
+   | Ast.VPipeline p ->
+       let rerun_has_envs =
+         match Eval.rerun_pipeline (ref (Packages.init_env ())) p with
+         | Ast.VPipeline rerun ->
+             (match List.assoc_opt "model" rerun.p_env_vars with
+              | Some [("MODEL_MODE", Ast.VString "train"); ("RETRIES", Ast.VInt 2)] -> true
+              | _ -> false)
+         | _ -> false
+       in
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let contains s sub =
+         try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
+         with Not_found -> false
+       in
+       let has_model_mode = contains nix {|"MODEL_MODE" = "train";|} in
+       let has_retries = contains nix {|"RETRIES" = "2";|} in
+       if rerun_has_envs && has_model_mode && has_retries then begin
+         incr pass_count; Printf.printf "  ✓ pipeline preserves and emits node env_vars\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ pipeline env_vars preservation/emission failed\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ pipeline with env_vars should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* Test: runtime auto-detected from .R extension *)

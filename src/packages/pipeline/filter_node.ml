@@ -43,14 +43,15 @@ let register ~eval_call env =
             p_nodes        = List.filter (fun (n, _) -> keep_set n) p.p_nodes;
             p_exprs        = keep;
             p_deps         = List.filter (fun (n, _) -> keep_set n) p.p_deps;
-            p_imports      = p.p_imports;
-            p_runtimes     = List.filter (fun (n, _) -> keep_set n) p.p_runtimes;
-            p_serializers  = List.filter (fun (n, _) -> keep_set n) p.p_serializers;
-            p_deserializers = List.filter (fun (n, _) -> keep_set n) p.p_deserializers;
-            p_functions    = List.filter (fun (n, _) -> keep_set n) p.p_functions;
-            p_includes     = List.filter (fun (n, _) -> keep_set n) p.p_includes;
-            p_noops        = List.filter (fun (n, _) -> keep_set n) p.p_noops;
-            p_scripts      = List.filter (fun (n, _) -> keep_set n) p.p_scripts;
+             p_imports      = p.p_imports;
+             p_runtimes     = List.filter (fun (n, _) -> keep_set n) p.p_runtimes;
+             p_serializers  = List.filter (fun (n, _) -> keep_set n) p.p_serializers;
+             p_deserializers = List.filter (fun (n, _) -> keep_set n) p.p_deserializers;
+             p_env_vars     = List.filter (fun (n, _) -> keep_set n) p.p_env_vars;
+             p_functions    = List.filter (fun (n, _) -> keep_set n) p.p_functions;
+             p_includes     = List.filter (fun (n, _) -> keep_set n) p.p_includes;
+             p_noops        = List.filter (fun (n, _) -> keep_set n) p.p_noops;
+             p_scripts      = List.filter (fun (n, _) -> keep_set n) p.p_scripts;
           }
       | [_; _] -> Error.type_error "Function `filter_node` expects a Pipeline as first argument."
       | _ -> Error.arity_error_named "filter_node" ~expected:2 ~received:(List.length args)

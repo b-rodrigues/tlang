@@ -44,14 +44,15 @@ let register env =
               p_nodes        = rename_key p.p_nodes;
               p_exprs        = rename_key p.p_exprs;
               p_deps         = rewire_deps (rename_key p.p_deps);
-              p_imports      = p.p_imports;
-              p_runtimes     = rename_key p.p_runtimes;
-              p_serializers  = rename_key p.p_serializers;
-              p_deserializers = rename_key p.p_deserializers;
-              p_functions    = rename_key p.p_functions;
-              p_includes     = rename_key p.p_includes;
-              p_noops        = rename_key p.p_noops;
-              p_scripts      = rename_key p.p_scripts;
+               p_imports      = p.p_imports;
+               p_runtimes     = rename_key p.p_runtimes;
+               p_serializers  = rename_key p.p_serializers;
+               p_deserializers = rename_key p.p_deserializers;
+               p_env_vars     = rename_key p.p_env_vars;
+               p_functions    = rename_key p.p_functions;
+               p_includes     = rename_key p.p_includes;
+               p_noops        = rename_key p.p_noops;
+               p_scripts      = rename_key p.p_scripts;
             }
       | [VPipeline _; VString _; _] ->
           Error.type_error "Function `rename_node` expects String arguments for old and new names."
