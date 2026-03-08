@@ -1,5 +1,8 @@
 open Ast
 
+let dataframe_hint =
+  "Use explain(df).storage_backend, explain(df).native_path_active, explain(df).performance_note, explain(df).schema, explain(df).na_stats, and explain(df).example_rows for details"
+
 (*
 --# Explain Value
 --#
@@ -117,7 +120,7 @@ let register env =
             ("storage_backend", VString storage_backend);
             ("native_path_active", VBool native_path_active);
             ("performance_note", VString performance_note);
-            ("hint", VString "Use explain(df).storage_backend, explain(df).native_path_active, explain(df).performance_note, explain(df).schema, explain(df).na_stats, and explain(df).example_rows for details");
+            ("hint", VString dataframe_hint);
             ("schema", schema);
             ("na_stats", na_stats);
             ("example_rows", example_rows);

@@ -14,7 +14,7 @@ T's DataFrame operations are backed by [Apache Arrow](https://arrow.apache.org/)
 - **Hash-based grouping**: `group_by()` operations use Arrow's hash-based grouping when a native handle is present
 
 > [!IMPORTANT]
-> **Current beta-style improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. However, some schemas still fall back to pure OCaml/T storage (for example unsupported column builders such as null-only, factor, list, date, or datetime columns), so users should still inspect the active backend explicitly.
+> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. However, some schemas still fall back to pure OCaml/T storage (for example unsupported column builders such as null-only, factor, list, date, or datetime columns), so users should still inspect the active backend explicitly.
 
 ### Dual-Path Architecture
 
@@ -43,7 +43,7 @@ explain(df3).storage_backend     -- "pure_ocaml" for unsupported native builders
 explain(df3).native_path_active  -- false
 ```
 
-For alpha, this is the quickest way to understand whether a pipeline is still on the fast Arrow path or has already materialized into OCaml/T-managed arrays.
+This is the quickest way to understand whether a pipeline is still on the fast Arrow path or has already materialized into OCaml/T-managed arrays.
 
 ### Zero-Copy Column Views
 

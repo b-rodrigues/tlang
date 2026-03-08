@@ -236,6 +236,12 @@ let get_string (col : column_data) (row : int) : string option =
 
 (* --- Native materialization --- *)
 
+(** Column builders currently supported by Arrow_ffi.arrow_table_new.
+    Only basic Arrow-compatible primitive columns can be rebuilt natively today. *)
+let is_arrow_table_new_supported = function
+  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ -> true
+  | NullColumn _ | DictionaryColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> false
+
 (** Materialize a pure OCaml table into a native Arrow-backed one.
     Returns the table itself if it already has a native_handle.
     Tables containing unsupported column builders remain in pure OCaml form. *)
@@ -243,19 +249,20 @@ let materialize (t : t) : t =
   match t.native_handle with
   | Some handle when not handle.freed -> t
   | _ ->
-      let has_unsupported = List.exists (fun (_, col) ->
-        match col with
-        | NullColumn _ | DictionaryColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> true
-        | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ -> false
-      ) t.columns in
+      let has_unsupported = List.exists (fun (_, col) -> not (is_arrow_table_new_supported col)) t.columns in
       if has_unsupported then t
       else
+        let arrow_int64_tag = 0 in
+        let arrow_float64_tag = 1 in
+        let arrow_boolean_tag = 2 in
+        let arrow_string_tag = 3 in
+        let arrow_unsupported_tag = 8 in
         let tag_of = function
-          | ArrowInt64 -> 0
-          | ArrowFloat64 -> 1
-          | ArrowBoolean -> 2
-          | ArrowString -> 3
-          | ArrowNull | ArrowDictionary | ArrowDate | ArrowTimestamp _ | ArrowList _ | ArrowStruct _ -> 8
+          | ArrowInt64 -> arrow_int64_tag
+          | ArrowFloat64 -> arrow_float64_tag
+          | ArrowBoolean -> arrow_boolean_tag
+          | ArrowString -> arrow_string_tag
+          | ArrowNull | ArrowDictionary | ArrowDate | ArrowTimestamp _ | ArrowList _ | ArrowStruct _ -> arrow_unsupported_tag
         in
         let ffi_cols = List.map (fun (name, type_) ->
           let data = match List.assoc_opt name t.columns with
@@ -264,10 +271,8 @@ let materialize (t : t) : t =
             | Some (BoolColumn a) -> Array.map (Option.map Obj.repr) a
             | Some (StringColumn a) -> Array.map (Option.map Obj.repr) a
             | Some (NullColumn n) -> Array.make n None
-            | Some (DateColumn a) -> Array.map (Option.map Obj.repr) a
-            | Some (DatetimeColumn (a, _)) -> Array.map (Option.map Obj.repr) a
-            | Some (DictionaryColumn (a, _, _)) -> Array.map (Option.map Obj.repr) a
-            | Some (ListColumn _) -> Array.make t.nrows None
+            | Some (DateColumn _) | Some (DatetimeColumn _) | Some (DictionaryColumn _) | Some (ListColumn _) ->
+                Array.make t.nrows None
             | None -> Array.make t.nrows None
           in
           (name, tag_of type_, data)

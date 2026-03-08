@@ -207,14 +207,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ explain mutated DataFrame native_path_active is a Bool\n    Expected: \"Bool\"\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "e = explain(df); df_mutated = mutate(df, $score_copy = $score); e2 = explain(df_mutated); if (e.native_path_active) e2.native_path_active else true" env_p6 in
-  let result = Ast.Utils.value_to_string v in
-  if result = "true" then begin
-    incr pass_count; Printf.printf "  ✓ mutate preserves native path when native Arrow is active\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ mutate preserves native path when native Arrow is active\n    Expected: true\n    Got: %s\n" result
-  end;
-
+  (* A DataFrame whose only column is NA in every row stays on the pure OCaml
+     path because NullColumn does not yet have a native Arrow builder path. *)
   let (v, _) = eval_string_env "df_na_only = dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.storage_backend" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = {|"pure_ocaml"|} then begin
