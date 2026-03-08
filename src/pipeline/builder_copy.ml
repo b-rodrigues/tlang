@@ -12,7 +12,9 @@ let pipeline_copy ?(node_name=None) ?(target_dir="pipeline-output") ?(dir_mode="
         let c = mode.[idx] in
         c >= '0' && c <= '7' && all_octal (idx + 1)
     in
-    (len = 4 || len = 5) && len > 0 && mode.[0] = '0' && all_octal 1
+    (* Accept 4 or 5 chars so common forms like 0755 and 00755 both validate,
+       while still restricting input to safe octal chmod modes. *)
+    (len = 4 || len = 5) && mode.[0] = '0' && all_octal 1
   in
   if not (is_valid_mode dir_mode && is_valid_mode file_mode) then
     Error.make_error GenericError

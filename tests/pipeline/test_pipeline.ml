@@ -282,6 +282,10 @@ p_cross = pipeline {
     {|node(command = <{ 1 + 1 }>, runtime = Quarto, args = [path: "report.qmd"])|}
     {|Error(TypeError: "node() cannot use 'command' together with a script path (from 'script' or args.path/file/qmd_file/input) — choose one.")|};
 
+  test "node command conflicts with inferred qmd script path"
+    {|node(command = <{ 1 + 1 }>, args = [path: "report.qmd"])|}
+    {|Error(TypeError: "node() cannot use 'command' together with a script path (from 'script' or args.path/file/qmd_file/input) — choose one.")|};
+
   let (v_quarto_node, _) = eval_string_env
     {|node(runtime = Quarto, args = [subcommand: "render", path: "report.qmd", to: "html", standalone: true])|}
     (Packages.init_env ()) in
