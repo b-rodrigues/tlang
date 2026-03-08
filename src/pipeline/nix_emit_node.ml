@@ -761,7 +761,7 @@ EOF
   Printf.sprintf {|
   %s = stdenv.mkDerivation {
     name = "%s";
-    buildInputs = [ tBin %s ];
+    buildInputs = [ tBin %s ] ++ globalBuildInputs;
     T_JPMML_STATSMODELS_JAR = "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar";
 %s
 %s

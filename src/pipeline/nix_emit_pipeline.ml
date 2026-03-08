@@ -109,7 +109,7 @@ let
 
   toml = if builtins.pathExists ../tproject.toml then builtins.fromTOML (builtins.readFile ../tproject.toml) else {};
   
-  rPackagesList = toml.r-dependencies.packages or [];
+  rPackagesList = (toml.r-dependencies or {}).packages or [];
   r-env = pkgs.rWrapper.override {
     packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ pkgs.rPackages.jsonlite%s ];
   };
@@ -118,12 +118,22 @@ let
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList)%s);
+
+  # Additional Tools & LaTeX
+  additionalTools = (toml.additional-tools or {}).packages or [];
+  latexPkgs = (toml.latex or {}).packages or [];
+  
+  latexCombined = if latexPkgs == [] then null 
+                  else pkgs.texlive.combine (builtins.listToAttrs (builtins.map (name: { name = name; value = pkgs.texlive.${name}; }) (["scheme-small"] ++ latexPkgs)));
+                  
+  globalBuildInputs = (builtins.map (p: pkgs.${p}) additionalTools)
+                      ++ (if latexCombined == null then [] else [ latexCombined ]);
 in
 rec {
 %s
   pipeline_output = stdenv.mkDerivation {
     name = "pipeline_output";
-    buildInputs = [ tBin %s ];
+    buildInputs = [ tBin %s ] ++ globalBuildInputs;
     buildCommand = ''
       mkdir -p $out
 %s

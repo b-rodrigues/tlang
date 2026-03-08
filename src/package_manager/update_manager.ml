@@ -83,6 +83,8 @@ let update_flake_lock () =
             ~r_deps:cfg.proj_r_dependencies
             ~py_deps:cfg.proj_py_dependencies
             ~py_version:cfg.proj_py_version
+            ~additional_tools:cfg.proj_additional_tools
+            ~latex_pkgs:cfg.proj_latex_packages
             ~dir
             ~dry_run:false
             () with
@@ -106,6 +108,8 @@ let update_flake_lock () =
             ~nixpkgs_date
             ~t_version:cfg.min_t_version
             ~deps:cfg.dependencies
+            ~additional_tools:cfg.additional_tools
+            ~latex_pkgs:cfg.latex_packages
             ~dir
             ~dry_run:false
             () with

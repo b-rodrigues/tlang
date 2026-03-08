@@ -160,6 +160,14 @@ repository = ""
 [t]
 # Minimum T language version required
 min_version = "{{tlang_version}}"
+
+[additional-tools]
+# Additional Nix packages for development (e.g., git, awk)
+packages = []
+
+[latex]
+# LaTeX packages for documentation (starts from scheme-small)
+packages = []
 |}
 
 let package_flake_nix = {|{
@@ -355,6 +363,15 @@ packages = []
 version = "python314"
 # Example:
 # packages = ["pandas", "numpy"]
+packages = []
+
+[additional-tools]
+# Additional Nix packages for the project (e.g., git, awk, jq)
+packages = []
+
+[latex]
+# LaTeX packages (starts from scheme-small, add packages here)
+# Example: packages = ["amsmath", "blindtext"]
 packages = []
 
 [t]

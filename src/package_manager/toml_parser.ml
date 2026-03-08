@@ -44,6 +44,8 @@ let parse_description_toml (content : string) : (package_config, string) result 
         repository = get_string_opt toml ["package"; "repository"] ~default:"";
         dependencies = parse_dependencies toml;
         min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.5.0";
+        additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
+        latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
       }
   with
   | Otoml.Parse_error (_, msg) -> Error (Printf.sprintf "TOML parse error: %s" msg)
@@ -64,6 +66,8 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_py_dependencies = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[];
         proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python314";
         proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.5.0";
+        proj_additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
+        proj_latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
       }
   with
   | Otoml.Parse_error (_, msg) -> Error (Printf.sprintf "TOML parse error: %s" msg)
@@ -90,6 +94,12 @@ let serialize_description_toml (cfg : package_config) : string =
   Buffer.add_char buf '\n';
   Buffer.add_string buf "[t]\n";
   Printf.bprintf buf "min_version = %S\n" cfg.min_t_version;
+  Printf.bprintf buf "\n[additional-tools]\n";
+  Printf.bprintf buf "packages = [%s]\n"
+    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.additional_tools));
+  Printf.bprintf buf "\n[latex]\n";
+  Printf.bprintf buf "packages = [%s]\n"
+    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.latex_packages));
   Buffer.contents buf
 
 (** Generate a tproject.toml string from project_config *)
@@ -112,6 +122,12 @@ let serialize_tproject_toml (cfg : project_config) : string =
   Printf.bprintf buf "version = %S\n" cfg.proj_py_version;
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_py_dependencies));
+  Buffer.add_string buf "[additional-tools]\n";
+  Printf.bprintf buf "packages = [%s]\n\n"
+    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_additional_tools));
+  Buffer.add_string buf "[latex]\n";
+  Printf.bprintf buf "packages = [%s]\n\n"
+    (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_latex_packages));
   Buffer.add_string buf "[t]\n";
   Printf.bprintf buf "min_version = %S\n" cfg.proj_min_t_version;
   Buffer.contents buf
