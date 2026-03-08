@@ -607,7 +607,49 @@ Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, 
 
 ---
 
-## 21. Node-Level Operations (`_node` family)
+## 21. Environment Variables
+
+Pipeline nodes can pass environment variables into the Nix build sandbox via the `env_vars` named argument on `node()`, `py()`/`pyn()`, and `rn()`. This allows nodes to configure their build-time execution environment without embedding those values directly into the command body.
+
+```t
+p = pipeline {
+  model = rn(
+    command = <{ train_model(data) }>,
+    env_vars = [
+      MODEL_MODE: "train",
+      RETRIES: 2,
+      DEBUG: true
+    ]
+  )
+}
+```
+
+### Supported Types
+
+The `env_vars` dictionary supports the following scalar-like values:
+
+| Type | Example | Nix Output |
+|---|---|---|
+| **String** | `"train"` | `"train"` |
+| **Symbol** | `train` | `"train"` |
+| **Int** | `2` | `"2"` |
+| **Float** | `3.14` | `"3.14"` (up to 15 significant digits) |
+| **Bool** | `true` | `"true"` |
+| **Null** | `null` | (Omitted from derivation) |
+
+### Validation
+
+T performs early validation on environment variables:
+- `env_vars` must be a dictionary.
+- Unsupported types (like Lists or nested Dicts) trigger a structured type error during pipeline construction.
+- `null` values are silently omitted from the generated Nix derivation instead of being materialized as empty strings.
+
+These variables are automatically threaded into the generated `stdenv.mkDerivation` and are available via standard system methods (e.g., `Sys.getenv()` in R or `os.environ` in Python) during the Nix build step.
+
+---
+
+## 22. Node-Level Operations (`_node` family)
+
 
 T provides a set of colcraft-style verbs for operating on pipeline nodes. These mirror the DataFrame API, using NSE `$field` references for node metadata fields.
 
@@ -686,7 +728,7 @@ p |> arrange_node($depth) |> pipeline_nodes      -- ["a", "b", "c"]
 
 ---
 
-## 22. Set Operations
+## 23. Set Operations
 
 Pipelines can be treated as named sets of nodes. T provides four set operations that combine or subtract pipelines.
 
@@ -767,7 +809,7 @@ pipeline_nodes(p_updated)  -- ["load", "model"] — "extra" was not added
 
 ---
 
-## 23. DAG-Aware Transformations
+## 24. DAG-Aware Transformations
 
 These operations are structurally aware of the pipeline's dependency graph and are used to replace node implementations, reroute edges, and extract subgraphs.
 
@@ -867,7 +909,7 @@ p |> subgraph("b") |> pipeline_nodes  -- ["a", "b", "c"] — d is disconnected
 
 ---
 
-## 24. Pipeline Composition
+## 25. Pipeline Composition
 
 These higher-level operators combine two complete, separately-defined pipelines into one.
 
@@ -944,6 +986,8 @@ By defining `raw_data = raw_data` (or any name that matches the upstream output)
 
 ---
 
+## 26. Parallel Execution
+
 Combines two pipelines that are intended to run independently. No dependency wiring is performed. Errors on name collision.
 
 ```t
@@ -968,7 +1012,7 @@ pipeline_nodes(p_both)  -- ["r_fit", "py_fit"]
 
 ---
 
-## 25. Extended Inspection API
+## 27. Extended Inspection API
 
 Beyond `pipeline_nodes` and `pipeline_deps`, T provides a complete structural inspection surface for pipelines.
 
@@ -1054,7 +1098,7 @@ Pipe the output to `dot -Tpng` or paste it into https://dreampuf.github.io/Graph
 
 ---
 
-## 26. Pipeline Validation
+## 28. Pipeline Validation
 
 By design, T uses **lazy validation**: structural errors (missing dependencies, cycles) surface at `build_pipeline` or `pipeline_run` time, not at operation time. This allows you to compose and transform pipelines freely.
 

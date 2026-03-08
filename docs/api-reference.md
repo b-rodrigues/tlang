@@ -1751,7 +1751,7 @@ cumany([false, true, false]) -- Vector[false, true, true]
 
 Pipeline introspection and management.
 
-### `node(command, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false)`
+### `node(command, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -1762,6 +1762,7 @@ Configure execution settings such as the runtime and custom serialized methods f
 - `runtime` (optional) — The runtime environment (`T`, `R`, `Python`). Default: `T`.
 - `serializer` (optional) — Write artifact overriding mechanism.
 - `deserializer` (optional) — Read artifact overriding mechanism.
+- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — Code files to source before execution.
 - `include` (optional) — Additional files to bring into the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub.
@@ -1785,7 +1786,9 @@ include = "config.yml"
 
 ---
 
-### `pyn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)`
+### `py(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+
+### `pyn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
@@ -1795,6 +1798,7 @@ Configure a Python Pipeline Node. A convenience wrapper around `node()` with `ru
 - `command` — The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks).
 - `serializer` (optional) — Custom serializer function. Default: `default`.
 - `deserializer` (optional) — Custom deserializer function. Default: `default`.
+- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — Python files to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
@@ -1805,7 +1809,7 @@ The evaluated return value of the command.
 
 ---
 
-### `rn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)`
+### `rn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
@@ -1815,6 +1819,7 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `command` — The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks).
 - `serializer` (optional) — Custom serializer function. Default: `default`.
 - `deserializer` (optional) — Custom deserializer function. Default: `default`.
+- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — R scripts to source before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
