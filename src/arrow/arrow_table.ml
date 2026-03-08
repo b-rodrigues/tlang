@@ -161,7 +161,22 @@ let get_column (t : t) (name : string) : column_data option =
        | None -> None
        | Some col_type ->
          match Arrow_ffi.arrow_table_get_column_data handle.ptr name with
-         | None -> None
+         | None ->
+             (* If it's an empty table, FFI might return None for columns with 0 chunks.
+                Return an empty OCaml column of the correct type. *)
+             if t.nrows = 0 then
+               Some
+                 (match col_type with
+                 | ArrowInt64 -> IntColumn [||]
+                 | ArrowFloat64 -> FloatColumn [||]
+                 | ArrowBoolean -> BoolColumn [||]
+                 | ArrowString -> StringColumn [||]
+                 | ArrowDate -> DateColumn [||]
+                 | ArrowTimestamp tz -> DatetimeColumn ([||], tz)
+                 | ArrowNull -> NullColumn 0
+                 | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
+                     List.assoc name t.columns)
+             else None
          | Some array_ptr ->
            match col_type with
            | ArrowInt64 ->
@@ -473,4 +488,5 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
         | None -> (name, data))
       t.columns
   in
-  { t with schema = new_schema; columns = new_columns; native_handle = None } |> materialize
+  { t with schema = new_schema; columns = new_columns; native_handle = None }
+  |> materialize

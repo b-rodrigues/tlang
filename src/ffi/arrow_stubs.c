@@ -157,7 +157,16 @@ CAMLprim value caml_arrow_table_get_column_data_by_name(value v_ptr, value v_col
   }
 
   /* For simplicity, assume single chunk. Multi-chunk support can be added later. */
+  if (garrow_chunked_array_get_n_chunks(chunked) == 0) {
+    g_object_unref(chunked);
+    CAMLreturn(Val_none);
+  }
   GArrowArray *array = garrow_chunked_array_get_chunk(chunked, 0);
+
+  if (array == NULL) {
+    g_object_unref(chunked);
+    CAMLreturn(Val_none);
+  }
 
   v_result = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_result, 0, caml_copy_nativeint((intnat)array));
@@ -1827,8 +1836,8 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
     const char *name = String_val(Field(v_col, 0));
     int type_tag = Int_val(Field(v_col, 1));
     v_arr = Field(v_col, 2);
-    int n = Wosize_val(v_arr);
-
+    int n_rows = Wosize_val(v_arr);
+    
     GArrowDataType *dtype = NULL;
     GArrowArrayBuilder *builder = NULL;
 
@@ -1836,62 +1845,82 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
       case 0: // Int64
         dtype = (GArrowDataType *)garrow_int64_data_type_new();
         builder = (GArrowArrayBuilder *)garrow_int64_array_builder_new();
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n_rows; i++) {
           value v_opt = Field(v_arr, i);
           if (Is_block(v_opt)) { // Some(x)
             garrow_int64_array_builder_append_value(GARROW_INT64_ARRAY_BUILDER(builder), Long_val(Field(v_opt, 0)), &error);
           } else {
             garrow_array_builder_append_null(builder, &error);
           }
+          if (error) break;
         }
         break;
       case 1: // Float64
         dtype = (GArrowDataType *)garrow_double_data_type_new();
         builder = (GArrowArrayBuilder *)garrow_double_array_builder_new();
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n_rows; i++) {
           value v_opt = Field(v_arr, i);
           if (Is_block(v_opt)) {
             garrow_double_array_builder_append_value(GARROW_DOUBLE_ARRAY_BUILDER(builder), Double_val(Field(v_opt, 0)), &error);
           } else {
             garrow_array_builder_append_null(builder, &error);
           }
+          if (error) break;
         }
         break;
       case 2: // Boolean
         dtype = (GArrowDataType *)garrow_boolean_data_type_new();
         builder = (GArrowArrayBuilder *)garrow_boolean_array_builder_new();
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n_rows; i++) {
           value v_opt = Field(v_arr, i);
           if (Is_block(v_opt)) {
             garrow_boolean_array_builder_append_value(GARROW_BOOLEAN_ARRAY_BUILDER(builder), Bool_val(Field(v_opt, 0)), &error);
           } else {
             garrow_array_builder_append_null(builder, &error);
           }
+          if (error) break;
         }
         break;
       case 3: // String
         dtype = (GArrowDataType *)garrow_string_data_type_new();
         builder = (GArrowArrayBuilder *)garrow_string_array_builder_new();
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n_rows; i++) {
           value v_opt = Field(v_arr, i);
           if (Is_block(v_opt)) {
             garrow_string_array_builder_append_string(GARROW_STRING_ARRAY_BUILDER(builder), String_val(Field(v_opt, 0)), &error);
           } else {
             garrow_array_builder_append_null(builder, &error);
           }
+          if (error) break;
         }
         break;
       default:
         break;
     }
 
+    if (error) {
+      if (builder) g_object_unref(builder);
+      if (dtype) g_object_unref(dtype);
+      break;
+    }
+
     if (builder) {
       GArrowArray *array = garrow_array_builder_finish(builder, &error);
+      if (error) {
+         g_object_unref(builder);
+         g_object_unref(dtype);
+         break;
+      }
       GList *chunks = g_list_append(NULL, array);
       GArrowChunkedArray *chunked = garrow_chunked_array_new(chunks, &error);
       g_list_free(chunks);
-      g_object_unref(array);
       g_object_unref(builder);
+      g_object_unref(array);
+
+      if (error) {
+         g_object_unref(dtype);
+         break;
+      }
 
       GArrowField *field = garrow_field_new(name, dtype);
       fields = g_list_append(fields, field);
