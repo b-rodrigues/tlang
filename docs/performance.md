@@ -13,6 +13,9 @@ T's DataFrame operations are backed by [Apache Arrow](https://arrow.apache.org/)
 - **Native CSV reading**: Large CSV files are parsed using Arrow C GLib's CSV reader for maximum throughput
 - **Hash-based grouping**: `group_by()` operations use Arrow's hash-based grouping when a native handle is present
 
+> [!IMPORTANT]
+> **Alpha release reality**: T is currently fast primarily when a DataFrame is still on the **native Arrow path**. After structural changes such as `mutate()` / `add_column()`, tables can materialize into pure OCaml/T storage and lose their native Arrow handle. That fallback is acceptable for alpha, but it changes the performance profile of realistic data workflows in a way that users should expect and explicitly inspect.
+
 ### Dual-Path Architecture
 
 Every operation in T follows a **dual-path** pattern:
@@ -21,6 +24,22 @@ Every operation in T follows a **dual-path** pattern:
 2. **Pure OCaml fallback**: When no native handle is present (e.g., after `mutate()` materializes a table), operations use pure OCaml implementations that work on typed columnar arrays
 
 This ensures correctness regardless of backing storage, while maximizing performance when native Arrow buffers are available.
+
+### How to Check Which Path a DataFrame Is On
+
+Use `explain()` to inspect whether a DataFrame is still native-backed:
+
+```t
+df = read_csv("large.csv")
+explain(df).storage_backend      -- "native_arrow" when the native handle is still active
+explain(df).native_path_active   -- true
+
+df2 = mutate(df, $ratio = $x / $y)
+explain(df2).storage_backend     -- "pure_ocaml"
+explain(df2).native_path_active  -- false
+```
+
+For alpha, this is the quickest way to understand whether a pipeline is still on the fast Arrow path or has already materialized into OCaml/T-managed arrays.
 
 ### Zero-Copy Column Views
 
@@ -64,6 +83,8 @@ For numeric columns (`Float64`, `Int64`), `zero_copy_view` returns a Bigarray th
 - After `add_column()` modifies the table structure
 - When the Arrow C GLib library is not available at build time
 
+In practice, this means that workflows such as `read_csv() |> mutate(...) |> filter(...) |> summarize(...)` may start on the native path and then continue on the fallback path after the first structural mutation.
+
 ---
 
 ## Performance Expectations by Dataset Size
@@ -86,7 +107,7 @@ Performance scales approximately linearly with row count for columnar operations
 
 ## Known Performance Limitations
 
-1. **Materialization after mutate**: Adding or replacing columns materializes the entire table as pure OCaml arrays, dropping the native Arrow handle. Subsequent operations on the modified table use the fallback path. This can be significant for pipelines that alternate `mutate()` and compute-heavy operations.
+1. **Materialization after mutate / structural changes**: Adding or replacing columns materializes the entire table as pure OCaml arrays, dropping the native Arrow handle. Subsequent operations on the modified table use the fallback path. This is one of the most important performance caveats in alpha, especially for pipelines that alternate `mutate()` and compute-heavy operations.
 
 2. **Single-threaded execution**: All operations run on a single thread. Arrow's multi-threaded capabilities (Rayon-based parallelism) are not yet exposed through the FFI layer.
 
@@ -103,6 +124,8 @@ Performance scales approximately linearly with row count for columnar operations
 The following optimizations are planned for future versions:
 
 ### Beta Performance Enhancements
+- Preserve Arrow backing across more structural transforms where possible, instead of eagerly materializing every `mutate()`-style change into pure OCaml storage
+- Add richer `explain()` / developer diagnostics so backend transitions are obvious during pipeline development
 - Multi-threaded Arrow operations using Rayon
 - Lazy evaluation with query optimization
 - Column pruning for pipelines (only load needed columns)

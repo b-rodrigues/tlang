@@ -126,6 +126,11 @@ let empty : t =
 
 (* --- Table queries --- *)
 
+let is_native_backed (t : t) : bool =
+  match t.native_handle with
+  | Some handle when not handle.freed -> true
+  | _ -> false
+
 let num_rows (t : t) : int =
   match t.native_handle with
   | Some handle when not handle.freed ->
