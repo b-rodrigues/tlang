@@ -38,8 +38,14 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "package_info strcraft functions include substring"
     {|contains(join(package_info("strcraft").functions, ","), "substring")|}
     "true";
+  test "package_info strcraft functions include nchar"
+    {|contains(join(package_info("strcraft").functions, ","), "nchar")|}
+    "true";
   test "package_info core excludes substring"
     {|contains(join(package_info("core").functions, ","), "substring")|}
+    "false";
+  test "package_info core excludes nchar"
+    {|contains(join(package_info("core").functions, ","), "nchar")|}
     "false";
   test "package_info math"
     {|package_info("math").name|}
