@@ -2,7 +2,7 @@ name: Quarto Runtime E2E
 
 on:
   push:
-    branches: [ main, copilot/add-quarto-runtime-definition ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
