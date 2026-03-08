@@ -19,6 +19,8 @@ type package_config = {
   repository : string;
   dependencies : dependency list;
   min_t_version : string;
+  additional_tools : string list;
+  latex_packages : string list;
 }
 
 (** Project metadata parsed from tproject.toml *)
@@ -30,6 +32,8 @@ type project_config = {
   proj_py_dependencies : string list;
   proj_py_version : string;
   proj_min_t_version : string;
+  proj_additional_tools : string list;
+  proj_latex_packages : string list;
 }
 
 (** CLI options for scaffolding commands *)
@@ -68,6 +72,8 @@ let default_package_config name = {
   repository = "";
   dependencies = [];
   min_t_version = "0.5.0";
+  additional_tools = [];
+  latex_packages = [];
 }
 
 (** Default project config *)
@@ -79,6 +85,8 @@ let default_project_config name = {
   proj_py_dependencies = [];
   proj_py_version = "python314";
   proj_min_t_version = "0.5.0";
+  proj_additional_tools = [];
+  proj_latex_packages = [];
 }
 
 (** Validate a package/project name: lowercase, alphanumeric, hyphens only *)

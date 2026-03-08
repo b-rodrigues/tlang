@@ -54,7 +54,31 @@ data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 min_version = "0.5.0"
 ```
 
-After adding or changing dependencies, run:
+### 3.1 System Dependencies and LaTeX
+
+Beyond T packages, you can declare system-level tools and LaTeX packages required for your project.
+
+#### Additional Tools
+
+Use the `[additional-tools]` section to add any package from Nixpkgs (e.g., CLI utilities, compilers, or libraries):
+
+```toml
+[additional-tools]
+# These will be available in your 'nix develop' shell and pipeline sandboxes
+packages = ["git", "jq", "gawk", "pandoc"]
+```
+
+#### LaTeX Support
+
+If your project involves generating PDFs or reports, use the `[latex]` section. T automatically provides a `texlive` environment starting from `scheme-small`. Just list any additional LaTeX packages you need:
+
+```toml
+[latex]
+# Standard LaTeX packages
+packages = ["amsmath", "blindtext", "physics", "hyperref"]
+```
+
+After adding or changing dependencies (including `[additional-tools]` or `[latex]` sections), run:
 
 ```bash
 $ t update
@@ -62,7 +86,7 @@ Syncing 2 dependency(ies) from tproject.toml → flake.nix...
 Running nix flake update...
 ```
 
-This regenerates `flake.nix` so new dependencies appear as proper flake inputs with locked versions. Then re-enter the shell:
+This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes (T, R, or Python) during execution. Then re-enter the shell:
 
 ```bash
 $ nix develop

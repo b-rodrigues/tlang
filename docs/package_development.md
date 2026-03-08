@@ -34,7 +34,31 @@ Dependencies are declared in `DESCRIPTION.toml`. To add a dependency on another 
 my-lib = { git = "https://github.com/user/my-lib", tag = "v1.0.0" }
 ```
 
-After modifying dependencies, run `t update` to sync your `flake.nix` and lock file:
+### 2.1 System Tools and LaTeX
+
+You can also declare system-level tools and LaTeX packages required for your package development or documentation.
+
+#### Additional Development Tools
+
+Under `[additional-tools]`, you can add any package from Nixpkgs. These tools will be available in your `nix develop` shell:
+
+```toml
+[additional-tools]
+# Tools for building, documenting, or testing your package
+packages = ["git", "jq", "gawk", "pandoc"]
+```
+
+#### LaTeX for Documentation
+
+If your documentation requires LaTeX (e.g., for formulas), use the `[latex]` section. T provides `texlive` based on `scheme-small`. You only need to list additional packages:
+
+```toml
+[latex]
+# LaTeX packages for math formulas or advanced formatting
+packages = ["amsmath", "blindtext", "physics"]
+```
+
+After modifying dependencies or updating the `[additional-tools]` or `[latex]` sections, run `t update` to sync your `flake.nix` and lock file:
 
 ```bash
 $ t update

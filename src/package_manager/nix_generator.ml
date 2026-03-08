@@ -39,6 +39,44 @@ let nix_safe_name name =
   then "_" ^ name
   else name
 
+(** Validate that a string is a safe Nix package identifier.
+    Allowed characters: alphanumeric, hyphen, underscore, dot, plus.
+    Must not be empty and must not start with a digit or hyphen.
+    Leading hyphens are rejected because no Nix package attribute name starts
+    with a hyphen, and allowing them could allow injection via e.g. "--eval".
+    This prevents injection of arbitrary Nix code from user-controlled TOML fields. *)
+let is_valid_nix_pkg_name s =
+  let n = String.length s in
+  if n = 0 then false
+  else
+    let first = s.[0] in
+    if (first >= '0' && first <= '9') || first = '-' then false
+    else
+      let rec check i =
+        if i >= n then true
+        else
+          let c = s.[i] in
+          if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+             (c >= '0' && c <= '9') || c = '-' || c = '_' || c = '.' || c = '+'
+          then check (i + 1)
+          else false
+      in
+      check 0
+
+(** Filter a list of package names to only valid Nix identifiers.
+    Prints a warning for each rejected entry so users are informed
+    when their config contains an invalid or potentially unsafe identifier. *)
+let safe_pkg_names names =
+  List.filter (fun name ->
+    if is_valid_nix_pkg_name name then true
+    else begin
+      Printf.eprintf
+        "Warning: skipping invalid Nix package identifier %S (only alphanumeric, -, _, ., + are allowed)\n%!"
+        name;
+      false
+    end
+  ) names
+
 (** Generate a complete project flake.nix from dependencies *)
 let generate_project_flake
     ~(project_name : string)
@@ -48,7 +86,11 @@ let generate_project_flake
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(additional_tools : string list = [])
+    ?(latex_pkgs : string list = [])
     () : string =
+  let additional_tools = safe_pkg_names additional_tools in
+  let latex_pkgs = safe_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
   (* Inputs section *)
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
@@ -117,7 +159,22 @@ let generate_project_flake
     List.iter (fun dep ->
       Printf.bprintf buf "          %s\n" dep
     ) py_deps;
-    Buffer.add_string buf "        ]);\n"
+    Buffer.add_string buf "        ]);\n";
+  end;
+  if additional_tools <> [] then begin
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # Additional Tools\n";
+    Buffer.add_string buf "        additionalTools = with pkgs; [\n";
+    List.iter (fun t -> Printf.bprintf buf "          %s\n" t) additional_tools;
+    Buffer.add_string buf "        ];\n"
+  end;
+  if latex_pkgs <> [] then begin
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # LaTeX Environment\n";
+    Buffer.add_string buf "        latex-env = pkgs.texlive.combine {\n";
+    Buffer.add_string buf "          inherit (pkgs.texlive) scheme-small;\n";
+    List.iter (fun p -> Printf.bprintf buf "          inherit (pkgs.texlive) %s;\n" p) latex_pkgs;
+    Buffer.add_string buf "        };\n"
   end;
   Buffer.add_string buf "      in\n";
   Buffer.add_string buf "      {\n";
@@ -126,10 +183,12 @@ let generate_project_flake
   Buffer.add_string buf "            t-lang.packages.${system}.default\n";
   if r_deps <> [] then Buffer.add_string buf "            r-env\n";
   if py_deps <> [] then Buffer.add_string buf "            py-env\n";
-  if deps <> [] then
-    Buffer.add_string buf "          ] ++ tPackages;\n"
-  else
-    Buffer.add_string buf "          ];\n";
+  if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
+  let extra_pkgs = 
+    (if additional_tools <> [] then " ++ additionalTools" else "") ^
+    (if deps <> [] then " ++ tPackages" else "")
+  in
+  Buffer.add_string buf (Printf.sprintf "          ]%s;\n" extra_pkgs);
   Buffer.add_string buf "\n";
   Buffer.add_string buf "          shellHook = ''\n";
   if deps <> [] then begin
@@ -166,7 +225,12 @@ let generate_package_flake
     ~(package_version : string)
     ~(nixpkgs_date : string)
     ~(t_version : string)
-    ~(deps : dependency list) : string =
+    ~(deps : dependency list)
+    ?(additional_tools : string list = [])
+    ?(latex_pkgs : string list = [])
+    () : string =
+  let additional_tools = safe_pkg_names additional_tools in
+  let latex_pkgs = safe_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =
@@ -197,6 +261,21 @@ let generate_package_flake
   Buffer.add_string buf "    flake-utils.lib.eachDefaultSystem (system:\n";
   Buffer.add_string buf "      let\n";
   Buffer.add_string buf "        pkgs = nixpkgs.legacyPackages.${system};\n";
+  if additional_tools <> [] then begin
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # Additional Tools\n";
+    Buffer.add_string buf "        additionalTools = with pkgs; [\n";
+    List.iter (fun t -> Printf.bprintf buf "          %s\n" t) additional_tools;
+    Buffer.add_string buf "        ];\n"
+  end;
+  if latex_pkgs <> [] then begin
+    Buffer.add_string buf "\n";
+    Buffer.add_string buf "        # LaTeX Environment for documentation\n";
+    Buffer.add_string buf "        latex-env = pkgs.texlive.combine {\n";
+    Buffer.add_string buf "          inherit (pkgs.texlive) scheme-small;\n";
+    List.iter (fun p -> Printf.bprintf buf "          inherit (pkgs.texlive) %s;\n" p) latex_pkgs;
+    Buffer.add_string buf "        };\n"
+  end;
   Buffer.add_string buf "      in\n";
   Buffer.add_string buf "      {\n";
   (* packages.default *)
@@ -225,11 +304,15 @@ let generate_package_flake
   Buffer.add_string buf "        devShells.default = pkgs.mkShell {\n";
   Buffer.add_string buf "          buildInputs = [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.default\n";
+  if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   List.iter (fun dep ->
     Printf.bprintf buf "            %s.packages.${system}.default\n"
       (nix_safe_name dep.dep_name)
   ) deps;
-  Buffer.add_string buf "          ];\n";
+  if additional_tools <> [] then
+    Buffer.add_string buf "          ] ++ additionalTools;\n"
+  else
+    Buffer.add_string buf "          ];\n";
   Buffer.add_string buf "\n";
   Buffer.add_string buf "          shellHook = ''\n";
   if deps <> [] then begin
@@ -275,16 +358,18 @@ let install_flake
     ?(r_deps : string list = [])
     ?(py_deps : string list = [])
     ?(py_version : string = "python314")
+    ?(additional_tools : string list = [])
+    ?(latex_pkgs : string list = [])
     ~(dir : string)
     ~(dry_run : bool)
     () : (string, string) result =
   let flake_path = Filename.concat dir "flake.nix" in
   let content = match kind with
     | Project ->
-      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ()
+      generate_project_flake ~project_name:name ~nixpkgs_date ~t_version ~deps ~r_deps ~py_deps ~py_version ~additional_tools ~latex_pkgs ()
     | Package ->
       generate_package_flake ~package_name:name ~package_version:version
-        ~nixpkgs_date ~t_version ~deps
+        ~nixpkgs_date ~t_version ~deps ~additional_tools ~latex_pkgs ()
   in
   if dry_run then begin
     Printf.printf "=== Dry run: flake.nix would be written to %s ===\n\n" flake_path;
