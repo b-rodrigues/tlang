@@ -327,7 +327,7 @@ let package_src_example = {|-- {{name}} — main source file
 --#   -- Returns: "Hello, world!"
 --#
 --# @export
-greet = \(name: String -> String) sprintf("Hello, %s!", name)
+greet = \(name: String -> String) str_sprintf("Hello, %s!", name)
 |}
 
 let package_test_example = {|-- tests/test-{{name}}.t

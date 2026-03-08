@@ -1,4 +1,4 @@
-# sprintf
+# str_sprintf
 
 Format a string
 
@@ -16,9 +16,9 @@ Returns: The formatted string.
 ## Examples
 
 ```t
-sprintf("Hello, %s!", "world")
+str_sprintf("Hello, %s!", "world")
 -- Returns = "Hello, world!"
-sprintf("Value = %d", 42)
+str_sprintf("Value = %d", 42)
 -- Returns: "Value = 42"
 ```
 

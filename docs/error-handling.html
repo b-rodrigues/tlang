@@ -383,7 +383,7 @@ else
 Messages</h3>
 <p><strong>Good</strong>: Clear, actionable messages</p>
 <pre class="t"><code>if (age &lt; 0 or age &gt; 150)
-  error(&quot;ValidationError&quot;, &quot;Age must be between 0 and 150, got: &quot; + string(age))</code></pre>
+  error(&quot;ValidationError&quot;, &quot;Age must be between 0 and 150, got: &quot; + str_string(age))</code></pre>
 <p><strong>Bad</strong>: Vague messages</p>
 <pre class="t"><code>if (age &lt; 0 or age &gt; 150)
   error(&quot;Invalid age&quot;)</code></pre>

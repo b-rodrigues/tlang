@@ -35,17 +35,17 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "package_info strcraft"
     {|package_info("strcraft").name|}
     {|"strcraft"|};
-  test "package_info strcraft functions include substring"
-    {|contains(join(package_info("strcraft").functions, ","), "substring")|}
+  test "package_info strcraft functions include str_substring"
+    {|contains(str_join(package_info("strcraft").functions, ","), "str_substring")|}
     "true";
-  test "package_info strcraft functions include nchar"
-    {|contains(join(package_info("strcraft").functions, ","), "nchar")|}
+  test "package_info strcraft functions include str_nchar"
+    {|contains(str_join(package_info("strcraft").functions, ","), "str_nchar")|}
     "true";
-  test "package_info core excludes substring"
-    {|contains(join(package_info("core").functions, ","), "substring")|}
+  test "package_info core excludes str_substring"
+    {|contains(str_join(package_info("core").functions, ","), "str_substring")|}
     "false";
-  test "package_info core excludes nchar"
-    {|contains(join(package_info("core").functions, ","), "nchar")|}
+  test "package_info core excludes str_nchar"
+    {|contains(str_join(package_info("core").functions, ","), "str_nchar")|}
     "false";
   test "package_info math"
     {|package_info("math").name|}
@@ -91,7 +91,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "stats: sd available" "type(sd)" {|"BuiltinFunction"|};
   test "colcraft: select available" "type(select)" {|"BuiltinFunction"|};
   test "colcraft: filter available" "type(filter)" {|"BuiltinFunction"|};
-  test "strcraft: substring available" "type(substring)" {|"BuiltinFunction"|};
+  test "strcraft: str_substring available" "type(str_substring)" {|"BuiltinFunction"|};
   test "math: sqrt available" "type(sqrt)" {|"BuiltinFunction"|};
   test "base: assert available" "type(assert)" {|"BuiltinFunction"|};
   test "dataframe: read_csv available" "type(read_csv)" {|"BuiltinFunction"|};

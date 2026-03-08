@@ -213,10 +213,10 @@ Built-in (minimal, primitive):
 ```
 length(String) -> Int
 slice(String, Int, Int) -> String
-trim(String) -> String
-split(String, String) -> List[String]
-join(String, List[String]) -> String
-replace(String, String, String) -> String
+str_trim(String) -> String
+str_split(String, String) -> List[String]
+str_join(String, List[String]) -> String
+str_replace(String, String, String) -> String
 contains(String, String) -> Bool
 starts_with(String, String) -> Bool
 ends_with(String, String) -> Bool
@@ -303,7 +303,7 @@ Where:
 
 You decided:
 
-* `join` → strings
+* `str_join` → strings
 * `merge` → data frames
 
 Type of merge:

@@ -5,8 +5,8 @@ c = kron(a, b)
 s = shape(c)
 d = ndarray_data(c)
 result = [
-  shape: s |> map(\(n) string(n)) |> join(","),
-  data: d |> map(\(n) string(n)) |> join(", ")
+  shape: s |> map(\(n) str_string(n)) |> str_join(","),
+  data: d |> map(\(n) str_string(n)) |> str_join(", ")
 ]
 df = dataframe([result])
 write_csv(df, "tests/golden/t_outputs/kron_2x2.csv")

@@ -1,4 +1,4 @@
-# replace
+# str_replace
 
 Replace all occurrences
 

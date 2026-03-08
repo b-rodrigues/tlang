@@ -78,10 +78,10 @@ let core_package = {
 let strcraft_package = {
   name = "strcraft";
   description = "String inspection, transformation, and formatting";
-  functions = ["nchar"; "is_empty"; "substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with";
-               "replace"; "replace_first"; "to_lower"; "to_upper"; "trim"; "trim_start"; "trim_end"; "lines"; "words"; "str_repeat";
+  functions = ["str_nchar"; "is_empty"; "str_substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with";
+               "str_replace"; "replace_first"; "to_lower"; "to_upper"; "str_trim"; "trim_start"; "trim_end"; "str_lines"; "str_words"; "str_repeat";
                "str_format"; "str_extract"; "str_extract_all"; "str_detect"; "str_pad"; "str_trunc"; "str_flatten"; "str_count";
-               "sprintf"; "join"; "string"; "strsplit"];
+               "str_sprintf"; "str_join"; "str_string"; "str_split"];
 }
 
 let stats_package = {

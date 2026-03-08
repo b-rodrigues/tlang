@@ -109,7 +109,7 @@ let eval_scalar_binop op v1 v2 =
   | (Plus, VInt a, VFloat b) -> VFloat (float_of_int a +. b)
   | (Plus, VFloat a, VInt b) -> VFloat (a +. float_of_int b)
   | (Plus, VString _, VString _) ->
-      Error.type_error "String concatenation with '+' is not supported. Use 'join([a, b], sep)' or 'paste(a, b, sep)' instead."
+      Error.type_error "String concatenation with '+' is not supported. Use 'str_join([a, b], sep)' or 'paste(a, b, sep)' instead."
 
   | (Minus, VInt a, VInt b) -> VInt (a - b)
   | (Minus, VFloat a, VFloat b) -> VFloat (a -. b)

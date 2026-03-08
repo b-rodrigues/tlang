@@ -1,4 +1,4 @@
-# strsplit
+# str_split
 
 Split a string on a delimiter
 
@@ -16,12 +16,12 @@ Returns: A list of substrings.
 ## Examples
 
 ```t
-strsplit("a,b,c", ",")
+str_split("a,b,c", ",")
 -- Returns = ["a", "b", "c"]
-files = ?<{ls}>; strsplit(files, "\n")
+files = ?<{ls}>; str_split(files, "\n")
 ```
 
 ## See Also
 
-[join](join.html)
+[str_join](join.html)
 

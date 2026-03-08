@@ -216,7 +216,7 @@ merged.to_csv("merged.csv", index=False)
 result = read_csv("merged.csv")
 ```
 
-**Future**: `join()` function with multiple strategies.
+**Future**: `str_join()` function with multiple strategies.
 
 ---
 

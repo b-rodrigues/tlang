@@ -1,4 +1,4 @@
-# substring
+# str_substring
 
 Extract substring
 

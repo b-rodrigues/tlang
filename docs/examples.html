@@ -69,16 +69,16 @@ mean_age = mean(customers.age, na_rm = true)
 sd_age = sd(customers.age, na_rm = true)
 median_purchases = quantile(customers.purchases, 0.5, na_rm = true)
 
-print(&quot;Average age: &quot; + string(mean_age))
-print(&quot;Age SD: &quot; + string(sd_age))
-print(&quot;Median purchases: &quot; + string(median_purchases))
+print(&quot;Average age: &quot; + str_string(mean_age))
+print(&quot;Age SD: &quot; + str_string(sd_age))
+print(&quot;Median purchases: &quot; + str_string(median_purchases))
 
 -- Distribution analysis
 q25 = quantile(customers.purchases, 0.25, na_rm = true)
 q75 = quantile(customers.purchases, 0.75, na_rm = true)
 iqr = q75 - q25
 
-print(&quot;IQR: &quot; + string(iqr))</code></pre>
+print(&quot;IQR: &quot; + str_string(iqr))</code></pre>
 <h3 id="simple-filtering-and-selection">Simple Filtering and
 Selection</h3>
 <pre class="t"><code>-- Active customers only
@@ -94,9 +94,9 @@ young = customers |&gt; filter($age &lt; 30)
 mature = customers |&gt; filter($age &gt;= 30 and $age &lt; 50)
 senior = customers |&gt; filter($age &gt;= 50)
 
-print(&quot;Young customers: &quot; + string(nrow(young)))
-print(&quot;Mature customers: &quot; + string(nrow(mature)))
-print(&quot;Senior customers: &quot; + string(nrow(senior)))</code></pre>
+print(&quot;Young customers: &quot; + str_string(nrow(young)))
+print(&quot;Mature customers: &quot; + str_string(nrow(mature)))
+print(&quot;Senior customers: &quot; + str_string(nrow(senior)))</code></pre>
 <hr />
 <h2 id="data-cleaning">Data Cleaning</h2>
 <h3 id="handling-missing-values">Handling Missing Values</h3>
@@ -107,8 +107,8 @@ sales = read_csv(&quot;sales.csv&quot;)
 na_count_revenue = length(filter(sales.revenue, \(x) is_na(x)))
 na_count_cost = length(filter(sales.cost, \(x) is_na(x)))
 
-print(&quot;NA in revenue: &quot; + string(na_count_revenue))
-print(&quot;NA in cost: &quot; + string(na_count_cost))
+print(&quot;NA in revenue: &quot; + str_string(na_count_revenue))
+print(&quot;NA in cost: &quot; + str_string(na_count_cost))
 
 -- Remove rows with any NA
 clean = sales |&gt; filter(
@@ -163,8 +163,8 @@ cleaned = df |&gt; filter(
   $salary &gt;= lower_bound and $salary &lt;= upper_bound
 )
 
-print(&quot;Original rows: &quot; + string(nrow(df)))
-print(&quot;After outlier removal: &quot; + string(nrow(cleaned)))</code></pre>
+print(&quot;Original rows: &quot; + str_string(nrow(df)))
+print(&quot;After outlier removal: &quot; + str_string(nrow(cleaned)))</code></pre>
 <hr />
 <h2 id="statistical-analysis">Statistical Analysis</h2>
 <h3 id="correlation-analysis">Correlation Analysis</h3>
@@ -178,14 +178,14 @@ cor_gdp_unemployment = cor(
   na_rm = true
 )
 
-print(&quot;GDP vs Unemployment: r = &quot; + string(cor_gdp_unemployment))
+print(&quot;GDP vs Unemployment: r = &quot; + str_string(cor_gdp_unemployment))
 
 -- Multiple correlations
 cor_consumption_income = cor(economics.consumption, economics.income, na_rm = true)
 cor_savings_income = cor(economics.savings, economics.income, na_rm = true)
 
-print(&quot;Consumption vs Income: r = &quot; + string(cor_consumption_income))
-print(&quot;Savings vs Income: r = &quot; + string(cor_savings_income))</code></pre>
+print(&quot;Consumption vs Income: r = &quot; + str_string(cor_consumption_income))
+print(&quot;Savings vs Income: r = &quot; + str_string(cor_savings_income))</code></pre>
 <h3 id="linear-regression">Linear Regression</h3>
 <pre class="t"><code>-- Simple regression
 advertising = read_csv(&quot;advertising.csv&quot;)
@@ -196,16 +196,16 @@ model = lm(
 )
 
 -- Inspect model
-print(&quot;Slope: &quot; + string(model.slope))
-print(&quot;Intercept: &quot; + string(model.intercept))
-print(&quot;R²: &quot; + string(model.r_squared))
-print(&quot;N: &quot; + string(model.n))
+print(&quot;Slope: &quot; + str_string(model.slope))
+print(&quot;Intercept: &quot; + str_string(model.intercept))
+print(&quot;R²: &quot; + str_string(model.r_squared))
+print(&quot;N: &quot; + str_string(model.n))
 
 -- Manual prediction
 predict = \(x) model.intercept + model.slope * x
 predicted_sales = predict(5000)
 
-print(&quot;Predicted sales for $5000 ad spend: &quot; + string(predicted_sales))</code></pre>
+print(&quot;Predicted sales for $5000 ad spend: &quot; + str_string(predicted_sales))</code></pre>
 <h3 id="hypothesis-testing-manual-t-test-example">Hypothesis Testing
 (Manual t-test example)</h3>
 <pre class="t"><code>-- Compare two groups
@@ -222,9 +222,9 @@ sd_b = sd(group_b, na_rm = true)
 pooled_sd = sqrt((sd_a * sd_a + sd_b * sd_b) / 2)
 cohens_d = (mean_a - mean_b) / pooled_sd
 
-print(&quot;Group A mean: &quot; + string(mean_a))
-print(&quot;Group B mean: &quot; + string(mean_b))
-print(&quot;Cohen&#39;s d: &quot; + string(cohens_d))</code></pre>
+print(&quot;Group A mean: &quot; + str_string(mean_a))
+print(&quot;Group B mean: &quot; + str_string(mean_b))
+print(&quot;Cohen&#39;s d: &quot; + str_string(cohens_d))</code></pre>
 <hr />
 <h2 id="group-operations">Group Operations</h2>
 <h3 id="basic-grouping-and-aggregation">Basic Grouping and
@@ -600,7 +600,7 @@ write_csv(dashboard_prep.top_products, &quot;top_products.csv&quot;)
 write_csv(dashboard_prep.by_region, &quot;regional_breakdown.csv&quot;)
 
 print(&quot;Dashboard data prepared successfully&quot;)
-print(&quot;Total revenue: &quot; + string(dashboard_prep.summary.total_revenue))</code></pre>
+print(&quot;Total revenue: &quot; + str_string(dashboard_prep.summary.total_revenue))</code></pre>
 <hr />
 <p><strong>See Also</strong>: - <a href="api-reference.md">API
 Reference</a> — Function documentation - <a

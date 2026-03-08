@@ -1,7 +1,7 @@
 ?<{echo "Hello from shell!"}>
 name = ?<{whoami}>
-print(join(["Hello, ", name]))
+print(str_join(["Hello, ", name]))
 ?<{cd /tmp}>
-print(join(["Current dir: ", ?<{pwd}>]))
+print(str_join(["Current dir: ", ?<{pwd}>]))
 ?<{cd ~}>
-print(join(["Back home: ", ?<{pwd}>]))
+print(str_join(["Back home: ", ?<{pwd}>]))

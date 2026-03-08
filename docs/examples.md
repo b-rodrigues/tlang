@@ -40,16 +40,16 @@ mean_age = mean(customers.age, na_rm = true)
 sd_age = sd(customers.age, na_rm = true)
 median_purchases = quantile(customers.purchases, 0.5, na_rm = true)
 
-print("Average age: " + string(mean_age))
-print("Age SD: " + string(sd_age))
-print("Median purchases: " + string(median_purchases))
+print("Average age: " + str_string(mean_age))
+print("Age SD: " + str_string(sd_age))
+print("Median purchases: " + str_string(median_purchases))
 
 -- Distribution analysis
 q25 = quantile(customers.purchases, 0.25, na_rm = true)
 q75 = quantile(customers.purchases, 0.75, na_rm = true)
 iqr = q75 - q25
 
-print("IQR: " + string(iqr))
+print("IQR: " + str_string(iqr))
 ```
 
 ### Simple Filtering and Selection
@@ -68,9 +68,9 @@ young = customers |> filter($age < 30)
 mature = customers |> filter($age >= 30 and $age < 50)
 senior = customers |> filter($age >= 50)
 
-print("Young customers: " + string(nrow(young)))
-print("Mature customers: " + string(nrow(mature)))
-print("Senior customers: " + string(nrow(senior)))
+print("Young customers: " + str_string(nrow(young)))
+print("Mature customers: " + str_string(nrow(mature)))
+print("Senior customers: " + str_string(nrow(senior)))
 ```
 
 ---
@@ -87,8 +87,8 @@ sales = read_csv("sales.csv")
 na_count_revenue = length(filter(sales.revenue, \(x) is_na(x)))
 na_count_cost = length(filter(sales.cost, \(x) is_na(x)))
 
-print("NA in revenue: " + string(na_count_revenue))
-print("NA in cost: " + string(na_count_cost))
+print("NA in revenue: " + str_string(na_count_revenue))
+print("NA in cost: " + str_string(na_count_cost))
 
 -- Remove rows with any NA
 clean = sales |> filter(
@@ -154,8 +154,8 @@ cleaned = df |> filter(
   $salary >= lower_bound and $salary <= upper_bound
 )
 
-print("Original rows: " + string(nrow(df)))
-print("After outlier removal: " + string(nrow(cleaned)))
+print("Original rows: " + str_string(nrow(df)))
+print("After outlier removal: " + str_string(nrow(cleaned)))
 ```
 
 ---
@@ -175,14 +175,14 @@ cor_gdp_unemployment = cor(
   na_rm = true
 )
 
-print("GDP vs Unemployment: r = " + string(cor_gdp_unemployment))
+print("GDP vs Unemployment: r = " + str_string(cor_gdp_unemployment))
 
 -- Multiple correlations
 cor_consumption_income = cor(economics.consumption, economics.income, na_rm = true)
 cor_savings_income = cor(economics.savings, economics.income, na_rm = true)
 
-print("Consumption vs Income: r = " + string(cor_consumption_income))
-print("Savings vs Income: r = " + string(cor_savings_income))
+print("Consumption vs Income: r = " + str_string(cor_consumption_income))
+print("Savings vs Income: r = " + str_string(cor_savings_income))
 ```
 
 ### Linear Regression
@@ -197,16 +197,16 @@ model = lm(
 )
 
 -- Inspect model
-print("Slope: " + string(model.slope))
-print("Intercept: " + string(model.intercept))
-print("R²: " + string(model.r_squared))
-print("N: " + string(model.n))
+print("Slope: " + str_string(model.slope))
+print("Intercept: " + str_string(model.intercept))
+print("R²: " + str_string(model.r_squared))
+print("N: " + str_string(model.n))
 
 -- Manual prediction
 predict = \(x) model.intercept + model.slope * x
 predicted_sales = predict(5000)
 
-print("Predicted sales for $5000 ad spend: " + string(predicted_sales))
+print("Predicted sales for $5000 ad spend: " + str_string(predicted_sales))
 ```
 
 ### Hypothesis Testing (Manual t-test example)
@@ -226,9 +226,9 @@ sd_b = sd(group_b, na_rm = true)
 pooled_sd = sqrt((sd_a * sd_a + sd_b * sd_b) / 2)
 cohens_d = (mean_a - mean_b) / pooled_sd
 
-print("Group A mean: " + string(mean_a))
-print("Group B mean: " + string(mean_b))
-print("Cohen's d: " + string(cohens_d))
+print("Group A mean: " + str_string(mean_a))
+print("Group B mean: " + str_string(mean_b))
+print("Cohen's d: " + str_string(cohens_d))
 ```
 
 ---
@@ -673,7 +673,7 @@ write_csv(dashboard_prep.top_products, "top_products.csv")
 write_csv(dashboard_prep.by_region, "regional_breakdown.csv")
 
 print("Dashboard data prepared successfully")
-print("Total revenue: " + string(dashboard_prep.summary.total_revenue))
+print("Total revenue: " + str_string(dashboard_prep.summary.total_revenue))
 ```
 
 ---

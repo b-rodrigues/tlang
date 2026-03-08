@@ -1,4 +1,4 @@
-# join
+# str_join
 
 Join strings with a separator
 
@@ -16,13 +16,13 @@ Returns: The joined string.
 ## Examples
 
 ```t
-join(["a", "b", "c"], "-")
+str_join(["a", "b", "c"], "-")
 -- Returns = "a-b-c"
-join(["a", "b", "c"])
+str_join(["a", "b", "c"])
 -- Returns = "abc"
 ```
 
 ## See Also
 
-[string](string.html)
+[str_string](string.html)
 
