@@ -5,7 +5,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|"List"|};
   test "packages count"
     "length(packages())"
-    "9";
+    "10";
   test "package_info stats"
     {|package_info("stats").name|}
     {|"stats"|};
@@ -32,6 +32,15 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "package_info colcraft"
     {|package_info("colcraft").name|}
     {|"colcraft"|};
+  test "package_info strcraft"
+    {|package_info("strcraft").name|}
+    {|"strcraft"|};
+  test "package_info strcraft functions include substring"
+    {|contains(join(package_info("strcraft").functions, ","), "substring")|}
+    "true";
+  test "package_info core excludes substring"
+    {|contains(join(package_info("core").functions, ","), "substring")|}
+    "false";
   test "package_info math"
     {|package_info("math").name|}
     {|"math"|};
@@ -76,6 +85,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "stats: sd available" "type(sd)" {|"BuiltinFunction"|};
   test "colcraft: select available" "type(select)" {|"BuiltinFunction"|};
   test "colcraft: filter available" "type(filter)" {|"BuiltinFunction"|};
+  test "strcraft: substring available" "type(substring)" {|"BuiltinFunction"|};
   test "math: sqrt available" "type(sqrt)" {|"BuiltinFunction"|};
   test "base: assert available" "type(assert)" {|"BuiltinFunction"|};
   test "dataframe: read_csv available" "type(read_csv)" {|"BuiltinFunction"|};

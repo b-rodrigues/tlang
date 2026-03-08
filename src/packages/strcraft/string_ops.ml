@@ -961,7 +961,7 @@ let strsplit_impl args _env =
 --#   -- Returns = "a-b-c"
 --#   join(["a", "b", "c"])
 --#   -- Returns = "abc"
---# @family core
+--# @family string
 --# @seealso string
 --# @export
 *)
@@ -977,7 +977,7 @@ let strsplit_impl args _env =
 --# @example
 --#   string(123)
 --#   -- Returns = "123"
---# @family core
+--# @family string
 --# @seealso join
 --# @export
 *)
@@ -997,7 +997,7 @@ let strsplit_impl args _env =
 --#   strsplit("a,b,c", ",")
 --#   -- Returns = ["a", "b", "c"]
 --#   files = ?<{ls}>; strsplit(files, "\n")
---# @family core
+--# @family string
 --# @seealso join
 --# @export
 *)
