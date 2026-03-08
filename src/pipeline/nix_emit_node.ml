@@ -36,7 +36,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
         let inputs = if is_pmml_ser || is_pmml_des then "py-env pkgs.jre" else "py-env" in
         "py", inputs
     | "Quarto" ->
-        "sh", "pkgs.quarto"
+        "sh", "pkgs.quarto pkgs.which"
     | _ -> "t", ""
   in
 
@@ -679,10 +679,10 @@ def t_read_pmml(path):
     | "Quarto", Some script_path ->
         deps
         |> List.map (fun d ->
-          let double_quoted_read_node = Printf.sprintf {|read_node(\\"%s\\")|} d in
-          let double_quoted_store_path = Printf.sprintf {|\\"$T_NODE_%s/artifact\\"|} d in
+          let double_quoted_read_node = Printf.sprintf {|read_node(\"%s\")|} d in
+          let double_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$T_NODE_" ^ d) in
           let single_quoted_read_node = Printf.sprintf {|read_node('%s')|} d in
-          let single_quoted_store_path = Printf.sprintf {|'$T_NODE_%s/artifact'|} d in
+          let single_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$T_NODE_" ^ d) in
           Printf.sprintf
             {|      sed -i -e "s|%s|%s|g" -e "s|%s|%s|g" %s|}
             double_quoted_read_node
@@ -863,10 +863,20 @@ EOF
         in
         Printf.sprintf {|
       rm -rf .quarto-output
+      export HOME=$TMPDIR
       cli_args=()
-%s      quarto "${cli_args[@]}"
-      cp -r .quarto-output $out/artifact
-      echo "QuartoOutput" > $out/class|} cli_block
+%s      quarto "''${cli_args[@]}"
+      if [ -d .quarto-output ]; then
+        cp -r .quarto-output $out/artifact
+      elif [ -d "$(dirname "%s")/.quarto-output" ]; then
+        cp -r "$(dirname "%s")/.quarto-output" $out/artifact
+      else
+        echo "ERROR: .quarto-output not found."
+        find . -name ".quarto-output" -type d
+        ls -R
+        exit 1
+      fi
+      echo "QuartoOutput" > $out/class|} cli_block (match script with Some s -> s | None -> ".") (match script with Some s -> s | None -> ".")
     | _ -> "t run --unsafe node_script.t"
   in
 

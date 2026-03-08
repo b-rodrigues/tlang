@@ -259,8 +259,27 @@ pipeline_to_frame(p)   -- DataFrame with one row per node
 pipeline_dot(p)        -- Graphviz DOT string for visualization
 
 -- Validation
-pipeline_validate(p)   -- returns list of errors; never throws
+p |> pipeline_validate(p)   -- returns list of errors; never throws
 p |> pipeline_assert   -- throws on first error; returns pipeline if valid
+```
+
+## Literate Programming (Quarto)
+
+T supports Quarto for generating reports. Quarto nodes are defined using `runtime = Quarto`:
+
+```t
+p = pipeline {
+  report = node(script = "analysis.qmd", runtime = Quarto)
+}
+```
+
+Inside `analysis.qmd`, you can use `read_node("node_name")` in R, Python, or Javascript chunks. T will substitute these calls with the absolute paths to the node artifacts in the Nix store.
+
+Use `pipeline_copy()` to copy rendered reports and other artifacts from the Nix store to your local `pipeline-output/` directory.
+
+```t
+build_pipeline(p)
+pipeline_copy()
 ```
 
 ## Core Standard Library Signatures

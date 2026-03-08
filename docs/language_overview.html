@@ -553,8 +553,10 @@ same outputs - <strong>Cycle detection</strong>: Circular dependencies
 are caught and reported - <strong>Introspection</strong>:
 <code>pipeline_nodes()</code>, <code>pipeline_deps()</code>,
 <code>pipeline_node()</code> - <strong>Cross-language</strong>:
-<code>node()</code>, <code>pyn()</code>, <code>rn()</code> enable
-execution in T, Python, and R - <strong>Re-run</strong>:
+<code>node()</code>, <code>py()</code>/<code>pyn()</code>, and
+<code>rn()</code> enable execution in T, Python, and R -
+<strong>Environment Variables</strong>: Pass custom variables into Nix
+build sandboxes via <code>env_vars</code> - <strong>Re-run</strong>:
 <code>pipeline_run()</code> re-executes the pipeline</p>
 <hr />
 <h2 id="standard-library">Standard Library</h2>

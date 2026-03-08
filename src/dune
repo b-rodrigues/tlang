@@ -31,7 +31,7 @@
     ast lexer parser eval typecheck error serialization pmml_utils semantic_type symbol_table completion analyzer stats
     ; pipeline compiler
     nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter
-    builder_utils builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder
+    builder_utils builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder_copy builder
    ; packages/core
    t_print t_type args head tail is_error t_seq t_map sum pretty_print packages t_get help string_ops t_boolean t_write_text converters file_ops path_ops
     ; packages/base
@@ -41,7 +41,7 @@
     ; packages/dataframe
    t_read_csv t_write_csv t_read_arrow t_write_arrow t_dataframe colnames nrow ncol clean_colnames glimpse
     ; packages/pipeline
-    pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node
+    pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node pipeline_copy
      pipeline_to_frame filter_node mutate_node rename_node select_node arrange_node
      pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2
    ; packages/colcraft

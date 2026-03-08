@@ -153,15 +153,41 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">[t]</span></span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.5.0&quot;</span></span></code></pre></div>
-<p>After adding or changing dependencies, run:</p>
+<h3 id="system-dependencies-and-latex">3.1 System Dependencies and
+LaTeX</h3>
+<p>Beyond T packages, you can declare system-level tools and LaTeX
+packages required for your project.</p>
+<h4 id="additional-tools">Additional Tools</h4>
+<p>Use the <code>[additional-tools]</code> section to add any package
+from Nixpkgs (e.g., CLI utilities, compilers, or libraries):</p>
 <div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t update</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Syncing</span> 2 dependency<span class="er">(</span><span class="ex">ies</span><span class="kw">)</span> <span class="ex">from</span> tproject.toml → flake.nix...</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> nix flake update...</span></code></pre></div>
-<p>This regenerates <code>flake.nix</code> so new dependencies appear as
-proper flake inputs with locked versions. Then re-enter the shell:</p>
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># These will be available in your &#39;nix develop&#39; shell and pipeline sandboxes</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;git&quot;</span><span class="op">,</span> <span class="st">&quot;jq&quot;</span><span class="op">,</span> <span class="st">&quot;gawk&quot;</span><span class="op">,</span> <span class="st">&quot;pandoc&quot;</span><span class="op">]</span></span></code></pre></div>
+<h4 id="latex-support">LaTeX Support</h4>
+<p>If your project involves generating PDFs or reports, use the
+<code>[latex]</code> section. T automatically provides a
+<code>texlive</code> environment starting from
+<code>scheme-small</code>. Just list any additional LaTeX packages you
+need:</p>
 <div class="sourceCode" id="cb5"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span></code></pre></div>
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[latex]</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard LaTeX packages</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;amsmath&quot;</span><span class="op">,</span> <span class="st">&quot;blindtext&quot;</span><span class="op">,</span> <span class="st">&quot;physics&quot;</span><span class="op">,</span> <span class="st">&quot;hyperref&quot;</span><span class="op">]</span></span></code></pre></div>
+<p>After adding or changing dependencies (including
+<code>[additional-tools]</code> or <code>[latex]</code> sections),
+run:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t update</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Syncing</span> 2 dependency<span class="er">(</span><span class="ex">ies</span><span class="kw">)</span> <span class="ex">from</span> tproject.toml → flake.nix...</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> nix flake update...</span></code></pre></div>
+<p>This regenerates <code>flake.nix</code> so new dependencies and tools
+appear as proper flake inputs with locked versions. The tools will be
+available directly in your shell and automatically provided to any
+pipeline nodes (T, R, or Python) during execution. Then re-enter the
+shell:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span></code></pre></div>
 <h2 id="importing-packages">4. Importing Packages</h2>
 <p>Once inside <code>nix develop</code>, you can use the
 <code>import</code> statement in your T scripts to load package
@@ -201,11 +227,11 @@ p = pipeline {
 build_pipeline(p)
 print(price_by_area)</code></pre>
 <p>Run your script:</p>
-<div class="sourceCode" id="cb10"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>Or use the REPL for interactive exploration:</p>
-<div class="sourceCode" id="cb11"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
 <h2 id="running-tests">6. Running Tests</h2>
 <p>You can add tests in <code>tests/</code> following the same
 conventions as packages:</p>
@@ -215,8 +241,8 @@ import my_stats
 result = weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
 assert(result == 1.7)</code></pre>
 <p>Run them with:</p>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
 <h2 id="reproducibility">7. Reproducibility</h2>
 <p>Your project is fully reproducible through Nix:</p>
 <ul>
@@ -228,11 +254,11 @@ inputs</li>
 source of truth for dependencies</li>
 </ul>
 <p>Anyone can reproduce your environment:</p>
-<div class="sourceCode" id="cb14"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
 <footer>
