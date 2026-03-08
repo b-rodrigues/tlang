@@ -78,9 +78,7 @@ If your project involves generating PDFs or reports, use the `[latex]` section. 
 packages = ["amsmath", "blindtext", "physics", "hyperref"]
 ```
 
-After adding these, run `t update` and re-enter `nix develop`. The tools will be available directly in your shell and automatically provided to any pipeline nodes (T, R, or Python) during execution.
-
-After adding or changing dependencies, run:
+After adding or changing dependencies (including `[additional-tools]` or `[latex]` sections), run:
 
 ```bash
 $ t update
@@ -88,7 +86,7 @@ Syncing 2 dependency(ies) from tproject.toml → flake.nix...
 Running nix flake update...
 ```
 
-This regenerates `flake.nix` so new dependencies appear as proper flake inputs with locked versions. Then re-enter the shell:
+This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes (T, R, or Python) during execution. Then re-enter the shell:
 
 ```bash
 $ nix develop
