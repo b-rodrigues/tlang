@@ -171,6 +171,132 @@ min_version = "0.5.0"
   print_newline ();
 
   (* ===================================================== *)
+  Printf.printf "Package Manager — Update manager:\n";
+
+  Random.self_init ();
+
+  let rec make_temp_dir attempts =
+    if attempts <= 0 then
+      None
+    else
+      let candidate =
+        Filename.concat
+          (Filename.get_temp_dir_name ())
+          (Printf.sprintf "t-update-check-%d-%06d"
+             (Unix.getpid ())
+             (Random.int 1_000_000))
+      in
+      try
+        Unix.mkdir candidate 0o755;
+        Some candidate
+      with Unix.Unix_error (Unix.EEXIST, _, _) ->
+        make_temp_dir (attempts - 1)
+  in
+
+  let rec remove_path path =
+    if Sys.file_exists path then
+      if Sys.is_directory path then begin
+        Sys.readdir path
+        |> Array.iter (fun name -> remove_path (Filename.concat path name));
+        Unix.rmdir path
+      end else
+        Sys.remove path
+  in
+
+  test_pm "parse remote tag refs ignores dereferenced tags" (fun () ->
+    let output = String.concat "\n"
+      [ "abc123\trefs/tags/v0.1.0"
+      ; "abc123\trefs/tags/v0.1.0^{}"
+      ; "def456\trefs/tags/v0.2.0"
+      ; "fedcba\trefs/heads/main"
+      ]
+    in
+    Update_manager.parse_remote_tag_refs output = ["v0.1.0"; "v0.2.0"]);
+
+  test_pm "check_remote_tags finds newer local git tag" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let repo_dir = Filename.concat base_dir "remote-repo" in
+        let project_dir = Filename.concat base_dir "project" in
+        let run prog argv =
+          let pid = Unix.create_process prog argv Unix.stdin Unix.stdout Unix.stderr in
+          match Unix.waitpid [] pid with
+          | _, Unix.WEXITED 0 -> true
+          | _, _ -> false
+        in
+        let write path content =
+          let ch = open_out path in
+          output_string ch content;
+          close_out ch
+        in
+        let result =
+          try
+            let setup_ok =
+              (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
+              && run "git" [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run "git" [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run "git" [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+            in
+            if not setup_ok then
+              Error "setup failed"
+            else begin
+              write (Filename.concat repo_dir "README.md") "test repo\n";
+              let committed =
+                run "git" [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && run "git" [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && run "git" [| "git"; "-C"; repo_dir; "tag"; "v0.1.0" |]
+                && run "git" [| "git"; "-C"; repo_dir; "tag"; "v0.2.0" |]
+                && (try Unix.mkdir project_dir 0o755; true with Unix.Unix_error _ -> false)
+              in
+              if not committed then
+                Error "repo commit failed"
+              else begin
+                write
+                  (Filename.concat project_dir "tproject.toml")
+                  (Printf.sprintf
+                     {|[project]
+name = "my-project"
+description = "Test project"
+
+[dependencies]
+stats = { git = "%s", tag = "v0.1.0" }
+
+[t]
+min_version = "0.5.0"
+|}
+                     repo_dir);
+                let old_cwd = Sys.getcwd () in
+                Sys.chdir project_dir;
+                let check_result =
+                  try Update_manager.check_remote_tags () with exn ->
+                    Sys.chdir old_cwd;
+                    raise exn
+                in
+                Sys.chdir old_cwd;
+                check_result
+              end
+            end
+          with exn ->
+            Error (Printexc.to_string exn)
+        in
+        let cleanup_ok =
+          try
+            remove_path base_dir;
+            true
+          with _ -> false
+        in
+        match result with
+        | Ok [update] ->
+            cleanup_ok
+            && update.dependency_name = "stats"
+            && update.current_tag = "v0.1.0"
+            && update.latest_tag = "v0.2.0"
+        | _ -> false);
+
+  print_newline ();
+
+  (* ===================================================== *)
   Printf.printf "Package Manager — Scaffold (filesystem):\n";
 
   let temp_dir () =
