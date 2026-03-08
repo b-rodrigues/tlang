@@ -1,6 +1,6 @@
 open Nix_utils
 
-let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars functions includes noop script =
+let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script =
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
@@ -35,6 +35,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | "Python" -> 
         let inputs = if is_pmml_ser || is_pmml_des then "py-env pkgs.jre" else "py-env" in
         "py", inputs
+    | "Quarto" ->
+        "sh", "pkgs.quarto"
     | _ -> "t", ""
   in
 
@@ -74,6 +76,79 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VNull -> None
     | _ -> None
   in
+  let runtime_arg_values = function
+    | Ast.VList items ->
+        items
+        |> List.map snd
+        |> List.filter_map env_value_to_string
+    | value ->
+        (match env_value_to_string value with
+         | Some s -> [s]
+         | None -> [])
+  in
+  let normalize_flag_key key =
+    String.map (fun c -> if c = '_' then '-' else c) key
+  in
+  let quarto_cli_tokens =
+    if runtime <> "Quarto" then
+      []
+    else
+      let reserved_keys = [ "subcommand"; "path"; "file"; "qmd_file"; "input"; "output_dir"; "output-dir" ] in
+      let lookup_values key =
+        match List.assoc_opt key runtime_args with
+        | Some value -> runtime_arg_values value
+        | None -> []
+      in
+      let find_first_values keys =
+        let rec loop = function
+          | [] -> []
+          | key :: rest ->
+              let values = lookup_values key in
+              if values <> [] then values else loop rest
+        in
+        loop keys
+      in
+      let subcommand_tokens =
+        match lookup_values "subcommand" with
+        | [] -> [ "render" ]
+        | values -> values
+      in
+      let input_tokens =
+        match script with
+        | Some script_path -> [ script_path ]
+        | None -> find_first_values [ "path"; "file"; "qmd_file"; "input" ]
+      in
+      let option_tokens =
+        runtime_args
+        |> List.filter_map (fun (key, value) ->
+          if List.mem key reserved_keys then
+            None
+          else
+            let flag = "--" ^ normalize_flag_key key in
+            let tokens =
+              match value with
+              | Ast.VBool true -> [ flag ]
+              | Ast.VBool false | Ast.VNull -> []
+              | Ast.VList items ->
+                  items
+                  |> List.map snd
+                  |> List.filter_map env_value_to_string
+                  |> List.concat_map (fun s -> [ flag; s ])
+              | other ->
+                  (match env_value_to_string other with
+                   | Some s -> [ flag; s ]
+                   | None -> [])
+            in
+            Some tokens)
+        |> List.concat
+      in
+      subcommand_tokens @ input_tokens @ option_tokens @ [ "--output-dir"; ".quarto-output" ]
+  in
+  let quarto_cli_args_block =
+    quarto_cli_tokens
+    |> List.map (fun token -> Printf.sprintf "      cli_args+=(%s)" (shell_single_quote token))
+    |> String.concat "\n"
+  in
   let env_var_block =
     env_vars
     |> List.filter_map (fun (key, value) ->
@@ -93,6 +168,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
       funcs |> List.map (fun f -> Printf.sprintf "      echo \"source('%s')\" >> node_script.R" f) |> String.concat "\n"
     else if runtime = "Python" then
       funcs |> List.map (fun f -> Printf.sprintf "      echo \"exec(open('%s').read())\" >> node_script.py" f) |> String.concat "\n"
+    else if runtime = "Quarto" then
+      ""
     else
       funcs |> List.map (fun f -> Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote (Printf.sprintf "import \"%s\"" f))) |> String.concat "\n"
   in
@@ -550,49 +627,63 @@ def t_read_pmml(path):
 
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
-    let get_des_call dep_name =
-      let rec lookup_in_list target = function
-        | [] -> None
-        | (Some n, e) :: _ when n = target -> Some e
-        | _ :: rest -> lookup_in_list target rest
+    if runtime = "Quarto" then
+      ""
+    else
+      let get_des_call dep_name =
+        let rec lookup_in_list target = function
+          | [] -> None
+          | (Some n, e) :: _ when n = target -> Some e
+          | _ :: rest -> lookup_in_list target rest
+        in
+        let rec lookup_in_dict target = function
+          | [] -> None
+          | (n, e) :: _ when n = target -> Some e
+          | _ :: rest -> lookup_in_dict target rest
+        in
+        let strategy_expr = match deserializer with
+          | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> deserializer)
+          | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> deserializer)
+          | _ -> deserializer
+        in
+        let strategy_is_string = match strategy_expr with Ast.Value (Ast.VString _) -> true | _ -> false in
+        let strategy = Nix_unparse.expr_to_string strategy_expr in
+
+        (* Association list: strategy name -> read function name *)
+        let read_fns = [
+          "json",  "t_read_json";
+          "arrow", "t_read_arrow";
+          "pmml",  "t_read_pmml";
+          "csv",   "t_read_csv";
+        ] in
+        if strategy = "default" then
+          (if runtime = "R" then "readRDS" else "deserialize")
+        else if strategy_is_string then
+          (match List.assoc_opt strategy read_fns with
+           | Some fn -> fn
+           | None    -> strategy)
+        else
+          strategy
       in
-      let rec lookup_in_dict target = function
-        | [] -> None
-        | (n, e) :: _ when n = target -> Some e
-        | _ :: rest -> lookup_in_dict target rest
-      in
-      let strategy_expr = match deserializer with
-        | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> deserializer)
-        | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> deserializer)
-        | _ -> deserializer
-      in
-      let strategy_is_string = match strategy_expr with Ast.Value (Ast.VString _) -> true | _ -> false in
-      let strategy = Nix_unparse.expr_to_string strategy_expr in
-      
-      (* Association list: strategy name -> read function name *)
-      let read_fns = [
-        "json",  "t_read_json";
-        "arrow", "t_read_arrow";
-        "pmml",  "t_read_pmml";
-        "csv",   "t_read_csv";
-      ] in
-      if strategy = "default" then
-        (if runtime = "R" then "readRDS" else "deserialize")
-      else if strategy_is_string then
-        (match List.assoc_opt strategy read_fns with
-         | Some fn -> fn
-         | None    -> strategy)
-      else
-        strategy
-    in
-    deps
-    |> List.map (fun d ->
-      let des_call = get_des_call d in
-      if runtime = "R" then
-        Printf.sprintf "      echo \"%s <- %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext
-      else
-        Printf.sprintf "      echo \"%s = %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext)
-    |> String.concat "\n"
+      deps
+      |> List.map (fun d ->
+        let des_call = get_des_call d in
+        if runtime = "R" then
+          Printf.sprintf "      echo \"%s <- %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext
+        else
+          Printf.sprintf "      echo \"%s = %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext)
+      |> String.concat "\n"
+  in
+  let quarto_read_node_substitutions =
+    match runtime, script with
+    | "Quarto", Some script_path ->
+        deps
+        |> List.map (fun d ->
+          Printf.sprintf
+            {|      sed -i -e "s|read_node(\\"%s\\")|\\"$T_NODE_%s/artifact\\"|g" -e "s|read_node('%s')|'$T_NODE_%s/artifact'|g" %s|}
+            d d d d (shell_single_quote script_path))
+        |> String.concat "\n"
+    | _ -> ""
   in
 
   let expr_s = Nix_unparse.unparse_expr expr in
@@ -664,7 +755,9 @@ def t_read_pmml(path):
   in
 
   let assign_script_lines =
-    match script with
+    if runtime = "Quarto" then
+      ""
+    else match script with
     | Some script_path ->
         (* Script-based node: source the external script file.
            The script should assign the result to a variable named after the node.
@@ -755,6 +848,17 @@ EOF
   let run_cmd = match runtime with
     | "R" -> "Rscript node_script.R"
     | "Python" -> "python node_script.py"
+    | "Quarto" ->
+        let cli_block =
+          if quarto_cli_args_block = "" then ""
+          else quarto_cli_args_block ^ "\n"
+        in
+        Printf.sprintf {|
+      rm -rf .quarto-output
+      cli_args=()
+%s      quarto "${cli_args[@]}"
+      cp -r .quarto-output $out/artifact
+      echo "QuartoOutput" > $out/class|} cli_block
     | _ -> "t run --unsafe node_script.t"
   in
 
@@ -781,8 +885,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd

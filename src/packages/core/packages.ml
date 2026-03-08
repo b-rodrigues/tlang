@@ -677,7 +677,7 @@ let init_env () =
      Add new runtimes or serializer names here as they are introduced. *)
   let known_symbols = [
     (* Runtimes *)
-    "R"; "Python"; "T"; "Julia";
+    "R"; "Python"; "T"; "Julia"; "Quarto";
     (* Serialization defaults *)
     "default";
     (* R serializers *)
