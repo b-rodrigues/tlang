@@ -278,13 +278,23 @@ p_cross = pipeline {
     {|node(runtime = Quarto, args = [subcommand: "render"])|}
     {|Error(TypeError: "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file.")|};
 
-  test "node command conflicts with args-derived script path"
+  test "quarto node command conflict (explicit script)"
+    {|node(command = <{ 1 + 1 }>, script = "report.qmd", runtime = Quarto)|}
+    {|Error(TypeError: "node() cannot use both 'command' and 'script' arguments — choose one.")|};
+ 
+  test "quarto node command conflict (inlined command)"
     {|node(command = <{ 1 + 1 }>, runtime = Quarto, args = [path: "report.qmd"])|}
-    {|Error(TypeError: "node() cannot use 'command' together with a script path (from args.path/file/qmd_file/input) — choose one.")|};
-
-  test "node command conflicts with inferred qmd script path"
-    {|node(command = <{ 1 + 1 }>, args = [path: "report.qmd"])|}
-    {|Error(TypeError: "node() cannot use 'command' together with a script path (from args.path/file/qmd_file/input) — choose one.")|};
+    {|Error(TypeError: "Quarto nodes require a script and do not support inlined `command` blocks.")|};
+ 
+  let (v_r_mixed, _) = eval_string_env
+    {|rn(command = <{ read_csv(path) }>, args = [path: "data.csv"])|}
+    (Packages.init_env ()) in
+  (match v_r_mixed with
+   | Ast.VNode un when un.un_runtime = "R" && List.exists (function Ast.Value (VString "data.csv") -> true | _ -> false) un.un_includes ->
+       incr pass_count; Printf.printf "  ✓ R node supports both command and args.path (auto-included)\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ R node command/args mixed test failed: %s\n"
+         (Ast.Utils.value_to_string other));
 
   let (v_quarto_node, _) = eval_string_env
     {|node(runtime = Quarto, args = [subcommand: "render", path: "report.qmd", to: "html", standalone: true])|}

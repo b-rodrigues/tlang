@@ -542,94 +542,85 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             in
             List.find_map find_path [ "path"; "file"; "qmd_file"; "input" ]
           in
-          let script_path_opt =
-            match explicit_script_path_opt with
-            | Some _ as script -> script
-            | None -> arg_path_opt
-          in
-          (* Validate: cannot use 'command' together with any script path
-             (explicit 'script' or args.path/file/qmd_file/input). *)
           let has_command = command <> Value VNull in
-          let has_any_script_path = script_path_opt <> None in
-          if has_command && has_any_script_path then
-            let msg =
-              if explicit_script_path_opt <> None then
-                Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name
-              else
-                Printf.sprintf "%s() cannot use 'command' together with a script path (from args.path/file/qmd_file/input) — choose one." fn_name
-            in
-            Error.make_error TypeError msg
+          let execution_path_opt =
+            match explicit_script_path_opt with
+            | Some _ as s -> s
+            | None -> if has_command then None else arg_path_opt
+          in
+          if has_command && explicit_script_path_opt <> None then
+            Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
           else
             let default_runtime = match call with
               | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
               | Call { fn = Var "rn"; _ } -> "R"
               | _ -> "T"
             in
-            (* Auto-detect runtime from script extension when not explicitly given *)
+            (* Auto-detect runtime from script/arg extension only if not explicit *)
             let runtime =
               let explicit = eval_string "runtime" "" in
               if explicit <> "" then explicit
-              else match script_path_opt with
-                | Some path when Filename.check_suffix path ".R" -> "R"
-                | Some path when Filename.check_suffix path ".py" -> "Python"
-                | Some path when Filename.check_suffix path ".qmd" -> "Quarto"
-                | _ -> default_runtime
+              else match explicit_script_path_opt with
+                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | _ -> default_runtime)
+                | None -> (match arg_path_opt with
+                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | _ -> default_runtime)
+                    | _ -> default_runtime)
             in
-            (* For script-based nodes, build un_command as a RawCode placeholder so that
-               free_vars analysis can detect pipeline dependencies from the script's identifiers. *)
-            let un_command, un_script =
-              match script_path_opt with
-              | Some path ->
-                  let ids =
-                    try
-                      let ic = open_in path in
-                      let content =
-                        Fun.protect ~finally:(fun () -> close_in ic) (fun () ->
-                          let n = in_channel_length ic in
-                          let buf = Bytes.create n in
-                          really_input ic buf 0 n;
-                          Bytes.to_string buf)
-                      in
-                      Ast.extract_identifiers content
-                    with Sys_error _ | End_of_file -> []
-                  in
-                  (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
-              | None -> (command, None)
-            in
-            if runtime = "Quarto" && un_script = None then
-              Error.make_error TypeError
-                "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
-            else if runtime <> "T" && runtime <> "Quarto" then
-              match un_command with
-              | RawCode _ ->
-                  VNode {
-                    un_command;
-                    un_script;
-                    un_runtime = runtime;
-                    un_serializer = lookup_arg "serializer" (Var "default");
-                    un_deserializer = lookup_arg "deserializer" (Var "default");
-                    un_env_vars;
-                    un_args;
-                    un_functions = lookup_list "functions";
-                    un_includes = lookup_list "includes";
-                    un_noop = eval_bool "noop" false;
-                  }
-              | _ ->
-                  let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, or .qmd file." runtime in
-                  Error.make_error TypeError msg
+            if has_command && runtime = "Quarto" then
+              Error.make_error TypeError "Quarto nodes require a script and do not support inlined `command` blocks."
             else
-              VNode {
-                un_command;
-                un_script;
-                un_runtime = runtime;
-                un_serializer = lookup_arg "serializer" (Var "default");
-                un_deserializer = lookup_arg "deserializer" (Var "default");
-                un_env_vars;
-                un_args;
-                un_functions = lookup_list "functions";
-                un_includes = lookup_list "includes";
-                un_noop = eval_bool "noop" false;
-              })
+              let un_command, un_script =
+                match execution_path_opt with
+                | Some path ->
+                    let ids = try
+                      let ic = open_in path in
+                      let content = Fun.protect ~finally:(fun () -> close_in ic) (fun () ->
+                        let n = in_channel_length ic in
+                        let buf = Bytes.create n in
+                        really_input ic buf 0 n;
+                        Bytes.to_string buf)
+                      in Ast.extract_identifiers content
+                    with Sys_error _ | End_of_file -> []
+                    in (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
+                | None -> (command, None)
+              in
+              let base_includes = lookup_list "includes" in
+              let un_includes =
+                match arg_path_opt with
+                | Some p when has_command ->
+                    let already_included = List.exists (function Value (VString s) | Value (VSymbol s) -> s = p | _ -> false) base_includes in
+                    if already_included then base_includes else base_includes @ [Value (VString p)]
+                | _ -> base_includes
+              in
+              if runtime = "Quarto" && un_script = None then
+                Error.make_error TypeError
+                  "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
+              else if runtime <> "T" && runtime <> "Quarto" then
+                match un_command with
+                | RawCode _ ->
+                    VNode {
+                      un_command; un_script; un_runtime = runtime;
+                      un_serializer = lookup_arg "serializer" (Var "default");
+                      un_deserializer = lookup_arg "deserializer" (Var "default");
+                      un_env_vars; un_args;
+                      un_functions = lookup_list "functions";
+                      un_includes;
+                      un_noop = eval_bool "noop" false;
+                    }
+                | _ ->
+                    let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, or .qmd file." runtime in
+                    Error.make_error TypeError msg
+              else
+                VNode {
+                  un_command; un_script; un_runtime = runtime;
+                  un_serializer = lookup_arg "serializer" (Var "default");
+                  un_deserializer = lookup_arg "deserializer" (Var "default");
+                  un_env_vars; un_args;
+                  un_functions = lookup_list "functions";
+                  un_includes;
+                  un_noop = eval_bool "noop" false;
+                }
+)
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args
