@@ -171,6 +171,89 @@ min_version = "0.5.0"
   print_newline ();
 
   (* ===================================================== *)
+  Printf.printf "Package Manager — Update manager:\n";
+
+  test_pm "parse remote tag refs ignores dereferenced tags" (fun () ->
+    let output = String.concat "\n"
+      [ "abc123\trefs/tags/v0.1.0"
+      ; "abc123\trefs/tags/v0.1.0^{}"
+      ; "def456\trefs/tags/v0.2.0"
+      ; "fedcba\trefs/heads/main"
+      ]
+    in
+    Update_manager.parse_remote_tag_refs output = ["v0.1.0"; "v0.2.0"]);
+
+  test_pm "check_remote_tags finds newer local git tag" (fun () ->
+    let base_dir =
+      Filename.concat
+        (Filename.get_temp_dir_name ())
+        ("t-update-check-"
+         ^ string_of_int (int_of_float (Unix.gettimeofday () *. 1000.0) mod 100000))
+    in
+    let repo_dir = Filename.concat base_dir "remote-repo" in
+    let project_dir = Filename.concat base_dir "project" in
+    let quoted_repo = Filename.quote repo_dir in
+    let quoted_base = Filename.quote base_dir in
+    let run cmd = Sys.command cmd = 0 in
+    let write path content =
+      let ch = open_out path in
+      output_string ch content;
+      close_out ch
+    in
+    let setup_ok =
+      run (Printf.sprintf "mkdir -p %s" quoted_repo)
+      && run (Printf.sprintf "git init --quiet %s" quoted_repo)
+      && run (Printf.sprintf "git -C %s config user.email test@example.com" quoted_repo)
+      && run (Printf.sprintf "git -C %s config user.name 'Test User'" quoted_repo)
+    in
+    let result =
+      if not setup_ok then
+        Error "setup failed"
+      else begin
+        write (Filename.concat repo_dir "README.md") "test repo\n";
+        let committed =
+          run (Printf.sprintf "git -C %s add README.md" quoted_repo)
+          && run (Printf.sprintf "git -C %s commit --quiet -m init" quoted_repo)
+          && run (Printf.sprintf "git -C %s tag v0.1.0" quoted_repo)
+          && run (Printf.sprintf "git -C %s tag v0.2.0" quoted_repo)
+          && run (Printf.sprintf "mkdir -p %s" (Filename.quote project_dir))
+        in
+        if not committed then
+          Error "repo commit failed"
+        else begin
+          write
+            (Filename.concat project_dir "tproject.toml")
+            (Printf.sprintf
+               {|[project]
+name = "my-project"
+description = "Test project"
+
+[dependencies]
+stats = { git = "%s", tag = "v0.1.0" }
+
+[t]
+min_version = "0.5.0"
+|}
+               repo_dir);
+          let old_cwd = Sys.getcwd () in
+          Sys.chdir project_dir;
+          let check_result = Update_manager.check_remote_tags () in
+          Sys.chdir old_cwd;
+          check_result
+        end
+      end
+    in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" quoted_base));
+    match result with
+    | Ok [update] ->
+        update.dependency_name = "stats"
+        && update.current_tag = "v0.1.0"
+        && update.latest_tag = "v0.2.0"
+    | _ -> false);
+
+  print_newline ();
+
+  (* ===================================================== *)
   Printf.printf "Package Manager — Scaffold (filesystem):\n";
 
   let temp_dir () =
