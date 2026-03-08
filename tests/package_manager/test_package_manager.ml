@@ -213,6 +213,10 @@ min_version = "0.5.0"
     close_out ch
   in
 
+  let unreachable_package_path =
+    Filename.concat (Filename.get_temp_dir_name ()) "__tlang_no_packages__"
+  in
+
   let with_package_path path f =
     let original =
       try Some (Sys.getenv "T_PACKAGE_PATH") with Not_found -> None
@@ -222,8 +226,12 @@ min_version = "0.5.0"
       match original with
       | Some value -> Unix.putenv "T_PACKAGE_PATH" value
       | None ->
-          Unix.putenv "T_PACKAGE_PATH"
-            (Filename.concat (Filename.get_temp_dir_name ()) "__tlang_no_packages__")
+          (* OCaml's standard library does not provide a portable unsetenv here,
+             so restore to an unreachable sentinel path instead of leaving the
+             temporary package directory discoverable to later tests. This
+             differs from true unsetting because T_PACKAGE_PATH still exists in
+             the None case, but only with a value that cannot resolve packages. *)
+          Unix.putenv "T_PACKAGE_PATH" unreachable_package_path
     in
     try
       let result = f () in

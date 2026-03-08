@@ -8,17 +8,18 @@ type binding_origin =
 
 let metadata_key = "__tlang_internal_import_origins__"
 
+let is_internal_key name =
+  name = metadata_key
+
 let origin_to_string = function
-  | Builtin -> "builtin"
-  | ImportedPackage pkg -> "package:" ^ pkg
+  | Builtin -> "B"
+  | ImportedPackage pkg -> "P" ^ pkg
 
 let origin_of_string s =
-  if s = "builtin" then Some Builtin
+  if s = "B" then Some Builtin
   else
-    let prefix = "package:" in
-    let prefix_len = String.length prefix in
-    if String.length s > prefix_len && String.sub s 0 prefix_len = prefix then
-      Some (ImportedPackage (String.sub s prefix_len (String.length s - prefix_len)))
+    if String.length s > 1 && s.[0] = 'P' then
+      Some (ImportedPackage (String.sub s 1 (String.length s - 1)))
     else
       None
 
@@ -59,8 +60,9 @@ let mark_builtin_bindings env =
   let origins =
     Env.fold
       (fun name _ acc ->
-        if name = metadata_key then acc else Origin_map.add name Builtin acc)
+        if name = metadata_key || Origin_map.mem name acc then acc
+        else Origin_map.add name Builtin acc)
       env
-      Origin_map.empty
+      (get_origins env)
   in
   set_origins env origins
