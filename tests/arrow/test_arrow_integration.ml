@@ -609,10 +609,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
               end
             | Some (Arrow_column.IntView _) ->
               incr fail_count; Printf.printf "  ✗ Expected FloatView, got IntView\n"
-            | None ->
-              incr pass_count; Printf.printf "  ✓ zero_copy_view returned None (native buffer unavailable — ok)\n")
-         | None ->
-           incr fail_count; Printf.printf "  ✗ get_column failed for native float column\n");
+             | None ->
+               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                 "zero_copy_view returned None for native float column")
+          | None ->
+            incr fail_count; Printf.printf "  ✗ get_column failed for native float column\n");
 
         (* Test int64 zero-copy view *)
         (match Arrow_column.get_column native_tbl "val_i" with
@@ -627,10 +628,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
               end
             | Some (Arrow_column.FloatView _) ->
               incr fail_count; Printf.printf "  ✗ Expected IntView, got FloatView\n"
-            | None ->
-              incr pass_count; Printf.printf "  ✓ zero_copy_view returned None for int column (native buffer unavailable — ok)\n")
-         | None ->
-           incr fail_count; Printf.printf "  ✗ get_column failed for native int column\n");
+             | None ->
+               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                 "zero_copy_view returned None for native int column")
+          | None ->
+            incr fail_count; Printf.printf "  ✗ get_column failed for native int column\n");
 
         (* Test string column returns None *)
         (match Arrow_column.get_column native_tbl "name" with
@@ -643,17 +645,24 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          | None ->
            incr fail_count; Printf.printf "  ✗ get_column failed for native string column\n")
 
-      | None ->
-        (* Arrow native not available — still pass since fallback is OK *)
-        incr pass_count; Printf.printf "  ✓ CSV read succeeded (pure OCaml fallback — zero-copy N/A)\n";
-        incr pass_count; Printf.printf "  ✓ (skipped native float view test)\n";
-        incr pass_count; Printf.printf "  ✓ (skipped native int view test)\n";
-        incr pass_count; Printf.printf "  ✓ (skipped native string column test)\n")
-   | Error msg ->
-     incr pass_count; Printf.printf "  ✓ CSV read returned error: %s (zero-copy tests skipped)\n" msg;
-     incr pass_count; Printf.printf "  ✓ (skipped native float view test)\n";
-     incr pass_count; Printf.printf "  ✓ (skipped native int view test)\n";
-     incr pass_count; Printf.printf "  ✓ (skipped native string column test)\n");
+       | None ->
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "CSV read did not retain a native Arrow handle";
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "native float zero-copy smoke test skipped";
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "native int zero-copy smoke test skipped";
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "native string zero-copy smoke test skipped")
+    | Error msg ->
+      Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+        (Printf.sprintf "CSV read failed for native smoke test: %s" msg);
+      Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+        "native float zero-copy smoke test skipped";
+      Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+        "native int zero-copy smoke test skipped";
+      Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+        "native string zero-copy smoke test skipped");
 
   (try Sys.remove csv_zerocopy with _ -> ());
 
