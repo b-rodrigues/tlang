@@ -128,9 +128,12 @@ files = ?&lt;{ls}&gt;         -- Captures filenames in a string
 <p>Fundamental functional programming utilities.</p>
 <h3 id="printvalue"><code>print(value)</code></h3>
 <p>Print a value to standard output.</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value to
-print</p>
-<p><strong>Returns:</strong> The printed value (for chaining)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value to print</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The printed value (for chaining)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>print(42)                    -- 42
 print(&quot;Hello, T!&quot;)           -- Hello, T!
@@ -140,15 +143,23 @@ x = 10 |&gt; print |&gt; \(v) v * 2  -- Prints 10, returns 20</code></pre>
 <h3 id="pretty_printvalue"><code>pretty_print(value)</code></h3>
 <p>Pretty-print a value with detailed formatting (for DataFrames,
 structures, etc.).</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value</p>
-<p><strong>Returns:</strong> The value (for chaining)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The value (for chaining)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>pretty_print(df)  -- Formatted DataFrame output</code></pre>
 <hr />
 <h3 id="typevalue"><code>type(value)</code></h3>
 <p>Get the type name of a value as a string.</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value</p>
-<p><strong>Returns:</strong> <code>String</code> — Type name</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — Type name</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>type(42)             -- &quot;Int&quot;
 type(3.14)           -- &quot;Float&quot;
@@ -164,10 +175,14 @@ type(df)             -- &quot;DataFrame&quot;</code></pre>
 <p>Convert a value to an integer robustly. Handles strings with spaces,
 percentages, commas, and recognizes ‘TRUE’/‘FALSE’. Also propagates
 vectorization over Collections.</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value
-(String, Bool, Float, List, Vector)</p>
-<p><strong>Returns:</strong> <code>Int</code>, <code>NA</code>, or a
-Collection of <code>Int</code>/<code>NA</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value (String, Bool, Float, List,
+Vector)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Int</code>, <code>NA</code>, or a Collection of
+<code>Int</code>/<code>NA</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>to_integer(&quot;12 300&quot;)     -- 12300
 to_integer(&quot;TRUE&quot;)       -- 1
@@ -184,10 +199,14 @@ to_integer([&quot;1&quot;, &quot;2&quot;])   -- [1, 2]</code></pre>
 alias for <code>to_float</code>. Handles strings with spaces,
 percentages, commas, and recognizes ‘TRUE’/‘FALSE’. Also propagates
 vectorization over Collections.</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value
-(String, Bool, Int, List, Vector)</p>
-<p><strong>Returns:</strong> <code>Float</code>, <code>NA</code>, or a
-Collection of <code>Float</code>/<code>NA</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value (String, Bool, Int, List,
+Vector)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code>, <code>NA</code>, or a Collection of
+<code>Float</code>/<code>NA</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>to_float(&quot;3,14&quot;)         -- 3.14
 to_float(&quot;15%&quot;)          -- 15.0
@@ -200,9 +219,12 @@ to_numeric([&quot;1&quot;, &quot;2&quot;])   -- [1.0, 2.0]</code></pre>
 <hr />
 <h3 id="lengthcollection"><code>length(collection)</code></h3>
 <p>Get the number of elements in a collection.</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List,
-Vector, or String</p>
-<p><strong>Returns:</strong> <code>Int</code> — Number of elements</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List, Vector, or String</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Int</code> — Number of elements</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>length([1, 2, 3])      -- 3
 length(&quot;hello&quot;)        -- 5
@@ -212,11 +234,14 @@ length([])             -- 0</code></pre>
 <p>Get the first element(s) of a collection. For DataFrames, returns the
 first <code>n</code> rows (default 5). For Lists, returns the first
 element.</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List or
-DataFrame - <code>n</code> (optional) — Number of rows for DataFrames
-(default: 5); not used for Lists</p>
-<p><strong>Returns:</strong> Single element (for Lists) or DataFrame
-(for DataFrames)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List or DataFrame</li>
+<li><code>n</code> (optional) — Number of rows for DataFrames (default:
+5); not used for Lists</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Single element (for Lists) or DataFrame (for DataFrames)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>head([1, 2, 3, 4, 5])       -- 1
 head(df)                     -- first 5 rows
@@ -226,11 +251,14 @@ head(df, n = 10)             -- first 10 rows</code></pre>
 <h3 id="tailcollection-n"><code>tail(collection, n)</code></h3>
 <p>For DataFrames, returns the last <code>n</code> rows (default 5). For
 Lists, returns all elements except the first.</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List or
-DataFrame - <code>n</code> (optional) — Number of rows for DataFrames
-(default: 5); not used for Lists</p>
-<p><strong>Returns:</strong> List (for Lists) or DataFrame (for
-DataFrames)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List or DataFrame</li>
+<li><code>n</code> (optional) — Number of rows for DataFrames (default:
+5); not used for Lists</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>List (for Lists) or DataFrame (for DataFrames)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>tail([1, 2, 3, 4, 5])  -- [2, 3, 4, 5]
 tail(df)                -- last 5 rows
@@ -239,9 +267,13 @@ tail(df, n = 10)        -- last 10 rows</code></pre>
 <hr />
 <h3 id="mapcollection-fn"><code>map(collection, fn)</code></h3>
 <p>Apply a function to each element of a collection.</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List or
-Vector - <code>fn</code> — Function to apply: <code>\(x) ...</code></p>
-<p><strong>Returns:</strong> List (or Vector) of results</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List or Vector</li>
+<li><code>fn</code> — Function to apply: <code>\(x) ...</code></li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>List (or Vector) of results</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>map([1, 2, 3], \(x) x * x)           -- [1, 4, 9]
 map([&quot;a&quot;, &quot;b&quot;], \(s) s + &quot;!&quot;)        -- [&quot;a!&quot;, &quot;b!&quot;]
@@ -250,10 +282,14 @@ map([1, 2, 3], \(x) x + 10)          -- [11, 12, 13]</code></pre>
 <h3
 id="filtercollection-predicate"><code>filter(collection, predicate)</code></h3>
 <p>Keep only elements that satisfy a predicate.</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List or
-Vector - <code>predicate</code> — Function returning Bool:
-<code>\(x) ...</code></p>
-<p><strong>Returns:</strong> List (or Vector) of matching elements</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List or Vector</li>
+<li><code>predicate</code> — Function returning Bool:
+<code>\(x) ...</code></li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>List (or Vector) of matching elements</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>filter([1, 2, 3, 4, 5], \(x) x &gt; 3)    -- [4, 5]
 filter([1, 2, 3], \(x) x % 2 == 0)     -- [2]
@@ -261,10 +297,12 @@ filter([&quot;a&quot;, &quot;ab&quot;, &quot;abc&quot;], \(s) length(s) &gt; 1) 
 <hr />
 <h3 id="sumcollection"><code>sum(collection)</code></h3>
 <p>Sum all numeric elements.</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List or
-Vector of numbers</p>
-<p><strong>Returns:</strong> <code>Int</code> or <code>Float</code> —
-Sum</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List or Vector of numbers</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Int</code> or <code>Float</code> — Sum</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>sum([1, 2, 3, 4, 5])    -- 15
 sum([1.5, 2.5, 3.0])    -- 7.0
@@ -272,10 +310,14 @@ sum([])                 -- 0</code></pre>
 <hr />
 <h3 id="seqstart-end-step-1"><code>seq(start, end, step = 1)</code></h3>
 <p>Generate a sequence of numbers.</p>
-<p><strong>Parameters:</strong> - <code>start</code> — Starting value -
-<code>end</code> — Ending value (inclusive) - <code>step</code>
-(optional) — Increment (default: 1)</p>
-<p><strong>Returns:</strong> List of numbers</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>start</code> — Starting value</li>
+<li><code>end</code> — Ending value (inclusive)</li>
+<li><code>step</code> (optional) — Increment (default: 1)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>List of numbers</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>seq(1, 5)       -- [1, 2, 3, 4, 5]
 seq(0, 10, 2)   -- [0, 2, 4, 6, 8, 10]
@@ -283,9 +325,12 @@ seq(5, 1, -1)   -- [5, 4, 3, 2, 1]</code></pre>
 <hr />
 <h3 id="is_errorvalue"><code>is_error(value)</code></h3>
 <p>Check if a value is an error.</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value</p>
-<p><strong>Returns:</strong> <code>Bool</code> — true if value is an
-Error</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Bool</code> — true if value is an Error</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>is_error(42)             -- false
 is_error(error(&quot;msg&quot;))   -- true
@@ -293,92 +338,134 @@ is_error(1 / 0)          -- true</code></pre>
 <hr />
 <h3 id="getwd"><code>getwd()</code></h3>
 <p>Returns the current working directory of the T interpreter.</p>
-<p><strong>Returns:</strong> <code>String</code> — Working directory
-path</p>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — Working directory path</p>
 <hr />
 <h3 id="file_existspath"><code>file_exists(path)</code></h3>
 <p>Check if a regular file exists at the given path. Returns
 <code>false</code> for directories.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — File path (String
-or Symbol)</p>
-<p><strong>Returns:</strong> <code>Bool</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — File path (String or Symbol)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Bool</code></p>
 <hr />
 <h3 id="dir_existspath"><code>dir_exists(path)</code></h3>
 <p>Check if a directory exists at the given path.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — Directory path
-(String or Symbol)</p>
-<p><strong>Returns:</strong> <code>Bool</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Directory path (String or Symbol)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Bool</code></p>
 <hr />
 <h3 id="read_filepath"><code>read_file(path)</code></h3>
 <p>Read the entire contents of a file as a string.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — File path (String
-or Symbol)</p>
-<p><strong>Returns:</strong> <code>String</code> or
-<code>Error(FileError)</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — File path (String or Symbol)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> or <code>Error(FileError)</code></p>
 <hr />
 <h3
 id="list_filespath-pattern"><code>list_files(path, pattern)</code></h3>
 <p>List files and directories in a given path.</p>
-<p><strong>Parameters:</strong> - <code>path</code> (optional) —
-Directory to list (default: “.”) - <code>pattern</code> (optional) —
-Regex pattern to filter filenames</p>
-<p><strong>Returns:</strong> <code>List[String]</code> or
-<code>Error(FileError)</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> (optional) — Directory to list (default: “.”)</li>
+<li><code>pattern</code> (optional) — Regex pattern to filter
+filenames</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>List[String]</code> or <code>Error(FileError)</code></p>
 <hr />
 <h3 id="envname"><code>env(name)</code></h3>
 <p>Get the value of an environment variable.</p>
-<p><strong>Parameters:</strong> - <code>name</code> — Environment
-variable name (String or Symbol)</p>
-<p><strong>Returns:</strong> <code>String</code> or <code>null</code> if
-not found</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>name</code> — Environment variable name (String or
+Symbol)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> or <code>null</code> if not found</p>
 <hr />
 <h3 id="exitcode"><code>exit(code)</code></h3>
 <p>Exits the T interpreter.</p>
-<p><strong>Parameters:</strong> - <code>code</code> (optional) — Exit
-code integer (default: 0)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>code</code> (optional) — Exit code integer (default: 0)</li>
+</ul>
 <hr />
 <h3 id="path_join..."><code>path_join(...)</code></h3>
 <p>Join multiple path segments using the system-specific separator.</p>
-<p><strong>Parameters:</strong> - <code>...</code> — One or more path
-segments (String or Symbol)</p>
-<p><strong>Returns:</strong> <code>String</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>...</code> — One or more path segments (String or Symbol)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code></p>
 <hr />
 <h3 id="path_basenamepath"><code>path_basename(path)</code></h3>
 <p>Get the filename/last component of a path.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
-<p><strong>Returns:</strong> <code>String</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Path string</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code></p>
 <hr />
 <h3 id="path_dirnamepath"><code>path_dirname(path)</code></h3>
 <p>Get the directory portion of a path.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
-<p><strong>Returns:</strong> <code>String</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Path string</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code></p>
 <hr />
 <h3 id="path_extpath"><code>path_ext(path)</code></h3>
 <p>Get the file extension (including the dot). Returns <code>null</code>
 if no extension is found.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
-<p><strong>Returns:</strong> <code>String</code> or
-<code>null</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Path string</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> or <code>null</code></p>
 <hr />
 <h3 id="path_stempath"><code>path_stem(path)</code></h3>
 <p>Get the filename without its extension.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
-<p><strong>Returns:</strong> <code>String</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Path string</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code></p>
 <hr />
 <h3 id="path_abspath"><code>path_abs(path)</code></h3>
 <p>Resolves a relative path to an absolute path against the current
 working directory.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — Path string</p>
-<p><strong>Returns:</strong> <code>String</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Path string</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code></p>
 <hr />
 <h2 id="base-package">Base Package</h2>
 <p>Error handling, NA values, and assertions.</p>
 <h3 id="errormessage-errorcode-message"><code>error(message)</code> /
 <code>error(code, message)</code></h3>
 <p>Create an error value.</p>
-<p><strong>Parameters:</strong> - <code>message</code> — Error message
-string - <code>code</code> (optional) — Error code string</p>
-<p><strong>Returns:</strong> <code>Error</code> value</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>message</code> — Error message string</li>
+<li><code>code</code> (optional) — Error code string</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Error</code> value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>error(&quot;Something went wrong&quot;)
 error(&quot;ValueError&quot;, &quot;Invalid input&quot;)
@@ -391,8 +478,12 @@ error_message(e)  -- &quot;custom error&quot;</code></pre>
 <hr />
 <h3 id="error_codeerr"><code>error_code(err)</code></h3>
 <p>Get the error code from an Error value.</p>
-<p><strong>Parameters:</strong> - <code>err</code> — Error value</p>
-<p><strong>Returns:</strong> <code>String</code> — Error code</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>err</code> — Error value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — Error code</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>e = 1 / 0
 error_code(e)  -- &quot;DivisionByZero&quot;
@@ -402,8 +493,12 @@ error_code(e2)  -- &quot;TypeError&quot;</code></pre>
 <hr />
 <h3 id="error_messageerr"><code>error_message(err)</code></h3>
 <p>Get the error message from an Error value.</p>
-<p><strong>Parameters:</strong> - <code>err</code> — Error value</p>
-<p><strong>Returns:</strong> <code>String</code> — Error message</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>err</code> — Error value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — Error message</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>e = error(&quot;Something broke&quot;)
 error_message(e)  -- &quot;Something broke&quot;
@@ -413,9 +508,12 @@ error_message(e2)  -- &quot;Division by zero&quot;</code></pre>
 <hr />
 <h3 id="error_contexterr"><code>error_context(err)</code></h3>
 <p>Get additional context from an Error value (if available).</p>
-<p><strong>Parameters:</strong> - <code>err</code> — Error value</p>
-<p><strong>Returns:</strong> <code>String</code> — Context
-information</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>err</code> — Error value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — Context information</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>error_context(e)  -- Additional debugging information</code></pre>
 <hr />
@@ -423,9 +521,13 @@ information</p>
 id="assertcondition-assertcondition-message"><code>assert(condition)</code>
 / <code>assert(condition, message)</code></h3>
 <p>Assert that a condition is true; error if false.</p>
-<p><strong>Parameters:</strong> - <code>condition</code> — Boolean
-expression - <code>message</code> (optional) — Custom error message</p>
-<p><strong>Returns:</strong> <code>true</code> if condition holds</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>condition</code> — Boolean expression</li>
+<li><code>message</code> (optional) — Custom error message</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>true</code> if condition holds</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>assert(2 + 2 == 4)                -- true
 assert(1 &gt; 2)                     -- Error(AssertionError)
@@ -441,7 +543,8 @@ is_na(x)  -- true</code></pre>
 <code>na_float()</code> / <code>na_bool()</code> /
 <code>na_string()</code></h3>
 <p>Create typed NA values.</p>
-<p><strong>Returns:</strong> Typed NA value</p>
+<p><strong>Returns:</strong></p>
+<p>Typed NA value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>na_int()     -- NA(Int)
 na_float()   -- NA(Float)
@@ -450,8 +553,12 @@ na_string()  -- NA(String)</code></pre>
 <hr />
 <h3 id="is_navalue"><code>is_na(value)</code></h3>
 <p>Check if a value is NA.</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value</p>
-<p><strong>Returns:</strong> <code>Bool</code> — true if value is NA</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Bool</code> — true if value is NA</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>is_na(NA)           -- true
 is_na(na_int())     -- true
@@ -462,9 +569,12 @@ is_na(null)         -- false (null ≠ NA)</code></pre>
 <p>Mathematical functions operating on scalars and vectors.</p>
 <h3 id="sqrtx"><code>sqrt(x)</code></h3>
 <p>Square root.</p>
-<p><strong>Parameters:</strong> - <code>x</code> — Number (Int or
-Float)</p>
-<p><strong>Returns:</strong> <code>Float</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — Number (Int or Float)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>sqrt(4)      -- 2.0
 sqrt(2)      -- 1.41421356237
@@ -473,8 +583,12 @@ sqrt(-1)     -- Error (negative input)</code></pre>
 <hr />
 <h3 id="absx"><code>abs(x)</code></h3>
 <p>Absolute value.</p>
-<p><strong>Parameters:</strong> - <code>x</code> — Number</p>
-<p><strong>Returns:</strong> Same type as input</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — Number</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Same type as input</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>abs(-5)      -- 5
 abs(3.14)    -- 3.14
@@ -482,9 +596,12 @@ abs(0)       -- 0</code></pre>
 <hr />
 <h3 id="logx"><code>log(x)</code></h3>
 <p>Natural logarithm (base e).</p>
-<p><strong>Parameters:</strong> - <code>x</code> — Number (must be &gt;
-0)</p>
-<p><strong>Returns:</strong> <code>Float</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — Number (must be &gt; 0)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>log(10)      -- 2.30258509299
 log(1)       -- 0.0
@@ -494,8 +611,12 @@ log(-1)      -- Error (log of negative)</code></pre>
 <hr />
 <h3 id="expx"><code>exp(x)</code></h3>
 <p>Exponential function (e^x).</p>
-<p><strong>Parameters:</strong> - <code>x</code> — Number</p>
-<p><strong>Returns:</strong> <code>Float</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — Number</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>exp(0)       -- 1.0
 exp(1)       -- 2.71828182846
@@ -503,9 +624,13 @@ exp(2)       -- 7.38905609893</code></pre>
 <hr />
 <h3 id="powbase-exponent"><code>pow(base, exponent)</code></h3>
 <p>Power function (base^exponent).</p>
-<p><strong>Parameters:</strong> - <code>base</code> — Number -
-<code>exponent</code> — Number</p>
-<p><strong>Returns:</strong> <code>Float</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>base</code> — Number</li>
+<li><code>exponent</code> — Number</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>pow(2, 3)    -- 8.0
 pow(10, 2)   -- 100.0
@@ -515,9 +640,13 @@ pow(2, -1)   -- 0.5</code></pre>
 <h3 id="minx-y-mincollection"><code>min(x, y)</code> /
 <code>min(collection)</code></h3>
 <p>Minimum value.</p>
-<p><strong>Parameters:</strong> - <code>x, y</code> — Two numbers, OR -
-<code>collection</code> — List or Vector</p>
-<p><strong>Returns:</strong> Minimum value</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x, y</code> — Two numbers, OR</li>
+<li><code>collection</code> — List or Vector</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Minimum value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>min(3, 7)           -- 3
 min([5, 2, 9, 1])   -- 1
@@ -526,9 +655,13 @@ min([])             -- Error</code></pre>
 <h3 id="maxx-y-maxcollection"><code>max(x, y)</code> /
 <code>max(collection)</code></h3>
 <p>Maximum value.</p>
-<p><strong>Parameters:</strong> - <code>x, y</code> — Two numbers, OR -
-<code>collection</code> — List or Vector</p>
-<p><strong>Returns:</strong> Maximum value</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x, y</code> — Two numbers, OR</li>
+<li><code>collection</code> — List or Vector</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Maximum value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>max(3, 7)           -- 7
 max([5, 2, 9, 1])   -- 9
@@ -539,10 +672,14 @@ max([])             -- Error</code></pre>
 <h3
 id="meancollection-na_rm-false"><code>mean(collection, na_rm = false)</code></h3>
 <p>Arithmetic mean (average).</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List or
-Vector of numbers - <code>na_rm</code> (optional) — If true, skip NA
-values (default: false)</p>
-<p><strong>Returns:</strong> <code>Float</code> — Mean value</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List or Vector of numbers</li>
+<li><code>na_rm</code> (optional) — If true, skip NA values (default:
+false)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code> — Mean value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>mean([1, 2, 3, 4, 5])              -- 3.0
 mean([10, 20, 30])                 -- 20.0
@@ -553,10 +690,14 @@ mean([NA, NA], na_rm = true)       -- NA(Float)</code></pre>
 <h3
 id="sdcollection-na_rm-false"><code>sd(collection, na_rm = false)</code></h3>
 <p>Standard deviation (sample).</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List or
-Vector of numbers - <code>na_rm</code> (optional) — If true, skip NA
-values (default: false)</p>
-<p><strong>Returns:</strong> <code>Float</code> — Standard deviation</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List or Vector of numbers</li>
+<li><code>na_rm</code> (optional) — If true, skip NA values (default:
+false)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code> — Standard deviation</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>sd([2, 4, 4, 4, 5, 5, 7, 9])       -- 2.1380899353
 sd([1, 2, 3])                       -- 1.0
@@ -566,11 +707,15 @@ sd([5, 5, 5])                       -- 0.0 (no variation)</code></pre>
 <h3
 id="quantilecollection-p-na_rm-false"><code>quantile(collection, p, na_rm = false)</code></h3>
 <p>Compute quantile/percentile.</p>
-<p><strong>Parameters:</strong> - <code>collection</code> — List or
-Vector of numbers - <code>p</code> — Probability (0.0 to 1.0) -
-<code>na_rm</code> (optional) — If true, skip NA values (default:
-false)</p>
-<p><strong>Returns:</strong> <code>Float</code> — Quantile value</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>collection</code> — List or Vector of numbers</li>
+<li><code>p</code> — Probability (0.0 to 1.0)</li>
+<li><code>na_rm</code> (optional) — If true, skip NA values (default:
+false)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code> — Quantile value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>quantile([1, 2, 3, 4, 5], 0.5)     -- 3.0 (median)
 quantile([1, 2, 3, 4, 5], 0.25)    -- 2.0 (Q1)
@@ -579,12 +724,15 @@ quantile([1, NA, 3], 0.5, na_rm = true)  -- 2.0</code></pre>
 <hr />
 <h3 id="corx-y-na_rm-false"><code>cor(x, y, na_rm = false)</code></h3>
 <p>Pearson correlation coefficient.</p>
-<p><strong>Parameters:</strong> - <code>x</code> — List or Vector of
-numbers - <code>y</code> — List or Vector of numbers (same length as x)
-- <code>na_rm</code> (optional) — If true, use pairwise deletion for NA
-(default: false)</p>
-<p><strong>Returns:</strong> <code>Float</code> — Correlation (-1.0 to
-1.0)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — List or Vector of numbers</li>
+<li><code>y</code> — List or Vector of numbers (same length as x)</li>
+<li><code>na_rm</code> (optional) — If true, use pairwise deletion for
+NA (default: false)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Float</code> — Correlation (-1.0 to 1.0)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>cor([1, 2, 3], [2, 4, 6])                  -- 1.0 (perfect positive)
 cor([1, 2, 3], [3, 2, 1])                  -- -1.0 (perfect negative)
@@ -593,10 +741,15 @@ cor([1, NA, 3], [2, 4, NA], na_rm = true)  -- 1.0 (uses [1,3] and [2,4])</code><
 <hr />
 <h3 id="lmdata-formula"><code>lm(data, formula)</code></h3>
 <p>Fit a linear regression model (ordinary least squares).</p>
-<p><strong>Parameters:</strong> - <code>data</code> — DataFrame -
-<code>formula</code> — Formula object (<code>y ~ x1 + x2</code>)</p>
-<p><strong>Returns:</strong> Model object. Use <code>summary()</code>
-and <code>fit_stats()</code> to inspect.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>data</code> — DataFrame</li>
+<li><code>formula</code> — Formula object
+(<code>y ~ x1 + x2</code>)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Model object. Use <code>summary()</code> and <code>fit_stats()</code>
+to inspect.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>model = lm(data = df, formula = mpg ~ wt + hp)
 print(model)</code></pre>
@@ -604,10 +757,14 @@ print(model)</code></pre>
 <h3 id="summarymodel"><code>summary(model)</code></h3>
 <p>Get a tidy DataFrame of model coefficients. Similar to
 <code>broom::tidy()</code> in R.</p>
-<p><strong>Parameters:</strong> - <code>model</code> — Linear model
-object (from <code>lm()</code> or imported via PMML)</p>
-<p><strong>Returns:</strong> DataFrame with columns: <code>term</code>,
-<code>estimate</code>, <code>std_error</code>, <code>statistic</code>,
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>model</code> — Linear model object (from <code>lm()</code> or
+imported via PMML)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with columns: <code>term</code>, <code>estimate</code>,
+<code>std_error</code>, <code>statistic</code>,
 <code>p_value</code>.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>summary(model)</code></pre>
@@ -615,11 +772,13 @@ object (from <code>lm()</code> or imported via PMML)</p>
 <h3 id="fit_statsmodel"><code>fit_stats(model)</code></h3>
 <p>Get a single-row DataFrame of model-level statistics. Similar to
 <code>broom::glance()</code> in R.</p>
-<p><strong>Parameters:</strong> - <code>model</code> — Linear model
-object</p>
-<p><strong>Returns:</strong> DataFrame with statistics like
-<code>r_squared</code>, <code>AIC</code>, <code>BIC</code>,
-<code>sigma</code>, etc.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>model</code> — Linear model object</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with statistics like <code>r_squared</code>,
+<code>AIC</code>, <code>BIC</code>, <code>sigma</code>, etc.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>fit_stats(model)</code></pre>
 <hr />
@@ -627,19 +786,26 @@ object</p>
 id="add_diagnosticsmodel-data"><code>add_diagnostics(model, data)</code></h3>
 <p>Augment data with per-observation diagnostics. Similar to
 <code>broom::augment()</code> in R.</p>
-<p><strong>Parameters:</strong> - <code>model</code> — Linear model
-object - <code>data</code> — Original DataFrame used for fitting</p>
-<p><strong>Returns:</strong> DataFrame with original columns plus
-diagnostics (<code>.fitted</code>, <code>.resid</code>, etc.).</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>model</code> — Linear model object</li>
+<li><code>data</code> — Original DataFrame used for fitting</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with original columns plus diagnostics
+(<code>.fitted</code>, <code>.resid</code>, etc.).</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>add_diagnostics(model, data = df)</code></pre>
 <hr />
 <h3 id="predictdata-model"><code>predict(data, model)</code></h3>
 <p>Perform vectorized prediction on a new DataFrame.</p>
-<p><strong>Parameters:</strong> - <code>data</code> — DataFrame
-containing predictor columns - <code>model</code> — Linear model
-object</p>
-<p><strong>Returns:</strong> Vector of predicted values.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>data</code> — DataFrame containing predictor columns</li>
+<li><code>model</code> — Linear model object</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector of predicted values.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>preds = predict(new_df, model)</code></pre>
 <hr />
@@ -648,13 +814,20 @@ object</p>
 <h3
 id="read_csvpath-separator-skip_lines-0-skip_header-false-clean_colnames-false"><code>read_csv(path, separator = ",", skip_lines = 0, skip_header = false, clean_colnames = false)</code></h3>
 <p>Read a CSV file into a DataFrame.</p>
-<p><strong>Parameters:</strong> - <code>path</code> — File path (String)
-- <code>separator</code> (optional) — Column separator (default: “,”) -
-<code>skip_lines</code> (optional) — Number of lines to skip at start
-(default: 0) - <code>skip_header</code> (optional) — If true, treat
-first row as data (default: false) - <code>clean_colnames</code>
-(optional) — If true, normalize column names (default: false)</p>
-<p><strong>Returns:</strong> <code>DataFrame</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — File path (String)</li>
+<li><code>separator</code> (optional) — Column separator (default:
+“,”)</li>
+<li><code>skip_lines</code> (optional) — Number of lines to skip at
+start (default: 0)</li>
+<li><code>skip_header</code> (optional) — If true, treat first row as
+data (default: false)</li>
+<li><code>clean_colnames</code> (optional) — If true, normalize column
+names (default: false)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>df = read_csv(&quot;data.csv&quot;)
 df = read_csv(&quot;data.tsv&quot;, separator = &quot;\t&quot;)
@@ -664,42 +837,62 @@ df = read_csv(&quot;messy.csv&quot;, clean_colnames = true)</code></pre>
 <h3
 id="write_csvdataframe-path-separator"><code>write_csv(dataframe, path, separator = ",")</code></h3>
 <p>Write a DataFrame to a CSV file.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame to
-write - <code>path</code> — Output file path (String) -
-<code>separator</code> (optional) — Column separator (default: “,”)</p>
-<p><strong>Returns:</strong> <code>null</code></p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame to write</li>
+<li><code>path</code> — Output file path (String)</li>
+<li><code>separator</code> (optional) — Column separator (default:
+“,”)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>null</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>write_csv(df, &quot;output.csv&quot;)
 write_csv(df, &quot;output.tsv&quot;, separator = &quot;\t&quot;)</code></pre>
 <hr />
 <h3 id="nrowdataframe"><code>nrow(dataframe)</code></h3>
 <p>Get number of rows.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame</p>
-<p><strong>Returns:</strong> <code>Int</code> — Row count</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Int</code> — Row count</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>nrow(df)  -- 100</code></pre>
 <hr />
 <h3 id="ncoldataframe"><code>ncol(dataframe)</code></h3>
 <p>Get number of columns.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame</p>
-<p><strong>Returns:</strong> <code>Int</code> — Column count</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Int</code> — Column count</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>ncol(df)  -- 5</code></pre>
 <hr />
 <h3 id="colnamesdataframe"><code>colnames(dataframe)</code></h3>
 <p>Get column names.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame</p>
-<p><strong>Returns:</strong> List of Strings</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>List of Strings</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>colnames(df)  -- [&quot;name&quot;, &quot;age&quot;, &quot;dept&quot;, &quot;salary&quot;]</code></pre>
 <hr />
 <h3 id="glimpsedataframe"><code>glimpse(dataframe)</code></h3>
 <p>Get a compact overview of a DataFrame, showing column names, types,
 and example values. Similar to dplyr’s <code>glimpse()</code>.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame</p>
-<p><strong>Returns:</strong> Dict with <code>kind</code>,
-<code>nrow</code>, <code>ncol</code>, and <code>columns</code> (list of
-column summaries)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Dict with <code>kind</code>, <code>nrow</code>, <code>ncol</code>,
+and <code>columns</code> (list of column summaries)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>glimpse(df)
 -- {`kind`: &quot;dataframe&quot;, `nrow`: 100, `ncol`: 4, `columns`: [&quot;name &lt;String&gt; ...&quot;, &quot;age &lt;Int&gt; ...&quot;, ...]}</code></pre>
@@ -708,10 +901,13 @@ column summaries)</p>
 id="clean_colnamesdataframe-clean_colnamesnames"><code>clean_colnames(dataframe)</code>
 / <code>clean_colnames(names)</code></h3>
 <p>Normalize column names to safe identifiers.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame, OR
-- <code>names</code> — List of Strings</p>
-<p><strong>Returns:</strong> DataFrame with cleaned names, OR List of
-cleaned Strings</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame, OR</li>
+<li><code>names</code> — List of Strings</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with cleaned names, OR List of cleaned Strings</p>
 <p><strong>Transformations:</strong> 1. Symbol expansion: <code>%</code>
 → <code>percent</code>, <code>€</code> → <code>euro</code>,
 <code>$</code> → <code>dollar</code>, etc. 2. Diacritics removal:
@@ -734,9 +930,14 @@ df2 = clean_colnames(df)  -- DataFrame with cleaned column names</code></pre>
 <h4
 id="selectdataframe-...columns"><code>select(dataframe, ...columns)</code></h4>
 <p>Select columns by name. Supports dollar-prefix NSE syntax.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame -
-<code>...columns</code> — Column references (<code>$name</code>)</p>
-<p><strong>Returns:</strong> DataFrame with selected columns</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+<li><code>...columns</code> — Column references
+(<code>$name</code>)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with selected columns</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>df |&gt; select($name, $age)
 df |&gt; select($dept)</code></pre>
@@ -745,9 +946,14 @@ df |&gt; select($dept)</code></pre>
 id="filterdataframe-predicate"><code>filter(dataframe, predicate)</code></h4>
 <p>Filter rows by condition. Supports NSE expressions with dollar-prefix
 column references.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame -
-<code>predicate</code> — NSE expression (<code>$age &gt; 25</code>)</p>
-<p><strong>Returns:</strong> DataFrame with matching rows</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+<li><code>predicate</code> — NSE expression
+(<code>$age &gt; 25</code>)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with matching rows</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>df |&gt; filter($age &gt; 30)
 df |&gt; filter($dept == &quot;Engineering&quot;)
@@ -766,7 +972,8 @@ name from <code>$col</code>, value from NSE expression</p>
 reference (<code>$bonus</code>) - <code>fn</code> — Function taking row
 dict: <code>\(row) ...</code>, OR - <code>value</code> — Constant value
 for all rows</p>
-<p><strong>Returns:</strong> DataFrame with new/modified column</p>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with new/modified column</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>-- Named-arg NSE syntax
 df |&gt; mutate($bonus = $salary * 0.1)
@@ -781,10 +988,15 @@ df |&gt; group_by($dept) |&gt; mutate($dept_size, \(g) nrow(g))</code></pre>
 <h4
 id="arrangedataframe-column-direction-asc"><code>arrange(dataframe, column, direction = "asc")</code></h4>
 <p>Sort rows by column. Supports dollar-prefix NSE for column names.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame -
-<code>column</code> — Column reference (<code>$age</code>) -
-<code>direction</code> (optional) — “asc” or “desc” (default: “asc”)</p>
-<p><strong>Returns:</strong> Sorted DataFrame</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+<li><code>column</code> — Column reference (<code>$age</code>)</li>
+<li><code>direction</code> (optional) — “asc” or “desc” (default:
+“asc”)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Sorted DataFrame</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>df |&gt; arrange($age)
 df |&gt; arrange($salary, &quot;desc&quot;)</code></pre>
@@ -793,9 +1005,14 @@ df |&gt; arrange($salary, &quot;desc&quot;)</code></pre>
 id="group_bydataframe-...columns"><code>group_by(dataframe, ...columns)</code></h4>
 <p>Group by one or more columns. Supports dollar-prefix NSE for column
 names.</p>
-<p><strong>Parameters:</strong> - <code>dataframe</code> — DataFrame -
-<code>...columns</code> — Column references (<code>$dept</code>)</p>
-<p><strong>Returns:</strong> Grouped DataFrame</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+<li><code>...columns</code> — Column references
+(<code>$dept</code>)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Grouped DataFrame</p>
 <p><strong>Usage:</strong></p>
 <pre class="t"><code>-- Use with summarize to aggregate
 df |&gt; group_by($dept) |&gt; summarize($avg_salary, \(g) mean(g.salary))
@@ -821,7 +1038,8 @@ syntax with NSE.</p>
 <code>group_by()</code>) - <code>new_col</code> — Column reference
 (<code>$count</code>) - <code>fn</code> — Aggregation function:
 <code>\(group) ...</code></p>
-<p><strong>Returns:</strong> DataFrame with one row per group</p>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with one row per group</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>-- Named-arg NSE syntax
 df |&gt; group_by($dept) |&gt; summarize($count = nrow($dept))
@@ -833,9 +1051,12 @@ df |&gt; group_by($dept) |&gt; summarize($count, \(g) nrow(g))</code></pre>
 <hr />
 <h4 id="ungroupgrouped_df"><code>ungroup(grouped_df)</code></h4>
 <p>Remove grouping from a DataFrame.</p>
-<p><strong>Parameters:</strong> - <code>grouped_df</code> — Grouped
-DataFrame</p>
-<p><strong>Returns:</strong> Ungrouped DataFrame</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>grouped_df</code> — Grouped DataFrame</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Ungrouped DataFrame</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>ungrouped = df |&gt; group_by($dept) |&gt; ungroup()</code></pre>
 <hr />
@@ -845,53 +1066,71 @@ them.</p>
 <h4 id="ranking-functions">Ranking Functions</h4>
 <h5 id="row_numbervector"><code>row_number(vector)</code></h5>
 <p>Assign unique row numbers.</p>
-<p><strong>Parameters:</strong> - <code>vector</code> — Vector or
-List</p>
-<p><strong>Returns:</strong> Vector of row numbers (1, 2, 3, …), NA for
-NA positions</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>vector</code> — Vector or List</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector of row numbers (1, 2, 3, …), NA for NA positions</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>row_number([10, 30, 20])     -- Vector[1, 3, 2]
 row_number([3, NA, 1])       -- Vector[2, NA, 1]</code></pre>
 <hr />
 <h5 id="min_rankvector"><code>min_rank(vector)</code></h5>
 <p>Minimum rank (gaps after ties).</p>
-<p><strong>Parameters:</strong> - <code>vector</code> — Vector or
-List</p>
-<p><strong>Returns:</strong> Vector of ranks</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>vector</code> — Vector or List</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector of ranks</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>min_rank([1, 1, 2, 2, 2])    -- Vector[1, 1, 3, 3, 3]
 min_rank([3, NA, 1, 3])      -- Vector[2, NA, 1, 2]</code></pre>
 <hr />
 <h5 id="dense_rankvector"><code>dense_rank(vector)</code></h5>
 <p>Dense rank (no gaps).</p>
-<p><strong>Parameters:</strong> - <code>vector</code> — Vector or
-List</p>
-<p><strong>Returns:</strong> Vector of ranks</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>vector</code> — Vector or List</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector of ranks</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>dense_rank([1, 1, 2, 2])     -- Vector[1, 1, 2, 2]
 dense_rank([10, 10, 20])     -- Vector[1, 1, 2]</code></pre>
 <hr />
 <h5 id="cume_distvector"><code>cume_dist(vector)</code></h5>
 <p>Cumulative distribution (proportion ≤ value).</p>
-<p><strong>Parameters:</strong> - <code>vector</code> — Vector or
-List</p>
-<p><strong>Returns:</strong> Vector of Float (0.0 to 1.0)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>vector</code> — Vector or List</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector of Float (0.0 to 1.0)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>cume_dist([1, 2, 3])         -- Vector[0.333..., 0.666..., 1.0]</code></pre>
 <hr />
 <h5 id="percent_rankvector"><code>percent_rank(vector)</code></h5>
 <p>Percent rank ((rank - 1) / (n - 1)).</p>
-<p><strong>Parameters:</strong> - <code>vector</code> — Vector or
-List</p>
-<p><strong>Returns:</strong> Vector of Float (0.0 to 1.0)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>vector</code> — Vector or List</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector of Float (0.0 to 1.0)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>percent_rank([1, 2, 3])      -- Vector[0.0, 0.5, 1.0]</code></pre>
 <hr />
 <h5 id="ntilevector-n"><code>ntile(vector, n)</code></h5>
 <p>Divide into n groups.</p>
-<p><strong>Parameters:</strong> - <code>vector</code> — Vector or List -
-<code>n</code> — Number of groups (Int)</p>
-<p><strong>Returns:</strong> Vector of group numbers (1 to n)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>vector</code> — Vector or List</li>
+<li><code>n</code> — Number of groups (Int)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector of group numbers (1 to n)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>ntile([1, 2, 3, 4], 2)       -- Vector[1, 1, 2, 2]
 ntile([1, 2, 3, 4, 5], 3)    -- Vector[1, 1, 2, 2, 3]</code></pre>
@@ -899,9 +1138,13 @@ ntile([1, 2, 3, 4, 5], 3)    -- Vector[1, 1, 2, 2, 3]</code></pre>
 <h4 id="offset-functions">Offset Functions</h4>
 <h5 id="lagvector-n-1"><code>lag(vector, n = 1)</code></h5>
 <p>Shift values forward (add NA at start).</p>
-<p><strong>Parameters:</strong> - <code>vector</code> — Vector or List -
-<code>n</code> (optional) — Number of positions (default: 1)</p>
-<p><strong>Returns:</strong> Vector with shifted values</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>vector</code> — Vector or List</li>
+<li><code>n</code> (optional) — Number of positions (default: 1)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector with shifted values</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>lag([1, 2, 3, 4])            -- Vector[NA, 1, 2, 3]
 lag([1, 2, 3, 4], 2)         -- Vector[NA, NA, 1, 2]
@@ -909,9 +1152,13 @@ lag([1, NA, 3])              -- Vector[NA, 1, NA]</code></pre>
 <hr />
 <h5 id="leadvector-n-1"><code>lead(vector, n = 1)</code></h5>
 <p>Shift values backward (add NA at end).</p>
-<p><strong>Parameters:</strong> - <code>vector</code> — Vector or List -
-<code>n</code> (optional) — Number of positions (default: 1)</p>
-<p><strong>Returns:</strong> Vector with shifted values</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>vector</code> — Vector or List</li>
+<li><code>n</code> (optional) — Number of positions (default: 1)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Vector with shifted values</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>lead([1, 2, 3, 4])           -- Vector[2, 3, 4, NA]
 lead([1, 2, 3, 4], 2)        -- Vector[3, 4, NA, NA]</code></pre>
@@ -956,27 +1203,35 @@ cumsum([1, NA, 3])           -- Vector[1, NA, NA]</code></pre>
 id="nodecommand-runtime-t-serializer-default-deserializer-default-functions-include-noop-false"><code>node(command, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false)</code></h3>
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node.</p>
-<p><strong>Parameters:</strong> - <code>command</code> — The expression
-to evaluate (positional or named). - <code>runtime</code> (optional) —
-The runtime environment (<code>T</code>, <code>R</code>,
-<code>Python</code>). Default: <code>T</code>. - <code>serializer</code>
-(optional) — Write artifact overriding mechanism. -
-<code>deserializer</code> (optional) — Read artifact overriding
-mechanism. - <code>functions</code> (optional) — Code files to source
-before execution. - <code>include</code> (optional) — Additional files
-to bring into the sandbox. - <code>noop</code> (optional) — Whether to
-skip execution and generate a stub.</p>
-<p><strong>Returns:</strong> The evaluated return value of the node
-<code>command</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>command</code> — The expression to evaluate (positional or
+named).</li>
+<li><code>runtime</code> (optional) — The runtime environment
+(<code>T</code>, <code>R</code>, <code>Python</code>). Default:
+<code>T</code>.</li>
+<li><code>serializer</code> (optional) — Write artifact overriding
+mechanism.</li>
+<li><code>deserializer</code> (optional) — Read artifact overriding
+mechanism.</li>
+<li><code>functions</code> (optional) — Code files to source before
+execution.</li>
+<li><code>include</code> (optional) — Additional files to bring into the
+sandbox.</li>
+<li><code>noop</code> (optional) — Whether to skip execution and
+generate a stub.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The evaluated return value of the node <code>command</code>.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline {
-  y = node(command = x + 5, runtime = T)
-  z = node(
-    command = build_model(y),
-    runtime = R,
-    functions = [&quot;utils.R&quot;],
-    include = &quot;config.yml&quot;
-  )
+y = node(command = x + 5, runtime = T)
+z = node(
+command = build_model(y),
+runtime = R,
+functions = [&quot;utils.R&quot;],
+include = &quot;config.yml&quot;
+)
 }</code></pre>
 <hr />
 <h3
@@ -984,43 +1239,56 @@ id="pyncommand-serializer-default-deserializer-default-functions-include-noop-fa
 <p>Configure a Python Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Python"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Python code.</p>
-<p><strong>Parameters:</strong> - <code>command</code> — The expression
-to evaluate inside the Python node (must be enclosed in
-<code>&lt;{ ... }&gt;</code> blocks). - <code>serializer</code>
-(optional) — Custom serializer function. Default: <code>default</code>.
-- <code>deserializer</code> (optional) — Custom deserializer function.
-Default: <code>default</code>. - <code>functions</code> (optional) —
-Python files to source before execution. - <code>include</code>
-(optional) — Additional files for the sandbox. - <code>noop</code>
-(optional) — Whether to skip execution and generate a stub. Default:
-<code>false</code>.</p>
-<p><strong>Returns:</strong> The evaluated return value of the
-command.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>command</code> — The expression to evaluate inside the Python
+node (must be enclosed in <code>&lt;{ ... }&gt;</code> blocks).</li>
+<li><code>serializer</code> (optional) — Custom serializer function.
+Default: <code>default</code>.</li>
+<li><code>deserializer</code> (optional) — Custom deserializer function.
+Default: <code>default</code>.</li>
+<li><code>functions</code> (optional) — Python files to source before
+execution.</li>
+<li><code>include</code> (optional) — Additional files for the
+sandbox.</li>
+<li><code>noop</code> (optional) — Whether to skip execution and
+generate a stub. Default: <code>false</code>.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The evaluated return value of the command.</p>
 <hr />
 <h3
 id="rncommand-serializer-default-deserializer-default-functions-include-noop-false"><code>rn(command, serializer = "default", deserializer = "default", functions = [], include = [], noop = false)</code></h3>
 <p>Configure an R Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "R"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute R code.</p>
-<p><strong>Parameters:</strong> - <code>command</code> — The expression
-to evaluate inside the R node (must be enclosed in
-<code>&lt;{ ... }&gt;</code> blocks). - <code>serializer</code>
-(optional) — Custom serializer function. Default: <code>default</code>.
-- <code>deserializer</code> (optional) — Custom deserializer function.
-Default: <code>default</code>. - <code>functions</code> (optional) — R
-scripts to source before execution. - <code>include</code> (optional) —
-Additional files for the sandbox. - <code>noop</code> (optional) —
-Whether to skip execution and generate a stub. Default:
-<code>false</code>.</p>
-<p><strong>Returns:</strong> The evaluated return value of the
-command.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>command</code> — The expression to evaluate inside the R node
+(must be enclosed in <code>&lt;{ ... }&gt;</code> blocks).</li>
+<li><code>serializer</code> (optional) — Custom serializer function.
+Default: <code>default</code>.</li>
+<li><code>deserializer</code> (optional) — Custom deserializer function.
+Default: <code>default</code>.</li>
+<li><code>functions</code> (optional) — R scripts to source before
+execution.</li>
+<li><code>include</code> (optional) — Additional files for the
+sandbox.</li>
+<li><code>noop</code> (optional) — Whether to skip execution and
+generate a stub. Default: <code>false</code>.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The evaluated return value of the command.</p>
 <hr />
 <h3
 id="pipeline_nodespipeline"><code>pipeline_nodes(pipeline)</code></h3>
 <p>Get all node names in a pipeline.</p>
-<p><strong>Parameters:</strong> - <code>pipeline</code> — Pipeline
-object</p>
-<p><strong>Returns:</strong> List of Strings (node names)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>pipeline</code> — Pipeline object</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>List of Strings (node names)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { x = 1; y = 2; z = x + y }
 pipeline_nodes(p)  -- [&quot;x&quot;, &quot;y&quot;, &quot;z&quot;]</code></pre>
@@ -1028,9 +1296,13 @@ pipeline_nodes(p)  -- [&quot;x&quot;, &quot;y&quot;, &quot;z&quot;]</code></pre>
 <h3
 id="pipeline_depspipeline-node_name"><code>pipeline_deps(pipeline, node_name)</code></h3>
 <p>Get dependencies of a specific node.</p>
-<p><strong>Parameters:</strong> - <code>pipeline</code> — Pipeline
-object - <code>node_name</code> — Name of the node (String)</p>
-<p><strong>Returns:</strong> List of Strings (dependency names)</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>pipeline</code> — Pipeline object</li>
+<li><code>node_name</code> — Name of the node (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>List of Strings (dependency names)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { x = 1; y = 2; z = x + y }
 pipeline_deps(p, &quot;z&quot;)  -- [&quot;x&quot;, &quot;y&quot;]
@@ -1039,9 +1311,13 @@ pipeline_deps(p, &quot;x&quot;)  -- []</code></pre>
 <h3
 id="pipeline_nodepipeline-node_name"><code>pipeline_node(pipeline, node_name)</code></h3>
 <p>Get the value of a specific node.</p>
-<p><strong>Parameters:</strong> - <code>pipeline</code> — Pipeline
-object - <code>node_name</code> — Name of the node (String)</p>
-<p><strong>Returns:</strong> Node value</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>pipeline</code> — Pipeline object</li>
+<li><code>node_name</code> — Name of the node (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Node value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { x = 10; doubled = x * 2 }
 pipeline_node(p, &quot;x&quot;)       -- 10
@@ -1049,9 +1325,12 @@ pipeline_node(p, &quot;doubled&quot;) -- 20</code></pre>
 <hr />
 <h3 id="pipeline_runpipeline"><code>pipeline_run(pipeline)</code></h3>
 <p>Re-execute a pipeline in-memory.</p>
-<p><strong>Parameters:</strong> - <code>pipeline</code> — Pipeline
-object</p>
-<p><strong>Returns:</strong> Pipeline object with updated values</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>pipeline</code> — Pipeline object</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Pipeline object with updated values</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { x = 10; y = x * 2 }
 p2 = pipeline_run(p)</code></pre>
@@ -1059,10 +1338,14 @@ p2 = pipeline_run(p)</code></pre>
 <h3
 id="populate_pipelinepipeline-build-false"><code>populate_pipeline(pipeline, build = false)</code></h3>
 <p>Prepare pipeline infrastructure in <code>_pipeline/</code>.</p>
-<p><strong>Parameters:</strong> - <code>pipeline</code> — Pipeline
-object - <code>build</code> (optional) — If true, triggers a Nix build
-of all nodes.</p>
-<p><strong>Returns:</strong> Success message or Error.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>pipeline</code> — Pipeline object</li>
+<li><code>build</code> (optional) — If true, triggers a Nix build of all
+nodes.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Success message or Error.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>populate_pipeline(p)
 populate_pipeline(p, build = true)</code></pre>
@@ -1071,16 +1354,22 @@ populate_pipeline(p, build = true)</code></pre>
 id="build_pipelinepipeline"><code>build_pipeline(pipeline)</code></h3>
 <p>Shorthand for <code>populate_pipeline(p, build = true)</code>.
 Recommended for scripts run with <code>t run</code>.</p>
-<p><strong>Parameters:</strong> - <code>pipeline</code> — Pipeline
-object</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>pipeline</code> — Pipeline object</li>
+</ul>
 <hr />
 <h3
 id="read_nodename-which_log-null"><code>read_node(name, which_log = null)</code></h3>
 <p>Read a materialized artifact from a previous build.</p>
-<p><strong>Parameters:</strong> - <code>name</code> — Name of the node
-to read (String) - <code>which_log</code> (optional) — Regex pattern or
-filename of a specific build log. Defaults to latest.</p>
-<p><strong>Returns:</strong> Deserialized value.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>name</code> — Name of the node to read (String)</li>
+<li><code>which_log</code> (optional) — Regex pattern or filename of a
+specific build log. Defaults to latest.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Deserialized value.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>read_node(&quot;summary_stats&quot;)
 read_node(&quot;model_v1&quot;, which_log = &quot;20260221&quot;)</code></pre>
@@ -1088,15 +1377,20 @@ read_node(&quot;model_v1&quot;, which_log = &quot;20260221&quot;)</code></pre>
 <h3
 id="inspect_pipelinewhich_log-null"><code>inspect_pipeline(which_log = null)</code></h3>
 <p>View build status and output paths for a pipeline build.</p>
-<p><strong>Parameters:</strong> - <code>which_log</code> (optional) —
-Specific build log to inspect.</p>
-<p><strong>Returns:</strong> DataFrame with columns: <code>node</code>,
-<code>success</code>, <code>path</code>, <code>output</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>which_log</code> (optional) — Specific build log to
+inspect.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with columns: <code>node</code>, <code>success</code>,
+<code>path</code>, <code>output</code>.</p>
 <hr />
 <h3 id="list_logs"><code>list_logs()</code></h3>
 <p>List all available build logs in <code>_pipeline/</code>.</p>
-<p><strong>Returns:</strong> DataFrame with columns:
-<code>filename</code>, <code>mod_time</code>, <code>size_kb</code>.</p>
+<p><strong>Returns:</strong></p>
+<p>DataFrame with columns: <code>filename</code>, <code>mod_time</code>,
+<code>size_kb</code>.</p>
 <hr />
 <h2 id="explain-package">Explain Package</h2>
 <p>Introspection and LLM tooling.</p>
@@ -1106,8 +1400,12 @@ compact summary by default showing <code>kind</code>, <code>nrow</code>,
 <code>ncol</code>, and a <code>hint</code>. Detailed fields
 (<code>schema</code>, <code>na_stats</code>, <code>example_rows</code>)
 are accessible via dot notation.</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value</p>
-<p><strong>Returns:</strong> Dict with introspection data</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Dict with introspection data</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>explain(42)
 -- {`kind`: &quot;value&quot;, `type`: &quot;Int&quot;, `value`: 42}
@@ -1122,17 +1420,24 @@ explain(df).example_rows  -- first 5 rows as list of dicts</code></pre>
 <hr />
 <h3 id="explain_jsonvalue"><code>explain_json(value)</code></h3>
 <p>Export value metadata as JSON (for LLM consumption).</p>
-<p><strong>Parameters:</strong> - <code>value</code> — Any value</p>
-<p><strong>Returns:</strong> JSON String</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — Any value</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>JSON String</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>explain_json(df)
 -- {&quot;type&quot;: &quot;DataFrame&quot;, &quot;rows&quot;: 100, &quot;columns&quot;: [&quot;name&quot;, &quot;age&quot;, ...]}</code></pre>
 <hr />
 <h3 id="intent_fieldsintent"><code>intent_fields(intent)</code></h3>
 <p>Get all fields from an intent block.</p>
-<p><strong>Parameters:</strong> - <code>intent</code> — Intent
-object</p>
-<p><strong>Returns:</strong> Dict of field names to values</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>intent</code> — Intent object</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Dict of field names to values</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>i = intent { description: &quot;Analysis&quot;, assumes: &quot;Clean data&quot; }
 intent_fields(i)
@@ -1141,9 +1446,13 @@ intent_fields(i)
 <h3
 id="intent_getintent-field"><code>intent_get(intent, field)</code></h3>
 <p>Get a specific field from an intent block.</p>
-<p><strong>Parameters:</strong> - <code>intent</code> — Intent object -
-<code>field</code> — Field name (String)</p>
-<p><strong>Returns:</strong> Field value</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>intent</code> — Intent object</li>
+<li><code>field</code> — Field name (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Field value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>i = intent { description: &quot;Customer analysis&quot; }
 intent_get(i, &quot;description&quot;)  -- &quot;Customer analysis&quot;</code></pre>

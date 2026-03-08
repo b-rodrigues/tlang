@@ -18,6 +18,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "is_leap_year on integer" {|is_leap_year(2024)|} "true";
   test "days_in_month on integers" {|days_in_month(2024, 2)|} "29";
   test "within interval" {|`%within%`(ymd("2024-01-15"), interval(ymd("2024-01-01"), ymd("2024-01-31")))|} "true";
+  test "make_date creates valid date" {|make_date(year=2024, month=2, day=29)|} "Date(2024-02-29)";
+  test "make_datetime creates valid datetime" {|make_datetime(year=2024, month=2, day=29, hour=13, min=40)|} "Datetime(2024-02-29T13:40:00Z[UTC])";
+  test "am returns true for morning" {|am(ymd_hms("2024-01-15 09:30:00"))|} "true";
+  test "pm returns true for afternoon" {|pm(ymd_hms("2024-01-15 13:30:00"))|} "true";
   test "vectorized year works on pulled dates"
     {|df = dataframe([[s: "2024-01-01"], [s: "2025-02-03"]]); year(ymd(pull(df, "s")))|}
     "Vector[2024, 2025]";

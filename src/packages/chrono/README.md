@@ -8,6 +8,8 @@ Date and datetime parsing, extraction, formatting, and calendar arithmetic.
 |----------|-------------|
 | `ymd(s)` / `mdy(s)` / `dmy(s)` / `ydm(s)` | Parse common date string layouts into `Date` values |
 | `ymd_h(s)` / `ymd_hm(s)` / `ymd_hms(s)` | Parse common datetime layouts into `Datetime` values |
+| `make_date(year, month, day)` | Construct a `Date` value from individual numeric components |
+| `make_datetime(year, month, day, hour, min, sec, tz)` | Construct a `Datetime` from components and timezone label |
 | `parse_date(s, format)` | Parse a date with a custom `strptime`-style format |
 | `parse_datetime(s, format)` | Parse a datetime with a custom `strptime`-style format |
 | `today()` / `now()` | Return the current UTC date or datetime |
@@ -15,6 +17,7 @@ Date and datetime parsing, extraction, formatting, and calendar arithmetic.
 | `yday(x)` / `wday(x)` / `week(x)` / `isoweek(x)` / `isoyear(x)` | Extract day/week-based components |
 | `quarter(x)` / `semester(x)` | Extract larger calendar partitions |
 | `hour(x)` / `minute(x)` / `second(x)` / `tz(x)` | Extract time-of-day and timezone information |
+| `am(x)` / `pm(x)` | Predicates to check morning/afternoon logic |
 | `years(n)` / `months(n)` / `weeks(n)` / `days(n)` | Construct calendar periods |
 | `hours(n)` / `minutes(n)` / `seconds(n)` | Construct time periods |
 | `milliseconds(n)` / `microseconds(n)` / `nanoseconds(n)` | Construct sub-second periods |

@@ -382,6 +382,10 @@ p |> pipeline_assert   -- throws on first error; returns pipeline if valid
 - `fct_c(... :: Vector) :: Vector`
 
 ### Chrono
+- `make_date(year = 1970, month = 1, day = 1) :: Date`
+- `make_datetime(year = 1970, month = 1, day = 1, hour = 0, min = 0, sec = 0, tz = "UTC") :: Datetime`
+- `am(x :: Date | Datetime) :: Bool`
+- `pm(x :: Date | Datetime) :: Bool`
 - `interval(start :: Date | Datetime, end :: Date | Datetime) :: Interval`
 - `` `%within%`(x :: Date | Datetime, iv :: Interval) :: Bool ``
 - `floor_date(x :: Date | Datetime, unit :: String) :: Date | Datetime`

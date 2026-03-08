@@ -41,12 +41,11 @@ data_manipulation_examples</h1>
 <blockquote>
 <p>Practical examples of data wrangling with T’s core verbs</p>
 </blockquote>
-<p>T provides six core data manipulation functions in the
-<code>colcraft</code> package: <code>select()</code>,
-<code>filter()</code>, <code>mutate()</code>, <code>arrange()</code>,
-<code>group_by()</code>, and <code>summarize()</code>. All functions
-take a DataFrame as their first argument and return a new DataFrame,
-making them composable with the pipe operator.</p>
+<p>T provides a powerful suite of data manipulation functions in the
+<code>colcraft</code> package, inspired by <code>dplyr</code> and
+<code>tidyr</code>. These functions take a DataFrame as their first
+argument and return a new DataFrame, making them highly composable with
+the pipe operator.</p>
 <hr />
 <h2 id="loading-data">Loading Data</h2>
 <pre class="t"><code>df = read_csv(&quot;employees.csv&quot;)
@@ -54,14 +53,12 @@ making them composable with the pipe operator.</p>
 
 nrow(df)      -- 100
 ncol(df)      -- 5
-colnames(df)  -- [&quot;name&quot;, &quot;age&quot;, &quot;score&quot;, &quot;dept&quot;, &quot;salary&quot;]
-
-### glimpse() — Inspect DataFrame Structure
-
-Use `glimpse()` for a quick, tidy overview of a DataFrame&#39;s structure, dimensions, and contents:
-
-```t
-df |&gt; glimpse()
+colnames(df)  -- [&quot;name&quot;, &quot;age&quot;, &quot;score&quot;, &quot;dept&quot;, &quot;salary&quot;]</code></pre>
+<h3 id="glimpse-inspect-dataframe-structure">glimpse() — Inspect
+DataFrame Structure</h3>
+<p>Use <code>glimpse()</code> for a quick, tidy overview of a
+DataFrame’s structure, dimensions, and contents:</p>
+<pre class="t"><code>df |&gt; glimpse()
 -- # A DataFrame: 100 × 5
 -- name   (String): &quot;Alice&quot;, &quot;Bob&quot;, &quot;Charlie&quot;, ...
 -- age    (Int): 30, 25, 42, ...
@@ -208,6 +205,95 @@ df |&gt; group_by($dept)
    |&gt; summarize($count, \(g) nrow(g))
 -- DataFrame(N rows x 2 cols: [dept, count])
 -- One row per group</code></pre>
+<hr />
+<h2 id="reshaping-data-tidyr">Reshaping Data (tidyr)</h2>
+<p>T includes a robust implementation of tidying functions for reshaping
+your data.</p>
+<h3 id="pivot_longer-lengthen-data">pivot_longer() — Lengthen Data</h3>
+<p>Pivots data from wide to long format by consolidating multiple
+columns into name-value pairs.</p>
+<pre class="t"><code>-- Pivot age and score into a single &quot;measure&quot; column
+df |&gt; pivot_longer($age, $score, names_to = &quot;measure&quot;, values_to = &quot;val&quot;)
+
+-- Resulting columns: name, dept, salary, measure, val</code></pre>
+<h3 id="pivot_wider-widen-data">pivot_wider() — Widen Data</h3>
+<p>Pivots data from long to wide format by spreading unique values
+across multiple columns.</p>
+<pre class="t"><code>-- Widen by department names, using salary as values
+df |&gt; select($name, $dept, $salary)
+   |&gt; pivot_wider(names_from = $dept, values_from = $salary)</code></pre>
+<h3 id="separate-split-columns">separate() — Split Columns</h3>
+<p>Splits a single character column into multiple columns based on a
+delimiter.</p>
+<pre class="t"><code>-- Split a &quot;date&quot; column into &quot;year&quot;, &quot;month&quot;, &quot;day&quot;
+df |&gt; separate($date, into = [&quot;year&quot;, &quot;month&quot;, &quot;day&quot;], sep = &quot;-&quot;)</code></pre>
+<h3 id="unite-combine-columns">unite() — Combine Columns</h3>
+<p>Combines multiple columns into a single character column.</p>
+<pre class="t"><code>-- Combine year, month, day into a single &quot;full_date&quot; column
+df |&gt; unite(&quot;full_date&quot;, $year, $month, $day, sep = &quot;-&quot;)</code></pre>
+<hr />
+<h2 id="missing-value-handling">Missing Value Handling</h2>
+<h3 id="drop_na-remove-nas">drop_na() — Remove NAs</h3>
+<p>Removes rows containing missing values in the specified columns.</p>
+<pre class="t"><code>-- Remove rows where Ozone or Solar.R are NA
+df |&gt; drop_na($Ozone, $`Solar.R`) -- Dots in names require backticks</code></pre>
+<h3 id="replace_na-replace-nas">replace_na() — Replace NAs</h3>
+<p>Replaces missing values with a specific constant for each column.</p>
+<pre class="t"><code>-- Replace NAs in Ozone with 0
+df |&gt; replace_na([Ozone: 0, `Solar.R`: 0])</code></pre>
+<h3 id="fill-fill-gaps">fill() — Fill Gaps</h3>
+<p>Propagates non-missing values in a specific direction.</p>
+<pre class="t"><code>-- Fill missing categories downwards
+df |&gt; fill($category, .direction = &quot;down&quot;)</code></pre>
+<hr />
+<h2 id="completing-and-expanding-data">Completing and Expanding
+Data</h2>
+<h3 id="complete-make-implicit-missing-values-explicit">complete() —
+Make Implicit Missing Values Explicit</h3>
+<p>Ensures all combinations of the specified columns exist in the
+data.</p>
+<pre class="t"><code>-- Ensure every item has a row for every group
+df |&gt; complete($group, $item_id, fill = [value: 0])</code></pre>
+<h3 id="expand-generate-all-combinations">expand() — Generate All
+Combinations</h3>
+<p>Generates all unique combinations of variables found in a
+dataset.</p>
+<pre class="t"><code>-- Every combination of type and size, regardless of whether it exists in df
+df |&gt; expand($type, $size)</code></pre>
+<h3 id="crossing-cartesian-product">crossing() — Cartesian Product</h3>
+<p>Creates a new DataFrame from the cross-product of inputs.</p>
+<pre class="t"><code>-- Independent of any existing DataFrame
+crossing(x = [1, 2, 3], y = [&quot;a&quot;, &quot;b&quot;])</code></pre>
+<h3 id="nesting-restrict-combinations">nesting() — Restrict
+Combinations</h3>
+<p>Used inside <code>expand()</code> or <code>complete()</code> to only
+include combinations already present in the data.</p>
+<pre class="t"><code>-- Only combinations of type and size that actually appear in the data
+df |&gt; expand(nesting($type, $size))
+
+-- In complete(): use nesting() to restrict some columns to existing combinations
+df |&gt; complete($group, nesting($item_id, $item_name))</code></pre>
+<hr />
+<h2 id="factors-categorical-variables">Factors — Categorical
+Variables</h2>
+<p>Create categorical data with defined levels. Factors respect their
+level order when sorting, rather than alphabetical order.</p>
+<h3 id="factor-create-a-factor">factor() — Create a Factor</h3>
+<p>Creates a factor from a vector or column, optionally specifying
+levels.</p>
+<pre class="t"><code>-- Create a factor from a vector
+let f = factor([&quot;low&quot;, &quot;high&quot;, &quot;medium&quot;], levels = [&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;])
+
+-- Create a factor column using mutate
+df |&gt; mutate($size_fct = factor($size, levels = [&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;]))</code></pre>
+<h3 id="as_factor-coerce-to-factor">as_factor() — Coerce to Factor</h3>
+<p>Coerces a column to a factor (categorical) value, deriving levels
+from the unique values present.</p>
+<pre class="t"><code>df |&gt; mutate($category = as_factor($category))</code></pre>
+<h3 id="fct_infreq-reorder-levels-by-frequency">fct_infreq() — Reorder
+Levels by Frequency</h3>
+<p>Reorders factor levels in descending order of frequency.</p>
+<pre class="t"><code>df |&gt; mutate($category = fct_infreq($category))</code></pre>
 <hr />
 <h2 id="grouped-mutate-group-wise-transformations">Grouped Mutate —
 Group-Wise Transformations</h2>

@@ -732,7 +732,6 @@ let interval_impl args _env =
                iv_tz = (match start_tz with Some _ -> start_tz | None -> end_tz);
              }
        | Error err, _ | _, Error err -> err)
-  | [_; _] -> Error.type_error "Function `interval` expects (Date|Datetime, Date|Datetime)."
   | values -> Error.arity_error_named "interval" ~expected:2 ~received:(List.length values)
 
 let within_impl args _env =
@@ -1131,4 +1130,60 @@ let register env =
   let env = Env.add "%within%" (make_builtin ~name:"%within%" 2 within_impl) env in
   let env = Env.add "is_leap_year" (make_builtin ~name:"is_leap_year" 1 leap_year_impl) env in
   let env = Env.add "days_in_month" (make_builtin ~name:"days_in_month" ~variadic:true 1 days_in_month_impl) env in
+  let env = Env.add "make_date" (make_builtin_named ~name:"make_date" ~variadic:true 0 (fun named_args _env ->
+    let get_int name default = match int_named_arg name default named_args with Ok v -> Ok v | Error e -> Error e in
+    let ( let* ) result f = match result with Ok value -> f value | Error err -> Error err in
+    match
+      let* year = get_int "year" 1970 in
+      let* month = get_int "month" 1 in
+      let* day = get_int "day" 1 in
+      Ok (year, month, day)
+    with
+    | Ok (y, m, d) ->
+        if is_valid_date y m d then
+          VDate (days_from_civil y m d)
+        else
+          Error.value_error (Printf.sprintf "Invalid date components: %04d-%02d-%02d" y m d)
+    | Error err -> err)) env in
+  let env = Env.add "make_datetime" (make_builtin_named ~name:"make_datetime" ~variadic:true 0 (fun named_args _env ->
+    let get_int name default = match int_named_arg name default named_args with Ok v -> Ok v | Error e -> Error e in
+    let ( let* ) result f = match result with Ok value -> f value | Error err -> Error err in
+    match
+      let* year = get_int "year" 1970 in
+      let* month = get_int "month" 1 in
+      let* day = get_int "day" 1 in
+      let* hour = get_int "hour" 0 in
+      let* min = get_int "min" 0 in
+      let* sec = get_int "sec" 0 in
+      let* tz = string_named_arg "tz" (Some "UTC") named_args in
+      Ok (year, month, day, hour, min, sec, tz)
+    with
+    | Ok (y, mo, d, h, m, s, tz) ->
+        if is_valid_date y mo d && is_valid_time h m s 0 then
+          VDatetime (datetime_of_components y mo d h m s 0, tz)
+        else
+          Error.value_error (Printf.sprintf "Invalid datetime components: %04d-%02d-%02d %02d:%02d:%02d" y mo d h m s)
+    | Error err -> err)) env in
+  let env =
+    Env.add "am"
+      (scalar_date_component "am" (fun value ->
+           match value with
+           | VDate _ -> Some (VBool true)
+           | VDatetime (micros, _) ->
+               let _, _, _, h, _, _, _ = split_datetime_micros micros in
+               Some (VBool (h < 12))
+           | _ -> None))
+      env
+  in
+  let env =
+    Env.add "pm"
+      (scalar_date_component "pm" (fun value ->
+           match value with
+           | VDate _ -> Some (VBool false)
+           | VDatetime (micros, _) ->
+               let _, _, _, h, _, _, _ = split_datetime_micros micros in
+               Some (VBool (h >= 12))
+           | _ -> None))
+      env
+  in
   env
