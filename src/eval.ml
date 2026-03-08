@@ -552,10 +552,13 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
           let has_command = command <> Value VNull in
           let has_any_script_path = script_path_opt <> None in
           if has_command && has_any_script_path then
-            Error.make_error TypeError
-              (Printf.sprintf
-                 "%s() cannot use 'command' together with a script path (from 'script' or args.path/file/qmd_file/input) — choose one."
-                 fn_name)
+            let msg =
+              if explicit_script_path_opt <> None then
+                Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name
+              else
+                Printf.sprintf "%s() cannot use 'command' together with a script path (from args.path/file/qmd_file/input) — choose one." fn_name
+            in
+            Error.make_error TypeError msg
           else
             let default_runtime = match call with
               | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
