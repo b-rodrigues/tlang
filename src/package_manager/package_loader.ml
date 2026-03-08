@@ -57,28 +57,43 @@ let load_private_names (pkg_dir : string) : string list =
   end else
     []
 
+(** Collect top-level names defined by a program. *)
+let defined_names_in_program (program : Ast.program) : string list =
+  List.fold_left (fun acc stmt ->
+    match stmt with
+    | Ast.Assignment { name; _ }
+    | Ast.Reassignment { name; _ } ->
+        if List.mem name acc || name = Import_registry.metadata_key then acc
+        else acc @ [name]
+    | _ -> acc
+  ) [] program
+
 (** Evaluate all .t source files in a package directory.
     [do_eval_program] is injected by the caller to avoid a dependency on Eval. *)
 let eval_package_sources
     ~(do_eval_program : Ast.program -> Ast.environment -> Ast.value * Ast.environment)
     (pkg_dir : string)
     (base_env : Ast.environment)
-    : (Ast.environment, string) result =
+    : ((Ast.environment * string list), string) result =
   let files = package_source_files pkg_dir in
   if files = [] then
     Error (Printf.sprintf "Package directory '%s' has no valid src/ directory or it is empty" pkg_dir)
   else
     try
-      let pkg_env = List.fold_left (fun env file ->
+      let (pkg_env, defined_names) = List.fold_left (fun (env, names) file ->
         let ch = open_in file in
         let content = really_input_string ch (in_channel_length ch) in
         close_in ch;
         let lexbuf = Lexing.from_string content in
         let program = Parser.program Lexer.token lexbuf in
+        let program_names = defined_names_in_program program in
         let (_v, new_env) = do_eval_program program env in
-        new_env
-      ) base_env files in
-      Ok pkg_env
+        let updated_names = List.fold_left (fun acc name ->
+          if List.mem name acc then acc else acc @ [name]
+        ) names program_names in
+        (new_env, updated_names)
+      ) (base_env, []) files in
+      Ok (pkg_env, defined_names)
     with
     | Lexer.SyntaxError msg ->
         Error (Printf.sprintf "Package '%s' syntax error: %s" (Filename.basename pkg_dir) msg)
@@ -87,13 +102,59 @@ let eval_package_sources
     | Sys_error msg ->
         Error (Printf.sprintf "Package '%s' file error: %s" (Filename.basename pkg_dir) msg)
 
-(** Compute the set of new bindings introduced by a package env compared to a base env. *)
-let new_bindings (base_env : Ast.environment) (pkg_env : Ast.environment)
+(** Compute the set of bindings defined or newly introduced by a package. *)
+let package_bindings
+    (base_env : Ast.environment)
+    (defined_names : string list)
+    (pkg_env : Ast.environment)
     : (string * Ast.value) list =
-  Ast.Env.fold (fun name value acc ->
-    if Ast.Env.mem name base_env then acc
-    else (name, value) :: acc
-  ) pkg_env []
+  let names =
+    Ast.Env.fold (fun name _ acc ->
+      if name = Import_registry.metadata_key || List.mem name acc then
+        acc
+      else if Ast.Env.mem name base_env || List.mem name defined_names then
+        if List.mem name defined_names then acc @ [name] else acc
+      else
+        acc @ [name]
+    ) pkg_env defined_names
+  in
+  List.filter_map (fun name ->
+    match Ast.Env.find_opt name pkg_env with
+    | Some value -> Some (name, value)
+    | None -> None
+  ) names
+
+let prefixed_name package_name binding_name =
+  package_name ^ "_" ^ binding_name
+
+let add_imported_binding env target_name value package_name =
+  let env = Ast.Env.add target_name value env in
+  Import_registry.set_origin env target_name (Import_registry.ImportedPackage package_name)
+
+let resolve_binding_conflict
+    ~(package_name : string)
+    ~(binding_name : string)
+    (value : Ast.value)
+    (env : Ast.environment) : Ast.environment =
+  match Import_registry.find_origin env binding_name with
+  | Some (Import_registry.ImportedPackage existing_pkg) when existing_pkg = package_name ->
+      add_imported_binding env binding_name value package_name
+  | Some (Import_registry.ImportedPackage existing_pkg) ->
+      let env =
+        match Ast.Env.find_opt binding_name env with
+        | Some existing_value ->
+            let env = Ast.Env.remove binding_name env in
+            let env = Import_registry.remove_origin env binding_name in
+            add_imported_binding env (prefixed_name existing_pkg binding_name) existing_value existing_pkg
+        | None -> env
+      in
+      add_imported_binding env (prefixed_name package_name binding_name) value package_name
+  | Some Import_registry.Builtin
+  | None ->
+      if Ast.Env.mem binding_name env then
+        add_imported_binding env (prefixed_name package_name binding_name) value package_name
+      else
+        add_imported_binding env binding_name value package_name
 
 (** Load a package and import all public names into the caller's env. *)
 let load_package
@@ -106,14 +167,14 @@ let load_package
   | Some pkg_dir ->
     match eval_package_sources ~do_eval_program pkg_dir env with
     | Error msg -> Error msg
-    | Ok pkg_env ->
+    | Ok (pkg_env, defined_names) ->
       let private_names = load_private_names pkg_dir in
-      let bindings = new_bindings env pkg_env in
+      let bindings = package_bindings env defined_names pkg_env in
       let public_bindings = List.filter (fun (n, _) ->
         not (List.mem n private_names)
       ) bindings in
       let new_env = List.fold_left (fun acc (n, v) ->
-        Ast.Env.add n v acc
+        resolve_binding_conflict ~package_name:name ~binding_name:n v acc
       ) env public_bindings in
       Ok new_env
 
@@ -128,9 +189,9 @@ let load_package_selective
   | Some pkg_dir ->
     match eval_package_sources ~do_eval_program pkg_dir env with
     | Error msg -> Error msg
-    | Ok pkg_env ->
+    | Ok (pkg_env, defined_names) ->
       let private_names = load_private_names pkg_dir in
-      let bindings = new_bindings env pkg_env in
+      let bindings = package_bindings env defined_names pkg_env in
       List.fold_left (fun acc (spec : Ast.import_spec) ->
         match acc with
         | Error _ -> acc
@@ -140,11 +201,14 @@ let load_package_selective
           else
             match List.assoc_opt spec.import_name bindings with
             | None ->
-              Error (Printf.sprintf "Name '%s' not found in package '%s'." spec.import_name name)
+                Error (Printf.sprintf "Name '%s' not found in package '%s'." spec.import_name name)
             | Some value ->
-              let target_name = match spec.import_alias with
-                | Some alias -> alias
-                | None -> spec.import_name
-              in
-              Ok (Ast.Env.add target_name value current_env)
+                let target_name = match spec.import_alias with
+                  | Some alias -> alias
+                  | None -> spec.import_name
+                in
+                if spec.import_alias = None then
+                  Ok (resolve_binding_conflict ~package_name:name ~binding_name:target_name value current_env)
+                else
+                  Ok (Ast.Env.add target_name value current_env)
       ) (Ok env) specs

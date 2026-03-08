@@ -1,7 +1,7 @@
 (* tests/package_manager/test_package_manager.ml *)
 (* Tests for the package management scaffolding system *)
 
-let run_tests pass_count fail_count _eval_string _eval_string_env _test =
+let run_tests pass_count fail_count _eval_string eval_string_env _test =
   (* --- Helper for package_manager-specific tests --- *)
   let test_pm name check =
     if check () then begin
@@ -201,6 +201,37 @@ min_version = "0.5.0"
         Unix.rmdir path
       end else
         Sys.remove path
+  in
+
+  let create_test_package base_dir package_name source =
+    let pkg_dir = Filename.concat base_dir package_name in
+    let src_dir = Filename.concat pkg_dir "src" in
+    Unix.mkdir pkg_dir 0o755;
+    Unix.mkdir src_dir 0o755;
+    let ch = open_out (Filename.concat src_dir "main.t") in
+    output_string ch source;
+    close_out ch
+  in
+
+  let with_package_path path f =
+    let original =
+      try Some (Sys.getenv "T_PACKAGE_PATH") with Not_found -> None
+    in
+    Unix.putenv "T_PACKAGE_PATH" path;
+    let restore () =
+      match original with
+      | Some value -> Unix.putenv "T_PACKAGE_PATH" value
+      | None ->
+          Unix.putenv "T_PACKAGE_PATH"
+            (Filename.concat (Filename.get_temp_dir_name ()) "__tlang_no_packages__")
+    in
+    try
+      let result = f () in
+      restore ();
+      result
+    with exn ->
+      restore ();
+      raise exn
   in
 
   test_pm "parse remote tag refs ignores dereferenced tags" (fun () ->
@@ -529,6 +560,74 @@ min_version = "0.5.0"
                 with Not_found -> false in
     has "valid-pkg" && has "valid_pkg2"
     && not (has "$(evil)") && not (has "bad pkg"));
+
+  print_newline ();
+
+  (* ===================================================== *)
+  Printf.printf "Package Manager — Package import conflicts:\n";
+
+  test_pm "full import keeps builtin name and prefixes conflicting package binding" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        create_test_package base_dir "alpha" "mean = 999\nalpha_only = 1\n";
+        let success =
+          with_package_path base_dir (fun () ->
+            let env = Packages.init_env () in
+            let (_v, env_after_import) = eval_string_env "import alpha" env in
+            let (builtin_mean, _) = eval_string_env "type(mean)" env_after_import in
+            let (prefixed_mean, _) = eval_string_env "alpha_mean" env_after_import in
+            let (alpha_only, _) = eval_string_env "alpha_only" env_after_import in
+            Ast.Utils.value_to_string builtin_mean = {|"BuiltinFunction"|}
+            && Ast.Utils.value_to_string prefixed_mean = "999"
+            && Ast.Utils.value_to_string alpha_only = "1")
+        in
+        remove_path base_dir;
+        success);
+
+  test_pm "full import renames both conflicting user package bindings" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        create_test_package base_dir "alpha" "shared = 10\nalpha_only = 1\n";
+        create_test_package base_dir "beta" "shared = 20\nbeta_only = 2\n";
+        let success =
+          with_package_path base_dir (fun () ->
+            let env = Packages.init_env () in
+            let (_v1, env1) = eval_string_env "import alpha" env in
+            let (_v2, env2) = eval_string_env "import beta" env1 in
+            let (alpha_shared, _) = eval_string_env "alpha_shared" env2 in
+            let (beta_shared, _) = eval_string_env "beta_shared" env2 in
+            let (shared, _) = eval_string_env "shared" env2 in
+            let (alpha_only, _) = eval_string_env "alpha_only" env2 in
+            let (beta_only, _) = eval_string_env "beta_only" env2 in
+            let shared_str = Ast.Utils.value_to_string shared in
+            Ast.Utils.value_to_string alpha_shared = "10"
+            && Ast.Utils.value_to_string beta_shared = "20"
+            && String.length shared_str >= 5
+            && String.sub shared_str 0 5 = "Error"
+            && Ast.Utils.value_to_string alpha_only = "1"
+            && Ast.Utils.value_to_string beta_only = "2")
+        in
+        remove_path base_dir;
+        success);
+
+  test_pm "selective import also prefixes conflicting package binding" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        create_test_package base_dir "gamma" "mean = 321\n";
+        let success =
+          with_package_path base_dir (fun () ->
+            let env = Packages.init_env () in
+            let (_v, env_after_import) = eval_string_env "import gamma[mean]" env in
+            let (builtin_mean, _) = eval_string_env "type(mean)" env_after_import in
+            let (prefixed_mean, _) = eval_string_env "gamma_mean" env_after_import in
+            Ast.Utils.value_to_string builtin_mean = {|"BuiltinFunction"|}
+            && Ast.Utils.value_to_string prefixed_mean = "321")
+        in
+        remove_path base_dir;
+        success);
 
   print_newline ();
 
