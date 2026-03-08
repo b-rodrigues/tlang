@@ -450,6 +450,12 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
        | _ -> make_error ArityError "eval() expects exactly 1 argument")
 
   | (Call { fn = Var "node"; args } | Call { fn = Var "py"; args } | Call { fn = Var "pyn"; args } | Call { fn = Var "rn"; args }) as call ->
+      let fn_name = match call with
+        | Call { fn = Var "py"; _ } -> "py"
+        | Call { fn = Var "pyn"; _ } -> "pyn"
+        | Call { fn = Var "rn"; _ } -> "rn"
+        | _ -> "node"
+      in
       let lookup_arg name default =
         match List.assoc_opt (Some name) args with
         | Some e -> e
@@ -474,10 +480,10 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                    | None -> Ok pairs
                    | Some (key, _) ->
                        Error (Error.type_error
-                                (Printf.sprintf "Function `node` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." key)))
+                                (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." fn_name key)))
              | VNull -> Ok []
              | _ ->
-                 Error (Error.type_error "Function `node` expects `env_vars` to be a Dict."))
+                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
       in
       let lookup_list name =
         match List.assoc_opt (Some name) args with
@@ -507,7 +513,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       (* Validate: cannot use both 'command' and 'script' simultaneously *)
       let has_command = command <> Value VNull in
       if has_command && script_path_opt <> None then
-        Error.make_error TypeError "node() cannot use both 'command' and 'script' arguments — choose one."
+        Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
       else
         let default_runtime = match call with
           | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"

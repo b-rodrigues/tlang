@@ -66,10 +66,12 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VString s -> Some s
     | Ast.VSymbol s -> Some s
     | Ast.VInt i -> Some (string_of_int i)
+    (* 15 significant digits is enough to round-trip IEEE-754 doubles predictably
+       for environment-variable use without forcing trailing noise. *)
     | Ast.VFloat f -> Some (Printf.sprintf "%.15g" f)
     | Ast.VBool true -> Some "true"
     | Ast.VBool false -> Some "false"
-    | Ast.VNull -> Some ""
+    | Ast.VNull -> None
     | _ -> None
   in
   let env_var_block =
