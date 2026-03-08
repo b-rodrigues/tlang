@@ -162,7 +162,7 @@ let table_from_value_columns (columns : (string * value array) list) (nrows : in
   let arrow_columns = List.map (fun (name, values) ->
     (name, values_to_column values)
   ) columns in
-  Arrow_table.create arrow_columns nrows |> Arrow_table.materialize
+  Arrow_table.create arrow_columns nrows
 
 (** Convert an Arrow table back to T value columns.
     For native-backed tables, extracts column data via FFI as needed. *)

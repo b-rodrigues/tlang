@@ -11,7 +11,7 @@ let project (t : Arrow_table.t) (names : string list) : Arrow_table.t =
   | Some handle when not handle.Arrow_table.freed ->
       (match Arrow_ffi.arrow_table_project handle.ptr names with
        | Some new_ptr ->
-           let new_schema = List.filter (fun (n, _) -> List.mem n names) t.schema in
+           let new_schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
            Arrow_table.create_from_native new_ptr new_schema t.nrows
        | None ->
            (* Native project failed — fall back to pure OCaml *)
