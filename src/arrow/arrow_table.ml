@@ -234,6 +234,48 @@ let get_string (col : column_data) (row : int) : string option =
   | StringColumn a -> if row < Array.length a then a.(row) else None
   | _ -> None
 
+(* --- Native materialization --- *)
+
+(** Materialize a pure OCaml table into a native Arrow-backed one.
+    Returns the table itself if it already has a native_handle.
+    Tables containing unsupported column builders remain in pure OCaml form. *)
+let materialize (t : t) : t =
+  match t.native_handle with
+  | Some handle when not handle.freed -> t
+  | _ ->
+      let has_unsupported = List.exists (fun (_, col) ->
+        match col with
+        | NullColumn _ | DictionaryColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> true
+        | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ -> false
+      ) t.columns in
+      if has_unsupported then t
+      else
+        let tag_of = function
+          | ArrowInt64 -> 0
+          | ArrowFloat64 -> 1
+          | ArrowBoolean -> 2
+          | ArrowString -> 3
+          | ArrowNull | ArrowDictionary | ArrowDate | ArrowTimestamp _ | ArrowList _ | ArrowStruct _ -> 8
+        in
+        let ffi_cols = List.map (fun (name, type_) ->
+          let data = match List.assoc_opt name t.columns with
+            | Some (IntColumn a) -> Array.map (Option.map Obj.repr) a
+            | Some (FloatColumn a) -> Array.map (Option.map Obj.repr) a
+            | Some (BoolColumn a) -> Array.map (Option.map Obj.repr) a
+            | Some (StringColumn a) -> Array.map (Option.map Obj.repr) a
+            | Some (NullColumn n) -> Array.make n None
+            | Some (DateColumn a) -> Array.map (Option.map Obj.repr) a
+            | Some (DatetimeColumn (a, _)) -> Array.map (Option.map Obj.repr) a
+            | Some (DictionaryColumn (a, _, _)) -> Array.map (Option.map Obj.repr) a
+            | Some (ListColumn _) -> Array.make t.nrows None
+            | None -> Array.make t.nrows None
+          in
+          (name, tag_of type_, data)
+        ) t.schema in
+        match Arrow_ffi.arrow_table_new ffi_cols with
+        | Some ptr -> create_from_native ptr t.schema t.nrows
+        | None -> t
+
 (* --- Table operations --- *)
 
 (** Project (select) columns by name — zero-copy in native Arrow backend.
@@ -245,22 +287,23 @@ let project (t : t) (names : string list) : t =
        | Some new_ptr ->
            let new_schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
            create_from_native new_ptr new_schema t.nrows
-       | None ->
-           (* Fallback if native project fails *)
-           let schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
-           let columns = List.map (fun n -> 
-             match get_column t n with
-             | Some col -> (n, col)
-             | None -> (n, NullColumn t.nrows)
-           ) names in
-           { schema; columns; nrows = t.nrows; native_handle = None })
+        | None ->
+            (* Fallback if native project fails *)
+            let schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
+            let columns = List.map (fun n -> 
+              match get_column t n with
+              | Some col -> (n, col)
+              | None -> (n, NullColumn t.nrows)
+            ) names in
+            { schema; columns; nrows = t.nrows; native_handle = None } |> materialize)
   | _ ->
       let schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
       let columns = List.map (fun n -> (n, List.assoc n t.columns)) names in
-      { schema; columns; nrows = t.nrows; native_handle = None }
+      { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
 
 (** Add or replace a column.
-    Note: adding a column to a native-backed table materializes it as pure OCaml. *)
+    Keeps the result on the native Arrow path when all columns are supported
+    by the Arrow table builder; otherwise falls back to pure OCaml storage. *)
 let add_column (t : t) (name : string) (col : column_data) : t =
   (* Materialize native columns if needed *)
   let base_columns =
@@ -287,7 +330,7 @@ let add_column (t : t) (name : string) (col : column_data) : t =
     else
       t.schema @ [(name, typ)]
   in
-  { schema; columns; nrows = t.nrows; native_handle = None }
+  { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
 
 let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int) : column_data =
   let pick a =
@@ -329,17 +372,17 @@ let filter_rows (t : t) (mask : bool array) : t =
        | Some new_ptr ->
            let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
            create_from_native new_ptr t.schema new_nrows
-       | None ->
-           (* Fallback *)
-           let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
-           let filter_col col = _filter_column_pure col mask new_nrows in
-           let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
-           { schema = t.schema; columns; nrows = new_nrows; native_handle = None })
+        | None ->
+            (* Fallback *)
+            let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
+            let filter_col col = _filter_column_pure col mask new_nrows in
+            let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
+            { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
   | _ ->
       let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
       let filter_col col = _filter_column_pure col mask new_nrows in
       let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
-      { schema = t.schema; columns; nrows = new_nrows; native_handle = None }
+      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
 
 (** Take rows by index list *)
 let take_rows (t : t) (indices : int list) : t =
@@ -357,7 +400,7 @@ let take_rows (t : t) (indices : int list) : t =
   let new_nrows = List.length indices in
   let idx_arr = Array.of_list indices in
   let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) source_columns in
-  { schema = t.schema; columns; nrows = new_nrows; native_handle = None }
+  { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
 
 (** Reorder rows by index array *)
 let sort_by_indices (t : t) (indices : int array) : t =
@@ -385,53 +428,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
     | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
   in
   let columns = List.map (fun (name, col) -> (name, sort_col col)) source_columns in
-  { schema = t.schema; columns; nrows = n; native_handle = None }
-
-
-(** Materialize a pure OCaml table into a native Arrow-backed one.
-    Returns the table itself if it already has a native_handle.
-    Tables containing DictionaryColumn (factor) data are not materialized
-    since the Arrow FFI builder does not yet support dictionary arrays;
-    keeping them in pure OCaml form ensures columns remain accessible. *)
-let materialize (t : t) : t =
-  match t.native_handle with
-  | Some handle when not handle.freed -> t
-  | _ ->
-    (* Skip native materialization if any column type is not yet supported by the
-       Arrow FFI builders. Date and datetime columns are tracked in the schema,
-       but still remain in pure OCaml storage until their writer path is added. *)
-    let has_complex = List.exists (fun (_, col) ->
-      match col with DictionaryColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> true | _ -> false
-    ) t.columns in
-    if has_complex then t
-    else
-    let tag_of = function
-      | ArrowInt64 -> 0
-      | ArrowFloat64 -> 1
-      | ArrowBoolean -> 2
-      | ArrowString -> 3
-      | ArrowNull -> 6
-      | ArrowDictionary -> 7
-      | ArrowDate | ArrowTimestamp _ | ArrowList _ | ArrowStruct _ -> 8
-    in
-    let ffi_cols = List.map (fun (name, type_) ->
-      let data = match List.assoc_opt name t.columns with
-        | Some (IntColumn a) -> Array.map (Option.map Obj.repr) a
-        | Some (FloatColumn a) -> Array.map (Option.map Obj.repr) a
-        | Some (BoolColumn a) -> Array.map (Option.map Obj.repr) a
-        | Some (StringColumn a) -> Array.map (Option.map Obj.repr) a
-        | Some (DateColumn a) -> Array.map (Option.map Obj.repr) a
-        | Some (DatetimeColumn (a, _)) -> Array.map (Option.map Obj.repr) a
-        | Some (DictionaryColumn (a, _, _)) -> Array.map (Option.map Obj.repr) a
-        | Some (ListColumn _) -> Array.make t.nrows None (* Should be unreachable due to has_complex check *)
-        | Some (NullColumn n) -> Array.make n None
-        | None -> Array.make t.nrows None
-      in
-      (name, tag_of type_, data)
-    ) t.schema in
-    match Arrow_ffi.arrow_table_new ffi_cols with
-    | Some ptr -> create_from_native ptr t.schema t.nrows
-    | None -> t (* Fallback to self if FFI fails *)
+  { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize
 
 (** Rename columns based on an old_name -> new_name mapping. *)
 let rename_columns (t : t) (mapping : (string * string) list) : t =
@@ -471,4 +468,4 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
         | None -> (name, data))
       t.columns
   in
-  { t with schema = new_schema; columns = new_columns; native_handle = None }
+  { t with schema = new_schema; columns = new_columns; native_handle = None } |> materialize

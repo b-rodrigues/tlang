@@ -249,6 +249,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf {|df = read_csv("%s"); mutate(df, $senior = $age >= 30) |> ncol|} csv_path)
     "4";
 
+  let (v, _) = eval_string_env
+    (Printf.sprintf {|df = read_csv("%s"); explain(mutate(df, $senior = $age >= 30)).native_path_active|} csv_path)
+    env in
+  let result = Ast.Utils.value_to_string v in
+  if result = "true" then begin
+    incr pass_count; Printf.printf "  ✓ Arrow mutate keeps native path active\n"
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow mutate keeps native path active"
+  end;
+
   test "Arrow arrange"
     (Printf.sprintf
       {|df = read_csv("%s"); df2 = arrange(df, $age); select(df2, $name) |> \(d) d.name|} csv_path)

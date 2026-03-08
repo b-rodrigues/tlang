@@ -71,22 +71,22 @@ let register env =
             ("examples", examples);
           ]
       | [VDataFrame df] ->
-           let value_columns = Arrow_bridge.table_to_value_columns df.arrow_table in
-           let nrows = Arrow_table.num_rows df.arrow_table in
-           let native_path_active = Arrow_table.is_native_backed df.arrow_table in
-           let storage_backend =
-             if native_path_active then "native_arrow" else "pure_ocaml"
-           in
-           let performance_note =
-             if native_path_active then
-               "Native Arrow handle is active; eligible operations can use the vectorized Arrow path."
-             else
-               "This DataFrame is materialized in OCaml/T storage; structural changes such as mutate() fall back to the pure OCaml path."
-           in
-           let schema = VList (List.map (fun (name, col) ->
-             let col_type = ref "Unknown" in
-             Array.iter (fun v ->
-               if !col_type = "Unknown" then
+          let value_columns = Arrow_bridge.table_to_value_columns df.arrow_table in
+          let nrows = Arrow_table.num_rows df.arrow_table in
+          let native_path_active = Arrow_table.is_native_backed df.arrow_table in
+          let storage_backend =
+            if native_path_active then "native_arrow" else "pure_ocaml"
+          in
+          let performance_note =
+            if native_path_active then
+              "Native Arrow handle is active; eligible operations can use the vectorized Arrow path."
+            else
+              "This DataFrame is materialized in OCaml/T storage because native Arrow backing could not be preserved for its current columns or structure."
+          in
+          let schema = VList (List.map (fun (name, col) ->
+            let col_type = ref "Unknown" in
+            Array.iter (fun v ->
+              if !col_type = "Unknown" then
                 match v with VNA _ -> () | _ -> col_type := Utils.type_name v
             ) col;
             (None, VDict [("name", VString name); ("type", VString !col_type)])
@@ -105,21 +105,22 @@ let register env =
             if df.group_keys = [] then []
             else [("group_keys", VList (List.map (fun k -> (None, VString k)) df.group_keys))]
           in
-           let display_keys = [
-             (None, VString "kind"); (None, VString "nrow"); (None, VString "ncol");
-             (None, VString "storage_backend"); (None, VString "hint")
-           ] @ (if df.group_keys = [] then [] else [(None, VString "group_keys")]) in
-           VDict ([
-             ("kind", VString "dataframe");
-             ("nrow", VInt nrows);
-             ("ncol", VInt (Arrow_table.num_columns df.arrow_table));
-             ("storage_backend", VString storage_backend);
-             ("native_path_active", VBool native_path_active);
-             ("performance_note", VString performance_note);
-             ("hint", VString "Use explain(df).storage_backend, explain(df).schema, explain(df).na_stats, and explain(df).example_rows for details");
-             ("schema", schema);
-             ("na_stats", na_stats);
-             ("example_rows", example_rows);
+          let display_keys = [
+            (None, VString "kind"); (None, VString "nrow"); (None, VString "ncol");
+            (None, VString "storage_backend"); (None, VString "native_path_active");
+            (None, VString "performance_note"); (None, VString "hint")
+          ] @ (if df.group_keys = [] then [] else [(None, VString "group_keys")]) in
+          VDict ([
+            ("kind", VString "dataframe");
+            ("nrow", VInt nrows);
+            ("ncol", VInt (Arrow_table.num_columns df.arrow_table));
+            ("storage_backend", VString storage_backend);
+            ("native_path_active", VBool native_path_active);
+            ("performance_note", VString performance_note);
+            ("hint", VString "Use explain(df).storage_backend, explain(df).native_path_active, explain(df).performance_note, explain(df).schema, explain(df).na_stats, and explain(df).example_rows for details");
+            ("schema", schema);
+            ("na_stats", na_stats);
+            ("example_rows", example_rows);
             ("_display_keys", VList display_keys);
           ] @ grouped_info)
       | [VPipeline { p_nodes; p_deps; _ }] ->
