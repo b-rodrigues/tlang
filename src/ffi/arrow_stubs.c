@@ -1815,7 +1815,7 @@ CAMLprim value caml_arrow_write_ipc(value v_ptr, value v_path) {
    array is an OCaml option array (None = null, Some x = value). */
 CAMLprim value caml_arrow_table_new(value v_cols) {
   CAMLparam1(v_cols);
-  CAMLlocal3(v_iter, v_col, v_arr);
+  CAMLlocal4(v_iter, v_col, v_arr, v_res);
   GError *error = NULL;
 
   GList *fields = NULL;
@@ -1925,7 +1925,7 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
     CAMLreturn(Val_none);
   }
 
-  CAMLlocal1(v_res);
+
   v_res = caml_alloc(1, 0);
   Store_field(v_res, 0, caml_copy_nativeint((intnat)table));
   CAMLreturn(v_res);
