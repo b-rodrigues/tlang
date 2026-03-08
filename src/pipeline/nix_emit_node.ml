@@ -66,7 +66,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VString s -> Some s
     | Ast.VSymbol s -> Some s
     | Ast.VInt i -> Some (string_of_int i)
-    | Ast.VFloat f -> Some (string_of_float f)
+    | Ast.VFloat f -> Some (Printf.sprintf "%.15g" f)
     | Ast.VBool true -> Some "true"
     | Ast.VBool false -> Some "false"
     | Ast.VNull -> Some ""

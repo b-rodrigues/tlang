@@ -453,11 +453,12 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       let lookup_arg name default =
         match List.assoc_opt (Some name) args with
         | Some e -> e
-        | None -> (match name with
-                    | "command" ->
-                        (match List.filter (fun (k, _) -> k = None) args with
-                         | [(_, c)] -> c | _ -> default)
-                    | _ -> default)
+        | None ->
+            (match name with
+             | "command" ->
+                 (match List.filter (fun (k, _) -> k = None) args with
+                  | [(_, c)] -> c | _ -> default)
+             | _ -> default)
       in
       let lookup_env_vars () =
         let is_env_value = function
@@ -469,11 +470,11 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         | Some e ->
             (match eval_expr env_ref e with
              | VDict pairs ->
-                 (match List.find_opt (fun (_, v) -> not (is_env_value v)) pairs with
-                  | None -> Ok pairs
-                  | Some (key, _) ->
-                      Error (Error.type_error
-                               (Printf.sprintf "Function `node` expects `env_vars.%s` to be a String, Symbol, Int, Float, Bool, or Null." key)))
+                  (match List.find_opt (fun (_, v) -> not (is_env_value v)) pairs with
+                   | None -> Ok pairs
+                   | Some (key, _) ->
+                       Error (Error.type_error
+                                (Printf.sprintf "Function `node` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." key)))
              | VNull -> Ok []
              | _ ->
                  Error (Error.type_error "Function `node` expects `env_vars` to be a Dict."))
@@ -508,11 +509,11 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       if has_command && script_path_opt <> None then
         Error.make_error TypeError "node() cannot use both 'command' and 'script' arguments — choose one."
       else
-       let default_runtime = match call with
-         | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
-         | Call { fn = Var "rn"; _ } -> "R"
-         | _ -> "T"
-       in
+        let default_runtime = match call with
+          | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
+          | Call { fn = Var "rn"; _ } -> "R"
+          | _ -> "T"
+        in
       (* Auto-detect runtime from script extension when not explicitly given *)
       let runtime =
         let explicit = eval_string "runtime" "" in
@@ -524,9 +525,9 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       in
       (* For script-based nodes, build un_command as a RawCode placeholder so that
          free_vars analysis can detect pipeline dependencies from the script's identifiers. *)
-       let un_command, un_script =
-         match script_path_opt with
-         | Some path ->
+      let un_command, un_script =
+        match script_path_opt with
+        | Some path ->
             let ids =
               try
                 let ic = open_in path in
@@ -540,41 +541,41 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 Ast.extract_identifiers content
               with Sys_error _ | End_of_file -> []
             in
-             (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
-         | None -> (command, None)
-       in
-       match lookup_env_vars () with
-       | Error err -> err
-       | Ok un_env_vars ->
-           if runtime <> "T" then
-             match un_command with
-             | RawCode _ ->
-                 VNode {
-                   un_command;
-                   un_script;
-                   un_runtime = runtime;
-                   un_serializer = lookup_arg "serializer" (Var "default");
-                   un_deserializer = lookup_arg "deserializer" (Var "default");
-                   un_env_vars;
-                   un_functions = lookup_list "functions";
-                   un_includes = lookup_list "includes";
-                   un_noop = eval_bool "noop" false;
-                 }
-             | _ ->
-                 let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R or .py file." runtime in
-                 Error.make_error TypeError msg
-           else
-             VNode {
-               un_command;
-               un_script;
-               un_runtime = runtime;
-               un_serializer = lookup_arg "serializer" (Var "default");
-               un_deserializer = lookup_arg "deserializer" (Var "default");
-               un_env_vars;
-               un_functions = lookup_list "functions";
-               un_includes = lookup_list "includes";
-               un_noop = eval_bool "noop" false;
-             }
+            (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
+        | None -> (command, None)
+      in
+      match lookup_env_vars () with
+      | Error err -> err
+      | Ok un_env_vars ->
+          if runtime <> "T" then
+            match un_command with
+            | RawCode _ ->
+                VNode {
+                  un_command;
+                  un_script;
+                  un_runtime = runtime;
+                  un_serializer = lookup_arg "serializer" (Var "default");
+                  un_deserializer = lookup_arg "deserializer" (Var "default");
+                  un_env_vars;
+                  un_functions = lookup_list "functions";
+                  un_includes = lookup_list "includes";
+                  un_noop = eval_bool "noop" false;
+                }
+            | _ ->
+                let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R or .py file." runtime in
+                Error.make_error TypeError msg
+          else
+            VNode {
+              un_command;
+              un_script;
+              un_runtime = runtime;
+              un_serializer = lookup_arg "serializer" (Var "default");
+              un_deserializer = lookup_arg "deserializer" (Var "default");
+              un_env_vars;
+              un_functions = lookup_list "functions";
+              un_includes = lookup_list "includes";
+              un_noop = eval_bool "noop" false;
+            }
   | Call { fn; args } ->
       let fn_val = eval_expr env_ref fn in
       eval_call env_ref fn_val args
@@ -728,17 +729,17 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       match eval_expr env_ref node_expr with
       | VNode un -> Ok (name, un)
       | VComputedNode cn ->
-           Ok (name, {
-             un_command = Value (VComputedNode cn);
-             un_script = None;
-             un_runtime = cn.cn_runtime;
-             un_serializer = Value (VString cn.cn_serializer);
-             un_deserializer = Var "default";
-             un_env_vars = [];
-             un_functions = [];
-             un_includes = [];
-             un_noop = false;
-           })
+          Ok (name, {
+            un_command = Value (VComputedNode cn);
+            un_script = None;
+            un_runtime = cn.cn_runtime;
+            un_serializer = Value (VString cn.cn_serializer);
+            un_deserializer = Var "default";
+            un_env_vars = [];
+            un_functions = [];
+            un_includes = [];
+            un_noop = false;
+          })
       | VError { code = NameError; _ } -> Ok (name, default_un node_expr)
       | VError _ as e -> Error e
       | _ -> Ok (name, default_un node_expr)
