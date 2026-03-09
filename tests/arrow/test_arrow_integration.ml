@@ -1034,6 +1034,46 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|df = dataframe([[g: "a", x: 1], [g: "a", x: 2], [g: "b", x: 3]]); nested = nest(df, $x); flat = unnest(nested, $data); select(flat, $g, $x) |> nrow|}
     "3";
 
+  (* Test: ListColumn with float and boolean sub-fields *)
+  let sub_fb_a = Arrow_table.create [
+    ("score", Arrow_table.FloatColumn [| Some 1.5; Some 2.5 |]);
+    ("flag", Arrow_table.BoolColumn [| Some true; Some false |]);
+  ] 2 in
+  let sub_fb_b = Arrow_table.create [
+    ("score", Arrow_table.FloatColumn [| Some 3.0 |]);
+    ("flag", Arrow_table.BoolColumn [| Some true |]);
+  ] 1 in
+  let list_col_fb = Arrow_table.ListColumn [| Some sub_fb_a; Some sub_fb_b |] in
+  let list_tbl_fb = Arrow_table.create [
+    ("id", Arrow_table.IntColumn [| Some 1; Some 2 |]);
+    ("nested", list_col_fb);
+  ] 2 in
+  let mat_fb = Arrow_table.materialize list_tbl_fb in
+  if Arrow_table.is_native_backed mat_fb then begin
+    (match Arrow_table.get_column mat_fb "nested" with
+     | Some (Arrow_table.ListColumn nested) ->
+         (match nested.(0) with
+          | Some t ->
+              let ok_score = (match Arrow_table.get_column t "score" with
+                | Some (Arrow_table.FloatColumn a) -> a.(0) = Some 1.5 && a.(1) = Some 2.5
+                | _ -> false) in
+              let ok_flag = (match Arrow_table.get_column t "flag" with
+                | Some (Arrow_table.BoolColumn a) -> a.(0) = Some true && a.(1) = Some false
+                | _ -> false) in
+              if ok_score && ok_flag then begin
+                incr pass_count; Printf.printf "  ✓ ListColumn with Float+Bool sub-fields round-trip correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ ListColumn with Float+Bool sub-fields data mismatch\n"
+              end
+          | None ->
+              incr fail_count; Printf.printf "  ✗ ListColumn with Float+Bool: sub-table 0 is None\n")
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ ListColumn with Float+Bool round-trip returned wrong type\n")
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "ListColumn with Float+Bool sub-fields materializes"
+  end;
+
   print_newline ();
 
   (* Cleanup *)

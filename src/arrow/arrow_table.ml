@@ -314,11 +314,12 @@ let flatten_list_column (nested : t option array) : (int array * bool array * (s
   offsets.(nrows) <- !total;
   let n_total = !total in
   (* Get sub-column schema from first non-None table *)
-  let sub_schema = match Array.to_list nested |> List.find_opt Option.is_some with
-    | Some (Some t) -> t.schema
-    | _ -> []
+  let sub_schema = match Array.find_map Fun.id nested with
+    | Some t -> t.schema
+    | None -> []
   in
   (* Flatten each sub-column *)
+  let pack_opt v = Obj.repr (Option.map Obj.repr v) in
   let sub_cols = List.map (fun (fname, ftype) ->
     let tag = sub_tag_of ftype in
     let flat_data : Obj.t array = Array.make n_total (Obj.repr None) in
@@ -328,13 +329,13 @@ let flatten_list_column (nested : t option array) : (int array * bool array * (s
       | Some sub_t ->
           (match List.assoc_opt fname sub_t.columns with
            | Some (IntColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- Obj.repr (Option.map Obj.repr v)) a
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
            | Some (FloatColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- Obj.repr (Option.map Obj.repr v)) a
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
            | Some (BoolColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- Obj.repr (Option.map Obj.repr v)) a
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
            | Some (StringColumn a) ->
-               Array.iteri (fun j v -> flat_data.(!pos + j) <- Obj.repr (Option.map Obj.repr v)) a
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
            | _ ->
                for j = 0 to sub_t.nrows - 1 do flat_data.(!pos + j) <- Obj.repr None done);
           pos := !pos + sub_t.nrows
