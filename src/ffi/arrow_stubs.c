@@ -503,6 +503,100 @@ CAMLprim value caml_arrow_read_list_column(value v_array_ptr) {
   CAMLreturn(v_result);
 }
 
+/* Read the schema (field names + type tags) from a struct array.
+   Returns OCaml list of (string * int) pairs.
+   Does NOT take ownership of the input array — caller manages lifecycle. */
+CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
+  CAMLparam1(v_ptr);
+  CAMLlocal3(v_result, v_tuple, v_cons);
+
+  GArrowArray *arr = (GArrowArray *)Nativeint_val(v_ptr);
+
+  if (!GARROW_IS_STRUCT_ARRAY(arr)) {
+    CAMLreturn(Val_emptylist);
+  }
+
+  GArrowDataType *base_dtype = garrow_array_get_value_data_type(arr);
+  if (!GARROW_IS_STRUCT_DATA_TYPE(base_dtype)) {
+    g_object_unref(base_dtype);
+    CAMLreturn(Val_emptylist);
+  }
+  GArrowStructDataType *sdtype = GARROW_STRUCT_DATA_TYPE(base_dtype);
+  int n = garrow_struct_data_type_get_n_fields(sdtype);
+
+  v_result = Val_emptylist;
+  for (int i = n - 1; i >= 0; i--) {
+    GArrowField *field = garrow_struct_data_type_get_field(sdtype, i);
+    const gchar *fname = garrow_field_get_name(field);
+    GArrowDataType *fdtype = garrow_field_get_data_type(field);
+
+    int type_tag;
+    if (GARROW_IS_INT8_DATA_TYPE(fdtype) || GARROW_IS_INT16_DATA_TYPE(fdtype) ||
+        GARROW_IS_INT32_DATA_TYPE(fdtype) || GARROW_IS_INT64_DATA_TYPE(fdtype) ||
+        GARROW_IS_UINT8_DATA_TYPE(fdtype) || GARROW_IS_UINT16_DATA_TYPE(fdtype) ||
+        GARROW_IS_UINT32_DATA_TYPE(fdtype) || GARROW_IS_UINT64_DATA_TYPE(fdtype))
+                                                   type_tag = 0;
+    else if (GARROW_IS_DOUBLE_DATA_TYPE(fdtype))   type_tag = 1;
+    else if (GARROW_IS_BOOLEAN_DATA_TYPE(fdtype))  type_tag = 2;
+    else if (GARROW_IS_STRING_DATA_TYPE(fdtype) ||
+             GARROW_IS_LARGE_STRING_DATA_TYPE(fdtype))
+                                                   type_tag = 3;
+    else if (GARROW_IS_DICTIONARY_DATA_TYPE(fdtype))
+                                                   type_tag = 4;
+    else if (GARROW_IS_LIST_DATA_TYPE(fdtype))     type_tag = 5;
+    else                                           type_tag = 6;
+
+    v_tuple = caml_alloc(2, 0);
+    Store_field(v_tuple, 0, caml_copy_string(fname));
+    Store_field(v_tuple, 1, Val_int(type_tag));
+
+    v_cons = caml_alloc(2, 0);
+    Store_field(v_cons, 0, v_tuple);
+    Store_field(v_cons, 1, v_result);
+    v_result = v_cons;
+
+    g_object_unref(fdtype);
+    g_object_unref(field);
+  }
+
+  g_object_unref(base_dtype);
+  CAMLreturn(v_result);
+}
+
+/* Extract a single field (by index) from a struct array.
+   Returns Some(nativeint) with the field array pointer, or None.
+   The returned array is a new GObject reference that the caller must unref
+   (or pass to a column reader which unrefs). */
+CAMLprim value caml_arrow_read_struct_field(value v_ptr, value v_idx) {
+  CAMLparam2(v_ptr, v_idx);
+  CAMLlocal1(v_result);
+
+  GArrowArray *arr = (GArrowArray *)Nativeint_val(v_ptr);
+  int idx = Int_val(v_idx);
+
+  if (!GARROW_IS_STRUCT_ARRAY(arr)) {
+    CAMLreturn(Val_none);
+  }
+
+  GArrowStructArray *sarr = GARROW_STRUCT_ARRAY(arr);
+  GArrowArray *field_arr = garrow_struct_array_get_field(sarr, idx);
+  if (field_arr == NULL) {
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)field_arr));
+  CAMLreturn(v_result);
+}
+
+/* Generic GObject unref — used to free child array pointers after reading. */
+CAMLprim value caml_arrow_unref(value v_ptr) {
+  CAMLparam1(v_ptr);
+  gpointer obj = (gpointer)Nativeint_val(v_ptr);
+  if (obj) g_object_unref(obj);
+  CAMLreturn(Val_unit);
+}
+
 /* ===================================================================== */
 /* CSV Reading                                                           */
 /* ===================================================================== */
@@ -2199,6 +2293,231 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         g_object_unref(dtype);
         dtype = NULL; /* prevent double-free below */
         n_rows = 0; /* signal that we handled this column directly */
+        break;
+      }
+      case 5: { // List of Structs (ListColumn — nested DataFrames)
+        /* v_arr is a tuple:
+           Field 0 = offsets (int array, length = n_list_rows+1)
+           Field 1 = present (bool array, length = n_list_rows, true=valid)
+           Field 2 = sub_columns ((string * int * data) list — same format as top-level cols) */
+        value v_offsets = Field(v_arr, 0);
+        value v_present = Field(v_arr, 1);
+        value v_sub_cols_list = Field(v_arr, 2);
+
+        int n_offsets = Wosize_val(v_offsets);
+        int n_list_rows = Wosize_val(v_present);
+        int n_total_vals = 0;
+        if (n_offsets > 0) {
+          n_total_vals = Int_val(Field(v_offsets, n_offsets - 1));
+        }
+
+        /* Count sub-columns */
+        int n_sub_cols = 0;
+        { value v_cnt = v_sub_cols_list;
+          while (v_cnt != Val_emptylist) { n_sub_cols++; v_cnt = Field(v_cnt, 1); }
+        }
+
+        if (n_sub_cols == 0) break; /* empty struct — skip */
+
+        GArrowField **sub_fields = g_new0(GArrowField *, n_sub_cols);
+        GArrowArray **sub_arrays = g_new0(GArrowArray *, n_sub_cols);
+        int sub_ok = 1;
+        int si = 0;
+
+        value v_sc = v_sub_cols_list;
+        while (v_sc != Val_emptylist && sub_ok) {
+          value v_sub = Field(v_sc, 0);
+          const char *sub_name = String_val(Field(v_sub, 0));
+          int sub_tag = Int_val(Field(v_sub, 1));
+          value v_sub_data = Field(v_sub, 2);
+
+          GArrowDataType *sub_dtype = NULL;
+          GArrowArrayBuilder *sub_builder = NULL;
+
+          switch (sub_tag) {
+            case 0: { /* Int64 */
+              sub_dtype = (GArrowDataType *)garrow_int64_data_type_new();
+              sub_builder = (GArrowArrayBuilder *)garrow_int64_array_builder_new();
+              for (int j = 0; j < n_total_vals; j++) {
+                value v_opt = Field(v_sub_data, j);
+                if (Is_block(v_opt))
+                  garrow_int64_array_builder_append_value(GARROW_INT64_ARRAY_BUILDER(sub_builder), Long_val(Field(v_opt, 0)), &error);
+                else
+                  garrow_array_builder_append_null(sub_builder, &error);
+                if (error) { sub_ok = 0; break; }
+              }
+              break;
+            }
+            case 1: { /* Float64 */
+              sub_dtype = (GArrowDataType *)garrow_double_data_type_new();
+              sub_builder = (GArrowArrayBuilder *)garrow_double_array_builder_new();
+              for (int j = 0; j < n_total_vals; j++) {
+                value v_opt = Field(v_sub_data, j);
+                if (Is_block(v_opt))
+                  garrow_double_array_builder_append_value(GARROW_DOUBLE_ARRAY_BUILDER(sub_builder), Double_val(Field(v_opt, 0)), &error);
+                else
+                  garrow_array_builder_append_null(sub_builder, &error);
+                if (error) { sub_ok = 0; break; }
+              }
+              break;
+            }
+            case 2: { /* Boolean */
+              sub_dtype = (GArrowDataType *)garrow_boolean_data_type_new();
+              sub_builder = (GArrowArrayBuilder *)garrow_boolean_array_builder_new();
+              for (int j = 0; j < n_total_vals; j++) {
+                value v_opt = Field(v_sub_data, j);
+                if (Is_block(v_opt))
+                  garrow_boolean_array_builder_append_value(GARROW_BOOLEAN_ARRAY_BUILDER(sub_builder), Bool_val(Field(v_opt, 0)), &error);
+                else
+                  garrow_array_builder_append_null(sub_builder, &error);
+                if (error) { sub_ok = 0; break; }
+              }
+              break;
+            }
+            case 3: { /* String */
+              sub_dtype = (GArrowDataType *)garrow_string_data_type_new();
+              sub_builder = (GArrowArrayBuilder *)garrow_string_array_builder_new();
+              for (int j = 0; j < n_total_vals; j++) {
+                value v_opt = Field(v_sub_data, j);
+                if (Is_block(v_opt))
+                  garrow_string_array_builder_append_string(GARROW_STRING_ARRAY_BUILDER(sub_builder), String_val(Field(v_opt, 0)), &error);
+                else
+                  garrow_array_builder_append_null(sub_builder, &error);
+                if (error) { sub_ok = 0; break; }
+              }
+              break;
+            }
+            default:
+              sub_ok = 0;
+              break;
+          }
+
+          if (sub_ok && sub_builder) {
+            GArrowArray *sub_array = garrow_array_builder_finish(sub_builder, &error);
+            g_object_unref(sub_builder);
+            if (error || sub_array == NULL) {
+              if (sub_array) g_object_unref(sub_array);
+              if (sub_dtype) g_object_unref(sub_dtype);
+              sub_ok = 0;
+            } else {
+              sub_fields[si] = garrow_field_new(sub_name, sub_dtype);
+              sub_arrays[si] = sub_array;
+              g_object_unref(sub_dtype);
+              si++;
+            }
+          } else {
+            if (sub_builder) g_object_unref(sub_builder);
+            if (sub_dtype) g_object_unref(sub_dtype);
+          }
+
+          v_sc = Field(v_sc, 1);
+        }
+
+        if (!sub_ok || si == 0) {
+          for (int k = 0; k < si; k++) {
+            g_object_unref(sub_fields[k]);
+            g_object_unref(sub_arrays[k]);
+          }
+          g_free(sub_fields);
+          g_free(sub_arrays);
+          break;
+        }
+
+        /* Build struct data type from sub-fields */
+        GList *field_list = NULL;
+        for (int k = 0; k < si; k++)
+          field_list = g_list_append(field_list, sub_fields[k]);
+        GArrowStructDataType *struct_dtype_obj =
+          garrow_struct_data_type_new(field_list);
+
+        /* Build struct array from sub-arrays */
+        GList *array_list = NULL;
+        for (int k = 0; k < si; k++)
+          array_list = g_list_append(array_list, sub_arrays[k]);
+        GArrowStructArray *struct_arr_obj = garrow_struct_array_new(
+          GARROW_DATA_TYPE(struct_dtype_obj), n_total_vals,
+          array_list, NULL, 0);
+
+        g_list_free(field_list);
+        g_list_free(array_list);
+        for (int k = 0; k < si; k++) {
+          g_object_unref(sub_fields[k]);
+          g_object_unref(sub_arrays[k]);
+        }
+        g_free(sub_fields);
+        g_free(sub_arrays);
+
+        if (struct_arr_obj == NULL) {
+          g_object_unref(struct_dtype_obj);
+          break;
+        }
+
+        /* Build offsets buffer (int32) */
+        gint32 *offsets_raw = g_new(gint32, n_offsets);
+        for (int k = 0; k < n_offsets; k++)
+          offsets_raw[k] = (gint32)Int_val(Field(v_offsets, k));
+        GArrowBuffer *offsets_buf = garrow_buffer_new(
+          (const guint8 *)offsets_raw, n_offsets * sizeof(gint32));
+        g_free(offsets_raw);
+
+        /* Build null bitmap */
+        int n_nulls = 0;
+        int bitmap_bytes = (n_list_rows + 7) / 8;
+        guint8 *bitmap_raw = g_new0(guint8, bitmap_bytes > 0 ? bitmap_bytes : 1);
+        for (int k = 0; k < n_list_rows; k++) {
+          if (Bool_val(Field(v_present, k)))
+            bitmap_raw[k / 8] |= (guint8)(1 << (k % 8));
+          else
+            n_nulls++;
+        }
+        GArrowBuffer *null_bmp = NULL;
+        if (n_nulls > 0)
+          null_bmp = garrow_buffer_new(bitmap_raw, bitmap_bytes);
+        g_free(bitmap_raw);
+
+        /* Create list data type */
+        GArrowField *item_field = garrow_field_new(
+          "item", GARROW_DATA_TYPE(struct_dtype_obj));
+        GArrowListDataType *list_dtype_obj =
+          garrow_list_data_type_new(item_field);
+        g_object_unref(item_field);
+
+        /* Create list array */
+        GArrowListArray *list_arr_obj = garrow_list_array_new(
+          GARROW_DATA_TYPE(list_dtype_obj),
+          n_list_rows, offsets_buf,
+          GARROW_ARRAY(struct_arr_obj),
+          null_bmp, n_nulls);
+
+        g_object_unref(offsets_buf);
+        if (null_bmp) g_object_unref(null_bmp);
+        g_object_unref(struct_arr_obj);
+        g_object_unref(struct_dtype_obj);
+
+        if (list_arr_obj == NULL) {
+          g_object_unref(list_dtype_obj);
+          break;
+        }
+
+        /* Wrap in chunked array */
+        GList *lchunks = g_list_append(NULL, list_arr_obj);
+        GArrowChunkedArray *lchunked = garrow_chunked_array_new(lchunks, &error);
+        g_list_free(lchunks);
+        g_object_unref(list_arr_obj);
+
+        if (error || lchunked == NULL) {
+          if (lchunked) g_object_unref(lchunked);
+          g_object_unref(list_dtype_obj);
+          break;
+        }
+
+        GArrowField *list_field_obj = garrow_field_new(
+          name, GARROW_DATA_TYPE(list_dtype_obj));
+        fields = g_list_append(fields, list_field_obj);
+        columns = g_list_append(columns, lchunked);
+        g_object_unref(list_dtype_obj);
+        dtype = NULL;
+        n_rows = 0;
         break;
       }
       default:

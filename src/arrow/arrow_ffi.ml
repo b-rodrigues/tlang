@@ -64,6 +64,15 @@ external arrow_read_dictionary_column : nativeint -> (int option array * string 
 external arrow_read_list_column : nativeint -> (nativeint option * (int * int) option array)
   = "caml_arrow_read_list_column"
 
+external arrow_read_struct_fields : nativeint -> (string * int) list
+  = "caml_arrow_read_struct_fields"
+
+external arrow_read_struct_field : nativeint -> int -> nativeint option
+  = "caml_arrow_read_struct_field"
+
+external arrow_unref : nativeint -> unit
+  = "caml_arrow_unref"
+
 (* ===================================================================== *)
 (* CSV Reading                                                           *)
 (* ===================================================================== *)

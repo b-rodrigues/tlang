@@ -176,8 +176,8 @@ let get_column (t : t) (name : string) : column_data option =
                 | ArrowTimestamp tz -> Some (DatetimeColumn ([||], tz))
                 | ArrowNull -> Some (NullColumn 0)
                 | ArrowDictionary -> Some (DictionaryColumn ([||], [], false))
-                | ArrowList _ | ArrowStruct _ ->
-                    Some (NullColumn 0))
+                | ArrowList _ -> Some (ListColumn [||])
+                | ArrowStruct _ -> Some (NullColumn 0))
              else None
          | Some array_ptr ->
            match col_type with
@@ -200,8 +200,14 @@ let get_column (t : t) (name : string) : column_data option =
                let (indices, levels, ordered) =
                  Arrow_ffi.arrow_read_dictionary_column array_ptr in
                Some (DictionaryColumn (indices, levels, ordered))
-           | ArrowList _ | ArrowStruct _ ->
-               (* List and Struct are handled via pure OCaml storage fallback *)
+           | ArrowList _ ->
+               (* Read list-of-struct column from native Arrow.
+                  Unref array_ptr since read_native_list_column re-fetches. *)
+               Arrow_ffi.arrow_unref array_ptr;
+               read_native_list_column handle name t.nrows
+           | ArrowStruct _ ->
+               (* Struct columns use pure OCaml storage fallback *)
+               Arrow_ffi.arrow_unref array_ptr;
                List.assoc_opt name t.columns)
   | _ ->
       (* Fallback to pure OCaml *)
@@ -257,11 +263,145 @@ let get_string (col : column_data) (row : int) : string option =
 
 (* --- Native materialization --- *)
 
+(** Check if a primitive column type tag is supported for native struct fields *)
+let is_primitive_tag_supported = function
+  | ArrowInt64 | ArrowFloat64 | ArrowBoolean | ArrowString -> true
+  | _ -> false
+
 (** Column builders currently supported by Arrow_ffi.arrow_table_new.
-    Only basic Arrow-compatible primitive columns can be rebuilt natively today. *)
+    Primitive columns, dictionary columns, and list-of-struct columns with
+    all-primitive fields are supported. *)
 let is_arrow_table_new_supported = function
   | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DictionaryColumn _ -> true
-  | NullColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> false
+  | ListColumn a ->
+      (* All non-None sub-tables must have same schema of only primitive types *)
+      let sub_tables = Array.to_list a |> List.filter_map Fun.id in
+      (match sub_tables with
+       | [] -> true  (* empty list column is trivially supported *)
+       | first :: rest ->
+           List.for_all (fun t -> t.schema = first.schema) rest &&
+           List.for_all (fun (_, ty) -> is_primitive_tag_supported ty) first.schema)
+  | NullColumn _ | DateColumn _ | DatetimeColumn _ -> false
+
+(** Flatten a ListColumn into (offsets, present_flags, sub_column_specs) for FFI.
+    offsets : int array of length nrows+1
+    present : bool array of length nrows (true = non-null)
+    sub_cols : (string * int * Obj.t array) list — flattened column data *)
+let flatten_list_column (nested : t option array) : (int array * bool array * (string * int * Obj.t array) list) =
+  let nrows = Array.length nested in
+  let arrow_int64_tag = 0 in
+  let arrow_float64_tag = 1 in
+  let arrow_boolean_tag = 2 in
+  let arrow_string_tag = 3 in
+  let sub_tag_of = function
+    | ArrowInt64 -> arrow_int64_tag
+    | ArrowFloat64 -> arrow_float64_tag
+    | ArrowBoolean -> arrow_boolean_tag
+    | ArrowString -> arrow_string_tag
+    | _ -> arrow_string_tag (* fallback *)
+  in
+  (* Compute offsets and total value count *)
+  let offsets = Array.make (nrows + 1) 0 in
+  let present = Array.make nrows false in
+  let total = ref 0 in
+  Array.iteri (fun i entry ->
+    offsets.(i) <- !total;
+    (match entry with
+     | Some t -> present.(i) <- true; total := !total + t.nrows
+     | None -> present.(i) <- false);
+  ) nested;
+  offsets.(nrows) <- !total;
+  let n_total = !total in
+  (* Get sub-column schema from first non-None table *)
+  let sub_schema = match Array.to_list nested |> List.find_opt Option.is_some with
+    | Some (Some t) -> t.schema
+    | _ -> []
+  in
+  (* Flatten each sub-column *)
+  let sub_cols = List.map (fun (fname, ftype) ->
+    let tag = sub_tag_of ftype in
+    let flat_data : Obj.t array = Array.make n_total (Obj.repr None) in
+    let pos = ref 0 in
+    Array.iter (function
+      | None -> ()
+      | Some sub_t ->
+          (match List.assoc_opt fname sub_t.columns with
+           | Some (IntColumn a) ->
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- Obj.repr (Option.map Obj.repr v)) a
+           | Some (FloatColumn a) ->
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- Obj.repr (Option.map Obj.repr v)) a
+           | Some (BoolColumn a) ->
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- Obj.repr (Option.map Obj.repr v)) a
+           | Some (StringColumn a) ->
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- Obj.repr (Option.map Obj.repr v)) a
+           | _ ->
+               for j = 0 to sub_t.nrows - 1 do flat_data.(!pos + j) <- Obj.repr None done);
+          pos := !pos + sub_t.nrows
+    ) nested;
+    (fname, tag, flat_data)
+  ) sub_schema in
+  (offsets, present, sub_cols)
+
+(** Slice a column from [offset] for [len] elements *)
+let slice_column (col : column_data) (offset : int) (len : int) : column_data =
+  match col with
+  | IntColumn a -> IntColumn (Array.sub a offset len)
+  | FloatColumn a -> FloatColumn (Array.sub a offset len)
+  | BoolColumn a -> BoolColumn (Array.sub a offset len)
+  | StringColumn a -> StringColumn (Array.sub a offset len)
+  | DateColumn a -> DateColumn (Array.sub a offset len)
+  | DatetimeColumn (a, tz) -> DatetimeColumn (Array.sub a offset len, tz)
+  | NullColumn _ -> NullColumn len
+  | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.sub a offset len, levels, ordered)
+  | ListColumn a -> ListColumn (Array.sub a offset len)
+
+(** Read a native list-of-struct column and reconstruct as ListColumn.
+    Uses arrow_read_list_column to get child+slices, then decomposes the
+    struct child into per-field columns and slices them into sub-tables. *)
+let read_native_list_column (handle : native_handle) (name : string) (nrows : int) : column_data option =
+  match Arrow_ffi.arrow_table_get_column_data handle.ptr name with
+  | None ->
+      if nrows = 0 then Some (ListColumn [||])
+      else None
+  | Some array_ptr ->
+      let (child_opt, slices) = Arrow_ffi.arrow_read_list_column array_ptr in
+      match child_opt with
+      | None -> Some (ListColumn (Array.make (Array.length slices) None))
+      | Some child_ptr ->
+          let field_infos = Arrow_ffi.arrow_read_struct_fields child_ptr in
+          (* Read each field using the appropriate column reader *)
+          let field_cols = List.mapi (fun i (fname, ftag) ->
+            match Arrow_ffi.arrow_read_struct_field child_ptr i with
+            | None -> (fname, ftag, NullColumn 0)
+            | Some fptr ->
+                let col = match ftag with
+                  | 0 -> IntColumn (Arrow_ffi.arrow_read_int64_column fptr)
+                  | 1 -> FloatColumn (Arrow_ffi.arrow_read_float64_column fptr)
+                  | 2 -> BoolColumn (Arrow_ffi.arrow_read_boolean_column fptr)
+                  | 3 -> StringColumn (Arrow_ffi.arrow_read_string_column fptr)
+                  | 4 ->
+                      let (idx, lvl, ord) = Arrow_ffi.arrow_read_dictionary_column fptr in
+                      DictionaryColumn (idx, lvl, ord)
+                  | _ -> NullColumn (Array.length slices)
+                in
+                (fname, ftag, col)
+          ) field_infos in
+          (* Clean up the child struct array *)
+          Arrow_ffi.arrow_unref child_ptr;
+          (* Reconstruct sub-tables by slicing the flattened columns *)
+          let nested = Array.map (function
+            | None -> None
+            | Some (offset, len) ->
+                let sub_cols = List.map (fun (fname, _, col) ->
+                  (fname, slice_column col offset len)
+                ) field_cols in
+                let sub_schema = List.map (fun (fname, ftag, _) ->
+                  (fname, arrow_type_of_tag ftag)
+                ) field_cols in
+                Some { schema = sub_schema; columns = sub_cols;
+                       nrows = len; native_handle = None }
+          ) slices in
+          Some (ListColumn nested)
 
 (** Materialize a pure OCaml table into a native Arrow-backed one.
     Returns the table itself if it already has a native_handle.
@@ -280,6 +420,7 @@ let materialize (t : t) : t =
         let arrow_boolean_tag = 2 in
         let arrow_string_tag = 3 in
         let arrow_dictionary_tag = 4 in
+        let arrow_list_tag = 5 in
         let arrow_unsupported_tag = 8 in
         let tag_of = function
           | ArrowInt64 -> arrow_int64_tag
@@ -287,7 +428,8 @@ let materialize (t : t) : t =
           | ArrowBoolean -> arrow_boolean_tag
           | ArrowString -> arrow_string_tag
           | ArrowDictionary -> arrow_dictionary_tag
-          | ArrowNull | ArrowDate | ArrowTimestamp _ | ArrowList _ | ArrowStruct _ -> arrow_unsupported_tag
+          | ArrowList _ -> arrow_list_tag
+          | ArrowNull | ArrowDate | ArrowTimestamp _ | ArrowStruct _ -> arrow_unsupported_tag
         in
         let ffi_cols = List.map (fun (name, type_) ->
           let tag = tag_of type_ in
@@ -297,12 +439,16 @@ let materialize (t : t) : t =
                    The C side reads Field(v_arr, 0/1/2) which works on both
                    OCaml tuples and arrays at the C representation level. *)
                 Obj.repr (indices, levels, ordered)
+            | Some (ListColumn nested) ->
+                (* Pack as tuple (offsets, present, sub_col_specs) for C FFI. *)
+                let (offsets, present, sub_cols) = flatten_list_column nested in
+                Obj.repr (offsets, present, sub_cols)
             | Some (IntColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (FloatColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (BoolColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (StringColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (NullColumn n) -> Obj.repr (Array.make n None)
-            | Some (DateColumn _) | Some (DatetimeColumn _) | Some (ListColumn _) ->
+            | Some (DateColumn _) | Some (DatetimeColumn _) ->
                 Obj.repr (Array.make t.nrows None)
             | None -> Obj.repr (Array.make t.nrows None)
           in
