@@ -257,6 +257,7 @@ let get_column (t : t) (name : string) : column_data option =
                Arrow_ffi.arrow_unref array_ptr;
                List.assoc_opt name t.columns
            | ArrowNull ->
+               Arrow_ffi.arrow_unref array_ptr;
                Some (NullColumn t.nrows)
            | ArrowDictionary ->
                let (indices, levels, ordered) =

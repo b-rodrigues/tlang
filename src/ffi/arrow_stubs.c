@@ -349,6 +349,9 @@ CAMLprim value caml_arrow_read_date32_column(value v_array_ptr) {
         days = garrow_date32_array_get_value(date32_array, i);
       } else if (date64_array) {
         gint64 millis = garrow_date64_array_get_value(date64_array, i);
+        /* Date64 stores midnight-aligned milliseconds; floor to days.
+           Arrow spec requires Date64 values to be multiples of 86400000,
+           so truncation == floor for well-formed data. */
         days = (gint32)(millis / 86400000LL);
       }
       v_some = caml_alloc(1, 0); /* Some(...) */
