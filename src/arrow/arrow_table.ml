@@ -94,6 +94,8 @@ let arrow_type_of_tag = function
   | 1 -> ArrowFloat64
   | 2 -> ArrowBoolean
   | 3 -> ArrowString
+  | 4 -> ArrowDictionary
+  | 5 -> ArrowList ArrowNull
   | _ -> ArrowNull
 
 (* --- GC Finalizer --- *)
@@ -173,7 +175,8 @@ let get_column (t : t) (name : string) : column_data option =
                 | ArrowDate -> Some (DateColumn [||])
                 | ArrowTimestamp tz -> Some (DatetimeColumn ([||], tz))
                 | ArrowNull -> Some (NullColumn 0)
-                | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
+                | ArrowDictionary -> Some (DictionaryColumn ([||], [], false))
+                | ArrowList _ | ArrowStruct _ ->
                     Some (NullColumn 0))
              else None
          | Some array_ptr ->
@@ -193,8 +196,12 @@ let get_column (t : t) (name : string) : column_data option =
                List.assoc_opt name t.columns
            | ArrowNull ->
                Some (NullColumn t.nrows)
-           | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
-               (* Dictionary, List and Struct are handled via pure OCaml storage fallback *)
+           | ArrowDictionary ->
+               let (indices, levels, ordered) =
+                 Arrow_ffi.arrow_read_dictionary_column array_ptr in
+               Some (DictionaryColumn (indices, levels, ordered))
+           | ArrowList _ | ArrowStruct _ ->
+               (* List and Struct are handled via pure OCaml storage fallback *)
                List.assoc_opt name t.columns)
   | _ ->
       (* Fallback to pure OCaml *)
@@ -253,8 +260,8 @@ let get_string (col : column_data) (row : int) : string option =
 (** Column builders currently supported by Arrow_ffi.arrow_table_new.
     Only basic Arrow-compatible primitive columns can be rebuilt natively today. *)
 let is_arrow_table_new_supported = function
-  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ -> true
-  | NullColumn _ | DictionaryColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> false
+  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DictionaryColumn _ -> true
+  | NullColumn _ | ListColumn _ | DateColumn _ | DatetimeColumn _ -> false
 
 (** Materialize a pure OCaml table into a native Arrow-backed one.
     Returns the table itself if it already has a native_handle.
@@ -270,26 +277,34 @@ let materialize (t : t) : t =
         let arrow_float64_tag = 1 in
         let arrow_boolean_tag = 2 in
         let arrow_string_tag = 3 in
+        let arrow_dictionary_tag = 4 in
         let arrow_unsupported_tag = 8 in
         let tag_of = function
           | ArrowInt64 -> arrow_int64_tag
           | ArrowFloat64 -> arrow_float64_tag
           | ArrowBoolean -> arrow_boolean_tag
           | ArrowString -> arrow_string_tag
-          | ArrowNull | ArrowDictionary | ArrowDate | ArrowTimestamp _ | ArrowList _ | ArrowStruct _ -> arrow_unsupported_tag
+          | ArrowDictionary -> arrow_dictionary_tag
+          | ArrowNull | ArrowDate | ArrowTimestamp _ | ArrowList _ | ArrowStruct _ -> arrow_unsupported_tag
         in
         let ffi_cols = List.map (fun (name, type_) ->
-          let data = match List.assoc_opt name t.columns with
-            | Some (IntColumn a) -> Array.map (Option.map Obj.repr) a
-            | Some (FloatColumn a) -> Array.map (Option.map Obj.repr) a
-            | Some (BoolColumn a) -> Array.map (Option.map Obj.repr) a
-            | Some (StringColumn a) -> Array.map (Option.map Obj.repr) a
-            | Some (NullColumn n) -> Array.make n None
-            | Some (DateColumn _) | Some (DatetimeColumn _) | Some (DictionaryColumn _) | Some (ListColumn _) ->
-                Array.make t.nrows None
-            | None -> Array.make t.nrows None
+          let tag = tag_of type_ in
+          let raw_data : Obj.t = match List.assoc_opt name t.columns with
+            | Some (DictionaryColumn (indices, levels, ordered)) ->
+                (* Pack as tuple (int option array, string list, bool) for C FFI.
+                   The C side reads Field(v_arr, 0/1/2) which works on both
+                   OCaml tuples and arrays at the C representation level. *)
+                Obj.repr (indices, levels, ordered)
+            | Some (IntColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+            | Some (FloatColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+            | Some (BoolColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+            | Some (StringColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+            | Some (NullColumn n) -> Obj.repr (Array.make n None)
+            | Some (DateColumn _) | Some (DatetimeColumn _) | Some (ListColumn _) ->
+                Obj.repr (Array.make t.nrows None)
+            | None -> Obj.repr (Array.make t.nrows None)
           in
-          (name, tag_of type_, data)
+          (name, tag, (Obj.obj raw_data : Obj.t array))
         ) t.schema in
         match Arrow_ffi.arrow_table_new ffi_cols with
         | Some ptr -> create_from_native ptr t.schema t.nrows

@@ -85,3 +85,28 @@ type ffi_column_spec =
 *   `explain(df).storage_backend` returns `"native_arrow"` for DataFrames containing factors.
 *   `mutate(df, $f = factor(...))` does not drop the native handle.
 *   Performance of `filter` and `select` on nested/factor data matches native primitive performance.
+
+---
+
+## 6. Implementation Status
+
+### Phase 1: Native Factor Support — ✅ IMPLEMENTED
+*   **C FFI** (`arrow_stubs.c`):
+    *   Schema extraction detects `GArrowDictionaryDataType` → tag 4 (`ArrowDictionary`).
+    *   `caml_arrow_table_new` case 4 builds `GArrowDictionaryArray` from OCaml `(int option array * string list * bool)`.
+    *   `caml_arrow_read_dictionary_column` extracts indices, levels, and ordered flag from a native dictionary column. Non-string dictionary values are explicitly rejected (returns empty result). All integer index widths including `UINT64` are supported, with unsupported types treated as null.
+*   **OCaml** (`arrow_table.ml`, `arrow_ffi.ml`):
+    *   `arrow_type_of_tag 4` → `ArrowDictionary`.
+    *   `is_arrow_table_new_supported` returns `true` for `DictionaryColumn`.
+    *   `materialize` packs `DictionaryColumn` data as `(indices, levels, ordered)` tuple for FFI.
+    *   `get_column` calls `arrow_read_dictionary_column` for native-backed dictionary columns.
+*   **Tests**: Dictionary column round-trip (create → materialize → read), bridge VFactor ↔ DictionaryColumn, T-level factor operations.
+
+### Phase 2: Native List-Column Support — 🔧 PARTIAL (reader only)
+*   **C FFI** (`arrow_stubs.c`):
+    *   Schema extraction detects `GArrowListDataType` → tag 5 (`ArrowList`).
+    *   `caml_arrow_read_list_column` returns child array pointer and per-row offset/length slices.
+    *   Builder (case 5) for `caml_arrow_table_new` is **not yet implemented** (list-columns remain in pure OCaml storage).
+*   **OCaml**:
+    *   `arrow_type_of_tag 5` → `ArrowList ArrowNull`.
+    *   List-columns still fall back to pure OCaml storage in `materialize`.
