@@ -862,6 +862,180 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   print_newline ();
 
+  Printf.printf "Arrow Integration — ListColumn (Nested DataFrame) Native Support:\n";
+
+  (* Test: ListColumn creation and pure OCaml access *)
+  let sub_table_a = Arrow_table.create [
+    ("x", Arrow_table.IntColumn [| Some 1; Some 2 |]);
+    ("y", Arrow_table.StringColumn [| Some "a"; Some "b" |]);
+  ] 2 in
+  let sub_table_b = Arrow_table.create [
+    ("x", Arrow_table.IntColumn [| Some 3 |]);
+    ("y", Arrow_table.StringColumn [| Some "c" |]);
+  ] 1 in
+  let list_col = Arrow_table.ListColumn [| Some sub_table_a; Some sub_table_b |] in
+  let list_tbl = Arrow_table.create [
+    ("key", Arrow_table.StringColumn [| Some "grp1"; Some "grp2" |]);
+    ("data", list_col);
+  ] 2 in
+  if Arrow_table.num_rows list_tbl = 2 && Arrow_table.num_columns list_tbl = 2 then begin
+    incr pass_count; Printf.printf "  ✓ ListColumn table creation works\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ ListColumn table creation failed\n"
+  end;
+
+  (* Test: Schema reflects ArrowList type *)
+  let list_schema = Arrow_table.get_schema list_tbl in
+  (match List.assoc_opt "data" list_schema with
+   | Some (Arrow_table.ArrowList _) ->
+     incr pass_count; Printf.printf "  ✓ ListColumn schema type is ArrowList\n"
+   | _ ->
+     incr fail_count; Printf.printf "  ✗ ListColumn schema type mismatch\n");
+
+  (* Test: ListColumn pure OCaml read-back *)
+  (match Arrow_table.get_column list_tbl "data" with
+   | Some (Arrow_table.ListColumn nested) ->
+       if Array.length nested = 2 then begin
+         (match nested.(0) with
+          | Some t when t.Arrow_table.nrows = 2 ->
+            incr pass_count; Printf.printf "  ✓ ListColumn read-back correct (sub-table 0 has 2 rows)\n"
+          | _ ->
+            incr fail_count; Printf.printf "  ✗ ListColumn read-back sub-table 0 mismatch\n");
+         (match nested.(1) with
+          | Some t when t.Arrow_table.nrows = 1 ->
+            incr pass_count; Printf.printf "  ✓ ListColumn read-back correct (sub-table 1 has 1 row)\n"
+          | _ ->
+            incr fail_count; Printf.printf "  ✗ ListColumn read-back sub-table 1 mismatch\n")
+       end else begin
+         incr fail_count; Printf.printf "  ✗ ListColumn read-back has wrong length: %d\n" (Array.length nested)
+       end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ ListColumn read-back returned wrong type\n");
+
+  (* Test: is_arrow_table_new_supported returns true for ListColumn with primitive fields *)
+  if Arrow_table.is_arrow_table_new_supported list_col then begin
+    incr pass_count; Printf.printf "  ✓ is_arrow_table_new_supported = true for ListColumn\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ is_arrow_table_new_supported should be true for ListColumn\n"
+  end;
+
+  (* Test: Materialization of DataFrame with ListColumn *)
+  let mat_list_tbl = Arrow_table.materialize list_tbl in
+  let mat_list_native = Arrow_table.is_native_backed mat_list_tbl in
+  if mat_list_native then begin
+    incr pass_count; Printf.printf "  ✓ ListColumn table materializes to native Arrow\n";
+    (* Verify round-trip: read key column from native *)
+    (match Arrow_table.get_column mat_list_tbl "key" with
+     | Some (Arrow_table.StringColumn a) ->
+         if a.(0) = Some "grp1" && a.(1) = Some "grp2" then begin
+           incr pass_count; Printf.printf "  ✓ Key column round-trip verified from native ListColumn table\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ Key column data mismatch in native ListColumn table\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ Key column read-back returned wrong type\n");
+    (* Verify round-trip: read list column back from native *)
+    (match Arrow_table.get_column mat_list_tbl "data" with
+     | Some (Arrow_table.ListColumn nested) ->
+         if Array.length nested = 2 then begin
+           (match nested.(0) with
+            | Some t ->
+                if t.Arrow_table.nrows = 2 then begin
+                  (match Arrow_table.get_column t "x" with
+                   | Some (Arrow_table.IntColumn a) ->
+                       if a.(0) = Some 1 && a.(1) = Some 2 then begin
+                         incr pass_count; Printf.printf "  ✓ Native ListColumn round-trip: sub-table 0 x=[1,2] correct\n"
+                       end else begin
+                         incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 x data mismatch\n"
+                       end
+                   | _ ->
+                       incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 x wrong type\n");
+                  (match Arrow_table.get_column t "y" with
+                   | Some (Arrow_table.StringColumn a) ->
+                       if a.(0) = Some "a" && a.(1) = Some "b" then begin
+                         incr pass_count; Printf.printf "  ✓ Native ListColumn round-trip: sub-table 0 y=[a,b] correct\n"
+                       end else begin
+                         incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 y data mismatch\n"
+                       end
+                   | _ ->
+                       incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 y wrong type\n")
+                end else begin
+                  incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 has %d rows (expected 2)\n" t.Arrow_table.nrows
+                end
+            | None ->
+                incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 is None\n");
+           (match nested.(1) with
+            | Some t ->
+                if t.Arrow_table.nrows = 1 then begin
+                  (match Arrow_table.get_column t "x" with
+                   | Some (Arrow_table.IntColumn a) ->
+                       if a.(0) = Some 3 then begin
+                         incr pass_count; Printf.printf "  ✓ Native ListColumn round-trip: sub-table 1 x=[3] correct\n"
+                       end else begin
+                         incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 1 x data mismatch\n"
+                       end
+                   | _ ->
+                       incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 1 x wrong type\n")
+                end else begin
+                  incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 1 has %d rows (expected 1)\n" t.Arrow_table.nrows
+                end
+            | None ->
+                incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 1 is None\n")
+         end else begin
+           incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: nested has %d elements (expected 2)\n" (Array.length nested)
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: read-back returned wrong type\n")
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "ListColumn table materializes to native Arrow"
+  end;
+
+  (* Test: ListColumn with null entries *)
+  let list_col_null = Arrow_table.ListColumn [| Some sub_table_a; None; Some sub_table_b |] in
+  let list_tbl_null = Arrow_table.create [
+    ("key", Arrow_table.StringColumn [| Some "g1"; None; Some "g3" |]);
+    ("data", list_col_null);
+  ] 3 in
+  let mat_null_tbl = Arrow_table.materialize list_tbl_null in
+  if Arrow_table.is_native_backed mat_null_tbl then begin
+    (match Arrow_table.get_column mat_null_tbl "data" with
+     | Some (Arrow_table.ListColumn nested) ->
+         if Array.length nested = 3 && nested.(1) = None then begin
+           incr pass_count; Printf.printf "  ✓ ListColumn with null entry round-trip correct\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ ListColumn with null entry data mismatch\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ ListColumn with null entry read-back returned wrong type\n")
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "ListColumn with null entries materializes to native Arrow"
+  end;
+
+  (* Test: Empty ListColumn — falls back to pure OCaml (no struct schema to build) *)
+  let list_col_empty = Arrow_table.ListColumn [||] in
+  if not (Arrow_table.is_arrow_table_new_supported list_col_empty) then begin
+    incr pass_count; Printf.printf "  ✓ Empty ListColumn correctly falls back to pure OCaml\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ Empty ListColumn should not be materializable (no struct schema)\n"
+  end;
+
+  (* Test: nest/unnest via T language round-trip *)
+  test "Nest creates DataFrame"
+    {|df = dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); nrow(nested)|}
+    "2";
+
+  test "Unnest restores structure"
+    {|df = dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); unnest(nested, $data) |> nrow|}
+    "3";
+
+  test "Nest-unnest round-trip preserves data"
+    {|df = dataframe([[g: "a", x: 1], [g: "a", x: 2], [g: "b", x: 3]]); nested = nest(df, $x); flat = unnest(nested, $data); select(flat, $g, $x) |> nrow|}
+    "3";
+
+  print_newline ();
+
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
   print_newline ()
