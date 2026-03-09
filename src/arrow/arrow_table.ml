@@ -155,6 +155,63 @@ let column_names (t : t) : string list =
 
 let get_schema (t : t) : arrow_schema = t.schema
 
+(** Slice a column from [offset] for [len] elements *)
+let slice_column (col : column_data) (offset : int) (len : int) : column_data =
+  match col with
+  | IntColumn a -> IntColumn (Array.sub a offset len)
+  | FloatColumn a -> FloatColumn (Array.sub a offset len)
+  | BoolColumn a -> BoolColumn (Array.sub a offset len)
+  | StringColumn a -> StringColumn (Array.sub a offset len)
+  | DateColumn a -> DateColumn (Array.sub a offset len)
+  | DatetimeColumn (a, tz) -> DatetimeColumn (Array.sub a offset len, tz)
+  | NullColumn _ -> NullColumn len
+  | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.sub a offset len, levels, ordered)
+  | ListColumn a -> ListColumn (Array.sub a offset len)
+
+(** Read a native list-of-struct column and reconstruct as ListColumn.
+    Takes the already-fetched array pointer from arrow_table_get_column_data.
+    The array_ptr is consumed by arrow_read_list_column (which unrefs it).
+    Decomposes the struct child into per-field columns and slices into sub-tables. *)
+let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : column_data option =
+  let (child_opt, slices) = Arrow_ffi.arrow_read_list_column array_ptr in
+  match child_opt with
+  | None -> Some (ListColumn (Array.make (max nrows (Array.length slices)) None))
+  | Some child_ptr ->
+      let field_infos = Arrow_ffi.arrow_read_struct_fields child_ptr in
+      (* Read each field using the appropriate column reader *)
+      let field_cols = List.mapi (fun i (fname, ftag) ->
+        match Arrow_ffi.arrow_read_struct_field child_ptr i with
+        | None -> (fname, ftag, NullColumn 0)
+        | Some fptr ->
+            let col = match ftag with
+              | 0 -> IntColumn (Arrow_ffi.arrow_read_int64_column fptr)
+              | 1 -> FloatColumn (Arrow_ffi.arrow_read_float64_column fptr)
+              | 2 -> BoolColumn (Arrow_ffi.arrow_read_boolean_column fptr)
+              | 3 -> StringColumn (Arrow_ffi.arrow_read_string_column fptr)
+              | 4 ->
+                  let (idx, lvl, ord) = Arrow_ffi.arrow_read_dictionary_column fptr in
+                  DictionaryColumn (idx, lvl, ord)
+              | _ -> Arrow_ffi.arrow_unref fptr; NullColumn (Array.length slices)
+            in
+            (fname, ftag, col)
+      ) field_infos in
+      (* Clean up the child struct array *)
+      Arrow_ffi.arrow_unref child_ptr;
+      (* Reconstruct sub-tables by slicing the flattened columns *)
+      let nested = Array.map (function
+        | None -> None
+        | Some (offset, len) ->
+            let sub_cols = List.map (fun (fname, _, col) ->
+              (fname, slice_column col offset len)
+            ) field_cols in
+            let sub_schema = List.map (fun (fname, ftag, _) ->
+              (fname, arrow_type_of_tag ftag)
+            ) field_cols in
+            Some { schema = sub_schema; columns = sub_cols;
+                   nrows = len; native_handle = None }
+      ) slices in
+      Some (ListColumn nested)
+
 let get_column (t : t) (name : string) : column_data option =
   match t.native_handle with
   | Some handle when not handle.freed ->
@@ -343,63 +400,6 @@ let flatten_list_column (nested : t option array) : (int array * bool array * (s
     (fname, tag, flat_data)
   ) sub_schema in
   (offsets, present, sub_cols)
-
-(** Slice a column from [offset] for [len] elements *)
-let slice_column (col : column_data) (offset : int) (len : int) : column_data =
-  match col with
-  | IntColumn a -> IntColumn (Array.sub a offset len)
-  | FloatColumn a -> FloatColumn (Array.sub a offset len)
-  | BoolColumn a -> BoolColumn (Array.sub a offset len)
-  | StringColumn a -> StringColumn (Array.sub a offset len)
-  | DateColumn a -> DateColumn (Array.sub a offset len)
-  | DatetimeColumn (a, tz) -> DatetimeColumn (Array.sub a offset len, tz)
-  | NullColumn _ -> NullColumn len
-  | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.sub a offset len, levels, ordered)
-  | ListColumn a -> ListColumn (Array.sub a offset len)
-
-(** Read a native list-of-struct column and reconstruct as ListColumn.
-    Takes the already-fetched array pointer from arrow_table_get_column_data.
-    The array_ptr is consumed by arrow_read_list_column (which unrefs it).
-    Decomposes the struct child into per-field columns and slices into sub-tables. *)
-let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : column_data option =
-  let (child_opt, slices) = Arrow_ffi.arrow_read_list_column array_ptr in
-  match child_opt with
-  | None -> Some (ListColumn (Array.make (max nrows (Array.length slices)) None))
-  | Some child_ptr ->
-      let field_infos = Arrow_ffi.arrow_read_struct_fields child_ptr in
-      (* Read each field using the appropriate column reader *)
-      let field_cols = List.mapi (fun i (fname, ftag) ->
-        match Arrow_ffi.arrow_read_struct_field child_ptr i with
-        | None -> (fname, ftag, NullColumn 0)
-        | Some fptr ->
-            let col = match ftag with
-              | 0 -> IntColumn (Arrow_ffi.arrow_read_int64_column fptr)
-              | 1 -> FloatColumn (Arrow_ffi.arrow_read_float64_column fptr)
-              | 2 -> BoolColumn (Arrow_ffi.arrow_read_boolean_column fptr)
-              | 3 -> StringColumn (Arrow_ffi.arrow_read_string_column fptr)
-              | 4 ->
-                  let (idx, lvl, ord) = Arrow_ffi.arrow_read_dictionary_column fptr in
-                  DictionaryColumn (idx, lvl, ord)
-              | _ -> Arrow_ffi.arrow_unref fptr; NullColumn (Array.length slices)
-            in
-            (fname, ftag, col)
-      ) field_infos in
-      (* Clean up the child struct array *)
-      Arrow_ffi.arrow_unref child_ptr;
-      (* Reconstruct sub-tables by slicing the flattened columns *)
-      let nested = Array.map (function
-        | None -> None
-        | Some (offset, len) ->
-            let sub_cols = List.map (fun (fname, _, col) ->
-              (fname, slice_column col offset len)
-            ) field_cols in
-            let sub_schema = List.map (fun (fname, ftag, _) ->
-              (fname, arrow_type_of_tag ftag)
-            ) field_cols in
-            Some { schema = sub_schema; columns = sub_cols;
-                   nrows = len; native_handle = None }
-      ) slices in
-      Some (ListColumn nested)
 
 (** Materialize a pure OCaml table into a native Arrow-backed one.
     Returns the table itself if it already has a native_handle.
