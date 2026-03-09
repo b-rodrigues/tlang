@@ -35,7 +35,7 @@ external arrow_table_num_columns : nativeint -> int
 
 (** Returns list of (column_name, type_tag) pairs.
     type_tag: 0=ArrowInt64, 1=ArrowFloat64, 2=ArrowBoolean, 3=ArrowString,
-              4=ArrowDictionary, 5=ArrowList, 6=ArrowNull *)
+              4=ArrowDictionary, 5=ArrowList, 6=ArrowNull, 7=ArrowDate *)
 external arrow_table_get_schema : nativeint -> (string * int) list
   = "caml_arrow_table_get_schema"
 
@@ -57,6 +57,9 @@ external arrow_read_boolean_column : nativeint -> bool option array
 
 external arrow_read_string_column : nativeint -> string option array
   = "caml_arrow_read_string_column"
+
+external arrow_read_date32_column : nativeint -> int option array
+  = "caml_arrow_read_date32_column"
 
 external arrow_read_dictionary_column : nativeint -> (int option array * string list * bool)
   = "caml_arrow_read_dictionary_column"

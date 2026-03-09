@@ -54,7 +54,7 @@ CAMLprim value caml_arrow_table_num_columns(value v_ptr) {
 
 /* Get schema as list of (name, type_tag) pairs.
    type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String,
-             4=Dictionary, 5=List, 6=Null */
+             4=Dictionary, 5=List, 6=Null, 7=Date */
 CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
   CAMLparam1(v_ptr);
   CAMLlocal3(v_result, v_col, v_cons);
@@ -85,6 +85,8 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
     else if (GARROW_IS_DICTIONARY_DATA_TYPE(dtype))
                                                   type_tag = 4; /* ArrowDictionary */
     else if (GARROW_IS_LIST_DATA_TYPE(dtype))     type_tag = 5; /* ArrowList */
+    else if (GARROW_IS_DATE32_DATA_TYPE(dtype) ||
+             GARROW_IS_DATE64_DATA_TYPE(dtype))   type_tag = 7; /* ArrowDate */
     else                                          type_tag = 6; /* ArrowNull */
 
     /* Create tuple (name, type_tag) */
@@ -322,6 +324,43 @@ CAMLprim value caml_arrow_read_string_column(value v_array_ptr) {
   CAMLreturn(v_result);
 }
 
+/* Read a Date32 (or Date64) column into an OCaml int option array.
+   Date32 stores days since epoch (1970-01-01).
+   Date64 stores milliseconds since epoch, which we convert to days.
+   Unrefs the GArrowArray after copying all data. */
+CAMLprim value caml_arrow_read_date32_column(value v_array_ptr) {
+  CAMLparam1(v_array_ptr);
+  CAMLlocal2(v_result, v_some);
+
+  GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
+  gint64 length = garrow_array_get_length(array);
+
+  v_result = caml_alloc(length, 0);
+
+  GArrowDate32Array *date32_array = GARROW_IS_DATE32_ARRAY(array) ? GARROW_DATE32_ARRAY(array) : NULL;
+  GArrowDate64Array *date64_array = GARROW_IS_DATE64_ARRAY(array) ? GARROW_DATE64_ARRAY(array) : NULL;
+
+  for (gint64 i = 0; i < length; i++) {
+    if (garrow_array_is_null(array, i)) {
+      Store_field(v_result, i, Val_none);
+    } else {
+      gint32 days = 0;
+      if (date32_array) {
+        days = garrow_date32_array_get_value(date32_array, i);
+      } else if (date64_array) {
+        gint64 millis = garrow_date64_array_get_value(date64_array, i);
+        days = (gint32)(millis / 86400000LL);
+      }
+      v_some = caml_alloc(1, 0); /* Some(...) */
+      Store_field(v_some, 0, Val_long(days));
+      Store_field(v_result, i, v_some);
+    }
+  }
+
+  g_object_unref(array);
+  CAMLreturn(v_result);
+}
+
 /* Read a Dictionary (factor) column into an OCaml tuple:
    (int option array * string list * bool)
    - indices: 0-based index into levels for each row (None for NA)
@@ -544,6 +583,8 @@ CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
     else if (GARROW_IS_DICTIONARY_DATA_TYPE(fdtype))
                                                    type_tag = 4;
     else if (GARROW_IS_LIST_DATA_TYPE(fdtype))     type_tag = 5;
+    else if (GARROW_IS_DATE32_DATA_TYPE(fdtype) ||
+             GARROW_IS_DATE64_DATA_TYPE(fdtype))   type_tag = 7;
     else                                           type_tag = 6;
 
     v_tuple = caml_alloc(2, 0);
@@ -2131,7 +2172,7 @@ CAMLprim value caml_arrow_write_ipc(value v_ptr, value v_path) {
   CAMLreturn(Val_bool(ok));
 }
 /* Create a native Arrow table from a list of (name, type_tag, array) tuples.
-   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String.
+   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String, 7=Date.
    array is an OCaml option array (None = null, Some x = value). */
 CAMLprim value caml_arrow_table_new(value v_cols) {
   CAMLparam1(v_cols);
@@ -2387,6 +2428,19 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
               }
               break;
             }
+            case 7: { /* Date32 */
+              sub_dtype = (GArrowDataType *)garrow_date32_data_type_new();
+              sub_builder = (GArrowArrayBuilder *)garrow_date32_array_builder_new();
+              for (int j = 0; j < n_total_vals; j++) {
+                value v_opt = Field(v_sub_data, j);
+                if (Is_block(v_opt))
+                  garrow_date32_array_builder_append_value(GARROW_DATE32_ARRAY_BUILDER(sub_builder), (gint32)Long_val(Field(v_opt, 0)), &error);
+                else
+                  garrow_array_builder_append_null(sub_builder, &error);
+                if (error) { sub_ok = 0; break; }
+              }
+              break;
+            }
             default:
               sub_ok = 0;
               break;
@@ -2520,6 +2574,19 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         n_rows = 0;
         break;
       }
+      case 7: // Date32 (days since epoch)
+        dtype = (GArrowDataType *)garrow_date32_data_type_new();
+        builder = (GArrowArrayBuilder *)garrow_date32_array_builder_new();
+        for (int i = 0; i < n_rows; i++) {
+          value v_opt = Field(v_arr, i);
+          if (Is_block(v_opt)) { // Some(days)
+            garrow_date32_array_builder_append_value(GARROW_DATE32_ARRAY_BUILDER(builder), (gint32)Long_val(Field(v_opt, 0)), &error);
+          } else {
+            garrow_array_builder_append_null(builder, &error);
+          }
+          if (error) break;
+        }
+        break;
       default:
         break;
     }

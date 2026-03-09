@@ -96,6 +96,7 @@ let arrow_type_of_tag = function
   | 3 -> ArrowString
   | 4 -> ArrowDictionary
   | 5 -> ArrowList ArrowNull
+  | 7 -> ArrowDate
   | _ -> ArrowNull
 
 (* --- GC Finalizer --- *)
@@ -191,6 +192,7 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
               | 4 ->
                   let (idx, lvl, ord) = Arrow_ffi.arrow_read_dictionary_column fptr in
                   DictionaryColumn (idx, lvl, ord)
+              | 7 -> DateColumn (Arrow_ffi.arrow_read_date32_column fptr)
               | _ -> Arrow_ffi.arrow_unref fptr; NullColumn (Array.length slices)
             in
             (fname, ftag, col)
@@ -246,10 +248,13 @@ let get_column (t : t) (name : string) : column_data option =
                Some (BoolColumn (Arrow_ffi.arrow_read_boolean_column array_ptr))
            | ArrowString ->
                Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
-           | ArrowDate | ArrowTimestamp _ ->
-               (* Native Arrow date/timestamp extraction is not implemented in the
-                  current FFI layer yet, so date-like columns stay in the pure
+           | ArrowDate ->
+               Some (DateColumn (Arrow_ffi.arrow_read_date32_column array_ptr))
+           | ArrowTimestamp _ ->
+               (* Native Arrow timestamp extraction is not implemented in the
+                  current FFI layer yet, so timestamp columns stay in the pure
                   OCaml fallback path until those readers are added. *)
+               Arrow_ffi.arrow_unref array_ptr;
                List.assoc_opt name t.columns
            | ArrowNull ->
                Some (NullColumn t.nrows)
@@ -321,14 +326,14 @@ let get_string (col : column_data) (row : int) : string option =
 
 (** Check if a primitive column type tag is supported for native struct fields *)
 let is_primitive_tag_supported = function
-  | ArrowInt64 | ArrowFloat64 | ArrowBoolean | ArrowString -> true
+  | ArrowInt64 | ArrowFloat64 | ArrowBoolean | ArrowString | ArrowDate -> true
   | _ -> false
 
 (** Column builders currently supported by Arrow_ffi.arrow_table_new.
     Primitive columns, dictionary columns, and list-of-struct columns with
     all-primitive fields are supported. *)
 let is_arrow_table_new_supported = function
-  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DictionaryColumn _ -> true
+  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DateColumn _ | DictionaryColumn _ -> true
   | ListColumn a ->
       (* All non-None sub-tables must have same schema of only primitive types.
          At least one non-None sub-table must exist to determine the struct schema. *)
@@ -339,7 +344,7 @@ let is_arrow_table_new_supported = function
            first.schema <> [] &&
            List.for_all (fun t -> t.schema = first.schema) rest &&
            List.for_all (fun (_, ty) -> is_primitive_tag_supported ty) first.schema)
-  | NullColumn _ | DateColumn _ | DatetimeColumn _ -> false
+  | NullColumn _ | DatetimeColumn _ -> false
 
 (** Flatten a ListColumn into (offsets, present_flags, sub_column_specs) for FFI.
     offsets : int array of length nrows+1
@@ -351,11 +356,13 @@ let flatten_list_column (nested : t option array) : (int array * bool array * (s
   let arrow_float64_tag = 1 in
   let arrow_boolean_tag = 2 in
   let arrow_string_tag = 3 in
+  let arrow_date_tag = 7 in
   let sub_tag_of = function
     | ArrowInt64 -> arrow_int64_tag
     | ArrowFloat64 -> arrow_float64_tag
     | ArrowBoolean -> arrow_boolean_tag
     | ArrowString -> arrow_string_tag
+    | ArrowDate -> arrow_date_tag
     | _ -> arrow_string_tag (* fallback *)
   in
   (* Compute offsets and total value count *)
@@ -393,6 +400,8 @@ let flatten_list_column (nested : t option array) : (int array * bool array * (s
                Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
            | Some (StringColumn a) ->
                Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
+           | Some (DateColumn a) ->
+               Array.iteri (fun j v -> flat_data.(!pos + j) <- pack_opt v) a
            | _ ->
                for j = 0 to sub_t.nrows - 1 do flat_data.(!pos + j) <- Obj.repr None done);
           pos := !pos + sub_t.nrows
@@ -419,6 +428,7 @@ let materialize (t : t) : t =
         let arrow_string_tag = 3 in
         let arrow_dictionary_tag = 4 in
         let arrow_list_tag = 5 in
+        let arrow_date_tag = 7 in
         let arrow_unsupported_tag = 8 in
         let tag_of = function
           | ArrowInt64 -> arrow_int64_tag
@@ -427,7 +437,8 @@ let materialize (t : t) : t =
           | ArrowString -> arrow_string_tag
           | ArrowDictionary -> arrow_dictionary_tag
           | ArrowList _ -> arrow_list_tag
-          | ArrowNull | ArrowDate | ArrowTimestamp _ | ArrowStruct _ -> arrow_unsupported_tag
+          | ArrowDate -> arrow_date_tag
+          | ArrowNull | ArrowTimestamp _ | ArrowStruct _ -> arrow_unsupported_tag
         in
         let ffi_cols = List.map (fun (name, type_) ->
           let tag = tag_of type_ in
@@ -445,8 +456,9 @@ let materialize (t : t) : t =
             | Some (FloatColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (BoolColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (StringColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+            | Some (DateColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (NullColumn n) -> Obj.repr (Array.make n None)
-            | Some (DateColumn _) | Some (DatetimeColumn _) ->
+            | Some (DatetimeColumn _) ->
                 Obj.repr (Array.make t.nrows None)
             | None -> Obj.repr (Array.make t.nrows None)
           in
