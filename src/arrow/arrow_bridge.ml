@@ -205,4 +205,8 @@ let rec prepare_value_for_serialization (v : value) : value =
         un_env_vars = cleanse_kv_list un.un_env_vars;
         un_args     = cleanse_kv_list un.un_args;
       }
+  | VLambda lam ->
+      (* Lambdas carry a captured closure environment that may contain DataFrames *)
+      let env' = Option.map (Env.map prepare_value_for_serialization) lam.env in
+      VLambda { lam with env = env' }
   | _ -> v

@@ -707,4 +707,268 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
+  print_newline ();
+
+  Printf.printf "Arrow Integration — Serialization Safety (prepare_for_serialization):\n";
+
+  (* Test: prepare_for_serialization recurses into ListColumn nested tables.
+     Even when the outer table has no native_handle, nested sub-tables inside
+     ListColumn rows may still carry one — those should be stripped. *)
+  let fake_handle = { Arrow_table.ptr = 0n; freed = false } in
+  let sub_table_with_handle = {
+    Arrow_table.schema = [("val", Arrow_table.ArrowInt64)];
+    columns = [("val", Arrow_table.IntColumn [| Some 42 |])];
+    nrows = 1;
+    native_handle = Some fake_handle;
+  } in
+  let outer_table = Arrow_table.create
+    [ ("id",   Arrow_table.IntColumn [| Some 1 |]);
+      ("data", Arrow_table.ListColumn [| Some sub_table_with_handle |]) ]
+    1
+  in
+  let cleaned = Arrow_table.prepare_for_serialization outer_table in
+  (match Arrow_table.get_column cleaned "data" with
+   | Some (Arrow_table.ListColumn arr) ->
+       (match arr.(0) with
+        | Some sub ->
+            if sub.Arrow_table.native_handle = None then begin
+              incr pass_count;
+              Printf.printf "  ✓ prepare_for_serialization strips native_handle from ListColumn nested table\n"
+            end else begin
+              incr fail_count;
+              Printf.printf "  ✗ prepare_for_serialization left native_handle intact in ListColumn nested table\n"
+            end
+        | None ->
+            incr fail_count;
+            Printf.printf "  ✗ prepare_for_serialization: ListColumn row unexpectedly None\n")
+   | _ ->
+       incr fail_count;
+       Printf.printf "  ✗ prepare_for_serialization: expected ListColumn, got different column type\n");
+
+  (* Test: serialize/deserialize Marshal roundtrip of a DataFrame containing a ListColumn.
+     Native handles must be stripped before Marshal so that deserialization in another
+     process does not produce stale nativeint pointers. *)
+  let serial_path = "test_listcol_serial.tobj" in
+  let df_with_listcol : Ast.value =
+    Ast.VDataFrame { Ast.arrow_table = outer_table; Ast.group_keys = [] }
+  in
+  let cleaned_v = Arrow_bridge.prepare_value_for_serialization df_with_listcol in
+  (match Serialization.serialize_to_file serial_path cleaned_v with
+   | Error msg ->
+       incr fail_count;
+       Printf.printf "  ✗ ListColumn DataFrame serialize failed: %s\n" msg
+   | Ok () ->
+       (match Serialization.deserialize_from_file serial_path with
+        | Error msg ->
+            incr fail_count;
+            Printf.printf "  ✗ ListColumn DataFrame deserialize failed: %s\n" msg
+        | Ok rt ->
+            (match rt with
+             | Ast.VDataFrame rt_df ->
+                 (match Arrow_table.get_column rt_df.arrow_table "id" with
+                  | Some (Arrow_table.IntColumn data) when data.(0) = Some 1 ->
+                      incr pass_count;
+                      Printf.printf "  ✓ ListColumn DataFrame serialize/deserialize roundtrip preserves data\n"
+                  | _ ->
+                      incr fail_count;
+                      Printf.printf "  ✗ ListColumn DataFrame roundtrip: data mismatch after deserialization\n")
+             | _ ->
+                 incr fail_count;
+                 Printf.printf "  ✗ ListColumn DataFrame roundtrip: got unexpected value type\n")));
+  (try Sys.remove serial_path with _ -> ());
+
+  (* Test: prepare_value_for_serialization cleanses DataFrames inside VPipeline p_env_vars and p_args.
+     The pipeline record holds per-node env vars and args that can contain DataFrames with native handles. *)
+  let df_with_handle : Ast.value =
+    Ast.VDataFrame {
+      Ast.arrow_table = { Arrow_table.schema = [("x", Arrow_table.ArrowInt64)];
+                          columns = [("x", Arrow_table.IntColumn [| Some 1 |])];
+                          nrows = 1;
+                          native_handle = Some fake_handle };
+      Ast.group_keys = [];
+    }
+  in
+  let pipeline_val : Ast.value = Ast.VPipeline {
+    Ast.p_nodes = [];
+    Ast.p_exprs = [];
+    Ast.p_deps  = [];
+    Ast.p_imports = [];
+    Ast.p_runtimes = [];
+    Ast.p_serializers = [];
+    Ast.p_deserializers = [];
+    Ast.p_env_vars = [("node1", [("df", df_with_handle)])];
+    Ast.p_args     = [("node1", [("result", df_with_handle)])];
+    Ast.p_functions = [];
+    Ast.p_includes  = [];
+    Ast.p_noops     = [];
+    Ast.p_scripts   = [];
+  }
+  in
+  let cleaned_p = Arrow_bridge.prepare_value_for_serialization pipeline_val in
+  (match cleaned_p with
+   | Ast.VPipeline p ->
+       let env_var_handle_gone =
+         match List.assoc_opt "node1" p.Ast.p_env_vars with
+         | Some kvs ->
+             (match List.assoc_opt "df" kvs with
+              | Some (Ast.VDataFrame d) -> d.Ast.arrow_table.Arrow_table.native_handle = None
+              | _ -> false)
+         | None -> false
+       in
+       let arg_handle_gone =
+         match List.assoc_opt "node1" p.Ast.p_args with
+         | Some kvs ->
+             (match List.assoc_opt "result" kvs with
+              | Some (Ast.VDataFrame d) -> d.Ast.arrow_table.Arrow_table.native_handle = None
+              | _ -> false)
+         | None -> false
+       in
+       if env_var_handle_gone && arg_handle_gone then begin
+         incr pass_count;
+         Printf.printf "  ✓ prepare_value_for_serialization cleanses DataFrames in VPipeline p_env_vars and p_args\n"
+       end else begin
+         incr fail_count;
+         Printf.printf "  ✗ prepare_value_for_serialization did not cleanse all DataFrames in VPipeline (env=%b, args=%b)\n"
+           env_var_handle_gone arg_handle_gone
+       end
+   | _ ->
+       incr fail_count;
+       Printf.printf "  ✗ prepare_value_for_serialization did not preserve VPipeline type\n");
+
+  (* Test: prepare_value_for_serialization cleanses DataFrames inside VNode un_env_vars and un_args. *)
+  let node_val : Ast.value = Ast.VNode {
+    Ast.un_command    = Ast.Value Ast.VNull;
+    Ast.un_script     = None;
+    Ast.un_runtime    = "R";
+    Ast.un_serializer = Ast.Value Ast.VNull;
+    Ast.un_deserializer = Ast.Value Ast.VNull;
+    Ast.un_env_vars   = [("df", df_with_handle)];
+    Ast.un_args       = [("result", df_with_handle)];
+    Ast.un_functions  = [];
+    Ast.un_includes   = [];
+    Ast.un_noop       = false;
+  }
+  in
+  let cleaned_n = Arrow_bridge.prepare_value_for_serialization node_val in
+  (match cleaned_n with
+   | Ast.VNode un ->
+       let env_gone =
+         match List.assoc_opt "df" un.Ast.un_env_vars with
+         | Some (Ast.VDataFrame d) -> d.Ast.arrow_table.Arrow_table.native_handle = None
+         | _ -> false
+       in
+       let arg_gone =
+         match List.assoc_opt "result" un.Ast.un_args with
+         | Some (Ast.VDataFrame d) -> d.Ast.arrow_table.Arrow_table.native_handle = None
+         | _ -> false
+       in
+       if env_gone && arg_gone then begin
+         incr pass_count;
+         Printf.printf "  ✓ prepare_value_for_serialization cleanses DataFrames in VNode un_env_vars and un_args\n"
+       end else begin
+         incr fail_count;
+         Printf.printf "  ✗ prepare_value_for_serialization did not cleanse all DataFrames in VNode (env=%b, args=%b)\n"
+           env_gone arg_gone
+       end
+   | _ ->
+       incr fail_count;
+       Printf.printf "  ✗ prepare_value_for_serialization did not preserve VNode type\n");
+
+  (* Test: prepare_value_for_serialization cleanses DataFrames in VLambda captured environment. *)
+  let captured_env = Ast.Env.singleton "captured_df" df_with_handle in
+  let lambda_val : Ast.value = Ast.VLambda {
+    Ast.params = [];
+    Ast.param_types = [];
+    Ast.return_type = None;
+    Ast.generic_params = [];
+    Ast.variadic = false;
+    Ast.body = Ast.Value Ast.VNull;
+    Ast.env = Some captured_env;
+  }
+  in
+  let cleaned_lam = Arrow_bridge.prepare_value_for_serialization lambda_val in
+  (match cleaned_lam with
+   | Ast.VLambda lam ->
+       let handle_gone =
+         match lam.Ast.env with
+         | Some e ->
+             (match Ast.Env.find_opt "captured_df" e with
+              | Some (Ast.VDataFrame d) -> d.Ast.arrow_table.Arrow_table.native_handle = None
+              | _ -> false)
+         | None -> false
+       in
+       if handle_gone then begin
+         incr pass_count;
+         Printf.printf "  ✓ prepare_value_for_serialization cleanses DataFrames in VLambda captured env\n"
+       end else begin
+         incr fail_count;
+         Printf.printf "  ✗ prepare_value_for_serialization left native_handle in VLambda captured env\n"
+       end
+   | _ ->
+       incr fail_count;
+       Printf.printf "  ✗ prepare_value_for_serialization did not preserve VLambda type\n");
+
+  (* Test: VLambda with multiple DataFrames in captured env — all handles stripped. *)
+  let multi_env =
+    Ast.Env.empty
+    |> Ast.Env.add "df1" df_with_handle
+    |> Ast.Env.add "df2" df_with_handle
+    |> Ast.Env.add "scalar" (Ast.VInt 42)
+  in
+  let multi_lam_val : Ast.value = Ast.VLambda {
+    Ast.params = []; Ast.param_types = []; Ast.return_type = None;
+    Ast.generic_params = []; Ast.variadic = false;
+    Ast.body = Ast.Value Ast.VNull; Ast.env = Some multi_env;
+  }
+  in
+  let cleaned_multi = Arrow_bridge.prepare_value_for_serialization multi_lam_val in
+  (match cleaned_multi with
+   | Ast.VLambda lam ->
+       let all_clean =
+         match lam.Ast.env with
+         | Some e ->
+             let df1_ok = match Ast.Env.find_opt "df1" e with
+               | Some (Ast.VDataFrame d) -> d.Ast.arrow_table.Arrow_table.native_handle = None
+               | _ -> false
+             in
+             let df2_ok = match Ast.Env.find_opt "df2" e with
+               | Some (Ast.VDataFrame d) -> d.Ast.arrow_table.Arrow_table.native_handle = None
+               | _ -> false
+             in
+             let scalar_ok = match Ast.Env.find_opt "scalar" e with
+               | Some (Ast.VInt 42) -> true
+               | _ -> false
+             in
+             df1_ok && df2_ok && scalar_ok
+         | None -> false
+       in
+       if all_clean then begin
+         incr pass_count;
+         Printf.printf "  ✓ prepare_value_for_serialization cleanses all DataFrames in multi-entry VLambda env\n"
+       end else begin
+         incr fail_count;
+         Printf.printf "  ✗ prepare_value_for_serialization missed some entries in multi-entry VLambda env\n"
+       end
+   | _ ->
+       incr fail_count;
+       Printf.printf "  ✗ multi-entry VLambda: prepare_value_for_serialization did not preserve VLambda type\n");
+
+  (* Test: VLambda with None env is preserved unchanged (no crash). *)
+  let no_env_lam : Ast.value = Ast.VLambda {
+    Ast.params = []; Ast.param_types = []; Ast.return_type = None;
+    Ast.generic_params = []; Ast.variadic = false;
+    Ast.body = Ast.Value Ast.VNull; Ast.env = None;
+  }
+  in
+  (match Arrow_bridge.prepare_value_for_serialization no_env_lam with
+   | Ast.VLambda lam when lam.Ast.env = None ->
+       incr pass_count;
+       Printf.printf "  ✓ prepare_value_for_serialization preserves VLambda with None env\n"
+   | Ast.VLambda _ ->
+       incr fail_count;
+       Printf.printf "  ✗ prepare_value_for_serialization changed env from None in VLambda\n"
+   | _ ->
+       incr fail_count;
+       Printf.printf "  ✗ prepare_value_for_serialization lost VLambda type when env = None\n");
+
   print_newline ()
