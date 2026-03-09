@@ -7,7 +7,10 @@
 (* FFI availability flag — true when Arrow C GLib is linked              *)
 (* ===================================================================== *)
 
-let arrow_available = true
+let arrow_available =
+  match Sys.getenv_opt "TLANG_DISABLE_ARROW" with
+  | Some ("1" | "true" | "yes" | "on") -> false
+  | _ -> true
 
 (* ===================================================================== *)
 (* Memory Management                                                     *)

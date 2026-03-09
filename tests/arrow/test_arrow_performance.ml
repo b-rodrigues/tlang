@@ -456,8 +456,14 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let (t_sel100k, _) = time_it (fun () -> Arrow_compute.project tbl_100k ["id"; "value"]) in
   incr pass_count; Printf.printf "  ✓ Project 100k rows (%.4fs)\n" t_sel100k;
 
-  let (t_sum100k, _) = time_it (fun () -> Arrow_compute.sum_column tbl_100k "value") in
-  incr pass_count; Printf.printf "  ✓ Sum 100k rows (%.4fs)\n" t_sum100k;
+  let (t_sum100k, sum100k) = time_it (fun () -> Arrow_compute.sum_column tbl_100k "value") in
+  (match sum100k with
+   | Some s when s = 5000000.0 ->
+     incr pass_count; Printf.printf "  ✓ Sum 100k rows = 5,000,000.0 (%.4fs)\n" t_sum100k
+   | Some s ->
+     incr fail_count; Printf.printf "  ✗ Sum 100k rows incorrect: expected 5,000,000.0, got %.1f\n" s
+   | None ->
+     incr fail_count; Printf.printf "  ✗ Sum 100k rows: result is None\n");
 
   let (t_grp100k, grouped_100k) = time_it (fun () ->
     Arrow_compute.group_by tbl_100k ["group"]
@@ -492,8 +498,14 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let (t_sel1m, _) = time_it (fun () -> Arrow_compute.project tbl_1m ["id"; "value"]) in
   incr pass_count; Printf.printf "  ✓ Project 1M rows (%.4fs)\n" t_sel1m;
 
-  let (t_sum1m, _) = time_it (fun () -> Arrow_compute.sum_column tbl_1m "value") in
-  incr pass_count; Printf.printf "  ✓ Sum 1M rows (%.4fs)\n" t_sum1m;
+  let (t_sum1m, sum1m) = time_it (fun () -> Arrow_compute.sum_column tbl_1m "value") in
+  (match sum1m with
+   | Some s when s = 50000000.0 ->
+     incr pass_count; Printf.printf "  ✓ Sum 1M rows = 50,000,000.0 (%.4fs)\n" t_sum1m
+   | Some s ->
+     incr fail_count; Printf.printf "  ✗ Sum 1M rows incorrect: expected 50,000,000.0, got %.1f\n" s
+   | None ->
+     incr fail_count; Printf.printf "  ✗ Sum 1M rows: result is None\n");
 
   let (t_mean1m, _) = time_it (fun () -> Arrow_compute.mean_column tbl_1m "value") in
   incr pass_count; Printf.printf "  ✓ Mean 1M rows (%.4fs)\n" t_mean1m;
