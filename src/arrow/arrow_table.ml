@@ -289,7 +289,7 @@ let materialize (t : t) : t =
         in
         let ffi_cols = List.map (fun (name, type_) ->
           let tag = tag_of type_ in
-          let data = match List.assoc_opt name t.columns with
+          let raw_data : Obj.t = match List.assoc_opt name t.columns with
             | Some (DictionaryColumn (indices, levels, ordered)) ->
                 (* Pack as tuple (int option array, string list, bool) for C FFI.
                    The C side reads Field(v_arr, 0/1/2) which works on both
@@ -304,7 +304,7 @@ let materialize (t : t) : t =
                 Obj.repr (Array.make t.nrows None)
             | None -> Obj.repr (Array.make t.nrows None)
           in
-          (name, tag, (Obj.obj data : Obj.t option array))
+          (name, tag, (Obj.obj raw_data : Obj.t array))
         ) t.schema in
         match Arrow_ffi.arrow_table_new ffi_cols with
         | Some ptr -> create_from_native ptr t.schema t.nrows

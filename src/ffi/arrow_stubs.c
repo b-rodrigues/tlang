@@ -326,7 +326,7 @@ CAMLprim value caml_arrow_read_string_column(value v_array_ptr) {
    (int option array * string list * bool)
    - indices: 0-based index into levels for each row (None for NA)
    - levels: list of unique level strings
-   - ordered: always false (Arrow doesn't track ordered flag)
+   - ordered: false (T stores ordered flag separately; not encoded in Arrow type for now)
    Unrefs the GArrowArray after copying all data. */
 CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
   CAMLparam1(v_array_ptr);
@@ -408,7 +408,7 @@ CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
   v_result = caml_alloc(3, 0);
   Store_field(v_result, 0, v_indices);
   Store_field(v_result, 1, v_levels);
-  Store_field(v_result, 2, Val_bool(0)); /* ordered flag — Arrow does not track this */
+  Store_field(v_result, 2, Val_bool(0)); /* T stores ordered flag separately; not encoded in Arrow type for now */
 
   g_object_unref(array);
   CAMLreturn(v_result);

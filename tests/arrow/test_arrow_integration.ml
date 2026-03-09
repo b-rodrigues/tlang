@@ -821,6 +821,21 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|v = factor(["a", "b", "a", "c"]); levels(v)|}
     {|["a", "b", "c"]|};
 
+  (* Test: Ordered factor round-trip through bridge *)
+  let ordered_input = [| Ast.VFactor (1, ["low"; "med"; "high"], true);
+                         Ast.VNA Ast.NAGeneric;
+                         Ast.VFactor (0, ["low"; "med"; "high"], true) |] in
+  (match Arrow_bridge.values_to_column ordered_input with
+   | Arrow_table.DictionaryColumn (idx, levels, ordered) ->
+       if idx.(0) = Some 1 && idx.(1) = None && idx.(2) = Some 0
+          && levels = ["low"; "med"; "high"] && ordered then begin
+         incr pass_count; Printf.printf "  ✓ Ordered factor bridge round-trip preserves ordered flag\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ Ordered factor bridge round-trip data mismatch\n"
+       end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ Ordered factor bridge round-trip returned wrong type\n");
+
   print_newline ();
 
   (* Cleanup *)
