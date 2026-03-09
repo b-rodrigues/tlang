@@ -11,7 +11,11 @@ let project (t : Arrow_table.t) (names : string list) : Arrow_table.t =
   | Some handle when not handle.Arrow_table.freed ->
       (match Arrow_ffi.arrow_table_project handle.ptr names with
        | Some new_ptr ->
-           let new_schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
+           let new_schema = List.map (fun n ->
+             match List.assoc_opt n t.schema with
+             | Some ty -> (n, ty)
+             | None -> (n, Arrow_table.ArrowNull)
+           ) names in
            Arrow_table.create_from_native new_ptr new_schema t.nrows
        | None ->
            (* Native project failed — fall back to pure OCaml *)
@@ -252,16 +256,19 @@ let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name 
 and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_name : string) : Arrow_table.t =
   let n_groups = List.length grouped.ocaml_groups in
   let t = grouped.base_table in
+  (* Convert to arrays for O(1) indexed access instead of O(n) List.nth *)
+  let groups_arr = Array.of_list grouped.ocaml_groups in
   (* Build key columns *)
   let key_col_values = List.map (fun k ->
     match Arrow_table.get_column t k with
     | Some col -> Arrow_bridge.column_to_values col
     | None -> Array.make (Arrow_table.num_rows t) Ast.VNull
   ) grouped.group_keys in
+  let key_col_arr = Array.of_list key_col_values in
   let key_result_cols = List.mapi (fun ki k ->
-    let key_vals = List.nth key_col_values ki in
+    let key_vals = key_col_arr.(ki) in
     let col = Array.init n_groups (fun g_idx ->
-      let (_, indices) = List.nth grouped.ocaml_groups g_idx in
+      let (_, indices) = groups_arr.(g_idx) in
       match indices with
       | first :: _ -> key_vals.(first)
       | [] -> Ast.VNull
@@ -276,7 +283,7 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
   (* Compute aggregation per group *)
   let agg_col_name = if agg_name = "count" then "n" else col_name in
   let agg_col = Array.init n_groups (fun g_idx ->
-    let (_, indices) = List.nth grouped.ocaml_groups g_idx in
+    let (_, indices) = groups_arr.(g_idx) in
     match agg_name with
     | "sum" ->
         let sum = List.fold_left (fun acc i ->

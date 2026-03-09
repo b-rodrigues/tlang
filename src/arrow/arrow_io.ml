@@ -196,10 +196,6 @@ let read_csv_native (path : string) : (Arrow_table.t, string) result =
 (* Public API                                                            *)
 (* ===================================================================== *)
 
-(* ===================================================================== *)
-(* Public API                                                            *)
-(* ===================================================================== *)
-
 let starts_with prefix s =
   let len_p = String.length prefix in
   let len_s = String.length s in

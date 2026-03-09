@@ -184,16 +184,16 @@ let get_column (t : t) (name : string) : column_data option =
                Some (FloatColumn (Arrow_ffi.arrow_read_float64_column array_ptr))
            | ArrowBoolean ->
                Some (BoolColumn (Arrow_ffi.arrow_read_boolean_column array_ptr))
-            | ArrowString ->
-                Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
-            | ArrowDate | ArrowTimestamp _ ->
-                (* Native Arrow date/timestamp extraction is not implemented in the
-                   current FFI layer yet, so date-like columns stay in the pure
-                   OCaml fallback path until those readers are added. *)
-                List.assoc_opt name t.columns
-            | ArrowNull ->
-                Some (NullColumn t.nrows)
-            | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
+           | ArrowString ->
+               Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
+           | ArrowDate | ArrowTimestamp _ ->
+               (* Native Arrow date/timestamp extraction is not implemented in the
+                  current FFI layer yet, so date-like columns stay in the pure
+                  OCaml fallback path until those readers are added. *)
+               List.assoc_opt name t.columns
+           | ArrowNull ->
+               Some (NullColumn t.nrows)
+           | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
                (* Dictionary, List and Struct are handled via pure OCaml storage fallback *)
                List.assoc_opt name t.columns)
   | _ ->
@@ -335,26 +335,36 @@ and prepare_column_for_serialization (col : column_data) : column_data =
 (* --- Table operations --- *)
 
 (** Project (select) columns by name — zero-copy in native Arrow backend.
-    Pure OCaml fallback uses O(n*m) list lookup; acceptable for typical column counts. *)
+    Pure OCaml fallback uses O(n*m) list lookup; acceptable for typical column counts.
+    Unknown column names are mapped to NullColumn to avoid raising Not_found. *)
 let project (t : t) (names : string list) : t =
+  let safe_assoc_schema n =
+    match List.assoc_opt n t.schema with
+    | Some ty -> (n, ty)
+    | None -> (n, ArrowNull)
+  in
   match t.native_handle with
   | Some handle when not handle.freed ->
       (match Arrow_ffi.arrow_table_project handle.ptr names with
        | Some new_ptr ->
-           let new_schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
+           let new_schema = List.map safe_assoc_schema names in
            create_from_native new_ptr new_schema t.nrows
         | None ->
             (* Fallback if native project fails *)
-            let schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
-            let columns = List.map (fun n -> 
+            let schema = List.map safe_assoc_schema names in
+            let columns = List.map (fun n ->
               match get_column t n with
               | Some col -> (n, col)
               | None -> (n, NullColumn t.nrows)
             ) names in
             { schema; columns; nrows = t.nrows; native_handle = None } |> materialize)
   | _ ->
-      let schema = List.map (fun n -> (n, List.assoc n t.schema)) names in
-      let columns = List.map (fun n -> (n, List.assoc n t.columns)) names in
+      let schema = List.map safe_assoc_schema names in
+      let columns = List.map (fun n ->
+        match List.assoc_opt n t.columns with
+        | Some col -> (n, col)
+        | None -> (n, NullColumn t.nrows)
+      ) names in
       { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
 
 (** Add or replace a column.
@@ -389,13 +399,13 @@ let add_column (t : t) (name : string) (col : column_data) : t =
   { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
 
 let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int) : column_data =
-  let pick a =
-    Array.init new_nrows (fun j ->
-      let rec find src count =
-        if mask.(src) then (if count = j then a.(src) else find (src + 1) (count + 1))
-        else find (src + 1) count
-      in find 0 0)
-  in
+  (* Precompute the source indices to avoid O(n²) repeated scanning *)
+  let indices = Array.make new_nrows 0 in
+  let j = ref 0 in
+  Array.iteri (fun src b ->
+    if b then begin indices.(!j) <- src; incr j end
+  ) mask;
+  let pick a = Array.init new_nrows (fun i -> a.(indices.(i))) in
   match col with
   | IntColumn a -> IntColumn (pick a)
   | FloatColumn a -> FloatColumn (pick a)
@@ -422,20 +432,22 @@ let take_col (col : column_data) (idx_arr : int array) (new_nrows : int) : colum
 
 (** Filter rows using a boolean mask *)
 let filter_rows (t : t) (mask : bool array) : t =
+  let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
   match t.native_handle with
   | Some handle when not handle.freed ->
       (match Arrow_ffi.arrow_table_filter_mask handle.ptr mask with
        | Some new_ptr ->
-           let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
            create_from_native new_ptr t.schema new_nrows
-        | None ->
-            (* Fallback *)
-            let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
-            let filter_col col = _filter_column_pure col mask new_nrows in
-            let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
-            { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
+       | None ->
+           (* Native filter failed — materialize columns from FFI first *)
+           let filter_col col = _filter_column_pure col mask new_nrows in
+           let columns = List.map (fun (name, _) ->
+             match get_column t name with
+             | Some col -> (name, filter_col col)
+             | None -> (name, NullColumn new_nrows)
+           ) t.schema in
+           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
   | _ ->
-      let new_nrows = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
       let filter_col col = _filter_column_pure col mask new_nrows in
       let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
       { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
