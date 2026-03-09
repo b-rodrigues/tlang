@@ -297,19 +297,40 @@ let materialize (t : t) : t =
 
 (** Prepare a table for transfer across processes (e.g. via Marshal).
     Materializes any native data into OCaml storage and clears the native handle,
-    as pointers are not valid in other processes. *)
-let prepare_for_serialization (t : t) : t =
+    as pointers are not valid in other processes. Also recursively cleanses any
+    nested tables inside ListColumn values, regardless of whether the outer table
+    has a native handle, to prevent stale pointers after cross-process transfer. *)
+let rec prepare_for_serialization (t : t) : t =
   match t.native_handle with
   | Some handle when not handle.freed ->
       (* Materialize columns if they are not already in t.columns.
-         We use get_column to ensure we get data from FFI if needed. *)
+         We use get_column to ensure we get data from FFI if needed.
+         Recursively cleanse any nested tables in ListColumn values. *)
       let columns = List.map (fun (name, _) ->
-        match get_column t name with
-        | Some data -> (name, data)
-        | None -> (name, NullColumn t.nrows)
+        let col = match get_column t name with
+          | Some data -> data
+          | None -> NullColumn t.nrows
+        in
+        (name, prepare_column_for_serialization col)
       ) t.schema in
       { t with columns; native_handle = None }
-  | _ -> t
+  | _ ->
+      (* Even when the outer table has no live native handle, nested tables
+         inside ListColumn values may still carry native handles. Strip them. *)
+      let columns = List.map (fun (name, col) ->
+        (name, prepare_column_for_serialization col)
+      ) t.columns in
+      { t with columns; native_handle = None }
+
+and prepare_column_for_serialization (col : column_data) : column_data =
+  match col with
+  | ListColumn nested_tables ->
+      ListColumn (Array.map (fun entry ->
+        match entry with
+        | Some nested -> Some (prepare_for_serialization nested)
+        | None -> None
+      ) nested_tables)
+  | _ -> col
 
 (* --- Table operations --- *)
 

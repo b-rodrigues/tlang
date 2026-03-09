@@ -66,6 +66,6 @@ The work performed since commit `9a85f864` addresses two major areas identified 
 
 ## 4. Current Status
 
-- **Tests Passing**: `tests/arrow/test_arrow_integration.ml` passes all 10 checks.
+- **Tests Passing**: `tests/arrow/test_arrow_integration.ml` passes all checks.
 - **Pipeline Stable**: `tests/pipeline/test_pipeline_e2e.t` builds and runs successfully in the Nix environment without segfaults.
 - **Ready for Alpha**: The core data engine is now significantly more robust for cross-process usage.
