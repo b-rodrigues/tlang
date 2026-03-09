@@ -26,9 +26,6 @@ external arrow_table_num_rows : nativeint -> int
 external arrow_table_num_columns : nativeint -> int
   = "caml_arrow_table_num_columns"
 
-external arrow_table_get_column_by_name : nativeint -> string -> nativeint option
-  = "caml_arrow_table_get_column_by_name"
-
 (* ===================================================================== *)
 (* Schema Extraction                                                     *)
 (* ===================================================================== *)
