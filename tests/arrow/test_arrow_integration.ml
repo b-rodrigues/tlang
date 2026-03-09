@@ -842,10 +842,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     [| Some 1; None; Some 0 |],
     ["low"; "med"; "high"],
     true) in
-  let ordered_tbl = Arrow_table.create
-    ~schema:[("rank", Arrow_table.ArrowDictionary)]
-    ~columns:[("rank", ordered_col)]
-    ~nrows:3 in
+  let ordered_tbl = Arrow_table.create [("rank", ordered_col)] 3 in
   let ordered_mat = Arrow_table.materialize ordered_tbl in
   if Arrow_table.is_native_backed ordered_mat then begin
     (match Arrow_table.get_column ordered_mat "rank" with
