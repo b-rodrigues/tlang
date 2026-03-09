@@ -118,6 +118,6 @@ type ffi_column_spec =
     *   `is_arrow_table_new_supported` returns `true` for `ListColumn` when all sub-tables have same schema of primitive-only fields.
     *   `flatten_list_column` decomposes `ListColumn` into (offsets, present flags, flattened sub-column specs) for FFI.
     *   `materialize` packs `ListColumn` data as `(offsets, present, sub_cols)` tuple for FFI case 5.
-    *   `read_native_list_column` reconstructs `ListColumn` from native Arrow by composing `arrow_read_list_column`, `arrow_read_struct_fields`, and per-field column readers, then slicing flattened data into sub-tables.
-    *   `get_column` calls `read_native_list_column` for native-backed list columns.
+    *   `read_native_list_column_from_ptr` reconstructs `ListColumn` from native Arrow by composing `arrow_read_list_column`, `arrow_read_struct_fields`, and per-field column readers, then slicing flattened data into sub-tables.
+    *   `get_column` calls `read_native_list_column_from_ptr` for native-backed list columns.
 *   **Tests**: ListColumn creation, schema type, pure OCaml read-back, materialization to native, native round-trip (including sub-table data verification), null entry handling, empty list column support, T-language nest/unnest round-trip.

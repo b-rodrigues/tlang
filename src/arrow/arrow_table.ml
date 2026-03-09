@@ -380,7 +380,7 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
               | 4 ->
                   let (idx, lvl, ord) = Arrow_ffi.arrow_read_dictionary_column fptr in
                   DictionaryColumn (idx, lvl, ord)
-              | _ -> NullColumn (Array.length slices)
+              | _ -> Arrow_ffi.arrow_unref fptr; NullColumn (Array.length slices)
             in
             (fname, ftag, col)
       ) field_infos in
