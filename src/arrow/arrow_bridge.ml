@@ -188,6 +188,18 @@ let rec prepare_value_for_serialization (v : value) : value =
   | VVector arr ->
       VVector (Array.map prepare_value_for_serialization arr)
   | VPipeline p ->
-      (* Pipelines also store node results; cleanse them too *)
-      VPipeline { p with p_nodes = List.map (fun (n, v) -> (n, prepare_value_for_serialization v)) p.p_nodes }
+      (* Pipelines store node results, build env vars, and runtime args — cleanse all value-bearing fields *)
+      let p_nodes = List.map (fun (n, v) -> (n, prepare_value_for_serialization v)) p.p_nodes in
+      let p_env_vars = List.map (fun (node, vars) ->
+        (node, List.map (fun (k, v) -> (k, prepare_value_for_serialization v)) vars)
+      ) p.p_env_vars in
+      let p_args = List.map (fun (node, args) ->
+        (node, List.map (fun (k, v) -> (k, prepare_value_for_serialization v)) args)
+      ) p.p_args in
+      VPipeline { p with p_nodes; p_env_vars; p_args }
+  | VNode un ->
+      (* Unbuilt nodes carry env_vars and args that may contain DataFrames *)
+      let un_env_vars = List.map (fun (k, v) -> (k, prepare_value_for_serialization v)) un.un_env_vars in
+      let un_args = List.map (fun (k, v) -> (k, prepare_value_for_serialization v)) un.un_args in
+      VNode { un with un_env_vars; un_args }
   | _ -> v
