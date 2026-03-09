@@ -1955,6 +1955,7 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
   }
 
 
+
   v_res = caml_alloc(1, 0);
   Store_field(v_res, 0, caml_copy_nativeint((intnat)table));
   CAMLreturn(v_res);

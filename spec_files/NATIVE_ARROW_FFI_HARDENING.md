@@ -60,7 +60,7 @@ The work performed since commit `9a85f864` addresses two major areas identified 
 
 | Finding ID | Finding Description | Resolution in these Commits |
 |:---|:---|:---|
-| **#1** | Native Arrow validation in CI | Added `Arrow mutate keeps native path active` to `test_arrow_integration.ml`. Ensured pipeline E2E tests exercise the native path. |
+| **#1** | Native Arrow validation in CI | Added `Arrow mutate keeps native path active` to `test_arrow_integration.ml`. This required fixing a `NameError` in the test script itself (avoiding reassignment of immutable dataframes). Ensured pipeline E2E tests exercise the native path. |
 | **#5** | Clarify "fast path vs fallback" | Added Backend status (storage_backend) to `explain()`. Documented visibility in `docs/performance.md`. |
 | **Release Hardening** | Stability & User Journey | Fixed the critical Nix pipeline segfault that would have blocked the successful execution of any real-world pipeline. |
 

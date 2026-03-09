@@ -165,17 +165,16 @@ let get_column (t : t) (name : string) : column_data option =
              (* If it's an empty table, FFI might return None for columns with 0 chunks.
                 Return an empty OCaml column of the correct type. *)
              if t.nrows = 0 then
-               Some
-                 (match col_type with
-                 | ArrowInt64 -> IntColumn [||]
-                 | ArrowFloat64 -> FloatColumn [||]
-                 | ArrowBoolean -> BoolColumn [||]
-                 | ArrowString -> StringColumn [||]
-                 | ArrowDate -> DateColumn [||]
-                 | ArrowTimestamp tz -> DatetimeColumn ([||], tz)
-                 | ArrowNull -> NullColumn 0
-                 | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
-                     NullColumn 0)
+               (match col_type with
+                | ArrowInt64 -> Some (IntColumn [||])
+                | ArrowFloat64 -> Some (FloatColumn [||])
+                | ArrowBoolean -> Some (BoolColumn [||])
+                | ArrowString -> Some (StringColumn [||])
+                | ArrowDate -> Some (DateColumn [||])
+                | ArrowTimestamp tz -> Some (DatetimeColumn ([||], tz))
+                | ArrowNull -> Some (NullColumn 0)
+                | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
+                    Some (NullColumn 0))
              else None
          | Some array_ptr ->
            match col_type with
