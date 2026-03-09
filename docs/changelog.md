@@ -127,6 +127,9 @@ Version history and roadmap for the T programming language.
 - Zero-copy columnar storage
 - CSV reading via Arrow C GLib
 - Dual-path operations (native + fallback)
+- `explain(df)` now surfaces whether a DataFrame is still on the native Arrow path (`storage_backend`, `native_path_active`)
+- Supported structural rebuilds now try to stay Arrow-backed by rematerializing into a fresh native table
+- **Current limitation**: unsupported builder paths (for example null-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
 
 ✅ **Reproducibility**:
 - Nix flakes for dependency management

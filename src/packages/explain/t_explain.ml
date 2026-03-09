@@ -1,5 +1,8 @@
 open Ast
 
+let dataframe_hint =
+  "Use explain(df).storage_backend, explain(df).native_path_active, explain(df).performance_note, explain(df).schema, explain(df).na_stats, and explain(df).example_rows for details"
+
 (*
 --# Explain Value
 --#
@@ -73,6 +76,16 @@ let register env =
       | [VDataFrame df] ->
           let value_columns = Arrow_bridge.table_to_value_columns df.arrow_table in
           let nrows = Arrow_table.num_rows df.arrow_table in
+          let native_path_active = Arrow_table.is_native_backed df.arrow_table in
+          let storage_backend =
+            if native_path_active then "native_arrow" else "pure_ocaml"
+          in
+          let performance_note =
+            if native_path_active then
+              "Native Arrow handle is active; eligible operations can use the vectorized Arrow path."
+            else
+              "This DataFrame is materialized in OCaml/T storage because native Arrow backing could not be preserved for its current columns or structure."
+          in
           let schema = VList (List.map (fun (name, col) ->
             let col_type = ref "Unknown" in
             Array.iter (fun v ->
@@ -97,13 +110,17 @@ let register env =
           in
           let display_keys = [
             (None, VString "kind"); (None, VString "nrow"); (None, VString "ncol");
-            (None, VString "hint")
+            (None, VString "storage_backend"); (None, VString "native_path_active");
+            (None, VString "performance_note"); (None, VString "hint")
           ] @ (if df.group_keys = [] then [] else [(None, VString "group_keys")]) in
           VDict ([
             ("kind", VString "dataframe");
             ("nrow", VInt nrows);
             ("ncol", VInt (Arrow_table.num_columns df.arrow_table));
-            ("hint", VString "Use explain(df).schema, explain(df).na_stats, explain(df).example_rows for details");
+            ("storage_backend", VString storage_backend);
+            ("native_path_active", VBool native_path_active);
+            ("performance_note", VString performance_note);
+            ("hint", VString dataframe_hint);
             ("schema", schema);
             ("na_stats", na_stats);
             ("example_rows", example_rows);

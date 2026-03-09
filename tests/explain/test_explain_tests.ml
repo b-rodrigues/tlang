@@ -116,6 +116,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ explain DataFrame ncol\n    Expected: 3\n    Got: %s\n" result
   end;
 
+  let (v, _) = eval_string_env "e = explain(df); type(e.storage_backend)" env_p6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"String"|} then begin
+    incr pass_count; Printf.printf "  ✓ explain DataFrame storage_backend is a String\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ explain DataFrame storage_backend is a String\n    Expected: \"String\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "e = explain(df); type(e.native_path_active)" env_p6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"Bool"|} then begin
+    incr pass_count; Printf.printf "  ✓ explain DataFrame native_path_active is a Bool\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ explain DataFrame native_path_active is a Bool\n    Expected: \"Bool\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "e = explain(df); type(e.performance_note)" env_p6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"String"|} then begin
+    incr pass_count; Printf.printf "  ✓ explain DataFrame performance_note is a String\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ explain DataFrame performance_note is a String\n    Expected: \"String\"\n    Got: %s\n" result
+  end;
+
   (* Check NA stats *)
   let (v, _) = eval_string_env "e = explain(df); e.na_stats.age" env_p6 in
   let result = Ast.Utils.value_to_string v in
@@ -165,6 +189,40 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr pass_count; Printf.printf "  ✓ explain DataFrame example_rows length (3 rows)\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ explain DataFrame example_rows length (3 rows)\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "df_mutated = mutate(df, $score_copy = $score); e2 = explain(df_mutated); type(e2.storage_backend)" env_p6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"String"|} then begin
+    incr pass_count; Printf.printf "  ✓ explain mutated DataFrame storage_backend is a String\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ explain mutated DataFrame storage_backend is a String\n    Expected: \"String\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "df_mutated = mutate(df, $score_copy = $score); e2 = explain(df_mutated); type(e2.native_path_active)" env_p6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"Bool"|} then begin
+    incr pass_count; Printf.printf "  ✓ explain mutated DataFrame native_path_active is a Bool\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ explain mutated DataFrame native_path_active is a Bool\n    Expected: \"Bool\"\n    Got: %s\n" result
+  end;
+
+  (* A DataFrame whose only column is NA in every row stays on the pure OCaml
+     path because NullColumn does not yet have a native Arrow builder path. *)
+  let (v, _) = eval_string_env "df_na_only = dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.storage_backend" env_p6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|"pure_ocaml"|} then begin
+    incr pass_count; Printf.printf "  ✓ explain unsupported DataFrame storage_backend\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ explain unsupported DataFrame storage_backend\n    Expected: \"pure_ocaml\"\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env "df_na_only = dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.native_path_active" env_p6 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "false" then begin
+    incr pass_count; Printf.printf "  ✓ explain unsupported DataFrame native_path_active\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ explain unsupported DataFrame native_path_active\n    Expected: false\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p6 with _ -> ());
   print_newline ();
