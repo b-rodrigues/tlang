@@ -165,17 +165,16 @@ let get_column (t : t) (name : string) : column_data option =
              (* If it's an empty table, FFI might return None for columns with 0 chunks.
                 Return an empty OCaml column of the correct type. *)
              if t.nrows = 0 then
-               Some
-                 (match col_type with
-                 | ArrowInt64 -> IntColumn [||]
-                 | ArrowFloat64 -> FloatColumn [||]
-                 | ArrowBoolean -> BoolColumn [||]
-                 | ArrowString -> StringColumn [||]
-                 | ArrowDate -> DateColumn [||]
-                 | ArrowTimestamp tz -> DatetimeColumn ([||], tz)
-                 | ArrowNull -> NullColumn 0
-                 | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
-                     NullColumn 0)
+               (match col_type with
+                | ArrowInt64 -> Some (IntColumn [||])
+                | ArrowFloat64 -> Some (FloatColumn [||])
+                | ArrowBoolean -> Some (BoolColumn [||])
+                | ArrowString -> Some (StringColumn [||])
+                | ArrowDate -> Some (DateColumn [||])
+                | ArrowTimestamp tz -> Some (DatetimeColumn ([||], tz))
+                | ArrowNull -> Some (NullColumn 0)
+                | ArrowDictionary | ArrowList _ | ArrowStruct _ ->
+                    Some (NullColumn 0))
              else None
          | Some array_ptr ->
            match col_type with
@@ -295,6 +294,43 @@ let materialize (t : t) : t =
         match Arrow_ffi.arrow_table_new ffi_cols with
         | Some ptr -> create_from_native ptr t.schema t.nrows
         | None -> t
+
+(** Prepare a table for transfer across processes (e.g. via Marshal).
+    Materializes any native data into OCaml storage and clears the native handle,
+    as pointers are not valid in other processes. Also recursively cleanses any
+    nested tables inside ListColumn values, regardless of whether the outer table
+    has a native handle, to prevent stale pointers after cross-process transfer. *)
+let rec prepare_for_serialization (t : t) : t =
+  match t.native_handle with
+  | Some handle when not handle.freed ->
+      (* Materialize columns if they are not already in t.columns.
+         We use get_column to ensure we get data from FFI if needed.
+         Recursively cleanse any nested tables in ListColumn values. *)
+      let columns = List.map (fun (name, _) ->
+        let col = match get_column t name with
+          | Some data -> data
+          | None -> NullColumn t.nrows
+        in
+        (name, prepare_column_for_serialization col)
+      ) t.schema in
+      { t with columns; native_handle = None }
+  | _ ->
+      (* Even when the outer table has no live native handle, nested tables
+         inside ListColumn values may still carry native handles. Strip them. *)
+      let columns = List.map (fun (name, col) ->
+        (name, prepare_column_for_serialization col)
+      ) t.columns in
+      { t with columns; native_handle = None }
+
+and prepare_column_for_serialization (col : column_data) : column_data =
+  match col with
+  | ListColumn nested_tables ->
+      ListColumn (Array.map (fun entry ->
+        match entry with
+        | Some nested -> Some (prepare_for_serialization nested)
+        | None -> None
+      ) nested_tables)
+  | _ -> col
 
 (* --- Table operations --- *)
 

@@ -18,6 +18,7 @@ let register env =
     (make_builtin ~name:"serialize" 2 (fun args _env ->
       match args with
       | [value; VString path] ->
+          let value = Arrow_bridge.prepare_value_for_serialization value in
           (match Serialization.serialize_to_file path value with
           | Ok () -> VNull
           | Error msg -> Error.make_error FileError (Printf.sprintf "serialize failed: %s" msg))

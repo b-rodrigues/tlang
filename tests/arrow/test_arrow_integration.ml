@@ -250,7 +250,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "4";
 
   let (v, _) = eval_string_env
-    (Printf.sprintf {|df = read_csv("%s"); explain(mutate(df, $senior = $age >= 30)).native_path_active|} csv_path)
+    (Printf.sprintf {|df_mut = read_csv("%s"); explain(mutate(df_mut, $senior = $age >= 30)).native_path_active|} csv_path)
     env in
   let result = Ast.Utils.value_to_string v in
   if result = "true" then begin
