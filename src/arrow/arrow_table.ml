@@ -405,6 +405,7 @@ let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int
   Array.iteri (fun src b ->
     if b then begin indices.(!j) <- src; incr j end
   ) mask;
+  assert (!j = new_nrows); (* Invariant: mask true-count must match new_nrows *)
   let pick a = Array.init new_nrows (fun i -> a.(indices.(i))) in
   match col with
   | IntColumn a -> IntColumn (pick a)

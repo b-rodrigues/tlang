@@ -1645,17 +1645,22 @@ static value arrow_column_agg_impl(value v_ptr, value v_col_name, int agg_code) 
     GArrowArray *chunk = garrow_chunked_array_get_chunk(col, c);
     gint64 chunk_len = garrow_array_get_length(chunk);
 
+    /* Verify chunk type is numeric before iterating */
+    gboolean is_double = GARROW_IS_DOUBLE_ARRAY(chunk);
+    gboolean is_int64 = GARROW_IS_INT64_ARRAY(chunk);
+    if (!is_double && !is_int64) {
+      g_object_unref(chunk);
+      continue; /* Skip non-numeric chunks */
+    }
+
     for (gint64 i = 0; i < chunk_len; i++) {
       if (garrow_array_is_null(chunk, i)) continue;
 
-      gdouble val = 0.0;
-      if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+      gdouble val;
+      if (is_double) {
         val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
-      } else if (GARROW_IS_INT64_ARRAY(chunk)) {
-        val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
       } else {
-        g_object_unref(chunk);
-        continue;
+        val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
       }
 
       switch (agg_code) {
