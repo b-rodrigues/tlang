@@ -53,7 +53,8 @@ CAMLprim value caml_arrow_table_num_columns(value v_ptr) {
 /* ===================================================================== */
 
 /* Get schema as list of (name, type_tag) pairs.
-   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String, 4=Null */
+   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String,
+             4=Dictionary, 5=List, 6=Null */
 CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
   CAMLparam1(v_ptr);
   CAMLlocal3(v_result, v_col, v_cons);
@@ -76,12 +77,15 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
         GARROW_IS_UINT8_DATA_TYPE(dtype) || GARROW_IS_UINT16_DATA_TYPE(dtype) ||
         GARROW_IS_UINT32_DATA_TYPE(dtype) || GARROW_IS_UINT64_DATA_TYPE(dtype))
                                                   type_tag = 0; /* ArrowInt64 */
-    else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype))                              type_tag = 1; /* ArrowFloat64 */
+    else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype))   type_tag = 1; /* ArrowFloat64 */
     else if (GARROW_IS_BOOLEAN_DATA_TYPE(dtype))  type_tag = 2; /* ArrowBoolean */
     else if (GARROW_IS_STRING_DATA_TYPE(dtype) ||
              GARROW_IS_LARGE_STRING_DATA_TYPE(dtype))
                                                   type_tag = 3; /* ArrowString */
-    else                                          type_tag = 4; /* ArrowNull */
+    else if (GARROW_IS_DICTIONARY_DATA_TYPE(dtype))
+                                                  type_tag = 4; /* ArrowDictionary */
+    else if (GARROW_IS_LIST_DATA_TYPE(dtype))     type_tag = 5; /* ArrowList */
+    else                                          type_tag = 6; /* ArrowNull */
 
     /* Create tuple (name, type_tag) */
     v_col = caml_alloc(2, 0);
@@ -313,6 +317,157 @@ CAMLprim value caml_arrow_read_string_column(value v_array_ptr) {
       }
     }
   }
+
+  g_object_unref(array);
+  CAMLreturn(v_result);
+}
+
+/* Read a Dictionary (factor) column into an OCaml tuple:
+   (int option array * string list * bool)
+   - indices: 0-based index into levels for each row (None for NA)
+   - levels: list of unique level strings
+   - ordered: always false (Arrow doesn't track ordered flag)
+   Unrefs the GArrowArray after copying all data. */
+CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
+  CAMLparam1(v_array_ptr);
+  CAMLlocal5(v_result, v_indices, v_some, v_levels, v_cons);
+
+  GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
+
+  if (!GARROW_IS_DICTIONARY_ARRAY(array)) {
+    /* Not a dictionary array — return empty result */
+    v_indices = caml_alloc(0, 0);
+    v_levels = Val_emptylist;
+    v_result = caml_alloc(3, 0);
+    Store_field(v_result, 0, v_indices);
+    Store_field(v_result, 1, v_levels);
+    Store_field(v_result, 2, Val_bool(0));
+    g_object_unref(array);
+    CAMLreturn(v_result);
+  }
+
+  GArrowDictionaryArray *dict_array = GARROW_DICTIONARY_ARRAY(array);
+  gint64 length = garrow_array_get_length(array);
+
+  /* Extract dictionary (levels) */
+  GArrowArray *dictionary = garrow_dictionary_array_get_dictionary(dict_array);
+  gint64 n_levels = garrow_array_get_length(dictionary);
+
+  /* Build OCaml string list for levels (in order) */
+  v_levels = Val_emptylist;
+  for (gint64 i = n_levels - 1; i >= 0; i--) {
+    gchar *level_str = NULL;
+    if (GARROW_IS_STRING_ARRAY(dictionary)) {
+      level_str = garrow_string_array_get_string(GARROW_STRING_ARRAY(dictionary), i);
+    } else if (GARROW_IS_LARGE_STRING_ARRAY(dictionary)) {
+      level_str = garrow_large_string_array_get_string(GARROW_LARGE_STRING_ARRAY(dictionary), i);
+    }
+    if (level_str) {
+      v_cons = caml_alloc(2, 0);
+      Store_field(v_cons, 0, caml_copy_string(level_str));
+      Store_field(v_cons, 1, v_levels);
+      v_levels = v_cons;
+      g_free(level_str);
+    }
+  }
+
+  /* Extract indices */
+  GArrowArray *indices_arr = garrow_dictionary_array_get_indices(dict_array);
+  v_indices = caml_alloc(length, 0);
+
+  for (gint64 i = 0; i < length; i++) {
+    if (garrow_array_is_null(array, i)) {
+      Store_field(v_indices, i, Val_none);
+    } else {
+      gint64 idx = 0;
+      if (GARROW_IS_INT8_ARRAY(indices_arr))
+        idx = garrow_int8_array_get_value(GARROW_INT8_ARRAY(indices_arr), i);
+      else if (GARROW_IS_INT16_ARRAY(indices_arr))
+        idx = garrow_int16_array_get_value(GARROW_INT16_ARRAY(indices_arr), i);
+      else if (GARROW_IS_INT32_ARRAY(indices_arr))
+        idx = garrow_int32_array_get_value(GARROW_INT32_ARRAY(indices_arr), i);
+      else if (GARROW_IS_INT64_ARRAY(indices_arr))
+        idx = garrow_int64_array_get_value(GARROW_INT64_ARRAY(indices_arr), i);
+      else if (GARROW_IS_UINT8_ARRAY(indices_arr))
+        idx = (gint64)garrow_uint8_array_get_value(GARROW_UINT8_ARRAY(indices_arr), i);
+      else if (GARROW_IS_UINT16_ARRAY(indices_arr))
+        idx = (gint64)garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(indices_arr), i);
+      else if (GARROW_IS_UINT32_ARRAY(indices_arr))
+        idx = (gint64)garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(indices_arr), i);
+
+      v_some = caml_alloc(1, 0); /* Some(...) */
+      Store_field(v_some, 0, Val_long(idx));
+      Store_field(v_indices, i, v_some);
+    }
+  }
+
+  g_object_unref(indices_arr);
+  g_object_unref(dictionary);
+
+  /* Build result tuple: (indices, levels, ordered=false) */
+  v_result = caml_alloc(3, 0);
+  Store_field(v_result, 0, v_indices);
+  Store_field(v_result, 1, v_levels);
+  Store_field(v_result, 2, Val_bool(0)); /* ordered flag — Arrow does not track this */
+
+  g_object_unref(array);
+  CAMLreturn(v_result);
+}
+
+/* Read a List column into an OCaml array of (int * int) option.
+   Each element is Some(offset, length) describing a slice of the child array,
+   or None for null entries. The child array nativeint is returned separately
+   so the OCaml side can read it with the appropriate typed reader.
+   Returns: (nativeint option * (int * int) option array)
+     - nativeint option: child GArrowArray pointer (Some) or None if empty
+     - (int * int) option array: per-row (offset, length) or None for null */
+CAMLprim value caml_arrow_read_list_column(value v_array_ptr) {
+  CAMLparam1(v_array_ptr);
+  CAMLlocal5(v_result, v_slices, v_some, v_tuple, v_child_opt);
+
+  GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
+
+  if (!GARROW_IS_LIST_ARRAY(array)) {
+    /* Not a list array — return (None, [||]) */
+    v_slices = caml_alloc(0, 0);
+    v_result = caml_alloc(2, 0);
+    Store_field(v_result, 0, Val_none);
+    Store_field(v_result, 1, v_slices);
+    g_object_unref(array);
+    CAMLreturn(v_result);
+  }
+
+  GArrowListArray *list_array = GARROW_LIST_ARRAY(array);
+  gint64 length = garrow_array_get_length(array);
+
+  /* Get the flattened child values array */
+  GArrowArray *values_array = garrow_list_array_get_values(list_array);
+
+  /* Wrap child array pointer as Some(nativeint) */
+  v_child_opt = caml_alloc(1, 0); /* Some(...) */
+  Store_field(v_child_opt, 0, caml_copy_nativeint((intnat)values_array));
+  /* Note: values_array reference is kept alive — the OCaml reader will unref it */
+
+  /* Build per-row slice descriptors */
+  v_slices = caml_alloc(length, 0);
+  for (gint64 i = 0; i < length; i++) {
+    if (garrow_array_is_null(array, i)) {
+      Store_field(v_slices, i, Val_none);
+    } else {
+      gint32 offset = garrow_list_array_get_value_offset(list_array, i);
+      gint32 len = garrow_list_array_get_value_length(list_array, i);
+      v_tuple = caml_alloc(2, 0);
+      Store_field(v_tuple, 0, Val_int(offset));
+      Store_field(v_tuple, 1, Val_int(len));
+      v_some = caml_alloc(1, 0); /* Some(...) */
+      Store_field(v_some, 0, v_tuple);
+      Store_field(v_slices, i, v_some);
+    }
+  }
+
+  v_result = caml_alloc(2, 0);
+  Store_field(v_result, 0, v_child_opt);
+  Store_field(v_result, 1, v_slices);
 
   g_object_unref(array);
   CAMLreturn(v_result);
@@ -1926,6 +2081,96 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           if (error) break;
         }
         break;
+      case 4: { // Dictionary (Factor)
+        /* v_arr is a tuple: (int option array, string list, bool)
+           Field 0 = indices (int option array)
+           Field 1 = levels (string list)
+           Field 2 = ordered (bool — stored as metadata, not in Arrow type) */
+        value v_dict_indices = Field(v_arr, 0);
+        value v_dict_levels = Field(v_arr, 1);
+        /* value v_dict_ordered = Field(v_arr, 2); — not used in Arrow type */
+        int n_indices = Wosize_val(v_dict_indices);
+
+        /* Build the dictionary (levels) as a GArrowStringArray */
+        GArrowStringArrayBuilder *dict_builder = garrow_string_array_builder_new();
+        value v_level_iter = v_dict_levels;
+        while (v_level_iter != Val_emptylist) {
+          value v_head = Field(v_level_iter, 0);
+          garrow_string_array_builder_append_string(dict_builder, String_val(v_head), &error);
+          if (error) break;
+          v_level_iter = Field(v_level_iter, 1);
+        }
+        if (error) {
+          g_object_unref(dict_builder);
+          break;
+        }
+        GArrowArray *dict_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(dict_builder), &error);
+        g_object_unref(dict_builder);
+        if (error || dict_arr == NULL) {
+          if (dict_arr) g_object_unref(dict_arr);
+          break;
+        }
+
+        /* Build the indices as a GArrowInt32Array */
+        GArrowInt32ArrayBuilder *idx_builder = garrow_int32_array_builder_new();
+        for (int i = 0; i < n_indices; i++) {
+          value v_opt = Field(v_dict_indices, i);
+          if (Is_block(v_opt)) { /* Some(idx) */
+            garrow_int32_array_builder_append_value(idx_builder, (gint32)Long_val(Field(v_opt, 0)), &error);
+          } else {
+            garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(idx_builder), &error);
+          }
+          if (error) break;
+        }
+        if (error) {
+          g_object_unref(idx_builder);
+          g_object_unref(dict_arr);
+          break;
+        }
+        GArrowArray *idx_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(idx_builder), &error);
+        g_object_unref(idx_builder);
+        if (error || idx_arr == NULL) {
+          if (idx_arr) g_object_unref(idx_arr);
+          g_object_unref(dict_arr);
+          break;
+        }
+
+        /* Create Dictionary data type and array */
+        GArrowDataType *idx_dtype = (GArrowDataType *)garrow_int32_data_type_new();
+        GArrowDataType *val_dtype = (GArrowDataType *)garrow_string_data_type_new();
+        dtype = (GArrowDataType *)garrow_dictionary_data_type_new(idx_dtype, val_dtype, FALSE);
+        g_object_unref(idx_dtype);
+        g_object_unref(val_dtype);
+
+        GArrowDictionaryArray *dict_array_obj = garrow_dictionary_array_new(
+          dtype, idx_arr, dict_arr, &error);
+        g_object_unref(idx_arr);
+        g_object_unref(dict_arr);
+
+        if (error || dict_array_obj == NULL) {
+          if (dict_array_obj) g_object_unref(dict_array_obj);
+          break;
+        }
+
+        /* Wrap in chunked array and add to field/column lists directly */
+        GList *chunks = g_list_append(NULL, dict_array_obj);
+        GArrowChunkedArray *chunked = garrow_chunked_array_new(chunks, &error);
+        g_list_free(chunks);
+        g_object_unref(dict_array_obj);
+
+        if (error || chunked == NULL) {
+          if (chunked) g_object_unref(chunked);
+          break;
+        }
+
+        GArrowField *field = garrow_field_new(name, dtype);
+        fields = g_list_append(fields, field);
+        columns = g_list_append(columns, chunked);
+        g_object_unref(dtype);
+        dtype = NULL; /* prevent double-free below */
+        n_rows = 0; /* signal that we handled this column directly */
+        break;
+      }
       default:
         break;
     }
