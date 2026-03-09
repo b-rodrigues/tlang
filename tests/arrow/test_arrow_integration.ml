@@ -768,7 +768,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let v0_str = Ast.Utils.value_to_string factor_vals.(0) in
   let v1_str = Ast.Utils.value_to_string factor_vals.(1) in
   let v2_str = Ast.Utils.value_to_string factor_vals.(2) in
-  if v0_str = "Factor(red)" && v1_str = "Factor(green)" && v2_str = "NA" then begin
+  if v0_str = {|Factor("red")|} && v1_str = {|Factor("green")|} && v2_str = "NA" then begin
     incr pass_count; Printf.printf "  ✓ Bridge DictionaryColumn → VFactor conversion\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ Bridge DictionaryColumn → VFactor: got [%s, %s, %s]\n" v0_str v1_str v2_str
@@ -814,12 +814,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: Factor operations via T language on native-backed DataFrame *)
   test "Factor in mutate with native path"
-    {|df = data_frame(name = ["Alice", "Bob", "Charlie"], dept = ["HR", "IT", "HR"]); mutate(df, $dept_f = factor($dept)) |> ncol|}
+    {|df = dataframe([[name: "Alice", dept: "HR"], [name: "Bob", dept: "IT"], [name: "Charlie", dept: "HR"]]); mutate(df, $dept_f = factor($dept)) |> ncol|}
     "3";
 
   test "Factor levels extraction"
     {|v = factor(["a", "b", "a", "c"]); levels(v)|}
-    {|["a", "b", "c"]|};
+    {|Vector["a", "b", "c"]|};
 
   (* Test: Ordered factor round-trip through bridge *)
   let ordered_input = [| Ast.VFactor (1, ["low"; "med"; "high"], true);
