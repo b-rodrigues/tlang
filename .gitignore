@@ -22,3 +22,7 @@ _build_cflags_override.sexp
 result
 _pipeline/
 pipeline-output/
+benchmarks/nyc_taxi/data/
+benchmarks/nyc_taxi/results/*.csv
+benchmarks/nyc_taxi/results/*.log
+!benchmarks/nyc_taxi/results/.gitkeep
