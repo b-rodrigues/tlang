@@ -296,6 +296,22 @@ let materialize (t : t) : t =
         | Some ptr -> create_from_native ptr t.schema t.nrows
         | None -> t
 
+(** Prepare a table for transfer across processes (e.g. via Marshal).
+    Materializes any native data into OCaml storage and clears the native handle,
+    as pointers are not valid in other processes. *)
+let prepare_for_serialization (t : t) : t =
+  match t.native_handle with
+  | Some handle when not handle.freed ->
+      (* Materialize columns if they are not already in t.columns.
+         We use get_column to ensure we get data from FFI if needed. *)
+      let columns = List.map (fun (name, _) ->
+        match get_column t name with
+        | Some data -> (name, data)
+        | None -> (name, NullColumn t.nrows)
+      ) t.schema in
+      { t with columns; native_handle = None }
+  | _ -> t
+
 (* --- Table operations --- *)
 
 (** Project (select) columns by name — zero-copy in native Arrow backend.

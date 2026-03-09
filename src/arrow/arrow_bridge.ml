@@ -162,7 +162,7 @@ let table_from_value_columns (columns : (string * value array) list) (nrows : in
   let arrow_columns = List.map (fun (name, values) ->
     (name, values_to_column values)
   ) columns in
-  Arrow_table.create arrow_columns nrows
+  Arrow_table.create arrow_columns nrows |> Arrow_table.materialize
 
 (** Convert an Arrow table back to T value columns.
     For native-backed tables, extracts column data via FFI as needed. *)
@@ -174,3 +174,20 @@ let table_to_value_columns (table : Arrow_table.t) : (string * value array) list
     in
     (name, column_to_values col)
   ) table.schema
+
+(** Recursively prepare a T value for serialization across process boundaries.
+    Ensures any DataFrames are materialized and native pointers are cleared. *)
+let rec prepare_value_for_serialization (v : value) : value =
+  match v with
+  | VDataFrame df ->
+      VDataFrame { df with arrow_table = Arrow_table.prepare_for_serialization df.arrow_table }
+  | VList items ->
+      VList (List.map (fun (n, v) -> (n, prepare_value_for_serialization v)) items)
+  | VDict pairs ->
+      VDict (List.map (fun (k, v) -> (k, prepare_value_for_serialization v)) pairs)
+  | VVector arr ->
+      VVector (Array.map prepare_value_for_serialization arr)
+  | VPipeline p ->
+      (* Pipelines also store node results; cleanse them too *)
+      VPipeline { p with p_nodes = List.map (fun (n, v) -> (n, prepare_value_for_serialization v)) p.p_nodes }
+  | _ -> v
