@@ -178,6 +178,10 @@ let table_to_value_columns (table : Arrow_table.t) : (string * value array) list
 (** Recursively prepare a T value for serialization across process boundaries.
     Ensures any DataFrames are materialized and native pointers are cleared. *)
 let rec prepare_value_for_serialization (v : value) : value =
+  (* Recursively prepare all values in a (string * value) list for serialization. *)
+  let cleanse_kv_list kvs =
+    List.map (fun (k, v) -> (k, prepare_value_for_serialization v)) kvs
+  in
   match v with
   | VDataFrame df ->
       VDataFrame { df with arrow_table = Arrow_table.prepare_for_serialization df.arrow_table }
@@ -188,6 +192,17 @@ let rec prepare_value_for_serialization (v : value) : value =
   | VVector arr ->
       VVector (Array.map prepare_value_for_serialization arr)
   | VPipeline p ->
-      (* Pipelines also store node results; cleanse them too *)
-      VPipeline { p with p_nodes = List.map (fun (n, v) -> (n, prepare_value_for_serialization v)) p.p_nodes }
+      (* Pipelines store node results, per-node env vars, and per-node args —
+         all may contain DataFrames with native handles. Cleanse them all. *)
+      VPipeline { p with
+        p_nodes    = List.map (fun (n, v) -> (n, prepare_value_for_serialization v)) p.p_nodes;
+        p_env_vars = List.map (fun (node, kvs) -> (node, cleanse_kv_list kvs)) p.p_env_vars;
+        p_args     = List.map (fun (node, kvs) -> (node, cleanse_kv_list kvs)) p.p_args;
+      }
+  | VNode un ->
+      (* Unbuilt nodes store env vars and args as (string * value) lists *)
+      VNode { un with
+        un_env_vars = cleanse_kv_list un.un_env_vars;
+        un_args     = cleanse_kv_list un.un_args;
+      }
   | _ -> v

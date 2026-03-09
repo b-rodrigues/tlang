@@ -297,19 +297,36 @@ let materialize (t : t) : t =
 
 (** Prepare a table for transfer across processes (e.g. via Marshal).
     Materializes any native data into OCaml storage and clears the native handle,
-    as pointers are not valid in other processes. *)
-let prepare_for_serialization (t : t) : t =
+    as pointers are not valid in other processes. Also recursively cleanses any
+    nested tables stored in ListColumn values, even when native_handle is None. *)
+let rec prepare_for_serialization (t : t) : t =
   match t.native_handle with
   | Some handle when not handle.freed ->
       (* Materialize columns if they are not already in t.columns.
          We use get_column to ensure we get data from FFI if needed. *)
       let columns = List.map (fun (name, _) ->
         match get_column t name with
-        | Some data -> (name, data)
+        | Some data -> (name, prepare_column_for_serialization data)
         | None -> (name, NullColumn t.nrows)
       ) t.schema in
       { t with columns; native_handle = None }
-  | _ -> t
+  | _ ->
+      (* Even when the outer table is not natively backed, nested tables inside
+         ListColumn values may still hold native handles. Recursively strip them. *)
+      let columns = List.map (fun (name, col) ->
+        (name, prepare_column_for_serialization col)
+      ) t.columns in
+      { t with columns; native_handle = None }
+
+(** Prepare a column for transfer across processes.
+    Mutually recursive with [prepare_for_serialization]: recurses into any
+    nested [Arrow_table.t] values stored in [ListColumn] rows so that arbitrarily
+    deep nesting is fully cleansed before Marshal. *)
+and prepare_column_for_serialization (col : column_data) : column_data =
+  match col with
+  | ListColumn nested_arr ->
+      ListColumn (Array.map (Option.map prepare_for_serialization) nested_arr)
+  | _ -> col
 
 (* --- Table operations --- *)
 
