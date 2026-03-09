@@ -48,34 +48,6 @@ CAMLprim value caml_arrow_table_num_columns(value v_ptr) {
   CAMLreturn(Val_int(ncols));
 }
 
-/* Get column by name — returns option (Some nativeint | None) */
-CAMLprim value caml_arrow_table_get_column_by_name(value v_ptr, value v_name) {
-  CAMLparam2(v_ptr, v_name);
-  CAMLlocal1(v_result);
-
-  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
-  const char *name = String_val(v_name);
-
-  /* Use schema to find column index by name, then get column data */
-  GArrowSchema *schema = garrow_table_get_schema(table);
-  gint idx = garrow_schema_get_field_index(schema, name);
-  g_object_unref(schema);
-
-  if (idx < 0) {
-    CAMLreturn(Val_none);
-  }
-
-  GArrowChunkedArray *column = garrow_table_get_column_data(table, idx);
-  if (column == NULL) {
-    CAMLreturn(Val_none);
-  }
-
-  /* Wrap as Some(nativeint) */
-  v_result = caml_alloc(1, 0);  /* Some(...) */
-  Store_field(v_result, 0, caml_copy_nativeint((intnat)column));
-  CAMLreturn(v_result);
-}
-
 /* ===================================================================== */
 /* Schema Extraction                                                     */
 /* ===================================================================== */
@@ -133,7 +105,9 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
 /* Column Data Extraction                                                */
 /* ===================================================================== */
 
-/* Get a column's first chunk array pointer by name.
+/* Get a column's combined array pointer by name.
+   For multi-chunk columns, combines all chunks into a single contiguous
+   array so that column reading functions receive complete data.
    Returns Some(nativeint) or None. */
 CAMLprim value caml_arrow_table_get_column_data_by_name(value v_ptr, value v_col_name) {
   CAMLparam2(v_ptr, v_col_name);
@@ -156,26 +130,55 @@ CAMLprim value caml_arrow_table_get_column_data_by_name(value v_ptr, value v_col
     CAMLreturn(Val_none);
   }
 
-  /* For simplicity, assume single chunk. Multi-chunk support can be added later. */
-  if (garrow_chunked_array_get_n_chunks(chunked) == 0) {
+  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
+  if (n_chunks == 0) {
     g_object_unref(chunked);
     CAMLreturn(Val_none);
   }
-  GArrowArray *array = garrow_chunked_array_get_chunk(chunked, 0);
+
+  GArrowArray *array = NULL;
+
+  if (n_chunks == 1) {
+    /* Single chunk — fast path, no combining needed */
+    array = garrow_chunked_array_get_chunk(chunked, 0);
+  } else {
+    /* Multi-chunk — combine into a single contiguous array.
+       This ensures column reading functions receive all data,
+       not just the first chunk. */
+    GError *error = NULL;
+    GArrowArray *combined = garrow_chunked_array_combine(chunked, &error);
+    if (combined != NULL) {
+      array = combined;
+    } else {
+      /* Combine failed — fall back to first chunk only.
+         Data beyond chunk 0 will be lost, but this is safer
+         than returning None. */
+      if (error) g_error_free(error);
+      array = garrow_chunked_array_get_chunk(chunked, 0);
+    }
+  }
+
+  g_object_unref(chunked);
 
   if (array == NULL) {
-    g_object_unref(chunked);
     CAMLreturn(Val_none);
   }
 
   v_result = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_result, 0, caml_copy_nativeint((intnat)array));
 
-  g_object_unref(chunked);
+  /* Note: the returned GArrowArray* has one reference.
+     Column reading functions (caml_arrow_read_*_column) are responsible
+     for calling g_object_unref(array) after copying data.
+     Zero-copy bigarray functions intentionally do NOT unref, keeping
+     the array alive for the lifetime of the bigarray view. */
   CAMLreturn(v_result);
 }
 
-/* Read an Int64 column into an OCaml int option array */
+/* Read an Int64 column into an OCaml int option array.
+   The caller-supplied GArrowArray* is unreffed after data is fully copied
+   into the OCaml heap, preventing the reference leak from
+   garrow_chunked_array_get_chunk(). */
 CAMLprim value caml_arrow_read_int64_column(value v_array_ptr) {
   CAMLparam1(v_array_ptr);
   CAMLlocal2(v_result, v_some);
@@ -217,10 +220,15 @@ CAMLprim value caml_arrow_read_int64_column(value v_array_ptr) {
     }
   }
 
+  /* Release the reference obtained from garrow_chunked_array_get_chunk().
+     The parent GArrowTable still holds its own reference chain
+     (table → chunked_array → chunk), so the underlying data remains alive. */
+  g_object_unref(array);
   CAMLreturn(v_result);
 }
 
-/* Read a Float64 (double) column into an OCaml float option array */
+/* Read a Float64 (double) column into an OCaml float option array.
+   Unrefs the GArrowArray after copying all data. */
 CAMLprim value caml_arrow_read_float64_column(value v_array_ptr) {
   CAMLparam1(v_array_ptr);
   CAMLlocal2(v_result, v_some);
@@ -242,10 +250,12 @@ CAMLprim value caml_arrow_read_float64_column(value v_array_ptr) {
     }
   }
 
+  g_object_unref(array);
   CAMLreturn(v_result);
 }
 
-/* Read a Boolean column into an OCaml bool option array */
+/* Read a Boolean column into an OCaml bool option array.
+   Unrefs the GArrowArray after copying all data. */
 CAMLprim value caml_arrow_read_boolean_column(value v_array_ptr) {
   CAMLparam1(v_array_ptr);
   CAMLlocal2(v_result, v_some);
@@ -267,10 +277,12 @@ CAMLprim value caml_arrow_read_boolean_column(value v_array_ptr) {
     }
   }
 
+  g_object_unref(array);
   CAMLreturn(v_result);
 }
 
-/* Read a String column into an OCaml string option array */
+/* Read a String column into an OCaml string option array.
+   Unrefs the GArrowArray after copying all data. */
 CAMLprim value caml_arrow_read_string_column(value v_array_ptr) {
   CAMLparam1(v_array_ptr);
   CAMLlocal2(v_result, v_some);
@@ -302,6 +314,7 @@ CAMLprim value caml_arrow_read_string_column(value v_array_ptr) {
     }
   }
 
+  g_object_unref(array);
   CAMLreturn(v_result);
 }
 
@@ -386,7 +399,7 @@ CAMLprim value caml_arrow_table_project(value v_ptr, value v_names) {
     if (idx < 0) {
       free(indices);
       g_object_unref(schema);
-      caml_failwith("Column not found");
+      CAMLreturn(Val_none);
     }
     indices[i] = (guint)idx;
     iter = Field(iter, 1);
@@ -1604,7 +1617,8 @@ static gdouble get_chunked_numeric_value(GArrowChunkedArray *chunked,
 
 /* Generic column aggregation: table_ptr, column_name.
    agg_code: 0=sum, 1=mean, 2=min, 3=max.
-   Returns Some(float) or None. */
+   Returns Some(float) or None.
+   Iterates chunks sequentially for O(n) instead of O(n*c) access. */
 static value arrow_column_agg_impl(value v_ptr, value v_col_name, int agg_code) {
   CAMLparam2(v_ptr, v_col_name);
   CAMLlocal1(v_result);
@@ -1621,15 +1635,34 @@ static value arrow_column_agg_impl(value v_ptr, value v_col_name, int agg_code) 
   GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
   if (col == NULL) CAMLreturn(Val_none);
 
-  gint64 nrows = garrow_chunked_array_get_n_rows(col);
   gdouble result = 0.0;
   int count = 0;
   gboolean initialized = FALSE;
 
-  for (gint64 i = 0; i < nrows; i++) {
-    gboolean is_null;
-    gdouble val = get_chunked_numeric_value(col, i, &is_null);
-    if (!is_null) {
+  /* Iterate chunks sequentially — O(n) total instead of O(n*c) */
+  guint n_chunks = garrow_chunked_array_get_n_chunks(col);
+  for (guint c = 0; c < n_chunks; c++) {
+    GArrowArray *chunk = garrow_chunked_array_get_chunk(col, c);
+    gint64 chunk_len = garrow_array_get_length(chunk);
+
+    /* Verify chunk type is numeric before iterating */
+    gboolean is_double = GARROW_IS_DOUBLE_ARRAY(chunk);
+    gboolean is_int64 = GARROW_IS_INT64_ARRAY(chunk);
+    if (!is_double && !is_int64) {
+      g_object_unref(chunk);
+      continue; /* Skip non-numeric chunks */
+    }
+
+    for (gint64 i = 0; i < chunk_len; i++) {
+      if (garrow_array_is_null(chunk, i)) continue;
+
+      gdouble val;
+      if (is_double) {
+        val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
+      } else {
+        val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
+      }
+
       switch (agg_code) {
         case 0: /* sum */
           result += val;
@@ -1640,15 +1673,14 @@ static value arrow_column_agg_impl(value v_ptr, value v_col_name, int agg_code) 
           break;
         case 2: /* min */
           if (!initialized || val < result) result = val;
-          initialized = TRUE;
           break;
         case 3: /* max */
           if (!initialized || val > result) result = val;
-          initialized = TRUE;
           break;
       }
-      if (agg_code <= 1) initialized = TRUE;
+      initialized = TRUE;
     }
+    g_object_unref(chunk);
   }
   g_object_unref(col);
 
@@ -1953,8 +1985,6 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
     if (error) g_error_free(error);
     CAMLreturn(Val_none);
   }
-
-
 
   v_res = caml_alloc(1, 0);
   Store_field(v_res, 0, caml_copy_nativeint((intnat)table));
