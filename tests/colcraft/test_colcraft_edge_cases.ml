@@ -13,14 +13,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Edge Cases — Empty Groups (filter to zero rows):\n";
 
   (* Filter to nonexistent category then group_by *)
-  let (v, _) = eval_string_env
-    {|df |> filter($category == "nonexistent") |> group_by($category) |> summarize($count = nrow($category))|}
+  let (v2, _) = eval_string_env
+    {|df |> filter($category == "nonexistent") |> group_by($category) |> summarize($count = nrow($category)) |> nrow|}
     env0 in
-  let result = Ast.Utils.value_to_string v in
-  if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ filter to empty then group_by+summarize returns DataFrame\n"
+  let result2 = Ast.Utils.value_to_string v2 in
+  if result2 = "0" then begin
+    incr pass_count; Printf.printf "  ✓ filter to empty then group_by+summarize returns 0 rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ filter to empty then group_by+summarize returns DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ filter to empty then group_by+summarize should return 0 rows\n    Got: %s\n" result2
   end;
 
   (* Filter to zero rows produces 0-row DataFrame *)
@@ -56,11 +56,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   in
   (match step_result with
   | Ok v ->
-    let result = Ast.Utils.value_to_string v in
-    if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-      incr pass_count; Printf.printf "  ✓ grouped summarize with all-NA values returns DataFrame\n"
+    let (v_nrow, _) = eval_string_env {|nrow(ans)|} (Ast.Env.add "ans" v env_na) in
+    let result_nrow = Ast.Utils.value_to_string v_nrow in
+    if result_nrow = "2" then begin
+      incr pass_count; Printf.printf "  ✓ grouped summarize with all-NA values returns 2 rows\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values returns DataFrame\n    Got: %s\n" result
+      incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values: expected 2 rows, got %s\n" result_nrow
     end
   | Error msg ->
     incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values\n    EXCEPTION: %s\n" msg);
@@ -85,13 +86,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* group_by unique id, then summarize with sd — each group has 1 row *)
   let (v, _) = eval_string_env
-    {|df_single |> group_by($id) |> summarize($count = nrow($id))|}
+    {|df_single |> group_by($id) |> summarize($count = nrow($id)) |> nrow|}
     env_single in
   let result = Ast.Utils.value_to_string v in
-  if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ single-row groups summarize produces DataFrame\n"
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ single-row groups summarize produces 3 rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ single-row groups summarize produces DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ single-row groups summarize produces 3 rows\n    Expected: 3, Got: %s\n" result
   end;
 
   (* Check single-row group count values *)
@@ -125,13 +126,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* group_by two columns *)
   let (v, _) = eval_string_env
-    {|df_multi |> group_by($dept, $role) |> summarize($count = nrow($dept))|}
+    {|df_multi |> group_by($dept, $role) |> summarize($count = nrow($dept)) |> nrow|}
     env_multi in
   let result = Ast.Utils.value_to_string v in
-  if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ group_by two columns produces DataFrame\n"
+  if result = "4" then begin
+    incr pass_count; Printf.printf "  ✓ group_by two columns produces 4 rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by two columns produces DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ group_by two columns produces 4 rows\n    Expected: 4, Got: %s\n" result
   end;
 
   (try Sys.remove csv_multi with _ -> ());
@@ -149,13 +150,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_gm) = eval_string_env (Printf.sprintf {|df_gm = read_csv("%s")|} csv_gm) env_gm in
 
   let (v, _) = eval_string_env
-    {|df_gm |> group_by($id) |> mutate($grp_size = nrow($id))|}
+    {|df_gm |> group_by($id) |> mutate($grp_size = nrow($id)) |> nrow|}
     env_gm in
   let result = Ast.Utils.value_to_string v in
-  if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate on single-row groups works\n"
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate on single-row groups returns 3 rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate on single-row groups works\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ grouped mutate on single-row groups returns 3 rows\n    Expected: 3, Got: %s\n" result
   end;
 
   (* Check grouped mutate broadcasts correct values *)
@@ -176,24 +177,24 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Multiple aggregation pairs in a single summarize *)
   let (v, _) = eval_string_env
-    {|df |> group_by($category) |> summarize($count = nrow($category), $total = sum($value))|}
+    {|df |> group_by($category) |> summarize($count = nrow($category), $total = sum($value)) |> nrow|}
     env0 in
   let result = Ast.Utils.value_to_string v in
-  if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ summarize with multiple aggregation pairs\n"
+  if result = "2" then begin
+    incr pass_count; Printf.printf "  ✓ summarize with multiple aggregation pairs returns 2 rows\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ summarize with multiple aggregation pairs\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ summarize with multiple aggregation pairs returns 2 rows\n    Expected: 2, Got: %s\n" result
   end;
 
   (* Ungrouped summarize on empty DataFrame *)
   let (v, _) = eval_string_env
-    {|df |> filter($category == "nonexistent") |> summarize($count = nrow($category))|}
+    {|df |> filter($category == "nonexistent") |> summarize($count = nrow($category)) |> nrow|}
     env0 in
   let result = Ast.Utils.value_to_string v in
-  if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-    incr pass_count; Printf.printf "  ✓ ungrouped summarize on filtered-empty DataFrame\n"
+  if result = "1" then begin
+    incr pass_count; Printf.printf "  ✓ ungrouped summarize on filtered-empty DataFrame returns 1 row\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ ungrouped summarize on filtered-empty DataFrame\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ ungrouped summarize on filtered-empty DataFrame returns 1 row\n    Expected: 1, Got: %s\n" result
   end;
 
   print_newline ();

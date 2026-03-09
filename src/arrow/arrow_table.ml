@@ -270,7 +270,9 @@ let materialize (t : t) : t =
   match t.native_handle with
   | Some handle when not handle.freed -> t
   | _ ->
-      let has_unsupported = List.exists (fun (_, col) -> not (is_arrow_table_new_supported col)) t.columns in
+      let has_unsupported =
+        (not Arrow_ffi.arrow_available) ||
+        List.exists (fun (_, col) -> not (is_arrow_table_new_supported col)) t.columns in
       if has_unsupported then t
       else
         let arrow_int64_tag = 0 in

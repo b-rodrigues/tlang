@@ -15,8 +15,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if arrow_avail then begin
     incr pass_count; Printf.printf "  ✓ Arrow FFI marked as available\n"
   end else begin
-    (* Arrow not compiled with native FFI — still passes as this is expected *)
-    incr pass_count; Printf.printf "  ✓ Arrow FFI availability flag is set (value: %b)\n" arrow_avail
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow FFI availability (Native library requested but not linked)"
   end;
 
   (* Test 2: Pure OCaml table creation *)
