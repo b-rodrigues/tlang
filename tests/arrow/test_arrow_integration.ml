@@ -705,6 +705,124 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   print_newline ();
 
+  Printf.printf "Arrow Integration — Dictionary (Factor) Native Support:\n";
+
+  (* Test: DictionaryColumn creation and access *)
+  let dict_col = Arrow_table.DictionaryColumn (
+    [| Some 0; Some 1; None; Some 0; Some 2 |],
+    ["red"; "green"; "blue"],
+    false
+  ) in
+  let dict_tbl = Arrow_table.create [
+    ("color", dict_col);
+    ("value", Arrow_table.IntColumn [| Some 10; Some 20; None; Some 40; Some 50 |]);
+  ] 5 in
+  if Arrow_table.num_rows dict_tbl = 5 && Arrow_table.num_columns dict_tbl = 2 then begin
+    incr pass_count; Printf.printf "  ✓ DictionaryColumn table creation works\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ DictionaryColumn table creation failed\n"
+  end;
+
+  (* Test: Schema reflects ArrowDictionary type *)
+  let dict_schema = Arrow_table.get_schema dict_tbl in
+  if List.assoc "color" dict_schema = Arrow_table.ArrowDictionary then begin
+    incr pass_count; Printf.printf "  ✓ DictionaryColumn schema type is ArrowDictionary\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ DictionaryColumn schema type mismatch\n"
+  end;
+
+  (* Test: DictionaryColumn read-back *)
+  (match Arrow_table.get_column dict_tbl "color" with
+   | Some (Arrow_table.DictionaryColumn (indices, levels, ordered)) ->
+       if indices.(0) = Some 0 && indices.(1) = Some 1 && indices.(2) = None
+          && indices.(3) = Some 0 && indices.(4) = Some 2
+          && levels = ["red"; "green"; "blue"] && not ordered then begin
+         incr pass_count; Printf.printf "  ✓ DictionaryColumn read-back correct\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ DictionaryColumn read-back data mismatch\n"
+       end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ DictionaryColumn read-back returned wrong type\n");
+
+  (* Test: is_arrow_table_new_supported returns true for DictionaryColumn *)
+  if Arrow_table.is_arrow_table_new_supported dict_col then begin
+    incr pass_count; Printf.printf "  ✓ is_arrow_table_new_supported = true for DictionaryColumn\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ is_arrow_table_new_supported should be true for DictionaryColumn\n"
+  end;
+
+  (* Test: arrow_type_of_tag for new tags *)
+  if Arrow_table.arrow_type_of_tag 4 = Arrow_table.ArrowDictionary then begin
+    incr pass_count; Printf.printf "  ✓ arrow_type_of_tag 4 = ArrowDictionary\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ arrow_type_of_tag 4 mismatch\n"
+  end;
+  if (match Arrow_table.arrow_type_of_tag 5 with Arrow_table.ArrowList _ -> true | _ -> false) then begin
+    incr pass_count; Printf.printf "  ✓ arrow_type_of_tag 5 = ArrowList\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ arrow_type_of_tag 5 mismatch\n"
+  end;
+
+  (* Test: Bridge column_to_values for DictionaryColumn → VFactor *)
+  let factor_vals = Arrow_bridge.column_to_values dict_col in
+  let v0_str = Ast.Utils.value_to_string factor_vals.(0) in
+  let v1_str = Ast.Utils.value_to_string factor_vals.(1) in
+  let v2_str = Ast.Utils.value_to_string factor_vals.(2) in
+  if v0_str = "Factor(red)" && v1_str = "Factor(green)" && v2_str = "NA" then begin
+    incr pass_count; Printf.printf "  ✓ Bridge DictionaryColumn → VFactor conversion\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ Bridge DictionaryColumn → VFactor: got [%s, %s, %s]\n" v0_str v1_str v2_str
+  end;
+
+  (* Test: Bridge values_to_column for VFactor → DictionaryColumn *)
+  let factor_input = [| Ast.VFactor (0, ["A"; "B"; "C"], true);
+                        Ast.VNA Ast.NAGeneric;
+                        Ast.VFactor (2, ["A"; "B"; "C"], true) |] in
+  (match Arrow_bridge.values_to_column factor_input with
+   | Arrow_table.DictionaryColumn (idx, levels, ordered) ->
+       if idx.(0) = Some 0 && idx.(1) = None && idx.(2) = Some 2
+          && levels = ["A"; "B"; "C"] && ordered then begin
+         incr pass_count; Printf.printf "  ✓ Bridge VFactor → DictionaryColumn round-trip\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ Bridge VFactor → DictionaryColumn data mismatch\n"
+       end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ Bridge VFactor → DictionaryColumn returned wrong type\n");
+
+  (* Test: Materialization of DataFrame with DictionaryColumn *)
+  let mat_tbl = Arrow_table.materialize dict_tbl in
+  let mat_is_native = Arrow_table.is_native_backed mat_tbl in
+  if mat_is_native then begin
+    incr pass_count; Printf.printf "  ✓ DictionaryColumn table materializes to native Arrow\n";
+    (* Verify round-trip: read column back from native *)
+    (match Arrow_table.get_column mat_tbl "color" with
+     | Some (Arrow_table.DictionaryColumn (indices, levels, _ordered)) ->
+         if indices.(0) = Some 0 && indices.(1) = Some 1 && indices.(2) = None
+            && indices.(3) = Some 0 && indices.(4) = Some 2
+            && levels = ["red"; "green"; "blue"] then begin
+           incr pass_count; Printf.printf "  ✓ Native Dictionary column round-trip verified\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ Native Dictionary column round-trip data mismatch\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ Native Dictionary column read-back returned wrong type\n")
+  end else begin
+    (* Native Arrow may not be available in all environments *)
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "DictionaryColumn table materializes to native Arrow"
+  end;
+
+  (* Test: Factor operations via T language on native-backed DataFrame *)
+  test "Factor in mutate with native path"
+    {|df = data_frame(name = ["Alice", "Bob", "Charlie"], dept = ["HR", "IT", "HR"]); mutate(df, $dept_f = factor($dept)) |> ncol|}
+    "3";
+
+  test "Factor levels extraction"
+    {|v = factor(["a", "b", "a", "c"]); levels(v)|}
+    {|["a", "b", "c"]|};
+
+  print_newline ();
+
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
   print_newline ()

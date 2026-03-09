@@ -7,7 +7,7 @@ The **T Programming Language** is an experimental, reproducibility-first functio
 - **Reproducibility First**: Packages and environments are defined using Nix flakes.
 - **Mandatory Pipelines**: Non-interactive execution requires defining a `pipeline`, enforcing DAG-based computation to prevent spaghetti code. 
 - **Polyglot Architecture**: T orchestrates code. You can have `node` blocks that run natively in T, or external blocks (`rn()` for R, `pyn()` for Python). 
-- **Object Interchange**: T uses Apache Arrow for data frames and PMML for models, passing data natively between R, Python, and T without serialization overhead or loss of fidelity.
+- **Object Interchange**: T uses Apache Arrow for data frames and PMML for models, passing data natively between R, Python, and T without serialization overhead or loss of fidelity. Factor (categorical) columns are stored natively as Arrow Dictionary arrays for efficient interop.
 - **Immutability and No Loops**: T has no loops and no mutable variables.
 - **Explicit NA Handling**: NA does not propagate silently; if NA is encountered in aggregation functions without `na_rm = true`, an error is thrown. 
 - **Non-Standard Evaluation (NSE)**: Uses `$` prefix for referring to variables/columns concisely (e.g. `filter($age > 30)`).
@@ -148,6 +148,8 @@ T includes a standard library (`colcraft`) for data manipulation with dplyr- and
 - `fct_drop(x)`: Remove unused levels from factor metadata
 - `fct_expand(x, ...)`: Add new potential levels without changing existing observations
 - `fct_c(x1, x2, ...)`: Concatenate factor vectors while unifying their levels
+
+**Native Arrow backing**: Factors are stored as Arrow `DictionaryArray` (int32 indices + string dictionary) when the native Arrow backend is active. DataFrames containing factor columns can be fully materialized into native Arrow tables, enabling zero-copy operations (select, filter, sort) on factor data. The `ordered` flag is preserved in T's runtime but is not encoded in the Arrow dictionary type. List-columns (nested DataFrames from `nest()`) remain in pure OCaml storage.
 
 ### String helpers
 - `str_extract(s, pattern)`: Return the first regex match (or first capture group when present)
