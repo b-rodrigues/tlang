@@ -22,6 +22,8 @@ _build_cflags_override.sexp
 result
 _pipeline/
 pipeline-output/
+__pycache__/
+*.pyc
 benchmarks/nyc_taxi/data/
 benchmarks/nyc_taxi/results/*.csv
 benchmarks/nyc_taxi/results/*.log
