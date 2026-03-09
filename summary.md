@@ -149,7 +149,7 @@ T includes a standard library (`colcraft`) for data manipulation with dplyr- and
 - `fct_expand(x, ...)`: Add new potential levels without changing existing observations
 - `fct_c(x1, x2, ...)`: Concatenate factor vectors while unifying their levels
 
-**Native Arrow backing**: Factors are stored as Arrow `DictionaryArray` (int32 indices + string dictionary) when the native Arrow backend is active. DataFrames containing factor columns can be fully materialized into native Arrow tables, enabling zero-copy operations (select, filter, sort) on factor data. The `ordered` flag is preserved in T's runtime but is not encoded in the Arrow dictionary type. List-columns (nested DataFrames from `nest()`) remain in pure OCaml storage.
+**Native Arrow backing**: Factors are stored as Arrow `DictionaryArray` (int32 indices + string dictionary) when the native Arrow backend is active. DataFrames containing factor columns can be fully materialized into native Arrow tables, enabling zero-copy operations (select, filter, sort) on factor data. The `ordered` flag is encoded in Arrow's `DictionaryDataType` and preserved through native materialization round-trips. List-columns (nested DataFrames from `nest()`) remain in pure OCaml storage.
 
 ### String helpers
 - `str_extract(s, pattern)`: Return the first regex match (or first capture group when present)

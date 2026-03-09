@@ -326,7 +326,7 @@ CAMLprim value caml_arrow_read_string_column(value v_array_ptr) {
    (int option array * string list * bool)
    - indices: 0-based index into levels for each row (None for NA)
    - levels: list of unique level strings
-   - ordered: false (T stores ordered flag separately; not encoded in Arrow type for now)
+   - ordered: read from GArrowDictionaryDataType's ordered property
    Unrefs the GArrowArray after copying all data. */
 CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
   CAMLparam1(v_array_ptr);
@@ -349,9 +349,32 @@ CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
   GArrowDictionaryArray *dict_array = GARROW_DICTIONARY_ARRAY(array);
   gint64 length = garrow_array_get_length(array);
 
-  /* Extract dictionary (levels) */
+  /* Read ordered flag from the Arrow dictionary data type */
+  GArrowDataType *arr_dtype = garrow_array_get_value_data_type(array);
+  gboolean ordered = FALSE;
+  if (GARROW_IS_DICTIONARY_DATA_TYPE(arr_dtype)) {
+    ordered = garrow_dictionary_data_type_is_ordered(
+      GARROW_DICTIONARY_DATA_TYPE(arr_dtype));
+  }
+  g_object_unref(arr_dtype);
+
+  /* Extract dictionary (levels) — only string dictionaries are supported */
   GArrowArray *dictionary = garrow_dictionary_array_get_dictionary(dict_array);
   gint64 n_levels = garrow_array_get_length(dictionary);
+
+  if (!GARROW_IS_STRING_ARRAY(dictionary) && !GARROW_IS_LARGE_STRING_ARRAY(dictionary)) {
+    /* Non-string dictionary values are not supported for factor columns.
+       Return empty result (NullColumn equivalent) rather than partial data. */
+    v_indices = caml_alloc(0, 0);
+    v_levels = Val_emptylist;
+    v_result = caml_alloc(3, 0);
+    Store_field(v_result, 0, v_indices);
+    Store_field(v_result, 1, v_levels);
+    Store_field(v_result, 2, Val_bool(0));
+    g_object_unref(dictionary);
+    g_object_unref(array);
+    CAMLreturn(v_result);
+  }
 
   /* Build OCaml string list for levels (in order) */
   v_levels = Val_emptylist;
@@ -359,7 +382,7 @@ CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
     gchar *level_str = NULL;
     if (GARROW_IS_STRING_ARRAY(dictionary)) {
       level_str = garrow_string_array_get_string(GARROW_STRING_ARRAY(dictionary), i);
-    } else if (GARROW_IS_LARGE_STRING_ARRAY(dictionary)) {
+    } else {
       level_str = garrow_large_string_array_get_string(GARROW_LARGE_STRING_ARRAY(dictionary), i);
     }
     if (level_str) {
@@ -394,6 +417,13 @@ CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
         idx = (gint64)garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(indices_arr), i);
       else if (GARROW_IS_UINT32_ARRAY(indices_arr))
         idx = (gint64)garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(indices_arr), i);
+      else if (GARROW_IS_UINT64_ARRAY(indices_arr))
+        idx = (gint64)garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(indices_arr), i);
+      else {
+        /* Unsupported index type — treat as null */
+        Store_field(v_indices, i, Val_none);
+        continue;
+      }
 
       v_some = caml_alloc(1, 0); /* Some(...) */
       Store_field(v_some, 0, Val_long(idx));
@@ -404,11 +434,11 @@ CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
   g_object_unref(indices_arr);
   g_object_unref(dictionary);
 
-  /* Build result tuple: (indices, levels, ordered=false) */
+  /* Build result tuple: (indices, levels, ordered) */
   v_result = caml_alloc(3, 0);
   Store_field(v_result, 0, v_indices);
   Store_field(v_result, 1, v_levels);
-  Store_field(v_result, 2, Val_bool(0)); /* T stores ordered flag separately; not encoded in Arrow type for now */
+  Store_field(v_result, 2, Val_bool(ordered));
 
   g_object_unref(array);
   CAMLreturn(v_result);
@@ -2085,10 +2115,10 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         /* v_arr is a tuple: (int option array, string list, bool)
            Field 0 = indices (int option array)
            Field 1 = levels (string list)
-           Field 2 = ordered (bool — stored as metadata, not in Arrow type) */
+           Field 2 = ordered (bool — encoded in Arrow DictionaryDataType) */
         value v_dict_indices = Field(v_arr, 0);
         value v_dict_levels = Field(v_arr, 1);
-        /* value v_dict_ordered = Field(v_arr, 2); — not used in Arrow type */
+        gboolean dict_ordered = Bool_val(Field(v_arr, 2));
         int n_indices = Wosize_val(v_dict_indices);
 
         /* Build the dictionary (levels) as a GArrowStringArray */
@@ -2135,10 +2165,10 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           break;
         }
 
-        /* Create Dictionary data type and array */
+        /* Create Dictionary data type and array — pass ordered flag from OCaml */
         GArrowDataType *idx_dtype = (GArrowDataType *)garrow_int32_data_type_new();
         GArrowDataType *val_dtype = (GArrowDataType *)garrow_string_data_type_new();
-        dtype = (GArrowDataType *)garrow_dictionary_data_type_new(idx_dtype, val_dtype, FALSE);
+        dtype = (GArrowDataType *)garrow_dictionary_data_type_new(idx_dtype, val_dtype, dict_ordered);
         g_object_unref(idx_dtype);
         g_object_unref(val_dtype);
 

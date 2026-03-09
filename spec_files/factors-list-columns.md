@@ -94,7 +94,7 @@ type ffi_column_spec =
 *   **C FFI** (`arrow_stubs.c`):
     *   Schema extraction detects `GArrowDictionaryDataType` → tag 4 (`ArrowDictionary`).
     *   `caml_arrow_table_new` case 4 builds `GArrowDictionaryArray` from OCaml `(int option array * string list * bool)`.
-    *   `caml_arrow_read_dictionary_column` extracts indices, levels, and ordered flag from a native dictionary column.
+    *   `caml_arrow_read_dictionary_column` extracts indices, levels, and ordered flag from a native dictionary column. Non-string dictionary values are explicitly rejected (returns empty result). All integer index widths including `UINT64` are supported, with unsupported types treated as null.
 *   **OCaml** (`arrow_table.ml`, `arrow_ffi.ml`):
     *   `arrow_type_of_tag 4` → `ArrowDictionary`.
     *   `is_arrow_table_new_supported` returns `true` for `DictionaryColumn`.

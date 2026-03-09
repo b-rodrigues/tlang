@@ -725,11 +725,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: Schema reflects ArrowDictionary type *)
   let dict_schema = Arrow_table.get_schema dict_tbl in
-  if List.assoc "color" dict_schema = Arrow_table.ArrowDictionary then begin
-    incr pass_count; Printf.printf "  ✓ DictionaryColumn schema type is ArrowDictionary\n"
-  end else begin
-    incr fail_count; Printf.printf "  ✗ DictionaryColumn schema type mismatch\n"
-  end;
+  (match List.assoc_opt "color" dict_schema with
+   | Some t when t = Arrow_table.ArrowDictionary ->
+     incr pass_count; Printf.printf "  ✓ DictionaryColumn schema type is ArrowDictionary\n"
+   | _ ->
+     incr fail_count; Printf.printf "  ✗ DictionaryColumn schema type mismatch\n");
 
   (* Test: DictionaryColumn read-back *)
   (match Arrow_table.get_column dict_tbl "color" with
@@ -794,15 +794,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let mat_is_native = Arrow_table.is_native_backed mat_tbl in
   if mat_is_native then begin
     incr pass_count; Printf.printf "  ✓ DictionaryColumn table materializes to native Arrow\n";
-    (* Verify round-trip: read column back from native *)
+    (* Verify round-trip: read column back from native, including ordered flag *)
     (match Arrow_table.get_column mat_tbl "color" with
-     | Some (Arrow_table.DictionaryColumn (indices, levels, _ordered)) ->
+     | Some (Arrow_table.DictionaryColumn (indices, levels, ordered)) ->
          if indices.(0) = Some 0 && indices.(1) = Some 1 && indices.(2) = None
             && indices.(3) = Some 0 && indices.(4) = Some 2
-            && levels = ["red"; "green"; "blue"] then begin
-           incr pass_count; Printf.printf "  ✓ Native Dictionary column round-trip verified\n"
+            && levels = ["red"; "green"; "blue"]
+            && not ordered then begin
+           incr pass_count; Printf.printf "  ✓ Native Dictionary column round-trip verified (ordered=%b)\n" ordered
          end else begin
-           incr fail_count; Printf.printf "  ✗ Native Dictionary column round-trip data mismatch\n"
+           incr fail_count; Printf.printf "  ✗ Native Dictionary column round-trip data mismatch (ordered=%b)\n" ordered
          end
      | _ ->
          incr fail_count; Printf.printf "  ✗ Native Dictionary column read-back returned wrong type\n")
@@ -835,6 +836,32 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
        end
    | _ ->
        incr fail_count; Printf.printf "  ✗ Ordered factor bridge round-trip returned wrong type\n");
+
+  (* Test: Ordered factor native materialization round-trip *)
+  let ordered_col = Arrow_table.DictionaryColumn (
+    [| Some 1; None; Some 0 |],
+    ["low"; "med"; "high"],
+    true) in
+  let ordered_tbl = Arrow_table.create
+    ~schema:[("rank", Arrow_table.ArrowDictionary)]
+    ~columns:[("rank", ordered_col)]
+    ~nrows:3 in
+  let ordered_mat = Arrow_table.materialize ordered_tbl in
+  if Arrow_table.is_native_backed ordered_mat then begin
+    (match Arrow_table.get_column ordered_mat "rank" with
+     | Some (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
+         if idx.(0) = Some 1 && idx.(1) = None && idx.(2) = Some 0
+            && levels = ["low"; "med"; "high"] && ordered then begin
+           incr pass_count; Printf.printf "  ✓ Ordered factor native round-trip preserves ordered=true\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ Ordered factor native round-trip data mismatch (ordered=%b)\n" ordered
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ Ordered factor native round-trip returned wrong type\n")
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Ordered factor native round-trip preserves ordered=true"
+  end;
 
   print_newline ();
 
