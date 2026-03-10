@@ -44,27 +44,8 @@ jobs:
         if: always()
         run: |
           if [ -f benchmarks/nyc_taxi/results/results.csv ]; then
-            python3 - <<'PY'
-            import csv
-            import sys
-            from pathlib import Path
-
-            results_path = Path("benchmarks/nyc_taxi/results/results.csv")
-            rows = list(csv.reader(results_path.open(newline="")))
-
-            if not rows:
-              print("Benchmark results file is empty.")
-              sys.exit(0)
-
-            column_count = max(len(row) for row in rows)
-            rows = [row + [""] * (column_count - len(row)) for row in rows]
-            widths = [max(len(row[i]) for row in rows) for i in range(column_count)]
-
-            for index, row in enumerate(rows):
-              print("  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row)))
-              if index == 0:
-                print("  ".join("-" * width for width in widths))
-            PY
+            nix develop --accept-flake-config --command \
+              Rscript -e 'print(read.csv("benchmarks/nyc_taxi/results/results.csv"))'
           else
             echo "No benchmark results found at benchmarks/nyc_taxi/results/results.csv"
           fi
