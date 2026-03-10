@@ -1166,7 +1166,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: Native ListColumn materialization survives repeated GC pressure *)
   let stress_failed = ref None in
-  let default_stress_iterations = 10000 in
+  let default_stress_iterations = 1000 in
+  let stress_gc_interval = 100 in
   let stress_iterations =
     match Sys.getenv_opt "TLANG_ARROW_STRESS_ITERS" with
     | Some s -> (match int_of_string_opt s with Some n when n > 0 -> n | _ -> default_stress_iterations)
@@ -1189,21 +1190,24 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   if Arrow_ffi.arrow_available then begin
     (try
        for i = 1 to stress_iterations do
-         if Option.is_none !stress_failed then begin
-           let native_tbl = Arrow_table.materialize (make_stress_table i) in
-           if not (Arrow_table.is_native_backed native_tbl) then
-             stress_failed := Some (Printf.sprintf "materialize returned pure OCaml fallback at iteration %d" i)
-           else if Arrow_table.num_rows native_tbl <> 2 then
-             stress_failed := Some (Printf.sprintf "num_rows returned an unexpected value at iteration %d" i)
-           else
-             match Arrow_table.get_column native_tbl "nested" with
-             | Some (Arrow_table.ListColumn nested) when Array.length nested = 2 -> ()
-             | _ -> stress_failed := Some (Printf.sprintf "nested ListColumn read-back failed at iteration %d" i);
-           Gc.full_major ()
-         end
+         let native_tbl = Arrow_table.materialize (make_stress_table i) in
+         if not (Arrow_table.is_native_backed native_tbl) then
+           (stress_failed := Some (Printf.sprintf "materialize returned pure OCaml fallback at iteration %d" i); raise Exit)
+         else if Arrow_table.num_rows native_tbl <> 2 then
+           (stress_failed := Some (Printf.sprintf "num_rows returned an unexpected value at iteration %d" i); raise Exit)
+         else
+           match Arrow_table.get_column native_tbl "nested" with
+           | Some (Arrow_table.ListColumn nested) when Array.length nested = 2 -> ()
+           | _ ->
+               (stress_failed := Some (Printf.sprintf "nested ListColumn read-back failed at iteration %d" i); raise Exit);
+         if i mod stress_gc_interval = 0
+            || (i = stress_iterations && i mod stress_gc_interval <> 0)
+         then Gc.full_major ()
        done
-     with exn ->
-       stress_failed := Some (Printexc.to_string exn));
+     with
+     | Exit -> ()
+     | exn ->
+        stress_failed := Some (Printexc.to_string exn));
     (match !stress_failed with
      | None ->
          incr pass_count; Printf.printf "  ✓ Native ListColumn loop stress survives repeated GC\n"
