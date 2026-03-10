@@ -65,7 +65,7 @@ Example subset:
 
 The preparation script:
 
-1. downloads monthly TLC CSV files
+1. discovers and downloads monthly TLC yellow-trip files from the official NYC TLC trip-records page
 2. adds `year` and `month` columns when needed
 3. writes a Hive-partitioned Parquet dataset
 4. optionally appends the same data to a single materialized CSV file for T
