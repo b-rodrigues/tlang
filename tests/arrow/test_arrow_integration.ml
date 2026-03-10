@@ -1287,6 +1287,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Arrow Integration — IPC Read/Write:\n";
 
   let ipc_path = "test_arrow_roundtrip.arrow" in
+  let dict_ipc_path = "test_arrow_dict_roundtrip.arrow" in
+  let list_ipc_path = "test_arrow_list_roundtrip.arrow" in
   let ipc_tbl_src = Arrow_table.create [
     ("id", Arrow_table.IntColumn [| Some 1; Some 2; Some 3 |]);
     ("name", Arrow_table.StringColumn [| Some "alpha"; Some "beta"; Some "gamma" |]);
@@ -1329,14 +1331,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      | Error msg ->
          incr fail_count; Printf.printf "  ✗ Arrow_io.write_ipc failed: %s\n" msg);
 
-    let dict_ipc_path = "test_arrow_dict_roundtrip.arrow" in
     let dict_ipc_tbl = Arrow_table.create [
       ("color", Arrow_table.DictionaryColumn (
         [| Some 0; Some 1; None; Some 2 |],
         ["red"; "green"; "blue"],
         false
       ));
-      ("value", Arrow_table.IntColumn [| Some 10; Some 20; Some 30; Some 40 |]);
+      ("value", Arrow_table.IntColumn [| Some 10; Some 20; Some 30; Some 40 |])
     ] 4 in
     (match Arrow_io.write_ipc dict_ipc_tbl dict_ipc_path with
      | Ok () ->
@@ -1357,7 +1358,6 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      | Error msg ->
          incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC write failed: %s\n" msg);
 
-    let list_ipc_path = "test_arrow_list_roundtrip.arrow" in
     let list_sub_a = Arrow_table.create [
       ("x", Arrow_table.IntColumn [| Some 1; Some 2 |]);
       ("y", Arrow_table.StringColumn [| Some "a"; Some "b" |]);
@@ -1435,6 +1435,6 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (try Sys.remove csv_path with _ -> ());
   (try Sys.remove csv_skip_path with _ -> ());
   (try Sys.remove ipc_path with _ -> ());
-  (try Sys.remove "test_arrow_dict_roundtrip.arrow" with _ -> ());
-  (try Sys.remove "test_arrow_list_roundtrip.arrow" with _ -> ());
+  (try Sys.remove dict_ipc_path with _ -> ());
+  (try Sys.remove list_ipc_path with _ -> ());
   print_newline ()
