@@ -217,29 +217,21 @@
             elif [[ -f "$PWD/dune-project" ]]; then
               export TLANG_REPO_ROOT="$PWD"
             fi
-            export TLANG_DEV_BIN="$(mktemp -d "''${TMPDIR:-/tmp}/tlang-shell-bin.XXXXXX")"
-            trap 'rm -rf "$TLANG_DEV_BIN"' EXIT
-            cat > "$TLANG_DEV_BIN/t" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
 
-repo_root="''${TLANG_REPO_ROOT:-}"
 
-if [[ -z "$repo_root" || ! -f "$repo_root/dune-project" ]]; then
-  if command -v git >/dev/null 2>&1; then
-    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  fi
-fi
-
-if [[ -z "$repo_root" || ! -f "$repo_root/dune-project" ]]; then
-  echo "Unable to locate the T repository root for the dev-shell 't' wrapper." >&2
-  exit 1
-fi
-
-exec dune exec --root "$repo_root" src/repl.exe -- "$@"
-EOF
-            chmod +x "$TLANG_DEV_BIN/t"
-            export PATH="$TLANG_DEV_BIN:$PATH"
+            # Simple shell function to find and run the language binary without startup overhead
+            t() {
+              local repo_root="''${TLANG_REPO_ROOT:-$PWD}"
+              if [[ -f "$repo_root/_build/default/src/repl.exe" ]]; then
+                "$repo_root/_build/default/src/repl.exe" "$@"
+              elif [[ -L "$repo_root/result" && -f "$repo_root/result/bin/t" ]]; then
+                "$repo_root/result/bin/t" "$@"
+              else
+                echo "Error: T is not built. Please run 'dune build' (or 'nix build') first." >&2
+                return 1
+              fi
+            }
+            export -f t
 
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"
@@ -247,10 +239,7 @@ EOF
             echo ""
             echo "Available commands:"
             echo "  dune build           - Build the project"
-            echo "  t                    - Start the T CLI via the current dev shell"
-            echo "  t repl               - Start REPL explicitly"
-            echo "  t run file.t         - Run a T file"
-            echo "  t --help             - Show CLI help"
+            echo "  t                    - Run the language (fast path)"
             echo "  dune test            - Run tests"
             echo "  dune clean           - Clean build artifacts"
             echo "  R                    - Launch R console"
@@ -260,7 +249,7 @@ EOF
             echo "  Rscript tests/golden/generate_expected.R       - Generate dplyr outputs"
             echo "  Rscript tests/golden/generate_expected_stats.R - Generate stats outputs"
             echo ""
-            echo "Quick start: t"
+            echo "Quick start: dune build && t"
             echo ""
           '';
         };
