@@ -389,6 +389,13 @@ T leverages Nix to orchestrate computation across multiple runtimes. When a node
    - **Scalars**: Passed via JSON or T's native binary format.
 4. **Code Injection**: T automatically injects a bridge layer into the R/Python scripts to handle reading dependencies and writing the node result using the specified serializer.
 
+For direct user-facing Arrow file workflows outside pipelines, T also exposes:
+
+- `t_read_arrow(path)` for Arrow IPC input
+- `t_write_arrow(dataframe, path)` for Arrow IPC output
+
+That means Arrow is used both as an internal storage backend and as an interchange format at the language boundary.
+
 ---
 
 ## Arrow Backend
@@ -433,10 +440,13 @@ Located in `src/arrow/`:
 - **arrow_ffi.ml**: OCaml wrappers for C functions
 - **C stubs**: Interface to Arrow C GLib
 
-**Example** (reading CSV):
+**Examples**:
 ```ocaml
 external read_csv_native : string -> arrow_table = "caml_arrow_read_csv"
+external read_ipc_native : string -> arrow_table = "caml_arrow_read_ipc"
 ```
+
+The repository currently exposes both a backend-native CSV reader and Arrow IPC read/write support. The public `read_csv()` builtin still layers OCaml CSV parsing on top of Arrow-backed table construction, while `t_read_arrow` / `t_write_arrow` expose Arrow IPC directly.
 
 ### Dual-Path Operations
 
@@ -446,11 +456,13 @@ Every DataFrame operation has two paths:
    - Use Arrow Compute kernels via FFI
    - Zero-copy operations
    - Vectorized SIMD execution
+   - Arrow IPC round-trips preserve the native storage model well
 
 2. **Fallback Path** (when no native handle):
    - Pure OCaml implementation
    - Works on converted list-of-records
    - Slower but always available
+   - Still produces correct user-visible behavior when a schema cannot stay native
 
 **Example** (`filter` operation):
 ```ocaml

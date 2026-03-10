@@ -1,5 +1,7 @@
 # T Language Alpha Hardening Plan
 
+> **Historical planning note**: Parts of this plan were written before the current Arrow backend landed. If Arrow status here conflicts with current code, prefer `../docs/arrow.md` and `../docs/arrow-current-status-next-steps.md`.
+
 > **Purpose**: This document outlines what needs to be completed, tested, and hardened to ensure the T Language Alpha (v0.1) is production-ready, robust, and feature-complete.
 
 **Status**: Alpha v0.1 (February 2026) — Syntax and semantics frozen  
