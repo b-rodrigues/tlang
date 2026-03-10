@@ -105,16 +105,36 @@ resolve_tlc_dataset_url() {
   python - "$month" "$TLC_TRIP_DATA_PAGE_URL" <<'PY'
 import re
 import sys
+import urllib.error
+import urllib.parse
 import urllib.request
 
 month = sys.argv[1]
 page_url = sys.argv[2]
 
-with urllib.request.urlopen(page_url) as response:
-    html = response.read().decode("utf-8", errors="replace")
+try:
+    with urllib.request.urlopen(page_url, timeout=30) as response:
+        html = response.read().decode("utf-8", errors="replace")
+except (urllib.error.HTTPError, urllib.error.URLError) as exc:
+    raise SystemExit(
+        f"Failed to fetch official TLC trip-record page ({page_url}): {exc}"
+    ) from exc
 
+# This parser assumes the page contains direct absolute URLs to
+# yellow_tripdata_YYYY-MM.{parquet,csv}; if TLC switches to JS-rendered links,
+# this extraction logic will need to be updated.
 links = re.findall(r'https://[^"\']+/yellow_tripdata_\d{4}-\d{2}\.(?:parquet|csv)', html, flags=re.IGNORECASE)
-normalized = sorted({link.lower() for link in links})
+allowed_domains = ("nyc.gov", "cloudfront.net")
+normalized = sorted(
+    {
+        link.lower()
+        for link in links
+        if (
+            urllib.parse.urlparse(link).hostname
+            and urllib.parse.urlparse(link).hostname.endswith(allowed_domains)
+        )
+    }
+)
 if not normalized:
     raise SystemExit(
         f"Could not find yellow taxi download links on official TLC page: {page_url}"
@@ -133,7 +153,14 @@ if match is None:
     raise SystemExit(f"Unexpected TLC dataset link format on {page_url}")
 
 extension = match.group(1)
-base = sample.rsplit("/", 1)[0]
+base_paths = {link.rsplit("/", 1)[0] for link in normalized}
+if len(base_paths) != 1:
+    raise SystemExit(
+        "Found multiple yellow-trip URL base paths on TLC page; "
+        "unable to safely infer a fallback URL."
+    )
+
+base = next(iter(base_paths))
 print(f"{base}/yellow_tripdata_{month}.{extension}")
 PY
 }
@@ -168,6 +195,7 @@ import sys
 
 import pandas as pd
 import pyarrow as pa
+import pyarrow.lib as pa_lib
 import pyarrow.parquet as pq
 
 raw_input = pathlib.Path(sys.argv[1])
@@ -181,12 +209,17 @@ if match is None:
 year = int(match.group(1))
 month = int(match.group(2))
 
-if raw_input.suffix.lower() == ".csv":
-    df = pd.read_csv(raw_input)
-elif raw_input.suffix.lower() == ".parquet":
-    df = pd.read_parquet(raw_input)
-else:
-    raise SystemExit(f"Unsupported input format for benchmark data: {raw_input}")
+try:
+    if raw_input.suffix.lower() == ".csv":
+        df = pd.read_csv(raw_input)
+    elif raw_input.suffix.lower() == ".parquet":
+        df = pd.read_parquet(raw_input)
+    else:
+        raise SystemExit(f"Unsupported input format for benchmark data: {raw_input}")
+except (FileNotFoundError, pd.errors.ParserError, pa_lib.ArrowInvalid, OSError, ValueError) as exc:
+    raise SystemExit(
+        f"Failed to parse downloaded benchmark input {raw_input}: {exc}"
+    ) from exc
 if "year" not in df.columns:
     df["year"] = year
 if "month" not in df.columns:
@@ -208,6 +241,7 @@ import sys
 
 import pandas as pd
 import pyarrow as pa
+import pyarrow.lib as pa_lib
 import pyarrow.parquet as pq
 
 raw_input = pathlib.Path(sys.argv[1])
@@ -220,12 +254,17 @@ if match is None:
 year = int(match.group(1))
 month = int(match.group(2))
 
-if raw_input.suffix.lower() == ".csv":
-    df = pd.read_csv(raw_input)
-elif raw_input.suffix.lower() == ".parquet":
-    df = pd.read_parquet(raw_input)
-else:
-    raise SystemExit(f"Unsupported input format for benchmark data: {raw_input}")
+try:
+    if raw_input.suffix.lower() == ".csv":
+        df = pd.read_csv(raw_input)
+    elif raw_input.suffix.lower() == ".parquet":
+        df = pd.read_parquet(raw_input)
+    else:
+        raise SystemExit(f"Unsupported input format for benchmark data: {raw_input}")
+except (FileNotFoundError, pd.errors.ParserError, pa_lib.ArrowInvalid, OSError, ValueError) as exc:
+    raise SystemExit(
+        f"Failed to parse downloaded benchmark input {raw_input}: {exc}"
+    ) from exc
 if "year" not in df.columns:
     df["year"] = year
 if "month" not in df.columns:
