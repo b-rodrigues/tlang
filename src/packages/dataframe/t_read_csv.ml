@@ -1,6 +1,9 @@
 open Ast
 
 let is_sep_name = function Some "separator" | Some "sep" -> true | _ -> false
+(* Use the Arrow-native reader only for meaningfully large default CSV loads,
+   where avoiding full OCaml string materialization noticeably improves runtime
+   and memory usage (the NYC taxi benchmark case). *)
 let arrow_fast_path_min_bytes = 256 * 1024
 
 let starts_with prefix s =
@@ -9,7 +12,8 @@ let starts_with prefix s =
   len_s >= len_p && String.sub s 0 len_p = prefix
 
 let ensure_trailing_period msg =
-  if String.length msg > 0 && msg.[String.length msg - 1] = '.'
+  let len = String.length msg in
+  if len > 0 && msg.[len - 1] = '.'
   then msg
   else msg ^ "."
 
@@ -24,6 +28,9 @@ let error_of_read_csv_message msg =
     in
     Error.make_error FileError msg
 
+(** Use the Arrow-native CSV reader only for large local CSV files loaded with
+    the default comma-separated semantics. Option-heavy calls keep using the
+    existing parser so public read_csv behavior remains unchanged. *)
 let should_use_arrow_fast_path path ~sep ~skip_header ~skip_lines ~clean_colnames =
   sep = ','
   && not skip_header
@@ -31,6 +38,8 @@ let should_use_arrow_fast_path path ~sep ~skip_header ~skip_lines ~clean_colname
   && not clean_colnames
   && not (Arrow_io.is_url path)
   &&
+  (* Never surface filesystem issues from the eligibility check itself;
+     fall back to the existing parser and let it report user-facing errors. *)
   try
     let stat = Unix.stat path in
     stat.Unix.st_size >= arrow_fast_path_min_bytes
@@ -169,27 +178,34 @@ let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) ?(clean_col
         ) headers in
         (* Convert to Arrow table via bridge *)
         let arrow_table = Arrow_bridge.table_from_value_columns value_columns nrows in
-        VDataFrame { arrow_table; group_keys = [] }
+       VDataFrame { arrow_table; group_keys = [] }
 
+(** Parse a CSV path with the existing pure-OCaml read_csv behavior, including
+    URL download support and structured user-facing error values. *)
 let parse_csv_path ?(sep=',') ?(skip_header=false) ?(skip_lines=0) ?(clean_colnames=false) path =
-  let read_content_from_path p =
-    let ch = open_in p in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    content
-  in
-  let content =
-    if Arrow_io.is_url path then
-      match Arrow_io.download_url path with
-      | Ok temp_path ->
-          let c = read_content_from_path temp_path in
-          (try Sys.remove temp_path with _ -> ());
-          c
-      | Error msg -> raise (Sys_error msg)
-    else
-      read_content_from_path path
-  in
-  parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames content
+  try
+    let read_content_from_path p =
+      let ch = open_in p in
+      let content = really_input_string ch (in_channel_length ch) in
+      close_in ch;
+      content
+    in
+    let content_result =
+      if Arrow_io.is_url path then
+        match Arrow_io.download_url path with
+        | Ok temp_path ->
+            let c = read_content_from_path temp_path in
+            (try Sys.remove temp_path with _ -> ());
+            Ok c
+        | Error msg -> Error (error_of_read_csv_message msg)
+      else
+        Ok (read_content_from_path path)
+    in
+    match content_result with
+    | Ok content -> parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames content
+    | Error err -> err
+  with
+  | Sys_error msg -> error_of_read_csv_message msg
 
 
 (*
@@ -248,15 +264,12 @@ let register env =
       ) named_args |> List.map snd in
       match args with
       | [VString path] ->
-          (try
-            if should_use_arrow_fast_path path ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean then
-              match Arrow_io.read_csv path with
-              | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
-              | Error msg -> error_of_read_csv_message msg
-            else
-              parse_csv_path ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean path
-          with
-          | Sys_error msg -> error_of_read_csv_message msg)
+          if should_use_arrow_fast_path path ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean then
+            match Arrow_io.read_csv path with
+            | Ok arrow_table -> VDataFrame { arrow_table; group_keys = [] }
+            | Error msg -> error_of_read_csv_message msg
+          else
+            parse_csv_path ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean path
       | [VNA _] -> Error.type_error "Function `read_csv` expects a String path, got NA."
       | [_] -> Error.type_error "Function `read_csv` expects a String path."
       | _ -> Error.make_error ArityError "Function `read_csv` takes exactly 1 positional argument (path)."
