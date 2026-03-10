@@ -8,9 +8,10 @@ Calculates the cumulative sum of a vector.
 
 - **x** (`Vector`): The input numeric vector.
 
-## Returns:
 
-Returns: The cumulative sum.
+## Returns
+
+The cumulative sum.
 
 ## Examples
 

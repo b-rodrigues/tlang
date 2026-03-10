@@ -7,11 +7,13 @@ Returns a new pipeline containing the named node, all of its ancestors, and all 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline.
+
 - **name** (`String`): The name of the target node.
 
-## Returns:
 
-Returns: A new pipeline with the full connected component.
+## Returns
+
+A new pipeline with the full connected component.
 
 ## Examples
 

@@ -8,7 +8,8 @@ Generates the directory structure and boilerplate files for a new T language pac
 
 - **opts** (`ScaffoldOptions`): The options provided via CLI (name, author, license, etc.).
 
-## Returns:
 
-Returns: Ok(()) or an error message.
+## Returns
+
+Ok(()) or an error message.
 

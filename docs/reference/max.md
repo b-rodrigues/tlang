@@ -8,9 +8,10 @@ Returns the maximum value in a vector or list.
 
 - **x** (`Vector`): | List The numeric data.
 
-## Returns:
 
-Returns: The maximum value.
+## Returns
+
+The maximum value.
 
 ## Examples
 

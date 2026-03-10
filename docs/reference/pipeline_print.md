@@ -8,9 +8,10 @@ Prints a human-readable summary of the pipeline nodes to stdout, showing each no
 
 - **p** (`Pipeline`): The pipeline to print.
 
-## Returns:
 
-Returns: 
+## Returns
+
+
 
 ## Examples
 

@@ -8,9 +8,10 @@ Compares nested models using F-tests (for linear models) or Chi-square tests (fo
 
 - **...** (`Model`): One or more model objects to compare.
 
-## Returns:
 
-Returns: ANOVA table with statistics and p-values.
+## Returns
+
+ANOVA table with statistics and p-values.
 
 ## Examples
 

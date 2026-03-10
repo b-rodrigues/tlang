@@ -8,9 +8,10 @@ Creates a vector of length n filled with 1.0. Use with `seq` or `ndarray` for mo
 
 - **n** (`Int`): The length of the vector.
 
-## Returns:
 
-Returns: A vector of ones.
+## Returns
+
+A vector of ones.
 
 ## Examples
 

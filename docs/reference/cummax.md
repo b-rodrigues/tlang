@@ -8,9 +8,10 @@ Calculates the cumulative maximum of a vector.
 
 - **x** (`Vector`): The input numeric vector.
 
-## Returns:
 
-Returns: The cumulative maximum.
+## Returns
+
+The cumulative maximum.
 
 ## Examples
 

@@ -8,9 +8,10 @@ Returns a string containing a Graphviz DOT representation of the pipeline's depe
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns:
 
-Returns: A DOT graph string.
+## Returns
+
+A DOT graph string.
 
 ## Examples
 

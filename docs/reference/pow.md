@@ -7,11 +7,13 @@ Calculates base raised to the power of exponent.
 ## Parameters
 
 - **base** (`Number`): | Vector | NDArray The base.
+
 - **exponent** (`Number`): The exponent.
 
-## Returns:
 
-Returns: | Vector | NDArray The result of base ^ exponent.
+## Returns
+
+| Vector | NDArray The result of base ^ exponent.
 
 ## Examples
 

@@ -8,9 +8,10 @@ Returns the minimum value in a vector or list.
 
 - **x** (`Vector`): | List The numeric data.
 
-## Returns:
 
-Returns: The minimum value.
+## Returns
+
+The minimum value.
 
 ## Examples
 

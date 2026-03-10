@@ -8,9 +8,10 @@ Returns the number of observations used to fit a model.
 
 - **model** (`Model`): The model object.
 
-## Returns:
 
-Returns: The number of observations.
+## Returns
+
+The number of observations.
 
 ## Examples
 

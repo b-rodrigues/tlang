@@ -8,9 +8,10 @@ Standardizes column names using a snake_case convention. Removes special charact
 
 - **x** (`DataFrame`): | List[String] The object with names to clean.
 
-## Returns:
 
-Returns: | List[String] The object with cleaned names.
+## Returns
+
+| List[String] The object with cleaned names.
 
 ## See Also
 

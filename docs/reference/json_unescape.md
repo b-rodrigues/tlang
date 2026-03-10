@@ -8,7 +8,8 @@ Decodes escaped characters from a JSON string.
 
 - **s** (`String`): The escaped string.
 
-## Returns:
 
-Returns: The literal string.
+## Returns
+
+The literal string.
 

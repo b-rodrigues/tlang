@@ -8,9 +8,10 @@ Returns true if the value is an Error object, false otherwise.
 
 - **x** (`Any`): The value to check.
 
-## Returns:
 
-Returns: True if x is an Error.
+## Returns
+
+True if x is an Error.
 
 ## Examples
 

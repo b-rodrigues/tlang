@@ -7,11 +7,13 @@ Returns a list of files and directories in the specified path. Supports an optio
 ## Parameters
 
 - **path** (`String`): [Optional] The directory to list. Defaults to ".".
+
 - **pattern** (`String`): [Optional] Regex pattern to filter results.
 
-## Returns:
 
-Returns: List of filenames.
+## Returns
+
+List of filenames.
 
 ## Examples
 

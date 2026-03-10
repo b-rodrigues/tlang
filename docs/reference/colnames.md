@@ -8,9 +8,10 @@ Returns a list of column names in the DataFrame.
 
 - **df** (`DataFrame`): The input DataFrame.
 
-## Returns:
 
-Returns: The column names.
+## Returns
+
+The column names.
 
 ## Examples
 

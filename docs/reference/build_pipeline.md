@@ -8,9 +8,10 @@ Builds a pipeline to `pipeline.nix` and records node artifacts in a local regist
 
 - **p** (`Pipeline`): The pipeline to build.
 
-## Returns:
 
-Returns: The output path (Nix store path or local fallback directory).
+## Returns
+
+The output path (Nix store path or local fallback directory).
 
 ## See Also
 

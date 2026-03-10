@@ -8,9 +8,10 @@ Returns the names of all leaf nodes — nodes that no other node depends on.
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns:
 
-Returns: Names of leaf nodes.
+## Returns
+
+Names of leaf nodes.
 
 ## Examples
 

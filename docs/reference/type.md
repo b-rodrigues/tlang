@@ -8,9 +8,10 @@ Returns a string representation of the value's type (e.g., "Int", "String", "Lis
 
 - **x** (`Any`): The value to inspect.
 
-## Returns:
 
-Returns: The type name.
+## Returns
+
+The type name.
 
 ## Examples
 

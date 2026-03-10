@@ -8,9 +8,10 @@ Assigns the minimum rank to ties, leaving gaps in ranks.
 
 - **x** (`Vector`): The input vector.
 
-## Returns:
 
-Returns: The ranks.
+## Returns
+
+The ranks.
 
 ## Examples
 

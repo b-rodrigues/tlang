@@ -4,9 +4,9 @@ List available packages
 
 Returns a list of all standard packages available in the environment.
 
-## Returns:
+## Returns
 
-Returns: List of package metadata.
+List of package metadata.
 
 ## Examples
 

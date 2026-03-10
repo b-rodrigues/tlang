@@ -33,12 +33,14 @@
 | [coef](coef.html) | Model Coefficients |
 | [colnames](colnames.html) | Get column names |
 | [compare](compare.html) | Compare Models |
+| [complete](complete.html) | Complete a data frame |
 | [conf_int](conf_int.html) | Confidence Intervals for Model Coefficients |
 | [contains](contains.html) | Check if string contains substring |
 | [cor](cor.html) | Correlation |
 | [cos](cos.html) | Cosine |
 | [cosh](cosh.html) | Hyperbolic cosine |
 | [cov](cov.html) | Covariance |
+| [crossing](crossing.html) | Create a data frame from all combinations of inputs |
 | [cumall](cumall.html) | Cumulative All |
 | [cumany](cumany.html) | Cumulative Any |
 | [cume_dist](cume_dist.html) | Cumulative Distribution |
@@ -57,6 +59,7 @@
 | [dir_exists](dir_exists.html) | Check if directory exists |
 | [dispersion](dispersion.html) | Dispersion Parameter |
 | [downstream_of](downstream_of.html) | Extract Downstream Subgraph |
+| [drop_na](drop_na.html) | Remove rows with missing values |
 | [ends_with](ends_with.html) | Check if string ends with suffix |
 | [env](env.html) | Get environment variable |
 | [error](error.html) | Raise Error |
@@ -64,11 +67,13 @@
 | [error_context](error_context.html) | Get error context |
 | [error_message](error_message.html) | Get error message |
 | [exp](exp.html) | Exponential function |
+| [expand](expand.html) | Create all combinations of values |
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [expr](expr.html) | Capture an expression |
 | [exprs](exprs.html) | Capture multiple expressions |
 | [file_exists](file_exists.html) | Check if file exists |
+| [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
 | [filter_node](filter_node.html) | Filter Pipeline Nodes |
 | [fit_stats](fit_stats.html) | Model Fit Statistics |
@@ -95,7 +100,6 @@
 | [is_empty](is_empty.html) | Check if string is empty |
 | [is_error](is_error.html) | Check if a value is an Error |
 | [is_na](is_na.html) | Check for NA |
-| [join](join.html) | Join strings with a separator |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
 | [lag](lag.html) | Lag values |
@@ -122,10 +126,10 @@
 | [na_float](na_float.html) | Float NA |
 | [na_int](na_int.html) | Integer NA |
 | [na_string](na_string.html) | String NA |
-| [nchar](nchar.html) | Get character count |
 | [ncol](ncol.html) | Number of columns |
 | [ndarray](ndarray.html) | Create an N-dimensional array |
 | [ndarray_data](ndarray_data.html) | Get NDArray data |
+| [nesting](nesting.html) | Helper to find combinations present in data |
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
 | [normalize](normalize.html) | Normalize values |
@@ -144,6 +148,7 @@
 | [path_stem](path_stem.html) | Get filename without extension |
 | [percent_rank](percent_rank.html) | Percent Rank |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
+| [pipeline_copy](pipeline_copy.html) | Copy Pipeline Node Artifacts to Local Directory |
 | [pipeline_cycles](pipeline_cycles.html) | Detect Pipeline Cycles |
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
 | [pipeline_depth](pipeline_depth.html) | Maximum Topological Depth |
@@ -158,6 +163,8 @@
 | [pipeline_summary](pipeline_summary.html) | Pipeline Summary |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
 | [pipeline_validate](pipeline_validate.html) | Validate a Pipeline |
+| [pivot_longer](pivot_longer.html) | Pivot longer |
+| [pivot_wider](pivot_wider.html) | Pivot wider |
 | [poly](poly.html) | Polynomial basis expansion |
 | [populate_pipeline](populate_pipeline.html) | Populate Pipeline |
 | [pow](pow.html) | Power function |
@@ -169,19 +176,21 @@
 | [pyn](pyn.html) | Configure a Python Pipeline Node |
 | [quantile](quantile.html) | Quantiles |
 | [range](range.html) | Range |
+| [read_arrow](read_arrow.html) | Read Arrow IPC file |
 | [read_csv](read_csv.html) | Read CSV file |
 | [read_file](read_file.html) | Read file contents |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
 | [rename_node](rename_node.html) | Rename a Pipeline Node |
-| [replace](replace.html) | Replace all occurrences |
 | [replace_first](replace_first.html) | Replace first occurrence |
+| [replace_na](replace_na.html) | Replace missing values |
 | [reshape](reshape.html) | Reshape an NDArray |
 | [residuals](residuals.html) | Model Residuals |
 | [rewire](rewire.html) | Rewire a Node's Dependencies |
 | [rn](rn.html) | Configure an R Pipeline Node |
 | [round](round.html) | Round values |
 | [row_number](row_number.html) | Row Number |
+| [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
 | [scaffold_package](scaffold_package.html) | Scaffold a new T package |
 | [scaffold_project](scaffold_project.html) | Scaffold a new T project |
@@ -190,6 +199,7 @@
 | [sd](sd.html) | Standard Deviation |
 | [select](select.html) | Select columns |
 | [select_node](select_node.html) | Select Node Metadata Fields |
+| [separate](separate.html) | Separate a character column into multiple columns |
 | [seq](seq.html) | Generate a sequence of integers |
 | [serialize](serialize.html) | Serialize Value |
 | [shape](shape.html) | Get NDArray dimensions |
@@ -201,14 +211,22 @@
 | [skewness](skewness.html) | Skewness |
 | [slice](slice.html) | Extract slice |
 | [source](source.html) | Get function source code |
-| [sprintf](sprintf.html) | Format a string |
 | [sqrt](sqrt.html) | Square root |
 | [standardize](standardize.html) | Standardize values |
 | [starts_with](starts_with.html) | Check if string starts with prefix |
-| [string](string.html) | Convert to string |
-| [strsplit](strsplit.html) | Split a string on a delimiter |
+| [str_format](str_format.html) | Named string interpolation |
+| [str_join](str_join.html) | Join strings with a separator |
+| [str_lines](str_lines.html) | Split string into lines |
+| [str_nchar](str_nchar.html) | Get character count |
+| [str_repeat](str_repeat.html) | Repeat a string |
+| [str_replace](str_replace.html) | Replace all occurrences |
+| [str_split](str_split.html) | Split a string on a delimiter |
+| [str_sprintf](str_sprintf.html) | Format a string |
+| [str_string](str_string.html) | Convert to string |
+| [str_substring](str_substring.html) | Extract substring |
+| [str_trim](str_trim.html) | Trim whitespace |
+| [str_words](str_words.html) | Split string into words |
 | [subgraph](subgraph.html) | Extract Connected Subgraph |
-| [substring](substring.html) | Extract substring |
 | [sum](sum.html) | Sum of numeric values |
 | [summarize](summarize.html) | Summarize data |
 | [summary](summary.html) | Model Summary |
@@ -229,16 +247,20 @@
 | [to_upper](to_upper.html) | Convert to uppercase |
 | [trace_nodes](trace_nodes.html) | Trace Pipeline Nodes |
 | [transpose](transpose.html) | Transpose matrix |
+| [trim_end](trim_end.html) | Trim trailing whitespace |
+| [trim_start](trim_start.html) | Trim leading whitespace |
 | [trimmed_mean](trimmed_mean.html) | Trimmed mean |
 | [trunc](trunc.html) | Truncate values |
 | [type](type.html) | Get the type name of a value |
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Union of Two Pipelines |
+| [unite](unite.html) | Combine multiple columns into one character column |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
 | [var](var.html) | Variance |
 | [vcov](vcov.html) | Variance-Covariance Matrix |
 | [wald_test](wald_test.html) | Joint Wald Test |
 | [winsorize](winsorize.html) | Winsorize values |
+| [write_arrow](write_arrow.html) | Write Arrow IPC file |
 | [write_csv](write_csv.html) | Write CSV file |
 | [write_text](write_text.html) | Write text to a file |

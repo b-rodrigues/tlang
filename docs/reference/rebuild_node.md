@@ -8,9 +8,10 @@ Rebuilds a single node from the pipeline Nix expression and returns an updated C
 
 - **node** (`ComputedNode`): A computed node value to rebuild.
 
-## Returns:
 
-Returns: An updated ComputedNode pointing to the rebuilt artifact.
+## Returns
+
+An updated ComputedNode pointing to the rebuilt artifact.
 
 ## See Also
 

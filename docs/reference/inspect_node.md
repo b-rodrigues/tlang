@@ -8,9 +8,10 @@ Returns a dictionary with metadata about a computed node, including its name, ru
 
 - **node** (`ComputedNode`): A computed node value (e.g. from a built pipeline).
 
-## Returns:
 
-Returns: A dictionary with keys = name, runtime, path, serializer, class, dependencies.
+## Returns
+
+A dictionary with keys = name, runtime, path, serializer, class, dependencies.
 
 ## See Also
 

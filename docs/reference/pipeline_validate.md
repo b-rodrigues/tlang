@@ -8,9 +8,10 @@ Checks a pipeline for structural errors without throwing. Returns a list of erro
 
 - **p** (`Pipeline`): The pipeline to validate.
 
-## Returns:
 
-Returns: A list of validation error messages (empty = valid).
+## Returns
+
+A list of validation error messages (empty = valid).
 
 ## Examples
 

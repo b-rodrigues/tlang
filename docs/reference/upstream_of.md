@@ -7,11 +7,13 @@ Returns a new pipeline containing the named node and all of its transitive depen
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline.
+
 - **name** (`String`): The name of the target node.
 
-## Returns:
 
-Returns: A new pipeline with only the node and its ancestors.
+## Returns
+
+A new pipeline with only the node and its ancestors.
 
 ## Examples
 

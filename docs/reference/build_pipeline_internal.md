@@ -8,7 +8,8 @@ Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path 
 
 - **p** (`PipelineResult`): The pipeline AST structure.
 
-## Returns:
 
-Returns: The output Nix store path or an error string.
+## Returns
+
+The output Nix store path or an error string.
 

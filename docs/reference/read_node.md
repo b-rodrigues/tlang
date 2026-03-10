@@ -7,11 +7,13 @@ Reads a node artifact from the latest (or specified) build log in `_pipeline/`. 
 ## Parameters
 
 - **name** (`String`): The node name.
+
 - **which_log** (`String`): (Optional) A regex pattern to match a specific build log filename.
 
-## Returns:
 
-Returns: The deserialized value.
+## Returns
+
+The deserialized value.
 
 ## See Also
 

@@ -8,7 +8,8 @@ Returns the transpose of a 2D NDArray.
 
 - **matrix** (`NDArray`): The matrix to transpose.
 
-## Returns:
 
-Returns: The transposed matrix.
+## Returns
+
+The transposed matrix.
 

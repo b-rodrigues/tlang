@@ -8,9 +8,10 @@ Validates the pipeline and returns it unchanged if valid. Throws the first valid
 
 - **p** (`Pipeline`): The pipeline to validate.
 
-## Returns:
 
-Returns: The same pipeline if valid.
+## Returns
+
+The same pipeline if valid.
 
 ## Examples
 

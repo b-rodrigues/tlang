@@ -8,9 +8,10 @@ Removes all leaf nodes — nodes that have no downstream dependents (nothing dep
 
 - **p** (`Pipeline`): The pipeline to prune.
 
-## Returns:
 
-Returns: A new pipeline with leaf nodes removed.
+## Returns
+
+A new pipeline with leaf nodes removed.
 
 ## Examples
 

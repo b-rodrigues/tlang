@@ -8,7 +8,8 @@ Normalizes a list of strings to be safe, consistent column names. Converts symbo
 
 - **names** (`Vector[String]`): The column names to clean.
 
-## Returns:
 
-Returns: The cleaned column names.
+## Returns
+
+The cleaned column names.
 

@@ -8,9 +8,10 @@ Returns a DataFrame with full metadata for every node in the pipeline. This is a
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns:
 
-Returns: A DataFrame with one row per node and all metadata columns.
+## Returns
+
+A DataFrame with one row per node and all metadata columns.
 
 ## Examples
 

@@ -8,9 +8,10 @@ Calculates the natural logarithm (base e) of x.
 
 - **x** (`Number`): | Vector | NDArray The input value (must be positive).
 
-## Returns:
 
-Returns: | Vector | NDArray The natural logarithm.
+## Returns
+
+| Vector | NDArray The natural logarithm.
 
 ## Examples
 

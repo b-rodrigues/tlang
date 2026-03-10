@@ -6,9 +6,10 @@ Resolve relative path to absolute
 
 - **path** (`String`): A relative or absolute path.
 
-## Returns:
 
-Returns: The absolute path resolved against the current working directory.
+## Returns
+
+The absolute path resolved against the current working directory.
 
 ## Examples
 

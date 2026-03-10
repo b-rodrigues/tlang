@@ -8,9 +8,10 @@ Calculates the square root of x.
 
 - **x** (`Number`): | Vector | NDArray The input value (must be non-negative).
 
-## Returns:
 
-Returns: | Vector | NDArray The square root.
+## Returns
+
+| Vector | NDArray The square root.
 
 ## Examples
 

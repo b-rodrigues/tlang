@@ -7,11 +7,13 @@ Calculates various performance metrics (RMSE, MAE, R-squared, etc.) for a model 
 ## Parameters
 
 - **data** (`DataFrame`): The dataset to score.
+
 - **model** (`Model`): The model object.
 
-## Returns:
 
-Returns: A one-row DataFrame with metrics.
+## Returns
+
+A one-row DataFrame with metrics.
 
 ## Examples
 

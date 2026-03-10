@@ -7,11 +7,13 @@ Calculates the sum of values in a List or Vector.
 ## Parameters
 
 - **x** (`List[Number]`): | Vector[Number] The collection to sum.
+
 - **na_rm** (`Bool`): = false Remove NA values before summing.
 
-## Returns:
 
-Returns: | NA The sum of values.
+## Returns
+
+| NA The sum of values.
 
 ## Examples
 

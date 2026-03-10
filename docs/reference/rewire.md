@@ -7,12 +7,15 @@ Reroutes a node's declared dependencies. The `replace` argument is a named list 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline.
+
 - **name** (`String`): The name of the node whose deps should change.
+
 - **replace** (`List[String]`): A named list mapping old dep names to new ones.
 
-## Returns:
 
-Returns: A new pipeline with updated dependency edges.
+## Returns
+
+A new pipeline with updated dependency edges.
 
 ## Examples
 

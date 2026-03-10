@@ -8,9 +8,10 @@ Checks if a regular file exists at the given path. Returns false if the path is 
 
 - **path** (`String`): The path to check.
 
-## Returns:
 
-Returns: True if it's a regular file.
+## Returns
+
+True if it's a regular file.
 
 ## Examples
 

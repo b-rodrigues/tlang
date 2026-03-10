@@ -7,11 +7,13 @@ Shifts a vector forward by n positions, filling with NA.
 ## Parameters
 
 - **x** (`Vector`): The input vector.
+
 - **n** (`Int`): (Optional) Number of positions to shift. Default is 1.
 
-## Returns:
 
-Returns: The shifted vector.
+## Returns
+
+The shifted vector.
 
 ## Examples
 

@@ -8,7 +8,8 @@ Generates the directory structure and boilerplate files for a new T data analysi
 
 - **opts** (`ScaffoldOptions`): The options provided via CLI.
 
-## Returns:
 
-Returns: Ok(()) or an error message.
+## Returns
+
+Ok(()) or an error message.
 

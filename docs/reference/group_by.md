@@ -7,11 +7,13 @@ Groups a DataFrame by one or more columns for subsequent aggregation.
 ## Parameters
 
 - **df** (`DataFrame`): The input DataFrame.
+
 - **...** (`Symbol`): Variable number of grouping columns.
 
-## Returns:
 
-Returns: The grouped DataFrame.
+## Returns
+
+The grouped DataFrame.
 
 ## Examples
 

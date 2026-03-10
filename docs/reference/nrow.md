@@ -8,9 +8,10 @@ Returns the number of rows in a DataFrame or the length of a vector.
 
 - **x** (`DataFrame`): | Vector The input data.
 
-## Returns:
 
-Returns: The number of rows/elements.
+## Returns
+
+The number of rows/elements.
 
 ## Examples
 

@@ -6,9 +6,10 @@ Get directory portion of a path
 
 - **path** (`String`): A file path.
 
-## Returns:
 
-Returns: The directory portion of the path.
+## Returns
+
+The directory portion of the path.
 
 ## Examples
 

@@ -8,9 +8,10 @@ Calculates the cumulative logical OR of a vector.
 
 - **x** (`Vector`): The input boolean vector.
 
-## Returns:
 
-Returns: The cumulative OR.
+## Returns
+
+The cumulative OR.
 
 ## Examples
 

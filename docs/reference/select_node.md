@@ -7,11 +7,13 @@ Returns a DataFrame summarising the requested metadata fields for all nodes in t
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline to inspect.
+
 - **...** (`Symbol`): One or more metadata field references (e.g. `$name`, `$runtime`).
 
-## Returns:
 
-Returns: A DataFrame with the requested metadata columns.
+## Returns
+
+A DataFrame with the requested metadata columns.
 
 ## Examples
 

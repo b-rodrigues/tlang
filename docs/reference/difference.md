@@ -7,11 +7,13 @@ Removes from `p1` all nodes whose names appear in `p2`. Nodes in `p2` that are n
 ## Parameters
 
 - **p1** (`Pipeline`): The pipeline to remove nodes from.
+
 - **p2** (`Pipeline`): The pipeline whose node names determine what to remove.
 
-## Returns:
 
-Returns: A new pipeline with the specified nodes removed.
+## Returns
+
+A new pipeline with the specified nodes removed.
 
 ## Examples
 

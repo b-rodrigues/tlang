@@ -8,9 +8,10 @@ Searches all documented functions for names or descriptions matching the query.
 
 - **query** (`String`): The keyword to search for.
 
-## Returns:
 
-Returns: 
+## Returns
+
+
 
 ## Examples
 

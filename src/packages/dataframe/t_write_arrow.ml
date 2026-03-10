@@ -2,6 +2,21 @@
 open Ast
 
 let register env =
+  (*
+  --# Write Arrow IPC file
+  --#
+  --# Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.
+  --#
+  --# @name write_arrow
+  --# @param df :: DataFrame The DataFrame to write.
+  --# @param path :: String The output file path.
+  --# @return :: Null
+  --# @example
+  --#   write_arrow(df, "data.arrow")
+  --# @family dataframe
+  --# @seealso read_arrow
+  --# @export
+  *)
   Env.add "write_arrow"
     (make_builtin ~name:"write_arrow" 2 (fun args _env ->
       match args with

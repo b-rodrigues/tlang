@@ -8,9 +8,10 @@ Returns the names of all root nodes — nodes that have no dependencies.
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns:
 
-Returns: Names of root nodes.
+## Returns
+
+Names of root nodes.
 
 ## Examples
 

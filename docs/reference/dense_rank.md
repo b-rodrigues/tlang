@@ -8,9 +8,10 @@ Assigns ranks to unique values, with no gaps.
 
 - **x** (`Vector`): The input vector.
 
-## Returns:
 
-Returns: The ranks.
+## Returns
+
+The ranks.
 
 ## Examples
 

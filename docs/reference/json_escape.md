@@ -8,7 +8,8 @@ Escapes special characters for JSON compatibility.
 
 - **s** (`String`): The string to escape.
 
-## Returns:
 
-Returns: The escaped string.
+## Returns
+
+The escaped string.
 

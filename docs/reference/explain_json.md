@@ -8,9 +8,10 @@ Returns a JSON string representation of the explain output.
 
 - **x** (`Any`): The value to explain.
 
-## Returns:
 
-Returns: The JSON description.
+## Returns
+
+The JSON description.
 
 ## See Also
 

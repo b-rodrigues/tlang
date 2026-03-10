@@ -7,11 +7,13 @@ Adds new columns or modifies existing ones.
 ## Parameters
 
 - **df** (`DataFrame`): The input DataFrame.
+
 - **...** (`KeywordArgs`): New columns as name = expression pairs.
 
-## Returns:
 
-Returns: The modified DataFrame.
+## Returns
+
+The modified DataFrame.
 
 ## Examples
 

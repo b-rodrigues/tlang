@@ -8,9 +8,10 @@ Returns the number of columns in a DataFrame.
 
 - **df** (`DataFrame`): The input DataFrame.
 
-## Returns:
 
-Returns: The number of columns.
+## Returns
+
+The number of columns.
 
 ## Examples
 

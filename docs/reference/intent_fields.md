@@ -8,9 +8,10 @@ Returns all fields of an Intent object as a dictionary.
 
 - **intent** (`Intent`): The intent object.
 
-## Returns:
 
-Returns: The intent fields.
+## Returns
+
+The intent fields.
 
 ## See Also
 

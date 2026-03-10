@@ -8,9 +8,10 @@ Prints the help documentation for the specified function, including signature, p
 
 - **name** (`String`): | Symbol The name of the function to document.
 
-## Returns:
 
-Returns: 
+## Returns
+
+
 
 ## Examples
 

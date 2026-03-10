@@ -8,9 +8,10 @@ If input is 1D, creates a diagonal matrix. If input is 2D, extracts the diagonal
 
 - **x** (`NDArray`): The input array.
 
-## Returns:
 
-Returns: The diagonal matrix or vector.
+## Returns
+
+The diagonal matrix or vector.
 
 ## See Also
 

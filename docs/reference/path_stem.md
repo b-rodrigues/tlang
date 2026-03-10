@@ -6,9 +6,10 @@ Get filename without extension
 
 - **path** (`String`): A file path.
 
-## Returns:
 
-Returns: The filename without its extension.
+## Returns
+
+The filename without its extension.
 
 ## Examples
 

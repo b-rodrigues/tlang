@@ -8,7 +8,8 @@ Returns a dictionary containing contextual information about where and why the e
 
 - **x** (`Error`): The error value to inspect.
 
-## Returns:
 
-Returns: A dictionary of related context data.
+## Returns
+
+A dictionary of related context data.
 

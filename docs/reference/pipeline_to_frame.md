@@ -8,9 +8,10 @@ Converts a Pipeline to a DataFrame where each row represents a node and each col
 
 - **p** (`Pipeline`): The pipeline to convert.
 
-## Returns:
 
-Returns: A DataFrame with one row per node.
+## Returns
+
+A DataFrame with one row per node.
 
 ## Examples
 

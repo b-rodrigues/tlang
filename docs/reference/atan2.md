@@ -7,9 +7,11 @@ Compute `atan2(y, x)` with quadrant-aware angle.
 ## Parameters
 
 - **y** (`Number`): Y coordinate.
+
 - **x** (`Number`): X coordinate.
 
-## Returns:
 
-Returns: | Vector Computed result (scalar or vectorized).
+## Returns
+
+| Vector Computed result (scalar or vectorized).
 

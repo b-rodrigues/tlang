@@ -7,11 +7,13 @@ Calculates the cumulative mean of a vector.
 ## Parameters
 
 - **x** (`Vector`): The input numeric vector.
+
 - **na_rm** (`Bool`): = false Remove NA values before computation.
 
-## Returns:
 
-Returns: The cumulative mean.
+## Returns
+
+The cumulative mean.
 
 ## Examples
 

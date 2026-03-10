@@ -8,9 +8,10 @@ Returns the implementation body of a function. For T functions, it returns the b
 
 - **fn** (`Function`): The function to inspect.
 
-## Returns:
 
-Returns: | String The function body or implementation info.
+## Returns
+
+| String The function body or implementation info.
 
 ## Examples
 

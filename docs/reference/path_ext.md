@@ -6,9 +6,10 @@ Get file extension
 
 - **path** (`String`): A file path.
 
-## Returns:
 
-Returns: | Null The file extension including the leading dot, or null if none.
+## Returns
+
+| Null The file extension including the leading dot, or null if none.
 
 ## Examples
 

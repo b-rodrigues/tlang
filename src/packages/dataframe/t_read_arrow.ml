@@ -2,6 +2,20 @@
 open Ast
 
 let register env =
+  (*
+  --# Read Arrow IPC file
+  --#
+  --# Reads a DataFrame from an Apache Arrow IPC (Feather v2) file.
+  --#
+  --# @name read_arrow
+  --# @param path :: String The path to the Arrow file.
+  --# @return :: DataFrame The loaded DataFrame.
+  --# @example
+  --#   df = read_arrow("data.arrow")
+  --# @family dataframe
+  --# @seealso write_arrow
+  --# @export
+  *)
   Env.add "read_arrow"
     (make_builtin ~name:"read_arrow" 1 (fun args _env ->
       match args with

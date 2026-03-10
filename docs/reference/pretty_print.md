@@ -8,9 +8,10 @@ Prints a formatted representation of a value. DataFrames are printed as tables.
 
 - **x** (`Any`): The value to print.
 
-## Returns:
 
-Returns: 
+## Returns
+
+
 
 ## Examples
 

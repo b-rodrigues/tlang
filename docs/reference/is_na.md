@@ -8,9 +8,10 @@ Checks if a value is NA (Not Available).
 
 - **x** (`Any`): The value to check.
 
-## Returns:
 
-Returns: True if the value is NA.
+## Returns
+
+True if the value is NA.
 
 ## Examples
 

@@ -6,9 +6,10 @@ Join multiple path segments
 
 - **...** (`String`): One or more path segments to join.
 
-## Returns:
 
-Returns: The joined path.
+## Returns
+
+The joined path.
 
 ## Examples
 

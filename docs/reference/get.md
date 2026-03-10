@@ -7,11 +7,13 @@ Retrieves an element from a List, Vector, or NDArray at the specified index (0-b
 ## Parameters
 
 - **collection** (`List`): | Vector | NDArray The collection to access.
+
 - **index** (`Int`): The index to retrieve.
 
-## Returns:
 
-Returns: The element at the index.
+## Returns
+
+The element at the index.
 
 ## Examples
 

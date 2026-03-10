@@ -7,12 +7,15 @@ Replaces a node's implementation with a new node value. The dependency edges of 
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline.
+
 - **name** (`String`): The name of the node to replace.
+
 - **new_node** (`Node`): The new node implementation.
 
-## Returns:
 
-Returns: A new pipeline with the node replaced.
+## Returns
+
+A new pipeline with the node replaced.
 
 ## Examples
 

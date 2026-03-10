@@ -8,9 +8,10 @@ Returns a list of dependency pairs, each as a two-element list `[from, to]` repr
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns:
 
-Returns: A list of [dependency, dependent] pairs.
+## Returns
+
+A list of [dependency, dependent] pairs.
 
 ## Examples
 

@@ -7,11 +7,13 @@ Updates nodes in `p1` with definitions from `p2`, but only for nodes that alread
 ## Parameters
 
 - **p1** (`Pipeline`): The base pipeline.
+
 - **p2** (`Pipeline`): The pipeline providing updated node definitions.
 
-## Returns:
 
-Returns: A new pipeline with matching nodes updated from `p2`.
+## Returns
+
+A new pipeline with matching nodes updated from `p2`.
 
 ## Examples
 

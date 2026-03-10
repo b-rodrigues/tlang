@@ -8,9 +8,10 @@ Returns the maximum topological depth of any node in the pipeline. Root nodes ha
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns:
 
-Returns: The maximum depth.
+## Returns
+
+The maximum depth.
 
 ## Examples
 

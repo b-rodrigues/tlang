@@ -6,9 +6,10 @@ Get filename component of a path
 
 - **path** (`String`): A file path.
 
-## Returns:
 
-Returns: The final component of the path.
+## Returns
+
+The final component of the path.
 
 ## Examples
 

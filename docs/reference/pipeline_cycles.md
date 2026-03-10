@@ -8,9 +8,10 @@ Returns a list of node names involved in dependency cycles. A well-formed pipeli
 
 - **p** (`Pipeline`): The pipeline.
 
-## Returns:
 
-Returns: Names of nodes in cycles (empty if DAG is valid).
+## Returns
+
+Names of nodes in cycles (empty if DAG is valid).
 
 ## Examples
 

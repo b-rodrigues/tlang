@@ -7,11 +7,13 @@ Merges two pipelines into one. All nodes from both pipelines are included. Error
 ## Parameters
 
 - **p1** (`Pipeline`): The first pipeline.
+
 - **p2** (`Pipeline`): The second pipeline.
 
-## Returns:
 
-Returns: A new pipeline containing all nodes from both.
+## Returns
+
+A new pipeline containing all nodes from both.
 
 ## Examples
 

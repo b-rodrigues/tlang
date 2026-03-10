@@ -7,11 +7,13 @@ Appends model predictions, residuals, and potentially diagnostic metrics to a da
 ## Parameters
 
 - **data** (`DataFrame`): The dataset to augment.
+
 - **model** (`Model`): The model object.
 
-## Returns:
 
-Returns: The original DataFrame with appended `fitted`, `resid`, etc.
+## Returns
+
+The original DataFrame with appended `fitted`, `resid`, etc.
 
 ## Examples
 

@@ -8,9 +8,10 @@ Checks if a directory exists at the given path.
 
 - **path** (`String`): The path to check.
 
-## Returns:
 
-Returns: True if it's a directory.
+## Returns
+
+True if it's a directory.
 
 ## Examples
 

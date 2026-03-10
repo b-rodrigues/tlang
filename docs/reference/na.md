@@ -4,9 +4,9 @@ Generic NA
 
 Represents a missing value of generic type.
 
-## Returns:
+## Returns
 
-Returns: 
+
 
 ## See Also
 

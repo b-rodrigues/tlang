@@ -7,11 +7,13 @@ Returns a new pipeline containing only the nodes for which the predicate returns
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline to filter.
+
 - **predicate** (`Function`): A predicate function returning Bool for each node.
 
-## Returns:
 
-Returns: A new pipeline with only the matching nodes.
+## Returns
+
+A new pipeline with only the matching nodes.
 
 ## Examples
 

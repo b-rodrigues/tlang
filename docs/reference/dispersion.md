@@ -8,9 +8,10 @@ Returns the dispersion parameter of a Generalized Linear Model (GLM). For linear
 
 - **model** (`Model`): The model object.
 
-## Returns:
 
-Returns: The dispersion parameter.
+## Returns
+
+The dispersion parameter.
 
 ## Examples
 

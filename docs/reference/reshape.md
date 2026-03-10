@@ -7,11 +7,13 @@ Returns a new NDArray with the same data but different dimensions. The total num
 ## Parameters
 
 - **array** (`NDArray`): The array to reshape.
+
 - **shape** (`List[Int]`): The new dimensions.
 
-## Returns:
 
-Returns: A new array with the specified shape.
+## Returns
+
+A new array with the specified shape.
 
 ## Examples
 

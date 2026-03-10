@@ -7,9 +7,11 @@ Compute mean after trimming both tails by fraction.
 ## Parameters
 
 - **x** (`Vector`): | List Numeric input.
+
 - **trim** (`Float`): Trim proportion in [0, 0.5).
 
-## Returns:
 
-Returns: | Vector Computed result (scalar or vectorized).
+## Returns
+
+| Vector Computed result (scalar or vectorized).
 

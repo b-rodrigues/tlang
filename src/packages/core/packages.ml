@@ -696,7 +696,6 @@ let init_env () =
     (* Python serializers *)
     "write_pkl"; "read_pkl";
     (* Arrow serializers *)
-    "write_arrow"; "read_arrow";
     (* JSON serializers *)
     "write_json"; "read_json";
     (* PMML *)

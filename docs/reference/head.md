@@ -7,11 +7,13 @@ Returns the first n items from a List, Vector, or DataFrame. For DataFrames, it 
 ## Parameters
 
 - **data** (`DataFrame`): | List | Vector The collection to slice.
+
 - **n** (`Int`): = 5 Number of items to return.
 
-## Returns:
 
-Returns: | List | Vector A subset of the input containing the first n items.
+## Returns
+
+| List | Vector A subset of the input containing the first n items.
 
 ## Examples
 

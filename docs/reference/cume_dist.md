@@ -8,9 +8,10 @@ Calculates the cumulative distribution function (proportion of values <= current
 
 - **x** (`Vector`): The input vector.
 
-## Returns:
 
-Returns: The cumulative distribution (0 to 1).
+## Returns
+
+The cumulative distribution (0 to 1).
 
 ## See Also
 

@@ -8,9 +8,10 @@ Constructs a DataFrame from a list of dictionaries (rows).
 
 - **rows** (`List[Dict]`): The data rows.
 
-## Returns:
 
-Returns: The created DataFrame.
+## Returns
+
+The created DataFrame.
 
 ## Examples
 

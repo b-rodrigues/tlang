@@ -4,9 +4,9 @@ Integer NA
 
 Represents a missing integer value.
 
-## Returns:
+## Returns
 
-Returns: 
+
 
 ## See Also
 

@@ -7,12 +7,15 @@ Modifies metadata fields on pipeline nodes. Supports a `where` named argument to
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline to modify.
+
 - **...** (`KeywordArgs`): Metadata assignments as `$field = value` pairs.
+
 - **where** (`Function`): (Optional) Predicate scoping which nodes are updated.
 
-## Returns:
 
-Returns: A new pipeline with updated node metadata.
+## Returns
+
+A new pipeline with updated node metadata.
 
 ## Examples
 

@@ -7,11 +7,13 @@ Applies a function to each element of a list and returns a new list of results.
 ## Parameters
 
 - **list** (`List`): The input list.
+
 - **fn** (`Function`): The function to apply to each element.
 
-## Returns:
 
-Returns: The list of results.
+## Returns
+
+The list of results.
 
 ## Examples
 

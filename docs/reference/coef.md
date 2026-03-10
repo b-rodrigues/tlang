@@ -8,9 +8,10 @@ Extracts the coefficient estimates from a model object, keyed by term name.
 
 - **model** (`Model`): The model object (e.g., from lm() or imported).
 
-## Returns:
 
-Returns: Coefficient estimates with columns `term` and `estimate`.
+## Returns
+
+Coefficient estimates with columns `term` and `estimate`.
 
 ## Examples
 

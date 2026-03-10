@@ -8,9 +8,10 @@ Returns the source code of a function as a string. For built-in functions, it at
 
 - **fn** (`Function`): The function to inspect.
 
-## Returns:
 
-Returns: The source code of the function.
+## Returns
+
+The source code of the function.
 
 ## Examples
 

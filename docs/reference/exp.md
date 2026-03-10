@@ -8,9 +8,10 @@ Calculates e raised to the power of x.
 
 - **x** (`Number`): | Vector | NDArray The exponent.
 
-## Returns:
 
-Returns: | Vector | NDArray The result of e^x.
+## Returns
+
+| Vector | NDArray The result of e^x.
 
 ## Examples
 

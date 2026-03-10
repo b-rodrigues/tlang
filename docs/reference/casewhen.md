@@ -7,11 +7,13 @@ Evaluates a series of `condition ~ value` formulas sequentially. Returns the val
 ## Parameters
 
 - **...** (`Formula`): One or more formulas of the form `condition ~ value`.
+
 - **.default** (`Any`): (Optional) Value to return if no condition matches. Defaults to NA.
 
-## Returns:
 
-Returns: A vector of the matched values.
+## Returns
+
+A vector of the matched values.
 
 ## Examples
 

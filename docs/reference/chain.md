@@ -7,11 +7,13 @@ Connects two pipelines by merging them. The second pipeline can reference node n
 ## Parameters
 
 - **p1** (`Pipeline`): The upstream pipeline (provides outputs).
+
 - **p2** (`Pipeline`): The downstream pipeline (consumes inputs).
 
-## Returns:
 
-Returns: A merged pipeline with p2's nodes wired to p1's outputs.
+## Returns
+
+A merged pipeline with p2's nodes wired to p1's outputs.
 
 ## Examples
 

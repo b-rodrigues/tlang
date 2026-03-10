@@ -8,7 +8,8 @@ Returns the flattened data of an NDArray as a list of floats.
 
 - **array** (`NDArray`): The array to inspect.
 
-## Returns:
 
-Returns: The flat data.
+## Returns
+
+The flat data.
 

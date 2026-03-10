@@ -8,9 +8,10 @@ Calculates the cumulative logical AND of a vector.
 
 - **x** (`Vector`): The input boolean vector.
 
-## Returns:
 
-Returns: The cumulative AND.
+## Returns
+
+The cumulative AND.
 
 ## Examples
 

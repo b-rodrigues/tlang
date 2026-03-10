@@ -7,12 +7,15 @@ Returns a new pipeline with nodes sorted by a metadata field. Execution order is
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline to sort.
+
 - **field** (`Symbol`): The metadata field to sort by (e.g. `$depth`, `$name`).
+
 - **direction** (`String`): (Optional) `"asc"` (default) or `"desc"`.
 
-## Returns:
 
-Returns: A new pipeline with nodes reordered.
+## Returns
+
+A new pipeline with nodes reordered.
 
 ## Examples
 

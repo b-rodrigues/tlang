@@ -8,9 +8,10 @@ Reads the entire content of a file into a string.
 
 - **path** (`String`): The path to the file.
 
-## Returns:
 
-Returns: The file content.
+## Returns
+
+The file content.
 
 ## Examples
 

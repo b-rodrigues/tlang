@@ -7,12 +7,15 @@ Renames a single node and rewires all dependency edges that referenced the old n
 ## Parameters
 
 - **p** (`Pipeline`): The pipeline.
+
 - **old_name** (`String`): The current name of the node.
+
 - **new_name** (`String`): The desired new name.
 
-## Returns:
 
-Returns: A new pipeline with the node renamed.
+## Returns
+
+A new pipeline with the node renamed.
 
 ## Examples
 

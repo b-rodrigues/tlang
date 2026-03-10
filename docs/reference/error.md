@@ -7,11 +7,13 @@ Raises a runtime error with a message and optional code.
 ## Parameters
 
 - **message** (`String`): The error message.
+
 - **code** (`String`): (Optional) Error code (e.g., "ValueError").
 
-## Returns:
 
-Returns: 
+## Returns
+
+
 
 ## Examples
 

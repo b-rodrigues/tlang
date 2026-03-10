@@ -8,7 +8,8 @@ Returns the error code as a string (e.g., "TypeError", "ValueError").
 
 - **x** (`Error`): The error value to inspect.
 
-## Returns:
 
-Returns: The error code as a string.
+## Returns
+
+The error code as a string.
 

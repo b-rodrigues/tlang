@@ -4,9 +4,9 @@ Get current working directory
 
 Returns the absolute path of the current working directory.
 
-## Returns:
+## Returns
 
-Returns: The current working directory.
+The current working directory.
 
 ## Examples
 

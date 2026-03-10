@@ -8,9 +8,10 @@ Returns the variance-covariance matrix of the model coefficients. For native T m
 
 - **model** (`Model`): The model object.
 
-## Returns:
 
-Returns: A square matrix representation with term names.
+## Returns
+
+A square matrix representation with term names.
 
 ## Examples
 

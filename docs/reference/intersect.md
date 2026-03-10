@@ -7,11 +7,13 @@ Returns a new pipeline retaining only the nodes present by name in both pipeline
 ## Parameters
 
 - **p1** (`Pipeline`): The pipeline whose definitions are kept.
+
 - **p2** (`Pipeline`): The pipeline used to determine which nodes to retain.
 
-## Returns:
 
-Returns: A new pipeline with only the shared nodes (p1 definitions).
+## Returns
+
+A new pipeline with only the shared nodes (p1 definitions).
 
 ## Examples
 

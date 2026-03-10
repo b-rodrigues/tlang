@@ -8,7 +8,8 @@ Deserializes a T value from a JSON file. Automatically handles type conversion f
 
 - **path** (`String`): Path to the JSON file.
 
-## Returns:
 
-Returns: The deserialized value.
+## Returns
+
+The deserialized value.
 

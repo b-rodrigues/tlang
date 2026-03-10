@@ -7,11 +7,13 @@ The mean is the sum of values divided by the count. This function handles NA val
 ## Parameters
 
 - **x** (`Vector[Float]`): | List[Float] Input numeric data. Must contain at least one value.
+
 - **na_rm** (`Bool`): = false Remove NA values before computation.
 
-## Returns:
 
-Returns: | NA The arithmetic mean, or NA if input contains NA and na_rm is false
+## Returns
+
+| NA The arithmetic mean, or NA if input contains NA and na_rm is false
 
 ## Examples
 

@@ -8,7 +8,8 @@ Converts all characters in the string to uppercase.
 
 - **s** (`String`): The string to convert.
 
-## Returns:
 
-Returns: The uppercase string.
+## Returns
+
+The uppercase string.
 

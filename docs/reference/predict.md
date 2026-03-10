@@ -7,11 +7,13 @@ Calculates predicted values for a linear model object. Supports models generated
 ## Parameters
 
 - **data** (`DataFrame`): The new data used for prediction.
+
 - **model** (`Model`): The linear model object.
 
-## Returns:
 
-Returns: The predicted values.
+## Returns
+
+The predicted values.
 
 ## Examples
 

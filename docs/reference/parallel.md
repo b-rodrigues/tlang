@@ -7,11 +7,13 @@ Combines two pipelines that are intended to run independently. Errors immediatel
 ## Parameters
 
 - **p1** (`Pipeline`): The first pipeline.
+
 - **p2** (`Pipeline`): The second pipeline.
 
-## Returns:
 
-Returns: A merged pipeline with all nodes from both.
+## Returns
+
+A merged pipeline with all nodes from both.
 
 ## Examples
 

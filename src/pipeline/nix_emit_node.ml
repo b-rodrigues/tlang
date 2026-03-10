@@ -14,17 +14,27 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     echo "Build skipped for %s" > $out/NOOPBUILD
   '';|} name name name
   else
-  let has_strategy name =
-    match deserializer with
-    | Ast.Value (Ast.VString s) -> s = name
-    | Ast.Var s -> s = name
-    | Ast.ListLit items ->
-        List.exists (fun (_, e) -> match e with Ast.Value (Ast.VString s) | Ast.Var s -> s = name | _ -> false) items
-    | Ast.DictLit items ->
-        List.exists (fun (_, e) -> match e with Ast.Value (Ast.VString s) | Ast.Var s -> s = name | _ -> false) items
+  let expr_matches target = function
+    | Ast.Value (Ast.VString s) | Ast.Value (Ast.VSymbol s) | Ast.Var s ->
+        s = target ||
+        (target = "arrow" && (s = "read_arrow" || s = "write_arrow")) ||
+        (target = "json" && (s = "read_json" || s = "write_json")) ||
+        (target = "csv" && (s = "read_csv" || s = "write_csv"))
+    | Ast.Value (Ast.VBuiltin { b_name = Some name; _ }) ->
+        name = target ||
+        (target = "arrow" && (name = "read_arrow" || name = "write_arrow")) ||
+        (target = "json" && (name = "read_json" || name = "write_json")) ||
+        (target = "csv" && (name = "read_csv" || name = "write_csv"))
     | _ -> false
   in
-  let is_ser name = match serializer with Ast.Value (Ast.VString s) -> s = name | _ -> false in
+  let has_strategy name =
+    match deserializer with
+    | e when expr_matches name e -> true
+    | Ast.ListLit items -> List.exists (fun (_, e) -> expr_matches name e) items
+    | Ast.DictLit items -> List.exists (fun (_, e) -> expr_matches name e) items
+    | _ -> false
+  in
+  let is_ser name = expr_matches name serializer in
   let is_pmml_ser = is_ser "pmml" in
   let is_pmml_des = has_strategy "pmml" in
 

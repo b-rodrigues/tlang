@@ -4,9 +4,9 @@ Float NA
 
 Represents a missing float value.
 
-## Returns:
+## Returns
 
-Returns: 
+
 
 ## See Also
 

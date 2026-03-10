@@ -8,7 +8,8 @@ Compute tangent (radians).
 
 - **x** (`Number`): | Vector | NDArray Numeric input.
 
-## Returns:
 
-Returns: | Vector Computed result (scalar or vectorized).
+## Returns
+
+| Vector Computed result (scalar or vectorized).
 

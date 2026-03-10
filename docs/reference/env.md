@@ -8,9 +8,10 @@ Retrieves the value of an environment variable.
 
 - **name** (`String`): The name of the environment variable.
 
-## Returns:
 
-Returns: | Null The value of the variable, or null if not set.
+## Returns
+
+| Null The value of the variable, or null if not set.
 
 ## Examples
 

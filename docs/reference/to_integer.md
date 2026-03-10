@@ -8,9 +8,10 @@ Coerces a value to an integer robustly. Handles strings with spaces, percentages
 
 - **x** (`Any`): The value to convert.
 
-## Returns:
 
-Returns: | NA The converted integer.
+## Returns
+
+| NA The converted integer.
 
 ## Examples
 

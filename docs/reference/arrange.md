@@ -7,12 +7,15 @@ Sorts a DataFrame by a column. Use "desc" for descending order.
 ## Parameters
 
 - **df** (`DataFrame`): The input DataFrame.
+
 - **col** (`Symbol`): The column to sort by.
+
 - **direction** (`String`): (Optional) "asc" (default) or "desc".
 
-## Returns:
 
-Returns: The sorted DataFrame.
+## Returns
+
+The sorted DataFrame.
 
 ## Examples
 
