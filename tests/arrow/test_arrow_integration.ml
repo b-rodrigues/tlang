@@ -269,6 +269,29 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf
       {|read_csv("%s") |> filter($age > 25) |> select($name, $score) |> nrow|} csv_path)
     "2";
+
+  let csv_skip_path = "test_arrow_csv_skip_lines.csv" in
+  let oc = open_out csv_skip_path in
+  output_string oc "junk1,junk2\nname,age\nAlice,30\nBob,25\n";
+  close_out oc;
+  let env_skip = Packages.init_env () in
+  let (_, env_skip) =
+    eval_string_env (Printf.sprintf {|df_skip = read_csv("%s", skip_lines = 1)|} csv_skip_path) env_skip
+  in
+  let (v, _) = eval_string_env "nrow(df_skip)" env_skip in
+  let skip_nrow = Ast.Utils.value_to_string v in
+  if skip_nrow = "2" then begin
+    incr pass_count; Printf.printf "  ✓ read_csv(skip_lines=1) honors public builtin CSV options\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ read_csv(skip_lines=1) expected nrow=2, got %s\n" skip_nrow
+  end;
+  (match Arrow_io.read_csv_local csv_skip_path with
+   | Ok tbl when Arrow_table.num_rows tbl = 3 ->
+       incr pass_count; Printf.printf "  ✓ Arrow_io.read_csv_local differs from read_csv(skip_lines) on same file\n"
+   | Ok tbl ->
+       incr fail_count; Printf.printf "  ✗ Arrow_io.read_csv_local expected nrow=3 on same file, got %d\n" (Arrow_table.num_rows tbl)
+   | Error msg ->
+       incr fail_count; Printf.printf "  ✗ Arrow_io.read_csv_local failed on CSV path distinction test: %s\n" msg);
   print_newline ();
 
   Printf.printf "Arrow Integration — Compute Module:\n";
@@ -701,7 +724,37 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          incr fail_count; Printf.printf "  ✗ build_column ArrowTimestamp data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ build_column ArrowTimestamp returned wrong column type\n");
+        incr fail_count; Printf.printf "  ✗ build_column ArrowTimestamp returned wrong column type\n");
+
+  let dt_col = Arrow_table.DatetimeColumn (
+    [| Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0);
+       None;
+       Some (Chrono.datetime_of_components 2024 1 16 14 45 30 500000) |],
+    Some "UTC"
+  ) in
+  if Arrow_table.is_arrow_table_new_supported dt_col then begin
+    incr fail_count; Printf.printf "  ✗ DatetimeColumn should currently be unsupported for native rebuild\n"
+  end else begin
+    incr pass_count; Printf.printf "  ✓ DatetimeColumn is currently unsupported for native rebuild\n"
+  end;
+  let dt_tbl = Arrow_table.create [("ts", dt_col)] 3 in
+  let dt_mat = Arrow_table.materialize dt_tbl in
+  if Arrow_table.is_native_backed dt_mat then begin
+    incr fail_count; Printf.printf "  ✗ DatetimeColumn materialization should stay on pure fallback\n"
+  end else begin
+    (match Arrow_table.get_column dt_mat "ts" with
+     | Some (Arrow_table.DatetimeColumn (data, tz)) ->
+         if data.(0) = Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0)
+            && data.(1) = None
+            && data.(2) = Some (Chrono.datetime_of_components 2024 1 16 14 45 30 500000)
+            && tz = Some "UTC" then begin
+           incr pass_count; Printf.printf "  ✓ DatetimeColumn fallback materialization preserves values\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ DatetimeColumn fallback materialization data mismatch\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ DatetimeColumn fallback materialization returned wrong type\n")
+  end;
 
   print_newline ();
 
@@ -1231,7 +1284,157 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "2";
 
   print_newline ();
+  Printf.printf "Arrow Integration — IPC Read/Write:\n";
+
+  let ipc_path = "test_arrow_roundtrip.arrow" in
+  let dict_ipc_path = "test_arrow_dict_roundtrip.arrow" in
+  let list_ipc_path = "test_arrow_list_roundtrip.arrow" in
+  let ipc_tbl_src = Arrow_table.create [
+    ("id", Arrow_table.IntColumn [| Some 1; Some 2; Some 3 |]);
+    ("name", Arrow_table.StringColumn [| Some "alpha"; Some "beta"; Some "gamma" |]);
+  ] 3 in
+  if Arrow_ffi.arrow_available then begin
+    (match Arrow_io.write_ipc ipc_tbl_src ipc_path with
+     | Ok () ->
+         incr pass_count; Printf.printf "  ✓ Arrow_io.write_ipc writes IPC file\n";
+         (match Arrow_io.read_ipc ipc_path with
+          | Ok ipc_tbl ->
+              let shape_ok =
+                Arrow_table.num_rows ipc_tbl = 3
+                && Arrow_table.num_columns ipc_tbl = 2
+              in
+              let id_ok =
+                match Arrow_table.get_column ipc_tbl "id" with
+                | Some (Arrow_table.IntColumn ids) ->
+                    Array.length ids = 3
+                    && ids.(0) = Some 1
+                    && ids.(1) = Some 2
+                    && ids.(2) = Some 3
+                | _ -> false
+              in
+              let name_ok =
+                match Arrow_table.get_column ipc_tbl "name" with
+                | Some (Arrow_table.StringColumn names) ->
+                    Array.length names = 3
+                    && names.(0) = Some "alpha"
+                    && names.(1) = Some "beta"
+                    && names.(2) = Some "gamma"
+                | _ -> false
+              in
+              if shape_ok && id_ok && name_ok then begin
+                incr pass_count; Printf.printf "  ✓ Arrow_io.read_ipc round-trip preserves table data\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ Arrow_io.read_ipc round-trip data mismatch\n"
+              end
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ Arrow_io.read_ipc failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ Arrow_io.write_ipc failed: %s\n" msg);
+
+    let dict_ipc_tbl = Arrow_table.create [
+      ("color", Arrow_table.DictionaryColumn (
+        [| Some 0; Some 1; None; Some 2 |],
+        ["red"; "green"; "blue"],
+        false
+      ));
+      ("value", Arrow_table.IntColumn [| Some 10; Some 20; Some 30; Some 40 |])
+    ] 4 in
+    (match Arrow_io.write_ipc dict_ipc_tbl dict_ipc_path with
+     | Ok () ->
+         (match Arrow_io.read_ipc dict_ipc_path with
+          | Ok dict_tbl ->
+              (match Arrow_table.get_column dict_tbl "color" with
+               | Some (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
+                   if idx.(0) = Some 0 && idx.(1) = Some 1 && idx.(2) = None && idx.(3) = Some 2
+                      && levels = ["red"; "green"; "blue"] && not ordered then begin
+                     incr pass_count; Printf.printf "  ✓ DictionaryColumn IPC round-trip preserves levels and indices\n"
+                   end else begin
+                     incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC round-trip data mismatch\n"
+                   end
+               | _ ->
+                   incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC read-back returned wrong type\n")
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC read failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC write failed: %s\n" msg);
+
+    let list_sub_a = Arrow_table.create [
+      ("x", Arrow_table.IntColumn [| Some 1; Some 2 |]);
+      ("y", Arrow_table.StringColumn [| Some "a"; Some "b" |]);
+    ] 2 in
+    let list_sub_b = Arrow_table.create [
+      ("x", Arrow_table.IntColumn [| Some 3 |]);
+      ("y", Arrow_table.StringColumn [| Some "c" |]);
+    ] 1 in
+    let list_ipc_tbl = Arrow_table.create [
+      ("id", Arrow_table.IntColumn [| Some 1; Some 2 |]);
+      ("nested", Arrow_table.ListColumn [| Some list_sub_a; Some list_sub_b |]);
+    ] 2 in
+    (match Arrow_io.write_ipc list_ipc_tbl list_ipc_path with
+     | Ok () ->
+         (match Arrow_io.read_ipc list_ipc_path with
+          | Ok list_tbl ->
+              (match Arrow_table.get_column list_tbl "nested" with
+               | Some (Arrow_table.ListColumn nested) ->
+                   let ok =
+                     Array.length nested = 2
+                     &&
+                     match nested.(0), nested.(1) with
+                     | Some t0, Some t1 -> t0.Arrow_table.nrows = 2 && t1.Arrow_table.nrows = 1
+                     | _ -> false
+                   in
+                   if ok then begin
+                     incr pass_count; Printf.printf "  ✓ ListColumn IPC round-trip preserves nested table shape\n"
+                   end else begin
+                     incr fail_count; Printf.printf "  ✗ ListColumn IPC round-trip nested shape mismatch\n"
+                   end
+               | _ ->
+                   incr fail_count; Printf.printf "  ✗ ListColumn IPC read-back returned wrong type\n")
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ ListColumn IPC read failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
+
+    let env_ipc = Packages.init_env () in
+    let (_, env_ipc) =
+      eval_string_env
+        (Printf.sprintf
+           {|df_ipc = dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); t_write_arrow(df_ipc, "%s")|}
+           ipc_path)
+        env_ipc
+    in
+    let (v, _) = eval_string_env (Printf.sprintf {|nrow(t_read_arrow("%s"))|} ipc_path) env_ipc in
+    let nrow_result = Ast.Utils.value_to_string v in
+    if nrow_result = "2" then begin
+      incr pass_count; Printf.printf "  ✓ t_write_arrow/t_read_arrow round-trip preserves nrow\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ t_write_arrow/t_read_arrow expected nrow=2, got %s\n" nrow_result
+    end;
+
+    let (v, _) = eval_string_env (Printf.sprintf {|colnames(t_read_arrow("%s"))|} ipc_path) env_ipc in
+    let colnames_result = Ast.Utils.value_to_string v in
+    if colnames_result = {|["id", "grp"]|} then begin
+      incr pass_count; Printf.printf "  ✓ t_read_arrow preserves schema/column names\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ t_read_arrow schema mismatch: %s\n" colnames_result
+    end
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow_io.write_ipc/read_ipc round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "DictionaryColumn IPC round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "ListColumn IPC round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "t_write_arrow/t_read_arrow round-trip"
+  end;
+
+  print_newline ();
 
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
+  (try Sys.remove csv_skip_path with _ -> ());
+  (try Sys.remove ipc_path with _ -> ());
+  (try Sys.remove dict_ipc_path with _ -> ());
+  (try Sys.remove list_ipc_path with _ -> ());
   print_newline ()
