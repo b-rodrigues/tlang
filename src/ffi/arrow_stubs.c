@@ -6,6 +6,7 @@
 /*   Install via: nix develop (flake.nix includes arrow-glib)             */
 
 #include <arrow-glib/arrow-glib.h>
+#include <parquet-glib/parquet-glib.h>
 #include <caml/mlvalues.h>
 #include <caml/memory.h>
 #include <caml/alloc.h>
@@ -686,6 +687,34 @@ CAMLprim value caml_arrow_read_csv(value v_path) {
   }
 
   /* Wrap as Some(nativeint) */
+  v_result = caml_alloc(1, 0);  /* Some(...) */
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)table));
+  CAMLreturn(v_result);
+}
+
+/* Read Parquet file using parquet-glib Arrow reader */
+CAMLprim value caml_arrow_read_parquet(value v_path) {
+  CAMLparam1(v_path);
+  CAMLlocal1(v_result);
+
+  const char *path = String_val(v_path);
+  GError *error = NULL;
+
+  GParquetArrowFileReader *reader =
+    gparquet_arrow_file_reader_new_path(path, &error);
+  if (reader == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowTable *table = gparquet_arrow_file_reader_read_table(reader, &error);
+  g_object_unref(reader);
+
+  if (table == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
   v_result = caml_alloc(1, 0);  /* Some(...) */
   Store_field(v_result, 0, caml_copy_nativeint((intnat)table));
   CAMLreturn(v_result);

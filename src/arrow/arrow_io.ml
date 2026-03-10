@@ -204,8 +204,8 @@ let starts_with prefix s =
 let is_url path =
   starts_with "http://" path || starts_with "https://" path
 
-let download_url (url : string) : (string, string) result =
-  let temp_file = Filename.temp_file "tlang_" ".csv" in
+let download_url ?(suffix=".csv") (url : string) : (string, string) result =
+  let temp_file = Filename.temp_file "tlang_" suffix in
   let cmd = Printf.sprintf "curl -s -L -o %s %s" (Filename.quote temp_file) (Filename.quote url) in
   match Sys.command cmd with
   | 0 -> Ok temp_file
@@ -224,6 +224,18 @@ let read_ipc (path : string) : (Arrow_table.t, string) result =
       ) schema_pairs in
       Ok (Arrow_table.create_from_native ptr schema nrows)
   | None -> Error ("Arrow IPC read failed: " ^ path)
+
+(** Read a Parquet file into an Arrow table. *)
+let read_parquet_local (path : string) : (Arrow_table.t, string) result =
+  match Arrow_ffi.arrow_read_parquet path with
+  | Some ptr ->
+      let schema_pairs = Arrow_ffi.arrow_table_get_schema ptr in
+      let nrows = Arrow_ffi.arrow_table_num_rows ptr in
+      let schema = List.map (fun (name, type_tag) ->
+        (name, Arrow_table.arrow_type_of_tag type_tag)
+      ) schema_pairs in
+      Ok (Arrow_table.create_from_native ptr schema nrows)
+  | None -> Error ("Parquet read failed: " ^ path)
 
 (** Write an Arrow table to an IPC file *)
 let write_ipc (table : Arrow_table.t) (path : string) : (unit, string) result =
@@ -256,6 +268,9 @@ let read_csv_local (path : string) : (Arrow_table.t, string) result =
         (* Native Arrow reader failed — fall back to pure OCaml parser.
            This can happen if the file format is not supported by Arrow's
            CSV reader or if the native library encounters an error. *)
+        Printf.eprintf
+          "Warning: native Arrow CSV reader failed for `%s`; falling back to the OCaml CSV parser.\n%!"
+          path;
         read_csv_fallback path
   else
     read_csv_fallback path
@@ -282,6 +297,18 @@ let read_csv (path : string) : (Arrow_table.t, string) result =
     | Error msg -> Error msg
   else
     read_csv_local path
+
+(** Read a Parquet file from a local path or URL into an Arrow table. *)
+let read_parquet (path : string) : (Arrow_table.t, string) result =
+  if is_url path then
+    match download_url ~suffix:".parquet" path with
+    | Ok temp_path ->
+        let result = read_parquet_local temp_path in
+        (try Sys.remove temp_path with _ -> ());
+        result
+    | Error msg -> Error msg
+  else
+    read_parquet_local path
 
 (* ===================================================================== *)
 (* CSV Writing                                                           *)

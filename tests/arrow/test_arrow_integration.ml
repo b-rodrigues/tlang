@@ -1430,6 +1430,68 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   print_newline ();
+  Printf.printf "Arrow Integration — Parquet Reading:\n";
+
+  let parquet_path = Filename.temp_file "test_arrow_roundtrip_" ".parquet" in
+  let parquet_write_cmd =
+    Printf.sprintf "python3 -c %s"
+      (Filename.quote
+         (Printf.sprintf
+            "import pyarrow as pa, pyarrow.parquet as pq; pq.write_table(pa.table({'id': [1, 2], 'name': ['alpha', 'beta']}), %S)"
+            parquet_path))
+  in
+  let parquet_pyarrow_check_cmd =
+    Printf.sprintf "python3 -c %s >/dev/null 2>&1"
+      (Filename.quote "import pyarrow")
+  in
+  if Arrow_ffi.arrow_available then begin
+    if Sys.command parquet_pyarrow_check_cmd <> 0 then begin
+      incr pass_count;
+      Printf.printf "  ⊘ read_parquet integration skipped (python3/pyarrow unavailable for fixture generation)\n"
+    end else
+    (match Sys.command parquet_write_cmd with
+     | 0 ->
+         (match Arrow_io.read_parquet parquet_path with
+          | Ok parquet_tbl ->
+              if Arrow_table.is_native_backed parquet_tbl
+                 && Arrow_table.num_rows parquet_tbl = 2
+                 && Arrow_table.num_columns parquet_tbl = 2 then begin
+                incr pass_count; Printf.printf "  ✓ Arrow_io.read_parquet loads a native-backed table\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ Arrow_io.read_parquet loaded an unexpected table shape/backing\n"
+              end
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ Arrow_io.read_parquet failed: %s\n" msg);
+
+         let env_parquet = Packages.init_env () in
+         let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_parquet("%s"))|} parquet_path) env_parquet in
+         let parquet_nrow = Ast.Utils.value_to_string v in
+         if parquet_nrow = "2" then begin
+           incr pass_count; Printf.printf "  ✓ read_parquet preserves row count\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ read_parquet expected nrow=2, got %s\n" parquet_nrow
+         end;
+
+         let (v, _) = eval_string_env (Printf.sprintf {|colnames(read_parquet("%s"))|} parquet_path) env_parquet in
+         let parquet_colnames = Ast.Utils.value_to_string v in
+         if parquet_colnames = {|["id", "name"]|} then begin
+           incr pass_count; Printf.printf "  ✓ read_parquet preserves schema/column names\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ read_parquet schema mismatch: %s\n" parquet_colnames
+         end
+     | code ->
+         incr fail_count;
+         Printf.printf "  ✗ Failed to generate Parquet test fixture with python3/pyarrow (exit %d)\n" code)
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow_io.read_parquet loads a native-backed table";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "read_parquet preserves row count";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "read_parquet preserves schema/column names"
+  end;
+
+  print_newline ();
 
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
@@ -1437,4 +1499,5 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (try Sys.remove ipc_path with _ -> ());
   (try Sys.remove dict_ipc_path with _ -> ());
   (try Sys.remove list_ipc_path with _ -> ());
+  (try Sys.remove parquet_path with _ -> ());
   print_newline ()

@@ -2,18 +2,18 @@
 
 (include_subdirs unqualified)
 
-; Generate C compiler flags from pkg-config for arrow-glib
+; Generate C compiler flags from pkg-config for arrow-glib and parquet-glib
 ; We query gobject-2.0 and glib-2.0 explicitly because the Nix sandbox
 ; does not always resolve transitive pkg-config dependencies reliably.
 (rule
  (targets arrow_cflags.sexp)
  (action (with-stdout-to %{targets}
-  (bash "if pkg-config --cflags arrow-glib gobject-2.0 glib-2.0 >/dev/null 2>&1; then echo -n '('; pkg-config --cflags arrow-glib gobject-2.0 glib-2.0 | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
+  (bash "if pkg-config --cflags arrow-glib parquet-glib gobject-2.0 glib-2.0 >/dev/null 2>&1; then echo -n '('; pkg-config --cflags arrow-glib parquet-glib gobject-2.0 glib-2.0 | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
 
 (rule
  (targets arrow_libs.sexp)
  (action (with-stdout-to %{targets}
-  (bash "if pkg-config --libs arrow-glib gobject-2.0 glib-2.0 >/dev/null 2>&1; then echo -n '('; pkg-config --libs arrow-glib gobject-2.0 glib-2.0 | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
+  (bash "if pkg-config --libs arrow-glib parquet-glib gobject-2.0 glib-2.0 >/dev/null 2>&1; then echo -n '('; pkg-config --libs arrow-glib parquet-glib gobject-2.0 glib-2.0 | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' '; echo ')'; else echo '()'; fi"))))
 
 (library
  (name t_lang)
@@ -41,7 +41,7 @@
     ; packages/chrono
     chrono
     ; packages/dataframe
-   t_read_csv t_write_csv t_read_arrow t_write_arrow t_dataframe colnames nrow ncol clean_colnames glimpse
+   t_read_csv t_read_parquet t_write_csv t_read_arrow t_write_arrow t_dataframe colnames nrow ncol clean_colnames glimpse
     ; packages/pipeline
     pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node pipeline_copy
      pipeline_to_frame filter_node mutate_node rename_node select_node arrange_node

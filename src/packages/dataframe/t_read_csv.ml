@@ -192,30 +192,38 @@ let register env =
         not (is_sep_name name) && name <> Some "skip_header"
         && name <> Some "skip_lines" && name <> Some "clean_colnames"
       ) named_args |> List.map snd in
+      let use_native_default_path =
+        sep = ',' && not skip_header && skip_lines = 0 && not do_clean
+      in
       match args with
       | [VString path] ->
-          (try
-            let read_content_from_path p =
-              let ch = open_in p in
-              let content = really_input_string ch (in_channel_length ch) in
-              close_in ch;
-              content
-            in
+          if use_native_default_path then
+            (match Arrow_io.read_csv path with
+            | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
+            | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
+          else
+            (try
+              let read_content_from_path p =
+                let ch = open_in p in
+                let content = really_input_string ch (in_channel_length ch) in
+                close_in ch;
+                content
+              in
 
-            let content = 
-              if Arrow_io.is_url path then
-                match Arrow_io.download_url path with
-                | Ok temp_path ->
-                    let c = read_content_from_path temp_path in
-                    (try Sys.remove temp_path with _ -> ());
-                    c
-                | Error msg -> raise (Sys_error msg)
-              else
-                read_content_from_path path
-            in
-            parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean content
-          with
-          | Sys_error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
+              let content =
+                if Arrow_io.is_url path then
+                  match Arrow_io.download_url path with
+                  | Ok temp_path ->
+                      let c = read_content_from_path temp_path in
+                      (try Sys.remove temp_path with _ -> ());
+                      c
+                  | Error msg -> raise (Sys_error msg)
+                else
+                  read_content_from_path path
+              in
+              parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean content
+            with
+            | Sys_error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
       | [VNA _] -> Error.type_error "Function `read_csv` expects a String path, got NA."
       | [_] -> Error.type_error "Function `read_csv` expects a String path."
       | _ -> Error.make_error ArityError "Function `read_csv` takes exactly 1 positional argument (path)."

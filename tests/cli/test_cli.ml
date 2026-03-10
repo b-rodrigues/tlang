@@ -132,6 +132,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "math: sqrt available" "type(sqrt)" {|"BuiltinFunction"|};
   test "base: assert available" "type(assert)" {|"BuiltinFunction"|};
   test "dataframe: read_csv available" "type(read_csv)" {|"BuiltinFunction"|};
+  test "dataframe: read_parquet available" "type(read_parquet)" {|"BuiltinFunction"|};
   test "pipeline: pipeline_nodes available" "type(pipeline_nodes)" {|"BuiltinFunction"|};
   test "explain: explain available" "type(explain)" {|"BuiltinFunction"|};
   test "packages: packages available" "type(packages)" {|"BuiltinFunction"|};

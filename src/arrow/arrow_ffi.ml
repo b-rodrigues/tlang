@@ -83,6 +83,9 @@ external arrow_unref : nativeint -> unit
 external arrow_read_csv : string -> nativeint option
   = "caml_arrow_read_csv"
 
+external arrow_read_parquet : string -> nativeint option
+  = "caml_arrow_read_parquet"
+
 (* ===================================================================== *)
 (* IPC Read/Write                                                       *)
 (* ===================================================================== *)
