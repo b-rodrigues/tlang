@@ -368,6 +368,34 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
         else Ast.VNA Ast.NAFloat
     | "count" ->
         Ast.VFloat (float_of_int (List.length indices))
+    | "min" ->
+        let m = ref None in
+        List.iter (fun i ->
+          let v = match target_vals.(i) with
+            | Ast.VFloat f -> Some f
+            | Ast.VInt n -> Some (float_of_int n)
+            | _ -> None
+          in
+          match !m, v with
+          | None, Some f -> m := Some f
+          | Some current, Some f -> if f < current then m := Some f
+          | _ -> ()
+        ) indices;
+        (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
+    | "max" ->
+        let m = ref None in
+        List.iter (fun i ->
+          let v = match target_vals.(i) with
+            | Ast.VFloat f -> Some f
+            | Ast.VInt n -> Some (float_of_int n)
+            | _ -> None
+          in
+          match !m, v with
+          | None, Some f -> m := Some f
+          | Some current, Some f -> if f > current then m := Some f
+          | _ -> ()
+        ) indices;
+        (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
     | _ -> Ast.VNull
   ) in
   let all_columns = key_result_cols @ [(agg_col_name, agg_col)] in
