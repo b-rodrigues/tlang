@@ -16,6 +16,7 @@ Usage: $(basename "$0") [options]
 Options:
   --parquet-dir PATH   Path to the partitioned parquet dataset
   --csv-path PATH      Path to the materialized CSV used by T
+  --months LIST        Comma-separated YYYY-MM list used if auto-preparing data
   --results PATH       Output CSV path
   --queries LIST       Comma-separated query ids (default: q1,q2,q3)
   --iterations N       Number of runs per engine/query (default: 1)
@@ -25,6 +26,7 @@ EOF
 
 PARQUET_DIR="$SCRIPT_DIR/data/nyc_taxi_parquet"
 CSV_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
+MONTHS="2023-01,2023-02,2023-03"
 RESULTS_PATH="$SCRIPT_DIR/results/results.csv"
 QUERIES="q1,q2,q3"
 ITERATIONS=1
@@ -37,6 +39,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --csv-path)
       CSV_PATH="${2:?missing value for --csv-path}"
+      shift 2
+      ;;
+    --months)
+      MONTHS="${2:?missing value for --months}"
       shift 2
       ;;
     --results)
@@ -63,20 +69,62 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ ! -d "$PARQUET_DIR" ]]; then
-  echo "Parquet dataset not found: $PARQUET_DIR" >&2
-  exit 1
-fi
-
-if [[ ! -f "$CSV_PATH" ]]; then
-  echo "Materialized CSV not found: $CSV_PATH" >&2
-  exit 1
-fi
-
 if ! command -v python >/dev/null 2>&1; then
   echo "python is required" >&2
   exit 1
 fi
+
+directory_has_contents() {
+  local path="$1"
+  [[ -d "$path" ]] && find "$path" -mindepth 1 -print -quit | grep -q .
+}
+
+ensure_benchmark_inputs() {
+  if ! directory_has_contents "$PARQUET_DIR"; then
+    echo "Parquet dataset not found at $PARQUET_DIR. Preparing benchmark data for months: $MONTHS"
+    bash "$SCRIPT_DIR/prepare_dataset.sh" \
+      --months "$MONTHS" \
+      --clean \
+      --parquet-dir "$PARQUET_DIR" \
+      --materialized-csv "$CSV_PATH"
+    return
+  fi
+
+  if [[ -f "$CSV_PATH" ]]; then
+    return
+  fi
+
+  echo "Materialized CSV not found at $CSV_PATH. Building it from the existing parquet dataset."
+  python - "$PARQUET_DIR" "$CSV_PATH" <<'PY'
+import pathlib
+import sys
+
+import pyarrow.dataset as ds
+
+parquet_dir = pathlib.Path(sys.argv[1])
+csv_path = pathlib.Path(sys.argv[2])
+
+dataset = ds.dataset(str(parquet_dir), format="parquet", partitioning="hive")
+csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+write_header = True
+with csv_path.open("w", encoding="utf-8", newline="") as handle:
+    for batch in dataset.to_batches():
+        frame = batch.to_pandas()
+        if frame.empty:
+            continue
+        frame.to_csv(handle, index=False, header=write_header)
+        write_header = False
+
+if write_header:
+    csv_path.unlink(missing_ok=True)
+    raise SystemExit(f"Parquet dataset at {parquet_dir} did not contain any rows.")
+
+print(f"Materialized CSV written to {csv_path}")
+PY
+}
+
+ensure_benchmark_inputs
 
 if ! command -v Rscript >/dev/null 2>&1; then
   echo "Rscript is required" >&2

@@ -54,6 +54,10 @@ building the Parquet dataset:
 If you already have a suitable CSV file, pass it directly to the benchmark runner
 with `--csv-path`.
 
+`run_benchmark.sh` can also prepare these inputs automatically: it downloads and
+builds the Parquet dataset when it is missing, and if only the materialized CSV
+is missing it regenerates that CSV from the existing Parquet dataset.
+
 If you rerun preparation into the same Parquet directory, pass `--clean` first.
 Without it, `prepare_dataset.sh` stops instead of appending duplicate data files to
 existing partitions.
