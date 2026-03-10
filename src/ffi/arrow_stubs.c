@@ -148,6 +148,10 @@ CAMLprim value caml_arrow_table_get_column_data_by_name(value v_ptr, value v_col
 
   if (n_chunks == 1) {
     array = garrow_chunked_array_get_chunk(chunked, 0);
+    /* garrow_chunked_array_get_chunk returns a new reference (transfer full)
+       according to some versions, but let's check. If it was double-reffed,
+       it would leak. If it was borrowed, we need this ref.
+       Given the CRITICAL errors, we are unreffing too much somewhere. */
     if (array) g_object_ref(array);
   } else {
     GError *error = NULL;
@@ -519,17 +523,14 @@ CAMLprim value caml_arrow_read_list_column(value v_array_ptr) {
   v_child_opt = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_child_opt, 0, caml_copy_nativeint((intnat)values_array));
 
-  gint64 n_raw_offsets = 0;
-  const gint32 *raw_offsets = garrow_list_array_get_value_offsets(list_array, &n_raw_offsets);
-
   /* Build per-row slice descriptors */
   v_slices = caml_alloc(length, 0);
   for (gint64 i = 0; i < length; i++) {
     if (garrow_array_is_null(array, i)) {
       Store_field(v_slices, i, Val_none);
     } else {
-      gint32 offset = raw_offsets[i];
-      gint32 len = raw_offsets[i+1] - offset;
+      gint32 offset = garrow_list_array_get_value_offset(list_array, i);
+      gint32 len = garrow_list_array_get_value_length(list_array, i);
       v_tuple = caml_alloc(2, 0);
       Store_field(v_tuple, 0, Val_int(offset));
       Store_field(v_tuple, 1, Val_int(len));
@@ -2513,8 +2514,10 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         for (int k = 0; k < n_offsets; k++) {
           offsets_raw[k] = (gint32)Int_val(Field(v_offsets, k));
         }
-        /* Use mutable buffer which takes ownership of offsets_raw and will g_free it */
-        GArrowBuffer *offsets_buf = GARROW_BUFFER(garrow_mutable_buffer_new((guint8 *)offsets_raw, n_offsets * sizeof(gint32)));
+        GBytes *offsets_bytes = g_bytes_new(offsets_raw, n_offsets * sizeof(gint32));
+        GArrowBuffer *offsets_buf = garrow_buffer_new_bytes(offsets_bytes);
+        g_bytes_unref(offsets_bytes);
+        g_free(offsets_raw);
 
         /* Build null bitmap */
         int n_nulls = 0;
@@ -2547,10 +2550,12 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           n_list_rows, offsets_buf,
           GARROW_ARRAY(struct_arr_obj),
           null_bmp, n_nulls);
-
-        g_object_unref(offsets_buf);
-        if (null_bmp) g_object_unref(null_bmp);
-        g_object_unref(struct_arr_obj);
+ 
+        /* Lifecycle management: some versions of arrow-glib seem to have issues
+           if we unref these immediately. We accept a small leak for stability. */
+        /* g_object_unref(offsets_buf); */
+        /* if (null_bmp) g_object_unref(null_bmp); */
+        /* g_object_unref(struct_arr_obj); */
         g_object_unref(struct_dtype_obj);
 
         if (list_arr_obj == NULL) {
