@@ -40,6 +40,32 @@ jobs:
       - name: Run NYC taxi benchmarks
         run: nix develop --accept-flake-config --command ./benchmarks/nyc_taxi/run_benchmark.sh --months 2023-01 --iterations 1
 
+      - name: Print benchmark results
+        if: always()
+        run: |
+          if [ -f benchmarks/nyc_taxi/results/results.csv ]; then
+            python3 - <<'PY'
+            import csv
+            from pathlib import Path
+
+            results_path = Path("benchmarks/nyc_taxi/results/results.csv")
+            rows = list(csv.reader(results_path.open(newline="")))
+
+            if not rows:
+              print("Benchmark results file is empty.")
+              raise SystemExit(0)
+
+            widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
+
+            for index, row in enumerate(rows):
+              print("  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row)))
+              if index == 0:
+                print("  ".join("-" * width for width in widths))
+            PY
+          else
+            echo "No benchmark results found at benchmarks/nyc_taxi/results/results.csv"
+          fi
+
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
