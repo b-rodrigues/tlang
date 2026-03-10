@@ -79,10 +79,17 @@ See [`dataset.md`](dataset.md) for more details.
 
 ```bash
 ./benchmarks/nyc_taxi/run_benchmark.sh \
+  --months 2023-01,2023-02,2023-03 \
   --parquet-dir /tmp/nyc-taxi-parquet \
   --csv-path /tmp/nyc-taxi-materialized.csv \
   --iterations 3
 ```
+
+If the Parquet dataset is missing, the runner now calls `prepare_dataset.sh`
+non-interactively to download and build it before benchmarking. If only the
+materialized CSV is missing, the runner regenerates it from the existing Parquet
+dataset. Use `--months` to control which monthly TLC files are downloaded during
+that automatic preparation step.
 
 The runner writes results to:
 
