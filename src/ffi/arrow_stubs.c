@@ -1114,6 +1114,9 @@ apply_double_column_op(GArrowChunkedArray *chunked1, GArrowChunkedArray *chunked
       len2 = garrow_array_get_length(chunk2);
     }
 
+    /* Bounds check: if either chunk is exhausted, stop processing */
+    if (off1 >= len1 || off2 >= len2) { ok = FALSE; break; }
+
     if (garrow_array_is_null(chunk1, off1) || garrow_array_is_null(chunk2, off2)) {
       garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
     } else {
@@ -1138,7 +1141,7 @@ apply_double_column_op(GArrowChunkedArray *chunked1, GArrowChunkedArray *chunked
         case 0: result = val1 + val2; break;
         case 1: result = val1 * val2; break;
         case 2: result = val1 - val2; break;
-        case 3: result = val1 / val2; break;
+        case 3: result = val1 / val2; break;  /* IEEE 754: x/0 → ±Inf, 0/0 → NaN */
         default: result = val1; break;
       }
 

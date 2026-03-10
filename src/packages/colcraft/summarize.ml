@@ -122,7 +122,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
                let groups = grouped.Arrow_compute.ocaml_groups in
                let n_groups = List.length groups in
-               (* Convert groups to array for O(1) indexed access *)
+               (* Convert groups to array: List.nth is O(n) per call; *)
+               (* using an array gives O(1) indexed access per group  *)
                let groups_array = Array.of_list groups in
                let key_col_values = List.map (fun k ->
                  match Arrow_table.get_column df.arrow_table k with

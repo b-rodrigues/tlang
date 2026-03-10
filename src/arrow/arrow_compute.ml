@@ -179,7 +179,9 @@ let multiply_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow
 let subtract_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow_table.column_data option =
   column_binary_op t col1 col2 ( -. )
 
-(** Divide two columns element-wise: result[i] = col1[i] / col2[i] *)
+(** Divide two columns element-wise: result[i] = col1[i] / col2[i]
+    Division by zero produces IEEE 754 infinity/NaN, consistent with
+    Arrow_compute.divide_scalar and the native Arrow C stubs. *)
 let divide_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow_table.column_data option =
   column_binary_op t col1 col2 ( /. )
 
