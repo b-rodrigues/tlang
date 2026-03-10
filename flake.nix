@@ -212,16 +212,45 @@
           ];
 
           shellHook = ''
+            if repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+              export TLANG_REPO_ROOT="$repo_root"
+            elif [[ -f "$PWD/dune-project" ]]; then
+              export TLANG_REPO_ROOT="$PWD"
+            fi
+            export TLANG_DEV_BIN="$(mktemp -d "''${TMPDIR:-/tmp}/tlang-shell-bin.XXXXXX")"
+            trap 'rm -rf "$TLANG_DEV_BIN"' EXIT
+            cat > "$TLANG_DEV_BIN/t" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="''${TLANG_REPO_ROOT:-}"
+
+if [[ -z "$repo_root" || ! -f "$repo_root/dune-project" ]]; then
+  if command -v git >/dev/null 2>&1; then
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  fi
+fi
+
+if [[ -z "$repo_root" || ! -f "$repo_root/dune-project" ]]; then
+  echo "Unable to locate the T repository root for the dev-shell 't' wrapper." >&2
+  exit 1
+fi
+
+exec dune exec --root "$repo_root" src/repl.exe -- "$@"
+EOF
+            chmod +x "$TLANG_DEV_BIN/t"
+            export PATH="$TLANG_DEV_BIN:$PATH"
+
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"
             echo "═══════════════════════════════════════════════"
             echo ""
             echo "Available commands:"
             echo "  dune build           - Build the project"
-            echo "  dune exec src/repl.exe - Start the T REPL"
-            echo "  dune exec src/repl.exe -- repl  - Start REPL explicitly"
-            echo "  dune exec src/repl.exe -- run file.t  - Run a T file"
-            echo "  dune exec src/repl.exe -- --help  - Show CLI help"
+            echo "  t                    - Start the T CLI via the current dev shell"
+            echo "  t repl               - Start REPL explicitly"
+            echo "  t run file.t         - Run a T file"
+            echo "  t --help             - Show CLI help"
             echo "  dune test            - Run tests"
             echo "  dune clean           - Clean build artifacts"
             echo "  R                    - Launch R console"
@@ -231,7 +260,7 @@
             echo "  Rscript tests/golden/generate_expected.R       - Generate dplyr outputs"
             echo "  Rscript tests/golden/generate_expected_stats.R - Generate stats outputs"
             echo ""
-            echo "Quick start: dune exec src/repl.exe"
+            echo "Quick start: t"
             echo ""
           '';
         };
