@@ -90,6 +90,20 @@ let register env =
                 | Some (FloatColumn a) -> (match a.(i) with Some v -> Some (string_of_float v) | None -> None)
                 | Some (StringColumn a) -> (match a.(i) with Some v -> Some v | None -> None)
                 | Some (BoolColumn a) -> (match a.(i) with Some v -> Some (string_of_bool v) | None -> None)
+                | Some (DateColumn a) -> 
+                    (match a.(i) with 
+                     | Some d -> 
+                         let tm = Unix.gmtime (float_of_int d *. 86400.) in
+                         Some (Printf.sprintf "%04d-%02d-%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday)
+                     | None -> None)
+                | Some (DatetimeColumn (a, _)) ->
+                    (match a.(i) with
+                     | Some ts ->
+                         let tm = Unix.gmtime (Int64.to_float ts) in
+                         Some (Printf.sprintf "%04d-%02d-%02d %02d:%02d:%02d" 
+                                 (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+                                 tm.tm_hour tm.tm_min tm.tm_sec)
+                     | None -> None)
                 | _ -> None
               in
               

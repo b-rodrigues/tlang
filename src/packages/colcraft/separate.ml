@@ -60,28 +60,45 @@ let register env =
             Error.make_error KeyError (Printf.sprintf "Function `separate`: column `%s` not found." col_name)
           else
             let orig_nrows = Arrow_table.num_rows df.arrow_table in
-            let col_data = match Arrow_table.get_column df.arrow_table col_name with Some (StringColumn a) -> Some a | _ -> None in
+            let col_data = Arrow_table.get_column df.arrow_table col_name in
             
+            let val_to_str = function
+              | VString s -> Some s
+              | VInt n -> Some (string_of_int n)
+              | VFloat f -> Some (string_of_float f)
+              | VBool b -> Some (string_of_bool b)
+              | VDate d -> 
+                  let tm = Unix.gmtime (float_of_int d *. 86400.) in
+                  Some (Printf.sprintf "%04d-%02d-%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday)
+              | VNA _ | VNull -> None
+              | other -> Some (Utils.value_to_string other)
+            in
+
             match col_data with
-            | None -> Error.type_error (Printf.sprintf "Function `separate` expects column `%s` to be a String column." col_name)
-            | Some a ->
+            | None -> Error.make_error KeyError (Printf.sprintf "Function `separate`: column `%s` not found." col_name)
+            | Some data ->
+                let values = Arrow_bridge.column_to_values data in
                 let sep_re = Str.regexp sep in
-                let split_vals = Array.map (fun opt ->
-                  match opt with
+                let n_into = List.length into_cols in
+                let split_vals = Array.init orig_nrows (fun i ->
+                  match val_to_str values.(i) with
                   | Some s ->
                       let parts = Str.split sep_re s in
-                      let n_into = List.length into_cols in
                       let n_parts = List.length parts in
                       if n_parts >= n_into then
                         List.filteri (fun i _ -> i < n_into) parts
                       else
                         parts @ (List.init (n_into - n_parts) (fun _ -> ""))
-                  | None -> List.init (List.length into_cols) (fun _ -> "")
-                ) a in
+                  | None -> List.init n_into (fun _ -> "NA")
+                ) in
                 
                 (* Create new columns *)
                 let new_cols_data = List.mapi (fun i name ->
-                  let col_vals = Array.map (fun parts -> match List.nth_opt parts i with Some s -> Some s | None -> Some "") split_vals in
+                  let col_vals = Array.map (fun parts -> 
+                    match List.nth_opt parts i with 
+                    | Some "NA" | None -> None 
+                    | Some s -> Some s
+                  ) split_vals in
                   (name, StringColumn col_vals)
                 ) into_cols in
                 
@@ -91,7 +108,7 @@ let register env =
                   if name = col_name then
                     begin
                       if not remove then
-                        final_columns := (name, StringColumn a) :: !final_columns;
+                        final_columns := (name, data) :: !final_columns;
                       List.iter (fun (n, d) -> final_columns := (n, d) :: !final_columns) new_cols_data
                     end
                   else

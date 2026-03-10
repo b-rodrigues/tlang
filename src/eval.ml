@@ -1576,7 +1576,7 @@ and eval_binop env_ref op left right =
   let lval = eval_expr env_ref left in
   let rval = eval_expr env_ref right in
   match (op, lval, rval) with
-  | (Plus | Minus | Mul | Div | Mod | Lt | Gt | LtEq | GtEq | Eq | NEq), _, _ ->
+  | (Plus | Minus | Mul | Div | Mod | Lt | Gt | LtEq | GtEq), _, _ ->
       (match lval, rval with
        | VNDArray _, _ | _, VNDArray _
        | Ast.VVector _, _ | _, Ast.VVector _
@@ -1731,8 +1731,8 @@ and eval_program (program : program) (env : environment) : value * environment =
     | [stmt] -> eval_statement env stmt
     | stmt :: rest ->
         let (v, new_env) = eval_statement env stmt in
-        (match stmt, v with
-         | (Assignment _ | Reassignment _), VError _ when new_env == env -> (v, env)
+        (match v with
+         | VError _ -> (v, new_env)
          | _ -> go new_env rest)
   in
   go env program
