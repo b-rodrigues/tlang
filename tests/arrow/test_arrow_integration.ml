@@ -1231,7 +1231,84 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "2";
 
   print_newline ();
+  Printf.printf "Arrow Integration — IPC Read/Write:\n";
+
+  let ipc_path = "test_arrow_roundtrip.arrow" in
+  let ipc_tbl_src = Arrow_table.create [
+    ("id", Arrow_table.IntColumn [| Some 1; Some 2; Some 3 |]);
+    ("name", Arrow_table.StringColumn [| Some "alpha"; Some "beta"; Some "gamma" |]);
+  ] 3 in
+  if Arrow_ffi.arrow_available then begin
+    (match Arrow_io.write_ipc ipc_tbl_src ipc_path with
+     | Ok () ->
+         incr pass_count; Printf.printf "  ✓ Arrow_io.write_ipc writes IPC file\n";
+         (match Arrow_io.read_ipc ipc_path with
+          | Ok ipc_tbl ->
+              let shape_ok =
+                Arrow_table.num_rows ipc_tbl = 3
+                && Arrow_table.num_columns ipc_tbl = 2
+              in
+              let id_ok =
+                match Arrow_table.get_column ipc_tbl "id" with
+                | Some (Arrow_table.IntColumn ids) ->
+                    Array.length ids = 3
+                    && ids.(0) = Some 1
+                    && ids.(1) = Some 2
+                    && ids.(2) = Some 3
+                | _ -> false
+              in
+              let name_ok =
+                match Arrow_table.get_column ipc_tbl "name" with
+                | Some (Arrow_table.StringColumn names) ->
+                    Array.length names = 3
+                    && names.(0) = Some "alpha"
+                    && names.(1) = Some "beta"
+                    && names.(2) = Some "gamma"
+                | _ -> false
+              in
+              if shape_ok && id_ok && name_ok then begin
+                incr pass_count; Printf.printf "  ✓ Arrow_io.read_ipc round-trip preserves table data\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ Arrow_io.read_ipc round-trip data mismatch\n"
+              end
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ Arrow_io.read_ipc failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ Arrow_io.write_ipc failed: %s\n" msg);
+
+    let env_ipc = Packages.init_env () in
+    let (_, env_ipc) =
+      eval_string_env
+        (Printf.sprintf
+           {|df_ipc = dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); t_write_arrow(df_ipc, "%s")|}
+           ipc_path)
+        env_ipc
+    in
+    let (v, _) = eval_string_env (Printf.sprintf {|nrow(t_read_arrow("%s"))|} ipc_path) env_ipc in
+    let nrow_result = Ast.Utils.value_to_string v in
+    if nrow_result = "2" then begin
+      incr pass_count; Printf.printf "  ✓ t_write_arrow/t_read_arrow round-trip preserves nrow\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ t_write_arrow/t_read_arrow expected nrow=2, got %s\n" nrow_result
+    end;
+
+    let (v, _) = eval_string_env (Printf.sprintf {|colnames(t_read_arrow("%s"))|} ipc_path) env_ipc in
+    let colnames_result = Ast.Utils.value_to_string v in
+    if colnames_result = {|["id", "grp"]|} then begin
+      incr pass_count; Printf.printf "  ✓ t_read_arrow preserves schema/column names\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ t_read_arrow schema mismatch: %s\n" colnames_result
+    end
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow_io.write_ipc/read_ipc round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "t_write_arrow/t_read_arrow round-trip"
+  end;
+
+  print_newline ();
 
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
+  (try Sys.remove ipc_path with _ -> ());
   print_newline ()
