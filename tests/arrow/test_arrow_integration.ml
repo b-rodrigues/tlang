@@ -283,6 +283,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let result = Ast.Utils.value_to_string v in
   if result = "true" then begin
     incr pass_count; Printf.printf "  ✓ read_csv preserves native Arrow backing on large default CSV path\n"
+  end else if arrow_avail then begin
+    incr fail_count;
+    Printf.printf "  ✗ read_csv expected native Arrow backing on large default CSV path, got %s\n" result
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "read_csv preserves native Arrow backing on large default CSV path"

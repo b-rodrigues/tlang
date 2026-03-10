@@ -37,6 +37,7 @@ let should_use_arrow_fast_path path ~sep ~skip_header ~skip_lines ~clean_colname
   && skip_lines = 0
   && not clean_colnames
   && not (Arrow_io.is_url path)
+  && Arrow_ffi.arrow_available
   &&
   (* Never surface filesystem issues from the eligibility check itself;
      fall back to the existing parser and let it report user-facing errors. *)
