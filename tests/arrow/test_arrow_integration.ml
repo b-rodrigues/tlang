@@ -1074,6 +1074,140 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "ListColumn with Float+Bool sub-fields materializes"
   end;
 
+  (* Test: All-null ListColumn stays in pure OCaml fallback while preserving shape *)
+  let list_col_all_null = Arrow_table.ListColumn [| None; None |] in
+  let list_tbl_all_null = Arrow_table.create [
+    ("id", Arrow_table.IntColumn [| Some 1; Some 2 |]);
+    ("nested", list_col_all_null);
+  ] 2 in
+  let mat_all_null = Arrow_table.materialize list_tbl_all_null in
+  if not (Arrow_table.is_native_backed mat_all_null) then begin
+    (match Arrow_table.get_column mat_all_null "nested" with
+     | Some (Arrow_table.ListColumn nested) when Array.length nested = 2
+                                             && nested.(0) = None
+                                             && nested.(1) = None ->
+         incr pass_count; Printf.printf "  ✓ All-null ListColumn preserves null entries in pure fallback\n"
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ All-null ListColumn fallback data mismatch\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ All-null ListColumn should fall back to pure OCaml\n"
+  end;
+
+  (* Test: Sparse ListColumn with heavy nulls round-trips without bitmap corruption *)
+  let sparse_nested = Array.init 100 (fun i ->
+    if i = 0 then Some sub_table_a
+    else if i = 99 then Some sub_table_b
+    else None
+  ) in
+  let sparse_tbl = Arrow_table.create [
+    ("row_id", Arrow_table.IntColumn (Array.init 100 (fun i -> Some i)));
+    ("nested", Arrow_table.ListColumn sparse_nested);
+  ] 100 in
+  let mat_sparse_tbl = Arrow_table.materialize sparse_tbl in
+  if Arrow_table.is_native_backed mat_sparse_tbl then begin
+    (match Arrow_table.get_column mat_sparse_tbl "nested" with
+     | Some (Arrow_table.ListColumn nested) ->
+         let first_ok =
+           match nested.(0) with
+           | Some t ->
+               t.Arrow_table.nrows = 2 &&
+               (match Arrow_table.get_column t "x" with
+                | Some (Arrow_table.IntColumn a) -> a.(0) = Some 1 && a.(1) = Some 2
+                | _ -> false)
+           | None -> false
+         in
+         let last_ok =
+           match nested.(99) with
+           | Some t ->
+               t.Arrow_table.nrows = 1 &&
+               (match Arrow_table.get_column t "x" with
+                | Some (Arrow_table.IntColumn a) -> a.(0) = Some 3
+                | _ -> false)
+           | None -> false
+         in
+         if Array.length nested = 100 && nested.(50) = None && first_ok && last_ok then begin
+           incr pass_count; Printf.printf "  ✓ Sparse ListColumn with heavy nulls round-trip correct\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ Sparse ListColumn with heavy nulls data mismatch\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ Sparse ListColumn read-back returned wrong type\n")
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Sparse ListColumn with heavy nulls materializes to native Arrow"
+  end;
+
+  (* Test: Repeated native schema and nested field access remains stable *)
+  if mat_list_native then begin
+    let lifecycle_ok = ref true in
+    for _ = 1 to 100 do
+      if Arrow_table.column_names mat_list_tbl <> ["key"; "data"] then
+        lifecycle_ok := false;
+      match Arrow_table.get_column mat_list_tbl "data" with
+      | Some (Arrow_table.ListColumn nested) when Array.length nested = 2 -> ()
+      | _ -> lifecycle_ok := false
+    done;
+    if !lifecycle_ok then begin
+      incr pass_count; Printf.printf "  ✓ Repeated native schema/field queries stay valid\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ Repeated native schema/field queries became invalid\n"
+    end
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Repeated native schema/field queries stay valid"
+  end;
+
+  (* Test: Native ListColumn materialization survives repeated GC pressure *)
+  let stress_failed = ref None in
+  let make_stress_table i =
+    let left = Arrow_table.create [
+      ("x", Arrow_table.IntColumn [| Some i; Some (i + 1) |]);
+      ("y", Arrow_table.StringColumn [| Some "left"; Some "right" |]);
+    ] 2 in
+    let right = Arrow_table.create [
+      ("x", Arrow_table.IntColumn [| Some (i + 2) |]);
+      ("y", Arrow_table.StringColumn [| Some "tail" |]);
+    ] 1 in
+    Arrow_table.create [
+      ("iter", Arrow_table.IntColumn [| Some i; Some (i + 1) |]);
+      ("nested", Arrow_table.ListColumn [| Some left; Some right |]);
+    ] 2
+  in
+  if Arrow_ffi.arrow_available then begin
+    (try
+       for i = 1 to 10000 do
+         let native_tbl = Arrow_table.materialize (make_stress_table i) in
+         if not (Arrow_table.is_native_backed native_tbl) then
+           stress_failed := Some "materialize returned pure OCaml fallback"
+         else if Arrow_table.num_rows native_tbl <> 2 then
+           stress_failed := Some "num_rows returned an unexpected value"
+         else
+           match Arrow_table.get_column native_tbl "nested" with
+           | Some (Arrow_table.ListColumn nested) when Array.length nested = 2 -> ()
+           | _ -> stress_failed := Some "nested ListColumn read-back failed";
+         Gc.full_major ()
+       done
+     with exn ->
+       stress_failed := Some (Printexc.to_string exn));
+    (match !stress_failed with
+     | None ->
+         incr pass_count; Printf.printf "  ✓ Native ListColumn loop stress survives repeated GC\n"
+     | Some msg ->
+         incr fail_count; Printf.printf "  ✗ Native ListColumn loop stress failed: %s\n" msg)
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Native ListColumn loop stress survives repeated GC"
+  end;
+
+  (* Test: T-level slice on nested data avoids regression in native list reconstruction *)
+  test "Slice nested ListColumn DataFrame"
+    {|df = dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); sliced = slice(nested, [0]); nrow(sliced)|}
+    "1";
+
+  test "Slice nested ListColumn preserves nested rows"
+    {|df = dataframe([[g: "a", x: 1, y: 10], [g: "a", x: 2, y: 20], [g: "b", x: 3, y: 30]]); nested = nest(df, $x, $y); sliced = slice(nested, [0]); unnest(sliced, $data) |> nrow|}
+    "2";
+
   print_newline ();
 
   (* Cleanup *)
