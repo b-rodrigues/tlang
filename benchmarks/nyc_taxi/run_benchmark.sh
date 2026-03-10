@@ -131,13 +131,26 @@ if ! command -v Rscript >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v t >/dev/null 2>&1; then
-  echo "t is required" >&2
+# Find the actual binary path, ignoring shell functions/aliases
+T_BIN="$(type -p t || true)"
+if [[ -z "$T_BIN" || ! -x "$T_BIN" ]]; then
+  if [[ -f "$PROJECT_ROOT/_build/default/src/repl.exe" ]]; then
+    T_BIN="$PROJECT_ROOT/_build/default/src/repl.exe"
+  elif [[ -L "$PROJECT_ROOT/result" && -f "$PROJECT_ROOT/result/bin/t" ]]; then
+    T_BIN="$PROJECT_ROOT/result/bin/t"
+  fi
+fi
+
+if [[ -z "$T_BIN" ]]; then
+  echo "Error: 't' command not found in PATH and no compiled binary found in _build or result." >&2
+  echo "Please run 'dune build' or 'nix build' to compile the T language before running benchmarks." >&2
   exit 1
 fi
 
+
+
 TIME_BIN=""
-for candidate in /usr/bin/time gtime; do
+for candidate in time gtime; do
   if [[ "$candidate" = "/usr/bin/time" && ! -x "$candidate" ]]; then
     continue
   fi
@@ -257,7 +270,7 @@ for query in "${QUERY_LIST[@]}"; do
   for iteration in $(seq 1 "$ITERATIONS"); do
     run_query python "$query" "$iteration" python "$python_script" --dataset "$PARQUET_DIR"
     run_query r "$query" "$iteration" Rscript "$r_script" "$PARQUET_DIR"
-    run_query t "$query" "$iteration" env NYC_TAXI_CSV="$CSV_PATH" t run "$t_script"
+    run_query t "$query" "$iteration" env NYC_TAXI_CSV="$CSV_PATH" "$T_BIN" run --unsafe "$t_script"
   done
 done
 
