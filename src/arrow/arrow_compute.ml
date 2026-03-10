@@ -124,8 +124,70 @@ let divide_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arr
   | _ -> None
 
 (* ===================================================================== *)
-(* Group-By & Aggregation (Phase 3)                                      *)
+(* Column-to-Column Arithmetic (Vectorized Processing)                    *)
 (* ===================================================================== *)
+
+(** Apply a binary operation element-wise between two named columns.
+    Operates directly on column_data arrays to avoid per-row boxing.
+    Returns Some(column_data) suitable for adding to a table. *)
+let column_binary_op (t : Arrow_table.t) (col1 : string) (col2 : string)
+    (op : float -> float -> float) : Arrow_table.column_data option =
+  match Arrow_table.get_column t col1, Arrow_table.get_column t col2 with
+  | Some (Arrow_table.FloatColumn a1), Some (Arrow_table.FloatColumn a2) ->
+    let n = min (Array.length a1) (Array.length a2) in
+    let result = Array.init n (fun i ->
+      match a1.(i), a2.(i) with
+      | Some f1, Some f2 -> Some (op f1 f2)
+      | _ -> None
+    ) in
+    Some (Arrow_table.FloatColumn result)
+  | Some (Arrow_table.IntColumn a1), Some (Arrow_table.FloatColumn a2) ->
+    let n = min (Array.length a1) (Array.length a2) in
+    let result = Array.init n (fun i ->
+      match a1.(i), a2.(i) with
+      | Some i1, Some f2 -> Some (op (float_of_int i1) f2)
+      | _ -> None
+    ) in
+    Some (Arrow_table.FloatColumn result)
+  | Some (Arrow_table.FloatColumn a1), Some (Arrow_table.IntColumn a2) ->
+    let n = min (Array.length a1) (Array.length a2) in
+    let result = Array.init n (fun i ->
+      match a1.(i), a2.(i) with
+      | Some f1, Some i2 -> Some (op f1 (float_of_int i2))
+      | _ -> None
+    ) in
+    Some (Arrow_table.FloatColumn result)
+  | Some (Arrow_table.IntColumn a1), Some (Arrow_table.IntColumn a2) ->
+    let n = min (Array.length a1) (Array.length a2) in
+    let result = Array.init n (fun i ->
+      match a1.(i), a2.(i) with
+      | Some i1, Some i2 -> Some (op (float_of_int i1) (float_of_int i2))
+      | _ -> None
+    ) in
+    Some (Arrow_table.FloatColumn result)
+  | _ -> None
+
+(** Add two columns element-wise: result[i] = col1[i] + col2[i] *)
+let add_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow_table.column_data option =
+  column_binary_op t col1 col2 ( +. )
+
+(** Multiply two columns element-wise: result[i] = col1[i] * col2[i] *)
+let multiply_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow_table.column_data option =
+  column_binary_op t col1 col2 ( *. )
+
+(** Subtract two columns element-wise: result[i] = col1[i] - col2[i] *)
+let subtract_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow_table.column_data option =
+  column_binary_op t col1 col2 ( -. )
+
+(** Divide two columns element-wise: result[i] = col1[i] / col2[i]
+    Division by zero produces IEEE 754 infinity/NaN, consistent with
+    Arrow_compute.divide_scalar and the native Arrow C stubs. *)
+let divide_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow_table.column_data option =
+  column_binary_op t col1 col2 ( /. )
+
+(* ===================================================================== *)
+(* Group-By & Aggregation (Phase 3)                                      *)
+(* =====================================================================  *)
 
 (** Opaque handle to a native GroupedTable (C struct).
     Wrapped with a GC finalizer for memory safety. *)
@@ -306,6 +368,34 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
         else Ast.VNA Ast.NAFloat
     | "count" ->
         Ast.VFloat (float_of_int (List.length indices))
+    | "min" ->
+        let m = ref None in
+        List.iter (fun i ->
+          let v = match target_vals.(i) with
+            | Ast.VFloat f -> Some f
+            | Ast.VInt n -> Some (float_of_int n)
+            | _ -> None
+          in
+          match !m, v with
+          | None, Some f -> m := Some f
+          | Some current, Some f -> if f < current then m := Some f
+          | _ -> ()
+        ) indices;
+        (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
+    | "max" ->
+        let m = ref None in
+        List.iter (fun i ->
+          let v = match target_vals.(i) with
+            | Ast.VFloat f -> Some f
+            | Ast.VInt n -> Some (float_of_int n)
+            | _ -> None
+          in
+          match !m, v with
+          | None, Some f -> m := Some f
+          | Some current, Some f -> if f > current then m := Some f
+          | _ -> ()
+        ) indices;
+        (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
     | _ -> Ast.VNull
   ) in
   let all_columns = key_result_cols @ [(agg_col_name, agg_col)] in

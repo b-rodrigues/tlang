@@ -1070,6 +1070,201 @@ CAMLprim value caml_arrow_compute_divide_scalar(value v_ptr, value v_col_name, v
 }
 
 /* ===================================================================== */
+/* Column-to-Column Arithmetic (Vectorized Processing)                    */
+/* ===================================================================== */
+
+/* Helper: apply a binary arithmetic operation element-by-element between two
+   numeric columns. Builds a new GArrowChunkedArray* with the results.
+   op_code: 0=add, 1=multiply, 2=subtract, 3=divide.
+   Returns NULL on failure or type mismatch. */
+static GArrowChunkedArray *
+apply_double_column_op(GArrowChunkedArray *chunked1, GArrowChunkedArray *chunked2,
+                       gint64 nrows, int op_code)
+{
+  GError *error = NULL;
+
+  /* Build a single result array from both input chunked arrays */
+  GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
+  gboolean ok = TRUE;
+
+  /* Track position within each chunked array's chunks */
+  guint c1 = 0, c2 = 0;
+  gint64 off1 = 0, off2 = 0;
+  guint nc1 = garrow_chunked_array_get_n_chunks(chunked1);
+  guint nc2 = garrow_chunked_array_get_n_chunks(chunked2);
+  GArrowArray *chunk1 = nc1 > 0 ? garrow_chunked_array_get_chunk(chunked1, 0) : NULL;
+  GArrowArray *chunk2 = nc2 > 0 ? garrow_chunked_array_get_chunk(chunked2, 0) : NULL;
+  gint64 len1 = chunk1 ? garrow_array_get_length(chunk1) : 0;
+  gint64 len2 = chunk2 ? garrow_array_get_length(chunk2) : 0;
+
+  for (gint64 i = 0; i < nrows && ok; i++) {
+    /* Advance chunk pointers if needed */
+    while (off1 >= len1 && c1 + 1 < nc1) {
+      if (chunk1) g_object_unref(chunk1);
+      c1++;
+      off1 = 0;
+      chunk1 = garrow_chunked_array_get_chunk(chunked1, c1);
+      len1 = garrow_array_get_length(chunk1);
+    }
+    while (off2 >= len2 && c2 + 1 < nc2) {
+      if (chunk2) g_object_unref(chunk2);
+      c2++;
+      off2 = 0;
+      chunk2 = garrow_chunked_array_get_chunk(chunked2, c2);
+      len2 = garrow_array_get_length(chunk2);
+    }
+
+    /* Bounds check: if either chunk is exhausted or missing, stop processing */
+    if (!chunk1 || !chunk2 || off1 >= len1 || off2 >= len2) { ok = FALSE; break; }
+
+    if (garrow_array_is_null(chunk1, off1) || garrow_array_is_null(chunk2, off2)) {
+      garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+    } else {
+      gdouble val1, val2;
+
+      /* Read val1 */
+      if (GARROW_IS_DOUBLE_ARRAY(chunk1)) {
+        val1 = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk1), off1);
+      } else if (GARROW_IS_INT64_ARRAY(chunk1)) {
+        val1 = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk1), off1);
+      } else { ok = FALSE; break; }
+
+      /* Read val2 */
+      if (GARROW_IS_DOUBLE_ARRAY(chunk2)) {
+        val2 = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk2), off2);
+      } else if (GARROW_IS_INT64_ARRAY(chunk2)) {
+        val2 = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk2), off2);
+      } else { ok = FALSE; break; }
+
+      gdouble result;
+      switch (op_code) {
+        case 0: result = val1 + val2; break;
+        case 1: result = val1 * val2; break;
+        case 2: result = val1 - val2; break;
+        case 3: result = val1 / val2; break;  /* IEEE 754: x/0 → ±Inf, 0/0 → NaN */
+        default: result = val1; break;
+      }
+
+      garrow_double_array_builder_append_value(builder, result, &error);
+    }
+    if (error) { ok = FALSE; break; }
+    off1++;
+    off2++;
+  }
+
+  if (chunk1) g_object_unref(chunk1);
+  if (chunk2) g_object_unref(chunk2);
+
+  if (!ok) {
+    g_object_unref(builder);
+    if (error) g_error_free(error);
+    return NULL;
+  }
+
+  GArrowArray *result_array =
+      garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+  g_object_unref(builder);
+
+  if (result_array == NULL) {
+    if (error) g_error_free(error);
+    return NULL;
+  }
+
+  /* Wrap single array into a ChunkedArray */
+  GList *chunks_list = g_list_append(NULL, result_array);
+  GArrowChunkedArray *result = garrow_chunked_array_new(chunks_list, &error);
+  g_list_free(chunks_list);
+  g_object_unref(result_array);
+
+  return result;
+}
+
+/* Implementation for column-to-column binary operations.
+   Looks up two columns by name, applies the operation, and builds a new table
+   with a result column appended (named after the first column).
+   Args: table_ptr, col_name1, col_name2, result_col_name
+   Returns: Some(new_table_ptr) or None */
+static value arrow_column_op_impl(value v_ptr, value v_col1, value v_col2,
+                                  value v_result_name, int op_code) {
+  CAMLparam4(v_ptr, v_col1, v_col2, v_result_name);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col1_name = String_val(v_col1);
+  const char *col2_name = String_val(v_col2);
+  const char *result_name = String_val(v_result_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx1 = garrow_schema_get_field_index(schema, col1_name);
+  gint idx2 = garrow_schema_get_field_index(schema, col2_name);
+  g_object_unref(schema);
+
+  if (idx1 < 0 || idx2 < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *ca1 = garrow_table_get_column_data(table, idx1);
+  GArrowChunkedArray *ca2 = garrow_table_get_column_data(table, idx2);
+  if (ca1 == NULL || ca2 == NULL) {
+    if (ca1) g_object_unref(ca1);
+    if (ca2) g_object_unref(ca2);
+    CAMLreturn(Val_none);
+  }
+
+  gint64 nrows = garrow_table_get_n_rows(table);
+  GArrowChunkedArray *result_col = apply_double_column_op(ca1, ca2, nrows, op_code);
+  g_object_unref(ca1);
+  g_object_unref(ca2);
+
+  if (result_col == NULL) CAMLreturn(Val_none);
+
+  /* Add the result column to the table */
+  GError *error = NULL;
+  GArrowDataType *dtype = garrow_chunked_array_get_value_data_type(result_col);
+  GArrowField *field = garrow_field_new(result_name, dtype);
+  g_object_unref(dtype);
+
+  guint ncols = garrow_table_get_n_columns(table);
+  GArrowTable *new_table =
+      garrow_table_add_column(table, ncols, field, result_col, &error);
+  g_object_unref(field);
+  g_object_unref(result_col);
+
+  if (new_table == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)new_table));
+  CAMLreturn(v_result);
+}
+
+/* Add two columns element-wise: result[i] = col1[i] + col2[i]
+   Args: table_ptr, col1_name, col2_name, result_col_name
+   Returns: Some(new_table_ptr) or None */
+CAMLprim value caml_arrow_compute_add_columns(value v_ptr, value v_col1,
+                                               value v_col2, value v_result) {
+  return arrow_column_op_impl(v_ptr, v_col1, v_col2, v_result, 0);
+}
+
+/* Multiply two columns element-wise: result[i] = col1[i] * col2[i] */
+CAMLprim value caml_arrow_compute_multiply_columns(value v_ptr, value v_col1,
+                                                    value v_col2, value v_result) {
+  return arrow_column_op_impl(v_ptr, v_col1, v_col2, v_result, 1);
+}
+
+/* Subtract two columns element-wise: result[i] = col1[i] - col2[i] */
+CAMLprim value caml_arrow_compute_subtract_columns(value v_ptr, value v_col1,
+                                                    value v_col2, value v_result) {
+  return arrow_column_op_impl(v_ptr, v_col1, v_col2, v_result, 2);
+}
+
+/* Divide two columns element-wise: result[i] = col1[i] / col2[i] */
+CAMLprim value caml_arrow_compute_divide_columns(value v_ptr, value v_col1,
+                                                  value v_col2, value v_result) {
+  return arrow_column_op_impl(v_ptr, v_col1, v_col2, v_result, 3);
+}
+
+/* ===================================================================== */
 /* Group-By & Aggregation (Phase 3)                                      */
 /* ===================================================================== */
 
@@ -1151,6 +1346,54 @@ cell_value_as_string(GArrowTable *table, int col_idx, gint64 row_idx)
   return result;
 }
 
+/* Context for sorting groups by key values */
+typedef struct {
+  GArrowTable *table;
+  int n_keys;
+  int *key_indices;
+  int *key_types; /* 0=Int64, 1=Float64, 3=String, etc. (uses arrow_type_of_tag logic) */
+  gchar ***group_key_values;
+} GroupedTableSortContext;
+
+/* Helper to compare group key values for sorting. Matches OCaml's group order. */
+static int
+compare_group_keys(gconstpointer a, gconstpointer b, gpointer user_data)
+{
+  GroupedTableSortContext *ctx = (GroupedTableSortContext *)user_data;
+  int g1 = *(int *)a;
+  int g2 = *(int *)b;
+
+  for (int k = 0; k < ctx->n_keys; k++) {
+    const char *s1 = ctx->group_key_values[g1][k];
+    const char *s2 = ctx->group_key_values[g2][k];
+
+    /* Handle NAs (stored as "NA" in key strings) */
+    gboolean is_na1 = (strcmp(s1, "NA") == 0);
+    gboolean is_na2 = (strcmp(s2, "NA") == 0);
+    if (is_na1 && !is_na2) return 1;  /* NAs last */
+    if (!is_na1 && is_na2) return -1;
+    if (is_na1 && is_na2) continue;
+
+    int type_tag = ctx->key_types[k];
+    if (type_tag == 0) { /* Int64 */
+      gint64 v1 = g_ascii_strtoll(s1, NULL, 10);
+      gint64 v2 = g_ascii_strtoll(s2, NULL, 10);
+      if (v1 < v2) return -1;
+      if (v1 > v2) return 1;
+    } else if (type_tag == 1) { /* Float64 */
+      gdouble v1 = g_ascii_strtod(s1, NULL);
+      gdouble v2 = g_ascii_strtod(s2, NULL);
+      if (v1 < v2) return -1;
+      if (v1 > v2) return 1;
+    } else {
+      /* Default string comparison */
+      int res = strcmp(s1, s2);
+      if (res != 0) return res;
+    }
+  }
+  return 0;
+}
+
 /* Group-by: hash-based grouping of table rows by key columns.
    Args: table_ptr (nativeint), key_names (string list)
    Returns: Some(grouped_table_ptr) or None on failure. */
@@ -1175,6 +1418,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   }
 
   int *key_indices = (int *)malloc(sizeof(int) * n_keys);
+  int *key_types = (int *)malloc(sizeof(int) * n_keys);
   gchar **key_names = (gchar **)malloc(sizeof(gchar *) * n_keys);
   iter = v_key_names;
   for (int i = 0; i < n_keys; i++) {
@@ -1187,9 +1431,30 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       for (int j = 0; j <= i; j++) g_free(key_names[j]);
       free(key_names);
       free(key_indices);
+      free(key_types);
       g_object_unref(schema);
       CAMLreturn(Val_none);
     }
+
+    /* Extract type tag for sorting */
+    GArrowField *field = garrow_schema_get_field(schema, key_indices[i]);
+    GArrowDataType *dtype = garrow_field_get_data_type(field);
+    if (GARROW_IS_INT8_DATA_TYPE(dtype) || GARROW_IS_INT16_DATA_TYPE(dtype) ||
+        GARROW_IS_INT32_DATA_TYPE(dtype) || GARROW_IS_INT64_DATA_TYPE(dtype) ||
+        GARROW_IS_UINT8_DATA_TYPE(dtype) || GARROW_IS_UINT16_DATA_TYPE(dtype) ||
+        GARROW_IS_UINT32_DATA_TYPE(dtype) || GARROW_IS_UINT64_DATA_TYPE(dtype))
+                                                  key_types[i] = 0; /* ArrowInt64 */
+    else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype))   key_types[i] = 1; /* ArrowFloat64 */
+    else if (GARROW_IS_BOOLEAN_DATA_TYPE(dtype))  key_types[i] = 2; /* ArrowBoolean */
+    else if (GARROW_IS_STRING_DATA_TYPE(dtype) ||
+             GARROW_IS_LARGE_STRING_DATA_TYPE(dtype))
+                                                  key_types[i] = 3; /* ArrowString */
+    else if (GARROW_IS_DATE32_DATA_TYPE(dtype) ||
+             GARROW_IS_DATE64_DATA_TYPE(dtype))   key_types[i] = 7; /* ArrowDate */
+    else                                          key_types[i] = 6; /* Other/Null */
+
+    g_object_unref(field);
+    /* dtype is transfer none, do not unref */
     iter = Field(iter, 1);
   }
   g_object_unref(schema);
@@ -1242,8 +1507,24 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     g_free(key_str);
   }
 
-  /* Build the GroupedTable result */
+  /* Build the GroupedTable result and sort it */
   int n_groups = group_order->len;
+
+  /* Reorder groups based on key values to match OCaml's sorted order */
+  int *group_permutation = (int *)malloc(sizeof(int) * n_groups);
+  for (int i = 0; i < n_groups; i++) group_permutation[i] = i;
+
+  GroupedTableSortContext sort_ctx = {
+    .table = table,
+    .n_keys = n_keys,
+    .key_indices = key_indices,
+    .key_types = key_types,
+    .group_key_values = (gchar ***)group_key_vals->pdata
+  };
+
+  g_qsort_with_data(group_permutation, n_groups, sizeof(int),
+                    compare_group_keys, &sort_ctx);
+
   GroupedTable *gt = (GroupedTable *)malloc(sizeof(GroupedTable));
   gt->table = g_object_ref(table);
   gt->n_groups = n_groups;
@@ -1253,20 +1534,29 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   gt->group_row_indices = (int **)malloc(sizeof(int *) * n_groups);
   gt->group_key_values = (gchar ***)malloc(sizeof(gchar **) * n_groups);
 
+  for (int i = 0; i < n_groups; i++) {
+    int g = group_permutation[i];
+    GArray *rows = (GArray *)g_ptr_array_index(group_rows, g);
+    gt->group_sizes[i] = rows->len;
+    gt->group_row_indices[i] = (int *)malloc(sizeof(int) * rows->len);
+    memcpy(gt->group_row_indices[i], rows->data, sizeof(int) * rows->len);
+    /* GArray itself will be free'd later, but we need to manage row_keys ownership */
+
+    /* Copy key values for this group */
+    gt->group_key_values[i] = (gchar **)g_ptr_array_index(group_key_vals, g);
+  }
+
+  /* Cleanup unused group arrays and strings */
   for (int g = 0; g < n_groups; g++) {
     GArray *rows = (GArray *)g_ptr_array_index(group_rows, g);
-    gt->group_sizes[g] = rows->len;
-    gt->group_row_indices[g] = (int *)malloc(sizeof(int) * rows->len);
-    memcpy(gt->group_row_indices[g], rows->data, sizeof(int) * rows->len);
     g_array_free(rows, TRUE);
-
-    /* Use pre-stored key values (no delimiter parsing needed) */
-    gt->group_key_values[g] = (gchar **)g_ptr_array_index(group_key_vals, g);
 
     gchar *composite_key = (gchar *)g_ptr_array_index(group_order, g);
     g_free(composite_key);
   }
 
+  free(group_permutation);
+  free(key_types);
   free(key_indices);
   g_ptr_array_free(group_order, TRUE);
   g_ptr_array_free(group_rows, TRUE);

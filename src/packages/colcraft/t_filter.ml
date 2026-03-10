@@ -2,7 +2,8 @@ open Ast
 
 (** Try to vectorize a filter predicate.
     Detects simple patterns like \(row) row.col > scalar and uses
-    Arrow_compute.compare_column_scalar for zero-copy filtering. *)
+    Arrow_compute.compare_column_scalar for zero-copy filtering.
+    Also handles AND/OR combinations of simple comparisons. *)
 let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array option =
   match fn with
   | VLambda { params = [param]; body; _ } ->
@@ -36,9 +37,29 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
             | None -> None)
          | _ -> None)
     in
-    (match body with
-     | BinOp { op; left; right } -> try_cmp op left right
-     | _ -> None)
+    (* Recursively try to vectorize an expression, handling AND/OR *)
+    let rec try_vectorize_expr expr =
+      match expr with
+      | BinOp { op; left; right } ->
+        (match op with
+         | And ->
+           (* Pattern: predA && predB — intersect boolean masks *)
+           (match try_vectorize_expr left, try_vectorize_expr right with
+            | Some mask_l, Some mask_r ->
+              let n = min (Array.length mask_l) (Array.length mask_r) in
+              Some (Array.init n (fun i -> mask_l.(i) && mask_r.(i)))
+            | _ -> None)
+         | Or ->
+           (* Pattern: predA || predB — union boolean masks *)
+           (match try_vectorize_expr left, try_vectorize_expr right with
+            | Some mask_l, Some mask_r ->
+              let n = min (Array.length mask_l) (Array.length mask_r) in
+              Some (Array.init n (fun i -> mask_l.(i) || mask_r.(i)))
+            | _ -> None)
+         | _ -> try_cmp op left right)
+      | _ -> None
+    in
+    try_vectorize_expr body
   | _ -> None
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
