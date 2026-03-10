@@ -36,6 +36,7 @@ MONTHS="2023-01,2023-02,2023-03"
 RAW_DIR="$SCRIPT_DIR/data/raw"
 PARQUET_DIR="$SCRIPT_DIR/data/nyc_taxi_parquet"
 MATERIALIZED_CSV="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
+MATERIALIZED_PARQUET="$SCRIPT_DIR/data/nyc_taxi_materialized.parquet"
 TLC_TRIP_DATA_PAGE_URL="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"
 KEEP_RAW=0
 WRITE_MATERIALIZED=1
@@ -57,6 +58,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --materialized-csv)
       MATERIALIZED_CSV="${2:?missing value for --materialized-csv}"
+      shift 2
+      ;;
+    --materialized-parquet)
+      MATERIALIZED_PARQUET="${2:?missing value for --materialized-parquet}"
       shift 2
       ;;
     --clean)
@@ -96,6 +101,8 @@ mkdir -p "$PARQUET_DIR"
 if [[ "$WRITE_MATERIALIZED" -eq 1 ]]; then
   mkdir -p "$(dirname "$MATERIALIZED_CSV")"
   rm -f "$MATERIALIZED_CSV"
+  mkdir -p "$(dirname "$MATERIALIZED_PARQUET")"
+  rm -f "$MATERIALIZED_PARQUET"
 fi
 
 IFS=',' read -r -a MONTH_LIST <<< "$MONTHS"
@@ -226,7 +233,7 @@ if "month" not in df.columns:
     df["month"] = month
 
 table = pa.Table.from_pandas(df, preserve_index=False)
-pq.write_to_dataset(table, root_path=str(parquet_dir), partition_cols=["year", "month"])
+pq.write_to_dataset(table, root_path=str(parquet_dir), partitioning=["year", "month"])
 
 materialized_csv.parent.mkdir(parents=True, exist_ok=True)
 write_header = not materialized_csv.exists()
@@ -280,6 +287,22 @@ PY
     rm -f "$raw_input"
   fi
 done
+
+if [[ "$WRITE_MATERIALIZED" -eq 1 && -f "$MATERIALIZED_CSV" ]]; then
+  echo "Converting materialized CSV to Parquet: $MATERIALIZED_PARQUET"
+  python - "$MATERIALIZED_CSV" "$MATERIALIZED_PARQUET" <<'PY'
+import sys
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+csv_path = sys.argv[1]
+parquet_path = sys.argv[2]
+df = pd.read_csv(csv_path)
+table = pa.Table.from_pandas(df, preserve_index=False)
+pq.write_table(table, parquet_path)
+PY
+fi
 
 echo "Done."
 echo "Parquet dataset: $PARQUET_DIR"

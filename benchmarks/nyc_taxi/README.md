@@ -22,17 +22,13 @@ benchmarks/nyc_taxi/
   results/
 ```
 
-## Current T limitation
+## Benchmark Setup
 
-T does not yet expose `open_dataset()` / Parquet dataset primitives in the runtime.
-The benchmark therefore keeps the Python and R baselines on the partitioned Parquet
-dataset, while the T scripts benchmark the **full-materialization** path via a
-prepared CSV file.
+T now supports native **Parquet** ingestion via `read_parquet()`, allowing a direct head-to-head comparison with Python and R using the same binary format.
 
-That still makes the benchmark useful for the spec's intended comparison:
-
-- **Python/R**: dataset scan + filter pushdown against partitioned Parquet
-- **T**: materialized CSV execution with `read_csv() |> filter() |> group_by() |> summarize()`
+- **Python**: `pyarrow` + `pandas` scanning partitioned Parquet.
+- **R**: `arrow` + `dplyr` scanning partitioned Parquet.
+- **T**: Materialized Parquet or CSV execution with native Arrow-backed readers.
 
 ## Prerequisites
 

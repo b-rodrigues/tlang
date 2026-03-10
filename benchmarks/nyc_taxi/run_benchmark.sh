@@ -26,6 +26,7 @@ EOF
 
 PARQUET_DIR="$SCRIPT_DIR/data/nyc_taxi_parquet"
 CSV_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
+PARQUET_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.parquet"
 MONTHS="2023-01,2023-02,2023-03"
 RESULTS_PATH="$SCRIPT_DIR/results/results.csv"
 QUERIES="q1,q2,q3"
@@ -39,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --csv-path)
       CSV_PATH="${2:?missing value for --csv-path}"
+      shift 2
+      ;;
+    --parquet-path)
+      PARQUET_PATH="${2:?missing value for --parquet-path}"
       shift 2
       ;;
     --months)
@@ -86,27 +91,31 @@ ensure_benchmark_inputs() {
       --months "$MONTHS" \
       --clean \
       --parquet-dir "$PARQUET_DIR" \
-      --materialized-csv "$CSV_PATH"
+      --materialized-csv "$CSV_PATH" \
+      --materialized-parquet "$PARQUET_PATH"
     return
   fi
 
-  if [[ -f "$CSV_PATH" ]]; then
+  if [[ -f "$CSV_PATH" && -f "$PARQUET_PATH" ]]; then
     return
   fi
 
-  echo "Materialized CSV not found at $CSV_PATH. Building it from the existing parquet dataset."
-  python - "$PARQUET_DIR" "$CSV_PATH" <<'PY'
+  echo "Materialized inputs missing. Building them from the existing parquet dataset."
+  python - "$PARQUET_DIR" "$CSV_PATH" "$PARQUET_PATH" <<'PY'
 import pathlib
 import sys
 
 import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 
 parquet_dir = pathlib.Path(sys.argv[1])
 csv_path = pathlib.Path(sys.argv[2])
+parquet_path = pathlib.Path(sys.argv[3])
 
 dataset = ds.dataset(str(parquet_dir), format="parquet", partitioning="hive")
 csv_path.parent.mkdir(parents=True, exist_ok=True)
 
+# Write CSV
 write_header = True
 with csv_path.open("w", encoding="utf-8", newline="") as handle:
     for batch in dataset.to_batches():
@@ -116,11 +125,17 @@ with csv_path.open("w", encoding="utf-8", newline="") as handle:
         frame.to_csv(handle, index=False, header=write_header)
         write_header = False
 
+# Write Parquet
+table = dataset.to_table()
+pq.write_table(table, parquet_path)
+
 if write_header:
     csv_path.unlink(missing_ok=True)
+    parquet_path.unlink(missing_ok=True)
     raise SystemExit(f"Parquet dataset at {parquet_dir} did not contain any rows.")
 
 print(f"Materialized CSV written to {csv_path}")
+print(f"Materialized Parquet written to {parquet_path}")
 PY
 }
 
@@ -270,7 +285,7 @@ for query in "${QUERY_LIST[@]}"; do
   for iteration in $(seq 1 "$ITERATIONS"); do
     run_query python "$query" "$iteration" python "$python_script" --dataset "$PARQUET_DIR"
     run_query r "$query" "$iteration" Rscript "$r_script" "$PARQUET_DIR"
-    run_query t "$query" "$iteration" env NYC_TAXI_CSV="$CSV_PATH" "$T_BIN" run --unsafe "$t_script"
+    run_query t "$query" "$iteration" env NYC_TAXI_CSV="$CSV_PATH" NYC_TAXI_PARQUET="$PARQUET_PATH" "$T_BIN" run --unsafe "$t_script"
   done
 done
 
