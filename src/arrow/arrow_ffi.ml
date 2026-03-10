@@ -139,6 +139,27 @@ external arrow_compute_divide_scalar : nativeint -> string -> float -> nativeint
   = "caml_arrow_compute_divide_scalar"
 
 (* ===================================================================== *)
+(* Column-to-Column Arithmetic (Vectorized Processing)                    *)
+(* ===================================================================== *)
+
+(** Add two columns element-wise: result[i] = col1[i] + col2[i].
+    Returns Some(new_table_ptr) with the result column appended, or None. *)
+external arrow_compute_add_columns : nativeint -> string -> string -> string -> nativeint option
+  = "caml_arrow_compute_add_columns"
+
+(** Multiply two columns element-wise: result[i] = col1[i] * col2[i]. *)
+external arrow_compute_multiply_columns : nativeint -> string -> string -> string -> nativeint option
+  = "caml_arrow_compute_multiply_columns"
+
+(** Subtract two columns element-wise: result[i] = col1[i] - col2[i]. *)
+external arrow_compute_subtract_columns : nativeint -> string -> string -> string -> nativeint option
+  = "caml_arrow_compute_subtract_columns"
+
+(** Divide two columns element-wise: result[i] = col1[i] / col2[i]. *)
+external arrow_compute_divide_columns : nativeint -> string -> string -> string -> nativeint option
+  = "caml_arrow_compute_divide_columns"
+
+(* ===================================================================== *)
 (* Group-By & Aggregation (Phase 3)                                      *)
 (* ===================================================================== *)
 

@@ -1070,6 +1070,198 @@ CAMLprim value caml_arrow_compute_divide_scalar(value v_ptr, value v_col_name, v
 }
 
 /* ===================================================================== */
+/* Column-to-Column Arithmetic (Vectorized Processing)                    */
+/* ===================================================================== */
+
+/* Helper: apply a binary arithmetic operation element-by-element between two
+   numeric columns. Builds a new GArrowChunkedArray* with the results.
+   op_code: 0=add, 1=multiply, 2=subtract, 3=divide.
+   Returns NULL on failure or type mismatch. */
+static GArrowChunkedArray *
+apply_double_column_op(GArrowChunkedArray *chunked1, GArrowChunkedArray *chunked2,
+                       gint64 nrows, int op_code)
+{
+  GError *error = NULL;
+
+  /* Build a single result array from both input chunked arrays */
+  GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
+  gboolean ok = TRUE;
+
+  /* Track position within each chunked array's chunks */
+  guint c1 = 0, c2 = 0;
+  gint64 off1 = 0, off2 = 0;
+  GArrowArray *chunk1 = garrow_chunked_array_get_chunk(chunked1, 0);
+  GArrowArray *chunk2 = garrow_chunked_array_get_chunk(chunked2, 0);
+  gint64 len1 = garrow_array_get_length(chunk1);
+  gint64 len2 = garrow_array_get_length(chunk2);
+  guint nc1 = garrow_chunked_array_get_n_chunks(chunked1);
+  guint nc2 = garrow_chunked_array_get_n_chunks(chunked2);
+
+  for (gint64 i = 0; i < nrows && ok; i++) {
+    /* Advance chunk pointers if needed */
+    while (off1 >= len1 && c1 + 1 < nc1) {
+      g_object_unref(chunk1);
+      c1++;
+      off1 = 0;
+      chunk1 = garrow_chunked_array_get_chunk(chunked1, c1);
+      len1 = garrow_array_get_length(chunk1);
+    }
+    while (off2 >= len2 && c2 + 1 < nc2) {
+      g_object_unref(chunk2);
+      c2++;
+      off2 = 0;
+      chunk2 = garrow_chunked_array_get_chunk(chunked2, c2);
+      len2 = garrow_array_get_length(chunk2);
+    }
+
+    if (garrow_array_is_null(chunk1, off1) || garrow_array_is_null(chunk2, off2)) {
+      garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+    } else {
+      gdouble val1, val2;
+
+      /* Read val1 */
+      if (GARROW_IS_DOUBLE_ARRAY(chunk1)) {
+        val1 = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk1), off1);
+      } else if (GARROW_IS_INT64_ARRAY(chunk1)) {
+        val1 = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk1), off1);
+      } else { ok = FALSE; break; }
+
+      /* Read val2 */
+      if (GARROW_IS_DOUBLE_ARRAY(chunk2)) {
+        val2 = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk2), off2);
+      } else if (GARROW_IS_INT64_ARRAY(chunk2)) {
+        val2 = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk2), off2);
+      } else { ok = FALSE; break; }
+
+      gdouble result;
+      switch (op_code) {
+        case 0: result = val1 + val2; break;
+        case 1: result = val1 * val2; break;
+        case 2: result = val1 - val2; break;
+        case 3: result = val1 / val2; break;
+        default: result = val1; break;
+      }
+
+      garrow_double_array_builder_append_value(builder, result, &error);
+    }
+    if (error) { ok = FALSE; break; }
+    off1++;
+    off2++;
+  }
+
+  g_object_unref(chunk1);
+  g_object_unref(chunk2);
+
+  if (!ok) {
+    g_object_unref(builder);
+    if (error) g_error_free(error);
+    return NULL;
+  }
+
+  GArrowArray *result_array =
+      garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+  g_object_unref(builder);
+
+  if (result_array == NULL) {
+    if (error) g_error_free(error);
+    return NULL;
+  }
+
+  /* Wrap single array into a ChunkedArray */
+  GList *chunks_list = g_list_append(NULL, result_array);
+  GArrowChunkedArray *result = garrow_chunked_array_new(chunks_list);
+  g_list_free(chunks_list);
+  g_object_unref(result_array);
+
+  return result;
+}
+
+/* Implementation for column-to-column binary operations.
+   Looks up two columns by name, applies the operation, and builds a new table
+   with a result column appended (named after the first column).
+   Args: table_ptr, col_name1, col_name2, result_col_name
+   Returns: Some(new_table_ptr) or None */
+static value arrow_column_op_impl(value v_ptr, value v_col1, value v_col2,
+                                  value v_result_name, int op_code) {
+  CAMLparam4(v_ptr, v_col1, v_col2, v_result_name);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col1_name = String_val(v_col1);
+  const char *col2_name = String_val(v_col2);
+  const char *result_name = String_val(v_result_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx1 = garrow_schema_get_field_index(schema, col1_name);
+  gint idx2 = garrow_schema_get_field_index(schema, col2_name);
+  g_object_unref(schema);
+
+  if (idx1 < 0 || idx2 < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *ca1 = garrow_table_get_column_data(table, idx1);
+  GArrowChunkedArray *ca2 = garrow_table_get_column_data(table, idx2);
+  if (ca1 == NULL || ca2 == NULL) {
+    if (ca1) g_object_unref(ca1);
+    if (ca2) g_object_unref(ca2);
+    CAMLreturn(Val_none);
+  }
+
+  gint64 nrows = garrow_table_get_n_rows(table);
+  GArrowChunkedArray *result_col = apply_double_column_op(ca1, ca2, nrows, op_code);
+  g_object_unref(ca1);
+  g_object_unref(ca2);
+
+  if (result_col == NULL) CAMLreturn(Val_none);
+
+  /* Add the result column to the table */
+  GError *error = NULL;
+  GArrowDataType *dtype = garrow_chunked_array_get_value_data_type(result_col);
+  GArrowField *field = garrow_field_new(result_name, dtype);
+  g_object_unref(dtype);
+
+  guint ncols = garrow_table_get_n_columns(table);
+  GArrowTable *new_table =
+      garrow_table_add_column(table, ncols, field, result_col, &error);
+  g_object_unref(field);
+  g_object_unref(result_col);
+
+  if (new_table == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)new_table));
+  CAMLreturn(v_result);
+}
+
+/* Add two columns element-wise: result[i] = col1[i] + col2[i]
+   Args: table_ptr, col1_name, col2_name, result_col_name
+   Returns: Some(new_table_ptr) or None */
+CAMLprim value caml_arrow_compute_add_columns(value v_ptr, value v_col1,
+                                               value v_col2, value v_result) {
+  return arrow_column_op_impl(v_ptr, v_col1, v_col2, v_result, 0);
+}
+
+/* Multiply two columns element-wise: result[i] = col1[i] * col2[i] */
+CAMLprim value caml_arrow_compute_multiply_columns(value v_ptr, value v_col1,
+                                                    value v_col2, value v_result) {
+  return arrow_column_op_impl(v_ptr, v_col1, v_col2, v_result, 1);
+}
+
+/* Subtract two columns element-wise: result[i] = col1[i] - col2[i] */
+CAMLprim value caml_arrow_compute_subtract_columns(value v_ptr, value v_col1,
+                                                    value v_col2, value v_result) {
+  return arrow_column_op_impl(v_ptr, v_col1, v_col2, v_result, 2);
+}
+
+/* Divide two columns element-wise: result[i] = col1[i] / col2[i] */
+CAMLprim value caml_arrow_compute_divide_columns(value v_ptr, value v_col1,
+                                                  value v_col2, value v_result) {
+  return arrow_column_op_impl(v_ptr, v_col1, v_col2, v_result, 3);
+}
+
+/* ===================================================================== */
 /* Group-By & Aggregation (Phase 3)                                      */
 /* ===================================================================== */
 
