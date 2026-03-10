@@ -264,13 +264,13 @@ let read_csv_local (path : string) : (Arrow_table.t, string) result =
     (* Try native Arrow CSV reader first *)
     match read_csv_native path with
     | Ok _ as result -> result
-    | Error _native_err ->
+    | Error native_err ->
         (* Native Arrow reader failed — fall back to pure OCaml parser.
            This can happen if the file format is not supported by Arrow's
            CSV reader or if the native library encounters an error. *)
         Printf.eprintf
-          "Warning: native Arrow CSV reader failed for `%s`; falling back to the OCaml CSV parser.\n%!"
-          path;
+          "Warning: Native Arrow CSV reader failed (%s). Falling back to the OCaml CSV parser.\n%!"
+          native_err;
         read_csv_fallback path
   else
     read_csv_fallback path

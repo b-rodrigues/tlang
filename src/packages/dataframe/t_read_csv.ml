@@ -192,6 +192,9 @@ let register env =
         not (is_sep_name name) && name <> Some "skip_header"
         && name <> Some "skip_lines" && name <> Some "clean_colnames"
       ) named_args |> List.map snd in
+      (* Native Arrow CSV ingestion only matches the public read_csv defaults.
+         Non-default separators and line/header/name transformations still rely
+         on the richer OCaml parser below. *)
       let use_native_default_path =
         sep = ',' && not skip_header && skip_lines = 0 && not do_clean
       in
@@ -200,7 +203,7 @@ let register env =
           if use_native_default_path then
             (match Arrow_io.read_csv path with
             | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
-            | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
+            | Error msg -> Error.make_error FileError msg)
           else
             (try
               let read_content_from_path p =
@@ -223,7 +226,7 @@ let register env =
               in
               parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean content
             with
-            | Sys_error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
+            | Sys_error msg -> Error.make_error FileError msg)
       | [VNA _] -> Error.type_error "Function `read_csv` expects a String path, got NA."
       | [_] -> Error.type_error "Function `read_csv` expects a String path."
       | _ -> Error.make_error ArityError "Function `read_csv` takes exactly 1 positional argument (path)."

@@ -21,7 +21,7 @@ let register env =
       | [VString path] ->
           (match Arrow_io.read_parquet path with
           | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
-          | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
+          | Error msg -> Error.make_error FileError msg)
       | [VNA _] -> Error.type_error "Function `read_parquet` expects a String path, got NA."
       | [_] -> Error.type_error "Function `read_parquet` expects a String path."
       | _ -> Error.arity_error_named "read_parquet" ~expected:1 ~received:(List.length args)
