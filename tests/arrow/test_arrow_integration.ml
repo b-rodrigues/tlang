@@ -1192,14 +1192,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
        for i = 1 to stress_iterations do
          let native_tbl = Arrow_table.materialize (make_stress_table i) in
          if not (Arrow_table.is_native_backed native_tbl) then
-           (stress_failed := Some (Printf.sprintf "materialize returned pure OCaml fallback at iteration %d" i); raise Exit)
+           stress_failed := Some (Printf.sprintf "materialize returned pure OCaml fallback at iteration %d" i)
          else if Arrow_table.num_rows native_tbl <> 2 then
-           (stress_failed := Some (Printf.sprintf "num_rows returned an unexpected value at iteration %d" i); raise Exit)
+           stress_failed := Some (Printf.sprintf "num_rows returned an unexpected value at iteration %d" i)
          else
-           match Arrow_table.get_column native_tbl "nested" with
+           (match Arrow_table.get_column native_tbl "nested" with
            | Some (Arrow_table.ListColumn nested) when Array.length nested = 2 -> ()
            | _ ->
-               (stress_failed := Some (Printf.sprintf "nested ListColumn read-back failed at iteration %d" i); raise Exit);
+               stress_failed := Some (Printf.sprintf "nested ListColumn read-back failed at iteration %d" i));
+
+         if !stress_failed <> None then raise Exit;
+
          if i mod stress_gc_interval = 0
             || (i = stress_iterations && i mod stress_gc_interval <> 0)
          then Gc.full_major ()
