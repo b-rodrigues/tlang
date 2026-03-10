@@ -29,6 +29,7 @@ There is also an important implementation gap between the backend and the public
 
 - `src/arrow/arrow_io.ml` contains a native Arrow CSV reader,
 - but the public `read_csv` builtin in `src/packages/dataframe/t_read_csv.ml` still parses CSV in OCaml and then converts the result into an Arrow table.
+- based on the current source, this reads more like an unfinished integration split than a clearly documented intentional design choice.
 
 So Arrow support is real and broad, but not yet fully unified or fully documented from a user point of view.
 
@@ -146,7 +147,7 @@ These features exist in the backend, but are not yet cleanly represented in user
 - Arrow IPC support is implemented, but under-documented.
 - Pipeline Arrow interop exists, but most of the narrative lives in `spec_files/` and tests rather than in `docs/`.
 - Native Arrow CSV reading exists in `src/arrow/arrow_io.ml`, but the public `read_csv()` builtin does not appear to use it yet.
-- `docs/performance.md` still describes some column families as unsupported for native rebuild even though the code now supports native dictionary, list, and date materialization.
+- `docs/performance.md` still describes dictionary/factor, list, and date columns as unsupported for native rebuild even though the code now includes native dictionary, list, and date materialization paths.
 
 ### Partially implemented or still limited
 
