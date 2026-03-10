@@ -15,7 +15,5 @@ result = df
   |> summarize($avg_fare = mean($fare_amount, na_rm = true), $trips = nrow($passenger_count))
 
 print(result)
-print("ROWS_SCANNED=")
-print(nrow(df))
-print("ROWS_RETURNED=")
-print(nrow(result))
+print(str_join(["ROWS_SCANNED=", str_string(nrow(df))]))
+print(str_join(["ROWS_RETURNED=", str_string(nrow(result))]))
