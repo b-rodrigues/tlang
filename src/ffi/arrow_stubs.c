@@ -512,13 +512,17 @@ CAMLprim value caml_arrow_read_list_column(value v_array_ptr) {
   GArrowListArray *list_array = GARROW_LIST_ARRAY(array);
   gint64 length = garrow_array_get_length(array);
 
-  /* Get the flattened child values array */
+  /* Get the flattened child values array.
+     garrow_list_array_get_values() returns a borrowed reference (transfer none),
+     so we must take our own reference to keep it alive after unreffing the
+     parent list array below. The OCaml side will release this reference via
+     arrow_unref after reading all struct fields. */
   GArrowArray *values_array = garrow_list_array_get_values(list_array);
+  g_object_ref(values_array);
 
   /* Wrap child array pointer as Some(nativeint) */
   v_child_opt = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_child_opt, 0, caml_copy_nativeint((intnat)values_array));
-  /* Note: values_array reference is kept alive — the OCaml reader will unref it */
 
   /* Build per-row slice descriptors */
   v_slices = caml_alloc(length, 0);
