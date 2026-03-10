@@ -57,6 +57,7 @@ Example subset:
 ```bash
 ./benchmarks/nyc_taxi/prepare_dataset.sh \
   --months 2023-01,2023-02,2023-03 \
+  --clean \
   --raw-dir /tmp/nyc-taxi-raw \
   --parquet-dir /tmp/nyc-taxi-parquet \
   --materialized-csv /tmp/nyc-taxi-materialized.csv
@@ -68,6 +69,9 @@ The preparation script:
 2. adds `year` and `month` columns when needed
 3. writes a Hive-partitioned Parquet dataset
 4. optionally appends the same data to a single materialized CSV file for T
+
+For safety, `prepare_dataset.sh` refuses to write into a non-empty Parquet output
+directory unless you pass `--clean`.
 
 See [`dataset.md`](dataset.md) for more details.
 
@@ -99,6 +103,6 @@ Each run records:
 - `rows_returned`
 - `status`
 
-`rows_scanned` is currently recorded as the input row count observed by the script.
-Lower-level scan metrics from Arrow dataset internals are not yet surfaced by these
-benchmarks.
+`rows_scanned` is currently reported as `NA` for the Parquet-backed Python and R
+scripts so the benchmark does not perform an extra full-dataset pass just to count
+rows. The T scripts still report the materialized CSV row count after `read_csv()`.

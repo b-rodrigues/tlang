@@ -31,7 +31,7 @@ For large runs, this can easily require tens of gigabytes of disk space.
 `prepare_dataset.sh` writes Parquet with Hive-style partition directories:
 
 ```text
-.../nyc_taxi_parquet/year=2023/month=01/...
+.../nyc_taxi_parquet/year=2023/month=1/...
 ```
 
 The preparation step ensures `year` and `month` columns exist before the Parquet
@@ -53,3 +53,7 @@ building the Parquet dataset:
 
 If you already have a suitable CSV file, pass it directly to the benchmark runner
 with `--csv-path`.
+
+If you rerun preparation into the same Parquet directory, pass `--clean` first.
+Without it, `prepare_dataset.sh` stops instead of appending duplicate data files to
+existing partitions.

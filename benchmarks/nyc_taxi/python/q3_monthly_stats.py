@@ -12,7 +12,6 @@ def main() -> None:
 
     started = time.perf_counter()
     dataset = ds.dataset(args.dataset, format="parquet", partitioning="hive")
-    rows_scanned = dataset.count_rows()
 
     table = dataset.to_table(
         filter=pc.field("trip_distance") > 5,
@@ -27,7 +26,7 @@ def main() -> None:
     )
 
     print(result)
-    print(f"ROWS_SCANNED={rows_scanned}")
+    print("ROWS_SCANNED=NA")
     print(f"ROWS_RETURNED={len(result.index)}")
     print(f"ELAPSED_SEC={time.perf_counter() - started:.6f}")
 

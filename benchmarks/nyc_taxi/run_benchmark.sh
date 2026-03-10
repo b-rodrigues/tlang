@@ -88,12 +88,22 @@ if ! command -v t >/dev/null 2>&1; then
   exit 1
 fi
 
-TIME_BIN="$(command -v /usr/bin/time || true)"
+TIME_BIN=""
+for candidate in /usr/bin/time gtime; do
+  if [[ "$candidate" = "/usr/bin/time" && ! -x "$candidate" ]]; then
+    continue
+  fi
+  if [[ "$candidate" != "/usr/bin/time" ]] && ! command -v "$candidate" >/dev/null 2>&1; then
+    continue
+  fi
+  if "$candidate" -f 'TIME_SEC=%e' bash -lc 'exit 0' >/dev/null 2>/dev/null; then
+    TIME_BIN="$(command -v "$candidate" || echo "$candidate")"
+    break
+  fi
+done
+
 if [[ -z "$TIME_BIN" ]]; then
-  TIME_BIN="$(command -v time || true)"
-fi
-if [[ -z "$TIME_BIN" ]]; then
-  echo "GNU time is required to record memory usage" >&2
+  echo "GNU time with -f support is required to record memory usage." >&2
   exit 1
 fi
 
@@ -126,6 +136,12 @@ run_query() {
 
   local stdout_file
   local stderr_file
+  local status
+  local time_sec
+  local memory_kb
+  local memory_mb
+  local rows_scanned
+  local rows_returned
   stdout_file="$(mktemp)"
   stderr_file="$(mktemp)"
 

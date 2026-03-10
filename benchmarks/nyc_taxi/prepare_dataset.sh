@@ -18,6 +18,7 @@ Options:
   --raw-dir PATH             Directory for downloaded CSV files
   --parquet-dir PATH         Output directory for the partitioned parquet dataset
   --materialized-csv PATH    Optional CSV output for T benchmarks
+  --clean                    Remove existing parquet output before writing
   --keep-raw                 Keep downloaded CSV files after conversion
   --no-materialized-csv      Skip materialized CSV generation
   --help                     Show this message
@@ -37,6 +38,7 @@ PARQUET_DIR="$SCRIPT_DIR/data/nyc_taxi_parquet"
 MATERIALIZED_CSV="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
 KEEP_RAW=0
 WRITE_MATERIALIZED=1
+CLEAN_PARQUET=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -55,6 +57,10 @@ while [[ $# -gt 0 ]]; do
     --materialized-csv)
       MATERIALIZED_CSV="${2:?missing value for --materialized-csv}"
       shift 2
+      ;;
+    --clean)
+      CLEAN_PARQUET=1
+      shift
       ;;
     --keep-raw)
       KEEP_RAW=1
@@ -76,7 +82,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-mkdir -p "$RAW_DIR" "$PARQUET_DIR"
+mkdir -p "$RAW_DIR"
+if [[ "$CLEAN_PARQUET" -eq 1 ]]; then
+  rm -rf "$PARQUET_DIR"
+fi
+if [[ -d "$PARQUET_DIR" ]] && find "$PARQUET_DIR" -mindepth 1 -print -quit | grep -q .; then
+  echo "Parquet output directory is not empty: $PARQUET_DIR" >&2
+  echo "Re-running without cleaning can duplicate benchmark data. Use --clean to overwrite it." >&2
+  exit 1
+fi
+mkdir -p "$PARQUET_DIR"
 if [[ "$WRITE_MATERIALIZED" -eq 1 ]]; then
   mkdir -p "$(dirname "$MATERIALIZED_CSV")"
   rm -f "$MATERIALIZED_CSV"

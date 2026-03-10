@@ -11,7 +11,6 @@ suppressPackageStartupMessages({
 started <- Sys.time()
 dataset_path <- args[[1]]
 ds_tbl <- open_dataset(dataset_path, format = "parquet")
-rows_scanned <- ds_tbl |> summarise(rows = n()) |> collect() |> pull(rows)
 
 result <- ds_tbl |>
   filter(trip_distance > 10) |>
@@ -19,6 +18,6 @@ result <- ds_tbl |>
   collect()
 
 print(result)
-cat(sprintf("ROWS_SCANNED=%s\n", rows_scanned))
+cat("ROWS_SCANNED=NA\n")
 cat(sprintf("ROWS_RETURNED=%s\n", nrow(result)))
 cat(sprintf("ELAPSED_SEC=%.6f\n", as.numeric(difftime(Sys.time(), started, units = "secs"))))
