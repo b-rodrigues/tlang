@@ -217,13 +217,13 @@
             elif [[ -f "$PWD/dune-project" ]]; then
               export TLANG_REPO_ROOT="$PWD"
             fi
-            export TLANG_DEV_BIN="$(mktemp -d "${TMPDIR:-/tmp}/tlang-shell-bin.XXXXXX")"
+            export TLANG_DEV_BIN="$(mktemp -d "''${TMPDIR:-/tmp}/tlang-shell-bin.XXXXXX")"
             trap 'rm -rf "$TLANG_DEV_BIN"' EXIT
             cat > "$TLANG_DEV_BIN/t" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="${TLANG_REPO_ROOT:-}"
+repo_root="''${TLANG_REPO_ROOT:-}"
 
 if [[ -z "$repo_root" || ! -f "$repo_root/dune-project" ]]; then
   if command -v git >/dev/null 2>&1; then
