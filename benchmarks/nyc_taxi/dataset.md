@@ -27,6 +27,7 @@ You should plan for:
 - the raw CSV downloads
 - the partitioned Parquet dataset
 - an optional materialized CSV file for the current T benchmark path
+- an optional Arrow IPC cache derived from that CSV for repeated T benchmark runs
 
 For large runs, this can easily require tens of gigabytes of disk space.
 
@@ -44,7 +45,8 @@ dataset is written.
 ## T benchmark input
 
 Until T grows a native `open_dataset()` / Parquet dataset API, the T query scripts
-consume a single CSV file via the `NYC_TAXI_CSV` environment variable.
+consume a single-file materialization via the `NYC_TAXI_CSV` environment variable,
+and prefer a sibling Arrow IPC cache via `NYC_TAXI_ARROW` when it exists.
 
 The preparation script can generate that materialized CSV incrementally while it is
 building the Parquet dataset:
@@ -56,11 +58,13 @@ building the Parquet dataset:
 ```
 
 If you already have a suitable CSV file, pass it directly to the benchmark runner
-with `--csv-path`.
+with `--csv-path`. The runner will derive a sibling `.arrow` path from that CSV
+location and cache an Arrow IPC file there for `read_arrow()` when needed.
 
 `run_benchmark.sh` can also prepare these inputs automatically: it downloads and
 builds the Parquet dataset when it is missing, and if only the materialized CSV
-is missing it regenerates that CSV from the existing Parquet dataset.
+is missing it regenerates that CSV from the existing Parquet dataset. After that,
+it creates or refreshes the sibling Arrow IPC cache before running the T queries.
 
 If you rerun preparation into the same Parquet directory, pass `--clean` first.
 Without it, `prepare_dataset.sh` stops instead of appending duplicate data files to

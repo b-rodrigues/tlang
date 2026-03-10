@@ -27,12 +27,12 @@ benchmarks/nyc_taxi/
 T does not yet expose `open_dataset()` / Parquet dataset primitives in the runtime.
 The benchmark therefore keeps the Python and R baselines on the partitioned Parquet
 dataset, while the T scripts benchmark the **full-materialization** path via a
-prepared CSV file.
+prepared single-file input.
 
 That still makes the benchmark useful for the spec's intended comparison:
 
 - **Python/R**: dataset scan + filter pushdown against partitioned Parquet
-- **T**: materialized CSV execution with `read_csv() |> filter() |> group_by() |> summarize()`
+- **T**: materialized single-file execution, preferring `read_arrow()` when an Arrow IPC cache is available and falling back to `read_csv()`
 
 ## Prerequisites
 
@@ -69,6 +69,7 @@ The preparation script:
 2. adds `year` and `month` columns when needed
 3. writes a Hive-partitioned Parquet dataset
 4. optionally appends the same data to a single materialized CSV file for T
+5. and, when the benchmark runner executes, caches a sibling Arrow IPC file so T can load it through `read_arrow()`
 
 For safety, `prepare_dataset.sh` refuses to write into a non-empty Parquet output
 directory unless you pass `--clean`.
@@ -88,8 +89,10 @@ See [`dataset.md`](dataset.md) for more details.
 If the Parquet dataset is missing, the runner now calls `prepare_dataset.sh`
 non-interactively to download and build it before benchmarking. If only the
 materialized CSV is missing, the runner regenerates it from the existing Parquet
-dataset. Use `--months` to control which monthly TLC files are downloaded during
-that automatic preparation step.
+dataset. The runner also caches a sibling `.arrow` IPC file next to the CSV and
+passes both paths to the T scripts; those scripts prefer `read_arrow()` when the
+Arrow cache is present. Use `--months` to control which monthly TLC files are
+downloaded during that automatic preparation step.
 
 The runner writes results to:
 
@@ -112,4 +115,5 @@ Each run records:
 
 `rows_scanned` is currently reported as `NA` for the Parquet-backed Python and R
 scripts so the benchmark does not perform an extra full-dataset pass just to count
-rows. The T scripts still report the materialized CSV row count after `read_csv()`.
+rows. The T scripts report the loaded single-file row count after `read_arrow()`
+or `read_csv()`, depending on which benchmark input is available.

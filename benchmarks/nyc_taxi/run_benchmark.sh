@@ -66,8 +66,19 @@ while [[ $# -gt 0 ]]; do
       usage >&2
       exit 1
       ;;
-  esac
+    esac
 done
+
+default_arrow_path_from_csv() {
+  local csv_path="$1"
+  if [[ "$csv_path" == *.csv ]]; then
+    printf '%s\n' "${csv_path%.csv}.arrow"
+  else
+    printf '%s.arrow\n' "$csv_path"
+  fi
+}
+
+ARROW_PATH="$(default_arrow_path_from_csv "$CSV_PATH")"
 
 if ! command -v python >/dev/null 2>&1; then
   echo "python is required" >&2
@@ -79,6 +90,30 @@ directory_has_contents() {
   [[ -d "$path" ]] && find "$path" -mindepth 1 -print -quit | grep -q .
 }
 
+ensure_arrow_cache() {
+  if [[ -f "$ARROW_PATH" && ! "$ARROW_PATH" -ot "$CSV_PATH" ]]; then
+    return
+  fi
+
+  echo "Arrow IPC benchmark input not found or stale at $ARROW_PATH. Building it from $CSV_PATH."
+  python - "$CSV_PATH" "$ARROW_PATH" <<'PY'
+import pathlib
+import sys
+
+import pyarrow.csv as csv
+import pyarrow.feather as feather
+
+csv_path = pathlib.Path(sys.argv[1])
+arrow_path = pathlib.Path(sys.argv[2])
+
+table = csv.read_csv(csv_path)
+arrow_path.parent.mkdir(parents=True, exist_ok=True)
+feather.write_feather(table, arrow_path, version=2)
+
+print(f"Materialized Arrow IPC written to {arrow_path}")
+PY
+}
+
 ensure_benchmark_inputs() {
   if ! directory_has_contents "$PARQUET_DIR"; then
     echo "Parquet dataset not found at $PARQUET_DIR. Preparing benchmark data for months: $MONTHS"
@@ -87,15 +122,9 @@ ensure_benchmark_inputs() {
       --clean \
       --parquet-dir "$PARQUET_DIR" \
       --materialized-csv "$CSV_PATH"
-    return
-  fi
-
-  if [[ -f "$CSV_PATH" ]]; then
-    return
-  fi
-
-  echo "Materialized CSV not found at $CSV_PATH. Building it from the existing parquet dataset."
-  python - "$PARQUET_DIR" "$CSV_PATH" <<'PY'
+  elif [[ ! -f "$CSV_PATH" ]]; then
+    echo "Materialized CSV not found at $CSV_PATH. Building it from the existing parquet dataset."
+    python - "$PARQUET_DIR" "$CSV_PATH" <<'PY'
 import pathlib
 import sys
 
@@ -122,6 +151,9 @@ if write_header:
 
 print(f"Materialized CSV written to {csv_path}")
 PY
+  fi
+
+  ensure_arrow_cache
 }
 
 ensure_benchmark_inputs
@@ -270,7 +302,7 @@ for query in "${QUERY_LIST[@]}"; do
   for iteration in $(seq 1 "$ITERATIONS"); do
     run_query python "$query" "$iteration" python "$python_script" --dataset "$PARQUET_DIR"
     run_query r "$query" "$iteration" Rscript "$r_script" "$PARQUET_DIR"
-    run_query t "$query" "$iteration" env NYC_TAXI_CSV="$CSV_PATH" "$T_BIN" run --unsafe "$t_script"
+    run_query t "$query" "$iteration" env NYC_TAXI_CSV="$CSV_PATH" NYC_TAXI_ARROW="$ARROW_PATH" "$T_BIN" run --unsafe "$t_script"
   done
 done
 
