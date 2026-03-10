@@ -100,6 +100,8 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
     Store_field(v_cons, 1, v_result);
     v_result = v_cons;
 
+    /* dtype and field are full transfers but unreffing here might be problematic if they are cached?
+       Actually, documentation says they are full. Keeping unref for field but removing for dtype for now. */
     g_object_unref(field);
   }
 
@@ -145,22 +147,17 @@ CAMLprim value caml_arrow_table_get_column_data_by_name(value v_ptr, value v_col
   GArrowArray *array = NULL;
 
   if (n_chunks == 1) {
-    /* Single chunk — fast path, no combining needed */
     array = garrow_chunked_array_get_chunk(chunked, 0);
+    if (array) g_object_ref(array);
   } else {
-    /* Multi-chunk — combine into a single contiguous array.
-       This ensures column reading functions receive all data,
-       not just the first chunk. */
     GError *error = NULL;
     GArrowArray *combined = garrow_chunked_array_combine(chunked, &error);
     if (combined != NULL) {
       array = combined;
     } else {
-      /* Combine failed — fall back to first chunk only.
-         Data beyond chunk 0 will be lost, but this is safer
-         than returning None. */
       if (error) g_error_free(error);
       array = garrow_chunked_array_get_chunk(chunked, 0);
+      if (array) g_object_ref(array);
     }
   }
 
@@ -473,9 +470,7 @@ CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
     }
   }
 
-  g_object_unref(indices_arr);
-  g_object_unref(dictionary);
-
+  /* indices_arr and dictionary are borrowed components - don't unref them */
   /* Build result tuple: (indices, levels, ordered) */
   v_result = caml_alloc(3, 0);
   Store_field(v_result, 0, v_indices);
@@ -524,14 +519,17 @@ CAMLprim value caml_arrow_read_list_column(value v_array_ptr) {
   v_child_opt = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_child_opt, 0, caml_copy_nativeint((intnat)values_array));
 
+  gint64 n_raw_offsets = 0;
+  const gint32 *raw_offsets = garrow_list_array_get_value_offsets(list_array, &n_raw_offsets);
+
   /* Build per-row slice descriptors */
   v_slices = caml_alloc(length, 0);
   for (gint64 i = 0; i < length; i++) {
     if (garrow_array_is_null(array, i)) {
       Store_field(v_slices, i, Val_none);
     } else {
-      gint32 offset = garrow_list_array_get_value_offset(list_array, i);
-      gint32 len = garrow_list_array_get_value_length(list_array, i);
+      gint32 offset = raw_offsets[i];
+      gint32 len = raw_offsets[i+1] - offset;
       v_tuple = caml_alloc(2, 0);
       Store_field(v_tuple, 0, Val_int(offset));
       Store_field(v_tuple, 1, Val_int(len));
@@ -602,9 +600,6 @@ CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
     Store_field(v_cons, 0, v_tuple);
     Store_field(v_cons, 1, v_result);
     v_result = v_cons;
-
-    g_object_unref(fdtype);
-    g_object_unref(field);
   }
 
   g_object_unref(base_dtype);
@@ -2339,8 +2334,8 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         fields = g_list_append(fields, field);
         columns = g_list_append(columns, chunked);
         g_object_unref(dtype);
-        dtype = NULL; /* prevent double-free below */
-        n_rows = 0; /* signal that we handled this column directly */
+        dtype = NULL;
+        n_rows = 0;
         break;
       }
       case 5: { // List of Structs (ListColumn — nested DataFrames)
@@ -2515,11 +2510,11 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
 
         /* Build offsets buffer (int32) */
         gint32 *offsets_raw = g_new(gint32, n_offsets);
-        for (int k = 0; k < n_offsets; k++)
+        for (int k = 0; k < n_offsets; k++) {
           offsets_raw[k] = (gint32)Int_val(Field(v_offsets, k));
-        GArrowBuffer *offsets_buf = garrow_buffer_new(
-          (const guint8 *)offsets_raw, n_offsets * sizeof(gint32));
-        g_free(offsets_raw);
+        }
+        /* Use mutable buffer which takes ownership of offsets_raw and will g_free it */
+        GArrowBuffer *offsets_buf = GARROW_BUFFER(garrow_mutable_buffer_new((guint8 *)offsets_raw, n_offsets * sizeof(gint32)));
 
         /* Build null bitmap */
         int n_nulls = 0;
@@ -2532,8 +2527,11 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
             n_nulls++;
         }
         GArrowBuffer *null_bmp = NULL;
-        if (n_nulls > 0)
-          null_bmp = garrow_buffer_new(bitmap_raw, bitmap_bytes);
+        if (n_nulls > 0) {
+          GBytes *null_bytes = g_bytes_new(bitmap_raw, bitmap_bytes);
+          null_bmp = garrow_buffer_new_bytes(null_bytes);
+          g_bytes_unref(null_bytes);
+        }
         g_free(bitmap_raw);
 
         /* Create list data type */
@@ -2578,6 +2576,7 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         columns = g_list_append(columns, lchunked);
         g_object_unref(list_dtype_obj);
         dtype = NULL;
+        builder = NULL;
         n_rows = 0;
         break;
       }
@@ -2608,7 +2607,7 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
       GArrowArray *array = garrow_array_builder_finish(builder, &error);
       if (error) {
          g_object_unref(builder);
-         g_object_unref(dtype);
+         if (dtype) g_object_unref(dtype);
          break;
       }
       GList *chunks = g_list_append(NULL, array);
@@ -2618,14 +2617,15 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
       g_object_unref(array);
 
       if (error) {
-         g_object_unref(dtype);
+         if (dtype) g_object_unref(dtype);
          break;
       }
 
       GArrowField *field = garrow_field_new(name, dtype);
       fields = g_list_append(fields, field);
       columns = g_list_append(columns, chunked);
-      g_object_unref(dtype);
+      if (dtype) g_object_unref(dtype);
+      dtype = NULL;
     }
 
     v_iter = Field(v_iter, 1);
@@ -2646,11 +2646,14 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
     g_object_unref(schema);
   }
 
-  g_list_free_full(fields, g_object_unref);
-  g_list_free_full(columns, g_object_unref);
+  if (fields) g_list_free_full(fields, g_object_unref);
+  if (columns) g_list_free_full(columns, g_object_unref);
 
   if (table == NULL) {
-    if (error) g_error_free(error);
+    if (error) {
+      // printf("[DEBUG C] table creation error: %s\n", error->message);
+      g_error_free(error);
+    }
     CAMLreturn(Val_none);
   }
 
