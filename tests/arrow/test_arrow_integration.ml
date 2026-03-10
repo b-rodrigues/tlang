@@ -270,6 +270,24 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       {|read_csv("%s") |> filter($age > 25) |> select($name, $score) |> nrow|} csv_path)
     "2";
 
+  let csv_native_path = "test_arrow_large_public_read_csv.csv" in
+  let oc_native = open_out csv_native_path in
+  output_string oc_native "id,value,name\n";
+  for i = 1 to 20000 do
+    Printf.fprintf oc_native "%d,%.2f,name_%d\n" i (float_of_int i /. 10.0) i
+  done;
+  close_out oc_native;
+  let (v, _) = eval_string_env
+    (Printf.sprintf {|df_native = read_csv("%s"); explain(df_native).native_path_active|} csv_native_path)
+    env in
+  let result = Ast.Utils.value_to_string v in
+  if result = "true" then begin
+    incr pass_count; Printf.printf "  ✓ read_csv preserves native Arrow backing on large default CSV path\n"
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "read_csv preserves native Arrow backing on large default CSV path"
+  end;
+
   let csv_skip_path = "test_arrow_csv_skip_lines.csv" in
   let oc = open_out csv_skip_path in
   output_string oc "junk1,junk2\nname,age\nAlice,30\nBob,25\n";
@@ -1433,6 +1451,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
+  (try Sys.remove csv_native_path with _ -> ());
   (try Sys.remove csv_skip_path with _ -> ());
   (try Sys.remove ipc_path with _ -> ());
   (try Sys.remove dict_ipc_path with _ -> ());
