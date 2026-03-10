@@ -597,5 +597,121 @@ df |> filter($age > 25)
 
   print_newline ();
 
+  Printf.printf "Phase 4 — Vectorized Processing:\n";
+
+  (* Vectorized ungrouped summarize with mean *)
+  let (v, _) = eval_string_env {|summarize(df, $avg_score = mean($score))|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(1 rows x 1 cols: [avg_score])" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized ungrouped summarize mean\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized ungrouped summarize mean\n    Expected: DataFrame(1 rows x 1 cols: [avg_score])\n    Got: %s\n" result
+  end;
+
+  (* Vectorized ungrouped summarize with sum *)
+  let (v, _) = eval_string_env {|summarize(df, $total_score = sum($score))|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(1 rows x 1 cols: [total_score])" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized ungrouped summarize sum\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized ungrouped summarize sum\n    Expected: DataFrame(1 rows x 1 cols: [total_score])\n    Got: %s\n" result
+  end;
+
+  (* Vectorized ungrouped summarize with min/max *)
+  let (v, _) = eval_string_env {|result = summarize(df, $min_age = min($age), $max_age = max($age)); result.min_age|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[25]" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized ungrouped summarize min/max produces correct min\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized ungrouped summarize min/max produces correct min\n    Expected: Vector[25]\n    Got: %s\n" result
+  end;
+
+  (* Vectorized grouped summarize with mean *)
+  let (v, _) = eval_string_env
+    {|result = df |> group_by($dept) |> summarize($avg_score = mean($score)); result.avg_score|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  let contains s sub =
+    let slen = String.length s in
+    let sublen = String.length sub in
+    let rec chk i = if i > slen - sublen then false
+      else if String.sub s i sublen = sub then true else chk (i + 1)
+    in chk 0
+  in
+  if contains result "93.03333" && contains result "87.65" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized grouped summarize mean produces correct values\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized grouped summarize mean produces correct values\n    Expected eng ~93.03 and sales ~87.65\n    Got: %s\n" result
+  end;
+
+  (* Vectorized grouped summarize with sum *)
+  let (v, _) = eval_string_env
+    {|df |> group_by($dept) |> summarize($total_score = sum($score))|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(2 rows x 2 cols: [dept, total_score])" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized grouped summarize sum\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized grouped summarize sum\n    Expected: DataFrame(2 rows x 2 cols: [dept, total_score])\n    Got: %s\n" result
+  end;
+
+  (* Vectorized mutate: column-scalar addition *)
+  let (v, _) = eval_string_env {|result = mutate(df, $age_plus_5 = $age + 5); result.age_plus_5|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[35, 30, 40, 33, 37]" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized mutate column + scalar\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized mutate column + scalar\n    Expected: Vector[35, 30, 40, 33, 37]\n    Got: %s\n" result
+  end;
+
+  (* Vectorized mutate: column-scalar multiplication *)
+  let (v, _) = eval_string_env {|result = mutate(df, $age_x2 = $age * 2); result.age_x2|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[60, 50, 70, 56, 64]" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized mutate column * scalar\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized mutate column * scalar\n    Expected: Vector[60, 50, 70, 56, 64]\n    Got: %s\n" result
+  end;
+
+  (* Vectorized mutate: column-to-column multiplication *)
+  let (v, _) = eval_string_env {|result = mutate(df, $age_score = $age * $score); ncol(result)|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized mutate column * column\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized mutate column * column\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  (* Vectorized filter: compound AND predicate *)
+  let (v, _) = eval_string_env {|df |> filter($age > 25 && $score > 90) |> nrow|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "3" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized filter with AND predicate\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized filter with AND predicate\n    Expected: 3\n    Got: %s\n" result
+  end;
+
+  (* Vectorized filter: compound OR predicate *)
+  let (v, _) = eval_string_env {|df |> filter($age < 26 || $score > 95) |> nrow|} env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "2" then begin
+    incr pass_count; Printf.printf "  ✓ vectorized filter with OR predicate\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ vectorized filter with OR predicate\n    Expected: 2\n    Got: %s\n" result
+  end;
+
+  (* Mixed vectorized + non-vectorized summarize *)
+  let (v, _) = eval_string_env
+    {|summarize(df, $avg_score = mean($score), $total_rows = nrow(df))|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "DataFrame(1 rows x 2 cols: [avg_score, total_rows])" then begin
+    incr pass_count; Printf.printf "  ✓ mixed vectorized + non-vectorized summarize\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ mixed vectorized + non-vectorized summarize\n    Expected: DataFrame(1 rows x 2 cols: [avg_score, total_rows])\n    Got: %s\n" result
+  end;
+
+  print_newline ();
+
   (* Clean up Phase 4 CSV *)
   (try Sys.remove csv_p4 with _ -> ())
