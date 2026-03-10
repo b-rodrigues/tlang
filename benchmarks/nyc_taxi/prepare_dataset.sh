@@ -36,6 +36,7 @@ MONTHS="2023-01,2023-02,2023-03"
 RAW_DIR="$SCRIPT_DIR/data/raw"
 PARQUET_DIR="$SCRIPT_DIR/data/nyc_taxi_parquet"
 MATERIALIZED_CSV="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
+TLC_TRIP_DATA_PAGE_URL="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"
 KEEP_RAW=0
 WRITE_MATERIALIZED=1
 CLEAN_PARQUET=0
@@ -99,15 +100,53 @@ fi
 
 IFS=',' read -r -a MONTH_LIST <<< "$MONTHS"
 
+resolve_tlc_dataset_url() {
+  local month="$1"
+  python - "$month" "$TLC_TRIP_DATA_PAGE_URL" <<'PY'
+import re
+import sys
+import urllib.request
+
+month = sys.argv[1]
+page_url = sys.argv[2]
+
+with urllib.request.urlopen(page_url) as response:
+    html = response.read().decode("utf-8", errors="replace")
+
+links = re.findall(r'https://[^"\']+/yellow_tripdata_\d{4}-\d{2}\.(?:parquet|csv)', html, flags=re.IGNORECASE)
+normalized = sorted({link.lower() for link in links})
+if not normalized:
+    raise SystemExit(
+        f"Could not find yellow taxi download links on official TLC page: {page_url}"
+    )
+
+target_suffixes = [f"yellow_tripdata_{month}.parquet", f"yellow_tripdata_{month}.csv"]
+for suffix in target_suffixes:
+    for link in normalized:
+        if link.endswith(suffix):
+            print(link)
+            raise SystemExit(0)
+
+sample = normalized[0]
+match = re.search(r"/yellow_tripdata_\d{4}-\d{2}\.(parquet|csv)$", sample)
+if match is None:
+    raise SystemExit(f"Unexpected TLC dataset link format on {page_url}")
+
+extension = match.group(1)
+base = sample.rsplit("/", 1)[0]
+print(f"{base}/yellow_tripdata_{month}.{extension}")
+PY
+}
+
 for month in "${MONTH_LIST[@]}"; do
   [[ -n "$month" ]] || continue
-  raw_csv="$RAW_DIR/yellow_tripdata_${month}.csv"
-  url="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_${month}.csv"
+  url="$(resolve_tlc_dataset_url "$month")"
+  raw_input="$RAW_DIR/$(basename "$url")"
 
   echo "=== Processing ${month} ==="
   echo "Downloading ${url}"
 
-  python - "$url" "$raw_csv" <<'PY'
+  python - "$url" "$raw_input" <<'PY'
 import pathlib
 import sys
 import urllib.request
@@ -120,9 +159,9 @@ else:
     print(f"Reusing existing download: {output}")
 PY
 
-  echo "Converting ${raw_csv} -> ${PARQUET_DIR}"
+  echo "Converting ${raw_input} -> ${PARQUET_DIR}"
   if [[ "$WRITE_MATERIALIZED" -eq 1 ]]; then
-    python - "$raw_csv" "$PARQUET_DIR" "$MATERIALIZED_CSV" <<'PY'
+    python - "$raw_input" "$PARQUET_DIR" "$MATERIALIZED_CSV" <<'PY'
 import pathlib
 import re
 import sys
@@ -131,18 +170,23 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-raw_csv = pathlib.Path(sys.argv[1])
+raw_input = pathlib.Path(sys.argv[1])
 parquet_dir = pathlib.Path(sys.argv[2])
 materialized_csv = pathlib.Path(sys.argv[3])
 
-match = re.search(r"(\d{4})-(\d{2})", raw_csv.name)
+match = re.search(r"(\d{4})-(\d{2})", raw_input.name)
 if match is None:
-    raise SystemExit(f"Could not infer year/month from file name: {raw_csv.name}")
+    raise SystemExit(f"Could not infer year/month from file name: {raw_input.name}")
 
 year = int(match.group(1))
 month = int(match.group(2))
 
-df = pd.read_csv(raw_csv)
+if raw_input.suffix.lower() == ".csv":
+    df = pd.read_csv(raw_input)
+elif raw_input.suffix.lower() == ".parquet":
+    df = pd.read_parquet(raw_input)
+else:
+    raise SystemExit(f"Unsupported input format for benchmark data: {raw_input}")
 if "year" not in df.columns:
     df["year"] = year
 if "month" not in df.columns:
@@ -157,7 +201,7 @@ df.to_csv(materialized_csv, mode="a", index=False, header=write_header)
 print(f"Wrote parquet partitions and appended to {materialized_csv}")
 PY
   else
-    python - "$raw_csv" "$PARQUET_DIR" <<'PY'
+    python - "$raw_input" "$PARQUET_DIR" <<'PY'
 import pathlib
 import re
 import sys
@@ -166,17 +210,22 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-raw_csv = pathlib.Path(sys.argv[1])
+raw_input = pathlib.Path(sys.argv[1])
 parquet_dir = pathlib.Path(sys.argv[2])
 
-match = re.search(r"(\d{4})-(\d{2})", raw_csv.name)
+match = re.search(r"(\d{4})-(\d{2})", raw_input.name)
 if match is None:
-    raise SystemExit(f"Could not infer year/month from file name: {raw_csv.name}")
+    raise SystemExit(f"Could not infer year/month from file name: {raw_input.name}")
 
 year = int(match.group(1))
 month = int(match.group(2))
 
-df = pd.read_csv(raw_csv)
+if raw_input.suffix.lower() == ".csv":
+    df = pd.read_csv(raw_input)
+elif raw_input.suffix.lower() == ".parquet":
+    df = pd.read_parquet(raw_input)
+else:
+    raise SystemExit(f"Unsupported input format for benchmark data: {raw_input}")
 if "year" not in df.columns:
     df["year"] = year
 if "month" not in df.columns:
@@ -189,7 +238,7 @@ PY
   fi
 
   if [[ "$KEEP_RAW" -eq 0 ]]; then
-    rm -f "$raw_csv"
+    rm -f "$raw_input"
   fi
 done
 

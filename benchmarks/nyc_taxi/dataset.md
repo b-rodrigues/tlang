@@ -4,11 +4,15 @@
 
 The benchmark uses the NYC Taxi and Limousine Commission yellow-trip monthly files.
 
-Default URL pattern:
+Official source page:
 
 ```text
-https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_YYYY-MM.csv
+https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page
 ```
+
+`prepare_dataset.sh` discovers monthly `yellow_tripdata_YYYY-MM` download links
+from that official TLC page and downloads whichever file format is published
+there (currently parquet, historically CSV).
 
 ## Recommended sizes
 
