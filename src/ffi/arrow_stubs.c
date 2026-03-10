@@ -1090,32 +1090,32 @@ apply_double_column_op(GArrowChunkedArray *chunked1, GArrowChunkedArray *chunked
   /* Track position within each chunked array's chunks */
   guint c1 = 0, c2 = 0;
   gint64 off1 = 0, off2 = 0;
-  GArrowArray *chunk1 = garrow_chunked_array_get_chunk(chunked1, 0);
-  GArrowArray *chunk2 = garrow_chunked_array_get_chunk(chunked2, 0);
-  gint64 len1 = garrow_array_get_length(chunk1);
-  gint64 len2 = garrow_array_get_length(chunk2);
   guint nc1 = garrow_chunked_array_get_n_chunks(chunked1);
   guint nc2 = garrow_chunked_array_get_n_chunks(chunked2);
+  GArrowArray *chunk1 = nc1 > 0 ? garrow_chunked_array_get_chunk(chunked1, 0) : NULL;
+  GArrowArray *chunk2 = nc2 > 0 ? garrow_chunked_array_get_chunk(chunked2, 0) : NULL;
+  gint64 len1 = chunk1 ? garrow_array_get_length(chunk1) : 0;
+  gint64 len2 = chunk2 ? garrow_array_get_length(chunk2) : 0;
 
   for (gint64 i = 0; i < nrows && ok; i++) {
     /* Advance chunk pointers if needed */
     while (off1 >= len1 && c1 + 1 < nc1) {
-      g_object_unref(chunk1);
+      if (chunk1) g_object_unref(chunk1);
       c1++;
       off1 = 0;
       chunk1 = garrow_chunked_array_get_chunk(chunked1, c1);
       len1 = garrow_array_get_length(chunk1);
     }
     while (off2 >= len2 && c2 + 1 < nc2) {
-      g_object_unref(chunk2);
+      if (chunk2) g_object_unref(chunk2);
       c2++;
       off2 = 0;
       chunk2 = garrow_chunked_array_get_chunk(chunked2, c2);
       len2 = garrow_array_get_length(chunk2);
     }
 
-    /* Bounds check: if either chunk is exhausted, stop processing */
-    if (off1 >= len1 || off2 >= len2) { ok = FALSE; break; }
+    /* Bounds check: if either chunk is exhausted or missing, stop processing */
+    if (!chunk1 || !chunk2 || off1 >= len1 || off2 >= len2) { ok = FALSE; break; }
 
     if (garrow_array_is_null(chunk1, off1) || garrow_array_is_null(chunk2, off2)) {
       garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
@@ -1152,8 +1152,8 @@ apply_double_column_op(GArrowChunkedArray *chunked1, GArrowChunkedArray *chunked
     off2++;
   }
 
-  g_object_unref(chunk1);
-  g_object_unref(chunk2);
+  if (chunk1) g_object_unref(chunk1);
+  if (chunk2) g_object_unref(chunk2);
 
   if (!ok) {
     g_object_unref(builder);
@@ -1172,7 +1172,7 @@ apply_double_column_op(GArrowChunkedArray *chunked1, GArrowChunkedArray *chunked
 
   /* Wrap single array into a ChunkedArray */
   GList *chunks_list = g_list_append(NULL, result_array);
-  GArrowChunkedArray *result = garrow_chunked_array_new(chunks_list);
+  GArrowChunkedArray *result = garrow_chunked_array_new(chunks_list, &error);
   g_list_free(chunks_list);
   g_object_unref(result_array);
 

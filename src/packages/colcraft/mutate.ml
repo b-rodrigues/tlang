@@ -46,7 +46,7 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
           (* Try: scalar op row.col (for commutative ops or reversed) *)
           (match extract_scalar left, is_col_ref right with
            | Some scalar, Some src_col ->
-             (* For commutative ops (+ *), order doesn't matter.
+             (* For commutative ops (+ and * ), order doesn't matter.
                 For non-commutative (- /), we need special handling:
                 scalar - col means negate col then add scalar
                 scalar / col means reciprocal col then multiply scalar *)
