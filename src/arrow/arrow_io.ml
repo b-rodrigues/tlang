@@ -255,12 +255,12 @@ let read_csv_fallback (path : string) : (Arrow_table.t, string) result =
     close_in ch;
     parse_csv_string content
   with
-  | Sys_error msg -> Error ("File Error: " ^ msg)
+  | Sys_error msg -> Error ("File Error: " ^ msg ^ ".")
 
 (** Read a CSV file into an Arrow table.
     Uses native Arrow CSV reader when available, falls back to pure OCaml. *)
 let read_csv_local (path : string) : (Arrow_table.t, string) result =
-  if Arrow_ffi.arrow_available then
+  if Arrow_ffi.arrow_available then (
     (* Try native Arrow CSV reader first *)
     match read_csv_native path with
     | Ok _ as result -> result
@@ -272,7 +272,7 @@ let read_csv_local (path : string) : (Arrow_table.t, string) result =
           "Warning: Native Arrow CSV reader failed (%s). Falling back to the OCaml CSV parser.\n%!"
           native_err;
         read_csv_fallback path
-  else
+  ) else
     read_csv_fallback path
 
 (*

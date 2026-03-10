@@ -662,13 +662,17 @@ CAMLprim value caml_arrow_read_csv(value v_path) {
     CAMLreturn(Val_none);
   }
 
-  /* Create CSV read options */
+  /* Create CSV read options with custom NULL values (NA, na, N/A, "") */
   GArrowCSVReadOptions *options = garrow_csv_read_options_new();
+  if (options) {
+    const gchar *null_values[] = {"NA", "na", "N/A", ""};
+    garrow_csv_read_options_set_null_values(options, null_values, 4);
+  }
 
   /* Create CSV reader */
   GArrowCSVReader *reader =
     garrow_csv_reader_new(GARROW_INPUT_STREAM(input), options, &error);
-  g_object_unref(options);
+  if (options) g_object_unref(options);
 
   if (reader == NULL) {
     g_object_unref(input);

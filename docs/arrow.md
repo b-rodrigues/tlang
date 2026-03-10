@@ -1,187 +1,49 @@
-# Arrow in T
+# Arrow Ingestion Strategy
 
-> Current user-facing guide to Arrow-backed DataFrames, Arrow IPC, and native-vs-fallback behavior
+T prioritizes high-performance data ingestion by leveraging native Apache Arrow and Parquet readers. This document outlines how T handles different formats and its "Native-First" philosophy.
 
----
+## Native-First CSV Ingestion
 
-## Why Arrow matters in T
+T uses a fast, native path for reading CSV files when they follow standard conventions. This path utilize the `GArrowCSVReader` from the Arrow C GLib library, which is significantly faster and more memory-efficient than pure OCaml parsers for large datasets.
 
-T uses Apache Arrow as the main storage and compute backend for DataFrames.
+### Native Path Activation
 
-That gives the language a few important capabilities:
+The native Arrow CSV reader is used automatically when calling `read_csv()` with its default parameters:
+- Comma separator (`,`)
+- No skipping of header or lines
+- No automatic column name cleaning
 
-- columnar storage for DataFrames
-- zero-copy numeric column views when native Arrow backing is active
-- native compute kernels for operations such as filtering, sorting, arithmetic, comparisons, and grouped aggregation
-- Arrow IPC read/write for file-based interchange
-- Arrow-based interchange for multi-language pipeline nodes
+If any non-default options are provided (e.g., `separator = ";"`, `skip_lines = 5`), T falls back to a pure OCaml CSV parser. This ensure full compatibility with complex CSV formats while providing maximum speed for standard ones.
 
-The important practical detail is that T has a **dual-path** model:
+### NULL Value Handling (NA)
 
-- **Native Arrow path** when a DataFrame still has a live native Arrow handle
-- **Pure OCaml fallback path** when a schema or operation cannot currently stay native
+The native reader is configured to recognize the following strings as `NA` (null values):
+- `NA`
+- `na`
+- `N/A`
+- Empty fields
 
-Both paths are supported. The difference is mostly about performance, memory layout, and interoperability.
+This ensures consistency between the native reader and the OCaml fallback parser.
 
----
+## Parquet Support
 
-## User stories
+T provides first-class support for Parquet files via `read_parquet()`. Parquet is the recommended format for large-scale data in T because:
+- It is a binary, columnar format with built-in compression.
+- Type information is preserved, avoiding the overhead of type inference.
+- Native ingestion via `parquet-glib` is faster than CSV reading.
+- It supports zero-copy loading of large datasets into memory.
 
-### 1. I want to work with a CSV in T and keep it fast
+## Technical Fallbacks
 
-```t
-df = read_csv("sales.csv")
-explain(df).storage_backend
-explain(df).native_path_active
-```
+If the native Arrow reader fails for any reason (e.g., malformed file, unsupported encoding), T provides a robust fallback mechanism:
 
-Today, `read_csv()` returns an Arrow-backed DataFrame, but the public builtin currently parses CSV in OCaml first and then builds the Arrow-backed table. That means:
+1. **Native Attempt**: Try reading using `GArrowCSVReader`.
+2. **Warning**: If native reading fails, a warning is printed to stderr.
+3. **OCaml Fallback**: The file is re-read using a pure OCaml parser. Note that this fallback is more memory-intensive and may encounter `Out_of_memory` errors for files larger than a few gigabytes on systems with limited RAM.
 
-- you still get a DataFrame that can use the Arrow-native execution path,
-- but the public CSV entry point is **not yet** the same thing as the lower-level native Arrow CSV reader in the backend.
+## Recommendations for Large Data
 
-If you need to know whether a later transformation stayed native, check `explain(df).storage_backend` and `explain(df).native_path_active`.
-
-### 2. I want to save a DataFrame in Arrow format and load it back later
-
-```t
-df = read_csv("sales.csv")
-write_arrow(df, "sales.arrow")
-
-df2 = read_arrow("sales.arrow")
-```
-
-Use:
-
-- `write_arrow(dataframe, path)` to write Arrow IPC data
-- `read_arrow(path)` to read Arrow IPC data back into T
-
-This is the most direct way to persist Arrow-backed tabular data without converting through CSV.
-
-### 3. I want to pass DataFrames between T, R, and Python pipeline nodes
-
-T pipelines can use Arrow as the serializer/deserializer boundary for DataFrames:
-
-```t
-train = read_csv("train.csv")
-
-p = pipeline {
-  prepare = train
-  fit = node(
-    command = <{
-      fit_result <- prepare
-    }>,
-    runtime = R,
-    serializer = "arrow",
-    deserializer = "arrow"
-  )
-}
-```
-
-Arrow IPC is the supported DataFrame interchange story for pipeline nodes because it preserves columnar structure better than CSV and aligns with the native backend.
-
-### 4. I want to know what stays native and what falls back
-
-T aims to preserve native Arrow backing after supported operations, but not every schema can currently be rebuilt natively. The support matrix below shows the current state.
-
----
-
-## Arrow I/O
-
-### `read_arrow(path)`
-
-Read an Arrow IPC file from disk and return a `DataFrame`.
-
-```t
-df = read_arrow("data.arrow")
-```
-
-### `write_arrow(dataframe, path)`
-
-Write a `DataFrame` to an Arrow IPC file on disk.
-
-```t
-write_arrow(df, "snapshot.arrow")
-```
-
-### `read_csv(path, ...)` vs native Arrow CSV reading
-
-There are currently two Arrow-related CSV stories in the repository:
-
-1. **Public `read_csv()` builtin**
-   - parses CSV in OCaml
-   - performs type inference there
-   - then constructs an Arrow-backed table
-
-2. **Backend-native `Arrow_io.read_csv` path**
-   - uses Arrow's native CSV reader
-   - is currently used internally and in backend/performance testing
-   - is **not yet** the public default CSV entry point
-
-So users should think of `read_csv()` as **Arrow-backed output with an OCaml parsing front-end** for now.
-
----
-
-## Support matrix
-
-The table below summarizes the current user-visible state of Arrow support.
-
-| Area | Current state |
-|------|---------------|
-| Primitive columns (`Int`, `Float`, `Bool`, `String`) | Fully supported on the native path |
-| Filtering / sorting / projection | Native Arrow compute path available |
-| Scalar arithmetic and comparisons | Native Arrow compute path available |
-| Grouping and grouped aggregation | Native Arrow compute path available |
-| Zero-copy numeric views | Supported for native numeric columns |
-| Arrow IPC read/write | Supported via `read_arrow` / `write_arrow` |
-| Pipeline DataFrame interchange | Supported via Arrow serializer/deserializer helpers |
-| Dictionary / factor columns | Supported; native materialization exists |
-| Date columns | Supported; native materialization exists |
-| List / nested columns | Supported for the currently supported nested shapes; some cases still fall back |
-| Datetime / timestamp columns | Partial support; parsing exists but native rebuild/materialization is still incomplete |
-| Null-only columns | Fallback-only today |
-
-### Rules of thumb
-
-- If a table remains native-backed, `explain(df).native_path_active` returns `true`.
-- Native backing is easiest to preserve for common primitive schemas.
-- More complex structural transforms may rebuild successfully, but datetime and null-only columns are still important fallback cases.
-
----
-
-## How to inspect the active backend
-
-Use `explain()` when performance or interop matters:
-
-```t
-df = read_csv("example.csv")
-explain(df).storage_backend
-explain(df).native_path_active
-```
-
-Typical values:
-
-- `"native_arrow"` when the DataFrame still has native Arrow backing
-- `"pure_ocaml"` when the DataFrame has fallen back
-
----
-
-## What is implemented today
-
-At a high level, the current repository already includes:
-
-- Arrow-backed DataFrame storage
-- Arrow compute integration for common DataFrame operations
-- Arrow IPC read/write builtins
-- pipeline-level Arrow interchange
-- dictionary/factor, list, and date support
-- zero-copy numeric column access on native-backed tables
-
-What is still incomplete is mostly about **surfacing and coverage**, not the existence of Arrow support itself:
-
-- the public CSV path is not yet unified with the native Arrow CSV reader
-- datetime/timestamp native rebuild is still incomplete
-- null-only columns still fall back
-- some historical planning documents still describe Arrow as earlier-stage than it is now
-
-For deeper implementation status, see `arrow-current-status-next-steps.md`.
+For datasets exceeding 2-3 GB:
+1. **Prefer Parquet**: Convert your CSVs to Parquet using R (`arrow::write_parquet`) or Python (`pandas.to_parquet`) before reading them into T.
+2. **Use Standard CSVs**: If you must use CSV, ensure it uses the default comma separator and has no leading comment lines to stay on the high-performance native path.
+3. **Memory Limits**: The pure OCaml fallback path is limited by OCaml's heap and string size limits (on 64-bit systems this is large, but still less efficient than Arrow's memory mapping).
