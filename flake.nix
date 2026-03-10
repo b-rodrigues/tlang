@@ -212,8 +212,13 @@
           ];
 
           shellHook = ''
-            export TLANG_REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+            if repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+              export TLANG_REPO_ROOT="$repo_root"
+            elif [[ -f "$PWD/dune-project" ]]; then
+              export TLANG_REPO_ROOT="$PWD"
+            fi
             export TLANG_DEV_BIN="$(mktemp -d "${TMPDIR:-/tmp}/tlang-shell-bin.XXXXXX")"
+            trap 'rm -rf "$TLANG_DEV_BIN"' EXIT
             cat > "$TLANG_DEV_BIN/t" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -227,7 +232,7 @@ if [[ -z "$repo_root" || ! -f "$repo_root/dune-project" ]]; then
 fi
 
 if [[ -z "$repo_root" || ! -f "$repo_root/dune-project" ]]; then
-  echo "Unable to locate the T repository root for the dev-shell \`t\` wrapper." >&2
+  echo "Unable to locate the T repository root for the dev-shell 't' wrapper." >&2
   exit 1
 fi
 
