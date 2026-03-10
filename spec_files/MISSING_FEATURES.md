@@ -1,5 +1,7 @@
 ## Implementation Phases to Finish Alpha
 
+> **Historical planning note**: This file contains earlier planning language and may describe Arrow as partially stubbed. The current repository now has a substantially implemented Arrow backend; see `../docs/arrow.md` and `../docs/arrow-current-status-next-steps.md` for current status.
+
 > **Critical Focus**: Performance Optimization  
 > **Current Status**: 96% Complete (4% remaining)  
 > **Estimated Time**: 13-16 days (2.5-3 weeks)  

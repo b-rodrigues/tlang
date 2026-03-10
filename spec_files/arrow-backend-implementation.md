@@ -1,5 +1,7 @@
 # Updated Implementation Plan — Arrow-Backed DataFrame for T
 
+> **Historical planning note**: This document describes an earlier pre-implementation plan. The current repository now has a substantially implemented Arrow backend. For the current user-facing state, see `../docs/arrow.md` and `../docs/arrow-current-status-next-steps.md`.
+
 # Part 1
 
 **Status**: Post-Alpha 0.1  
@@ -2019,4 +2021,3 @@ If Arrow integration hits major blockers:
 4. **Return to Arrow** once language features stabilize
 
 This allows progress on language design while the infrastructure team tackles Arrow separately.
-

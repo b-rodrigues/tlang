@@ -1045,6 +1045,8 @@ Features:
 
 ### 1. Arrow Backend Completion 🎯 **HIGH PRIORITY**
 
+> **Historical planning note**: This section reflects an earlier roadmap state. Arrow support in the repository is now substantially broader than “stubbed”; see `../docs/arrow.md` and `../docs/arrow-current-status-next-steps.md` for current status.
+
 Complete stubbed Arrow integration:
 
 - Zero-copy column views

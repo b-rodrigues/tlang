@@ -1,5 +1,7 @@
 # Finishing T Language Alpha (v0.1) — Final Steps
 
+> **Historical planning note**: This checklist includes older Arrow planning language. The current repository now contains a substantially implemented Arrow backend; see `../docs/arrow.md` and `../docs/arrow-current-status-next-steps.md` for the up-to-date picture.
+
 > **Current Status**: 96% Complete  
 > **Target**: 100% Production-Ready Alpha  
 > **Estimated Time**: 2-3 weeks  

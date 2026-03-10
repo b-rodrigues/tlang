@@ -1147,6 +1147,10 @@ CSV I/O and DataFrame introspection.
 
 Read a CSV file into a DataFrame.
 
+**Current implementation note:**
+
+`read_csv()` currently parses CSV in OCaml and then constructs an Arrow-backed `DataFrame`. The repository also contains a lower-level native Arrow CSV reader, but that backend path is not yet the public default entry point.
+
 **Parameters:**
 
 
@@ -1166,6 +1170,45 @@ df = read_csv("data.csv")
 df = read_csv("data.tsv", separator = "\t")
 df = read_csv("data.csv", skip_lines = 2)
 df = read_csv("messy.csv", clean_colnames = true)
+```
+
+---
+
+### `t_read_arrow(path)`
+
+Read an Arrow IPC file into a DataFrame.
+
+**Parameters:**
+
+- `path` — Input file path (String)
+
+**Returns:**
+
+`DataFrame`
+
+**Examples:**
+```t
+df = t_read_arrow("data.arrow")
+```
+
+---
+
+### `t_write_arrow(dataframe, path)`
+
+Write a DataFrame to an Arrow IPC file.
+
+**Parameters:**
+
+- `dataframe` — DataFrame to write
+- `path` — Output file path (String)
+
+**Returns:**
+
+`null`
+
+**Examples:**
+```t
+t_write_arrow(df, "snapshot.arrow")
 ```
 
 ---
