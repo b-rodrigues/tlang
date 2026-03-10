@@ -1016,7 +1016,7 @@ Built-in keywords are syntactic sugar for:
 
 ```text
 "json"  → t_write_json / t_read_json
-"arrow" → t_write_arrow / t_read_arrow
+"arrow" → write_arrow / read_arrow
 "pmml"  → t_write_pmml / t_read_pmml
 ```
 

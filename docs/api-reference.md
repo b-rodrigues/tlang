@@ -1174,7 +1174,7 @@ df = read_csv("messy.csv", clean_colnames = true)
 
 ---
 
-### `t_read_arrow(path)`
+### `read_arrow(path)`
 
 Read an Arrow IPC file into a DataFrame.
 
@@ -1188,12 +1188,12 @@ Read an Arrow IPC file into a DataFrame.
 
 **Examples:**
 ```t
-df = t_read_arrow("data.arrow")
+df = read_arrow("data.arrow")
 ```
 
 ---
 
-### `t_write_arrow(dataframe, path)`
+### `write_arrow(dataframe, path)`
 
 Write a DataFrame to an Arrow IPC file.
 
@@ -1208,7 +1208,7 @@ Write a DataFrame to an Arrow IPC file.
 
 **Examples:**
 ```t
-t_write_arrow(df, "snapshot.arrow")
+write_arrow(df, "snapshot.arrow")
 ```
 
 ---

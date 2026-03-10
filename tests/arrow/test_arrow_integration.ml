@@ -1399,24 +1399,24 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     let (_, env_ipc) =
       eval_string_env
         (Printf.sprintf
-           {|df_ipc = dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); t_write_arrow(df_ipc, "%s")|}
+           {|df_ipc = dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); write_arrow(df_ipc, "%s")|}
            ipc_path)
         env_ipc
     in
-    let (v, _) = eval_string_env (Printf.sprintf {|nrow(t_read_arrow("%s"))|} ipc_path) env_ipc in
+    let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_arrow("%s"))|} ipc_path) env_ipc in
     let nrow_result = Ast.Utils.value_to_string v in
     if nrow_result = "2" then begin
-      incr pass_count; Printf.printf "  ✓ t_write_arrow/t_read_arrow round-trip preserves nrow\n"
+      incr pass_count; Printf.printf "  ✓ write_arrow/read_arrow round-trip preserves nrow\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ t_write_arrow/t_read_arrow expected nrow=2, got %s\n" nrow_result
+      incr fail_count; Printf.printf "  ✗ write_arrow/read_arrow expected nrow=2, got %s\n" nrow_result
     end;
 
-    let (v, _) = eval_string_env (Printf.sprintf {|colnames(t_read_arrow("%s"))|} ipc_path) env_ipc in
+    let (v, _) = eval_string_env (Printf.sprintf {|colnames(read_arrow("%s"))|} ipc_path) env_ipc in
     let colnames_result = Ast.Utils.value_to_string v in
     if colnames_result = {|["id", "grp"]|} then begin
-      incr pass_count; Printf.printf "  ✓ t_read_arrow preserves schema/column names\n"
+      incr pass_count; Printf.printf "  ✓ read_arrow preserves schema/column names\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ t_read_arrow schema mismatch: %s\n" colnames_result
+      incr fail_count; Printf.printf "  ✗ read_arrow schema mismatch: %s\n" colnames_result
     end
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
@@ -1426,7 +1426,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "ListColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "t_write_arrow/t_read_arrow round-trip"
+      "write_arrow/read_arrow round-trip"
   end;
 
   print_newline ();

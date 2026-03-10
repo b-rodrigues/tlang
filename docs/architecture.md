@@ -391,8 +391,8 @@ T leverages Nix to orchestrate computation across multiple runtimes. When a node
 
 For direct user-facing Arrow file workflows outside pipelines, T also exposes:
 
-- `t_read_arrow(path)` for Arrow IPC input
-- `t_write_arrow(dataframe, path)` for Arrow IPC output
+- `read_arrow(path)` for Arrow IPC input
+- `write_arrow(dataframe, path)` for Arrow IPC output
 
 That means Arrow is used both as an internal storage backend and as an interchange format at the language boundary.
 
@@ -446,7 +446,7 @@ external read_csv_native : string -> arrow_table = "caml_arrow_read_csv"
 external read_ipc_native : string -> arrow_table = "caml_arrow_read_ipc"
 ```
 
-The repository currently exposes both a backend-native CSV reader and Arrow IPC read/write support. The public `read_csv()` builtin still layers OCaml CSV parsing on top of Arrow-backed table construction, while `t_read_arrow` / `t_write_arrow` expose Arrow IPC directly.
+The repository currently exposes both a backend-native CSV reader and Arrow IPC read/write support. The public `read_csv()` builtin still layers OCaml CSV parsing on top of Arrow-backed table construction, while `read_arrow` / `write_arrow` expose Arrow IPC directly.
 
 ### Dual-Path Operations
 

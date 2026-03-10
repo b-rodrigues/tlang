@@ -46,15 +46,15 @@ If you need to know whether a later transformation stayed native, check `explain
 
 ```t
 df = read_csv("sales.csv")
-t_write_arrow(df, "sales.arrow")
+write_arrow(df, "sales.arrow")
 
-df2 = t_read_arrow("sales.arrow")
+df2 = read_arrow("sales.arrow")
 ```
 
 Use:
 
-- `t_write_arrow(dataframe, path)` to write Arrow IPC data
-- `t_read_arrow(path)` to read Arrow IPC data back into T
+- `write_arrow(dataframe, path)` to write Arrow IPC data
+- `read_arrow(path)` to read Arrow IPC data back into T
 
 This is the most direct way to persist Arrow-backed tabular data without converting through CSV.
 
@@ -88,20 +88,20 @@ T aims to preserve native Arrow backing after supported operations, but not ever
 
 ## Arrow I/O
 
-### `t_read_arrow(path)`
+### `read_arrow(path)`
 
 Read an Arrow IPC file from disk and return a `DataFrame`.
 
 ```t
-df = t_read_arrow("data.arrow")
+df = read_arrow("data.arrow")
 ```
 
-### `t_write_arrow(dataframe, path)`
+### `write_arrow(dataframe, path)`
 
 Write a `DataFrame` to an Arrow IPC file on disk.
 
 ```t
-t_write_arrow(df, "snapshot.arrow")
+write_arrow(df, "snapshot.arrow")
 ```
 
 ### `read_csv(path, ...)` vs native Arrow CSV reading
@@ -133,7 +133,7 @@ The table below summarizes the current user-visible state of Arrow support.
 | Scalar arithmetic and comparisons | Native Arrow compute path available |
 | Grouping and grouped aggregation | Native Arrow compute path available |
 | Zero-copy numeric views | Supported for native numeric columns |
-| Arrow IPC read/write | Supported via `t_read_arrow` / `t_write_arrow` |
+| Arrow IPC read/write | Supported via `read_arrow` / `write_arrow` |
 | Pipeline DataFrame interchange | Supported via Arrow serializer/deserializer helpers |
 | Dictionary / factor columns | Supported; native materialization exists |
 | Date columns | Supported; native materialization exists |

@@ -136,7 +136,7 @@ let chrono_package = {
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
-  functions = ["dataframe"; "read_csv"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "t_read_arrow"; "t_write_arrow"];
+  functions = ["dataframe"; "read_csv"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"];
 }
 
 let pipeline_package = {

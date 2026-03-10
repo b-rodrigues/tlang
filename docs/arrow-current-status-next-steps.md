@@ -15,7 +15,7 @@ The repository already has a substantial Arrow backend:
 
 - a dedicated Arrow implementation under `src/arrow/`,
 - a large C FFI layer in `src/ffi/arrow_stubs.c`,
-- Arrow IPC read/write builtins (`t_read_arrow`, `t_write_arrow`),
+- Arrow IPC read/write builtins (`read_arrow`, `write_arrow`),
 - pipeline-level Arrow serialization/deserialization support,
 - dedicated Arrow integration and performance tests,
 - and multiple planning/hardening documents in `spec_files/`.
@@ -60,7 +60,7 @@ Current documentation strengths:
 Current documentation gaps:
 
 - no single page summarizes the Arrow backend, Arrow IPC support, Arrow pipeline interop, and current feature coverage,
-- no dedicated user-facing docs for `t_read_arrow` / `t_write_arrow`,
+- no dedicated user-facing docs for `read_arrow` / `write_arrow`,
 - no clear explanation of which Arrow types are fully supported, partially supported, or still fallback-only,
 - no explicit “current status vs roadmap” page,
 - no direct summary of what the Arrow tests cover.
@@ -99,9 +99,9 @@ Taken together, these files provide:
 Arrow also shows up outside `src/arrow/`:
 
 - `src/packages/dataframe/t_read_arrow.ml`
-  - exposes Arrow IPC reading to T as `t_read_arrow`.
+  - exposes Arrow IPC reading to T as `read_arrow`.
 - `src/packages/dataframe/t_write_arrow.ml`
-  - exposes Arrow IPC writing to T as `t_write_arrow`.
+  - exposes Arrow IPC writing to T as `write_arrow`.
 - `src/packages/dataframe/t_dataframe.ml`
   - `dataframe`, `pull`, and `to_array` all interact with Arrow-backed tables and Arrow-derived column types.
 - `src/packages/dataframe/t_read_csv.ml`
@@ -172,7 +172,7 @@ The code also shows some areas that are either incomplete or intentionally const
 ### Missing or underdeveloped user-facing documentation
 
 - A single Arrow overview/status page in `docs/`
-- User docs for `t_read_arrow` and `t_write_arrow`
+- User docs for `read_arrow` and `write_arrow`
 - Documentation for Arrow-backed pipeline interchange as a supported workflow
 - Clear support matrix for:
   - primitive columns,
@@ -298,8 +298,8 @@ The current tests are strong, but there are still some obvious gaps.
    - Direct tests for:
      - `Arrow_io.read_ipc`
      - `Arrow_io.write_ipc`
-     - `t_read_arrow`
-     - `t_write_arrow`
+     - `read_arrow`
+     - `write_arrow`
    - Expected round-trips should include:
      - primitive tables,
      - dictionary/factor tables,
@@ -346,7 +346,7 @@ The current tests are strong, but there are still some obvious gaps.
    - a current-state summary page for Arrow.
 
 2. **A dedicated user-facing Arrow I/O page**
-   - explain `t_read_arrow`, `t_write_arrow`, Arrow IPC, and where they are used.
+   - explain `read_arrow`, `write_arrow`, Arrow IPC, and where they are used.
 
 3. **A support matrix page or section**
    - per type / operation:
