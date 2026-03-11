@@ -734,7 +734,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                 incr fail_count; Printf.printf "  ✗ native group_aggregate unexpectedly forced OCaml groups\n"
               end;
 
-               let native_groups = Arrow_compute.get_ocaml_groups native_grouped in
+              let native_groups = Arrow_compute.get_ocaml_groups native_grouped in
               if List.length native_groups = 2 then begin
                 incr pass_count; Printf.printf "  ✓ get_ocaml_groups materializes native groups on demand\n"
               end else begin

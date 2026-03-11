@@ -1869,6 +1869,8 @@ get_distinct_key_string(GArrowChunkedArray *chunked, gint64 row_idx, gchar **out
     *out_key = g_strdup_printf("U:%u",
       garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(chunk), offset));
   } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+    /* 17 digits for double / 9 digits for float are enough to round-trip the
+       binary value, so distinct numeric values remain distinct string keys. */
     *out_key = g_strdup_printf("F:%.17g",
       garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset));
   } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {

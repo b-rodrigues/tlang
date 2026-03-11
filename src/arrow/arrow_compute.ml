@@ -185,6 +185,10 @@ let subtract_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow
 let divide_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow_table.column_data option =
   column_binary_op t col1 col2 ( /. )
 
+(** Apply a column-to-column arithmetic kernel and return a table with the
+    computed result column appended.
+    Uses the native Arrow implementation when a native handle is present,
+    and falls back to the existing pure OCaml column operation otherwise. *)
 let column_binary_op_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
     (result_name : string)
     (native_fn : nativeint -> string -> string -> string -> nativeint option)
