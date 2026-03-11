@@ -673,6 +673,8 @@ def py_read_pmml(path):
               "pmml",  "py_read_pmml";
               "csv",   "py_read_csv";
             ]
+          (* T keeps its user-facing names for arrow/csv, while json/pmml still
+             use the internal t_* helpers exposed by the standard library. *)
           | _ -> [
               "json",  "t_read_json";
               "arrow", "read_arrow";
@@ -736,6 +738,8 @@ def py_read_pmml(path):
           "pmml",  "py_write_pmml";
           "csv",   "py_write_csv";
         ]
+      (* T keeps its user-facing names for arrow/csv, while json/pmml still
+         use the internal t_* helpers exposed by the standard library. *)
       | _ -> [
           "json",  "t_write_json";
           "arrow", "write_arrow";
