@@ -296,9 +296,7 @@ and build_ocaml_groups (t : Arrow_table.t) (keys : string list) : (string * int 
 (** Materialize the OCaml group list on demand for grouped fallbacks.
     The current evaluator uses grouped tables on a single thread, so caching
     this fallback in-place avoids repeated regrouping without extra
-    synchronization. If grouped tables are ever shared across threads in the
-    future, this cache will need external synchronization because concurrent
-    callers could duplicate the materialization work before the cache is set. *)
+    synchronization. *)
 let get_ocaml_groups (grouped : grouped_table) : (string * int list) list =
   match !(grouped.ocaml_groups) with
   | Some groups -> groups
