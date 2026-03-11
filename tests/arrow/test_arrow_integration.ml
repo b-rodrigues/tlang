@@ -548,11 +548,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          (match native_group_tbl.native_handle with
           | Some _ ->
               let native_grouped = Arrow_compute.group_by native_group_tbl ["name"] in
-              (match !(native_grouped.Arrow_compute.ocaml_groups) with
-               | None ->
+              if not (Arrow_compute.ocaml_groups_materialized native_grouped) then begin
                    incr pass_count; Printf.printf "  ✓ native group_by keeps OCaml groups lazy\n"
-               | Some _ ->
-                   incr fail_count; Printf.printf "  ✗ native group_by eagerly materialized OCaml groups\n");
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_by eagerly materialized OCaml groups\n"
+              end;
 
               let native_mean_result = Arrow_compute.group_aggregate native_grouped "mean" "score" in
               let mean_ok =
@@ -571,11 +571,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                 incr fail_count; Printf.printf "  ✗ native group_aggregate mean returned incorrect values\n"
               end;
 
-              (match !(native_grouped.Arrow_compute.ocaml_groups) with
-               | None ->
+              let native_sum_result = Arrow_compute.group_aggregate native_grouped "sum" "score" in
+              let sum_ok =
+                Arrow_table.num_rows native_sum_result = 2
+                && (match Arrow_table.get_column native_sum_result "score" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        data.(0) = Some 185.0 && data.(1) = Some 150.0
+                    | _ -> false)
+              in
+              if sum_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate sum stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate sum returned incorrect values\n"
+              end;
+
+              if not (Arrow_compute.ocaml_groups_materialized native_grouped) then begin
                    incr pass_count; Printf.printf "  ✓ native group_aggregate avoids forcing OCaml groups\n"
-               | Some _ ->
-                   incr fail_count; Printf.printf "  ✗ native group_aggregate unexpectedly forced OCaml groups\n");
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate unexpectedly forced OCaml groups\n"
+              end;
 
               let native_groups = Arrow_compute.get_ocaml_groups native_grouped in
               if List.length native_groups = 2 then begin
@@ -590,6 +604,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                 "native group_aggregate mean stays correct";
               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                "native group_aggregate sum stays correct";
+              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                 "native group_aggregate avoids forcing OCaml groups";
               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                 "get_ocaml_groups materializes native groups on demand")
@@ -599,6 +615,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
            "native group_aggregate mean stays correct";
          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "native group_aggregate sum stays correct";
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
            "native group_aggregate avoids forcing OCaml groups";
          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
            "get_ocaml_groups materializes native groups on demand")
@@ -607,6 +625,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "native group_by keeps OCaml groups lazy";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "native group_aggregate mean stays correct";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "native group_aggregate sum stays correct";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "native group_aggregate avoids forcing OCaml groups";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count

@@ -1381,41 +1381,46 @@ numeric_chunk_cursor_destroy(NumericChunkCursor *cursor)
 static gboolean
 numeric_chunk_cursor_seek(NumericChunkCursor *cursor, gint64 row_idx, gint64 *offset)
 {
+  /* Group rows are typically visited in ascending order inside a group, but a
+     fresh group can start at an earlier row than the previous group's last row.
+     When row_idx < cursor->chunk_start, the backward seek resets the cursor to
+     maintain correctness, at the cost of re-scanning chunks from the beginning
+     for that group. */
   if (row_idx < cursor->chunk_start) {
     numeric_chunk_cursor_reset(cursor);
   }
 
-  /* Advances chunk_index monotonically until the row is covered or we run out
-     of chunks; the function returns from inside the loop in both cases. */
-  while (TRUE) {
-    if (cursor->chunk != NULL && row_idx < cursor->chunk_end) {
+  while (cursor->chunk_index < cursor->n_chunks) {
+    if (cursor->chunk == NULL) {
+      cursor->chunk = garrow_chunked_array_get_chunk(cursor->chunked, cursor->chunk_index);
+      if (cursor->chunk == NULL) {
+        return FALSE;
+      }
+
+      gint64 chunk_len = garrow_array_get_length(cursor->chunk);
+      cursor->chunk_end = cursor->chunk_start + chunk_len;
+      if (chunk_len <= 0) {
+        /* Defensive handling for empty chunks, which can occur in real Arrow
+           data after filtering or other operations: advance to the next chunk
+           so the cursor cannot get stuck on a zero-length segment. */
+        cursor->chunk_start = cursor->chunk_end;
+        numeric_chunk_cursor_clear_chunk(cursor);
+        cursor->chunk_index++;
+        continue;
+      }
+    }
+
+    if (row_idx < cursor->chunk_end) {
       *offset = row_idx - cursor->chunk_start;
       return TRUE;
     }
 
-    if (cursor->chunk != NULL) {
-      cursor->chunk_start = cursor->chunk_end;
-      numeric_chunk_cursor_clear_chunk(cursor);
-      cursor->chunk_index++;
-    }
-
-    if (cursor->chunk_index >= cursor->n_chunks) {
-      return FALSE;
-    }
-
-    cursor->chunk = garrow_chunked_array_get_chunk(cursor->chunked, cursor->chunk_index);
-    if (cursor->chunk == NULL) {
-      return FALSE;
-    }
-
-    gint64 chunk_len = garrow_array_get_length(cursor->chunk);
-    cursor->chunk_end = cursor->chunk_start + chunk_len;
-    if (chunk_len <= 0) {
-      cursor->chunk_start = cursor->chunk_end;
-      numeric_chunk_cursor_clear_chunk(cursor);
-      cursor->chunk_index++;
-    }
+    cursor->chunk_start = cursor->chunk_end;
+    numeric_chunk_cursor_clear_chunk(cursor);
+    cursor->chunk_index++;
   }
+
+  return FALSE;
 }
 
 /* Read a numeric scalar from the current chunk into *value.
@@ -1792,8 +1797,9 @@ CAMLprim value caml_arrow_grouped_table_free(value v_ptr) {
 
 /* Helper: get a numeric value from a column cursor at a given row index.
    Sets *is_null when the row is outside the available chunks or the value is
-   null. Returns FALSE only when the underlying chunk type is unsupported for
-   native aggregation. */
+   null. Sets *value to the extracted numeric value when the function returns
+   TRUE and the cell is non-null. Returns FALSE only when the underlying chunk
+   type is unsupported for native aggregation. */
 static gboolean
 get_numeric_value(NumericChunkCursor *cursor, gint64 row_idx, gboolean *is_null, gdouble *value)
 {

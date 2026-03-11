@@ -292,7 +292,12 @@ and build_ocaml_groups (t : Arrow_table.t) (keys : string list) : (string * int 
      | (_, []) -> 1
   ) groups
 
-(** Materialize the OCaml group list on demand for grouped fallbacks. *)
+(** Materialize the OCaml group list on demand for grouped fallbacks.
+    The current evaluator uses grouped tables on a single thread, so caching
+    this fallback in-place avoids repeated regrouping without extra
+    synchronization. If grouped tables are ever shared across threads in the
+    future, this cache will need external synchronization because concurrent
+    callers could duplicate the materialization work before the cache is set. *)
 let get_ocaml_groups (grouped : grouped_table) : (string * int list) list =
   match !(grouped.ocaml_groups) with
   | Some groups -> groups
@@ -300,6 +305,12 @@ let get_ocaml_groups (grouped : grouped_table) : (string * int list) list =
       let groups = build_ocaml_groups grouped.base_table grouped.group_keys in
       grouped.ocaml_groups := Some groups;
       groups
+
+(** Whether the OCaml fallback groups have already been materialized. *)
+let ocaml_groups_materialized (grouped : grouped_table) : bool =
+  match !(grouped.ocaml_groups) with
+  | Some _ -> true
+  | None -> false
 
 (** Apply an aggregation to a grouped table.
     agg_name: "sum", "mean", or "count"
