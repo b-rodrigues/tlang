@@ -2,7 +2,7 @@ open Ast
 open Nix_unparse
 open Nix_emit_node
 
-let emit_pipeline (p : Ast.pipeline_result) =
+let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   let import_lines = List.filter_map (fun stmt ->
     let s = unparse_import_stmt stmt in
     if s = "" then None else Some s
@@ -92,11 +92,11 @@ let
   # The flake.lock guarantees reproducibility.
   # Note: toString is required to convert the path to a string
   # that builtins.getFlake accepts.
-  flake  = builtins.getFlake (toString ../.);
+  flake  = builtins.getFlake (toString %s/.);
   pkgs   = flake.inputs.nixpkgs.legacyPackages.${system};
   tBin   = let
              base = (flake.inputs.t-lang or flake).packages.${system}.default;
-           in if builtins.pathExists ../dune-project then
+           in if builtins.pathExists %s/dune-project then
              base.overrideAttrs (old: { src = sources; })
            else base;
   stdenv = pkgs.stdenv;
@@ -106,9 +106,9 @@ let
     (path: type:
       let baseName = builtins.baseNameOf path;
       in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv" || baseName == "_build"))
-    ./..;
+    %s/.;
 
-  toml = if builtins.pathExists ../tproject.toml then builtins.fromTOML (builtins.readFile ../tproject.toml) else {};
+  toml = if builtins.pathExists %s/tproject.toml then builtins.fromTOML (builtins.readFile %s/tproject.toml) else {};
   
   rPackagesList = (toml.r-dependencies or {}).packages or [];
   r-env = pkgs.rWrapper.override {
@@ -141,4 +141,4 @@ rec {
     '';
   };
 }
-|} r_extra_pkgs py_extra_pkgs nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root r_extra_pkgs py_extra_pkgs nodes (String.concat " " node_names) final_copy

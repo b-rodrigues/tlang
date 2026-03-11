@@ -44,6 +44,30 @@ let ensure_pipeline_dir () =
   if not (Sys.file_exists pipeline_dir) then
     Unix.mkdir pipeline_dir 0o755
 
+let rec find_project_root dir =
+  if Sys.file_exists (Filename.concat dir "flake.nix") || Sys.file_exists (Filename.concat dir "dune-project") then
+    dir
+  else
+    let parent = Filename.dirname dir in
+    if parent = dir then dir (* Reached filesystem root *)
+    else find_project_root parent
+
+let get_project_root () =
+  find_project_root (Sys.getcwd ())
+
+let get_relative_path_to_root () =
+  let cwd = Sys.getcwd () in
+  let root = find_project_root cwd in
+  let rec count_levels dir root acc =
+    if dir = root then acc
+    else 
+      let parent = Filename.dirname dir in
+      if parent = dir then acc (* Should not happen if root was found *)
+      else count_levels parent root (acc + 1)
+  in
+  let levels = count_levels cwd root 1 in
+  String.concat "/" (List.init levels (fun _ -> ".."))
+
 let get_timestamp () =
   let tm = Unix.localtime (Unix.time ()) in
   Printf.sprintf "%04d%02d%02d_%02d%02d%02d"
