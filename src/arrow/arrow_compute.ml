@@ -205,7 +205,7 @@ type grouped_table = {
   group_keys : string list;
   native_group : grouped_handle option;
   (* Pure OCaml fallback: list of (composite_key, row_indices) *)
-  ocaml_groups : (string * int list) list;
+  ocaml_groups : ((string * int list) list) option ref;
 }
 
 (** Register a GC finalizer for a native grouped table handle *)
@@ -219,26 +219,30 @@ let register_group_finalizer (handle : grouped_handle) : unit =
 
 (** Group a table by key columns.
     Uses native Arrow hash grouping when a native handle is present.
-    Falls back to pure OCaml hash-based grouping otherwise.
-    Always populates ocaml_groups for compatibility with summarize.ml. *)
+    Falls back to pure OCaml hash-based grouping otherwise. *)
 let rec group_by (t : Arrow_table.t) (keys : string list) : grouped_table =
-  (* Always compute OCaml groups for backward compatibility *)
-  let ocaml_result = group_by_ocaml t keys in
   match t.native_handle with
   | Some handle when not handle.Arrow_table.freed ->
-      (match Arrow_ffi.arrow_table_group_by handle.ptr keys with
-       | Some gptr ->
-           let gh = { ptr = gptr; freed = false } in
-           register_group_finalizer gh;
-           { ocaml_result with native_group = Some gh }
-       | None ->
-           (* Native grouping failed — use pure OCaml result *)
-           ocaml_result)
+       (match Arrow_ffi.arrow_table_group_by handle.ptr keys with
+        | Some gptr ->
+            let gh = { ptr = gptr; freed = false } in
+            register_group_finalizer gh;
+            { base_table = t; group_keys = keys;
+              native_group = Some gh; ocaml_groups = ref None }
+        | None ->
+            (* Native grouping failed — use pure OCaml result *)
+            group_by_ocaml t keys)
   | _ ->
-      ocaml_result
+      group_by_ocaml t keys
 
 (** Pure OCaml group-by implementation *)
 and group_by_ocaml (t : Arrow_table.t) (keys : string list) : grouped_table =
+  let groups = build_ocaml_groups t keys in
+  { base_table = t; group_keys = keys;
+    native_group = None; ocaml_groups = ref (Some groups) }
+
+(** Build the pure OCaml group list used by grouped fallbacks. *)
+and build_ocaml_groups (t : Arrow_table.t) (keys : string list) : (string * int list) list =
   let nrows = Arrow_table.num_rows t in
   (* Get key column values *)
   let key_col_values = List.map (fun k ->
@@ -287,8 +291,25 @@ and group_by_ocaml (t : Arrow_table.t) (keys : string list) : grouped_table =
     | ([], _) -> -1
     | (_, []) -> 1
   ) groups in
-  { base_table = t; group_keys = keys;
-    native_group = None; ocaml_groups = sorted_groups }
+  sorted_groups
+
+(** Materialize the OCaml group list on demand for grouped fallbacks.
+    The current evaluator uses grouped tables on a single thread, so caching
+    this fallback in-place avoids repeated regrouping without extra
+    synchronization. *)
+let get_ocaml_groups (grouped : grouped_table) : (string * int list) list =
+  match !(grouped.ocaml_groups) with
+  | Some groups -> groups
+  | None ->
+      let groups = build_ocaml_groups grouped.base_table grouped.group_keys in
+      grouped.ocaml_groups := Some groups;
+      groups
+
+(** Whether the OCaml fallback groups have already been materialized. *)
+let ocaml_groups_materialized (grouped : grouped_table) : bool =
+  match !(grouped.ocaml_groups) with
+  | Some _ -> true
+  | None -> false
 
 (** Apply an aggregation to a grouped table.
     agg_name: "sum", "mean", or "count"
@@ -316,10 +337,11 @@ let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name 
 
 (** Pure OCaml group aggregation fallback *)
 and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_name : string) : Arrow_table.t =
-  let n_groups = List.length grouped.ocaml_groups in
+  let ocaml_groups = get_ocaml_groups grouped in
+  let n_groups = List.length ocaml_groups in
   let t = grouped.base_table in
   (* Convert to arrays for O(1) indexed access instead of O(n) List.nth *)
-  let groups_array = Array.of_list grouped.ocaml_groups in
+  let groups_array = Array.of_list ocaml_groups in
   (* Build key columns *)
   let key_col_values = List.map (fun k ->
     match Arrow_table.get_column t k with

@@ -1334,6 +1334,124 @@ static void grouped_table_free(GroupedTable *gt) {
   free(gt);
 }
 
+typedef struct {
+  GArrowChunkedArray *chunked;
+  guint n_chunks;
+  guint chunk_index;
+  gint64 chunk_start;
+  gint64 chunk_end;
+  GArrowArray *chunk;
+} NumericChunkCursor;
+
+static void
+numeric_chunk_cursor_clear_chunk(NumericChunkCursor *cursor)
+{
+  if (cursor->chunk != NULL) {
+    g_object_unref(cursor->chunk);
+    cursor->chunk = NULL;
+  }
+}
+
+static void
+numeric_chunk_cursor_init(NumericChunkCursor *cursor, GArrowChunkedArray *chunked)
+{
+  cursor->chunked = chunked;
+  cursor->n_chunks = garrow_chunked_array_get_n_chunks(chunked);
+  cursor->chunk_index = 0;
+  cursor->chunk_start = 0;
+  cursor->chunk_end = 0;
+  cursor->chunk = NULL;
+}
+
+static void
+numeric_chunk_cursor_reset(NumericChunkCursor *cursor)
+{
+  numeric_chunk_cursor_clear_chunk(cursor);
+  cursor->chunk_index = 0;
+  cursor->chunk_start = 0;
+  cursor->chunk_end = 0;
+}
+
+static void
+numeric_chunk_cursor_destroy(NumericChunkCursor *cursor)
+{
+  numeric_chunk_cursor_clear_chunk(cursor);
+}
+
+static gboolean
+numeric_chunk_cursor_seek(NumericChunkCursor *cursor, gint64 row_idx, gint64 *offset)
+{
+  /* Group rows are typically visited in ascending order inside a group, but a
+     fresh group can start at an earlier row than the previous group's last row.
+     When row_idx < cursor->chunk_start, the backward seek resets the cursor to
+     maintain correctness, at the cost of re-scanning chunks from the beginning
+     for that group. */
+  if (row_idx < cursor->chunk_start) {
+    numeric_chunk_cursor_reset(cursor);
+  }
+
+  while (cursor->chunk_index < cursor->n_chunks) {
+    if (cursor->chunk == NULL) {
+      cursor->chunk = garrow_chunked_array_get_chunk(cursor->chunked, cursor->chunk_index);
+      if (cursor->chunk == NULL) {
+        return FALSE;
+      }
+
+      gint64 chunk_len = garrow_array_get_length(cursor->chunk);
+      cursor->chunk_end = cursor->chunk_start + chunk_len;
+      if (chunk_len <= 0) {
+        /* Defensive handling for empty chunks, which can occur in real Arrow
+           data after filtering or other operations: advance to the next chunk
+           so the cursor cannot get stuck on a zero-length segment. */
+        cursor->chunk_start = cursor->chunk_end;
+        numeric_chunk_cursor_clear_chunk(cursor);
+        cursor->chunk_index++;
+        continue;
+      }
+    }
+
+    if (row_idx < cursor->chunk_end) {
+      *offset = row_idx - cursor->chunk_start;
+      return TRUE;
+    }
+
+    cursor->chunk_start = cursor->chunk_end;
+    numeric_chunk_cursor_clear_chunk(cursor);
+    cursor->chunk_index++;
+  }
+
+  return FALSE;
+}
+
+/* Read a numeric scalar from the current chunk into *value.
+   Supports INT64, INT32, INT16, UINT32, DOUBLE, and FLOAT arrays.
+   Returns TRUE when the chunk type is supported, FALSE otherwise. */
+static gboolean
+read_numeric_array_value(GArrowArray *chunk, gint64 offset, gdouble *value)
+{
+  if (GARROW_IS_INT64_ARRAY(chunk)) {
+    *value = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_INT32_ARRAY(chunk)) {
+    *value = (gdouble)garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_INT16_ARRAY(chunk)) {
+    *value = (gdouble)garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
+    *value = (gdouble)garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+    *value = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
+    return TRUE;
+  } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {
+    *value = (gdouble)garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), offset);
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
 /* Helper: extract a single cell value as a newly-allocated string.
    Caller must g_free() the returned string. */
 static gchar *
@@ -1677,46 +1795,29 @@ CAMLprim value caml_arrow_grouped_table_free(value v_ptr) {
   CAMLreturn(Val_unit);
 }
 
-/* Helper: get a numeric value from a column at a given row index.
-   Returns the value as a double. Sets *is_null to TRUE if the value is null. */
-static gdouble
-get_numeric_value(GArrowTable *table, int col_idx, int row_idx, gboolean *is_null)
+/* Helper: get a numeric value from a column cursor at a given row index.
+   Sets *is_null when the row is outside the available chunks or the value is
+   null. Sets *value to the extracted numeric value when the function returns
+   TRUE and the cell is non-null. Returns FALSE only when the underlying chunk
+   type is unsupported for native aggregation. */
+static gboolean
+get_numeric_value(NumericChunkCursor *cursor, gint64 row_idx, gboolean *is_null, gdouble *value)
 {
   *is_null = FALSE;
-  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, col_idx);
-  if (chunked == NULL) { *is_null = TRUE; return 0.0; }
+  *value = 0.0;
 
-  gint64 offset = row_idx;
-  GArrowArray *chunk = NULL;
-  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
-  for (guint c = 0; c < n_chunks; c++) {
-    chunk = garrow_chunked_array_get_chunk(chunked, c);
-    gint64 chunk_len = garrow_array_get_length(chunk);
-    if (offset < chunk_len) break;
-    offset -= chunk_len;
-    g_object_unref(chunk);
-    chunk = NULL;
-  }
-  g_object_unref(chunked);
-
-  if (chunk == NULL) { *is_null = TRUE; return 0.0; }
-
-  if (garrow_array_is_null(chunk, offset)) {
-    g_object_unref(chunk);
+  gint64 offset = 0;
+  if (!numeric_chunk_cursor_seek(cursor, row_idx, &offset)) {
     *is_null = TRUE;
-    return 0.0;
+    return TRUE;
   }
 
-  gdouble val = 0.0;
-  if (GARROW_IS_INT64_ARRAY(chunk)) {
-    val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
-  } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
-    val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
-  } else {
+  if (garrow_array_is_null(cursor->chunk, offset)) {
     *is_null = TRUE;
+    return TRUE;
   }
-  g_object_unref(chunk);
-  return val;
+
+  return read_numeric_array_value(cursor->chunk, offset, value);
 }
 
 /* Helper: build a result table from grouped aggregation.
@@ -1839,23 +1940,38 @@ CAMLprim value caml_arrow_group_sum(value v_grouped_ptr, value v_col_name) {
 
   if (col_idx < 0) CAMLreturn(Val_none);
 
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(gt->table, col_idx);
+  if (chunked == NULL) CAMLreturn(Val_none);
+
   gdouble *sums = (gdouble *)calloc(gt->n_groups, sizeof(gdouble));
   gboolean *nulls = (gboolean *)calloc(gt->n_groups, sizeof(gboolean));
 
   for (int g = 0; g < gt->n_groups; g++) {
+    NumericChunkCursor cursor;
+    numeric_chunk_cursor_init(&cursor, chunked);
     gdouble sum = 0.0;
     gboolean all_null = TRUE;
     for (int r = 0; r < gt->group_sizes[g]; r++) {
       gboolean is_null;
-      gdouble val = get_numeric_value(gt->table, col_idx, gt->group_row_indices[g][r], &is_null);
+      gdouble val = 0.0;
+      if (!get_numeric_value(&cursor, gt->group_row_indices[g][r], &is_null, &val)) {
+        numeric_chunk_cursor_destroy(&cursor);
+        g_object_unref(chunked);
+        free(sums);
+        free(nulls);
+        CAMLreturn(Val_none);
+      }
       if (!is_null) {
         sum += val;
         all_null = FALSE;
       }
     }
+    numeric_chunk_cursor_destroy(&cursor);
     sums[g] = sum;
     nulls[g] = all_null;
   }
+
+  g_object_unref(chunked);
 
   GArrowTable *result = build_aggregation_result(gt, col_name, sums, nulls);
   free(sums);
@@ -1884,20 +2000,33 @@ CAMLprim value caml_arrow_group_mean(value v_grouped_ptr, value v_col_name) {
 
   if (col_idx < 0) CAMLreturn(Val_none);
 
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(gt->table, col_idx);
+  if (chunked == NULL) CAMLreturn(Val_none);
+
   gdouble *means = (gdouble *)calloc(gt->n_groups, sizeof(gdouble));
   gboolean *nulls = (gboolean *)calloc(gt->n_groups, sizeof(gboolean));
 
   for (int g = 0; g < gt->n_groups; g++) {
+    NumericChunkCursor cursor;
+    numeric_chunk_cursor_init(&cursor, chunked);
     gdouble sum = 0.0;
     int count = 0;
     for (int r = 0; r < gt->group_sizes[g]; r++) {
       gboolean is_null;
-      gdouble val = get_numeric_value(gt->table, col_idx, gt->group_row_indices[g][r], &is_null);
+      gdouble val = 0.0;
+      if (!get_numeric_value(&cursor, gt->group_row_indices[g][r], &is_null, &val)) {
+        numeric_chunk_cursor_destroy(&cursor);
+        g_object_unref(chunked);
+        free(means);
+        free(nulls);
+        CAMLreturn(Val_none);
+      }
       if (!is_null) {
         sum += val;
         count++;
       }
     }
+    numeric_chunk_cursor_destroy(&cursor);
     if (count > 0) {
       means[g] = sum / (gdouble)count;
       nulls[g] = FALSE;
@@ -1905,6 +2034,8 @@ CAMLprim value caml_arrow_group_mean(value v_grouped_ptr, value v_col_name) {
       nulls[g] = TRUE;
     }
   }
+
+  g_object_unref(chunked);
 
   GArrowTable *result = build_aggregation_result(gt, col_name, means, nulls);
   free(means);

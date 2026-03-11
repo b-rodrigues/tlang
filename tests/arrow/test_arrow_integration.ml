@@ -434,7 +434,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     ("score", Arrow_table.FloatColumn [| Some 90.0; Some 80.0; Some 85.0; Some 70.0; Some 95.0 |]);
   ] 5 in
   let grouped = Arrow_compute.group_by group_tbl ["name"] in
-  let n_groups = List.length grouped.Arrow_compute.ocaml_groups in
+  let n_groups = List.length (Arrow_compute.get_ocaml_groups grouped) in
   if n_groups = 2 then begin
     incr pass_count; Printf.printf "  ✓ group_by produces 2 groups for ['name']\n"
   end else begin
@@ -442,7 +442,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* Test 34: group_by preserves group order (insertion order) *)
-  let first_key = fst (List.hd grouped.Arrow_compute.ocaml_groups) in
+  let first_key = fst (List.hd (Arrow_compute.get_ocaml_groups grouped)) in
   if first_key = {|"Alice"|} then begin
     incr pass_count; Printf.printf "  ✓ group_by preserves insertion order\n"
   end else begin
@@ -451,7 +451,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test 35: group_by with multiple keys *)
   let grouped2 = Arrow_compute.group_by group_tbl ["name"; "dept"] in
-  let n_groups2 = List.length grouped2.Arrow_compute.ocaml_groups in
+  let n_groups2 = List.length (Arrow_compute.get_ocaml_groups grouped2) in
   if n_groups2 = 4 then begin
     incr pass_count; Printf.printf "  ✓ group_by with 2 keys produces 4 groups\n"
   end else begin
@@ -537,12 +537,103 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ group_aggregate result missing key column 'name'\n"
   end;
 
-  (* Test 40: group_by + summarize via T language *)
   let csv_groupby = "test_arrow_groupby.csv" in
   let oc3 = open_out csv_groupby in
   output_string oc3 "name,dept,score\nAlice,Eng,90\nBob,Eng,80\nAlice,Sales,95\nBob,Sales,70\n";
   close_out oc3;
 
+  if Arrow_ffi.arrow_available then begin
+    (match Arrow_io.read_csv csv_groupby with
+     | Ok native_group_tbl ->
+         (match native_group_tbl.native_handle with
+          | Some _ ->
+              let native_grouped = Arrow_compute.group_by native_group_tbl ["name"] in
+              if not (Arrow_compute.ocaml_groups_materialized native_grouped) then begin
+                   incr pass_count; Printf.printf "  ✓ native group_by keeps OCaml groups lazy\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_by eagerly materialized OCaml groups\n"
+              end;
+
+              let native_mean_result = Arrow_compute.group_aggregate native_grouped "mean" "score" in
+              let mean_ok =
+                Arrow_table.num_rows native_mean_result = 2
+                && (match Arrow_table.get_column native_mean_result "score" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        let close a b = Float.abs (a -. b) < 0.001 in
+                        (match data.(0), data.(1) with
+                         | Some a, Some b -> close a 92.5 && close b 75.0
+                         | _ -> false)
+                    | _ -> false)
+              in
+              if mean_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate mean stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate mean returned incorrect values\n"
+              end;
+
+              let native_sum_result = Arrow_compute.group_aggregate native_grouped "sum" "score" in
+              let sum_ok =
+                Arrow_table.num_rows native_sum_result = 2
+                && (match Arrow_table.get_column native_sum_result "score" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        data.(0) = Some 185.0 && data.(1) = Some 150.0
+                    | _ -> false)
+              in
+              if sum_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate sum stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate sum returned incorrect values\n"
+              end;
+
+              if not (Arrow_compute.ocaml_groups_materialized native_grouped) then begin
+                   incr pass_count; Printf.printf "  ✓ native group_aggregate avoids forcing OCaml groups\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate unexpectedly forced OCaml groups\n"
+              end;
+
+              let native_groups = Arrow_compute.get_ocaml_groups native_grouped in
+              if List.length native_groups = 2 then begin
+                incr pass_count; Printf.printf "  ✓ get_ocaml_groups materializes native groups on demand\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ get_ocaml_groups expected 2 groups, got %d\n"
+                  (List.length native_groups)
+              end
+          | None ->
+              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                "native group_by keeps OCaml groups lazy";
+              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                "native group_aggregate mean stays correct";
+              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                "native group_aggregate sum stays correct";
+              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                "native group_aggregate avoids forcing OCaml groups";
+              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                "get_ocaml_groups materializes native groups on demand")
+     | Error msg ->
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           (Printf.sprintf "native group_by smoke test CSV read failed: %s" msg);
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "native group_aggregate mean stays correct";
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "native group_aggregate sum stays correct";
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "native group_aggregate avoids forcing OCaml groups";
+         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+           "get_ocaml_groups materializes native groups on demand")
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "native group_by keeps OCaml groups lazy";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "native group_aggregate mean stays correct";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "native group_aggregate sum stays correct";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "native group_aggregate avoids forcing OCaml groups";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "get_ocaml_groups materializes native groups on demand"
+  end;
+
+  (* Test 40: group_by + summarize via T language *)
   test "Group-by + summarize (mean)"
     (Printf.sprintf
       {|df = read_csv("%s"); df |> group_by($name) |> summarize($avg_score = mean($score)) |> \(d) d.avg_score|}
