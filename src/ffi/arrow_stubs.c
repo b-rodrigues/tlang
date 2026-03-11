@@ -1615,8 +1615,13 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     .group_key_values = (gchar ***)group_key_vals->pdata
   };
 
+#if GLIB_CHECK_VERSION(2, 82, 0)
+  g_sort_array(group_permutation, n_groups, sizeof(int),
+               compare_group_keys, &sort_ctx);
+#else
   g_qsort_with_data(group_permutation, n_groups, sizeof(int),
                     compare_group_keys, &sort_ctx);
+#endif
 
   GroupedTable *gt = (GroupedTable *)malloc(sizeof(GroupedTable));
   gt->table = g_object_ref(table);

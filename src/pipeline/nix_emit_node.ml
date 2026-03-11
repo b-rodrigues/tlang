@@ -746,7 +746,7 @@ def py_read_pmml(path):
           "pmml",  "t_write_pmml";
           "csv",   "write_csv";
         ]
-    ] in
+    in
     if ser_s = "default" then
       (if runtime = "R" then "saveRDS" else "serialize")
     else if ser_expr_is_string then
