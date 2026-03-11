@@ -1,5 +1,11 @@
 open Nix_utils
 
+let indent_string s n =
+  let indent = String.make n ' ' in
+  String.split_on_char '\n' s
+  |> List.map (fun line -> if line = "" then "" else indent ^ line)
+  |> String.concat "\n"
+
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script =
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
@@ -779,17 +785,6 @@ def py_read_pmml(path):
     else ""
   in
 
-  (* expr_s with import/library lines removed, for use in assignment wrappers *)
-  let expr_s_no_imports =
-    if is_raw_code then
-      let lines = String.split_on_char '\n' expr_s in
-      let non_imports = List.filter (fun l -> not (is_import_line l)) lines in
-      (* Remove leading/trailing blank lines after stripping *)
-      let non_imports = List.filter (fun l -> String.trim l <> "") non_imports in
-      String.concat "\n" non_imports
-    else expr_s
-  in
-
   (* Check if raw code string contains a Python assignment to node_name.
      Looks for `name = ` (assignment, not `==` comparison) at the start of a line. *)
   let raw_assigns_to name s =
@@ -803,6 +798,27 @@ def py_read_pmml(path):
       not (String.length l >= String.length prefix_eq &&
            String.sub l 0 (String.length prefix_eq) = prefix_eq))
   in
+
+  (* expr_s with import/library lines removed, for use in assignment wrappers *)
+  let expr_s_no_imports, _python_was_auto_returned =
+    if is_raw_code then
+      let lines = String.split_on_char '\n' expr_s in
+      let non_imports = List.filter (fun l -> not (is_import_line l)) lines in
+      (* Remove leading/trailing blank lines after stripping *)
+      let non_imports = List.filter (fun l -> String.trim l <> "") non_imports in
+      if runtime = "Python" && not (raw_assigns_to name expr_s) then
+         match List.rev non_imports with
+         | last :: rest when not (String.contains last '=') && not (String.starts_with ~prefix:"print(" (String.trim last)) ->
+             let last_trimmed = String.trim last in
+             String.concat "\n" (List.rev (("return " ^ last_trimmed) :: rest)), true
+         | _ -> String.concat "\n" non_imports, false
+      else
+        String.concat "\n" non_imports, false
+    else expr_s, false
+  in
+
+
+
 
   let assign_script_lines =
     if runtime = "Quarto" then
@@ -860,13 +876,19 @@ EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
         else
-          (* Expression-style: wrap with assignment to node name.
-             Use expr_s_no_imports since import lines are already hoisted above. *)
-          Printf.sprintf {|      cat <<'EOF' >> node_script.py
-%s = (%s)
+          let globals_decl =
+            if deps = [] then ""
+            else Printf.sprintf "    global %s\n" (String.concat ", " deps)
+          in
+          Printf.sprintf {|      echo "def __node_runner():" >> node_script.py
+%s      cat <<'EOF' >> node_script.py
+%s
 EOF
+      echo "%s = __node_runner()" >> node_script.py
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s_no_imports ser_call name name
+      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|}
+            (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
+            (indent_string expr_s_no_imports 4) name ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.py
 %s = %s

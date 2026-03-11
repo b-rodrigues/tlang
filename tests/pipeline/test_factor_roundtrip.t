@@ -55,10 +55,10 @@ print("Python: Verified Categorical type")
 # Add a row
 new_row = pd.DataFrame({'id': [4], 'cat': ['medium']})
 new_row['cat'] = new_row['cat'].astype(node_t['cat'].dtype)
-node_py = pd.concat([node_t, new_row], ignore_index=True)
+output = pd.concat([node_t, new_row], ignore_index=True)
 print("Python: final df:")
-print(node_py)
-node_py
+print(output)
+output
     }>,
     runtime = Python,
     deserializer = "arrow",
