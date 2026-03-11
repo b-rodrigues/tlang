@@ -656,69 +656,69 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                         data.(0) = Some 185.0 && data.(1) = Some 150.0
                     | _ -> false)
               in
-               if sum_ok then begin
-                 incr pass_count; Printf.printf "  ✓ native group_aggregate sum stays correct\n"
-               end else begin
-                 incr fail_count; Printf.printf "  ✗ native group_aggregate sum returned incorrect values\n"
-               end;
-
-               let native_min_result = Arrow_compute.group_aggregate native_grouped "min" "score" in
-               let min_ok =
-                 Arrow_table.num_rows native_min_result = 2
-                 && (match Arrow_table.get_column native_min_result "score" with
-                     | Some (Arrow_table.FloatColumn data) ->
-                         data.(0) = Some 90.0 && data.(1) = Some 70.0
-                     | _ -> false)
-               in
-               if min_ok then begin
-                 incr pass_count; Printf.printf "  ✓ native group_aggregate min stays correct\n"
-               end else begin
-                 incr fail_count; Printf.printf "  ✗ native group_aggregate min returned incorrect values\n"
-               end;
-
-               let native_max_result = Arrow_compute.group_aggregate native_grouped "max" "score" in
-               let max_ok =
-                 Arrow_table.num_rows native_max_result = 2
-                 && (match Arrow_table.get_column native_max_result "score" with
-                     | Some (Arrow_table.FloatColumn data) ->
-                         data.(0) = Some 95.0 && data.(1) = Some 80.0
-                     | _ -> false)
-               in
-               if max_ok then begin
-                 incr pass_count; Printf.printf "  ✓ native group_aggregate max stays correct\n"
-               end else begin
-                 incr fail_count; Printf.printf "  ✗ native group_aggregate max returned incorrect values\n"
-               end;
-
-               let native_distinct_result =
-                 Arrow_compute.group_aggregate native_grouped "count_distinct" "dept"
-               in
-               let distinct_ok =
-                 Arrow_table.num_rows native_distinct_result = 2
-                 && (match Arrow_table.get_column native_distinct_result "dept" with
-                     | Some (Arrow_table.FloatColumn data) ->
-                         data.(0) = Some 2.0 && data.(1) = Some 2.0
-                     | _ -> false)
-               in
-                if distinct_ok then begin
-                  incr pass_count; Printf.printf "  ✓ native group_aggregate count_distinct stays correct\n"
-                end else begin
-                  incr fail_count; Printf.printf "  ✗ native group_aggregate count_distinct returned incorrect values\n"
-                end;
-
-                if not (Arrow_compute.ocaml_groups_materialized native_grouped) then begin
-                     incr pass_count; Printf.printf "  ✓ native group_aggregate avoids forcing OCaml groups\n"
-                end else begin
-                  incr fail_count; Printf.printf "  ✗ native group_aggregate unexpectedly forced OCaml groups\n"
+              if sum_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate sum stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate sum returned incorrect values\n"
               end;
 
-              let native_groups = Arrow_compute.get_ocaml_groups native_grouped in
-                if List.length native_groups = 2 then begin
-                  incr pass_count; Printf.printf "  ✓ get_ocaml_groups materializes native groups on demand\n"
-                end else begin
-                  incr fail_count; Printf.printf "  ✗ get_ocaml_groups expected 2 groups, got %d\n"
-                    (List.length native_groups)
-                end
+              let native_min_result = Arrow_compute.group_aggregate native_grouped "min" "score" in
+              let min_ok =
+                Arrow_table.num_rows native_min_result = 2
+                && (match Arrow_table.get_column native_min_result "score" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        data.(0) = Some 90.0 && data.(1) = Some 70.0
+                    | _ -> false)
+              in
+              if min_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate min stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate min returned incorrect values\n"
+              end;
+
+              let native_max_result = Arrow_compute.group_aggregate native_grouped "max" "score" in
+              let max_ok =
+                Arrow_table.num_rows native_max_result = 2
+                && (match Arrow_table.get_column native_max_result "score" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        data.(0) = Some 95.0 && data.(1) = Some 80.0
+                    | _ -> false)
+              in
+              if max_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate max stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate max returned incorrect values\n"
+              end;
+
+              let native_distinct_result =
+                Arrow_compute.group_aggregate native_grouped "count_distinct" "dept"
+              in
+              let distinct_ok =
+                Arrow_table.num_rows native_distinct_result = 2
+                && (match Arrow_table.get_column native_distinct_result "dept" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        data.(0) = Some 2.0 && data.(1) = Some 2.0
+                    | _ -> false)
+              in
+              if distinct_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate count_distinct stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate count_distinct returned incorrect values\n"
+              end;
+
+              if not (Arrow_compute.ocaml_groups_materialized native_grouped) then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate avoids forcing OCaml groups\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate unexpectedly forced OCaml groups\n"
+              end;
+
+               let native_groups = Arrow_compute.get_ocaml_groups native_grouped in
+              if List.length native_groups = 2 then begin
+                incr pass_count; Printf.printf "  ✓ get_ocaml_groups materializes native groups on demand\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ get_ocaml_groups expected 2 groups, got %d\n"
+                  (List.length native_groups)
+              end
            | None ->
                Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                  "native group_by keeps OCaml groups lazy";
