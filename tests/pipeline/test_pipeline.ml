@@ -360,9 +360,46 @@ p_cross = pipeline {
        end else begin
          incr fail_count; Printf.printf "  ✗ pipeline env_vars preservation/emission failed\n"
        end
+    | other ->
+         incr fail_count; Printf.printf "  ✗ pipeline with env_vars should return VPipeline, got: %s\n"
+           (Ast.Utils.value_to_string other));
+
+  let (v_serializer_pipeline, _) = eval_string_env
+    {|pipeline {
+  source = [answer: 42]
+  report_r = rn(command = <{ source }>, serializer = "json", deserializer = "json")
+  report_py = py(command = <{ source }>, serializer = "arrow", deserializer = "arrow")
+}|}
+    (Packages.init_env ()) in
+  (match v_serializer_pipeline with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has_r_json_helpers =
+         contains_substring nix "r_write_json <- function" &&
+         contains_substring nix "r_read_json <- function" &&
+         contains_substring nix "source <- r_read_json(" &&
+         contains_substring nix "r_write_json(report_r, \"$out/artifact\")"
+       in
+       let has_py_arrow_helpers =
+         contains_substring nix "def py_write_arrow(df, path):" &&
+         contains_substring nix "def py_read_arrow(path):" &&
+         contains_substring nix "source = py_read_arrow(" &&
+         contains_substring nix "py_write_arrow(report_py, \"$out/artifact\")"
+       in
+       let omits_old_runtime_prefixed_helpers =
+         not (contains_substring nix "t_read_json(") &&
+         not (contains_substring nix "t_write_json(") &&
+         not (contains_substring nix "t_read_arrow(") &&
+         not (contains_substring nix "t_write_arrow(")
+       in
+       if has_r_json_helpers && has_py_arrow_helpers && omits_old_runtime_prefixed_helpers then begin
+         incr pass_count; Printf.printf "  ✓ pipeline emits r_/py_ runtime serializer helper names\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ runtime serializer helper naming emission failed\n"
+       end
    | other ->
-        incr fail_count; Printf.printf "  ✗ pipeline with env_vars should return VPipeline, got: %s\n"
-          (Ast.Utils.value_to_string other));
+       incr fail_count; Printf.printf "  ✗ serializer naming pipeline should return VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
 
   let quarto_script = "test_quarto_report.qmd" in
   let quarto_dep_node = "data" in
