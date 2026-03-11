@@ -245,6 +245,26 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf {|df = read_csv("%s"); filter(df, $age > 28) |> nrow|} csv_path)
     "2";
 
+  let csv_filter_na = "test_arrow_filter_na.csv" in
+  let oc_filter_na = open_out csv_filter_na in
+  output_string oc_filter_na "name,trip_distance\nAlice,1.2\nBob,\nCharlie,3.4\n";
+  close_out oc_filter_na;
+
+  test "Arrow filter with !is_na"
+    (Printf.sprintf {|df = read_csv("%s"); filter(df, !is_na($trip_distance)) |> nrow|} csv_filter_na)
+    "2";
+
+  let (v, _) = eval_string_env
+    (Printf.sprintf {|df_f = read_csv("%s"); explain(filter(df_f, !is_na($trip_distance))).native_path_active|} csv_filter_na)
+    env in
+  let result = Ast.Utils.value_to_string v in
+  if result = "true" then begin
+    incr pass_count; Printf.printf "  ✓ Arrow filter !is_na keeps native path active\n"
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow filter !is_na keeps native path active"
+  end;
+
   test "Arrow mutate"
     (Printf.sprintf {|df = read_csv("%s"); mutate(df, $senior = $age >= 30) |> ncol|} csv_path)
     "4";
@@ -288,6 +308,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf
       {|read_csv("%s") |> filter($age > 25) |> select($name, $score) |> nrow|} csv_path)
     "2";
+
+  (try Sys.remove csv_filter_na with _ -> ());
 
   let csv_skip_path = "test_arrow_csv_skip_lines.csv" in
   let oc = open_out csv_skip_path in
