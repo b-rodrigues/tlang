@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-03-05";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-03-11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
