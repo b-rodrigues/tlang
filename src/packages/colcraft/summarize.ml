@@ -56,16 +56,6 @@ let can_vectorize_agg (table : Arrow_table.t) (agg_name : string) (col_name : st
   | "n" | "n_distinct" -> true
   | _ -> na_rm || not (column_has_nulls table col_name)
 
-let finalize_vectorized_agg_value (agg_name : string) (value : value) : value =
-  match agg_name, value with
-  | ("n" | "n_distinct"), VFloat f ->
-      let n = int_of_float f in
-      if float_of_int n = f then VInt n else value
-  | _ -> value
-
-let finalize_vectorized_agg_values (agg_name : string) (values : value array) : value array =
-  Array.map (finalize_vectorized_agg_value agg_name) values
-
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
   (* Helper: apply aggregation fn with arg if callable, otherwise use fn as a constant value *)
   let apply_aggregation env fn arg =
@@ -124,7 +114,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                         | _ -> (fun _ _ -> None)
                       in
                      (match agg_fn df.arrow_table col_name with
-                      | Some f -> (name, finalize_vectorized_agg_value agg_name (VFloat f))
+                      | Some f -> (name, VFloat f)
                       | None ->
                          (* Native compute failed — fall back *)
                          (name, apply_aggregation env fn (VDataFrame df)))
@@ -182,10 +172,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                          let result_col_key = if agg_name_eff = "count" then "n" else col_name in
                         (match Arrow_table.get_column result_table result_col_key with
                          | Some col ->
-                           let values =
-                             Arrow_bridge.column_to_values col
-                             |> finalize_vectorized_agg_values agg_name
-                           in
+                           let values = Arrow_bridge.column_to_values col in
                            (name, values)
                          | None ->
                           (* Native group_aggregate failed — fall back to per-group *)

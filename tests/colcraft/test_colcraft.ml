@@ -187,10 +187,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|result = df |> group_by($dept) |> summarize($count = n()); result.count|}
     env_p4 in
   let result = Ast.Utils.value_to_string v in
-  if result = "Vector[3, 2]" then begin
+  if result = "Vector[3., 2.]" then begin
     incr pass_count; Printf.printf "  ✓ grouped summarize n() counts rows per group\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped summarize n() counts rows per group\n    Expected: Vector[3, 2]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ grouped summarize n() counts rows per group\n    Expected: Vector[3., 2.]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env
