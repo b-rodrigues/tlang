@@ -664,3 +664,35 @@ let compare_column_scalar (t : Arrow_table.t) (col_name : string)
           | Ast.VInt i -> cmp_fn (float_of_int i) scalar
           | _ -> false
         ) values)
+
+(** Return a bool array mask where true means the named column value is null/NA.
+    Uses native Arrow validity checks when the table is native-backed. *)
+let column_null_mask (t : Arrow_table.t) (col_name : string) : bool array option =
+  let ocaml_fallback () =
+    match Arrow_table.get_column t col_name with
+    | Some (Arrow_table.IntColumn a) ->
+        Some (Array.map (function None -> true | Some _ -> false) a)
+    | Some (Arrow_table.FloatColumn a) ->
+        Some (Array.map (function None -> true | Some _ -> false) a)
+    | Some (Arrow_table.BoolColumn a) ->
+        Some (Array.map (function None -> true | Some _ -> false) a)
+    | Some (Arrow_table.StringColumn a) ->
+        Some (Array.map (function None -> true | Some _ -> false) a)
+    | Some (Arrow_table.DateColumn a) ->
+        Some (Array.map (function None -> true | Some _ -> false) a)
+    | Some (Arrow_table.DatetimeColumn (a, _)) ->
+        Some (Array.map (function None -> true | Some _ -> false) a)
+    | Some (Arrow_table.DictionaryColumn (a, _, _)) ->
+        Some (Array.map (function None -> true | Some _ -> false) a)
+    | Some (Arrow_table.ListColumn a) ->
+        Some (Array.map (function None -> true | Some _ -> false) a)
+    | Some (Arrow_table.NullColumn n) ->
+        Some (Array.make n true)
+    | None -> None
+  in
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+      (match Arrow_ffi.arrow_column_null_mask handle.ptr col_name with
+       | Some _ as result -> result
+       | None -> ocaml_fallback ())
+  | _ -> ocaml_fallback ()

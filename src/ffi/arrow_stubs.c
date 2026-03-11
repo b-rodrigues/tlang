@@ -2830,6 +2830,47 @@ CAMLprim value caml_arrow_compute_compare_scalar(value v_ptr, value v_col_name,
   CAMLreturn(v_result);
 }
 
+/* Read a named column's null bitmap as a bool array.
+   Returns Some(mask) where true means the value is null/NA. */
+CAMLprim value caml_arrow_column_null_mask(value v_ptr, value v_col_name) {
+  CAMLparam2(v_ptr, v_col_name);
+  CAMLlocal2(v_result, v_arr);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (idx < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *col = garrow_table_get_column_data(table, idx);
+  if (col == NULL) CAMLreturn(Val_none);
+
+  gint64 nrows = garrow_chunked_array_get_n_rows(col);
+  v_arr = caml_alloc(nrows, 0);
+
+  gint64 arr_idx = 0;
+  guint n_chunks = garrow_chunked_array_get_n_chunks(col);
+  for (guint c = 0; c < n_chunks; c++) {
+    GArrowArray *chunk = garrow_chunked_array_get_chunk(col, c);
+    gint64 chunk_len = garrow_array_get_length(chunk);
+
+    for (gint64 i = 0; i < chunk_len; i++) {
+      Store_field(v_arr, arr_idx, Val_bool(garrow_array_is_null(chunk, i)));
+      arr_idx++;
+    }
+    g_object_unref(chunk);
+  }
+
+  g_object_unref(col);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, v_arr);
+  CAMLreturn(v_result);
+}
+
 /* ===================================================================== */
 /* IPC Read/Write                                                       */
 /* ===================================================================== */

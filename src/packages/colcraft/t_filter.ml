@@ -12,28 +12,6 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
       | VFloat f -> Some f
       | _ -> None
     in
-    let null_mask field =
-      match Arrow_table.get_column table field with
-      | Some (Arrow_table.IntColumn a) ->
-          Some (Array.map (function None -> true | Some _ -> false) a)
-      | Some (Arrow_table.FloatColumn a) ->
-          Some (Array.map (function None -> true | Some _ -> false) a)
-      | Some (Arrow_table.BoolColumn a) ->
-          Some (Array.map (function None -> true | Some _ -> false) a)
-      | Some (Arrow_table.StringColumn a) ->
-          Some (Array.map (function None -> true | Some _ -> false) a)
-      | Some (Arrow_table.DateColumn a) ->
-          Some (Array.map (function None -> true | Some _ -> false) a)
-      | Some (Arrow_table.DatetimeColumn (a, _)) ->
-          Some (Array.map (function None -> true | Some _ -> false) a)
-      | Some (Arrow_table.DictionaryColumn (a, _, _)) ->
-          Some (Array.map (function None -> true | Some _ -> false) a)
-      | Some (Arrow_table.ListColumn a) ->
-          Some (Array.map (function None -> true | Some _ -> false) a)
-      | Some (Arrow_table.NullColumn n) ->
-          Some (Array.make n true)
-      | None -> None
-    in
     let try_cmp op left right =
       let op_name = match op with
         | Gt -> Some "gt" | Lt -> Some "lt" | GtEq -> Some "ge"
@@ -71,7 +49,7 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
       | Call { fn = Var "is_na";
                args = [(None, DotAccess { target = Var p; field })] }
           when p = param ->
-        null_mask field
+        Arrow_compute.column_null_mask table field
       | BinOp { op; left; right } ->
         (match op with
          | And ->

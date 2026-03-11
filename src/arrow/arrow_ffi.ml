@@ -283,3 +283,9 @@ external arrow_compute_max_column : nativeint -> string -> float option
     op_code: 0=eq, 1=lt, 2=gt, 3=le, 4=ge *)
 external arrow_compute_compare_scalar : nativeint -> string -> float -> int -> bool array option
   = "caml_arrow_compute_compare_scalar"
+
+(** Read the null bitmap of a named column as a bool mask where true means NA.
+    Uses the native Arrow column/chunk validity information without materializing
+    full OCaml column values. *)
+external arrow_column_null_mask : nativeint -> string -> bool array option
+  = "caml_arrow_column_null_mask"

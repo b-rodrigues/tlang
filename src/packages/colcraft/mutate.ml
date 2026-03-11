@@ -150,6 +150,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
       in
       match named_args with
+      | [] ->
+          Error.arity_error_named "mutate" ~expected:2 ~received:0
       | (None, VDataFrame df) :: rest when rest <> [] ->
           let rec apply_named_mutations current_df = function
             | [] -> VDataFrame current_df

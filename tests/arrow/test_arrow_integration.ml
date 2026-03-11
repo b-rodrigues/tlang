@@ -293,21 +293,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Packages.init_env ()) in
   (match v with
    | VDataFrame df ->
-       if Arrow_table.is_native_backed df.arrow_table then begin
-         incr pass_count; Printf.printf "  ✓ Arrow mutate chained arithmetic stays native-backed\n"
-       end else begin
-         Printf.eprintf "DEBUG: chained arithmetic result was NOT native-backed\n";
-         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-           "Arrow mutate chained arithmetic stays native-backed"
-       end
-   | VError e ->
-       Printf.eprintf "DEBUG: chained arithmetic FAILED with Error: %s\n" e.message;
-       Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-         "Arrow mutate chained arithmetic stays native-backed"
-   | _ ->
-       Printf.eprintf "DEBUG: chained arithmetic result was unexpected type: %s\n" (Ast.Utils.value_to_string v);
-       Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-         "Arrow mutate chained arithmetic stays native-backed");
+        if Arrow_table.is_native_backed df.arrow_table then begin
+          incr pass_count; Printf.printf "  ✓ Arrow mutate chained arithmetic stays native-backed\n"
+        end else begin
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "Arrow mutate chained arithmetic stays native-backed"
+        end
+    | VError _ ->
+        Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+          "Arrow mutate chained arithmetic stays native-backed"
+    | _ ->
+        Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+          "Arrow mutate chained arithmetic stays native-backed");
 
   test "Arrow arrange"
     (Printf.sprintf
