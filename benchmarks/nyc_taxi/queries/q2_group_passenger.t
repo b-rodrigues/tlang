@@ -12,7 +12,7 @@ if (type(input_parquet) == "String") {
 
 result = df
   |> group_by($passenger_count)
-  |> summarize($avg_fare = mean($fare_amount, na_rm = true), $trips = nrow($fare_amount))
+  |> summarize($avg_fare = mean($fare_amount, na_rm = true), $trips = n())
 
 print(result)
 print(str_join(["ROWS_SCANNED=", str_string(nrow(df))]))

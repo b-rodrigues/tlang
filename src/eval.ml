@@ -1362,12 +1362,31 @@ and lambda_arity_error params args =
   Error.arity_error ~expected:(List.length params) ~received:(List.length args)
 
 and eval_call env_ref fn_val raw_args =
+  let current_builtin_name =
+    match fn_val with
+    | VBuiltin { b_name; _ } -> b_name
+    | _ -> None
+  in
+  let make_row_lambda body =
+    Lambda {
+      params = ["row"];
+      param_types = [None];
+      return_type = None;
+      generic_params = [];
+      variadic = false;
+      body;
+      env = None;
+    }
+  in
   (* NSE auto-transformation: if an argument is a complex expression containing
      ColumnRef nodes (not a bare ColumnRef), wrap it in a lambda \(row) <desugared>
      before evaluation. Bare ColumnRef stays as-is (evaluates to VSymbol). *)
   let transform_nse_args args =
     List.map (fun (name, expr) ->
       match expr with
+      | Call { fn = Var "n"; args = [] }
+        when current_builtin_name = Some "summarize" && Option.is_some name ->
+          (name, make_row_lambda (Call { fn = Var "n"; args = [(None, Var "row")] }))
       | ColumnRef _ -> (name, expr)  (* bare $col → keep, evaluates to VSymbol *)
       | ListLit items when List.for_all (fun (_, e) -> match e with ColumnRef _ -> true | _ -> false) items ->
           (name, expr) (* list of bare $cols → keep as-is *)
@@ -1380,10 +1399,9 @@ and eval_call env_ref fn_val raw_args =
              proper NSE row context in mutate/summarize. *)
           (match name, expr with
            | None, Call _ -> (name, expr)
-           | _ ->
+            | _ ->
                let desugared = desugar_nse_expr expr in
-               (name, Lambda { params = ["row"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
-                               body = desugared; env = None }))
+               (name, make_row_lambda desugared))
       | _ -> (name, expr)
     ) args
   in

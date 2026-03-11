@@ -96,6 +96,7 @@ let colcraft_package = {
   name = "colcraft";
   description = "DataFrame manipulation verbs and window functions";
   functions = ["select"; "filter"; "mutate"; "arrange"; "group_by"; "ungroup"; "summarize";
+               "n"; "n_distinct";
                "ntile"; "dense_rank"; "row_number"; "min_rank"; "cume_dist"; "percent_rank";
                "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum";
                "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "factor"; "as_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "fct_lump_min"; "fct_lump_prop"; "fct_other"; "fct_drop"; "fct_expand"; "fct_c"; "levels"; "ordered";
@@ -576,6 +577,8 @@ let init_env () =
   let env = Group_by.register env in
   let env = Ungroup.register env in
   let env = Summarize.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in
+  let env = N.register env in
+  let env = N_distinct.register env in
   let env = Window_rank.register env in
   let env = Window_offset.register env in
   let env = Window_cumulative.register env in
