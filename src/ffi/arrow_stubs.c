@@ -1385,6 +1385,8 @@ numeric_chunk_cursor_seek(NumericChunkCursor *cursor, gint64 row_idx, gint64 *of
     numeric_chunk_cursor_reset(cursor);
   }
 
+  /* Advances chunk_index monotonically until the row is covered or we run out
+     of chunks; the function returns from inside the loop in both cases. */
   while (TRUE) {
     if (cursor->chunk != NULL && row_idx < cursor->chunk_end) {
       *offset = row_idx - cursor->chunk_start;
@@ -1416,6 +1418,9 @@ numeric_chunk_cursor_seek(NumericChunkCursor *cursor, gint64 row_idx, gint64 *of
   }
 }
 
+/* Read a numeric scalar from the current chunk into *value.
+   Supports INT64, INT32, INT16, UINT32, DOUBLE, and FLOAT arrays.
+   Returns TRUE when the chunk type is supported, FALSE otherwise. */
 static gboolean
 read_numeric_array_value(GArrowArray *chunk, gint64 offset, gdouble *value)
 {
@@ -1786,7 +1791,9 @@ CAMLprim value caml_arrow_grouped_table_free(value v_ptr) {
 }
 
 /* Helper: get a numeric value from a column cursor at a given row index.
-   Returns FALSE when the column type is unsupported for native aggregation. */
+   Sets *is_null when the row is outside the available chunks or the value is
+   null. Returns FALSE only when the underlying chunk type is unsupported for
+   native aggregation. */
 static gboolean
 get_numeric_value(NumericChunkCursor *cursor, gint64 row_idx, gboolean *is_null, gdouble *value)
 {
