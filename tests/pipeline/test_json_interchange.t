@@ -11,7 +11,7 @@ config_node <- list(alpha = 0.1, beta = 2)
 
 process_node = node(
     command = <{
-# config_node is read via t_read_json automatically
+# config_node is read via the runtime JSON helper automatically
 res = config_node["alpha"] + config_node["beta"]
 process_node = {"result": res}
     }>,
@@ -50,4 +50,3 @@ print(proc_data)
 print("final_node data (T node):")
 f_data = read_node("final_node")
 print(f_data)
-

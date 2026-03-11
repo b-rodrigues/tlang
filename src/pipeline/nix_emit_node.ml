@@ -203,46 +203,46 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   in
 
   let t_json_r_code = {|
-t_write_json <- function(object, path) {
+r_write_json <- function(object, path) {
   jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
 }
-t_read_json <- function(path) {
+r_read_json <- function(path) {
   jsonlite::read_json(path, simplifyVector = TRUE)
 }
 |} in
 
   let t_csv_r_code = {|
-t_write_csv <- function(object, path) {
+r_write_csv <- function(object, path) {
   if (inherits(object, "data.frame")) {
     write.csv(object, path, row.names = FALSE)
   } else {
     write.csv(as.data.frame(object), path, row.names = FALSE)
   }
 }
-t_read_csv <- function(path) {
+r_read_csv <- function(path) {
   read.csv(path, stringsAsFactors = FALSE)
 }
 |} in
 
   let t_csv_py_code = {|
 import pandas as _pd
-def t_write_csv(obj, path):
+def py_write_csv(obj, path):
     if hasattr(obj, 'to_pandas'):
         obj = obj.to_pandas()
     if hasattr(obj, 'to_csv'):
         obj.to_csv(path, index=False)
     else:
         _pd.DataFrame(obj).to_csv(path, index=False)
-def t_read_csv(path):
+def py_read_csv(path):
     return _pd.read_csv(path)
 |} in
 
   let t_json_py_code = {|
 import json
-def t_write_json(obj, path):
+def py_write_json(obj, path):
     with open(path, "w") as f:
         json.dump(obj, f)
-def t_read_json(path):
+def py_read_json(path):
     with open(path) as f:
         return json.load(f)
 |} in
@@ -258,10 +258,10 @@ def deserialize(path):
 |} in
 
   let t_arrow_r_code = {|
-t_write_arrow <- function(object, path) {
+r_write_arrow <- function(object, path) {
   arrow::write_ipc_file(as.data.frame(object), path)
 }
-t_read_arrow <- function(path) {
+r_read_arrow <- function(path) {
   arrow::read_ipc_file(path)
 }
 |} in
@@ -271,7 +271,7 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 import pandas as pd
 
-def t_write_arrow(df, path):
+def py_write_arrow(df, path):
     if hasattr(df, 'to_arrow'):
         table = df.to_arrow()
     elif isinstance(df, pd.DataFrame):
@@ -282,13 +282,13 @@ def t_write_arrow(df, path):
         with ipc.new_file(f, table.schema) as writer:
             writer.write_table(table)
 
-def t_read_arrow(path):
+def py_read_arrow(path):
     with pa.OSFile(path, 'rb') as f:
         return ipc.open_file(f).read_pandas()
 |} in
 
   let t_pmml_r_code = {|
-t_write_pmml <- function(object, path) {
+r_write_pmml <- function(object, path) {
   if (inherits(object, "glmnet")) {
     r2pmml::r2pmml(object, path, lambda.s = object$lambda[1])
   } else {
@@ -433,7 +433,7 @@ t_write_pmml <- function(object, path) {
     XML::saveXML(doc, file = path)
   }
 }
-t_read_pmml <- function(path) {
+r_read_pmml <- function(path) {
   path
 }
 |} in
@@ -444,7 +444,7 @@ import subprocess
 import tempfile
 import pickle
 
-def t_write_pmml(model, path):
+def py_write_pmml(model, path):
     # Check if it's a statsmodels model
     is_sm = False
     try:
@@ -454,7 +454,7 @@ def t_write_pmml(model, path):
     except ImportError: pass
 
     if is_sm:
-        return t_export_sm_model(model, path)
+        return py_export_sm_model(model, path)
 
     # Otherwise assume sklearn
     try:
@@ -469,7 +469,7 @@ def t_write_pmml(model, path):
     # sklearn-specific enrichment omitted for brevity here, should follow previous pattern if needed
     _enrich_sklearn_pmml(model, path)
 
-def t_export_sm_model(results, path):
+def py_export_sm_model(results, path):
     _assert_supported(results)
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -617,7 +617,7 @@ def _enrich_sm_model_pmml(results, path):
     except Exception:
         pass
 
-def t_read_pmml(path):
+def py_read_pmml(path):
     try:
         from pypmml import Model
     except ImportError:
@@ -660,12 +660,28 @@ def t_read_pmml(path):
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         (* Association list: strategy name -> read function name *)
-        let read_fns = [
-          "json",  "t_read_json";
-          "arrow", "t_read_arrow";
-          "pmml",  "t_read_pmml";
-          "csv",   "t_read_csv";
-        ] in
+        let read_fns = match runtime with
+          | "R" -> [
+              "json",  "r_read_json";
+              "arrow", "r_read_arrow";
+              "pmml",  "r_read_pmml";
+              "csv",   "r_read_csv";
+            ]
+          | "Python" -> [
+              "json",  "py_read_json";
+              "arrow", "py_read_arrow";
+              "pmml",  "py_read_pmml";
+              "csv",   "py_read_csv";
+            ]
+          (* T keeps its user-facing names for arrow/csv, while json/pmml still
+             use the internal t_* helpers exposed by the standard library. *)
+          | _ -> [
+              "json",  "t_read_json";
+              "arrow", "read_arrow";
+              "pmml",  "t_read_pmml";
+              "csv",   "read_csv";
+            ]
+        in
         if strategy = "default" then
           (if runtime = "R" then "readRDS" else "deserialize")
         else if strategy_is_string then
@@ -709,12 +725,28 @@ def t_read_pmml(path):
   let ser_s = Nix_unparse.expr_to_string serializer in
   let ser_call =
     (* Association list: strategy name -> write function name *)
-    let write_fns = [
-      "json",  "t_write_json";
-      "arrow", "t_write_arrow";
-      "pmml",  "t_write_pmml";
-      "csv",   "t_write_csv";
-    ] in
+    let write_fns = match runtime with
+      | "R" -> [
+          "json",  "r_write_json";
+          "arrow", "r_write_arrow";
+          "pmml",  "r_write_pmml";
+          "csv",   "r_write_csv";
+        ]
+      | "Python" -> [
+          "json",  "py_write_json";
+          "arrow", "py_write_arrow";
+          "pmml",  "py_write_pmml";
+          "csv",   "py_write_csv";
+        ]
+      (* T keeps its user-facing names for arrow/csv, while json/pmml still
+         use the internal t_* helpers exposed by the standard library. *)
+      | _ -> [
+          "json",  "t_write_json";
+          "arrow", "write_arrow";
+          "pmml",  "t_write_pmml";
+          "csv",   "write_csv";
+        ]
+    in
     if ser_s = "default" then
       (if runtime = "R" then "saveRDS" else "serialize")
     else if ser_expr_is_string then

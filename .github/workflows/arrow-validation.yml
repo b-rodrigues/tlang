@@ -39,6 +39,7 @@ jobs:
       - name: Run Arrow native validation
         run: |
           nix develop --accept-flake-config --command bash -lc '
+            set -euo pipefail
             dune build tests/docs.json tests/test_arrow_native_runner.exe
             ./_build/default/tests/test_arrow_native_runner.exe
           '
@@ -76,6 +77,7 @@ jobs:
       - name: Run Arrow fallback validation
         run: |
           nix develop --accept-flake-config --command bash -lc '
+            set -euo pipefail
             dune build tests/docs.json tests/test_arrow_native_runner.exe
             ./_build/default/tests/test_arrow_native_runner.exe
           '
