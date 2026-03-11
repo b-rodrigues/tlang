@@ -18,7 +18,7 @@ Options:
   --csv-path PATH      Path to the materialized CSV used by T
   --months LIST        Comma-separated YYYY-MM list used if auto-preparing data
   --results PATH       Output CSV path
-  --queries LIST       Comma-separated query ids (default: q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11)
+  --queries LIST       Comma-separated query ids (default: q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13)
   --iterations N       Number of runs per engine/query (default: 1)
   --help               Show this message
 EOF
@@ -29,7 +29,7 @@ CSV_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
 PARQUET_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.parquet"
 MONTHS="2023-01,2023-02,2023-03"
 RESULTS_PATH="$SCRIPT_DIR/results/results.csv"
-QUERIES="q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11"
+QUERIES="q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13"
 ITERATIONS=1
 
 while [[ $# -gt 0 ]]; do
@@ -315,6 +315,16 @@ for query in "${QUERY_LIST[@]}"; do
       python_script="$SCRIPT_DIR/python/q11_heavy_summarize.py"
       r_script="$SCRIPT_DIR/r/q11_heavy_summarize.R"
       t_script="$SCRIPT_DIR/queries/q11_heavy_summarize.t"
+      ;;
+    q12)
+      python_script="$SCRIPT_DIR/python/q12_multi_stage_rollup.py"
+      r_script="$SCRIPT_DIR/r/q12_multi_stage_rollup.R"
+      t_script="$SCRIPT_DIR/queries/q12_multi_stage_rollup.t"
+      ;;
+    q13)
+      python_script="$SCRIPT_DIR/python/q13_high_cardinality_rollup.py"
+      r_script="$SCRIPT_DIR/r/q13_high_cardinality_rollup.R"
+      t_script="$SCRIPT_DIR/queries/q13_high_cardinality_rollup.t"
       ;;
     *)
       echo "Unknown query id: $query" >&2
