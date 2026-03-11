@@ -290,7 +290,8 @@ and build_ocaml_groups (t : Arrow_table.t) (keys : string list) : (string * int 
       cmp key_col_values
      | ([], _) -> -1
      | (_, []) -> 1
-  ) groups
+  ) groups in
+  sorted_groups
 
 (** Materialize the OCaml group list on demand for grouped fallbacks.
     The current evaluator uses grouped tables on a single thread, so caching
