@@ -185,6 +185,51 @@ let subtract_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow
 let divide_columns (t : Arrow_table.t) (col1 : string) (col2 : string) : Arrow_table.column_data option =
   column_binary_op t col1 col2 ( /. )
 
+(** Apply a column-to-column arithmetic kernel and return a table with the
+    computed result column appended.
+    Uses the native Arrow implementation when a native handle is present,
+    and falls back to the existing pure OCaml column operation otherwise. *)
+let column_binary_op_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
+    (result_name : string)
+    (native_fn : nativeint -> string -> string -> string -> nativeint option)
+    (ocaml_fn : Arrow_table.t -> string -> string -> Arrow_table.column_data option)
+    : Arrow_table.t option =
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+      (match native_fn handle.ptr col1 col2 result_name with
+       | Some new_ptr ->
+           let schema = schema_from_native_ptr new_ptr in
+           let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
+           Some (Arrow_table.create_from_native new_ptr schema nrows)
+       | None ->
+           (match ocaml_fn t col1 col2 with
+            | Some col_data -> Some (Arrow_table.add_column t result_name col_data)
+            | None -> None))
+  | _ ->
+      (match ocaml_fn t col1 col2 with
+       | Some col_data -> Some (Arrow_table.add_column t result_name col_data)
+       | None -> None)
+
+let add_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
+    (result_name : string) : Arrow_table.t option =
+  column_binary_op_to_table t col1 col2 result_name
+    Arrow_ffi.arrow_compute_add_columns add_columns
+
+let multiply_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
+    (result_name : string) : Arrow_table.t option =
+  column_binary_op_to_table t col1 col2 result_name
+    Arrow_ffi.arrow_compute_multiply_columns multiply_columns
+
+let subtract_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
+    (result_name : string) : Arrow_table.t option =
+  column_binary_op_to_table t col1 col2 result_name
+    Arrow_ffi.arrow_compute_subtract_columns subtract_columns
+
+let divide_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
+    (result_name : string) : Arrow_table.t option =
+  column_binary_op_to_table t col1 col2 result_name
+    Arrow_ffi.arrow_compute_divide_columns divide_columns
+
 (* ===================================================================== *)
 (* Group-By & Aggregation (Phase 3)                                      *)
 (* =====================================================================  *)
@@ -322,9 +367,9 @@ let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name 
         | "sum" -> Arrow_ffi.arrow_group_sum gh.ptr col_name
         | "mean" -> Arrow_ffi.arrow_group_mean gh.ptr col_name
         | "count" -> Arrow_ffi.arrow_group_count gh.ptr
-        (* No FFI binding exists yet for Arrow's count_distinct/grouped hash aggregate.
-           Fall back to the OCaml grouped aggregation path below. *)
-        | "count_distinct" -> None
+        | "min" -> Arrow_ffi.arrow_group_min gh.ptr col_name
+        | "max" -> Arrow_ffi.arrow_group_max gh.ptr col_name
+        | "count_distinct" -> Arrow_ffi.arrow_group_count_distinct gh.ptr col_name
         | _ -> None
       in
       (match result_ptr with
@@ -619,3 +664,36 @@ let compare_column_scalar (t : Arrow_table.t) (col_name : string)
           | Ast.VInt i -> cmp_fn (float_of_int i) scalar
           | _ -> false
         ) values)
+
+(** Return a bool array mask where true means the named column value is null/NA.
+    Uses native Arrow validity checks when the table is native-backed. *)
+let column_null_mask (t : Arrow_table.t) (col_name : string) : bool array option =
+  let is_none = function None -> true | Some _ -> false in
+  let ocaml_fallback () =
+    match Arrow_table.get_column t col_name with
+    | Some (Arrow_table.IntColumn a) ->
+        Some (Array.map is_none a)
+    | Some (Arrow_table.FloatColumn a) ->
+        Some (Array.map is_none a)
+    | Some (Arrow_table.BoolColumn a) ->
+        Some (Array.map is_none a)
+    | Some (Arrow_table.StringColumn a) ->
+        Some (Array.map is_none a)
+    | Some (Arrow_table.DateColumn a) ->
+        Some (Array.map is_none a)
+    | Some (Arrow_table.DatetimeColumn (a, _)) ->
+        Some (Array.map is_none a)
+    | Some (Arrow_table.DictionaryColumn (a, _, _)) ->
+        Some (Array.map is_none a)
+    | Some (Arrow_table.ListColumn a) ->
+        Some (Array.map is_none a)
+    | Some (Arrow_table.NullColumn n) ->
+        Some (Array.make n true)
+    | None -> None
+  in
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+      (match Arrow_ffi.arrow_column_null_mask handle.ptr col_name with
+       | Some _ as result -> result
+       | None -> ocaml_fallback ())
+  | _ -> ocaml_fallback ()

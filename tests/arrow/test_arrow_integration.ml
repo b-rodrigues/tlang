@@ -245,9 +245,35 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf {|df = read_csv("%s"); filter(df, $age > 28) |> nrow|} csv_path)
     "2";
 
+  let csv_filter_na = "test_arrow_filter_na.csv" in
+  let oc_filter_na = open_out csv_filter_na in
+  output_string oc_filter_na "name,trip_distance\nAlice,1.2\nBob,\nCharlie,3.4\n";
+  close_out oc_filter_na;
+
+  test "Arrow filter with !is_na"
+    (Printf.sprintf {|df = read_csv("%s"); filter(df, !is_na($trip_distance)) |> nrow|} csv_filter_na)
+    "2";
+
+  let (v, _) = eval_string_env
+    (Printf.sprintf {|df_f = read_csv("%s"); explain(filter(df_f, !is_na($trip_distance))).native_path_active|} csv_filter_na)
+    env in
+  let result = Ast.Utils.value_to_string v in
+  if result = "true" then begin
+    incr pass_count; Printf.printf "  ✓ Arrow filter !is_na keeps native path active\n"
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow filter !is_na keeps native path active"
+  end;
+
   test "Arrow mutate"
     (Printf.sprintf {|df = read_csv("%s"); mutate(df, $senior = $age >= 30) |> ncol|} csv_path)
     "4";
+
+  test "Arrow mutate chained arithmetic rewrite"
+    (Printf.sprintf
+      {|df = read_csv("%s"); df |> mutate($ratio = $score / $age) |> mutate($ratio = $ratio * 100.0) |> \(d) d.ratio|}
+      csv_path)
+    {|Vector[318.333333333, 349.2, 263.142857143]|};
 
   let (v, _) = eval_string_env
     (Printf.sprintf {|df_mut = read_csv("%s"); explain(mutate(df_mut, $senior = $age >= 30)).native_path_active|} csv_path)
@@ -260,6 +286,26 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "Arrow mutate keeps native path active"
   end;
 
+  let (v, _) = eval_string_env
+    (Printf.sprintf
+      {|read_csv("%s") |> mutate($ratio = $score / $age) |> mutate($ratio = $ratio * 100.0)|}
+      csv_path)
+    (Packages.init_env ()) in
+  (match v with
+   | VDataFrame df ->
+        if Arrow_table.is_native_backed df.arrow_table then begin
+          incr pass_count; Printf.printf "  ✓ Arrow mutate chained arithmetic stays native-backed\n"
+        end else begin
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "Arrow mutate chained arithmetic stays native-backed"
+        end
+    | VError _ ->
+        Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+          "Arrow mutate chained arithmetic stays native-backed"
+    | _ ->
+        Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+          "Arrow mutate chained arithmetic stays native-backed");
+
   test "Arrow arrange"
     (Printf.sprintf
       {|df = read_csv("%s"); df2 = arrange(df, $age); select(df2, $name) |> \(d) d.name|} csv_path)
@@ -269,6 +315,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf
       {|read_csv("%s") |> filter($age > 25) |> select($name, $score) |> nrow|} csv_path)
     "2";
+
+  (try Sys.remove csv_filter_na with _ -> ());
 
   let csv_skip_path = "test_arrow_csv_skip_lines.csv" in
   let oc = open_out csv_skip_path in
@@ -522,6 +570,64 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       (Arrow_table.num_rows count_result)
   end;
 
+  (* Test 38b: group_aggregate min *)
+  let min_result = Arrow_compute.group_aggregate grouped "min" "score" in
+  if Arrow_table.num_rows min_result = 2 then begin
+    (match Arrow_table.get_column min_result "score" with
+     | Some (Arrow_table.FloatColumn data) ->
+         if data.(0) = Some 85.0 && data.(1) = Some 70.0 then begin
+           incr pass_count; Printf.printf "  ✓ group_aggregate min is correct\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ group_aggregate min values incorrect\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate min column type mismatch\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_aggregate min expected 2 rows, got %d\n"
+      (Arrow_table.num_rows min_result)
+  end;
+
+  (* Test 38c: group_aggregate max *)
+  let max_result = Arrow_compute.group_aggregate grouped "max" "score" in
+  if Arrow_table.num_rows max_result = 2 then begin
+    (match Arrow_table.get_column max_result "score" with
+     | Some (Arrow_table.FloatColumn data) ->
+         if data.(0) = Some 95.0 && data.(1) = Some 80.0 then begin
+           incr pass_count; Printf.printf "  ✓ group_aggregate max is correct\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ group_aggregate max values incorrect\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate max column type mismatch\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_aggregate max expected 2 rows, got %d\n"
+      (Arrow_table.num_rows max_result)
+  end;
+
+  (* Test 38d: group_aggregate count_distinct *)
+  let distinct_tbl = Arrow_table.create [
+    ("name", Arrow_table.StringColumn [| Some "Alice"; Some "Alice"; Some "Bob"; Some "Bob"; Some "Bob" |]);
+    ("city", Arrow_table.StringColumn [| Some "Paris"; Some "Paris"; Some "Rome"; Some "Madrid"; None |]);
+  ] 5 in
+  let distinct_grouped = Arrow_compute.group_by distinct_tbl ["name"] in
+  let distinct_result = Arrow_compute.group_aggregate distinct_grouped "count_distinct" "city" in
+  if Arrow_table.num_rows distinct_result = 2 then begin
+    (match Arrow_table.get_column distinct_result "city" with
+     | Some (Arrow_table.FloatColumn data) ->
+         (* Distinct counting matches the current T fallback semantics:
+            repeated null values count as one distinct value. *)
+         if data.(0) = Some 1.0 && data.(1) = Some 3.0 then begin
+           incr pass_count; Printf.printf "  ✓ group_aggregate count_distinct is correct\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct values incorrect\n"
+         end
+     | _ ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct column type mismatch\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct expected 2 rows, got %d\n"
+      (Arrow_table.num_rows distinct_result)
+  end;
+
   (* Test 39: group_aggregate result has key columns *)
   if Arrow_table.has_column sum_result "name" then begin
     (match Arrow_table.get_column sum_result "name" with
@@ -585,8 +691,52 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                 incr fail_count; Printf.printf "  ✗ native group_aggregate sum returned incorrect values\n"
               end;
 
+              let native_min_result = Arrow_compute.group_aggregate native_grouped "min" "score" in
+              let min_ok =
+                Arrow_table.num_rows native_min_result = 2
+                && (match Arrow_table.get_column native_min_result "score" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        data.(0) = Some 90.0 && data.(1) = Some 70.0
+                    | _ -> false)
+              in
+              if min_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate min stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate min returned incorrect values\n"
+              end;
+
+              let native_max_result = Arrow_compute.group_aggregate native_grouped "max" "score" in
+              let max_ok =
+                Arrow_table.num_rows native_max_result = 2
+                && (match Arrow_table.get_column native_max_result "score" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        data.(0) = Some 95.0 && data.(1) = Some 80.0
+                    | _ -> false)
+              in
+              if max_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate max stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate max returned incorrect values\n"
+              end;
+
+              let native_distinct_result =
+                Arrow_compute.group_aggregate native_grouped "count_distinct" "dept"
+              in
+              let distinct_ok =
+                Arrow_table.num_rows native_distinct_result = 2
+                && (match Arrow_table.get_column native_distinct_result "dept" with
+                    | Some (Arrow_table.FloatColumn data) ->
+                        data.(0) = Some 2.0 && data.(1) = Some 2.0
+                    | _ -> false)
+              in
+              if distinct_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate count_distinct stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate count_distinct returned incorrect values\n"
+              end;
+
               if not (Arrow_compute.ocaml_groups_materialized native_grouped) then begin
-                   incr pass_count; Printf.printf "  ✓ native group_aggregate avoids forcing OCaml groups\n"
+                incr pass_count; Printf.printf "  ✓ native group_aggregate avoids forcing OCaml groups\n"
               end else begin
                 incr fail_count; Printf.printf "  ✗ native group_aggregate unexpectedly forced OCaml groups\n"
               end;
@@ -598,28 +748,40 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                 incr fail_count; Printf.printf "  ✗ get_ocaml_groups expected 2 groups, got %d\n"
                   (List.length native_groups)
               end
-          | None ->
-              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-                "native group_by keeps OCaml groups lazy";
-              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-                "native group_aggregate mean stays correct";
-              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-                "native group_aggregate sum stays correct";
-              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-                "native group_aggregate avoids forcing OCaml groups";
-              Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-                "get_ocaml_groups materializes native groups on demand")
-     | Error msg ->
-         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-           (Printf.sprintf "native group_by smoke test CSV read failed: %s" msg);
-         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-           "native group_aggregate mean stays correct";
-         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-           "native group_aggregate sum stays correct";
-         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-           "native group_aggregate avoids forcing OCaml groups";
-         Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-           "get_ocaml_groups materializes native groups on demand")
+           | None ->
+               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                 "native group_by keeps OCaml groups lazy";
+               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                 "native group_aggregate mean stays correct";
+               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                 "native group_aggregate sum stays correct";
+               Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                 "native group_aggregate min stays correct";
+                Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                  "native group_aggregate max stays correct";
+                Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                  "native group_aggregate count_distinct stays correct";
+                Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                  "native group_aggregate avoids forcing OCaml groups";
+                Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+                  "get_ocaml_groups materializes native groups on demand")
+      | Error msg ->
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            (Printf.sprintf "native group_by smoke test CSV read failed: %s" msg);
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "native group_aggregate mean stays correct";
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "native group_aggregate sum stays correct";
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "native group_aggregate min stays correct";
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "native group_aggregate max stays correct";
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "native group_aggregate count_distinct stays correct";
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "native group_aggregate avoids forcing OCaml groups";
+          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+            "get_ocaml_groups materializes native groups on demand")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "native group_by keeps OCaml groups lazy";
@@ -627,6 +789,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "native group_aggregate mean stays correct";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "native group_aggregate sum stays correct";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "native group_aggregate min stays correct";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "native group_aggregate max stays correct";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "native group_aggregate count_distinct stays correct";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "native group_aggregate avoids forcing OCaml groups";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
@@ -643,6 +811,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "Group-by + summarize (count via n)"
     (Printf.sprintf
       {|df = read_csv("%s"); df |> group_by($name) |> summarize($n = n()) |> \(d) d.n|}
+      csv_groupby)
+    "Vector[2, 2]";
+
+  test "Group-by + summarize (count distinct)"
+    (Printf.sprintf
+      {|df = read_csv("%s"); df |> group_by($name) |> summarize($n_depts = n_distinct($dept)) |> \(d) d.n_depts|}
       csv_groupby)
     "Vector[2, 2]";
 

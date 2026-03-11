@@ -46,6 +46,25 @@ The flake already provides:
 
 Both helper scripts automatically re-enter `nix develop` when `nix` is available.
 
+## Query catalogue
+
+The benchmark runner supports these query ids:
+
+- `q1` — long trips filter + summarize
+- `q2` — group by passenger count
+- `q3` — monthly grouped stats
+- `q4` — high-cardinality grouping by `PULocationID`
+- `q5` — composite grouping by `PULocationID` and `DOLocationID`
+- `q6` — vectorized tip-percent mutation
+- `q7` — monthly `n_distinct(PULocationID)`
+- `q8` — full-table sort by `total_amount` descending
+- `q9` — chained numeric/categorical filters
+- `q10` — monthly revenue pivoted wide by vendor
+- `q11` — heavy grouped summarize with multiple aggregates
+
+By default, `run_benchmark.sh` runs the full `q1`-`q11` suite. Use `--queries`
+to run a subset when you only want a faster smoke benchmark.
+
 ## Prepare the dataset
 
 Example subset:
@@ -86,6 +105,15 @@ non-interactively to download and build it before benchmarking. If only the
 materialized CSV is missing, the runner regenerates it from the existing Parquet
 dataset. Use `--months` to control which monthly TLC files are downloaded during
 that automatic preparation step.
+
+To run only specific scenarios:
+
+```bash
+./benchmarks/nyc_taxi/run_benchmark.sh \
+  --months 2023-01 \
+  --queries q4,q5,q6,q11 \
+  --iterations 1
+```
 
 The runner writes results to:
 

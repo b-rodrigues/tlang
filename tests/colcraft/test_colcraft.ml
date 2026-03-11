@@ -82,6 +82,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "mutate non-dataframe"
     {|mutate(42, $x = 1)|}
     {|Error(TypeError: "Function `mutate` expects a DataFrame as first argument.")|};
+  test "mutate zero args"
+    {|mutate()|}
+    {|Error(ArityError: "Function `mutate` expects 2 arguments but received 0.")|};
   test "mutate missing column expr"
     (Printf.sprintf {|df = read_csv("%s"); mutate(df, 42)|} csv_p4)
     {|Error(TypeError: "Function `mutate` expects $column = expr syntax.")|};

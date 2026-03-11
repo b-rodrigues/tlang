@@ -190,6 +190,18 @@ external arrow_group_mean : nativeint -> string -> nativeint option
 external arrow_group_count : nativeint -> nativeint option
   = "caml_arrow_group_count"
 
+(** Compute minimum per group for a named numeric column. *)
+external arrow_group_min : nativeint -> string -> nativeint option
+  = "caml_arrow_group_min"
+
+(** Compute maximum per group for a named numeric column. *)
+external arrow_group_max : nativeint -> string -> nativeint option
+  = "caml_arrow_group_max"
+
+(** Compute distinct-count per group for a named column. *)
+external arrow_group_count_distinct : nativeint -> string -> nativeint option
+  = "caml_arrow_group_count_distinct"
+
 (* ===================================================================== *)
 (* Zero-Copy Buffer Access (Phase 4)                                     *)
 (* ===================================================================== *)
@@ -271,3 +283,9 @@ external arrow_compute_max_column : nativeint -> string -> float option
     op_code: 0=eq, 1=lt, 2=gt, 3=le, 4=ge *)
 external arrow_compute_compare_scalar : nativeint -> string -> float -> int -> bool array option
   = "caml_arrow_compute_compare_scalar"
+
+(** Read the null bitmap of a named column as a bool mask where true means NA.
+    Uses the native Arrow column/chunk validity information without materializing
+    full OCaml column values. *)
+external arrow_column_null_mask : nativeint -> string -> bool array option
+  = "caml_arrow_column_null_mask"

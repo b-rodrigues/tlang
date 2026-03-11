@@ -40,11 +40,21 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
     (* Recursively try to vectorize an expression, handling AND/OR *)
     let rec try_vectorize_expr expr =
       match expr with
+      | UnOp { op = Not; operand } ->
+        (match try_vectorize_expr operand with
+         | Some mask ->
+           let n = Array.length mask in
+           Some (Array.init n (fun i -> not mask.(i)))
+         | None -> None)
+      | Call { fn = Var "is_na";
+               args = [(None, DotAccess { target = Var p; field })] }
+          when p = param ->
+        Arrow_compute.column_null_mask table field
       | BinOp { op; left; right } ->
         (match op with
          | And ->
-           (* Pattern: predA && predB — intersect boolean masks *)
-           (match try_vectorize_expr left, try_vectorize_expr right with
+            (* Pattern: predA && predB — intersect boolean masks *)
+            (match try_vectorize_expr left, try_vectorize_expr right with
             | Some mask_l, Some mask_r ->
               let n = min (Array.length mask_l) (Array.length mask_r) in
               Some (Array.init n (fun i -> mask_l.(i) && mask_r.(i)))
