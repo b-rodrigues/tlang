@@ -183,6 +183,26 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ grouped summarize correct counts (eng=3, sales=2)\n    Expected: Vector[3, 2]\n    Got: %s\n" result
   end;
 
+  let (v, _) = eval_string_env
+    {|result = df |> group_by($dept) |> summarize($count = n()); to_integer(sum(result.count))|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "5" then begin
+    incr pass_count; Printf.printf "  ✓ grouped summarize n() counts rows per group\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped summarize n() counts rows per group\n    Expected: 5\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env
+    {|result = summarize(df, $uniq_dept = n_distinct($dept)); to_integer(sum(result.uniq_dept))|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "2" then begin
+    incr pass_count; Printf.printf "  ✓ summarize n_distinct() counts unique values\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ summarize n_distinct() counts unique values\n    Expected: 2\n    Got: %s\n" result
+  end;
+
   test "summarize non-dataframe"
     {|summarize(42, $x = 1)|}
     {|Error(TypeError: "Function `summarize` expects a DataFrame as first argument.")|};

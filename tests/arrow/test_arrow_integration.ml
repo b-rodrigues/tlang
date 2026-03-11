@@ -640,9 +640,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       csv_groupby)
     "Vector[92.5, 75.]";
 
-  test "Group-by + summarize (sum via nrow)"
+  test "Group-by + summarize (count via n)"
     (Printf.sprintf
-      {|df = read_csv("%s"); df |> group_by($name) |> summarize($n = nrow($name)) |> \(d) d.n|}
+      {|df = read_csv("%s"); df |> group_by($name) |> summarize($n = n()) |> \(d) d.n|}
       csv_groupby)
     "Vector[2, 2]";
 

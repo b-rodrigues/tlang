@@ -322,6 +322,7 @@ let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name 
         | "sum" -> Arrow_ffi.arrow_group_sum gh.ptr col_name
         | "mean" -> Arrow_ffi.arrow_group_mean gh.ptr col_name
         | "count" -> Arrow_ffi.arrow_group_count gh.ptr
+        | "count_distinct" -> None
         | _ -> None
       in
       (match result_ptr with
@@ -365,7 +366,11 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
     | None -> Array.make (Arrow_table.num_rows t) Ast.VNull
   in
   (* Compute aggregation per group *)
-  let agg_col_name = if agg_name = "count" then "n" else col_name in
+  let agg_col_name =
+    match agg_name with
+    | "count" -> "n"
+    | _ -> col_name
+  in
   let agg_col = Array.init n_groups (fun g_idx ->
     let (_, indices) = groups_array.(g_idx) in
     match agg_name with
@@ -390,6 +395,10 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
         else Ast.VNA Ast.NAFloat
     | "count" ->
         Ast.VFloat (float_of_int (List.length indices))
+    | "count_distinct" ->
+        let seen = Hashtbl.create (max 1 (List.length indices)) in
+        List.iter (fun i -> Hashtbl.replace seen target_vals.(i) ()) indices;
+        Ast.VInt (Hashtbl.length seen)
     | "min" ->
         let m = ref None in
         List.iter (fun i ->
@@ -561,6 +570,16 @@ let max_column (t : Arrow_table.t) (col_name : string) : float option =
          Array.iter (fun x -> if x > !m then m := x) arr;
          Some !m
        end)
+
+(** Compute the number of distinct values in a named column. *)
+let count_distinct_column (t : Arrow_table.t) (col_name : string) : float option =
+  match Arrow_table.get_column t col_name with
+  | None -> None
+  | Some col ->
+      let values = Arrow_bridge.column_to_values col in
+      let seen = Hashtbl.create (max 1 (Array.length values)) in
+      Array.iter (fun value -> Hashtbl.replace seen value ()) values;
+      Some (float_of_int (Hashtbl.length seen))
 
 (* ===================================================================== *)
 (* Comparison Operations (Phase 5 — Week 1)                              *)
