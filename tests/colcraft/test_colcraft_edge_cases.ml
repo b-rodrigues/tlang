@@ -100,10 +100,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|result = df_single |> group_by($id) |> summarize($count = nrow($id)); result.count|}
     env_single in
   let result = Ast.Utils.value_to_string v in
-  if result = "Vector[1, 1, 1]" then begin
+  if result = "Vector[1., 1., 1.]" then begin
     incr pass_count; Printf.printf "  ✓ single-row groups each have count=1\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ single-row groups each have count=1\n    Expected: Vector[1, 1, 1]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ single-row groups each have count=1\n    Expected: Vector[1., 1., 1.]\n    Got: %s\n" result
   end;
 
   (* sd of single value should return Error *)

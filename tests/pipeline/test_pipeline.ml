@@ -378,13 +378,13 @@ p_cross = pipeline {
          contains_substring nix "r_write_json <- function" &&
          contains_substring nix "r_read_json <- function" &&
          contains_substring nix "source <- r_read_json(" &&
-         contains_substring nix "r_write_json(report_r, \"$out/artifact\")"
+         contains_substring nix "r_write_json(report_r,"
        in
        let has_py_arrow_helpers =
          contains_substring nix "def py_write_arrow(df, path):" &&
          contains_substring nix "def py_read_arrow(path):" &&
          contains_substring nix "source = py_read_arrow(" &&
-         contains_substring nix "py_write_arrow(report_py, \"$out/artifact\")"
+         contains_substring nix "py_write_arrow(report_py,"
        in
        let omits_old_runtime_prefixed_helpers =
          not (contains_substring nix "t_read_json(") &&
