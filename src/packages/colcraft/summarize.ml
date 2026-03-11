@@ -121,7 +121,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                   VDataFrame { arrow_table; group_keys = [] })
              else
                let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
-               let groups = grouped.Arrow_compute.ocaml_groups in
+               let groups = Arrow_compute.get_ocaml_groups grouped in
                let n_groups = List.length groups in
                (* Convert groups to array: List.nth is O(n) per call; *)
                (* using an array gives O(1) indexed access per group  *)

@@ -110,7 +110,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
         if df.group_keys <> [] then
           (* Grouped mutate: pass group sub-DataFrame to fn, broadcast result *)
           let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
-          let groups = grouped.Arrow_compute.ocaml_groups in
+          let groups = Arrow_compute.get_ocaml_groups grouped in
           let new_col = Array.make nrows VNull in
           let had_error = ref None in
           List.iter (fun (_, row_indices) ->

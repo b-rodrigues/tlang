@@ -425,7 +425,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let (t_grp, grouped_10k) = time_it (fun () ->
     Arrow_compute.group_by tbl_10k ["group"]
   ) in
-  let n_groups_10k = List.length grouped_10k.Arrow_compute.ocaml_groups in
+  let n_groups_10k = List.length (Arrow_compute.get_ocaml_groups grouped_10k) in
   if n_groups_10k = 100 then begin
     incr pass_count; Printf.printf "  ✓ Group-by 10k rows → 100 groups (%.4fs)\n" t_grp
   end else begin
@@ -468,7 +468,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let (t_grp100k, grouped_100k) = time_it (fun () ->
     Arrow_compute.group_by tbl_100k ["group"]
   ) in
-  let n_groups_100k = List.length grouped_100k.Arrow_compute.ocaml_groups in
+  let n_groups_100k = List.length (Arrow_compute.get_ocaml_groups grouped_100k) in
   if n_groups_100k = 1000 then begin
     incr pass_count; Printf.printf "  ✓ Group-by 100k rows → 1000 groups (%.4fs)\n" t_grp100k
   end else begin
@@ -513,7 +513,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let (t_grp1m, grouped_1m) = time_it (fun () ->
     Arrow_compute.group_by tbl_1m ["group"]
   ) in
-  let n_groups_1m = List.length grouped_1m.Arrow_compute.ocaml_groups in
+  let n_groups_1m = List.length (Arrow_compute.get_ocaml_groups grouped_1m) in
   if n_groups_1m = 10000 then begin
     incr pass_count; Printf.printf "  ✓ Group-by 1M rows → 10000 groups (%.4fs)\n" t_grp1m
   end else begin
