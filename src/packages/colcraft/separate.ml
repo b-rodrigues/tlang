@@ -68,10 +68,11 @@ let register env =
               | VFloat f -> Some (string_of_float f)
               | VBool b -> Some (string_of_bool b)
               | VDate d -> 
-                  let tm = Unix.gmtime (float_of_int d *. 86400.) in
-                  Some (Printf.sprintf "%04d-%02d-%02d" (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday)
+                  let micros_per_day = 86_400_000_000L in
+                  Some (Chrono.format_datetime_value (Int64.mul (Int64.of_int d) micros_per_day) None "%Y-%m-%d")
+              | VDatetime (dt, tz) -> Some (Chrono.format_datetime_value dt tz "%Y-%m-%dT%H:%M:%S")
               | VNA _ | VNull -> None
-              | other -> Some (Utils.value_to_string other)
+              | other -> Some (Utils.value_to_raw_string other)
             in
 
             match col_data with

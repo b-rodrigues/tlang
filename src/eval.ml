@@ -1583,7 +1583,7 @@ and eval_binop env_ref op left right =
        | Ast.VList _, _ | _, Ast.VList _ -> 
           let op_str = match op with
             | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
-            | Lt -> "<" | Gt -> ">" | LtEq -> "<=" | GtEq -> ">=" | Eq -> "==" | NEq -> "!="
+            | Lt -> "<" | Gt -> ">" | LtEq -> "<=" | GtEq -> ">="
             | _ -> "??"
           in
           let dot_op = "." ^ op_str in

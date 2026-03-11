@@ -16,8 +16,7 @@ Use '.+' for element-wise (broadcast) operations.")|};
 Use '.+' for element-wise (broadcast) operations.")|};
 
   (* Scalar == List *)
-  test "Scalar == List" "1 == [1]" {|Error(TypeError: "Operator '==' is defined for scalars only.
-Use '.==' for element-wise (broadcast) operations.")|};
+  test "Scalar == List" "1 == [1]" "false";
 
   (* Other operators *)
   test "Scalar - List" "1 - [1]" {|Error(TypeError: "Operator '-' is defined for scalars only.

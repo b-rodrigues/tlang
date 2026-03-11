@@ -40,7 +40,10 @@ let find_package (name : string) : string option =
   | None ->
     let local = Filename.concat "packages" name in
     if Sys.file_exists local && Sys.is_directory local then Some local
-    else None
+    else
+      let src_local = Filename.concat "src/packages" name in
+      if Sys.file_exists src_local && Sys.is_directory src_local then Some src_local
+      else None
 
 (** Collect all .t source files from a package's src/ directory, sorted. *)
 let package_source_files (pkg_dir : string) : string list =
