@@ -190,6 +190,18 @@ external arrow_group_mean : nativeint -> string -> nativeint option
 external arrow_group_count : nativeint -> nativeint option
   = "caml_arrow_group_count"
 
+(** Compute minimum per group for a named numeric column. *)
+external arrow_group_min : nativeint -> string -> nativeint option
+  = "caml_arrow_group_min"
+
+(** Compute maximum per group for a named numeric column. *)
+external arrow_group_max : nativeint -> string -> nativeint option
+  = "caml_arrow_group_max"
+
+(** Compute distinct-count per group for a named column. *)
+external arrow_group_count_distinct : nativeint -> string -> nativeint option
+  = "caml_arrow_group_count_distinct"
+
 (* ===================================================================== *)
 (* Zero-Copy Buffer Access (Phase 4)                                     *)
 (* ===================================================================== *)

@@ -1820,6 +1820,78 @@ get_numeric_value(NumericChunkCursor *cursor, gint64 row_idx, gboolean *is_null,
   return read_numeric_array_value(cursor->chunk, offset, value);
 }
 
+/* Helper: stringify a value from a chunked array at a given row index for
+   native distinct counting. The returned string is owned by the caller. */
+static gboolean
+get_distinct_key_string(GArrowChunkedArray *chunked, gint64 row_idx, gchar **out_key)
+{
+  *out_key = NULL;
+
+  gint64 offset = row_idx;
+  GArrowArray *chunk = NULL;
+  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
+
+  for (guint c = 0; c < n_chunks; c++) {
+    chunk = garrow_chunked_array_get_chunk(chunked, c);
+    gint64 chunk_len = garrow_array_get_length(chunk);
+    if (offset < chunk_len) break;
+    offset -= chunk_len;
+    g_object_unref(chunk);
+    chunk = NULL;
+  }
+
+  if (chunk == NULL) {
+    return FALSE;
+  }
+
+  if (garrow_array_is_null(chunk, offset)) {
+    *out_key = g_strdup("N:");
+    g_object_unref(chunk);
+    return TRUE;
+  }
+
+  if (GARROW_IS_INT64_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("I:%" G_GINT64_FORMAT,
+      garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset));
+  } else if (GARROW_IS_INT32_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("I:%d",
+      garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), offset));
+  } else if (GARROW_IS_INT16_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("I:%d",
+      garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset));
+  } else if (GARROW_IS_UINT64_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("U:%" G_GUINT64_FORMAT,
+      garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(chunk), offset));
+  } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("U:%u",
+      garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset));
+  } else if (GARROW_IS_UINT16_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("U:%u",
+      garrow_uint16_array_get_value(GARROW_UINT16_ARRAY(chunk), offset));
+  } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("F:%.17g",
+      garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset));
+  } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("F:%.9g",
+      (double)garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), offset));
+  } else if (GARROW_IS_BOOLEAN_ARRAY(chunk)) {
+    *out_key = g_strdup(garrow_boolean_array_get_value(GARROW_BOOLEAN_ARRAY(chunk), offset) ? "B:1" : "B:0");
+  } else if (GARROW_IS_STRING_ARRAY(chunk)) {
+    gchar *text = garrow_string_array_get_string(GARROW_STRING_ARRAY(chunk), offset);
+    *out_key = g_strconcat("S:", text, NULL);
+    g_free(text);
+  } else if (GARROW_IS_DATE32_ARRAY(chunk)) {
+    *out_key = g_strdup_printf("D:%d",
+      garrow_date32_array_get_value(GARROW_DATE32_ARRAY(chunk), offset));
+  } else {
+    g_object_unref(chunk);
+    return FALSE;
+  }
+
+  g_object_unref(chunk);
+  return TRUE;
+}
+
 /* Helper: build a result table from grouped aggregation.
    Creates a table with key columns + one aggregated value column.
    key_values[g][k] are the key column values, agg_values[g] is the aggregated value.
@@ -2066,6 +2138,142 @@ CAMLprim value caml_arrow_group_count(value v_grouped_ptr) {
   }
 
   GArrowTable *result = build_aggregation_result(gt, "n", counts, nulls);
+  free(counts);
+  free(nulls);
+
+  if (result == NULL) CAMLreturn(Val_none);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
+static value
+arrow_group_extrema_impl(value v_grouped_ptr, value v_col_name, gboolean want_min)
+{
+  CAMLparam2(v_grouped_ptr, v_col_name);
+  CAMLlocal1(v_result);
+
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_grouped_ptr);
+  const char *col_name = String_val(v_col_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(gt->table);
+  gint col_idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (col_idx < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(gt->table, col_idx);
+  if (chunked == NULL) CAMLreturn(Val_none);
+
+  gdouble *extrema = (gdouble *)calloc(gt->n_groups, sizeof(gdouble));
+  gboolean *nulls = (gboolean *)calloc(gt->n_groups, sizeof(gboolean));
+
+  for (int g = 0; g < gt->n_groups; g++) {
+    NumericChunkCursor cursor;
+    numeric_chunk_cursor_init(&cursor, chunked);
+    gboolean has_value = FALSE;
+    gdouble best = 0.0;
+
+    for (int r = 0; r < gt->group_sizes[g]; r++) {
+      gboolean is_null;
+      gdouble val = 0.0;
+      if (!get_numeric_value(&cursor, gt->group_row_indices[g][r], &is_null, &val)) {
+        numeric_chunk_cursor_destroy(&cursor);
+        g_object_unref(chunked);
+        free(extrema);
+        free(nulls);
+        CAMLreturn(Val_none);
+      }
+      if (!is_null) {
+        if (!has_value) {
+          best = val;
+          has_value = TRUE;
+        } else if ((want_min && val < best) || (!want_min && val > best)) {
+          best = val;
+        }
+      }
+    }
+
+    numeric_chunk_cursor_destroy(&cursor);
+    if (has_value) {
+      extrema[g] = best;
+      nulls[g] = FALSE;
+    } else {
+      nulls[g] = TRUE;
+    }
+  }
+
+  g_object_unref(chunked);
+
+  GArrowTable *result = build_aggregation_result(gt, col_name, extrema, nulls);
+  free(extrema);
+  free(nulls);
+
+  if (result == NULL) CAMLreturn(Val_none);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
+/* Minimum aggregation per group.
+   Args: grouped_table_ptr, column_name
+   Returns: Some(result_table_ptr) or None */
+CAMLprim value caml_arrow_group_min(value v_grouped_ptr, value v_col_name) {
+  return arrow_group_extrema_impl(v_grouped_ptr, v_col_name, TRUE);
+}
+
+/* Maximum aggregation per group.
+   Args: grouped_table_ptr, column_name
+   Returns: Some(result_table_ptr) or None */
+CAMLprim value caml_arrow_group_max(value v_grouped_ptr, value v_col_name) {
+  return arrow_group_extrema_impl(v_grouped_ptr, v_col_name, FALSE);
+}
+
+/* Distinct-count aggregation per group.
+   Args: grouped_table_ptr, column_name
+   Returns: Some(result_table_ptr) or None */
+CAMLprim value caml_arrow_group_count_distinct(value v_grouped_ptr, value v_col_name) {
+  CAMLparam2(v_grouped_ptr, v_col_name);
+  CAMLlocal1(v_result);
+
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_grouped_ptr);
+  const char *col_name = String_val(v_col_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(gt->table);
+  gint col_idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+
+  if (col_idx < 0) CAMLreturn(Val_none);
+
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(gt->table, col_idx);
+  if (chunked == NULL) CAMLreturn(Val_none);
+
+  gdouble *counts = (gdouble *)calloc(gt->n_groups, sizeof(gdouble));
+  gboolean *nulls = (gboolean *)calloc(gt->n_groups, sizeof(gboolean));
+
+  for (int g = 0; g < gt->n_groups; g++) {
+    GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    for (int r = 0; r < gt->group_sizes[g]; r++) {
+      gchar *key = NULL;
+      if (!get_distinct_key_string(chunked, gt->group_row_indices[g][r], &key)) {
+        g_hash_table_destroy(seen);
+        g_object_unref(chunked);
+        free(counts);
+        free(nulls);
+        CAMLreturn(Val_none);
+      }
+      g_hash_table_add(seen, key);
+    }
+    counts[g] = (gdouble)g_hash_table_size(seen);
+    nulls[g] = FALSE;
+    g_hash_table_destroy(seen);
+  }
+
+  g_object_unref(chunked);
+
+  GArrowTable *result = build_aggregation_result(gt, col_name, counts, nulls);
   free(counts);
   free(nulls);
 

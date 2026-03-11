@@ -67,22 +67,22 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
            | _ ->
              (* Try: row.col1 op row.col2 — column-to-column arithmetic *)
              (match is_col_ref left, is_col_ref right with
-              | Some c1, Some c2 ->
-                let col_op = match op with
-                  | Plus -> Some Arrow_compute.add_columns
-                  | Minus -> Some Arrow_compute.subtract_columns
-                  | Mul -> Some Arrow_compute.multiply_columns
-                  | Div -> Some Arrow_compute.divide_columns
-                  | _ -> None
-                in
-                (match col_op with
-                 | Some f ->
-                   (match f table c1 c2 with
-                    | Some col_data ->
-                      Some (Arrow_compute.add_column table col_name col_data)
-                    | None -> None)
-                 | None -> None)
-              | _ -> None)))
+               | Some c1, Some c2 ->
+                 let col_op = match op with
+                   | Plus -> Some Arrow_compute.add_columns_to_table
+                   | Minus -> Some Arrow_compute.subtract_columns_to_table
+                   | Mul -> Some Arrow_compute.multiply_columns_to_table
+                   | Div -> Some Arrow_compute.divide_columns_to_table
+                   | _ -> None
+                 in
+                 (match col_op with
+                  | Some f ->
+                    (match f table c1 c2 col_name with
+                     | Some result_table ->
+                       Some result_table
+                     | None -> None)
+                  | None -> None)
+               | _ -> None)))
      | _ -> None)
   | _ -> None
 

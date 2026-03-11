@@ -12,7 +12,8 @@ if (type(input_parquet) == "String") {
 
 result = df
   |> filter($total_amount > 0)
-  |> mutate($tip_percent = $tip_amount / $total_amount * 100.0)
+  |> mutate($tip_percent = $tip_amount / $total_amount)
+  |> mutate($tip_percent = $tip_percent * 100.0)
 
 print(result |> head(n = 10))
 print(str_join(["ROWS_SCANNED=", str_string(nrow(df))]))
