@@ -396,11 +396,11 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
         if !count > 0 then Ast.VFloat (!sum /. float_of_int !count)
         else Ast.VNA Ast.NAFloat
     | "count" ->
-        Ast.VFloat (float_of_int (List.length indices))
+        Ast.VInt (List.length indices)
     | "count_distinct" ->
-        let seen = Hashtbl.create (max 1 (min 64 (List.length indices))) in
-        List.iter (fun i -> Hashtbl.replace seen target_vals.(i) ()) indices;
-        Ast.VFloat (float_of_int (Hashtbl.length seen))
+        let seen = Value_hash.ValueHash.create (max 1 (min 64 (List.length indices))) in
+        List.iter (fun i -> Value_hash.ValueHash.replace seen target_vals.(i) ()) indices;
+        Ast.VInt (Value_hash.ValueHash.length seen)
     | "min" ->
         let m = ref None in
         List.iter (fun i ->
@@ -579,9 +579,9 @@ let count_distinct_column (t : Arrow_table.t) (col_name : string) : float option
   | None -> None
   | Some col ->
       let values = Arrow_bridge.column_to_values col in
-      let seen = Hashtbl.create (max 1 (min 64 (Array.length values))) in
-      Array.iter (fun value -> Hashtbl.replace seen value ()) values;
-      Some (float_of_int (Hashtbl.length seen))
+      let seen = Value_hash.ValueHash.create (max 1 (min 64 (Array.length values))) in
+      Array.iter (fun value -> Value_hash.ValueHash.replace seen value ()) values;
+      Some (float_of_int (Value_hash.ValueHash.length seen))
 
 (* ===================================================================== *)
 (* Comparison Operations (Phase 5 — Week 1)                              *)

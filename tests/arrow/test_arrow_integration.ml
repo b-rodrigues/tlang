@@ -644,7 +644,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf
       {|df = read_csv("%s"); df |> group_by($name) |> summarize($n = n()) |> \(d) d.n|}
       csv_groupby)
-    "Vector[2., 2.]";
+    "Vector[2, 2]";
 
   (try Sys.remove csv_groupby with _ -> ());
   print_newline ();

@@ -16,9 +16,9 @@ open Ast
 --# @export
 *)
 let count_distinct_in_array values =
-  let seen = Hashtbl.create (max 1 (min 64 (Array.length values))) in
-  Array.iter (fun value -> Hashtbl.replace seen value ()) values;
-  Hashtbl.length seen
+  let seen = Value_hash.ValueHash.create (max 1 (min 64 (Array.length values))) in
+  Array.iter (fun value -> Value_hash.ValueHash.replace seen value ()) values;
+  Value_hash.ValueHash.length seen
 
 let register env =
   Env.add "n_distinct"

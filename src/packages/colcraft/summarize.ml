@@ -56,6 +56,17 @@ let can_vectorize_agg (table : Arrow_table.t) (agg_name : string) (col_name : st
   | "n" | "n_distinct" -> true
   | _ -> na_rm || not (column_has_nulls table col_name)
 
+let finalize_vectorized_agg_value (agg_name : string) (value : value) : value =
+  match agg_name, value with
+  | ("n" | "count" | "nrow" | "n_distinct"), VFloat f -> VInt (int_of_float f)
+  | _ -> value
+
+let finalize_vectorized_agg_values (agg_name : string) (values : value array) : value array =
+  match agg_name with
+  | "n" | "count" | "nrow" | "n_distinct" ->
+      Array.map (finalize_vectorized_agg_value agg_name) values
+  | _ -> values
+
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
   (* Helper: apply aggregation fn with arg if callable, otherwise use fn as a constant value *)
   let apply_aggregation env fn arg =
@@ -113,11 +124,11 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                         | "count" | "nrow" -> (fun t _c -> Some (float_of_int (Arrow_table.num_rows t))) (* Count of whole table if ungrouped *)
                         | _ -> (fun _ _ -> None)
                       in
-                     (match agg_fn df.arrow_table col_name with
-                      | Some f -> (name, VFloat f)
-                      | None ->
-                         (* Native compute failed — fall back *)
-                         (name, apply_aggregation env fn (VDataFrame df)))
+                      (match agg_fn df.arrow_table col_name with
+                       | Some f -> (name, finalize_vectorized_agg_value agg_name (VFloat f))
+                       | None ->
+                          (* Native compute failed — fall back *)
+                          (name, apply_aggregation env fn (VDataFrame df)))
                    else
                      (* Column has NAs and na_rm not set — fall back for correct error *)
                      (name, apply_aggregation env fn (VDataFrame df))
@@ -170,11 +181,11 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                          in
                          let result_table = Arrow_compute.group_aggregate grouped agg_name_eff col_name in
                          let result_col_key = if agg_name_eff = "count" then "n" else col_name in
-                        (match Arrow_table.get_column result_table result_col_key with
-                         | Some col ->
-                           let values = Arrow_bridge.column_to_values col in
-                           (name, values)
-                         | None ->
+                         (match Arrow_table.get_column result_table result_col_key with
+                          | Some col ->
+                            let values = Arrow_bridge.column_to_values col in
+                            (name, finalize_vectorized_agg_values agg_name values)
+                          | None ->
                           (* Native group_aggregate failed — fall back to per-group *)
                           let col = Array.init n_groups (fun g_idx ->
                             let (_, row_indices) = groups_array.(g_idx) in

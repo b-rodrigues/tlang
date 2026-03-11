@@ -28,7 +28,7 @@
    arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
    arrow_owl_bridge
    ; core language
-     ast lexer parser eval typecheck error serialization pmml_utils semantic_type symbol_table completion analyzer stats import_registry
+      ast lexer parser eval typecheck error serialization pmml_utils semantic_type symbol_table completion analyzer stats import_registry value_hash
     ; pipeline compiler
     nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter
     builder_utils builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder_copy builder
