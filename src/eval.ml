@@ -1385,8 +1385,7 @@ and eval_call env_ref fn_val raw_args =
     List.map (fun (name, expr) ->
       match expr with
       | Call { fn = Var "n"; args = [] }
-        when current_builtin_name = Some "summarize" &&
-             (match name with Some _ -> true | None -> false) ->
+        when current_builtin_name = Some "summarize" && Option.is_some name ->
           (name, make_row_lambda (Call { fn = Var "n"; args = [(None, Var "row")] }))
       | ColumnRef _ -> (name, expr)  (* bare $col → keep, evaluates to VSymbol *)
       | ListLit items when List.for_all (fun (_, e) -> match e with ColumnRef _ -> true | _ -> false) items ->

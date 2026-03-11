@@ -7,7 +7,6 @@ open Ast
 --# Use this inside `summarize()` to count rows per group.
 --#
 --# @name n
---# @param x :: DataFrame (Internal aggregation context.)
 --# @return :: Int The row count.
 --# @example
 --#   df |> group_by($species) |> summarize($rows = n())

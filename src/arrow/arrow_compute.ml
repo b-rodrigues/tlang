@@ -322,6 +322,8 @@ let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name 
         | "sum" -> Arrow_ffi.arrow_group_sum gh.ptr col_name
         | "mean" -> Arrow_ffi.arrow_group_mean gh.ptr col_name
         | "count" -> Arrow_ffi.arrow_group_count gh.ptr
+        (* No FFI binding exists yet for Arrow's count_distinct/grouped hash aggregate.
+           Fall back to the OCaml grouped aggregation path below. *)
         | "count_distinct" -> None
         | _ -> None
       in
@@ -396,9 +398,9 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
     | "count" ->
         Ast.VFloat (float_of_int (List.length indices))
     | "count_distinct" ->
-        let seen = Hashtbl.create (max 1 (List.length indices)) in
+        let seen = Hashtbl.create (max 1 (min 64 (List.length indices))) in
         List.iter (fun i -> Hashtbl.replace seen target_vals.(i) ()) indices;
-        Ast.VInt (Hashtbl.length seen)
+        Ast.VFloat (float_of_int (Hashtbl.length seen))
     | "min" ->
         let m = ref None in
         List.iter (fun i ->
@@ -577,7 +579,7 @@ let count_distinct_column (t : Arrow_table.t) (col_name : string) : float option
   | None -> None
   | Some col ->
       let values = Arrow_bridge.column_to_values col in
-      let seen = Hashtbl.create (max 1 (Array.length values)) in
+      let seen = Hashtbl.create (max 1 (min 64 (Array.length values))) in
       Array.iter (fun value -> Hashtbl.replace seen value ()) values;
       Some (float_of_int (Hashtbl.length seen))
 

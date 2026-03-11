@@ -15,8 +15,8 @@ open Ast
 --# @seealso summarize, distinct
 --# @export
 *)
-let count_distinct_values values =
-  let seen = Hashtbl.create (max 1 (Array.length values)) in
+let count_distinct_in_array values =
+  let seen = Hashtbl.create (max 1 (min 64 (Array.length values))) in
   Array.iter (fun value -> Hashtbl.replace seen value ()) values;
   Hashtbl.length seen
 
@@ -24,10 +24,10 @@ let register env =
   Env.add "n_distinct"
     (make_builtin ~name:"n_distinct" 1 (fun args _env ->
       match args with
-      | [VVector values] -> VInt (count_distinct_values values)
+      | [VVector values] -> VInt (count_distinct_in_array values)
       | [VList values] ->
           let arr = Array.of_list (List.map snd values) in
-          VInt (count_distinct_values arr)
+          VInt (count_distinct_in_array arr)
       | [VNA _] -> Error.type_error "Function `n_distinct` expects a vector or list, got NA."
       | [_] -> Error.type_error "Function `n_distinct` expects a vector or list."
       | _ -> Error.arity_error_named "n_distinct" ~expected:1 ~received:(List.length args)
