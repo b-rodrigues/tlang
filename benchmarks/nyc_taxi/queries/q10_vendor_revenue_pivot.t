@@ -13,7 +13,7 @@ if (type(input_parquet) == "String") {
 grouped = df
   |> group_by($year, $month, $VendorID)
   |> summarize($rev = sum($total_amount, na_rm = true))
-  |> mutate($vendor_label = str_join(["vendor_", str_string($VendorID)]))
+  |> mutate($vendor_label = if (is_na($VendorID)) "vendor_NA" else str_join(["vendor_", str_string($VendorID)]))
   |> select($year, $month, $vendor_label, $rev)
 
 result = grouped |> pivot_wider(names_from = $vendor_label, values_from = $rev)

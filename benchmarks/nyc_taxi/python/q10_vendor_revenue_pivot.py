@@ -1,4 +1,5 @@
 import argparse
+import numbers
 import time
 
 import pandas as pd
@@ -8,6 +9,8 @@ import pyarrow.dataset as ds
 def vendor_label(value: object) -> str:
     if pd.isna(value):
         return "vendor_NA"
+    if isinstance(value, numbers.Integral):
+        return f"vendor_{int(value)}"
     if isinstance(value, float) and value.is_integer():
         return f"vendor_{int(value)}"
     return f"vendor_{value}"
