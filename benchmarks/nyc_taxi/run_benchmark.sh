@@ -18,7 +18,7 @@ Options:
   --csv-path PATH      Path to the materialized CSV used by T
   --months LIST        Comma-separated YYYY-MM list used if auto-preparing data
   --results PATH       Output CSV path
-  --queries LIST       Comma-separated query ids (default: q1,q2,q3)
+  --queries LIST       Comma-separated query ids (default: q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11)
   --iterations N       Number of runs per engine/query (default: 1)
   --help               Show this message
 EOF
@@ -29,7 +29,7 @@ CSV_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
 PARQUET_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.parquet"
 MONTHS="2023-01,2023-02,2023-03"
 RESULTS_PATH="$SCRIPT_DIR/results/results.csv"
-QUERIES="q1,q2,q3"
+QUERIES="q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11"
 ITERATIONS=1
 
 while [[ $# -gt 0 ]]; do
@@ -275,6 +275,46 @@ for query in "${QUERY_LIST[@]}"; do
       python_script="$SCRIPT_DIR/python/q3_monthly_stats.py"
       r_script="$SCRIPT_DIR/r/q3_monthly_stats.R"
       t_script="$SCRIPT_DIR/queries/q3_monthly_stats.t"
+      ;;
+    q4)
+      python_script="$SCRIPT_DIR/python/q4_high_cardinality_grouping.py"
+      r_script="$SCRIPT_DIR/r/q4_high_cardinality_grouping.R"
+      t_script="$SCRIPT_DIR/queries/q4_high_cardinality_grouping.t"
+      ;;
+    q5)
+      python_script="$SCRIPT_DIR/python/q5_composite_grouping.py"
+      r_script="$SCRIPT_DIR/r/q5_composite_grouping.R"
+      t_script="$SCRIPT_DIR/queries/q5_composite_grouping.t"
+      ;;
+    q6)
+      python_script="$SCRIPT_DIR/python/q6_tip_percent_mutation.py"
+      r_script="$SCRIPT_DIR/r/q6_tip_percent_mutation.R"
+      t_script="$SCRIPT_DIR/queries/q6_tip_percent_mutation.t"
+      ;;
+    q7)
+      python_script="$SCRIPT_DIR/python/q7_monthly_unique_pickups.py"
+      r_script="$SCRIPT_DIR/r/q7_monthly_unique_pickups.R"
+      t_script="$SCRIPT_DIR/queries/q7_monthly_unique_pickups.t"
+      ;;
+    q8)
+      python_script="$SCRIPT_DIR/python/q8_sort_total_amount_desc.py"
+      r_script="$SCRIPT_DIR/r/q8_sort_total_amount_desc.R"
+      t_script="$SCRIPT_DIR/queries/q8_sort_total_amount_desc.t"
+      ;;
+    q9)
+      python_script="$SCRIPT_DIR/python/q9_complex_filters.py"
+      r_script="$SCRIPT_DIR/r/q9_complex_filters.R"
+      t_script="$SCRIPT_DIR/queries/q9_complex_filters.t"
+      ;;
+    q10)
+      python_script="$SCRIPT_DIR/python/q10_vendor_revenue_pivot.py"
+      r_script="$SCRIPT_DIR/r/q10_vendor_revenue_pivot.R"
+      t_script="$SCRIPT_DIR/queries/q10_vendor_revenue_pivot.t"
+      ;;
+    q11)
+      python_script="$SCRIPT_DIR/python/q11_heavy_summarize.py"
+      r_script="$SCRIPT_DIR/r/q11_heavy_summarize.R"
+      t_script="$SCRIPT_DIR/queries/q11_heavy_summarize.t"
       ;;
     *)
       echo "Unknown query id: $query" >&2
