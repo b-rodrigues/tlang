@@ -73,6 +73,19 @@ and uses_nse_stmt stmt =
   | Reassignment { expr; _ } -> uses_nse expr
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> false
 
+let is_standard_package = function
+  | "core"
+  | "strcraft"
+  | "base"
+  | "chrono"
+  | "math"
+  | "stats"
+  | "dataframe"
+  | "colcraft"
+  | "pipeline"
+  | "explain" -> true
+  | _ -> false
+
 (* --- Scalar and Broadcasting Logic --- *)
 
 (** Evaluate scalar binary operations.
@@ -1665,11 +1678,15 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
       | Sys_error msg ->
           (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
   | ImportPackage pkg_name ->
+      if is_standard_package pkg_name then begin
+        current_imports := !current_imports @ [ImportPackage pkg_name];
+        (VNull, env)
+      end else
       (match Package_loader.load_package ~do_eval_program:eval_program pkg_name env with
        | Ok new_env ->
-           current_imports := !current_imports @ [ImportPackage pkg_name];
-           (VNull, new_env)
-       | Error msg -> (make_error FileError msg, env))
+            current_imports := !current_imports @ [ImportPackage pkg_name];
+            (VNull, new_env)
+        | Error msg -> (make_error FileError msg, env))
   | ImportFrom { package; names } ->
       (match Package_loader.load_package_selective ~do_eval_program:eval_program package names env with
        | Ok new_env ->
