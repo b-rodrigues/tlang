@@ -233,7 +233,7 @@ if "month" not in df.columns:
     df["month"] = month
 
 table = pa.Table.from_pandas(df, preserve_index=False)
-pq.write_to_dataset(table, root_path=str(parquet_dir), partitioning=["year", "month"])
+pq.write_to_dataset(table, root_path=str(parquet_dir), partition_cols=["year", "month"])
 
 materialized_csv.parent.mkdir(parents=True, exist_ok=True)
 write_header = not materialized_csv.exists()

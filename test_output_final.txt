@@ -1,0 +1,2161 @@
+warning: Git tree '/home/brodrigues/Documents/repos/tlang' is dirty
+Using saved setting for 'extra-substituters = https://rstats-on-nix.cachix.org' from ~/.local/share/nix/trusted-settings.json.
+Using saved setting for 'extra-trusted-public-keys = rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=' from ~/.local/share/nix/trusted-settings.json.
+═══════════════════════════════════════════════
+T Language Development Environment
+═══════════════════════════════════════════════
+
+Available commands:
+  dune build           - Build the project
+  t                    - Run the language (fast path)
+  dune test            - Run tests
+  dune clean           - Clean build artifacts
+  R                    - Launch R console
+
+Golden tests:
+  Rscript tests/golden/generate_datasets.R       - Generate test data
+  Rscript tests/golden/generate_expected.R       - Generate dplyr outputs
+  Rscript tests/golden/generate_expected_stats.R - Generate stats outputs
+
+Quick start: dune build && t
+
+
+=== T Language Tests ===
+
+Arithmetic:
+  ✓ integer addition
+  ✓ integer subtraction
+  ✓ integer multiplication
+  ✓ integer division
+  ✓ float addition
+  ✓ mixed int+float
+  ✓ operator precedence
+  ✓ parentheses
+  ✓ unary minus
+  ✓ division by zero
+  ✓ string concatenation error
+
+Comparisons:
+  ✓ equality true
+  ✓ equality false
+  ✓ not equal
+  ✓ less than
+  ✓ greater than
+  ✓ less or equal
+  ✓ greater or equal
+
+Logical:
+  ✓ and true
+  ✓ and false
+  ✓ or true
+  ✓ not true
+  ✓ not false
+Short-circuit:
+  ✓ sc false && error
+  ✓ sc true || error
+Bitwise/Strict:
+  ✓ true & false
+  ✓ true | false
+Broadcasting:
+  ✓ vec .+ scalar
+  ✓ vec .* vec
+  ✓ vec .== vec
+  ✓ vec .& vec
+Broadcasting with NA:
+  ✓ vec .+ NA
+
+In Operator:
+  ✓ scalar in list
+  ✓ scalar not in list
+  ✓ string in list
+  ✓ string not in list
+  ✓ int in float list (relaxed numeric equality)
+  ✓ int in string list
+  ✓ vector in list
+  ✓ vector all in
+  ✓ in non-list
+  ✓ find before error (strict list)
+  ✓ error in list
+  ✓ find before NA
+  ✓ NA in list error
+Comprehensive Operator Tests:
+  Arithmetic:
+  ✓ Add Int
+  ✓ Add Float
+  ✓ Add Mixed
+  ✓ Add String error
+  ✓ Sub Int
+  ✓ Mul Int
+  ✓ Div Int
+  ✓ Div Int Float
+  ✓ Div Float
+  ✓ Div Zero Int
+  ✓ Div Zero Float
+  Comparison:
+  ✓ Eq Int
+  ✓ Eq Float
+  ✓ Eq Mixed
+  ✓ Neq Int
+  ✓ Lt Int
+  ✓ Gt Int
+  ✓ LtEq Int
+  ✓ GtEq Int
+  Logical (Short-circuit):
+  ✓ And True True
+  ✓ And True False
+  ✓ And False Error
+  ✓ Or True Error
+  ✓ Or False False
+  ✓ Not True
+  ✓ Not False
+  ✓ And Invalid Left
+  ✓ And Invalid Right
+  ✓ Not Invalid
+  Bitwise/Strict:
+  ✓ BitAnd
+  ✓ BitOr
+  ✓ BitAnd No Short-circuit
+  ✓ BitOr No Short-circuit
+  Membership:
+  ✓ In List
+  ✓ Not In List
+  ✓ Vector In List
+  ✓ In Strict Error
+  Broadcasting:
+  ✓ Broadcast Add Scalar
+  ✓ Broadcast Add Vector
+  ✓ Broadcast Eq
+  ✓ Broadcast Gt
+  ✓ Broadcast BitAnd
+  ✓ Broadcast Mismatch
+  NA Propagation:
+  ✓ NA Add
+  ✓ NA Eq
+  ✓ NA And
+  ✓ NA Or
+  ✓ NA In
+  ✓ Broadcast NA
+Strict Scalar Operator Tests:
+  ✓ Scalar + List
+  ✓ List + Scalar
+  ✓ List + List
+  ✓ Scalar == List
+  ✓ Scalar - List
+  ✓ Scalar * List
+  ✓ Scalar / List
+  ✓ Scalar < List
+  ✓ Scalar .+ List
+  ✓ List .+ Scalar
+  ✓ List .+ List
+
+Typing mode and typed lambda syntax:
+  ✓ typed lambda with return annotation parses and runs
+  ✓ untyped lambda parses and runs
+  ✓ typed lambda enforces argument types at runtime
+  ✓ typed lambda enforces return type at runtime
+  ✓ typed lambda allows NA even if type is annotated
+  ✓ typed lambda allows Int for Float (widening)
+  ✓ strict mode accepts annotated top-level lambda
+  ✓ strict mode rejects unannotated top-level lambda
+  ✓ strict mode accepts generic lambda with declared type vars
+  ✓ strict mode rejects generic lambda without declared type vars
+
+Bitwise Error Message Tests:
+  ✓ BitOr True List
+  ✓ BitAnd True List
+  ✓ BitOr List True
+  ✓ BitAnd List True
+Variables:
+  ✓ assignment and use
+  ✓ variable arithmetic
+  ✓ reassignment with = is error
+  ✓ reassignment with := works
+  ✓ assignment returns null
+  ✓ assignment of error returns error
+  ✓ := on undefined variable is error
+
+Functions:
+  ✓ lambda definition and call
+  ✓ function keyword
+  ✓ two-arg function
+  ✓ closure
+  ✓ arity error
+
+Phase 7 — Core: String Operations:
+  Inspection:
+  ✓ is_empty true
+  ✓ is_empty false
+  ✓ length string error
+  ✓ length list
+  ✓ length vector
+  ✓ length vector of strings
+  ✓ nchar string
+  ✓ nchar vector
+  Substrings:
+  ✓ substring simple
+  ✓ slice alias
+  ✓ char_at
+  ✓ substring out of bounds
+  Search:
+  ✓ index_of found
+  ✓ index_of not found
+  ✓ last_index_of found
+  ✓ contains false
+  ✓ contains true
+  ✓ starts_with true
+  ✓ starts_with false
+  ✓ ends_with true
+  Modification:
+  ✓ replace all
+  ✓ replace first
+  Case:
+  ✓ to_upper
+  ✓ to_lower
+  Vectorization:
+  ✓ to_upper vector
+  ✓ substring vector
+  ✓ contains vector scalar
+  ✓ join list
+  ✓ join vector
+  ✓ join scalar
+  ✓ concat error
+  Trim:
+  ✓ trim both
+  ✓ trim start
+  ✓ trim end
+  ✓ trim newline
+  Lines & Words:
+  ✓ lines basic
+  ✓ lines trailing
+  ✓ lines windows
+  ✓ lines empty
+  ✓ words basic
+  ✓ words leading
+  ✓ words empty
+  Repeat & Format:
+  ✓ str_repeat
+  ✓ str_repeat zero
+  ✓ str_repeat negative
+  ✓ str_format dict
+  ✓ str_format list
+  ✓ str_format missing
+  ✓ str_format unclosed
+  ✓ str_format escape lbrace
+  ✓ str_format escape mixed
+  ✓ str_format escape only braces
+  ✓ str_extract first match
+  ✓ str_extract no match
+  ✓ str_extract_all matches
+  ✓ str_detect regex
+  ✓ str_pad left
+  ✓ str_trunc right
+  ✓ str_flatten collapse
+  ✓ str_count regex
+
+Pipe Operator:
+  ✓ pipe to function
+  ✓ pipe with args
+  ✓ pipe chain
+  ✓ pipe to builtin
+  ✓ pipe chain across lines
+  ✓ pipe short-circuits on error
+
+Maybe-Pipe Operator:
+  ✓ maybe-pipe forwards normal value
+  ✓ maybe-pipe forwards error to function
+  ✓ maybe-pipe with args
+  ✓ maybe-pipe chain
+  ✓ maybe-pipe to builtin
+  ✓ maybe-pipe error to is_error
+  ✓ mixed pipe chain: maybe-pipe then pipe
+  ✓ maybe-pipe chain across lines
+
+If/Else:
+  ✓ if true
+  ✓ if false
+  ✓ if with comparison
+
+Lists:
+  ✓ empty list
+  ✓ int list
+  ✓ dict in brackets
+  ✓ mixed list/dict is parse error
+  ✓ length
+  ✓ head
+  ✓ tail
+  ✓ head extra positional arity reports optional second arg
+  ✓ tail extra positional arity reports optional second arg
+  ✓ tail wrong type mentions vector support
+
+Dicts:
+  ✓ empty dict
+  ✓ dict literal
+  ✓ dict dot access
+  ✓ dict missing key
+
+Builtins:
+  ✓ type of int
+  ✓ type of string
+  ✓ type of bool
+  ✓ type of list
+  ✓ assert true
+  ✓ assert false
+  ✓ is_error on error
+  ✓ is_error on value
+  ✓ seq basic
+  ✓ seq end optional default
+  ✓ seq named args
+  ✓ seq negative by
+  ✓ seq end optional if by is provided
+  ✓ sum
+  ✓ map
+
+Filesystem Builtins:
+  ✓ getwd returns string
+  ✓ file_exists false for /tmp (dir not file)
+  ✓ file_exists false for nonexistent
+  ✓ file_exists wrong type
+  ✓ file_exists true for regular file
+  ✓ read_file reads empty file
+  ✓ list_files pattern exact match
+  ✓ list_files pattern no match
+  ✓ dir_exists true for /tmp
+  ✓ dir_exists false for nonexistent
+  ✓ dir_exists wrong type
+  ✓ read_file nonexistent returns error
+  ✓ read_file wrong type
+  ✓ list_files default returns list
+  ✓ list_files /tmp returns list
+  ✓ list_files nonexistent returns error
+  ✓ list_files wrong type
+  ✓ list_files extra positional arity error
+  ✓ list_files pattern wrong type
+  ✓ env HOME exists
+  ✓ env nonexistent returns null
+  ✓ env wrong type
+
+Path Builtins:
+  ✓ path_join two segments
+  ✓ path_join three segments
+  ✓ path_join relative
+  ✓ path_join single arg
+  ✓ path_join zero args
+  ✓ path_join wrong type
+  ✓ path_basename full path
+  ✓ path_basename filename only
+  ✓ path_basename wrong type
+  ✓ path_dirname full path
+  ✓ path_dirname filename only
+  ✓ path_dirname root
+  ✓ path_dirname wrong type
+  ✓ path_ext with extension
+  ✓ path_ext no extension
+  ✓ path_ext dotfile
+  ✓ path_ext last extension only
+  ✓ path_ext wrong type
+  ✓ path_stem removes extension
+  ✓ path_stem no extension unchanged
+  ✓ path_stem dotfile unchanged
+  ✓ path_stem last ext only
+  ✓ path_stem with full path
+  ✓ path_stem wrong type
+  ✓ path_abs absolute unchanged
+  ✓ path_abs relative becomes absolute
+  ✓ path_abs relative starts with slash
+  ✓ path_abs wrong type
+
+Error Handling:
+  ✓ error propagation in addition
+  ✓ error in list
+
+Chrono:
+  ✓ ymd parses date
+  ✓ ymd_hms parses datetime
+  ✓ parse_date supports month names
+  ✓ date components extract values
+  ✓ month label works
+  ✓ date arithmetic with months clamps end of month
+  ✓ date arithmetic with months clamps non-leap year
+  ✓ date subtraction returns period
+  ✓ format_date renders tokens
+  ✓ type predicates recognize date types
+  ✓ floor_date rounds down hour
+  ✓ ceiling_date rounds up hour
+  ✓ round_date rounds to nearest hour
+  ✓ with_tz updates timezone label
+  ✓ force_tz updates timezone label
+  ✓ is_leap_year on integer
+  ✓ days_in_month on integers
+  ✓ within interval
+  ✓ make_date creates valid date
+  ✓ make_datetime creates valid datetime
+  ✓ am returns true for morning
+  ✓ pm returns true for afternoon
+  ✓ vectorized year works on pulled dates
+  ✓ today returns date type
+  ✓ now returns datetime type
+
+Chrono JSON serialization:
+  ✓ value_to_yojson serializes dates
+  ✓ value_to_yojson serializes datetimes
+  ✓ value_to_yojson serializes periods
+  ✓ value_to_yojson serializes durations
+  ✓ value_to_yojson serializes intervals
+
+Shell Escape:
+  ✓ simple echo
+  ✓ expression capture
+  ✓ multi-line command
+  ✓ nested parentheses
+  ✓ shell features - piping
+  ✓ stdout field
+  ✓ exit_code success
+  ✓ exit_code failure
+  ✓ stderr non-empty on error
+  ✓ type is ShellResult
+  ✓ command not found exit_code
+  ✓ cd to /tmp returns empty stdout
+  ✓ cd exit_code success
+  ✓ cd back
+  ✓ cd to home (implicit)
+  ✓ cd to ~
+  ✓ cd error exit_code
+  ✓ cd error stderr contains path
+  ✓ strsplit with newline
+run() builtin:
+  ✓ run success
+  ✓ run command not found
+  ✓ run failure
+  ✓ run returns VString type
+  ✓ run cd
+
+Converters:
+  ✓ to_integer bool true
+  ✓ to_integer bool false
+  ✓ to_integer string int
+  ✓ to_integer string float
+  ✓ to_integer string spaces
+  ✓ to_integer string percent
+  ✓ to_integer string T
+  ✓ to_integer string FALSE
+  ✓ to_integer string comma
+  ✓ to_integer string semi-colon
+  ✓ to_integer vector
+  ✓ to_integer invalid
+  ✓ to_float bool true
+  ✓ to_float bool false
+  ✓ to_float string float
+  ✓ to_numeric string spaces
+  ✓ to_numeric string percent
+  ✓ to_float string TRUE
+  ✓ to_float string F
+  ✓ to_numeric string comma
+  ✓ to_float string semi-colon
+  ✓ to_float list
+  ✓ to_float invalid
+
+Phase 1 — NA Values:
+  ✓ NA literal
+  ✓ typed NA bool
+  ✓ typed NA int
+  ✓ typed NA float
+  ✓ typed NA string
+  ✓ generic NA
+  ✓ is_na on NA
+  ✓ is_na on typed NA
+  ✓ is_na on value
+  ✓ is_na on null
+  ✓ type of NA
+  ✓ NA is falsy
+  ✓ NA equality is error
+  ✓ NA comparison with value is error
+
+Phase 1 — No Implicit NA Propagation:
+  ✓ NA + int is error
+  ✓ int + NA is error
+  ✓ NA * float is error
+  ✓ negation of NA is error
+
+Phase 1 — Structured Errors:
+  ✓ error() constructor
+  ✓ error() with code
+  ✓ error_code()
+  ✓ error_message()
+  ✓ error_context() empty
+  ✓ is_error on constructed error
+  ✓ error_code on type error
+  ✓ error_code on non-error
+  ✓ error_message on non-error
+
+Phase 1 — Enhanced Assert:
+  ✓ assert with message (pass)
+  ✓ assert with message (fail)
+  ✓ assert on NA
+  ✓ assert on NA with message
+
+Phase 1 — Error Values (No Crashes):
+  ✓ name error returns error value
+  ✓ calling non-function returns error
+  ✓ sum with NA returns error
+  ✓ head on NA returns error
+  ✓ length on NA returns error
+
+Phase 4 — Error Message Quality (Name Suggestions):
+  ✓ typo in function name suggests correction
+  ✓ typo in 'select' suggests correction
+  ✓ typo in 'filter' suggests correction
+  ✓ typo in 'mutate' suggests correction
+  ✓ typo in 'mean' suggests correction
+  ✓ completely unknown name has no suggestion
+
+Phase 4 — Error Message Quality (Type Conversion Hints):
+  ✓ int + bool shows hint
+  ✓ list + int strict error
+  ✓ string + int shows hint
+
+Phase 4 — Error Message Quality (Arity Signatures):
+  ✓ lambda arity error shows params
+  ✓ lambda arity error shows single param
+  ✓ builtin arity error shows count
+
+Warning: Native Arrow CSV reader failed (Arrow CSV read failed: nonexistent_file.csv). Falling back to the OCaml CSV parser.
+Phase 2 — read_csv():
+  ✓ read_csv returns DataFrame
+  ✓ read_csv with missing file
+  ✓ read_csv with non-string arg
+  ✓ read_csv with NA arg
+
+Phase 2 — nrow() and ncol():
+  ✓ nrow returns correct count
+  ✓ ncol returns correct count
+  ✓ nrow on non-DataFrame
+  ✓ ncol on non-DataFrame
+  ✓ nrow on NA
+
+Phase 2 — colnames():
+  ✓ colnames returns column names
+  ✓ colnames on non-DataFrame
+
+Phase 2 — Column Access (dot notation):
+  ✓ column access by name returns Vector
+  ✓ numeric column access returns typed values
+  ✓ float column access returns typed values
+  ✓ missing column returns error
+
+Phase 2 — DataFrame Type Inference:
+  ✓ integer columns inferred correctly
+  ✓ boolean columns inferred correctly
+  ✓ float columns inferred correctly
+
+Phase 2 — NA in CSV:
+  ✓ NA values preserved in CSV import
+
+Phase 2 — Empty DataFrame:
+  ✓ empty CSV has 0 rows
+  ✓ empty CSV retains column count
+
+Phase 2 — DataFrame in Pipelines:
+  ✓ DataFrame works as pipeline input (nrow)
+  ✓ DataFrame works as pipeline input (colnames)
+  ✓ DataFrame works as pipeline input (ncol)
+
+Phase 2 — DataFrame Display:
+  ✓ DataFrame display format correct
+
+Phase 2 — Immutability:
+  ✓ type of DataFrame
+
+Phase 5 — read_csv() optional arguments:
+  ✓ read_csv with separator=";" reads correct rows
+  ✓ read_csv with separator=";" reads correct columns
+  ✓ read_csv with skip_lines=2 skips comment lines
+  ✓ read_csv with skip_lines=2 reads correct header
+  ✓ read_csv with skip_header=true reads all lines as data
+  ✓ read_csv with skip_header=true generates V1,V2,V3 column names
+
+Phase 5 — write_csv() optional arguments:
+  ✓ write_csv with separator=";" returns null
+  ✓ roundtrip with separator=";" preserves row count
+  ✓ roundtrip with separator=";" preserves column names
+
+Phase — read_csv() with clean_colnames:
+  ✓ clean_colnames expands symbols
+  ✓ clean_colnames handles punctuation
+  ✓ clean_colnames strips diacritics
+  ✓ clean_colnames resolves collisions
+  ✓ clean_colnames prefixes digit-leading names
+  ✓ clean_colnames = false preserves original names
+  ✓ standalone clean_colnames() on DataFrame
+  ✓ standalone clean_colnames() on List
+  ✓ clean_colnames is idempotent
+
+Phase — read_csv() with separator alias:
+  ✓ read_csv with separator="|" reads correct rows
+  ✓ read_csv with separator="|" reads correct columns
+  ✓ read_csv with separator="|" reads correct values
+  ✓ write_csv with separator=";" returns null
+  ✓ roundtrip with separator=";" preserves row count
+  ✓ roundtrip with separator=";" preserves column names
+  ✓ read_csv separator bad type
+  ✓ read_csv separator too long
+
+Phase — head() and tail() on DataFrames:
+  ✓ head(df) returns 5 rows by default
+  ✓ head(df, 3) returns 3 rows
+  ✓ head(df, n=3) returns 3 rows
+  ✓ head(df, 2) preserves column data
+  ✓ head(df, 100) returns all rows when n > nrow
+  ✓ tail(df) returns 5 rows by default
+  ✓ tail(df, 3) returns 3 rows
+  ✓ tail(df, n=3) returns 3 rows
+  ✓ tail(df, 2) returns last rows
+  ✓ tail(df, 100) returns all rows when n > nrow
+  ✓ head on list still works
+  ✓ tail on list still works
+
+Phase — glimpse():
+Rows: 3
+Columns: 3
+$ name          <String> "Alice", "Bob", "Charlie"
+$ age           <Int> 30, 25, 35
+$ score         <Float> 95.5, 87.3, 92.1
+  ✓ glimpse returns null (prints to stdout)
+  ✓ glimpse on non-DataFrame
+  ✓ glimpse on NA
+
+Phase — explain() compact display for DataFrames:
+  ✓ explain(df) display does not show schema/na_stats/example_rows
+  ✓ explain(df).schema still accessible
+  ✓ explain(df).na_stats still accessible
+  ✓ explain(df).example_rows still accessible
+  ✓ explain(df) has hint field
+
+Phase — read_csv() from URL with separator:
+  ✓ read_csv from URL with separator="|" reads correct rows (32)
+  ✓ read_csv from URL with separator="|" reads correct columns (11)
+
+Phase 3 — Basic Pipeline:
+  ✓ simple pipeline
+  ✓ pipeline type
+  ✓ pipeline with expressions
+
+Phase 3 — Pipeline Node Access:
+  ✓ pipeline node access via dot (x)
+  ✓ pipeline node access via dot (total)
+  ✓ missing pipeline node returns error
+
+Phase 3 — Deterministic Execution:
+  ✓ pipeline executes deterministically
+
+Phase 3 — Dependency Resolution:
+  ✓ out-of-order dependencies resolved
+  ✓ chain dependencies
+
+Phase 3 — Pipeline Introspection:
+  ✓ pipeline_nodes() lists all nodes
+  ✓ pipeline_node() gets specific node value
+  ✓ pipeline_deps() returns dependency graph
+  ✓ pipeline_nodes on non-pipeline
+  ✓ pipeline_node missing key
+
+Phase 3 — Pipeline Re-run (Caching):
+  ✓ pipeline_run() re-runs and returns same result
+  ✓ re-run preserves cached values
+  ✓ pipeline_run on non-pipeline
+
+Pipeline Build and Artifact I/O:
+  ✓ build_pipeline returns output path
+  ✓ read_node reads serialized artifact
+  ✓ read_node missing key
+
+Serialization Builtins:
+  ✓ serialize and deserialize roundtrip
+
+Phase 3 — Pipeline with Pipes:
+  ✓ pipeline with pipe operator
+
+Phase 3 — Pipeline with Functions:
+  ✓ pipeline with function calls
+  ✓ pipeline nodes available individually
+
+Phase 3 — Pipeline Error Handling:
+  ✓ pipeline cycle detection
+  ✓ pipeline with error in node
+
+Phase 3 — Pipeline with DataFrame:
+  ✓ pipeline with DataFrame nrow
+  ✓ pipeline with DataFrame ncol
+
+Phase 3 — Explicit Node Configuration (cross-runtime):
+  ✓ pipeline implicit and explicit nodes parsed
+  ✓ cross-runtime node count correct
+
+Phase 3 — Script-based Nodes:
+  ✓ node() cannot use both command and script
+  ✓ node() with script stores path and runtime
+  ✓ py() stores env_vars on the node
+  ✓ node env_vars must be a dict
+  ✓ node args must be a dict
+  ✓ node args values must stay shallow
+  ✓ quarto node requires qmd path
+  ✓ quarto node command conflict (explicit script)
+  ✓ quarto node command conflict (inlined command)
+  ✓ R node supports both command and args.path (auto-included)
+  ✓ node() stores Quarto runtime args and qmd path
+  ✓ py() nodes are desugared with env_vars in pipelines
+  ✓ pipeline preserves and emits node env_vars
+  ✓ pipeline preserves and emits Quarto runtime args
+  ✓ pipeline_copy validates node type
+  ✓ pipeline_copy validates target_dir type
+  ✓ pipeline_copy validates dir_mode type
+  ✓ pipeline_copy validates file_mode type
+  ✓ pipeline_copy validates mode contents
+  ✓ runtime auto-detected as R for .R script
+  ✓ runtime auto-detected as Python for .py script
+  ✓ runtime auto-detected as Quarto for .qmd script
+  ✓ node.script dot access returns script path
+  ✓ node without script returns null for .script
+  ✓ pipeline with script node has correct node list
+
+Phase 4 — select():
+  ✓ select two columns
+  ✓ select single column
+  ✓ select missing column
+  ✓ select non-column arg
+  ✓ select non-dataframe
+  ✓ select with pipe
+
+Phase 4 — filter():
+  ✓ filter by $age > 28
+  ✓ filter by $dept == eng via pipe
+  ✓ filter non-dataframe
+
+Phase 4 — mutate():
+  ✓ mutate adds new column
+  ✓ mutate replaces existing column (same col count)
+  ✓ mutate non-dataframe
+  ✓ mutate missing column expr
+
+Phase 4 — arrange():
+  ✓ arrange ascending by age
+  ✓ arrange descending by age
+  ✓ arrange missing column
+  ✓ arrange invalid direction
+
+Phase 4 — group_by():
+  ✓ group_by marks grouping
+  ✓ group_by missing column
+  ✓ group_by non-column
+  ✓ group_by no columns
+
+Phase 4 — ungroup():
+  ✓ ungroup removes grouping
+  ✓ ungroup on ungrouped dataframe
+  ✓ ungroup non-dataframe
+
+Phase 4 — summarize():
+  ✓ ungrouped summarize produces 1-row result
+  ✓ grouped summarize produces per-group result
+  ✓ grouped summarize correct counts (eng=3, sales=2)
+  ✓ summarize non-dataframe
+
+Phase 4 — Pipeline Integration:
+  ✓ tidy-style pipeline
+  ✓ mutate + filter pipeline
+
+Phase 4 — Grouped Mutate:
+  ✓ grouped mutate adds column with group context
+  ✓ grouped mutate broadcasts group values correctly
+  ✓ grouped mutate preserves group keys
+  ✓ grouped mutate computes group mean
+  ✓ grouped mutate chains with filter
+  ✓ ungrouped mutate works
+
+
+(process:105633): GLib-GObject-CRITICAL **: 05:59:48.643: g_object_unref: assertion 'G_IS_OBJECT (object)' failed
+Phase 4 — Group-by with NAs (golden test repro):
+  ✓ mutate with if/else on CSV with NAs
+  ✓ grouped summarize with mean on NAs
+
+
+(process:105633): GLib-GObject-CRITICAL **: 05:59:48.643: g_object_unref: assertion 'G_IS_OBJECT (object)' failed
+Phase 4 — NSE Syntax:
+  ✓ summarize with $col = expr
+  ✓ grouped summarize with $col = expr
+  ✓ mutate with $col = expr
+  ✓ mutate $col = expr via pipe
+  ✓ full NSE pipeline
+
+Phase 4 — complete():
+  ✓ complete expands date id columns
+  ✓ complete preserves date id values
+  ✓ complete fills missing date combinations
+  ✓ complete expands datetime id columns
+  ✓ complete preserves datetime id values
+  ✓ complete fills missing datetime combinations
+
+Phase 4 — date/datetime colcraft regressions:
+  ✓ pivot_wider preserves date id columns
+  ✓ pivot_longer preserves datetime id columns
+  ✓ fill propagates date values
+  ✓ replace_na fills date columns
+  ✓ replace_na fills datetime columns
+
+Phase 4 — joins, binders, and extended selectors:
+  ✓ left_join keeps left rows
+  ✓ left_join fills unmatched with NA
+  ✓ inner_join keeps matches only
+  ✓ full_join includes unmatched right rows
+  ✓ semi_join filters left rows by match
+  ✓ semi_join keeps only left columns
+  ✓ anti_join filters left rows without match
+  ✓ anti_join keeps only left columns
+  ✓ bind_rows unions columns
+  ✓ bind_rows fills missing columns
+  ✓ bind_cols combines columns
+  ✓ select where numeric columns
+  ✓ select matches regex
+  ✓ select all_of names
+  ✓ select any_of ignores missing names
+  ✓ fct_lump_min groups infrequent levels
+  ✓ fct_other keeps selected levels
+  ✓ fct_drop removes unused levels
+  ✓ fct_expand adds levels
+  ✓ fct_c unifies levels
+
+
+(process:105633): GLib-GObject-CRITICAL **: 05:59:48.652: g_object_unref: assertion 'G_IS_OBJECT (object)' failed
+
+(process:105633): GLib-GObject-CRITICAL **: 05:59:48.652: g_object_unref: assertion 'G_IS_OBJECT (object)' failed
+Phase 4 — Vectorized Processing:
+  ✓ vectorized ungrouped summarize mean
+  ✓ vectorized ungrouped summarize sum
+  ✓ vectorized ungrouped summarize min/max produces correct min
+  ✓ vectorized grouped summarize mean produces correct values
+  ✓ vectorized grouped summarize sum
+  ✓ vectorized mutate column + scalar
+  ✓ vectorized mutate column * scalar
+  ✓ vectorized mutate column * column
+  ✓ vectorized filter with AND predicate
+  ✓ vectorized filter with OR predicate
+  ✓ mixed vectorized + non-vectorized summarize
+
+Window Functions — Ranking:
+  ✓ row_number simple
+  ✓ row_number with ties
+  ✓ row_number empty
+  ✓ min_rank simple
+  ✓ min_rank with ties
+  ✓ min_rank empty
+  ✓ dense_rank simple
+  ✓ dense_rank with ties
+  ✓ dense_rank empty
+  ✓ cume_dist simple
+  ✓ cume_dist with ties
+  ✓ percent_rank simple
+  ✓ percent_rank single element
+  ✓ ntile into 2 groups
+  ✓ ntile into 4 groups
+  ✓ row_number with NA
+  ✓ row_number all NA
+  ✓ row_number first NA
+  ✓ row_number last NA
+  ✓ row_number alternating NA
+  ✓ row_number single element
+  ✓ min_rank with NA
+  ✓ min_rank all NA
+  ✓ dense_rank with NA
+  ✓ dense_rank all NA
+  ✓ cume_dist with NA
+  ✓ cume_dist all NA
+  ✓ percent_rank with NA
+  ✓ percent_rank all NA
+  ✓ percent_rank single non-NA with NAs
+  ✓ ntile with NA
+  ✓ ntile all NA
+  ✓ ntile non-positive
+
+Window Functions — Offset (lead/lag):
+  ✓ lag simple
+  ✓ lag with offset 2
+  ✓ lag empty
+  ✓ lag strings
+  ✓ lead simple
+  ✓ lead with offset 2
+  ✓ lead empty
+  ✓ lag negative offset
+  ✓ lead negative offset
+
+Window Functions — Cumulative:
+  ✓ cumsum integers
+  ✓ cumsum floats
+  ✓ cumsum empty
+  ✓ cummin integers
+  ✓ cummin empty
+  ✓ cummax integers
+  ✓ cummax empty
+  ✓ cummean integers
+  ✓ cummean empty
+  ✓ cumall all true
+  ✓ cumall with false
+  ✓ cumall empty
+  ✓ cumany all false
+  ✓ cumany with true
+  ✓ cumany empty
+  ✓ cumsum with NA
+  ✓ cumsum all NA
+  ✓ cumsum first NA
+  ✓ cumsum last NA
+  ✓ cummin with NA
+  ✓ cummin all NA
+  ✓ cummax with NA
+  ✓ cummax all NA
+  ✓ cummean with NA
+  ✓ cummean all NA
+  ✓ cumall with NA
+  ✓ cumall all NA
+  ✓ cumany with NA
+  ✓ cumany all NA
+  ✓ lag with NA in input
+  ✓ lead with NA in input
+  ✓ cummin with string
+
+Phase 5 — Math: sqrt():
+  ✓ sqrt of integer
+  ✓ sqrt of float
+  ✓ sqrt of 0
+  ✓ sqrt negative
+  ✓ sqrt NA
+  ✓ sqrt non-numeric
+
+Phase 5 — Math: abs():
+  ✓ abs of positive int
+  ✓ abs of negative int
+  ✓ abs of negative float
+  ✓ abs of zero
+  ✓ abs NA
+
+Phase 5 — Math: log():
+  ✓ log of 1
+  ✓ log of positive float
+  ✓ log of 0
+  ✓ log of negative
+  ✓ log NA
+
+Phase 5 — Math: exp():
+  ✓ exp of 0
+  ✓ exp of 1
+  ✓ exp NA
+
+Phase 5 — Math: pow():
+  ✓ pow integer
+  ✓ pow float base
+  ✓ pow zero exponent
+  ✓ pow NA base
+  ✓ pow NA exponent
+
+Phase 5 — Math: Vector operations:
+  ✓ sqrt on vector
+  ✓ abs on vector
+  ✓ pow on vector
+
+Phase 5 — Math: Pipeline integration:
+  ✓ sqrt in pipe
+  ✓ exp and log roundtrip
+  ✓ chained math
+
+Phase 5 — Math: extended math():
+  ✓ round digits
+  ✓ floor
+  ✓ ceiling
+  ✓ ceil alias
+  ✓ trunc
+  ✓ sign
+  ✓ signif
+  ✓ sin
+  ✓ cos
+  ✓ atan2
+  ✓ sinh
+
+Phase 5 — Math: NDArray operations:
+  ✓ ndarray infer shape
+  ✓ reshape
+  ✓ matmul
+  ✓ diag from vector
+  ✓ diag from matrix
+  ✓ inv 2x2
+  ✓ kron
+  ✓ ndarray broadcast add
+  ✓ sqrt on ndarray
+  ✓ abs on ndarray
+  ✓ log on ndarray
+  ✓ exp on ndarray
+  ✓ pow on ndarray
+  ✓ ndarray with empty list
+  ✓ ndarray with NA values
+  ✓ ndarray with non-numeric values
+  ✓ ndarray with ragged lists
+  ✓ matmul dimension mismatch
+  ✓ matmul with non-2D arrays
+  ✓ kron with non-2D arrays
+  ✓ diag with non-1D/2D ndarray
+  ✓ inv non-square
+  ✓ inv singular matrix
+  ✓ reshape incompatible element count
+  ✓ shape with non-NDArray argument
+  ✓ reshape with non-NDArray argument
+  ✓ ndarray 3d infer shape
+  ✓ reshape 3d
+
+Phase 5 — Stats: mean():
+  ✓ mean of int list
+  ✓ mean of float list
+  ✓ mean empty
+  ✓ mean with NA
+  ✓ mean non-numeric
+  ✓ mean na_rm=true skips NA
+  ✓ mean na_rm=true no NAs
+  ✓ mean na_rm=true all NAs
+  ✓ mean na_rm=false with NA errors
+
+Phase 5 — Stats: sum() with na_rm:
+  ✓ sum na_rm=true skips NA
+  ✓ sum na_rm=true no NAs
+  ✓ sum na_rm=true all NAs
+  ✓ sum na_rm=false with NA errors
+  ✓ sum na_rm=true float
+
+Phase 5 — Stats: sd():
+  ✓ sd of list
+  ✓ sd single value
+  ✓ sd with NA
+  ✓ sd na_rm=true skips NA
+  ✓ sd na_rm=true no NAs
+  ✓ sd na_rm=true all NAs
+  ✓ sd na_rm=false with NA errors
+
+Phase 5 — Stats: quantile():
+  ✓ quantile median
+  ✓ quantile min
+  ✓ quantile max
+  ✓ quantile Q1
+  ✓ quantile invalid p
+  ✓ quantile empty
+  ✓ quantile na_rm=true skips NA
+  ✓ quantile na_rm=true no NAs
+  ✓ quantile na_rm=true all NAs
+  ✓ quantile na_rm=false with NA errors
+
+Phase 5 — Stats: cor():
+  ✓ perfect positive correlation
+  ✓ perfect negative correlation
+  ✓ cor non-numeric
+  ✓ cor with NA
+  ✓ cor na_rm=true pairwise deletion
+  ✓ cor na_rm=true no NAs
+  ✓ cor na_rm=true all NAs
+  ✓ cor na_rm=false with NA errors
+Phase 5 — Stats: extended stats():
+  ✓ median basic
+  ✓ var basic
+  ✓ cov basic
+  ✓ range basic
+  ✓ iqr basic
+  ✓ mad basic
+  ✓ cv basic
+  ✓ fivenum basic
+  ✓ trimmed mean
+  ✓ winsorize
+  ✓ huber loss scalar
+  ✓ scale
+  ✓ normalize
+
+
+Phase 5 — Stats: lm():
+  ✓ lm() returns a Dict (model object)
+  ✓ model.formula shows formula
+  ✓ model.r_squared = 1.0 (perfect fit)
+  ✓ model.nobs = 5
+  ✓ summary(model) returns a Dict
+  ✓ summary() tidy DataFrame has correct columns
+  ✓ summary() has 2 rows
+  ✓ fit_stats() returns a DataFrame
+  ✓ fit_stats() returns 1 row
+  ✓ add_diagnostics() returns a DataFrame
+  ✓ add_diagnostics() preserves row count
+  ✓ add_diagnostics() adds fitted and resid columns
+  ✓ formula type
+Formula 
+  ✓ formula to string
+  ✓ multi-variable formula
+  ✓ lm missing column
+  ✓ lm non-dataframe
+  ✓ lm non-formula
+  ✓ lm missing data arg
+  ✓ lm missing formula arg
+
+Phase 5 — Stats: Pipeline integration:
+  ✓ mean in pipe
+  ✓ sd in pipe
+
+Phase 5 — Functions available without imports:
+  ✓ sqrt available
+  ✓ abs available
+  ✓ log available
+  ✓ exp available
+  ✓ pow available
+  ✓ mean available
+  ✓ sd available
+  ✓ quantile available
+  ✓ cor available
+
+Golden — Broom: Multi-predictor lm() tidy (y ~ x1 + x2):
+  ✓ tidy: 3 rows (intercept + x1 + x2)
+  ✓ tidy: (Intercept) estimate ≈ -29.88
+  ✓ tidy: x1 estimate ≈ 2.533
+  ✓ tidy: x2 estimate ≈ 0.277
+  ✓ tidy: (Intercept) std_error ≈ 3.792
+  ✓ tidy: x1 std_error ≈ 0.396
+  ✓ tidy: x2 std_error ≈ 0.065
+  ✓ tidy: (Intercept) t-stat ≈ -7.879
+  ✓ tidy: x1 t-stat ≈ 6.402
+  ✓ tidy: x2 t-stat ≈ 4.276
+  ✓ tidy: (Intercept) p-value ≈ 1.0e-4
+  ✓ tidy: x1 p-value ≈ 3.7e-4
+  ✓ tidy: x2 p-value ≈ 3.7e-3
+
+Golden — Broom: fit_stats() (broom::glance):
+  ✓ glance: r_squared ≈ 0.958
+  ✓ glance: adj_r_squared ≈ 0.946
+  ✓ glance: sigma ≈ 1.051
+  ✓ glance: F-statistic ≈ 79.7
+  ✓ glance: df = 2
+  ✓ glance: logLik ≈ -12.90
+  ✓ glance: AIC ≈ 33.80
+  ✓ glance: BIC ≈ 35.01
+  ✓ glance: deviance ≈ 7.727
+  ✓ glance: df_residual = 7
+  ✓ glance: nobs = 10
+
+Golden — Broom: add_diagnostics() (broom::augment):
+  ✓ augment: 10 rows
+  ✓ augment: has all diagnostic columns
+  ✓ augment: row 1 .fitted ≈ 10.555
+  ✓ augment: row 5 .fitted ≈ 19.685
+  ✓ augment: row 9 .fitted ≈ 20.421
+  ✓ augment: row 1 .resid ≈ -0.255
+  ✓ augment: row 5 .resid ≈ -0.885
+  ✓ augment: row 9 .resid ≈ 2.179
+  ✓ augment: row 1 .hat ≈ 0.477
+  ✓ augment: row 5 .hat ≈ 0.260
+  ✓ augment: row 9 .hat ≈ 0.214
+  ✓ augment: row 1 .cooksd ≈ 0.034
+  ✓ augment: row 9 .cooksd ≈ 0.498
+  ✓ augment: row 1 .std_resid ≈ -0.335
+  ✓ augment: row 9 .std_resid ≈ 2.340
+
+Phase 6 — Intent Blocks:
+  ✓ intent block creation
+  ✓ intent type
+  ✓ intent block assignment
+  ✓ intent block with expression values
+
+Phase 6 — Intent Fields:
+  ✓ intent_fields returns Dict
+  ✓ intent_fields values
+  ✓ intent_fields on non-intent
+
+Phase 6 — Intent Get:
+  ✓ intent_get specific field
+  ✓ intent_get missing field
+  ✓ intent_get on non-intent
+
+Phase 6 — Explain: Scalars:
+  ✓ explain integer kind
+  ✓ explain integer type
+  ✓ explain string
+  ✓ explain bool
+  ✓ explain float
+  ✓ explain null
+
+Phase 6 — Explain: NA:
+  ✓ explain NA kind
+  ✓ explain NA type
+
+Phase 6 — Explain: Vectors:
+  ✓ explain vector kind
+  ✓ explain vector type
+  ✓ explain vector length
+  ✓ explain vector na_count
+
+Phase 6 — Explain: DataFrame:
+  ✓ explain DataFrame kind
+  ✓ explain DataFrame nrow
+  ✓ explain DataFrame ncol
+  ✓ explain DataFrame storage_backend is a String
+  ✓ explain DataFrame native_path_active is a Bool
+  ✓ explain DataFrame performance_note is a String
+  ✓ explain DataFrame NA stats (age has 1 NA)
+  ✓ explain DataFrame NA stats (score has 1 NA)
+  ✓ explain DataFrame NA stats (name has 0 NAs)
+  ✓ explain DataFrame schema is a List
+  ✓ explain DataFrame example_rows is a List
+  ✓ explain DataFrame example_rows length (3 rows)
+  ✓ explain mutated DataFrame storage_backend is a String
+  ✓ explain mutated DataFrame native_path_active is a Bool
+  ✓ explain unsupported DataFrame storage_backend
+  ✓ explain unsupported DataFrame native_path_active
+
+Phase 6 — Explain: Pipeline:
+  ✓ explain Pipeline kind
+  ✓ explain Pipeline node_count
+
+Phase 6 — Explain: Intent:
+  ✓ explain intent kind
+
+Phase 6 — Explain: Error:
+  ✓ explain error
+  ✓ explain error code
+
+Phase 6 — Explain: Arity:
+  ✓ explain no args
+
+Phase 6 — Explain: Pipeline Integration:
+  ✓ explain in pipe
+
+Phase 6 — Functions available without imports:
+  ✓ explain available
+  ✓ intent_fields available
+  ✓ intent_get available
+
+Phase 7 — CLI: packages() builtin:
+  ✓ packages returns list
+  ✓ packages count
+  ✓ package_info stats
+  ✓ package_info stats description
+  ✓ package_info stats functions
+  ✓ package_info colcraft functions are expanded
+  ✓ package_info missing
+  ✓ package_info core
+  ✓ package_info colcraft
+  ✓ package_info strcraft
+  ✓ package_info strcraft functions include str_substring
+  ✓ package_info strcraft functions include str_nchar
+  ✓ package_info core excludes str_substring
+  ✓ package_info core excludes str_nchar
+  ✓ package_info math
+  ✓ package_info non-string
+  ✓ startup rename warning mentions builtin conflicts
+  ✓ startup rename warning mentions package-prefixed names
+  ✓ startup rename warning explains why names change
+
+Phase 7 — Pretty-print builtin:
+42
+  ✓ pretty_print int
+[1, 2, 3]
+  ✓ pretty_print list
+Error(DivisionByZero): Division by zero.
+  ✓ pretty_print error
+
+Phase 7 — Multi-line: Parser newline tolerance:
+  ✓ list with internal newline
+  ✓ dict with internal newline
+  ✓ function call with newline in args
+  ✓ lambda params with newline
+
+Phase 7 — Standard packages loaded:
+  ✓ core: print available
+  ✓ core: type available
+  ✓ core: pretty_print available
+  ✓ stats: mean available
+  ✓ stats: sd available
+  ✓ colcraft: select available
+  ✓ colcraft: filter available
+  ✓ strcraft: str_substring available
+  ✓ math: sqrt available
+  ✓ base: assert available
+  ✓ dataframe: read_csv available
+  ✓ dataframe: read_parquet available
+  ✓ pipeline: pipeline_nodes available
+  ✓ explain: explain available
+  ✓ packages: packages available
+  ✓ packages: package_info available
+
+Phase 8 — Golden: Pipeline Baseline Outputs:
+  ✓ golden: arithmetic pipeline
+  ✓ golden: function pipeline
+  ✓ golden: list pipeline
+  ✓ golden: list pipeline count
+  ✓ golden: pipeline display format
+  ✓ golden: out-of-order deps
+  ✓ golden: chain computation
+  ✓ golden: introspection nodes
+  ✓ golden: introspection deps
+  ✓ golden: re-run preserves values
+  ✓ golden: deterministic execution
+
+Phase 8 — Golden: Stats/Math parity (R baselines):
+  ✓ golden r: var
+  ✓ golden r: cov
+  ✓ golden r: median
+  ✓ golden r: iqr
+  ✓ golden r: round
+
+Phase 8 — Golden: Pipeline Error Baselines:
+  ✓ golden: cycle detection
+  ✓ golden: node failure propagation
+  ✓ golden: missing node error
+  ✓ golden: pipeline_nodes type error
+  ✓ golden: pipeline_run type error
+  ✓ golden: pipeline_node missing key
+
+Phase 8 — Golden: Pipeline with Data:
+  ✓ golden: data pipeline nrow
+  ✓ golden: data pipeline ncol
+  ✓ golden: data pipeline colnames
+  ✓ golden: data pipeline filtered count
+
+Phase 5 — Golden: CSV Read/Write Options:
+  ✓ golden: read->write->read roundtrip preserves rows
+  ✓ golden: read->write->read roundtrip preserves columns
+  ✓ golden: write separator=";" -> read separator=";" roundtrip preserves rows
+  ✓ golden: write separator=";" -> read separator=";" roundtrip preserves columns
+  ✓ golden: write empty DataFrame roundtrip
+  ✓ golden: write NA DataFrame roundtrip preserves rows
+
+Phase 8 — Golden: Window Functions vs dplyr:
+  ✓ golden window: row_number matches dplyr
+  ✓ golden window: min_rank matches dplyr
+  ✓ golden window: dense_rank matches dplyr
+  ✓ golden window: min_rank with ties matches dplyr
+  ✓ golden window: dense_rank with ties matches dplyr
+  ✓ golden window: percent_rank matches dplyr
+  ✓ golden window: cume_dist matches dplyr
+  ✓ golden window: cume_dist with ties matches dplyr
+  ✓ golden window: ntile matches dplyr
+  ✓ golden window: lag matches dplyr
+  ✓ golden window: lead matches dplyr
+  ✓ golden window: lag with offset 2 matches dplyr
+  ✓ golden window: lead with offset 2 matches dplyr
+  ✓ golden window: cumsum matches R
+  ✓ golden window: cumsum float matches R
+  ✓ golden window: cummin matches R
+  ✓ golden window: cummax matches R
+  ✓ golden window: cummean matches dplyr
+  ✓ golden window: cumall matches dplyr
+  ✓ golden window: cumany matches dplyr
+
+Phase 8 — Golden: Window Functions NA Handling:
+  ✓ golden window NA: row_number with NA
+  ✓ golden window NA: min_rank with NA
+  ✓ golden window NA: dense_rank with NA
+  ✓ golden window NA: ntile with NA
+  ✓ golden window NA: lag propagates NA
+  ✓ golden window NA: lead propagates NA
+  ✓ golden window NA: cumsum propagates NA
+  ✓ golden window NA: cummin propagates NA
+  ✓ golden window NA: cummax propagates NA
+  ✓ golden window NA: cummean propagates NA
+
+Phase 8 — Golden: NA Parameter Support (na_rm):
+  ✓ golden na_rm: mean na_rm=true
+  ✓ golden na_rm: mean all NA na_rm=true
+  ✓ golden na_rm: mean no NAs na_rm=true
+  ✓ golden na_rm: sum na_rm=true
+  ✓ golden na_rm: sum all NA na_rm=true
+  ✓ golden na_rm: sum float na_rm=true
+  ✓ golden na_rm: sd na_rm=true
+  ✓ golden na_rm: sd all NA na_rm=true
+  ✓ golden na_rm: quantile na_rm=true
+  ✓ golden na_rm: quantile all NA na_rm=true
+  ✓ golden na_rm: cor na_rm=true pairwise
+  ✓ golden na_rm: cor all NA na_rm=true
+  ✓ golden na_rm: mean default errors on NA
+  ✓ golden na_rm: sum default errors on NA
+  ✓ golden na_rm: sd default errors on NA
+  ✓ golden na_rm: quantile default errors on NA
+  ✓ golden na_rm: cor default errors on NA
+
+Phase 8 — Golden: Boolean Operations (ifelse / case_when):
+  ✓ golden boolean: ifelse basic
+  ✓ golden boolean: ifelse with NA in condition
+  ✓ golden boolean: ifelse vectorized vectors
+  ✓ golden boolean: ifelse scalar condition
+  ✓ golden boolean: ifelse scalar return type matches branch type
+  ✓ golden boolean: ifelse type promotion
+  ✓ golden boolean: ifelse explicit missing
+  ✓ golden boolean: ifelse out_type cast to string
+  ✓ golden boolean: ifelse out_type cast scalar
+  ✓ golden boolean: case_when basic
+  ✓ golden boolean: case_when default
+  ✓ golden boolean: case_when priority
+  ✓ golden boolean: case_when type promotion
+
+Phase 8 — Core Semantics: Expression evaluation:
+  ✓ nested arithmetic
+  ✓ float precision
+  ✓ int division
+  ✓ negative result
+  ✓ multiply by zero
+  ✓ string repeat via concat error
+  ✓ modulo basic
+  ✓ modulo by zero (int)
+  ✓ modulo by zero (float)
+  ✓ modulo negative operands
+  ✓ modulo float
+  ✓ modulo mixed types
+
+Phase 8 — Core Semantics: Variable scoping:
+  ✓ variable immutability
+  ✓ variable overwrite with :=
+  ✓ variable in expression
+  ✓ variable chain
+
+Phase 8 — Core Semantics: Function edge cases:
+  ✓ identity function
+  ✓ identity on string
+  ✓ identity on bool
+  ✓ identity on list
+  ✓ function returning function
+  ✓ immediately invoked lambda
+  ✓ nested closure
+
+Phase 8 — Core Semantics: Pipe operator edge cases:
+  ✓ pipe to identity
+  ✓ long pipe chain
+  ✓ pipe with list operations
+
+Phase 8 — Core Semantics: Conditional edge cases:
+  ✓ nested conditionals
+  ✓ conditional with comparison
+  ✓ non-bool if condition
+
+Phase 8 — Core Semantics: List edge cases:
+  ✓ nested list
+  ✓ mixed type list
+  ✓ empty list length
+  ✓ head of single element
+  ✓ tail of single element
+  ✓ sum of empty list
+  ✓ map on empty list
+
+Phase 8 — Core Semantics: Dict edge cases:
+  ✓ empty dict
+  ✓ dict with computed values
+  ✓ nested dict
+
+Phase 8 — Core Semantics: Error invariants:
+  ✓ error + value
+  ✓ value + error
+  ✓ error * error
+  ✓ int + bool error
+  ✓ bool * string error
+  ✓ undefined variable
+  ✓ undefined function call
+  ✓ call non-function
+
+Phase 8 — Core Semantics: NA invariants:
+  ✓ NA + NA is error
+  ✓ NA in conditional is error
+  ✓ is_na identity
+  ✓ typed NAs are all NA
+
+Phase 8 — Core Semantics: Type introspection:
+  ✓ type of lambda
+  ✓ type of builtin
+  ✓ type of vector
+  ✓ type of error
+  ✓ type of null
+  ✓ type of NA
+  ✓ type of pipeline
+  ✓ type of intent
+
+Arrow Integration — FFI Infrastructure:
+  ✓ Arrow FFI marked as available
+  ✓ Pure OCaml table creation works
+  ✓ Schema extraction works
+  ✓ Column names correct
+  ✓ Column access returns correct data
+  ✓ has_column works
+  ✓ Pure OCaml table has no native_handle
+  ✓ arrow_type_of_tag works
+
+Arrow Integration — Table Operations:
+  ✓ Project (select) works
+  ✓ Filter rows works
+  ✓ Add column works
+  ✓ Take rows with reorder works
+  ✓ Sort by indices works
+
+Arrow Integration — Bridge (column_to_values):
+  ✓ IntColumn to values with NA
+  ✓ Values to IntColumn with NA
+  ✓ Row to dict works
+
+Arrow Integration — CSV Reading:
+  ✓ Arrow-backed CSV nrow = 3
+  ✓ Arrow-backed CSV ncol = 3
+  ✓ Arrow-backed CSV colnames correct
+  ✓ Arrow-backed CSV column access (name)
+  ✓ Arrow-backed CSV column access (age)
+  ✓ Arrow select
+  ✓ Arrow filter
+  ✓ Arrow mutate
+  ✓ Arrow mutate keeps native path active
+  ✓ Arrow arrange
+  ✓ Arrow pipeline
+  ✓ read_csv(skip_lines=1) honors public builtin CSV options
+  ✓ Arrow_io.read_csv_local differs from read_csv(skip_lines) on same file
+
+Arrow Integration — Compute Module:
+  ✓ Arrow_compute.project works
+  ✓ Arrow_compute.filter works
+  ✓ Arrow_compute.add_column works
+  ✓ sort_by_column returns None for pure OCaml table
+  ✓ Arrow_compute.sort_by_indices works
+  ✓ add_scalar returns None for pure OCaml table
+  ✓ multiply_scalar returns None for pure OCaml table
+  ✓ subtract_scalar returns None for pure OCaml table
+  ✓ divide_scalar returns None for pure OCaml table
+
+Arrow Integration — Compute with Native Backend:
+  ✓ Compute: arrange ascending (native sort)
+  ✓ Compute: arrange descending (native sort)
+  ✓ Compute: select (native project)
+  ✓ Compute: filter (native filter)
+  ✓ Compute: filter + select + arrange pipeline
+
+
+(process:105633): GLib-GObject-CRITICAL **: 05:59:48.770: g_object_unref: assertion 'G_IS_OBJECT (object)' failed
+Arrow Integration — Group-By & Aggregation (Phase 3):
+  ✓ group_by produces 2 groups for ['name']
+  ✓ group_by preserves insertion order
+  ✓ group_by with 2 keys produces 4 groups
+  ✓ group_aggregate sum is correct
+  ✓ group_aggregate mean is correct
+  ✓ group_aggregate count is correct
+  ✓ group_aggregate result has correct key column
+  ✓ Group-by + summarize (mean)
+  ✓ Group-by + summarize (sum via nrow)
+
+Arrow Integration — Zero-Copy Column Views (Phase 4):
+  ✓ zero_copy_view returns None for pure OCaml table
+  ✓ zero_copy_view returns None for string column
+  ✓ column_view preserves Float64 type
+  ✓ column_view preserves Int64 type
+  ✓ column_view length is correct
+  ✓ FloatView zero-copy view is correct
+  ✓ IntView zero-copy view is correct
+  ✓ zero_copy_view returns None for native string column
+Arrow Integration — Temporal parsing:
+  ✓ build_column parses ArrowDate values
+  ✓ build_column parses ArrowTimestamp values
+  ✓ DatetimeColumn is currently unsupported for native rebuild
+  ✓ DatetimeColumn fallback materialization preserves values
+
+Arrow Integration — Dictionary (Factor) Native Support:
+  ✓ DictionaryColumn table creation works
+  ✓ DictionaryColumn schema type is ArrowDictionary
+  ✓ DictionaryColumn read-back correct
+  ✓ is_arrow_table_new_supported = true for DictionaryColumn
+  ✓ arrow_type_of_tag 4 = ArrowDictionary
+  ✓ arrow_type_of_tag 5 = ArrowList
+  ✓ Bridge DictionaryColumn → VFactor conversion
+  ✓ Bridge VFactor → DictionaryColumn round-trip
+  ✓ DictionaryColumn table materializes to native Arrow
+  ✓ Native Dictionary column round-trip verified (ordered=false)
+  ✓ Factor in mutate with native path
+  ✓ Factor levels extraction
+  ✓ Ordered factor bridge round-trip preserves ordered flag
+  ✓ Ordered factor native round-trip preserves ordered=true
+
+Arrow Integration — ListColumn (Nested DataFrame) Native Support:
+  ✓ ListColumn table creation works
+  ✓ ListColumn schema type is ArrowList
+  ✓ ListColumn read-back correct (sub-table 0 has 2 rows)
+  ✓ ListColumn read-back correct (sub-table 1 has 1 row)
+  ✓ is_arrow_table_new_supported = true for ListColumn
+  ✓ ListColumn table materializes to native Arrow
+  ✓ Key column round-trip verified from native ListColumn table
+  ✓ Native ListColumn round-trip: sub-table 0 x=[1,2] correct
+  ✓ Native ListColumn round-trip: sub-table 0 y=[a,b] correct
+  ✓ Native ListColumn round-trip: sub-table 1 x=[3] correct
+  ✓ ListColumn with null entry round-trip correct
+  ✓ Empty ListColumn correctly falls back to pure OCaml
+  ✓ Nest creates DataFrame
+  ✓ Unnest restores structure
+  ✓ Nest-unnest round-trip preserves data
+  ✓ ListColumn with Float+Bool sub-fields round-trip correct
+  ✓ All-null ListColumn preserves null entries in pure fallback
+  ✓ Sparse ListColumn with heavy nulls round-trip correct
+  ✓ Repeated native schema/field queries stay valid
+  ✓ Native ListColumn loop stress survives repeated GC
+  ✓ Slice nested ListColumn DataFrame
+  ✓ Slice nested ListColumn preserves nested rows
+
+Arrow Integration — IPC Read/Write:
+  ✓ Arrow_io.write_ipc writes IPC file
+  ✓ Arrow_io.read_ipc round-trip preserves table data
+  ✓ DictionaryColumn IPC round-trip preserves levels and indices
+  ✓ ListColumn IPC round-trip preserves nested table shape
+  ✓ write_arrow/read_arrow round-trip preserves nrow
+  ✓ read_arrow preserves schema/column names
+
+Arrow Integration — Parquet Reading:
+  ✓ Arrow_io.read_parquet loads a native-backed table
+  ✓ read_parquet preserves row count
+  ✓ read_parquet preserves schema/column names
+
+
+Arrow-Owl Bridge — numeric_column_to_owl:
+  ✓ bridge test setup (3 rows)
+
+Arrow-Owl Bridge — lm() via bridge:
+  ✓ lm() via bridge: correct slope (2.0)
+  ✓ lm() via bridge: correct intercept (1.0)
+  ✓ lm() via bridge: perfect R-squared
+
+Arrow-Owl Bridge — cor() via bridge:
+  ✓ cor() via bridge: perfect positive correlation
+  ✓ cor() via bridge: perfect negative correlation
+
+Arrow-Owl Bridge — error handling:
+  ✓ lm via bridge: missing column
+  ✓ lm via bridge: non-dataframe
+  ✓ cor via bridge: NA value
+
+Arrow Performance — Native Backend Smoke:
+  ✓ Native CSV read retained Arrow handle
+  ✓ Native float column exposes zero-copy view
+  ✓ Native sum benchmark smoke completed in 0.0005s (sum=500000.0)
+
+Arrow Performance — Column View Access:
+  ✓ Column view creation (10k rows)
+  ✓ get_value_at returns correct value
+  ✓ get_value_at out-of-bounds returns VNull
+  ✓ get_slice returns correct slice (start=5, len=3)
+  ✓ column_view_to_list returns correct list
+
+Arrow Performance — Vectorized Math Operations:
+  ✓ sqrt_column produces correct results
+  ✓ abs_column produces correct results
+  ✓ log_column produces correct results
+  ✓ exp_column produces correct results
+  ✓ pow_column produces correct results (x^2)
+  ✓ sqrt_column returns None for missing column
+
+Arrow Performance — Column Aggregations:
+  ✓ sum_column float = 10.0
+  ✓ sum_column int = 100.0
+  ✓ mean_column = 2.5
+  ✓ min_column = 1.0
+  ✓ max_column = 4.0
+  ✓ sum_column returns None for missing column
+
+Arrow Performance — Comparison Operations:
+  ✓ compare_column_scalar 'gt' 4.0 correct
+  ✓ compare_column_scalar 'le' 5.0 correct
+  ✓ compare_column_scalar 'eq' 5.0 correct
+  ✓ compare_column_scalar 'ge' on int column correct
+  ✓ compare_column_scalar returns None for invalid op
+
+Arrow Performance — Large Dataset Operations:
+  ✓ Project 2 columns from 10k rows (0.0021s)
+  ✓ Filter 10k rows (5000 kept, 0.0037s)
+  ✓ Sum 10k rows = 500000.0 (0.0007s)
+  ✓ Group-by 10k rows → 100 groups (0.0034s)
+  ✓ Group aggregate mean 10k rows → 100 groups (0.0018s)
+
+Arrow Performance — 100k Row Tests:
+  ✓ Generated 100k row table
+  ✓ Project 100k rows (0.0113s)
+  ✓ Sum 100k rows = 5,000,000.0 (0.0078s)
+  ✓ Group-by 100k rows → 1000 groups (0.0194s)
+  ✓ Group aggregate sum 100k rows → 1000 groups (0.0064s)
+
+Arrow Performance — 1M Row Tests:
+  ✓ Generated 1M row table
+  ✓ Project 1M rows (0.0883s)
+  ✓ Sum 1M rows = 50,000,000.0 (0.0825s)
+  ✓ Mean 1M rows (0.0679s)
+  ✓ Group-by 1M rows → 10000 groups (0.2160s)
+  ✓ Group aggregate mean 1M rows (0.0538s)
+
+Arrow Performance — Math Operations on Large Data:
+  ✓ sqrt_column on 100k rows (0.0322s)
+  ✓ abs_column on 100k rows (0.0305s)
+  ✓ compare_column_scalar on 100k rows (50000 match, 0.0049s)
+
+Arrow Performance — Summary:
+  Dataset sizes tested: 10k, 100k, 1M rows
+  Operations: select, filter, aggregate, group-by, math
+  All operations completed without OOM on 1M rows
+
+Edge Cases — Empty Groups (filter to zero rows):
+  ✓ filter to empty then group_by+summarize returns 0 rows
+  ✓ filter to zero rows gives nrow=0
+
+
+(process:105633): GLib-GObject-CRITICAL **: 05:59:50.120: g_object_unref: assertion 'G_IS_OBJECT (object)' failed
+Edge Cases — All-NA Groups:
+  ✓ grouped summarize with all-NA values returns 2 rows
+  ✓ mean all-NA na_rm=true returns NA(Float)
+
+Edge Cases — Single-Row Groups:
+  ✓ single-row groups summarize produces 3 rows
+  ✓ single-row groups each have count=1
+  ✓ sd of single value
+
+Edge Cases — Multiple Group Keys:
+  ✓ group_by two columns produces 4 rows
+
+Edge Cases — Grouped Mutate Edge Cases:
+  ✓ grouped mutate on single-row groups returns 3 rows
+  ✓ grouped mutate broadcasts 1 for single-row groups
+
+
+(process:105633): GLib-GObject-CRITICAL **: 05:59:50.122: g_object_unref: assertion 'G_IS_OBJECT (object)' failed
+Edge Cases — Summarize with Multiple Aggregation Functions:
+  ✓ summarize with multiple aggregation pairs returns 2 rows
+  ✓ ungrouped summarize on filtered-empty DataFrame returns 1 row
+
+Window Edge Cases — lag/lead with offset > length:
+  ✓ lag offset > length
+  ✓ lag offset = length
+  ✓ lag offset = 0
+  ✓ lead offset > length
+  ✓ lead offset = length
+  ✓ lead offset = 0
+  ✓ lag single element
+  ✓ lead single element
+
+Window Edge Cases — ntile with more tiles than rows:
+  ✓ ntile more tiles than rows
+  ✓ ntile tiles = rows
+  ✓ ntile single element into many
+
+Window Edge Cases — Ranking with all-identical values:
+  ✓ row_number all identical
+  ✓ min_rank all identical
+  ✓ dense_rank all identical
+  ✓ cume_dist all identical
+  ✓ percent_rank all identical
+
+Window Edge Cases — Ranking with single element:
+  ✓ min_rank single
+  ✓ dense_rank single
+  ✓ cume_dist single
+
+Window Edge Cases — Cumulative with alternating NA:
+  ✓ cumsum alternating NA
+  ✓ cummin alternating NA
+  ✓ cummax alternating NA
+  ✓ cummean alternating NA
+  ✓ cumall alternating NA
+  ✓ cumany alternating NA
+
+Window Edge Cases — Cumulative single element:
+  ✓ cumsum single
+  ✓ cummin single
+  ✓ cummax single
+  ✓ cummean single
+  ✓ cumall single true
+  ✓ cumany single false
+
+Window Edge Cases — lag/lead with all NA input:
+  ✓ lag all NA
+  ✓ lead all NA
+
+Window Edge Cases — ntile error cases:
+  ✓ ntile negative tiles
+  ✓ ntile zero tiles
+  ✓ ntile on empty
+
+Formula Edge Cases — Multi-variable formulas:
+  ✓ multi-variable formula type
+  ✓ two-predictor formula type
+  ✓ lm() accepts multi-variable formula
+
+Formula Edge Cases — NA in predictor columns:
+  ✓ lm() with NA in predictor returns error
+
+Formula Edge Cases — Zero-variance predictor:
+  ✓ lm() with zero-variance predictor returns error
+
+Formula Edge Cases — Insufficient observations:
+  ✓ lm() with 1 observation returns error
+
+Formula Edge Cases — lm() error handling:
+  ✓ lm non-dataframe
+  ✓ lm non-formula
+  ✓ lm missing data
+  ✓ lm missing formula
+
+Formula Edge Cases — Perfect fit:
+  ✓ perfect fit has R²=1.0
+  ✓ perfect fit slope=1.0
+  ✓ perfect fit intercept=0.0
+
+Large Datasets — Programmatic CSV generation and operations:
+  ✓ read 1000-row CSV correctly
+  ✓ 1000-row CSV has 3 columns
+
+Large Datasets — Filter + select on 1000 rows:
+  ✓ filter group A gives correct count (333)
+  ✓ select 2 columns from large dataset
+
+Large Datasets — Group by with multiple groups:
+  ✓ group_by on 1000-row dataset produces DataFrame
+
+Large Datasets — Multi-stage pipeline on large data:
+  ✓ multi-stage pipeline: filter + select on large data
+  ✓ mutate adds column to large dataset
+
+Large Datasets — Arrange on large data:
+  ✓ arrange desc on large dataset preserves row count
+
+
+(process:105633): GLib-GObject-CRITICAL **: 05:59:50.321: g_object_unref: assertion 'G_IS_OBJECT (object)' failed
+Large Datasets — Grouped summarize with sum:
+  ✓ grouped summarize sum on large dataset returns Vector
+
+Large Datasets — Many groups:
+  ✓ 200 unique groups produces 200-row summary
+
+Error Recovery — Deep pipe error propagation:
+  ✓ error propagates through pipe (division by zero)
+  ✓ name error propagates
+  ✓ calling error value
+
+Error Recovery — Error in grouped operations:
+  ✓ grouped summarize with sd (2 rows per group) returns DataFrame
+  ✓ error value in arithmetic
+  ✓ name error in arithmetic propagates
+  ✓ calling error value as function
+
+Error Recovery — Multiple errors in expressions:
+  ✓ first error wins in addition
+  ✓ error in function arg
+
+Error Recovery — Error + NA interaction:
+  ✓ NA is not an error
+  ✓ error is not NA
+  ✓ is_error on division by zero
+  ✓ error_code on division by zero
+  ✓ error_message on division by zero
+
+Error Recovery — Structured error constructor:
+  ✓ error with single message
+  ✓ error with code and message
+  ✓ is_error on constructed error
+
+Error Recovery — Pipeline error propagation:
+  ✓ error in filter predicate propagates
+  ✓ select nonexistent in pipeline
+
+Error Recovery — Type error messages:
+  ✓ sum with NA gives clear error
+  ✓ mean with NA gives clear error
+  ✓ head on NA returns error
+  ✓ length on NA returns error
+
+Error Recovery — Assert edge cases:
+  ✓ assert true passes
+  ✓ assert false with message
+  ✓ assert NA
+  ✓ assert NA with message
+
+Package Manager — Name validation:
+  ✓ valid lowercase name
+  ✓ valid with underscores
+  ✓ valid with digits
+  ✓ reject uppercase
+  ✓ reject starting with hyphen
+  ✓ reject empty
+  ✓ reject special characters
+
+Package Manager — Template engine:
+  ✓ substitute single variable
+  ✓ substitute multiple variables
+  ✓ leave unknown variables
+  ✓ handle empty template
+  ✓ handle no variables in template
+  ✓ handle spaces around variable name
+  ✓ handle unclosed braces
+
+Package Manager — TOML parsing:
+  ✓ parse valid DESCRIPTION.toml
+  ✓ parse authors list
+  ✓ missing name gives error
+  ✓ invalid TOML syntax gives error
+  ✓ parse dependencies
+  ✓ parse valid tproject.toml
+  ✓ serialize and re-parse package config
+  ✓ serialize and re-parse project config
+
+Package Manager — Update manager:
+  ✓ parse remote tag refs ignores dereferenced tags
+Newer tagged releases are available in tproject.toml:
+  - stats: v0.1.0 -> v0.2.0
+  ✓ check_remote_tags finds newer local git tag
+
+Package Manager — Scaffold (filesystem):
+✓ Package 't-test-90345' created successfully!
+
+  t-test-90345/
+  ├── DESCRIPTION.toml
+  ├── flake.nix
+  ├── README.md
+  ├── CHANGELOG.md
+  ├── LICENSE
+  ├── .gitignore
+  ├── src/
+  │   └── main.t
+  ├── tests/
+  │   └── test-t-test-90345.t
+  ├── examples/
+  └── docs/
+      └── index.md
+
+Next steps:
+  cd t-test-90345
+  nix develop           # Enter development shell
+  t repl                # Start the REPL
+  t run src/main.t      # Run the example
+  t test                # Run tests
+  ✓ scaffold_package creates directory tree
+✓ Project 't-test-90682' created successfully!
+
+  t-test-90682/
+  ├── tproject.toml
+  ├── flake.nix
+  ├── README.md
+  ├── .gitignore
+  ├── src/
+  │   └── pipeline.t
+  ├── data/
+  ├── outputs/
+  └── tests/
+
+Next steps:
+  cd t-test-90682
+  nix develop           # Enter reproducible environment
+  t repl                # Start the REPL
+  t run src/pipeline.t  # Run the pipeline
+  ✓ scaffold_project creates directory tree
+  ✓ scaffold rejects invalid name
+  ✓ scaffold rejects existing dir without --force
+✓ Package 't-force-test' created successfully!
+
+  t-force-test/
+  ├── DESCRIPTION.toml
+  ├── flake.nix
+  ├── README.md
+  ├── CHANGELOG.md
+  ├── LICENSE
+  ├── .gitignore
+  ├── src/
+  │   └── main.t
+  ├── tests/
+  │   └── test-t-force-test.t
+  ├── examples/
+  └── docs/
+      └── index.md
+
+Next steps:
+  cd t-force-test
+  nix develop           # Enter development shell
+  t repl                # Start the REPL
+  t run src/main.t      # Run the example
+  t test                # Run tests
+  ✓ scaffold with --force overwrites existing dir
+
+Package Manager — CLI flag parsing:
+  ✓ parse basic name
+  ✓ parse --author flag
+  ✓ parse --license flag
+  ✓ parse --no-git flag
+  ✓ parse --force flag
+  ✓ parse combined flags
+  ✓ missing name gives error
+
+Documentation: loaded from help/docs.json
+Warning: skipping invalid Nix package identifier "$(evil)" (only alphanumeric, -, _, ., + are allowed)
+Warning: skipping invalid Nix package identifier "bad pkg" (only alphanumeric, -, _, ., + are allowed)
+Package Manager — Nix generator:
+  ✓ github URL to flake input
+  ✓ gitlab URL to flake input
+  ✓ strip .git suffix from URL
+  ✓ generic git URL uses git+ prefix
+  ✓ generate project flake with deps
+  ✓ generate project flake no deps
+  ✓ generate package flake
+  ✓ generate project flake with additional_tools
+  ✓ generate project flake with latex_pkgs
+  ✓ generate package flake with additional_tools and latex_pkgs
+  ✓ invalid nix identifiers are rejected from additional_tools
+
+Package Manager — Package import conflicts:
+  ✓ full import keeps builtin name and prefixes conflicting package binding
+  ✓ full import renames both conflicting user package bindings
+  ✓ selective import also prefixes conflicting package binding
+
+Package Manager — Test Discovery:
+  ✓ discover_tests matches pattern
+
+Package Manager — Package Doctor:
+  ✓ validate_package_structure checks files
+  ✓ validate_package_structure detects missing config
+
+Package Manager — Release Manager:
+  ✓ get_package_version parses version
+  ✓ validate_changelog finds version entry
+  ✓ validate_changelog fails on missing entry
+
+Package Manager — Documentation Manager:
+  ✓ validate_docs accepts valid structure
+  ✓ validate_docs rejects missing docs dir
+  ✓ validate_docs rejects missing index.md
+
+Quotation:
+  ✓ expr captures integer
+  ✓ expr captures addition
+  ✓ expr captures variable reference
+  ✓ expr requires exactly 1 argument
+  ✓ eval evaluates expr
+  ✓ eval passes through non-expr value
+  ✓ eval requires exactly 1 argument
+  ✓ exprs captures multiple expressions
+  ✓ exprs supports named arguments
+  ✓ exprs empty
+  ✓ unquote injects value
+  ✓ unquote injects expr
+  ✓ unquote outside expr gives error
+  ✓ splice list into call
+  ✓ splice named list into call
+  ✓ splice list into list literal
+  ✓ splice non-list gives type error in list
+  ✓ splice outside call or list gives type error
+  ✓ expr then eval roundtrip
+
+Phase 1 — pipeline_to_frame:
+  ✓ pipeline_to_frame returns one row per node
+  ✓ pipeline_to_frame column names correct
+  ✓ pipeline_to_frame depth: root nodes at depth 0
+  ✓ pipeline_to_frame rejects non-pipeline
+
+Phase 2 — filter_node:
+  ✓ filter_node by runtime
+  ✓ filter_node by noop == false
+  ✓ filter_node by depth == 0
+  ✓ filter_node returns empty pipeline when no match
+  ✓ filter_node rejects non-pipeline
+
+Phase 2 — mutate_node:
+  ✓ mutate_node sets noop on all nodes
+  ✓ mutate_node with where clause scopes changes
+  ✓ mutate_node returns new pipeline (immutability)
+  ✓ mutate_node rejects non-pipeline
+  ✓ mutate_node errors on wrong noop type
+
+Phase 2 — rename_node:
+  ✓ rename_node renames node
+  ✓ rename_node rewires dependency edges
+  ✓ rename_node errors on missing node
+  ✓ rename_node errors when new name already exists
+
+Phase 2 — select_node:
+  ✓ select_node returns DataFrame with requested columns
+  ✓ select_node returns one row per node
+  ✓ select_node errors on unknown field
+  ✓ select_node rejects non-pipeline
+
+Phase 2 — arrange_node:
+  ✓ arrange_node by name ascending
+  ✓ arrange_node by name descending
+  ✓ arrange_node by depth descending
+  ✓ arrange_node errors on bad direction
+  ✓ arrange_node rejects non-pipeline
+
+Phase 3 — union:
+  ✓ union combines nodes
+  ✓ union errors on name collision
+  ✓ union rejects non-pipeline first arg
+
+Phase 3 — difference:
+  ✓ difference removes p2 nodes from p1
+  ✓ difference ignores missing p2 nodes
+
+Phase 3 — intersect:
+  ✓ intersect keeps shared nodes
+  ✓ intersect empty when no overlap
+
+Phase 3 — patch:
+  ✓ patch updates existing nodes
+  ✓ patch does not add new nodes
+
+Phase 3 — swap:
+  ✓ swap updates node metadata
+  ✓ swap preserves dependency edges
+  ✓ swap errors on missing node
+
+Phase 3 — rewire:
+  ✓ rewire preserves unchanged deps
+  ✓ rewire errors on missing node
+
+Phase 3 — prune:
+  ✓ prune removes leaf nodes
+  ✓ prune single-node pipeline removes lone leaf node
+
+Phase 3 — upstream_of:
+  ✓ upstream_of includes node and ancestors
+  ✓ upstream_of errors on missing node
+
+Phase 3 — downstream_of:
+  ✓ downstream_of includes node and descendants
+  ✓ downstream_of leaf returns just itself
+
+Phase 3 — subgraph:
+  ✓ subgraph of middle node returns full chain
+  ✓ subgraph errors on missing node
+
+Phase 4 — chain:
+  ✓ chain merges connected pipelines
+  ✓ chain errors when no matching deps
+  ✓ chain errors on name collision
+
+Phase 4 — parallel:
+  ✓ parallel combines pipelines
+  ✓ parallel errors on name collision
+
+Phase 4 — inspection API:
+  ✓ pipeline_edges returns dep pairs
+  ✓ pipeline_roots returns root nodes
+  ✓ pipeline_leaves returns leaf nodes
+  ✓ pipeline_depth returns max depth
+  ✓ pipeline_cycles empty for valid DAG
+  ✓ pipeline_summary returns full metadata frame
+
+Phase 4 — validation:
+  ✓ pipeline_validate returns empty for valid pipeline
+  ✓ pipeline_assert returns pipeline when valid
+
+Phase 4 — pipeline_dot:
+  ✓ pipeline_dot returns DOT string
+
+ImportFileFrom — Basic selective import:
+  ✓ single name imported correctly
+  ✓ non-imported name is not in scope
+  ✓ multiple names imported correctly
+
+ImportFileFrom — Alias support:
+  ✓ aliased import bound under alias name
+  ✓ original name not in scope when alias used
+
+ImportFileFrom — Error handling:
+  ✓ missing name returns error
+  ✓ missing file returns error
+  ✓ parse error in imported file returns error
+
+=== Results: 1543/1543 passed ===
+All tests passed!

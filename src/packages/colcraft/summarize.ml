@@ -15,7 +15,7 @@ let detect_vectorizable_agg (fn : value) : (string * string * bool) option =
               args = [(None, DotAccess { target = Var p; field })] }
        when p = param ->
        (match agg_name with
-        | "mean" | "sum" | "min" | "max" -> Some (agg_name, field, false)
+        | "mean" | "sum" | "min" | "max" | "count" | "nrow" -> Some (agg_name, field, false)
         | _ -> None)
      (* Pattern: agg(row.col, na_rm = true) *)
      | Call { fn = Var agg_name;
@@ -23,7 +23,7 @@ let detect_vectorizable_agg (fn : value) : (string * string * bool) option =
                       (Some "na_rm", Value (VBool true))] }
        when p = param ->
        (match agg_name with
-        | "mean" | "sum" | "min" | "max" -> Some (agg_name, field, true)
+        | "mean" | "sum" | "min" | "max" | "count" | "nrow" -> Some (agg_name, field, true)
         | _ -> None)
      | _ -> None)
   | _ -> None
@@ -99,6 +99,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                        | "sum"  -> Arrow_compute.sum_column
                        | "min"  -> Arrow_compute.min_column
                        | "max"  -> Arrow_compute.max_column
+                       | "count" | "nrow" -> (fun t _c -> Some (float_of_int (Arrow_table.num_rows t))) (* Count of whole table if ungrouped *)
                        | _ -> (fun _ _ -> None)
                      in
                      (match agg_fn df.arrow_table col_name with
@@ -148,10 +149,11 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                    match detect_vectorizable_agg fn with
                    | Some (agg_name, col_name, na_rm) ->
                      (* Vectorized grouped aggregation via Arrow_compute.group_aggregate *)
-                     let can_vectorize = na_rm || not (column_has_nulls df.arrow_table col_name) in
-                     if can_vectorize then
-                       let result_table = Arrow_compute.group_aggregate grouped agg_name col_name in
-                       let result_col_key = if agg_name = "count" then "n" else col_name in
+                      let can_vectorize = na_rm || not (column_has_nulls df.arrow_table col_name) in
+                      if can_vectorize then
+                        let agg_name_eff = if agg_name = "nrow" then "count" else agg_name in
+                        let result_table = Arrow_compute.group_aggregate grouped agg_name_eff col_name in
+                        let result_col_key = if agg_name_eff = "count" then "n" else col_name in
                        (match Arrow_table.get_column result_table result_col_key with
                         | Some col ->
                           let values = Arrow_bridge.column_to_values col in

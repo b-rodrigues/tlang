@@ -1364,9 +1364,21 @@ cell_value_as_string(GArrowTable *table, int col_idx, gint64 row_idx)
   } else if (GARROW_IS_INT64_ARRAY(chunk)) {
     gint64 v = garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
     result = g_strdup_printf("%" G_GINT64_FORMAT, v);
+  } else if (GARROW_IS_INT32_ARRAY(chunk)) {
+    gint32 v = garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), offset);
+    result = g_strdup_printf("%d", v);
+  } else if (GARROW_IS_INT16_ARRAY(chunk)) {
+    gint16 v = garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset);
+    result = g_strdup_printf("%d", v);
+  } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
+    guint32 v = garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset);
+    result = g_strdup_printf("%u", v);
   } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
     gdouble v = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
     result = g_strdup_printf("%g", v);
+  } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {
+    gfloat v = garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), offset);
+    result = g_strdup_printf("%g", (double)v);
   } else if (GARROW_IS_BOOLEAN_ARRAY(chunk)) {
     gboolean v = garrow_boolean_array_get_value(GARROW_BOOLEAN_ARRAY(chunk), offset);
     result = g_strdup(v ? "true" : "false");
@@ -1501,6 +1513,12 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   /* Store per-group key values: GPtrArray of gchar** arrays */
   GPtrArray *group_key_vals = g_ptr_array_new();
 
+  /* Pre-fetch columns for aggregation loop */
+  GArrowChunkedArray **key_cols = (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * n_keys);
+  for (int k = 0; k < n_keys; k++) {
+    key_cols[k] = garrow_table_get_column_data(table, key_indices[k]);
+  }
+
   for (gint64 r = 0; r < nrows; r++) {
     /* Build composite key: "val1\x1Fval2\x1F..." using Unit Separator (U+001F)
        which cannot appear in typical string data. */
@@ -1508,7 +1526,49 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     gchar **row_keys = (gchar **)malloc(sizeof(gchar *) * n_keys);
     for (int k = 0; k < n_keys; k++) {
       if (k > 0) g_string_append_c(key_buf, '\x1F');
-      gchar *cell = cell_value_as_string(table, key_indices[k], r);
+      
+      /* Faster cell access by reusing chunked-array handle */
+      GArrowChunkedArray *chunked = key_cols[k];
+      gint64 offset = r;
+      GArrowArray *chunk = NULL;
+      guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
+      for (guint c = 0; c < n_chunks; c++) {
+        chunk = garrow_chunked_array_get_chunk(chunked, c);
+        gint64 chunk_len = garrow_array_get_length(chunk);
+        if (offset < chunk_len) break;
+        offset -= chunk_len;
+        g_object_unref(chunk);
+        chunk = NULL;
+      }
+      
+      gchar *cell;
+      if (chunk == NULL) {
+        cell = g_strdup("");
+      } else {
+        if (garrow_array_is_null(chunk, offset)) {
+          cell = g_strdup("NA");
+        } else if (GARROW_IS_INT64_ARRAY(chunk)) {
+          cell = g_strdup_printf("%" G_GINT64_FORMAT, garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset));
+        } else if (GARROW_IS_INT32_ARRAY(chunk)) {
+          cell = g_strdup_printf("%d", garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), offset));
+        } else if (GARROW_IS_INT16_ARRAY(chunk)) {
+          cell = g_strdup_printf("%d", garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset));
+        } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
+          cell = g_strdup_printf("%u", garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset));
+        } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+          cell = g_strdup_printf("%g", garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset));
+        } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {
+          cell = g_strdup_printf("%g", (double)garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), offset));
+        } else if (GARROW_IS_BOOLEAN_ARRAY(chunk)) {
+          cell = g_strdup(garrow_boolean_array_get_value(GARROW_BOOLEAN_ARRAY(chunk), offset) ? "true" : "false");
+        } else if (GARROW_IS_STRING_ARRAY(chunk)) {
+          cell = garrow_string_array_get_string(GARROW_STRING_ARRAY(chunk), offset);
+        } else {
+          cell = g_strdup("");
+        }
+        g_object_unref(chunk);
+      }
+      
       g_string_append(key_buf, cell);
       row_keys[k] = cell; /* ownership transferred to row_keys */
     }
@@ -1595,6 +1655,9 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   g_ptr_array_free(group_rows, TRUE);
   g_ptr_array_free(group_key_vals, TRUE);
   g_hash_table_destroy(group_map);
+
+  for (int k = 0; k < n_keys; k++) g_object_unref(key_cols[k]);
+  free(key_cols);
 
   v_result = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_result, 0, caml_copy_nativeint((intnat)gt));
