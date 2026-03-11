@@ -176,6 +176,6 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
       | (None, VDataFrame _) :: (None, _) :: _ ->
           Error.type_error "Function `mutate` expects named arguments for new columns (e.g. $col = expr)."
       | _ ->
-          Error.type_error "Function `mutate` expects a DataFrame as the first argument."
+          Error.type_error "Function `mutate` expects a DataFrame as first argument."
     ))
     env
