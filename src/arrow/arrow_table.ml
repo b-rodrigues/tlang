@@ -131,8 +131,8 @@ let empty : t =
 
 let is_native_backed (t : t) : bool =
   match t.native_handle with
-  | Some handle when not handle.freed -> true
-  | _ -> false
+  | Some handle -> not handle.freed
+  | None -> false
 
 let num_rows (t : t) : int =
   match t.native_handle with
