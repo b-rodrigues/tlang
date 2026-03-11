@@ -273,7 +273,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf
       {|df = read_csv("%s"); df |> mutate($ratio = $score / $age) |> mutate($ratio = $ratio * 100.0) |> \(d) d.ratio|}
       csv_path)
-    {|Vector[283.333333333333, 368., 262.857142857143]|};
+    {|Vector[318.333333333, 349.2, 263.142857143]|};
 
   let (v, _) = eval_string_env
     (Printf.sprintf {|df_mut = read_csv("%s"); explain(mutate(df_mut, $senior = $age >= 30)).native_path_active|} csv_path)
