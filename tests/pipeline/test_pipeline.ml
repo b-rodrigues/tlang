@@ -503,7 +503,7 @@ p_cross = pipeline {
 
   (* Test: script field accessible via dot access *)
   let (v_dot_script, _) = eval_string_env
-    {|n = node(script = "fit.R", runtime = R); n.script|}
+    {|node_obj = node(script = "fit.R", runtime = R); node_obj.script|}
     (Packages.init_env ()) in
   let dot_script_s = Ast.Utils.value_to_string v_dot_script in
   if dot_script_s = {|"fit.R"|} then begin
@@ -514,7 +514,7 @@ p_cross = pipeline {
 
   (* Test: script=null node returns null for .script *)
   let (v_no_script, _) = eval_string_env
-    {|n = node(command = <{ 42 }>, runtime = R); n.script|}
+    {|node_obj = node(command = <{ 42 }>, runtime = R); node_obj.script|}
     (Packages.init_env ()) in
   if Ast.Utils.value_to_string v_no_script = "null" then begin
     incr pass_count; Printf.printf "  ✓ node without script returns null for .script\n"
