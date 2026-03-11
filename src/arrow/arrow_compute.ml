@@ -288,8 +288,8 @@ and build_ocaml_groups (t : Arrow_table.t) (keys : string list) : (string * int 
           if c <> 0 then c else cmp rest
       in
       cmp key_col_values
-     | ([], _) -> -1
-     | (_, []) -> 1
+    | ([], _) -> -1
+    | (_, []) -> 1
   ) groups in
   sorted_groups
 
