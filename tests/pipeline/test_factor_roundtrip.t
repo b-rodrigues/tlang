@@ -26,9 +26,9 @@ node_t = node(
         -- Note: Arrow deserialization of dictionary-encoded arrays is not yet
         -- fully implemented in the FFI path, so the column may arrive as String
         -- rather than Factor. We log the type for diagnostic purposes only.
-        let cat_col = pull(node_r, "cat")
-        let first_val = get(cat_col, 0)
-        print("T: Type of 'cat' column first value: " + type(first_val))
+        cat_col = pull(node_r, "cat")
+        first_val = get(cat_col, 0)
+        print(str_join("T: Type of 'cat' column first value: ", type(first_val)))
         
         -- Pass it through
         node_r
@@ -55,10 +55,10 @@ print("Python: Verified Categorical type")
 # Add a row
 new_row = pd.DataFrame({'id': [4], 'cat': ['medium']})
 new_row['cat'] = new_row['cat'].astype(node_t['cat'].dtype)
-df_py = pd.concat([node_t, new_row], ignore_index=True)
+node_py = pd.concat([node_t, new_row], ignore_index=True)
 print("Python: final df:")
-print(df_py)
-df_py
+print(node_py)
+node_py
     }>,
     runtime = Python,
     deserializer = "arrow",
@@ -98,10 +98,21 @@ p = pipeline {
 }
 
 print("Building Factor Roundtrip Pipeline...")
-build_pipeline(p)
+build_res = build_pipeline(p)
+if (is_error(build_res)) {
+    print("FATAL: Pipeline build failed:")
+    print(build_res)
+    exit(1)
+}
 
 print("Reading final result in T:")
 res = read_node("node_r_final")
+if (is_error(res)) {
+    print("FATAL: Failed to read node_r_final:")
+    print(res)
+    exit(1)
+}
+
 glimpse(res)
 
 if (nrow(res) != 4) {
