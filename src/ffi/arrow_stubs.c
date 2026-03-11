@@ -2830,8 +2830,8 @@ CAMLprim value caml_arrow_compute_compare_scalar(value v_ptr, value v_col_name,
   CAMLreturn(v_result);
 }
 
-/* Read a named column's null bitmap as a bool array.
-   Returns Some(mask) where true means the value is null/NA. */
+/* Read a named column's null bitmap as an OCaml bool-array option.
+   At the OCaml level this returns Some(mask) where true means null/NA. */
 CAMLprim value caml_arrow_column_null_mask(value v_ptr, value v_col_name) {
   CAMLparam2(v_ptr, v_col_name);
   CAMLlocal2(v_result, v_arr);
