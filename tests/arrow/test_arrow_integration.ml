@@ -275,6 +275,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       csv_path)
     {|Vector[318.333333333, 349.2, 263.142857143]|};
 
+  test "Arrow mutate nested arithmetic single expression"
+    (Printf.sprintf
+      {|df = read_csv("%s"); mutate(df, $ratio = ($score / $age) * 100.0) |> \(d) d.ratio|}
+      csv_path)
+    {|Vector[318.333333333, 349.2, 263.142857143]|};
+
   let (v, _) = eval_string_env
     (Printf.sprintf {|df_mut = read_csv("%s"); explain(mutate(df_mut, $senior = $age >= 30)).native_path_active|} csv_path)
     env in
@@ -284,6 +290,19 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Arrow mutate keeps native path active"
+  end;
+
+  let (v, _) = eval_string_env
+    (Printf.sprintf
+      {|df_nested = read_csv("%s"); explain(mutate(df_nested, $ratio = ($score / $age) * 100.0)).native_path_active|}
+      csv_path)
+    env in
+  let result = Ast.Utils.value_to_string v in
+  if result = "true" then begin
+    incr pass_count; Printf.printf "  ✓ Arrow mutate nested arithmetic keeps native path active\n"
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "Arrow mutate nested arithmetic keeps native path active"
   end;
 
   let (v, _) = eval_string_env
@@ -819,6 +838,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       {|df = read_csv("%s"); df |> group_by($name) |> summarize($n_depts = n_distinct($dept)) |> \(d) d.n_depts|}
       csv_groupby)
     "Vector[2, 2]";
+
+  test "Group-by + summarize (multiple vectorized aggs)"
+    (Printf.sprintf
+      {|df = read_csv("%s"); result = df |> group_by($name) |> summarize($avg_score = mean($score), $total_score = sum($score), $n_depts = n_distinct($dept)); result.total_score|}
+      csv_groupby)
+    "Vector[185., 150.]";
 
   (try Sys.remove csv_groupby with _ -> ());
   print_newline ();
