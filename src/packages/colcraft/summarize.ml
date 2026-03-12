@@ -165,6 +165,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                 in
                 (match collect_if_all_vectorizable [] vectorized_pairs with
                 | Some specs ->
+                  let had_error = ref None in
                   (match specs with
                    | [] ->
                      Error.make_error ArityError "Function `summarize` requires at least one $column = expr argument."
@@ -184,20 +185,22 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                         post-processing, while agg_name_eff is the internal
                         Arrow aggregation name used to locate the produced
                         result column. *)
-                     let extract_result_col result_name agg_name agg_name_eff col_name result_table =
-                       let result_col_key = if agg_name_eff = "count" then "n" else col_name in
-                       match Arrow_table.get_column result_table result_col_key with
-                       | Some col ->
-                         let values = Arrow_bridge.column_to_values col in
-                         (result_name, finalize_vectorized_agg_values agg_name values)
-                       | None ->
-                         let msg =
-                           Printf.sprintf
-                             "Function `summarize` could not retrieve grouped result column `%s` from Arrow aggregation."
-                             result_col_key
-                         in
-                         (result_name, Array.make n_groups (Error.make_error RuntimeError msg))
-                     in
+                      let extract_result_col result_name agg_name agg_name_eff col_name result_table =
+                        let result_col_key = if agg_name_eff = "count" then "n" else col_name in
+                        match Arrow_table.get_column result_table result_col_key with
+                        | Some col ->
+                          let values = Arrow_bridge.column_to_values col in
+                          (result_name, finalize_vectorized_agg_values agg_name values)
+                        | None ->
+                          let msg =
+                            Printf.sprintf
+                              "Function `summarize` could not retrieve grouped result column `%s` from Arrow aggregation."
+                              result_col_key
+                          in
+                          let err = Error.make_error RuntimeError msg in
+                          had_error := Some err;
+                          (result_name, Array.make n_groups VNull)
+                      in
                      let first_summary_col =
                        extract_result_col first_name first_agg_name first_agg_name_eff first_col_name first_result_table
                      in
@@ -208,9 +211,12 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                          extract_result_col name agg_name agg_name_eff col_name result_table
                        ) rest_specs
                      in
-                     let all_columns = key_result_cols @ summary_result_cols in
-                     let arrow_table = Arrow_bridge.table_from_value_columns all_columns n_groups in
-                     VDataFrame { arrow_table; group_keys = [] })
+                      (match !had_error with
+                       | Some e -> e
+                       | None ->
+                         let all_columns = key_result_cols @ summary_result_cols in
+                         let arrow_table = Arrow_bridge.table_from_value_columns all_columns n_groups in
+                         VDataFrame { arrow_table; group_keys = [] }))
                 | None ->
                   let groups = Arrow_compute.get_ocaml_groups grouped in
                   let n_groups = List.length groups in
