@@ -431,42 +431,61 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
    | _ ->
        incr fail_count; Printf.printf "  ✗ Arrow_compute.sort_by_indices failed\n");
 
-  (* Test 25: Arrow_compute.add_scalar on pure OCaml table (returns None) *)
+  (* Test 25: Arrow_compute.add_scalar on pure OCaml table *)
   (match Arrow_compute.add_scalar tbl3 "c" 10.0 with
-   | None ->
-       incr pass_count; Printf.printf "  ✓ add_scalar returns None for pure OCaml table\n"
    | Some tbl_added ->
-       (* If native Arrow is available, verify the operation *)
        (match Arrow_table.get_column tbl_added "c" with
-        | Some (Arrow_table.FloatColumn data) when data.(0) = Some 11.0 ->
-            incr pass_count; Printf.printf "  ✓ add_scalar works with native backend\n"
+        | Some (Arrow_table.FloatColumn data)
+          when Array.length data = 2
+            && data.(0) = Some 11.0
+            && data.(1) = Some 12.0 ->
+            incr pass_count; Printf.printf "  ✓ add_scalar falls back on pure OCaml table\n"
         | _ ->
-            incr pass_count; Printf.printf "  ✓ add_scalar returned result (native available)\n"));
-
-  (* Test 26: Arrow_compute.multiply_scalar on pure OCaml table (returns None) *)
-  (match Arrow_compute.multiply_scalar tbl3 "c" 2.0 with
+            incr fail_count; Printf.printf "  ✗ add_scalar returned unexpected result on pure OCaml table\n")
    | None ->
-       incr pass_count; Printf.printf "  ✓ multiply_scalar returns None for pure OCaml table\n"
+       incr fail_count; Printf.printf "  ✗ add_scalar should fall back on pure OCaml table\n");
+
+  (* Test 26: Arrow_compute.multiply_scalar on pure OCaml table *)
+  (match Arrow_compute.multiply_scalar tbl3 "c" 2.0 with
    | Some tbl_mult ->
        (match Arrow_table.get_column tbl_mult "c" with
-        | Some (Arrow_table.FloatColumn data) when data.(0) = Some 2.0 ->
-            incr pass_count; Printf.printf "  ✓ multiply_scalar works with native backend\n"
+        | Some (Arrow_table.FloatColumn data)
+          when Array.length data = 2
+            && data.(0) = Some 2.0
+            && data.(1) = Some 4.0 ->
+            incr pass_count; Printf.printf "  ✓ multiply_scalar falls back on pure OCaml table\n"
         | _ ->
-            incr pass_count; Printf.printf "  ✓ multiply_scalar returned result (native available)\n"));
+            incr fail_count; Printf.printf "  ✗ multiply_scalar returned unexpected result on pure OCaml table\n")
+   | None ->
+       incr fail_count; Printf.printf "  ✗ multiply_scalar should fall back on pure OCaml table\n");
 
-  (* Test 27: Arrow_compute.subtract_scalar on pure OCaml table (returns None) *)
+  (* Test 27: Arrow_compute.subtract_scalar on pure OCaml table *)
   (match Arrow_compute.subtract_scalar tbl3 "c" 0.5 with
+   | Some tbl_sub ->
+       (match Arrow_table.get_column tbl_sub "c" with
+        | Some (Arrow_table.FloatColumn data)
+          when Array.length data = 2
+            && data.(0) = Some 0.5
+            && data.(1) = Some 1.5 ->
+            incr pass_count; Printf.printf "  ✓ subtract_scalar falls back on pure OCaml table\n"
+        | _ ->
+            incr fail_count; Printf.printf "  ✗ subtract_scalar returned unexpected result on pure OCaml table\n")
    | None ->
-       incr pass_count; Printf.printf "  ✓ subtract_scalar returns None for pure OCaml table\n"
-   | Some _ ->
-       incr pass_count; Printf.printf "  ✓ subtract_scalar returned result (native available)\n");
+       incr fail_count; Printf.printf "  ✗ subtract_scalar should fall back on pure OCaml table\n");
 
-  (* Test 28: Arrow_compute.divide_scalar on pure OCaml table (returns None) *)
+  (* Test 28: Arrow_compute.divide_scalar on pure OCaml table *)
   (match Arrow_compute.divide_scalar tbl3 "c" 2.0 with
+   | Some tbl_div ->
+       (match Arrow_table.get_column tbl_div "c" with
+        | Some (Arrow_table.FloatColumn data)
+          when Array.length data = 2
+            && data.(0) = Some 0.5
+            && data.(1) = Some 1.0 ->
+            incr pass_count; Printf.printf "  ✓ divide_scalar falls back on pure OCaml table\n"
+        | _ ->
+            incr fail_count; Printf.printf "  ✗ divide_scalar returned unexpected result on pure OCaml table\n")
    | None ->
-       incr pass_count; Printf.printf "  ✓ divide_scalar returns None for pure OCaml table\n"
-   | Some _ ->
-       incr pass_count; Printf.printf "  ✓ divide_scalar returned result (native available)\n");
+       incr fail_count; Printf.printf "  ✗ divide_scalar should fall back on pure OCaml table\n");
   print_newline ();
 
   Printf.printf "Arrow Integration — Compute with Native Backend:\n";
