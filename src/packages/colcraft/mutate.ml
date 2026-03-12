@@ -110,10 +110,9 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
      | Some (result_table, result_col) ->
        if result_col = col_name then Some result_table
        else
-         (match Arrow_table.get_column result_table result_col with
-          | Some col_data -> Some (Arrow_table.add_column table col_name col_data)
-          | None -> None)
-     | None -> None)
+         Some (Arrow_table.add_column_from_table table col_name result_table result_col)
+     | None ->
+       None)
   | _ -> None
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =

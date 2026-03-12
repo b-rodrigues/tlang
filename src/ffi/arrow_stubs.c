@@ -848,6 +848,68 @@ CAMLprim value caml_arrow_table_filter_mask(value v_ptr, value v_mask) {
   CAMLreturn(v_result);
 }
 
+/* Slice a table: offset, length.
+   Returns Some(new_table_ptr) or None. */
+CAMLprim value caml_arrow_table_slice(value v_ptr, value v_offset, value v_len) {
+  CAMLparam3(v_ptr, v_offset, v_len);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  gint64 offset = Int64_val(v_offset);
+  gint64 len = Int64_val(v_len);
+
+  GArrowTable *result = garrow_table_slice(table, offset, len);
+  if (result == NULL) CAMLreturn(Val_none);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
+/* Take rows from a table by indices. 
+   indices is an OCaml int array.
+   Returns Some(new_table_ptr) or None. */
+CAMLprim value caml_arrow_table_take(value v_ptr, value v_indices) {
+  CAMLparam2(v_ptr, v_indices);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  int n = Wosize_val(v_indices);
+
+  GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
+  GError *error = NULL;
+
+  for (int i = 0; i < n; i++) {
+    gint64 idx = Long_val(Field(v_indices, i));
+    garrow_int64_array_builder_append_value(builder, idx, &error);
+    if (error) {
+      g_object_unref(builder);
+      g_error_free(error);
+      CAMLreturn(Val_none);
+    }
+  }
+
+  GArrowArray *indices_array = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+  g_object_unref(builder);
+
+  if (indices_array == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowTable *result = garrow_table_take(table, indices_array, NULL, &error);
+  g_object_unref(indices_array);
+
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
 /* ===================================================================== */
 /* Sort                                                                  */
 /* ===================================================================== */
@@ -900,6 +962,143 @@ CAMLprim value caml_arrow_table_sort(value v_ptr, value v_col_name, value v_asce
 
   v_result = caml_alloc(1, 0);
   Store_field(v_result, 0, caml_copy_nativeint((intnat)sorted));
+  CAMLreturn(v_result);
+}
+
+/* Remove a column by name.
+   Returns Some(new_table_ptr) or None. */
+CAMLprim value caml_arrow_table_remove_column(value v_ptr, value v_name) {
+  CAMLparam2(v_ptr, v_name);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *name = String_val(v_name);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, name);
+  g_object_unref(schema);
+
+  if (idx < 0) CAMLreturn(Val_none);
+
+  GError *error = NULL;
+  GArrowTable *result = garrow_table_remove_column(table, idx, &error);
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
+/* Rename a column: old_name, new_name.
+   Returns Some(new_table_ptr) or None. */
+CAMLprim value caml_arrow_table_rename_column(value v_ptr, value v_old, value v_new) {
+  CAMLparam3(v_ptr, v_old, v_new);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *old_name = String_val(v_old);
+  const char *new_name = String_val(v_new);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint idx = garrow_schema_get_field_index(schema, old_name);
+  if (idx < 0) {
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *old_field = garrow_schema_get_field(schema, idx);
+  GArrowDataType *dtype = garrow_field_get_data_type(old_field);
+  GArrowField *new_field = garrow_field_new(new_name, dtype);
+  GArrowChunkedArray *ca = garrow_table_get_column_data(table, idx);
+
+  /* dtype from garrow_field_get_data_type is transfer-none; do not unref. */
+  g_object_unref(old_field);
+  g_object_unref(schema);
+
+  GError *error = NULL;
+  GArrowTable *tmp = garrow_table_remove_column(table, idx, &error);
+  if (tmp == NULL) {
+    g_object_unref(ca); g_object_unref(new_field);
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowTable *result = garrow_table_add_column(tmp, idx, new_field, ca, &error);
+  g_object_unref(tmp);
+  g_object_unref(ca);
+  g_object_unref(new_field);
+
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
+/* Add a column from another table: dst_table, new_name, src_table, src_col_name.
+   Returns Some(new_table_ptr) or None. */
+CAMLprim value caml_arrow_table_add_column_from_table(value v_dst, value v_name, value v_src, value v_src_name) {
+  CAMLparam4(v_dst, v_name, v_src, v_src_name);
+  CAMLlocal1(v_result);
+
+  GArrowTable *dst = (GArrowTable *)Nativeint_val(v_dst);
+  GArrowTable *src = (GArrowTable *)Nativeint_val(v_src);
+  const char *name = String_val(v_name);
+  const char *src_name = String_val(v_src_name);
+
+  GArrowSchema *src_schema = garrow_table_get_schema(src);
+  gint src_idx = garrow_schema_get_field_index(src_schema, src_name);
+  if (src_idx < 0) {
+    g_object_unref(src_schema);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *src_field = garrow_schema_get_field(src_schema, src_idx);
+  GArrowDataType *dtype = garrow_field_get_data_type(src_field);
+  GArrowField *new_field = garrow_field_new(name, dtype);
+  GArrowChunkedArray *ca = garrow_table_get_column_data(src, src_idx);
+
+  /* dtype from garrow_field_get_data_type is transfer-none; do not unref. */
+  g_object_unref(src_field);
+  g_object_unref(src_schema);
+
+  GError *error = NULL;
+  guint n_columns = garrow_table_get_n_columns(dst);
+  
+  GArrowSchema *dst_schema = garrow_table_get_schema(dst);
+  gint dst_idx = garrow_schema_get_field_index(dst_schema, name);
+  g_object_unref(dst_schema);
+
+  GArrowTable *result;
+  if (dst_idx >= 0) {
+    GArrowTable *tmp = garrow_table_remove_column(dst, dst_idx, &error);
+    if (tmp == NULL) {
+      g_object_unref(ca); g_object_unref(new_field);
+      if (error) g_error_free(error);
+      CAMLreturn(Val_none);
+    }
+    result = garrow_table_add_column(tmp, dst_idx, new_field, ca, &error);
+    g_object_unref(tmp);
+  } else {
+    result = garrow_table_add_column(dst, n_columns, new_field, ca, &error);
+  }
+
+  g_object_unref(ca);
+  g_object_unref(new_field);
+
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
   CAMLreturn(v_result);
 }
 
@@ -966,76 +1165,48 @@ rebuild_table_with_column(GArrowTable *table, guint idx, GArrowChunkedArray *new
 static GArrowChunkedArray *
 apply_double_scalar_op(GArrowChunkedArray *chunked, double scalar_val, int op_code)
 {
-  GError *error = NULL;
-  guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
-
-  /* Process each chunk, collecting result arrays */
-  GList *result_chunks = NULL;
-  gboolean ok = TRUE;
-
-  for (guint c = 0; c < n_chunks && ok; c++) {
-    GArrowArray *chunk = garrow_chunked_array_get_chunk(chunked, c);
-    gint64 length = garrow_array_get_length(chunk);
-
-    /* Build a new double array with the operation applied */
-    GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
-
-    for (gint64 i = 0; i < length; i++) {
-      if (garrow_array_is_null(chunk, i)) {
-        garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
-      } else {
-        gdouble val;
-
-        if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
-          val = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), i);
-        } else if (GARROW_IS_INT64_ARRAY(chunk)) {
-          val = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), i);
-        } else {
-          ok = FALSE;
-          break;
-        }
-
-        gdouble result;
-        switch (op_code) {
-          case 0: result = val + scalar_val; break;
-          case 1: result = val * scalar_val; break;
-          case 2: result = val - scalar_val; break;
-          case 3: result = val / scalar_val; break;  /* IEEE 754: x/0 → ±Inf, 0/0 → NaN */
-          default: result = val; break;
-        }
-
-        garrow_double_array_builder_append_value(builder, result, &error);
-      }
-      if (error) { ok = FALSE; break; }
-    }
-
-    if (ok) {
-      GArrowArray *result_array =
-          garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
-      if (result_array) {
-        result_chunks = g_list_append(result_chunks, result_array);
-      } else {
-        ok = FALSE;
-      }
-    }
-    g_object_unref(builder);
-    g_object_unref(chunk);
+  const char *func_name = NULL;
+  switch (op_code) {
+    case 0: func_name = "add"; break;
+    case 1: func_name = "multiply"; break;
+    case 2: func_name = "subtract"; break;
+    case 3: func_name = "divide"; break;
+    default: return NULL;
   }
 
-  if (!ok || result_chunks == NULL) {
-    g_list_free_full(result_chunks, g_object_unref);
-    if (error) g_error_free(error);
+  GArrowFunction *func = garrow_function_find(func_name);
+  if (!func) return NULL;
+
+  GArrowChunkedArrayDatum *datum1 = garrow_chunked_array_datum_new(chunked);
+  GArrowDoubleScalar *scalar = garrow_double_scalar_new(scalar_val);
+  GArrowScalarDatum *datum2 = garrow_scalar_datum_new(GARROW_SCALAR(scalar));
+
+  GList *args = NULL;
+  args = g_list_append(args, datum1);
+  args = g_list_append(args, datum2);
+
+  GError *error = NULL;
+  GArrowDatum *result_datum = garrow_function_execute(func, args, NULL, NULL, &error);
+
+  g_list_free(args);
+  g_object_unref(datum1);
+  g_object_unref(datum2);
+  g_object_unref(scalar);
+
+  if (error) {
+    if (result_datum) g_object_unref(result_datum);
+    g_error_free(error);
     return NULL;
   }
 
-  /* Build ChunkedArray from result chunks.
-     garrow_chunked_array_new takes (GList *chunks, GError **error). */
-  GArrowChunkedArray *result =
-      garrow_chunked_array_new(result_chunks, &error);
+  GArrowChunkedArray *result = NULL;
+  if (result_datum) {
+    if (GARROW_IS_CHUNKED_ARRAY_DATUM(result_datum)) {
+      g_object_get(result_datum, "value", &result, NULL);
+    }
+    g_object_unref(result_datum);
+  }
 
-  g_list_free_full(result_chunks, g_object_unref);
-
-  if (result == NULL && error) g_error_free(error);
   return result;
 }
 
@@ -1114,100 +1285,45 @@ static GArrowChunkedArray *
 apply_double_column_op(GArrowChunkedArray *chunked1, GArrowChunkedArray *chunked2,
                        gint64 nrows, int op_code)
 {
+  const char *func_name = NULL;
+  switch (op_code) {
+    case 0: func_name = "add"; break;
+    case 1: func_name = "multiply"; break;
+    case 2: func_name = "subtract"; break;
+    case 3: func_name = "divide"; break;
+    default: return NULL;
+  }
+
+  GArrowFunction *func = garrow_function_find(func_name);
+  if (!func) return NULL;
+
+  GArrowChunkedArrayDatum *datum1 = garrow_chunked_array_datum_new(chunked1);
+  GArrowChunkedArrayDatum *datum2 = garrow_chunked_array_datum_new(chunked2);
+
+  GList *args = NULL;
+  args = g_list_append(args, datum1);
+  args = g_list_append(args, datum2);
+
   GError *error = NULL;
+  GArrowDatum *result_datum = garrow_function_execute(func, args, NULL, NULL, &error);
 
-  /* Build a single result array from both input chunked arrays */
-  GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
-  gboolean ok = TRUE;
+  g_list_free(args);
+  g_object_unref(datum1);
+  g_object_unref(datum2);
 
-  /* Track position within each chunked array's chunks */
-  guint c1 = 0, c2 = 0;
-  gint64 off1 = 0, off2 = 0;
-  guint nc1 = garrow_chunked_array_get_n_chunks(chunked1);
-  guint nc2 = garrow_chunked_array_get_n_chunks(chunked2);
-  GArrowArray *chunk1 = nc1 > 0 ? garrow_chunked_array_get_chunk(chunked1, 0) : NULL;
-  GArrowArray *chunk2 = nc2 > 0 ? garrow_chunked_array_get_chunk(chunked2, 0) : NULL;
-  gint64 len1 = chunk1 ? garrow_array_get_length(chunk1) : 0;
-  gint64 len2 = chunk2 ? garrow_array_get_length(chunk2) : 0;
-
-  for (gint64 i = 0; i < nrows && ok; i++) {
-    /* Advance chunk pointers if needed */
-    while (off1 >= len1 && c1 + 1 < nc1) {
-      if (chunk1) g_object_unref(chunk1);
-      c1++;
-      off1 = 0;
-      chunk1 = garrow_chunked_array_get_chunk(chunked1, c1);
-      len1 = garrow_array_get_length(chunk1);
-    }
-    while (off2 >= len2 && c2 + 1 < nc2) {
-      if (chunk2) g_object_unref(chunk2);
-      c2++;
-      off2 = 0;
-      chunk2 = garrow_chunked_array_get_chunk(chunked2, c2);
-      len2 = garrow_array_get_length(chunk2);
-    }
-
-    /* Bounds check: if either chunk is exhausted or missing, stop processing */
-    if (!chunk1 || !chunk2 || off1 >= len1 || off2 >= len2) { ok = FALSE; break; }
-
-    if (garrow_array_is_null(chunk1, off1) || garrow_array_is_null(chunk2, off2)) {
-      garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
-    } else {
-      gdouble val1, val2;
-
-      /* Read val1 */
-      if (GARROW_IS_DOUBLE_ARRAY(chunk1)) {
-        val1 = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk1), off1);
-      } else if (GARROW_IS_INT64_ARRAY(chunk1)) {
-        val1 = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk1), off1);
-      } else { ok = FALSE; break; }
-
-      /* Read val2 */
-      if (GARROW_IS_DOUBLE_ARRAY(chunk2)) {
-        val2 = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk2), off2);
-      } else if (GARROW_IS_INT64_ARRAY(chunk2)) {
-        val2 = (gdouble)garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk2), off2);
-      } else { ok = FALSE; break; }
-
-      gdouble result;
-      switch (op_code) {
-        case 0: result = val1 + val2; break;
-        case 1: result = val1 * val2; break;
-        case 2: result = val1 - val2; break;
-        case 3: result = val1 / val2; break;  /* IEEE 754: x/0 → ±Inf, 0/0 → NaN */
-        default: result = val1; break;
-      }
-
-      garrow_double_array_builder_append_value(builder, result, &error);
-    }
-    if (error) { ok = FALSE; break; }
-    off1++;
-    off2++;
-  }
-
-  if (chunk1) g_object_unref(chunk1);
-  if (chunk2) g_object_unref(chunk2);
-
-  if (!ok) {
-    g_object_unref(builder);
-    if (error) g_error_free(error);
+  if (error) {
+    if (result_datum) g_object_unref(result_datum);
+    g_error_free(error);
     return NULL;
   }
 
-  GArrowArray *result_array =
-      garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
-  g_object_unref(builder);
-
-  if (result_array == NULL) {
-    if (error) g_error_free(error);
-    return NULL;
+  GArrowChunkedArray *result = NULL;
+  if (result_datum) {
+    if (GARROW_IS_CHUNKED_ARRAY_DATUM(result_datum)) {
+      g_object_get(result_datum, "value", &result, NULL);
+    }
+    g_object_unref(result_datum);
   }
-
-  /* Wrap single array into a ChunkedArray */
-  GList *chunks_list = g_list_append(NULL, result_array);
-  GArrowChunkedArray *result = garrow_chunked_array_new(chunks_list, &error);
-  g_list_free(chunks_list);
-  g_object_unref(result_array);
 
   return result;
 }
@@ -1900,7 +2016,8 @@ get_distinct_key_string(GArrowChunkedArray *chunked, gint64 row_idx, gchar **out
    agg_col_name is the name of the aggregated column. */
 static GArrowTable *
 build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
-                         gdouble *agg_values, gboolean *agg_nulls)
+                         gdouble *agg_values, gboolean *agg_nulls,
+                         gboolean is_int)
 {
   GError *error = NULL;
   int ncols = gt->n_keys + 1;
@@ -1960,26 +2077,48 @@ build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
   }
   g_object_unref(orig_schema);
 
-  /* Build the aggregated value column (always Float64) */
-  GArrowDoubleArrayBuilder *agg_builder = garrow_double_array_builder_new();
-  for (int g = 0; g < gt->n_groups; g++) {
-    if (agg_nulls[g]) {
-      garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(agg_builder), &error);
-    } else {
-      garrow_double_array_builder_append_value(agg_builder, agg_values[g], &error);
+  if (is_int) {
+    GArrowInt64ArrayBuilder *agg_builder = garrow_int64_array_builder_new();
+    for (int g = 0; g < gt->n_groups; g++) {
+      if (agg_nulls[g]) {
+        garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(agg_builder), &error);
+      } else {
+        garrow_int64_array_builder_append_value(agg_builder, (gint64)agg_values[g], &error);
+      }
+      if (error) { g_error_free(error); error = NULL; }
     }
-    if (error) { g_error_free(error); error = NULL; }
-  }
-  GArrowArray *agg_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(agg_builder), &error);
-  GList *agg_chunk_list = g_list_append(NULL, agg_arr);
-  columns[gt->n_keys] = garrow_chunked_array_new(agg_chunk_list, &error);
-  g_list_free_full(agg_chunk_list, g_object_unref);
-  g_object_unref(agg_builder);
+    GArrowArray *agg_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(agg_builder), &error);
+    GList *agg_chunk_list = g_list_append(NULL, agg_arr);
+    columns[gt->n_keys] = garrow_chunked_array_new(agg_chunk_list, &error);
+    g_list_free_full(agg_chunk_list, g_object_unref);
+    g_object_unref(agg_builder);
 
-  GArrowDoubleDataType *double_type = garrow_double_data_type_new();
-  GArrowField *agg_field = garrow_field_new(agg_col_name, GARROW_DATA_TYPE(double_type));
-  fields_list = g_list_append(fields_list, agg_field);
-  g_object_unref(double_type);
+    GArrowInt64DataType *int_type = garrow_int64_data_type_new();
+    GArrowField *agg_field = garrow_field_new(agg_col_name, GARROW_DATA_TYPE(int_type));
+    fields_list = g_list_append(fields_list, agg_field);
+    g_object_unref(int_type);
+  } else {
+    /* Build the aggregated value column (always Float64) */
+    GArrowDoubleArrayBuilder *agg_builder = garrow_double_array_builder_new();
+    for (int g = 0; g < gt->n_groups; g++) {
+      if (agg_nulls[g]) {
+        garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(agg_builder), &error);
+      } else {
+        garrow_double_array_builder_append_value(agg_builder, agg_values[g], &error);
+      }
+      if (error) { g_error_free(error); error = NULL; }
+    }
+    GArrowArray *agg_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(agg_builder), &error);
+    GList *agg_chunk_list = g_list_append(NULL, agg_arr);
+    columns[gt->n_keys] = garrow_chunked_array_new(agg_chunk_list, &error);
+    g_list_free_full(agg_chunk_list, g_object_unref);
+    g_object_unref(agg_builder);
+
+    GArrowDoubleDataType *double_type = garrow_double_data_type_new();
+    GArrowField *agg_field = garrow_field_new(agg_col_name, GARROW_DATA_TYPE(double_type));
+    fields_list = g_list_append(fields_list, agg_field);
+    g_object_unref(double_type);
+  }
 
   /* Build result table */
   GArrowSchema *result_schema = garrow_schema_new(fields_list);
@@ -2046,7 +2185,7 @@ CAMLprim value caml_arrow_group_sum(value v_grouped_ptr, value v_col_name) {
 
   g_object_unref(chunked);
 
-  GArrowTable *result = build_aggregation_result(gt, col_name, sums, nulls);
+  GArrowTable *result = build_aggregation_result(gt, col_name, sums, nulls, FALSE);
   free(sums);
   free(nulls);
 
@@ -2110,7 +2249,7 @@ CAMLprim value caml_arrow_group_mean(value v_grouped_ptr, value v_col_name) {
 
   g_object_unref(chunked);
 
-  GArrowTable *result = build_aggregation_result(gt, col_name, means, nulls);
+  GArrowTable *result = build_aggregation_result(gt, col_name, means, nulls, FALSE);
   free(means);
   free(nulls);
 
@@ -2138,7 +2277,7 @@ CAMLprim value caml_arrow_group_count(value v_grouped_ptr) {
     counts[g] = (gdouble)gt->group_sizes[g];
   }
 
-  GArrowTable *result = build_aggregation_result(gt, "n", counts, nulls);
+  GArrowTable *result = build_aggregation_result(gt, "n", counts, nulls, TRUE);
   free(counts);
   free(nulls);
 
@@ -2207,7 +2346,7 @@ arrow_group_extrema_impl(value v_grouped_ptr, value v_col_name, gboolean want_mi
 
   g_object_unref(chunked);
 
-  GArrowTable *result = build_aggregation_result(gt, col_name, extrema, nulls);
+  GArrowTable *result = build_aggregation_result(gt, col_name, extrema, nulls, FALSE);
   free(extrema);
   free(nulls);
 
@@ -2274,7 +2413,7 @@ CAMLprim value caml_arrow_group_count_distinct(value v_grouped_ptr, value v_col_
 
   g_object_unref(chunked);
 
-  GArrowTable *result = build_aggregation_result(gt, col_name, counts, nulls);
+  GArrowTable *result = build_aggregation_result(gt, col_name, counts, nulls, TRUE);
   free(counts);
   free(nulls);
 

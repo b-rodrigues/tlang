@@ -705,19 +705,19 @@ df |> filter($age > 25)
   (* Vectorized mutate: column-scalar addition *)
   let (v, _) = eval_string_env {|result = mutate(df, $age_plus_5 = $age + 5); result.age_plus_5|} env_p4 in
   let result = Ast.Utils.value_to_string v in
-  if result = "Vector[35., 30., 40., 33., 37.]" then begin
+  if result = "Vector[35, 30, 40, 33, 37]" then begin
     incr pass_count; Printf.printf "  ✓ vectorized mutate column + scalar\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ vectorized mutate column + scalar\n    Expected: Vector[35., 30., 40., 33., 37.]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ vectorized mutate column + scalar\n    Expected: Vector[35, 30, 40, 33, 37]\n    Got: %s\n" result
   end;
 
   (* Vectorized mutate: column-scalar multiplication *)
   let (v, _) = eval_string_env {|result = mutate(df, $age_x2 = $age * 2); result.age_x2|} env_p4 in
   let result = Ast.Utils.value_to_string v in
-  if result = "Vector[60., 50., 70., 56., 64.]" then begin
+  if result = "Vector[60, 50, 70, 56, 64]" then begin
     incr pass_count; Printf.printf "  ✓ vectorized mutate column * scalar\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ vectorized mutate column * scalar\n    Expected: Vector[60., 50., 70., 56., 64.]\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ vectorized mutate column * scalar\n    Expected: Vector[60, 50, 70, 56, 64]\n    Got: %s\n" result
   end;
 
   (* Vectorized mutate: column-to-column multiplication *)

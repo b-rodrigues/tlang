@@ -441,11 +441,11 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
         if !count > 0 then Ast.VFloat (!sum /. float_of_int !count)
         else Ast.VNA Ast.NAFloat
     | "count" ->
-        Ast.VFloat (float_of_int (List.length indices))
+        Ast.VInt (List.length indices)
     | "count_distinct" ->
         let seen = Value_hash.ValueHash.create (max 1 (min 64 (List.length indices))) in
         List.iter (fun i -> Value_hash.ValueHash.replace seen target_vals.(i) ()) indices;
-        Ast.VFloat (float_of_int (Value_hash.ValueHash.length seen))
+        Ast.VInt (Value_hash.ValueHash.length seen)
     | "min" ->
         let m = ref None in
         List.iter (fun i ->

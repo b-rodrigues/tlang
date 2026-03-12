@@ -525,7 +525,42 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ group_by with 2 keys expected 4 groups, got %d\n" n_groups2
   end;
 
-  (* Test 36: group_aggregate sum *)
+  (* Test 36: group_aggregate count_distinct *)
+  let distinct_result = Arrow_compute.group_aggregate grouped "count_distinct" "score" in
+  if Arrow_table.num_rows distinct_result = 2 then begin
+    (match Arrow_table.get_column distinct_result "score" with
+     | Some (Arrow_table.IntColumn data) ->
+         (* Alice scores: 90, 85, 95 (3 distinct), Bob scores: 80, 70 (2 distinct) *)
+         if data.(0) = Some 3 && data.(1) = Some 2 then begin
+           incr pass_count; Printf.printf "  ✓ group_aggregate count_distinct is correct\n"
+         end else begin
+           incr fail_count;
+           Printf.printf "  ✗ group_aggregate count_distinct values incorrect: [%s]\n"
+             (Array.to_list data |> List.map (fun v ->
+               match v with Some i -> string_of_int i | None -> "NA")
+               |> String.concat ", ")
+         end
+     | Some col ->
+         let type_str = match col with
+           | Arrow_table.IntColumn _ -> "IntColumn"
+           | Arrow_table.FloatColumn _ -> "FloatColumn"
+           | Arrow_table.BoolColumn _ -> "BoolColumn"
+           | Arrow_table.StringColumn _ -> "StringColumn"
+           | Arrow_table.DateColumn _ -> "DateColumn"
+           | Arrow_table.DatetimeColumn _ -> "DatetimeColumn"
+           | Arrow_table.NullColumn _ -> "NullColumn"
+           | Arrow_table.DictionaryColumn _ -> "DictionaryColumn"
+           | Arrow_table.ListColumn _ -> "ListColumn"
+         in
+         incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct returned %s (expected IntColumn)\n" type_str
+     | None ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct column failed\n")
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct expected 2 rows, got %d\n"
+      (Arrow_table.num_rows distinct_result)
+  end;
+
+  (* Test 36a: group_aggregate sum *)
   let sum_result = Arrow_compute.group_aggregate grouped "sum" "score" in
   if Arrow_table.num_rows sum_result = 2 then begin
     (match Arrow_table.get_column sum_result "score" with
@@ -574,16 +609,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let count_result = Arrow_compute.group_aggregate grouped "count" "" in
   if Arrow_table.num_rows count_result = 2 then begin
     (match Arrow_table.get_column count_result "n" with
-     | Some (Arrow_table.FloatColumn data) ->
+     | Some (Arrow_table.IntColumn data) ->
          (* Alice: 3 rows, Bob: 2 rows *)
-         if data.(0) = Some 3.0 && data.(1) = Some 2.0 then begin
+         if data.(0) = Some 3 && data.(1) = Some 2 then begin
            incr pass_count; Printf.printf "  ✓ group_aggregate count is correct\n"
          end else begin
-           incr fail_count;
-           Printf.printf "  ✗ group_aggregate count values incorrect\n"
+           incr fail_count; Printf.printf "  ✗ group_aggregate count values incorrect\n"
          end
-     | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate count column type mismatch\n")
+     | Some _ ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate count returned non-Int column\n"
+     | None ->
+         incr fail_count; Printf.printf "  ✗ group_aggregate count column not found\n")
   end else begin
     incr fail_count; Printf.printf "  ✗ group_aggregate count expected 2 rows, got %d\n"
       (Arrow_table.num_rows count_result)
@@ -632,10 +668,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let distinct_result = Arrow_compute.group_aggregate distinct_grouped "count_distinct" "city" in
   if Arrow_table.num_rows distinct_result = 2 then begin
     (match Arrow_table.get_column distinct_result "city" with
-     | Some (Arrow_table.FloatColumn data) ->
+     | Some (Arrow_table.IntColumn data) ->
          (* Distinct counting matches the current T fallback semantics:
             repeated null values count as one distinct value. *)
-         if data.(0) = Some 1.0 && data.(1) = Some 3.0 then begin
+         if data.(0) = Some 1 && data.(1) = Some 3 then begin
            incr pass_count; Printf.printf "  ✓ group_aggregate count_distinct is correct\n"
          end else begin
            incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct values incorrect\n"
@@ -750,14 +786,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                 incr fail_count; Printf.printf "  ✗ native group_aggregate max returned incorrect values\n"
               end;
 
+              let native_count_result =
+                Arrow_compute.group_aggregate native_grouped "count" ""
+              in
+              let count_ok =
+                Arrow_table.num_rows native_count_result = 2
+                && (match Arrow_table.get_column native_count_result "n" with
+                    | Some (Arrow_table.IntColumn data) ->
+                        data.(0) = Some 2 && data.(1) = Some 2
+                    | _ -> false)
+              in
+              if count_ok then begin
+                incr pass_count; Printf.printf "  ✓ native group_aggregate count stays correct\n"
+              end else begin
+                incr fail_count; Printf.printf "  ✗ native group_aggregate count returned incorrect values\n"
+              end;
+
               let native_distinct_result =
                 Arrow_compute.group_aggregate native_grouped "count_distinct" "dept"
               in
               let distinct_ok =
                 Arrow_table.num_rows native_distinct_result = 2
                 && (match Arrow_table.get_column native_distinct_result "dept" with
-                    | Some (Arrow_table.FloatColumn data) ->
-                        data.(0) = Some 2.0 && data.(1) = Some 2.0
+                    | Some (Arrow_table.IntColumn data) ->
+                        data.(0) = Some 2 && data.(1) = Some 2
                     | _ -> false)
               in
               if distinct_ok then begin
