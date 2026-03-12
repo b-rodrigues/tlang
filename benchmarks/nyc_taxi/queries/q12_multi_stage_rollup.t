@@ -11,6 +11,7 @@ if (type(input_parquet) == "String") {
 }
 
 result = df
+  |> select($year, $month, $VendorID, $payment_type, $PULocationID, $trip_distance, $fare_amount, $tip_amount, $total_amount)
   |> filter(!is_na($trip_distance) && !is_na($fare_amount) && $trip_distance > 0 && $total_amount > 0)
   |> mutate(
        $fare_per_mile = $fare_amount / $trip_distance,
