@@ -103,7 +103,7 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
                       | Plus | Mul -> try_col_scalar right_table right_col scalar
                       | _ -> None)
                    | None -> None)
-                | None -> None)
+                 | None -> None))
         | _ -> None
     in
     (match vectorize_expr table body with
