@@ -1,8 +1,12 @@
 open Ast
 
+type scalar_literal =
+  | IntScalar of int
+  | FloatScalar of float
+
 let extract_scalar = function
-  | Value (VInt i) -> Some (float_of_int i)
-  | Value (VFloat f) -> Some f
+  | Value (VInt i) -> Some (IntScalar i)
+  | Value (VFloat f) -> Some (FloatScalar f)
   | _ -> None
 
 let is_col_ref param = function
@@ -51,12 +55,25 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
         match expr with
         | BinOp { op; left; right } ->
           let try_col_scalar source_table source_col scalar =
-            match scalar_op_fn op with
-            | Some f ->
-              (match f source_table source_col scalar with
-               | Some result_table -> Some (result_table, source_col)
+            let apply_table_result = function
+              | Some result_table -> Some (result_table, source_col)
+              | None -> None
+            in
+            match scalar with
+            | IntScalar scalar_value ->
+              (match op with
+               | Plus -> apply_table_result (Arrow_compute.add_int_scalar source_table source_col scalar_value)
+               | Mul -> apply_table_result (Arrow_compute.multiply_int_scalar source_table source_col scalar_value)
+               | Minus -> apply_table_result (Arrow_compute.subtract_int_scalar source_table source_col scalar_value)
+               | Div ->
+                 (match scalar_op_fn op with
+                  | Some f -> apply_table_result (f source_table source_col (float_of_int scalar_value))
+                  | None -> None)
+               | _ -> None)
+            | FloatScalar scalar_value ->
+              (match scalar_op_fn op with
+               | Some f -> apply_table_result (f source_table source_col scalar_value)
                | None -> None)
-            | None -> None
           in
           (match is_col_ref param left, is_col_ref param right with
            | Some c1, Some c2 ->
