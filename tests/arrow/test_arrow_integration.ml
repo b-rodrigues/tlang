@@ -667,6 +667,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc3 "name,dept,score\nAlice,Eng,90\nBob,Eng,80\nAlice,Sales,95\nBob,Sales,70\n";
   close_out oc3;
 
+  let csv_groupby_multikey = "test_arrow_groupby_multikey.csv" in
+  let oc3_multikey = open_out csv_groupby_multikey in
+  output_string oc3_multikey
+    "VendorID,RatecodeID,PULocationID,DOLocationID,fare_amount,tip_amount,total_amount,tolls_amount,passenger_count\n\
+     1,1,10,20,10,1,11,0,1\n\
+     1,1,10,20,12,2,14,1,2\n\
+     1,1,10,20,11,1.5,12.5,0.5,3\n\
+     2,1,12,22,40,5,46,1,4\n\
+     2,1,12,22,44,6,51,2,5\n\
+     1,2,11,21,20,3,24,2,1\n";
+  close_out oc3_multikey;
+
   if Arrow_ffi.arrow_available then begin
     (match Arrow_io.read_csv csv_groupby with
      | Ok native_group_tbl ->
@@ -845,7 +857,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       csv_groupby)
     "Vector[185., 150.]";
 
+  test "Group-by + summarize (four-key native aggs)"
+    (Printf.sprintf
+      {|df = read_csv("%s"); result = df |> group_by($VendorID, $RatecodeID, $PULocationID, $DOLocationID) |> summarize($avg_fare = mean($fare_amount, na_rm = true), $avg_tip = mean($tip_amount, na_rm = true), $avg_total = mean($total_amount, na_rm = true), $total_tolls = sum($tolls_amount, na_rm = true), $trips = n(), $max_passengers = max($passenger_count, na_rm = true)) |> arrange($trips, "desc"); result.trips|}
+      csv_groupby_multikey)
+    "Vector[3, 2, 1]";
+
   (try Sys.remove csv_groupby with _ -> ());
+  (try Sys.remove csv_groupby_multikey with _ -> ());
   print_newline ();
 
   Printf.printf "Arrow Integration — Zero-Copy Column Views (Phase 4):\n";

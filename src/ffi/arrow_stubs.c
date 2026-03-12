@@ -1956,7 +1956,6 @@ build_aggregation_result(GroupedTable *gt, const char *agg_col_name,
 
     GArrowField *new_field = garrow_field_new(gt->key_names[k], dtype);
     fields_list = g_list_append(fields_list, new_field);
-    g_object_unref(dtype);
     g_object_unref(orig_field);
   }
   g_object_unref(orig_schema);
