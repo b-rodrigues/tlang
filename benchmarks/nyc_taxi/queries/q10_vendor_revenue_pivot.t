@@ -11,6 +11,7 @@ if (type(input_parquet) == "String") {
 }
 
 grouped = df
+  |> select($year, $month, $VendorID, $total_amount)
   |> group_by($year, $month, $VendorID)
   |> summarize($rev = sum($total_amount, na_rm = true))
   |> mutate($vendor_label = if (is_na($VendorID)) "vendor_NA" else str_join(["vendor_", str_string($VendorID)]))
