@@ -1,5 +1,8 @@
 open Ast
 
+(** Scalar literals extracted from AST nodes for vectorized mutate lowering.
+    Keeping integer and float literals distinct preserves integer arithmetic
+    semantics for operations like Int column + Int scalar. *)
 type scalar_literal =
   | IntScalar of int
   | FloatScalar of float

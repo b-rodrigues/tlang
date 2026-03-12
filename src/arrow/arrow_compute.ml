@@ -137,6 +137,9 @@ let int_column_scalar_op (t : Arrow_table.t) (col_name : string)
         (Array.map (function Some i -> Some (op i scalar) | None -> None) a))
   | _ -> None
 
+(** Apply an integer scalar arithmetic operation to a table column.
+    Preserves Int64 output for integral columns and falls back to the existing
+    float-based scalar path for non-integral numeric columns. *)
 let int_scalar_op_to_table (t : Arrow_table.t) (col_name : string) (scalar : int)
     (int_op : int -> int -> int)
     (native_fn : nativeint -> string -> float -> nativeint option)
