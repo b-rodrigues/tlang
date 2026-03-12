@@ -139,16 +139,12 @@ let int_column_scalar_op (t : Arrow_table.t) (col_name : string)
 
 let int_scalar_op_to_table (t : Arrow_table.t) (col_name : string) (scalar : int)
     (int_op : int -> int -> int)
-    (float_fallback :
-       Arrow_table.t -> string -> float -> nativeint option ->
-       (Arrow_table.t -> string -> float -> Arrow_table.column_data option) ->
-       Arrow_table.t option)
     (native_fn : nativeint -> string -> float -> nativeint option)
     (float_ocaml_fn : Arrow_table.t -> string -> float -> Arrow_table.column_data option)
     : Arrow_table.t option =
   match int_column_scalar_op t col_name scalar int_op with
   | Some col_data -> Some (add_computed_column t col_name col_data)
-  | None -> float_fallback t col_name (float_of_int scalar) native_fn float_ocaml_fn
+  | None -> scalar_op_to_table t col_name (float_of_int scalar) native_fn float_ocaml_fn
 
 (** Add a scalar to every element of a named column.
       Uses Arrow Compute 'add' kernel when native handle is present. *)
@@ -160,7 +156,7 @@ let add_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arrow_
 (** Add an integer scalar to every element of a named column, preserving Int64
     output when the source column is integral. *)
 let add_int_scalar (t : Arrow_table.t) (col_name : string) (scalar : int) : Arrow_table.t option =
-  int_scalar_op_to_table t col_name scalar ( + ) scalar_op_to_table
+  int_scalar_op_to_table t col_name scalar ( + )
     Arrow_ffi.arrow_compute_add_scalar
     (fun table name scalar_value -> column_scalar_op table name scalar_value ( +. ))
 
@@ -174,7 +170,7 @@ let multiply_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : A
 (** Multiply every element of a named column by an integer scalar, preserving
     Int64 output when the source column is integral. *)
 let multiply_int_scalar (t : Arrow_table.t) (col_name : string) (scalar : int) : Arrow_table.t option =
-  int_scalar_op_to_table t col_name scalar ( * ) scalar_op_to_table
+  int_scalar_op_to_table t col_name scalar ( * )
     Arrow_ffi.arrow_compute_multiply_scalar
     (fun table name scalar_value -> column_scalar_op table name scalar_value ( *. ))
 
@@ -188,7 +184,7 @@ let subtract_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : A
 (** Subtract an integer scalar from every element of a named column,
     preserving Int64 output when the source column is integral. *)
 let subtract_int_scalar (t : Arrow_table.t) (col_name : string) (scalar : int) : Arrow_table.t option =
-  int_scalar_op_to_table t col_name scalar ( - ) scalar_op_to_table
+  int_scalar_op_to_table t col_name scalar ( - )
     Arrow_ffi.arrow_compute_subtract_scalar
     (fun table name scalar_value -> column_scalar_op table name scalar_value ( -. ))
 
