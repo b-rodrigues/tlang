@@ -1,58 +1,119 @@
 open Ast
 
+let extract_scalar = function
+  | Value (VInt i) -> Some (float_of_int i)
+  | Value (VFloat f) -> Some f
+  | _ -> None
+
+let is_col_ref param = function
+  | DotAccess { target = Var p; field } when p = param -> Some field
+  | ColumnRef field -> Some field
+  | _ -> None
+
+let binary_col_op_fn = function
+  | Plus -> Some Arrow_compute.add_columns_to_table
+  | Mul ->  Some Arrow_compute.multiply_columns_to_table
+  | Minus -> Some Arrow_compute.subtract_columns_to_table
+  | Div ->  Some Arrow_compute.divide_columns_to_table
+  | _ -> None
+
+let scalar_op_fn = function
+  | Plus -> Some Arrow_compute.add_scalar
+  | Mul ->  Some Arrow_compute.multiply_scalar
+  | Minus -> Some Arrow_compute.subtract_scalar
+  | Div ->  Some Arrow_compute.divide_scalar
+  | _ -> None
+
 let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
     (col_name : string) : Arrow_table.t option =
   match fn with
   | VLambda { params = [param]; body; _ } ->
-    let extract_scalar = function
-      | Value (VInt i) -> Some (float_of_int i)
-      | Value (VFloat f) -> Some f
-      | _ -> None
+    (* Temporary names must be unique across recursive subexpressions within a
+       single mutate call so nested Arrow kernel results do not overwrite each
+       other while the expression tree is being lowered. *)
+    let temp_counter = ref 0 in
+    let next_temp_column current_table =
+      let rec find_unused idx =
+        let candidate = Printf.sprintf "_mutate_tmp_%s_%d" col_name idx in
+        if List.mem_assoc candidate current_table.Arrow_table.schema then
+          find_unused (idx + 1)
+        else begin
+          temp_counter := idx + 1;
+          candidate
+        end
+      in
+      find_unused !temp_counter
     in
-    let is_col_ref = function
-      | DotAccess { target = Var p; field } when p = param -> Some field
-      | ColumnRef field -> Some field
-      | _ -> None
-    in
-    let binary_col_op_fn = function
-      | Plus -> Some Arrow_compute.add_columns_to_table
-      | Mul ->  Some Arrow_compute.multiply_columns_to_table
-      | Minus -> Some Arrow_compute.subtract_columns_to_table
-      | Div ->  Some Arrow_compute.divide_columns_to_table
-      | _ -> None
-    in
-    let scalar_op_fn = function
-      | Plus -> Some Arrow_compute.add_scalar
-      | Mul ->  Some Arrow_compute.multiply_scalar
-      | Minus -> Some Arrow_compute.subtract_scalar
-      | Div ->  Some Arrow_compute.divide_scalar
-      | _ -> None
-    in
-    (match body with
-    | BinOp { op; left; right } ->
-      (match is_col_ref left, is_col_ref right with
-       | Some c1, Some c2 ->
-         (match binary_col_op_fn op with
-          | Some f -> f table c1 c2 col_name
-          | None -> None)
-       | Some src_col, None ->
-         (match extract_scalar right with
-          | Some scalar ->
-            (match scalar_op_fn op with
-             | Some f ->
-                (match f table src_col scalar with
-                 | Some result_table ->
-                   if col_name = src_col then Some result_table
-                   else
-                     (match Arrow_table.get_column result_table src_col with
-                      | Some col_data ->
-                        Some (Arrow_table.add_column table col_name col_data)
-                      | None -> None)
+    let rec vectorize_expr current_table expr =
+      match is_col_ref param expr with
+      | Some col -> Some (current_table, col)
+      | None ->
+        match expr with
+        | BinOp { op; left; right } ->
+          let try_col_scalar source_table source_col scalar =
+            match scalar_op_fn op with
+            | Some f ->
+              (match f source_table source_col scalar with
+               | Some result_table -> Some (result_table, source_col)
+               | None -> None)
+            | None -> None
+          in
+          (match is_col_ref param left, is_col_ref param right with
+           | Some c1, Some c2 ->
+             (match binary_col_op_fn op with
+              | Some f ->
+                let temp_col = next_temp_column current_table in
+                (match f current_table c1 c2 temp_col with
+                 | Some result_table -> Some (result_table, temp_col)
                  | None -> None)
-             | None -> None)
+              | None -> None)
+           | Some src_col, None ->
+             (match extract_scalar right with
+              | Some scalar -> try_col_scalar current_table src_col scalar
+              | None -> None)
+           | None, Some src_col ->
+             (match extract_scalar left with
+              | Some scalar ->
+                (match op with
+                 | Plus | Mul -> try_col_scalar current_table src_col scalar
+                 | _ -> None)
+              | None -> None)
+           | None, None ->
+             (match vectorize_expr current_table left with
+              | Some (left_table, left_col) ->
+                (match extract_scalar right with
+                 | Some scalar -> try_col_scalar left_table left_col scalar
+                 | None ->
+                   match vectorize_expr left_table right with
+                   | Some (both_table, right_col) ->
+                     (match binary_col_op_fn op with
+                      | Some f ->
+                        let temp_col = next_temp_column both_table in
+                        (match f both_table left_col right_col temp_col with
+                         | Some result_table -> Some (result_table, temp_col)
+                         | None -> None)
+                      | None -> None)
+                   | None -> None)
+              | None ->
+                match extract_scalar left with
+                | Some scalar ->
+                  (match vectorize_expr current_table right with
+                   | Some (right_table, right_col) ->
+                     (match op with
+                      | Plus | Mul -> try_col_scalar right_table right_col scalar
+                      | _ -> None)
+                   | None -> None)
+                 | None -> None))
+        | _ -> None
+    in
+    (match vectorize_expr table body with
+     | Some (result_table, result_col) ->
+       if result_col = col_name then Some result_table
+       else
+         (match Arrow_table.get_column result_table result_col with
+          | Some col_data -> Some (Arrow_table.add_column table col_name col_data)
           | None -> None)
-       | _ -> None)
-    | _ -> None)
+     | None -> None)
   | _ -> None
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =

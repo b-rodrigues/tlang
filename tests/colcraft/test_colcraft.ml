@@ -79,6 +79,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ mutate replaces existing column (same col count)\n    Expected: 4\n    Got: %s\n" result
   end;
 
+  let (v, _) = eval_string_env
+    {|result = mutate(df, $score_per_age_pct = ($score / $age) * 100.0); result.score_per_age_pct|}
+    env_p4 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|Vector[318.333333333, 349.2, 263.142857143, 314.285714286, 285.9375]|} then begin
+    incr pass_count; Printf.printf "  ✓ mutate vectorizes nested arithmetic in one expression\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ mutate vectorizes nested arithmetic in one expression\n    Expected: Vector[318.333333333, 349.2, 263.142857143, 314.285714286, 285.9375]\n    Got: %s\n" result
+  end;
+
   test "mutate non-dataframe"
     {|mutate(42, $x = 1)|}
     {|Error(TypeError: "Function `mutate` expects a DataFrame as first argument.")|};

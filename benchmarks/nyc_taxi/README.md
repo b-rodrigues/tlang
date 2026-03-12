@@ -61,8 +61,10 @@ The benchmark runner supports these query ids:
 - `q9` — chained numeric/categorical filters
 - `q10` — monthly revenue pivoted wide by vendor
 - `q11` — heavy grouped summarize with multiple aggregates
+- `q12` — filter + mutate + grouped rollup + sort
+- `q13` — high-cardinality grouped rollup with multiple aggregates
 
-By default, `run_benchmark.sh` runs the full `q1`-`q11` suite. Use `--queries`
+By default, `run_benchmark.sh` runs the full `q1`-`q13` suite. Use `--queries`
 to run a subset when you only want a faster smoke benchmark.
 
 ## Prepare the dataset
