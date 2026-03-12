@@ -66,6 +66,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   | Error msg ->
     incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values\n    EXCEPTION: %s\n" msg);
 
+  let (v_repeat_agg, _) = eval_string_env
+    {|df_na |> group_by($name) |> summarize($min_val = min($value), $max_val = max($value))|}
+    env_na in
+  let result_repeat_agg = Ast.Utils.value_to_string v_repeat_agg in
+  if result_repeat_agg = {|Error(TypeError: "Function `min` encountered NA value. Handle missingness explicitly.")|} then begin
+    incr pass_count; Printf.printf "  ✓ repeated grouped aggs on nullable column preserve NA error semantics\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ repeated grouped aggs on nullable column preserve NA error semantics\n    Expected min() NA error, got %s\n" result_repeat_agg
+  end;
+
   (* mean on all-NA with na_rm=true returns NA *)
   test "mean all-NA na_rm=true returns NA(Float)"
     "mean([NA, NA, NA], na_rm = true)"
