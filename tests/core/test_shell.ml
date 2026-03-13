@@ -4,7 +4,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* Basic output capture: ShellResult displays as quoted stdout string *)
   test "simple echo" "out = ?<{echo hello}>; out" "\"hello\\n\"";
-  test "expression capture" "out = ?<{echo -n 'hello world'}>; out" "\"hello world\"";
+  test "expression capture" "out = ?<{printf 'hello world'}>; out" "\"hello world\"";
   test "multi-line command"
     "out = ?<{\n    echo line1\n    echo line2\n  }>; out"
     "\"line1\\nline2\\n\"";
