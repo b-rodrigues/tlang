@@ -10,7 +10,7 @@ jobs:
   # Job 1: Verify the Native Path (Performance & Vectors)
   arrow-native:
     name: Arrow Native Path Validation
-    runs-on: ubuntu-latest
+    runs-on: [ ubuntu-latest, macos-latest ]
     permissions:
       contents: read
     env:
