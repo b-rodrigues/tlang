@@ -458,6 +458,27 @@ let rec group_aggregate (grouped : grouped_table) (agg_name : string) (col_name 
   | _ ->
       group_aggregate_ocaml grouped agg_name col_name
 
+(** Compute multiple aggregations in a single call.
+    specs: list of (agg_name, col_name, result_name) triples.
+    Builds key columns only once, avoiding redundant work when the
+    single-aggregate path is called N times.
+    Falls back to sequential group_aggregate calls when the native
+    multi_aggregate FFI is unavailable or fails. *)
+let group_multi_aggregate (grouped : grouped_table)
+    (specs : (string * string * string) list) : Arrow_table.t option =
+  match grouped.native_group with
+  | Some gh when not gh.freed ->
+    let agg_types = List.map (fun (a, _, _) -> a) specs in
+    let col_names = List.map (fun (_, c, _) -> c) specs in
+    let result_names = List.map (fun (_, _, r) -> r) specs in
+    (match Arrow_ffi.arrow_group_multi_aggregate gh.ptr agg_types col_names result_names with
+     | Some ptr ->
+       let schema = schema_from_native_ptr ptr in
+       let nrows = Arrow_ffi.arrow_table_num_rows ptr in
+       Some (Arrow_table.create_from_native ptr schema nrows)
+     | None -> None)
+  | _ -> None
+
 (** Pure OCaml group aggregation fallback *)
 and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_name : string) : Arrow_table.t =
   let ocaml_groups = get_ocaml_groups grouped in

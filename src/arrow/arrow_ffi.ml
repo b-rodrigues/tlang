@@ -217,6 +217,14 @@ external arrow_group_max : nativeint -> string -> nativeint option
 external arrow_group_count_distinct : nativeint -> string -> nativeint option
   = "caml_arrow_group_count_distinct"
 
+(** Compute multiple aggregations in a single call, building key columns once.
+    Args: grouped_table_ptr, agg_types list, col_names list, result_names list.
+    agg_types: "sum", "mean", "count", "min", "max", "count_distinct".
+    Returns Some(result_table_ptr) with key columns + all agg columns, or None. *)
+external arrow_group_multi_aggregate :
+  nativeint -> string list -> string list -> string list -> nativeint option
+  = "caml_arrow_group_multi_aggregate"
+
 (* ===================================================================== *)
 (* Zero-Copy Buffer Access (Phase 4)                                     *)
 (* ===================================================================== *)

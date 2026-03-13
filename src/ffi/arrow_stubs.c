@@ -1753,6 +1753,36 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     key_cols[k] = garrow_table_get_column_data(table, key_indices[k]);
   }
 
+  /* Pre-resolve chunk structures for sequential scanning.
+     Instead of calling garrow_chunked_array_get_chunk per row per key,
+     pre-fetch all chunks and their boundary offsets once. */
+  typedef struct {
+    guint n_chunks;
+    GArrowArray **chunks;
+    gint64 *chunk_starts;
+    gint64 *chunk_lengths;
+    guint cur_chunk;           /* Current chunk for sequential scan */
+  } PreResolvedCol;
+
+  PreResolvedCol *pre_cols = (PreResolvedCol *)malloc(sizeof(PreResolvedCol) * n_keys);
+  for (int k = 0; k < n_keys; k++) {
+    GArrowChunkedArray *chunked = key_cols[k];
+    guint nc = garrow_chunked_array_get_n_chunks(chunked);
+    pre_cols[k].n_chunks = nc;
+    pre_cols[k].chunks = (GArrowArray **)malloc(sizeof(GArrowArray *) * nc);
+    pre_cols[k].chunk_starts = (gint64 *)malloc(sizeof(gint64) * nc);
+    pre_cols[k].chunk_lengths = (gint64 *)malloc(sizeof(gint64) * nc);
+    pre_cols[k].cur_chunk = 0;
+    gint64 start = 0;
+    for (guint c = 0; c < nc; c++) {
+      pre_cols[k].chunks[c] = garrow_chunked_array_get_chunk(chunked, c);
+      gint64 len = garrow_array_get_length(pre_cols[k].chunks[c]);
+      pre_cols[k].chunk_starts[c] = start;
+      pre_cols[k].chunk_lengths[c] = len;
+      start += len;
+    }
+  }
+
   for (gint64 r = 0; r < nrows; r++) {
     /* Build composite key: "val1\x1Fval2\x1F..." using Unit Separator (U+001F)
        which cannot appear in typical string data. */
@@ -1761,24 +1791,20 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     for (int k = 0; k < n_keys; k++) {
       if (k > 0) g_string_append_c(key_buf, '\x1F');
       
-      /* Faster cell access by reusing chunked-array handle */
-      GArrowChunkedArray *chunked = key_cols[k];
-      gint64 offset = r;
-      GArrowArray *chunk = NULL;
-      guint n_chunks = garrow_chunked_array_get_n_chunks(chunked);
-      for (guint c = 0; c < n_chunks; c++) {
-        chunk = garrow_chunked_array_get_chunk(chunked, c);
-        gint64 chunk_len = garrow_array_get_length(chunk);
-        if (offset < chunk_len) break;
-        offset -= chunk_len;
-        g_object_unref(chunk);
-        chunk = NULL;
+      /* Use pre-resolved chunks for O(1) amortized sequential access */
+      PreResolvedCol *pc = &pre_cols[k];
+      /* Advance cursor to correct chunk (sequential — O(1) amortized) */
+      while (pc->cur_chunk < pc->n_chunks &&
+             r >= pc->chunk_starts[pc->cur_chunk] + pc->chunk_lengths[pc->cur_chunk]) {
+        pc->cur_chunk++;
       }
       
       gchar *cell;
-      if (chunk == NULL) {
+      if (pc->cur_chunk >= pc->n_chunks) {
         cell = g_strdup("");
       } else {
+        GArrowArray *chunk = pc->chunks[pc->cur_chunk];
+        gint64 offset = r - pc->chunk_starts[pc->cur_chunk];
         if (garrow_array_is_null(chunk, offset)) {
           cell = g_strdup("NA");
         } else if (GARROW_IS_INT64_ARRAY(chunk)) {
@@ -1800,7 +1826,6 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
         } else {
           cell = g_strdup("");
         }
-        g_object_unref(chunk);
       }
       
       g_string_append(key_buf, cell);
@@ -1897,6 +1922,17 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
 
   for (int k = 0; k < n_keys; k++) g_object_unref(key_cols[k]);
   free(key_cols);
+
+  /* Free pre-resolved column structures */
+  for (int k = 0; k < n_keys; k++) {
+    for (guint c = 0; c < pre_cols[k].n_chunks; c++) {
+      g_object_unref(pre_cols[k].chunks[c]);
+    }
+    free(pre_cols[k].chunks);
+    free(pre_cols[k].chunk_starts);
+    free(pre_cols[k].chunk_lengths);
+  }
+  free(pre_cols);
 
   v_result = caml_alloc(1, 0); /* Some(...) */
   Store_field(v_result, 0, caml_copy_nativeint((intnat)gt));
@@ -2418,6 +2454,330 @@ CAMLprim value caml_arrow_group_count_distinct(value v_grouped_ptr, value v_col_
   free(nulls);
 
   if (result == NULL) CAMLreturn(Val_none);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
+/* Multi-aggregate: compute multiple aggregations in a single call.
+   Builds key columns only ONCE for all aggregations, avoiding redundant
+   key column reconstruction in the single-aggregate path.
+   Args: grouped_table_ptr, agg_types (string list), col_names (string list),
+         result_names (string list)
+   agg_types: "sum", "mean", "count", "min", "max", "count_distinct"
+   Returns: Some(result_table_ptr) or None on failure. */
+CAMLprim value caml_arrow_group_multi_aggregate(
+    value v_grouped_ptr, value v_agg_types, value v_col_names, value v_result_names) {
+  CAMLparam4(v_grouped_ptr, v_agg_types, v_col_names, v_result_names);
+  CAMLlocal1(v_result);
+
+  GroupedTable *gt = (GroupedTable *)Nativeint_val(v_grouped_ptr);
+
+  /* Count number of aggregations */
+  int n_aggs = 0;
+  value iter = v_agg_types;
+  while (iter != Val_emptylist) { n_aggs++; iter = Field(iter, 1); }
+  if (n_aggs == 0) CAMLreturn(Val_none);
+
+  /* Parse agg specs from OCaml lists */
+  char **agg_types = (char **)malloc(sizeof(char *) * n_aggs);
+  char **col_names = (char **)malloc(sizeof(char *) * n_aggs);
+  char **result_names = (char **)malloc(sizeof(char *) * n_aggs);
+
+  iter = v_agg_types;
+  value iter2 = v_col_names;
+  value iter3 = v_result_names;
+  for (int i = 0; i < n_aggs; i++) {
+    agg_types[i] = strdup(String_val(Field(iter, 0)));
+    col_names[i] = strdup(String_val(Field(iter2, 0)));
+    result_names[i] = strdup(String_val(Field(iter3, 0)));
+    iter = Field(iter, 1);
+    iter2 = Field(iter2, 1);
+    iter3 = Field(iter3, 1);
+  }
+
+  /* Allocate result arrays for each aggregation */
+  gdouble **agg_values = (gdouble **)malloc(sizeof(gdouble *) * n_aggs);
+  gboolean **agg_nulls = (gboolean **)malloc(sizeof(gboolean *) * n_aggs);
+  gboolean *agg_is_int = (gboolean *)malloc(sizeof(gboolean) * n_aggs);
+
+  for (int a = 0; a < n_aggs; a++) {
+    agg_values[a] = (gdouble *)calloc(gt->n_groups, sizeof(gdouble));
+    agg_nulls[a] = (gboolean *)calloc(gt->n_groups, sizeof(gboolean));
+    agg_is_int[a] = FALSE;
+  }
+
+  GArrowSchema *schema = garrow_table_get_schema(gt->table);
+  gboolean failed = FALSE;
+
+  /* Process each aggregation */
+  for (int a = 0; a < n_aggs && !failed; a++) {
+    if (strcmp(agg_types[a], "count") == 0) {
+      /* Count: just use group sizes */
+      for (int g = 0; g < gt->n_groups; g++) {
+        agg_values[a][g] = (gdouble)gt->group_sizes[g];
+      }
+      agg_is_int[a] = TRUE;
+
+    } else if (strcmp(agg_types[a], "count_distinct") == 0) {
+      /* Count distinct: per-group hash table */
+      gint col_idx = garrow_schema_get_field_index(schema, col_names[a]);
+      if (col_idx < 0) { failed = TRUE; break; }
+
+      GArrowChunkedArray *chunked = garrow_table_get_column_data(gt->table, col_idx);
+      if (chunked == NULL) { failed = TRUE; break; }
+
+      for (int g = 0; g < gt->n_groups && !failed; g++) {
+        GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+        for (int r = 0; r < gt->group_sizes[g]; r++) {
+          gchar *key = NULL;
+          if (!get_distinct_key_string(chunked, gt->group_row_indices[g][r], &key)) {
+            g_hash_table_destroy(seen);
+            failed = TRUE;
+            break;
+          }
+          g_hash_table_add(seen, key);
+        }
+        if (!failed) {
+          agg_values[a][g] = (gdouble)g_hash_table_size(seen);
+          agg_nulls[a][g] = FALSE;
+        }
+        g_hash_table_destroy(seen);
+      }
+      g_object_unref(chunked);
+      agg_is_int[a] = TRUE;
+
+    } else {
+      /* Numeric aggregations: sum, mean, min, max */
+      gint col_idx = garrow_schema_get_field_index(schema, col_names[a]);
+      if (col_idx < 0) { failed = TRUE; break; }
+
+      GArrowChunkedArray *chunked = garrow_table_get_column_data(gt->table, col_idx);
+      if (chunked == NULL) { failed = TRUE; break; }
+
+      gboolean is_sum  = (strcmp(agg_types[a], "sum") == 0);
+      gboolean is_mean = (strcmp(agg_types[a], "mean") == 0);
+      gboolean is_min  = (strcmp(agg_types[a], "min") == 0);
+      gboolean is_max  = (strcmp(agg_types[a], "max") == 0);
+
+      for (int g = 0; g < gt->n_groups && !failed; g++) {
+        NumericChunkCursor cursor;
+        numeric_chunk_cursor_init(&cursor, chunked);
+
+        gdouble sum = 0.0;
+        int count = 0;
+        gboolean has_value = FALSE;
+        gdouble best = 0.0;
+
+        for (int r = 0; r < gt->group_sizes[g]; r++) {
+          gboolean is_null;
+          gdouble val = 0.0;
+          if (!get_numeric_value(&cursor, gt->group_row_indices[g][r], &is_null, &val)) {
+            numeric_chunk_cursor_destroy(&cursor);
+            failed = TRUE;
+            break;
+          }
+          if (!is_null) {
+            if (is_sum || is_mean) {
+              sum += val;
+              count++;
+            }
+            if (is_min) {
+              if (!has_value || val < best) best = val;
+              has_value = TRUE;
+            }
+            if (is_max) {
+              if (!has_value || val > best) best = val;
+              has_value = TRUE;
+            }
+          }
+        }
+        numeric_chunk_cursor_destroy(&cursor);
+
+        if (!failed) {
+          if (is_sum) {
+            agg_values[a][g] = sum;
+            agg_nulls[a][g] = (count == 0);
+          } else if (is_mean) {
+            if (count > 0) {
+              agg_values[a][g] = sum / (gdouble)count;
+              agg_nulls[a][g] = FALSE;
+            } else {
+              agg_nulls[a][g] = TRUE;
+            }
+          } else if (is_min || is_max) {
+            if (has_value) {
+              agg_values[a][g] = best;
+              agg_nulls[a][g] = FALSE;
+            } else {
+              agg_nulls[a][g] = TRUE;
+            }
+          }
+        }
+      }
+      g_object_unref(chunked);
+    }
+  }
+
+  g_object_unref(schema);
+
+  if (failed) {
+    for (int a = 0; a < n_aggs; a++) {
+      free(agg_values[a]); free(agg_nulls[a]);
+      free(agg_types[a]); free(col_names[a]); free(result_names[a]);
+    }
+    free(agg_values); free(agg_nulls); free(agg_is_int);
+    free(agg_types); free(col_names); free(result_names);
+    CAMLreturn(Val_none);
+  }
+
+  /* Build result table: key columns (ONCE) + all agg columns */
+  GError *error = NULL;
+  int ncols = gt->n_keys + n_aggs;
+  GList *fields_list = NULL;
+  GArrowChunkedArray **columns = (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * ncols);
+
+  GArrowSchema *orig_schema = garrow_table_get_schema(gt->table);
+
+  /* Build key columns — same logic as build_aggregation_result but done ONCE */
+  for (int k = 0; k < gt->n_keys; k++) {
+    gint idx = garrow_schema_get_field_index(orig_schema, gt->key_names[k]);
+    GArrowField *orig_field = garrow_schema_get_field(orig_schema, idx);
+    GArrowDataType *dtype = garrow_field_get_data_type(orig_field);
+
+    if (GARROW_IS_INT64_DATA_TYPE(dtype) || GARROW_IS_INT32_DATA_TYPE(dtype) ||
+        GARROW_IS_INT16_DATA_TYPE(dtype) || GARROW_IS_UINT8_DATA_TYPE(dtype) ||
+        GARROW_IS_UINT16_DATA_TYPE(dtype) || GARROW_IS_UINT32_DATA_TYPE(dtype) ||
+        GARROW_IS_UINT64_DATA_TYPE(dtype)) {
+      GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
+      for (int g = 0; g < gt->n_groups; g++) {
+        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          gint64 v = g_ascii_strtoll(gt->group_key_values[g][k], NULL, 10);
+          garrow_int64_array_builder_append_value(builder, v, &error);
+        }
+        if (error) { g_error_free(error); error = NULL; }
+      }
+      GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+      GList *chunk_list = g_list_append(NULL, arr);
+      columns[k] = garrow_chunked_array_new(chunk_list, &error);
+      g_list_free_full(chunk_list, g_object_unref);
+      g_object_unref(builder);
+      /* Preserve original integer type for schema */
+      GArrowField *new_field = garrow_field_new(gt->key_names[k], dtype);
+      fields_list = g_list_append(fields_list, new_field);
+    } else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype)) {
+      GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
+      for (int g = 0; g < gt->n_groups; g++) {
+        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          gdouble v = g_ascii_strtod(gt->group_key_values[g][k], NULL);
+          garrow_double_array_builder_append_value(builder, v, &error);
+        }
+        if (error) { g_error_free(error); error = NULL; }
+      }
+      GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+      GList *chunk_list = g_list_append(NULL, arr);
+      columns[k] = garrow_chunked_array_new(chunk_list, &error);
+      g_list_free_full(chunk_list, g_object_unref);
+      g_object_unref(builder);
+      GArrowField *new_field = garrow_field_new(gt->key_names[k], dtype);
+      fields_list = g_list_append(fields_list, new_field);
+    } else {
+      /* Default to string for key columns */
+      GArrowStringArrayBuilder *builder = garrow_string_array_builder_new();
+      for (int g = 0; g < gt->n_groups; g++) {
+        if (strcmp(gt->group_key_values[g][k], "NA") == 0) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          garrow_string_array_builder_append_string(builder, gt->group_key_values[g][k], &error);
+        }
+        if (error) { g_error_free(error); error = NULL; }
+      }
+      GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+      GList *chunk_list = g_list_append(NULL, arr);
+      columns[k] = garrow_chunked_array_new(chunk_list, &error);
+      g_list_free_full(chunk_list, g_object_unref);
+      g_object_unref(builder);
+      GArrowField *new_field = garrow_field_new(gt->key_names[k], dtype);
+      fields_list = g_list_append(fields_list, new_field);
+    }
+    g_object_unref(orig_field);
+  }
+  g_object_unref(orig_schema);
+
+  /* Build aggregation columns */
+  for (int a = 0; a < n_aggs; a++) {
+    int col_idx = gt->n_keys + a;
+    if (agg_is_int[a]) {
+      GArrowInt64ArrayBuilder *builder = garrow_int64_array_builder_new();
+      for (int g = 0; g < gt->n_groups; g++) {
+        if (agg_nulls[a][g]) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          garrow_int64_array_builder_append_value(builder, (gint64)agg_values[a][g], &error);
+        }
+        if (error) { g_error_free(error); error = NULL; }
+      }
+      GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+      GList *chunk_list = g_list_append(NULL, arr);
+      columns[col_idx] = garrow_chunked_array_new(chunk_list, &error);
+      g_list_free_full(chunk_list, g_object_unref);
+      g_object_unref(builder);
+
+      GArrowInt64DataType *int_type = garrow_int64_data_type_new();
+      GArrowField *field = garrow_field_new(result_names[a], GARROW_DATA_TYPE(int_type));
+      fields_list = g_list_append(fields_list, field);
+      g_object_unref(int_type);
+    } else {
+      GArrowDoubleArrayBuilder *builder = garrow_double_array_builder_new();
+      for (int g = 0; g < gt->n_groups; g++) {
+        if (agg_nulls[a][g]) {
+          garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(builder), &error);
+        } else {
+          garrow_double_array_builder_append_value(builder, agg_values[a][g], &error);
+        }
+        if (error) { g_error_free(error); error = NULL; }
+      }
+      GArrowArray *arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(builder), &error);
+      GList *chunk_list = g_list_append(NULL, arr);
+      columns[col_idx] = garrow_chunked_array_new(chunk_list, &error);
+      g_list_free_full(chunk_list, g_object_unref);
+      g_object_unref(builder);
+
+      GArrowDoubleDataType *double_type = garrow_double_data_type_new();
+      GArrowField *field = garrow_field_new(result_names[a], GARROW_DATA_TYPE(double_type));
+      fields_list = g_list_append(fields_list, field);
+      g_object_unref(double_type);
+    }
+  }
+
+  /* Assemble result table */
+  GArrowSchema *result_schema = garrow_schema_new(fields_list);
+  GArrowTable *result = garrow_table_new_chunked_arrays(result_schema, columns, ncols, &error);
+
+  g_list_free_full(fields_list, g_object_unref);
+  for (int i = 0; i < ncols; i++) {
+    if (columns[i]) g_object_unref(columns[i]);
+  }
+  free(columns);
+  g_object_unref(result_schema);
+
+  /* Cleanup */
+  for (int a = 0; a < n_aggs; a++) {
+    free(agg_values[a]); free(agg_nulls[a]);
+    free(agg_types[a]); free(col_names[a]); free(result_names[a]);
+  }
+  free(agg_values); free(agg_nulls); free(agg_is_int);
+  free(agg_types); free(col_names); free(result_names);
+
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
 
   v_result = caml_alloc(1, 0);
   Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
