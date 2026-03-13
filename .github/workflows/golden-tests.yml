@@ -66,6 +66,3 @@ jobs:
         name: golden-test-report
         path: tests/golden/test_results.xml
         retention-days: 30
-      with:
-        name: test-coverage-report
-        path: tests/golden/coverage_report.html
