@@ -6,7 +6,7 @@ The **T Programming Language** is an experimental, reproducibility-first functio
 
 - **Reproducibility First**: Packages and environments are defined using Nix flakes.
 - **Mandatory Pipelines**: Non-interactive execution requires defining a `pipeline`, enforcing DAG-based computation to prevent spaghetti code. 
-- **Polyglot Architecture**: T orchestrates code. You can have `node` blocks that run natively in T, or external blocks (`rn()` for R, `pyn()` for Python). 
+- **Polyglot Architecture**: T orchestrates code. You can have `node` blocks that run natively in T, external blocks (`rn()` for R, `pyn()` for Python), or shell/CLI nodes (`runtime = sh`).
 - **Object Interchange**: T uses Apache Arrow for data frames and PMML for models, passing data natively between R, Python, and T without serialization overhead or loss of fidelity. Factor (categorical) columns are stored natively as Arrow Dictionary arrays for efficient interop.
 - **Immutability and No Loops**: T has no loops and no mutable variables.
 - **Explicit NA Handling**: NA does not propagate silently; if NA is encountered in aggregation functions without `na_rm = true`, an error is thrown. 
@@ -225,12 +225,40 @@ p = pipeline {
 build_pipeline(p)
 ```
 
-Instead of inlining code with `command`, nodes can point to an external file using the `script` argument. `script` and `command` are mutually exclusive. The runtime is auto-detected from the file extension (`.R` → R, `.py` → Python):
+Instead of inlining code with `command`, nodes can point to an external file using the `script` argument. `script` and `command` are mutually exclusive. The runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.sh` → sh):
 
 ```t
 p = pipeline {
   model = rn(script = "train_model.R", serializer = "pmml")
   predictions = pyn(script = "predict.py", deserializer = "pmml")
+}
+```
+
+Shell/CLI nodes execute arbitrary commands or scripts in the pipeline:
+
+```t
+p = pipeline {
+  -- Exec mode: command + argv
+  names = node(
+    runtime = sh,
+    command = "awk",
+    args = list("-F", ",", "NR > 1 { print $1 }", "input.csv"),
+    serializer = text,
+    deserializer = lines
+  )
+
+  -- Shell mode: full shell command string
+  processed = node(
+    runtime = sh,
+    command = "sort input.csv | uniq > \"$T_OUTPUT\"",
+    shell = "bash",
+    shell_args = list("-lc"),
+    serializer = text,
+    deserializer = text
+  )
+
+  -- Script-backed shell node
+  cleaned = node(script = "scripts/clean.sh", serializer = text, deserializer = text)
 }
 ```
 
