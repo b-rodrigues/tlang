@@ -66,13 +66,14 @@ let is_valid_nix_pkg_name s =
 (** Filter a list of package names to only valid Nix identifiers.
     Prints a warning for each rejected entry so users are informed
     when their config contains an invalid or potentially unsafe identifier. *)
-let safe_pkg_names names =
+let safe_pkg_names ?(warn = true) names =
   List.filter (fun name ->
     if is_valid_nix_pkg_name name then true
     else begin
-      Printf.eprintf
-        "Warning: skipping invalid Nix package identifier %S (only alphanumeric, -, _, ., + are allowed)\n%!"
-        name;
+      if warn then
+        Printf.eprintf
+          "Warning: skipping invalid Nix package identifier %S (only alphanumeric, -, _, ., + are allowed)\n%!"
+          name;
       false
     end
   ) names
@@ -88,9 +89,10 @@ let generate_project_flake
     ?(py_version : string = "python314")
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
+    ?(warn_invalid_pkg_names : bool = true)
     () : string =
-  let additional_tools = safe_pkg_names additional_tools in
-  let latex_pkgs = safe_pkg_names latex_pkgs in
+  let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
+  let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
   (* Inputs section *)
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
@@ -228,9 +230,10 @@ let generate_package_flake
     ~(deps : dependency list)
     ?(additional_tools : string list = [])
     ?(latex_pkgs : string list = [])
+    ?(warn_invalid_pkg_names : bool = true)
     () : string =
-  let additional_tools = safe_pkg_names additional_tools in
-  let latex_pkgs = safe_pkg_names latex_pkgs in
+  let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
+  let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =

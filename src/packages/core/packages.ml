@@ -30,10 +30,8 @@ let docs_loaded : unit Lazy.t =
     match loaded_paths with
     | [] ->
         prerr_endline "Documentation: no docs.json found in help/docs.json or docs.json; proceeding without documentation."
-    | paths ->
-        List.iter (fun path ->
-          Printf.fprintf stderr "Documentation: loaded from %s\n" path
-        ) paths
+    | _paths ->
+        ()
   )
 
 let ensure_docs_loaded () =
