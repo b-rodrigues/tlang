@@ -7,8 +7,12 @@ on:
     branches: [ main ]
 
 jobs:
-  arrow-interop-e2e:
-    runs-on: ubuntu-latest
+  build:
+    name: Build and Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     permissions:
       contents: read
 
