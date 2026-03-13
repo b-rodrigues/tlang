@@ -32,7 +32,7 @@
 --# @param env_vars :: Dict (Optional) Additional environment variables passed to the node.
 --#   For shell nodes, upstream dependencies are also exposed as `T_NODE_<name>` variables.
 --# @param functions :: String | List[String] (Optional) Files to source before execution.
---# @param include :: String | List[String] (Optional) Additional files for the sandbox.
+--# @param includes :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.
 --# @return :: Any The evaluated return value of the command.
 --# @family pipeline

@@ -515,8 +515,12 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                        Error (Error.type_error
                                 (Printf.sprintf "Function `%s` expects runtime arg `%s` to be a String, Symbol, Int, Float, Bool, Null, or List of those values." fn_name key)))
              | VList items ->
+                  let is_scalar_value = function
+                    | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
+                    | _ -> false
+                  in
                   let values = List.map snd items in
-                  if List.for_all is_arg_value values then
+                  if List.for_all is_scalar_value values then
                     Ok (List.mapi (fun i v -> (string_of_int i, v)) values)
                   else
                     Error (Error.type_error

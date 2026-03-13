@@ -1200,6 +1200,9 @@ cleaned = node(
 ```
 
 The `.sh` extension is auto-detected, so `runtime = sh` is inferred when using a `.sh` script path.
+Script-backed nodes are run through an interpreter (`sh` by default) so they don't need executable
+permission bits or a shebang line. Use the `shell` parameter to choose a different interpreter
+(e.g., `shell = "bash"`).
 
 ### Execution Contract
 

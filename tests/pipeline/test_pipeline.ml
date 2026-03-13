@@ -713,4 +713,54 @@ p_cross = pipeline {
        incr fail_count; Printf.printf "  ✗ sh exec mode nix test: expected VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
+  (* Test: script-backed sh node Nix emission runs via interpreter *)
+  let (v_sh_script_nix, _) = eval_string_env
+    {|pipeline {
+  result = node(script = "scripts/clean.sh", serializer = text, deserializer = text)
+}|}
+    (Packages.init_env ()) in
+  (match v_sh_script_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       (* Script-backed sh nodes must be run through an interpreter (sh by default)
+          to avoid requiring executable permission bits or a shebang line. *)
+       let has_sh_interp = contains_substring nix "'sh'" in
+       let has_script_path = contains_substring nix "'scripts/clean.sh'" in
+       let has_t_output = contains_substring nix "T_OUTPUT" in
+       if has_sh_interp && has_script_path && has_t_output then begin
+         incr pass_count; Printf.printf "  ✓ script-backed sh node runs via interpreter in Nix emission\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ script-backed sh node Nix emission: sh_interp=%b script_path=%b t_output=%b\n"
+           has_sh_interp has_script_path has_t_output
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ script-backed sh nix test: expected VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: script-backed sh node with explicit shell uses that interpreter *)
+  let (v_sh_script_bash, _) = eval_string_env
+    {|pipeline {
+  result = node(script = "scripts/clean.sh", shell = "bash", serializer = text, deserializer = text)
+}|}
+    (Packages.init_env ()) in
+  (match v_sh_script_bash with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has_bash = contains_substring nix "'bash'" in
+       let has_script_path = contains_substring nix "'scripts/clean.sh'" in
+       if has_bash && has_script_path then begin
+         incr pass_count; Printf.printf "  ✓ script-backed sh node uses explicit bash interpreter\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ script-backed sh node explicit bash: bash=%b path=%b\n"
+           has_bash has_script_path
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ script-backed sh bash nix test: expected VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: args as nested list is rejected for sh node *)
+  test "sh node rejects nested list args"
+    {|node(runtime = sh, command = "awk", args = list(list("-x")))|}
+    {|Error(TypeError: "Function `node` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values.")|};
+
   print_newline ()

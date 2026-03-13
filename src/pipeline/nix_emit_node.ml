@@ -926,7 +926,8 @@ EOF
         (* Shell runtime: build the execution command from the node's command,
            args, and optional shell/shell_args metadata.
            - Exec mode (no shell key): runs command directly with argv
-           - Shell mode (shell = "sh" or "bash"): runs through the specified shell *)
+           - Shell mode (shell = "sh" or "bash"): runs through the specified shell
+           - Script mode: runs .sh file through an interpreter (avoiding permission issues) *)
         let command_string = Nix_unparse.expr_to_string expr in
         let shell_interpreter =
           match List.assoc_opt "shell" runtime_args with
@@ -955,18 +956,30 @@ EOF
                | Ast.VBool false -> Some "false"
                | _ -> None)
         in
+        let argv_suffix =
+          if positional_argv = [] then ""
+          else " " ^ String.concat " " positional_argv
+        in
         let execution_command = match script with
           | Some script_path ->
-              Printf.sprintf "%s %s" (shell_single_quote script_path)
-                (String.concat " " positional_argv)
+              (* Script-backed: run through an interpreter to avoid requiring
+                 executable bits or a shebang.  Use the explicit `shell` if
+                 provided, otherwise default to `sh`. *)
+              let interp = match shell_interpreter with Some s -> s | None -> "sh" in
+              Printf.sprintf "%s %s%s" (shell_single_quote interp)
+                (shell_single_quote script_path) argv_suffix
           | None ->
               (match shell_interpreter with
                | Some sh ->
+                   (* Shell mode: run command string through the shell.
+                      Positional args are appended after the command string so
+                      they are accessible as $1, $2, … inside the shell. *)
                    let sh_args = if shell_args_list = [] then ["-c"] else shell_args_list in
-                   Printf.sprintf "%s %s %s"
+                   Printf.sprintf "%s %s %s%s"
                      (shell_single_quote sh)
                      (String.concat " " (List.map shell_single_quote sh_args))
                      (shell_single_quote command_string)
+                     argv_suffix
                | None ->
                    if positional_argv = [] then
                      shell_single_quote command_string
