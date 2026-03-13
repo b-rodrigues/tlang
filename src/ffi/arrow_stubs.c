@@ -1762,9 +1762,12 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     gint64 *chunk_starts;
     gint64 *chunk_lengths;
     guint cur_chunk;           /* Current chunk for sequential scan */
+    int type_tag;              /* Pre-determined type for fast dispatch:
+                                  0=int64, 1=int32, 2=int16, 3=uint32,
+                                  4=double, 5=float, 6=bool, 7=string, -1=other */
   } PreResolvedCol;
 
-  PreResolvedCol *pre_cols = (PreResolvedCol *)malloc(sizeof(PreResolvedCol) * n_keys);
+  PreResolvedCol *pre_cols = (PreResolvedCol *)malloc(sizeof(PreResolvedCol) * (size_t)n_keys);
   for (int k = 0; k < n_keys; k++) {
     GArrowChunkedArray *chunked = key_cols[k];
     guint nc = garrow_chunked_array_get_n_chunks(chunked);
@@ -1773,6 +1776,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     pre_cols[k].chunk_starts = (gint64 *)malloc(sizeof(gint64) * nc);
     pre_cols[k].chunk_lengths = (gint64 *)malloc(sizeof(gint64) * nc);
     pre_cols[k].cur_chunk = 0;
+    pre_cols[k].type_tag = -1;
     gint64 start = 0;
     for (guint c = 0; c < nc; c++) {
       pre_cols[k].chunks[c] = garrow_chunked_array_get_chunk(chunked, c);
@@ -1780,6 +1784,18 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       pre_cols[k].chunk_starts[c] = start;
       pre_cols[k].chunk_lengths[c] = len;
       start += len;
+      /* Determine type tag from first non-empty chunk */
+      if (c == 0 && len > 0) {
+        GArrowArray *fc = pre_cols[k].chunks[c];
+        if (GARROW_IS_INT64_ARRAY(fc))       pre_cols[k].type_tag = 0;
+        else if (GARROW_IS_INT32_ARRAY(fc))  pre_cols[k].type_tag = 1;
+        else if (GARROW_IS_INT16_ARRAY(fc))  pre_cols[k].type_tag = 2;
+        else if (GARROW_IS_UINT32_ARRAY(fc)) pre_cols[k].type_tag = 3;
+        else if (GARROW_IS_DOUBLE_ARRAY(fc)) pre_cols[k].type_tag = 4;
+        else if (GARROW_IS_FLOAT_ARRAY(fc))  pre_cols[k].type_tag = 5;
+        else if (GARROW_IS_BOOLEAN_ARRAY(fc)) pre_cols[k].type_tag = 6;
+        else if (GARROW_IS_STRING_ARRAY(fc)) pre_cols[k].type_tag = 7;
+      }
     }
   }
 
@@ -1807,24 +1823,51 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
         gint64 offset = r - pc->chunk_starts[pc->cur_chunk];
         if (garrow_array_is_null(chunk, offset)) {
           cell = g_strdup("NA");
-        } else if (GARROW_IS_INT64_ARRAY(chunk)) {
-          cell = g_strdup_printf("%" G_GINT64_FORMAT, garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset));
-        } else if (GARROW_IS_INT32_ARRAY(chunk)) {
-          cell = g_strdup_printf("%d", garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), offset));
-        } else if (GARROW_IS_INT16_ARRAY(chunk)) {
-          cell = g_strdup_printf("%d", garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset));
-        } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
-          cell = g_strdup_printf("%u", garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset));
-        } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
-          cell = g_strdup_printf("%g", garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset));
-        } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {
-          cell = g_strdup_printf("%g", (double)garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), offset));
-        } else if (GARROW_IS_BOOLEAN_ARRAY(chunk)) {
-          cell = g_strdup(garrow_boolean_array_get_value(GARROW_BOOLEAN_ARRAY(chunk), offset) ? "true" : "false");
-        } else if (GARROW_IS_STRING_ARRAY(chunk)) {
-          cell = garrow_string_array_get_string(GARROW_STRING_ARRAY(chunk), offset);
         } else {
-          cell = g_strdup("");
+          /* Use pre-determined type tag to avoid per-row GARROW_IS_* checks */
+          char stack_buf[32];
+          switch (pc->type_tag) {
+          case 0: /* int64 */
+            snprintf(stack_buf, sizeof(stack_buf), "%" G_GINT64_FORMAT,
+              garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset));
+            cell = g_strdup(stack_buf);
+            break;
+          case 1: /* int32 */
+            snprintf(stack_buf, sizeof(stack_buf), "%d",
+              garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), offset));
+            cell = g_strdup(stack_buf);
+            break;
+          case 2: /* int16 */
+            snprintf(stack_buf, sizeof(stack_buf), "%d",
+              garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset));
+            cell = g_strdup(stack_buf);
+            break;
+          case 3: /* uint32 */
+            snprintf(stack_buf, sizeof(stack_buf), "%u",
+              garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset));
+            cell = g_strdup(stack_buf);
+            break;
+          case 4: /* double */
+            snprintf(stack_buf, sizeof(stack_buf), "%g",
+              garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset));
+            cell = g_strdup(stack_buf);
+            break;
+          case 5: /* float */
+            snprintf(stack_buf, sizeof(stack_buf), "%g",
+              (double)garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), offset));
+            cell = g_strdup(stack_buf);
+            break;
+          case 6: /* boolean */
+            cell = g_strdup(garrow_boolean_array_get_value(
+              GARROW_BOOLEAN_ARRAY(chunk), offset) ? "true" : "false");
+            break;
+          case 7: /* string */
+            cell = garrow_string_array_get_string(GARROW_STRING_ARRAY(chunk), offset);
+            break;
+          default:
+            cell = g_strdup("");
+            break;
+          }
         }
       }
       
@@ -2489,9 +2532,9 @@ CAMLprim value caml_arrow_group_multi_aggregate(
   value iter2 = v_col_names;
   value iter3 = v_result_names;
   for (int i = 0; i < n_aggs; i++) {
-    agg_types[i] = strdup(String_val(Field(iter, 0)));
-    col_names[i] = strdup(String_val(Field(iter2, 0)));
-    result_names[i] = strdup(String_val(Field(iter3, 0)));
+    agg_types[i] = g_strdup(String_val(Field(iter, 0)));
+    col_names[i] = g_strdup(String_val(Field(iter2, 0)));
+    result_names[i] = g_strdup(String_val(Field(iter3, 0)));
     iter = Field(iter, 1);
     iter2 = Field(iter2, 1);
     iter3 = Field(iter3, 1);
@@ -2625,7 +2668,7 @@ CAMLprim value caml_arrow_group_multi_aggregate(
   if (failed) {
     for (int a = 0; a < n_aggs; a++) {
       free(agg_values[a]); free(agg_nulls[a]);
-      free(agg_types[a]); free(col_names[a]); free(result_names[a]);
+      g_free(agg_types[a]); g_free(col_names[a]); g_free(result_names[a]);
     }
     free(agg_values); free(agg_nulls); free(agg_is_int);
     free(agg_types); free(col_names); free(result_names);
@@ -2769,7 +2812,7 @@ CAMLprim value caml_arrow_group_multi_aggregate(
   /* Cleanup */
   for (int a = 0; a < n_aggs; a++) {
     free(agg_values[a]); free(agg_nulls[a]);
-    free(agg_types[a]); free(col_names[a]); free(result_names[a]);
+    g_free(agg_types[a]); g_free(col_names[a]); g_free(result_names[a]);
   }
   free(agg_values); free(agg_nulls); free(agg_is_int);
   free(agg_types); free(col_names); free(result_names);
