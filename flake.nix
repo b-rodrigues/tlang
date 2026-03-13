@@ -72,7 +72,8 @@
             # pkg-config — resolves C library flags for arrow-glib, gobject, glib
             pkgs.pkg-config
             pkgs.makeWrapper
-            pkgs.autoPatchelfHook
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.autoPatchelfHook
           ];
 
           buildInputs = [
