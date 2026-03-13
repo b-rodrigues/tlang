@@ -462,11 +462,16 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             | other -> other)
        | _ -> make_error ArityError "eval() expects exactly 1 argument")
 
-  | (Call { fn = Var "node"; args } | Call { fn = Var "py"; args } | Call { fn = Var "pyn"; args } | Call { fn = Var "rn"; args }) as call ->
+  | (Call { fn = Var "node"; args }
+    | Call { fn = Var "py"; args }
+    | Call { fn = Var "pyn"; args }
+    | Call { fn = Var "rn"; args }
+    | Call { fn = Var "shn"; args }) as call ->
       let fn_name = match call with
         | Call { fn = Var "py"; _ } -> "py"
         | Call { fn = Var "pyn"; _ } -> "pyn"
         | Call { fn = Var "rn"; _ } -> "rn"
+        | Call { fn = Var "shn"; _ } -> "shn"
         | _ -> "node"
       in
       let lookup_arg name default =
@@ -577,11 +582,12 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
           if has_command && explicit_script_path_opt <> None then
             Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
           else
-            let default_runtime = match call with
-              | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
-              | Call { fn = Var "rn"; _ } -> "R"
-              | _ -> "T"
-            in
+             let default_runtime = match call with
+               | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
+               | Call { fn = Var "rn"; _ } -> "R"
+               | Call { fn = Var "shn"; _ } -> "sh"
+               | _ -> "T"
+             in
             (* Auto-detect runtime from script/arg extension only if not explicit *)
             let runtime =
               let explicit = eval_string "runtime" "" in

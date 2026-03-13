@@ -11,9 +11,29 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Packages.init_env ()) in
   (match v_sh with
    | Ast.VNode un when un.un_runtime = "sh" ->
-       incr pass_count; Printf.printf "  ✓ node(runtime = sh, command = \"awk\") creates sh node\n"
+        incr pass_count; Printf.printf "  ✓ node(runtime = sh, command = \"awk\") creates sh node\n"
    | other ->
-       incr fail_count; Printf.printf "  ✗ node(runtime = sh) creation failed: %s\n"
+        incr fail_count; Printf.printf "  ✗ node(runtime = sh) creation failed: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_shn, _) = eval_string_env
+    {|shn(command = "awk")|}
+    (Packages.init_env ()) in
+  (match v_shn with
+   | Ast.VNode un when un.un_runtime = "sh" ->
+       incr pass_count; Printf.printf "  ✓ shn(command = \"awk\") defaults to sh runtime\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ shn(command = \"awk\") failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  let (v_shn_script, _) = eval_string_env
+    {|shn(script = "run.sh")|}
+    (Packages.init_env ()) in
+  (match v_shn_script with
+   | Ast.VNode un when un.un_runtime = "sh" && un.un_script = Some "run.sh" ->
+       incr pass_count; Printf.printf "  ✓ shn(script = \"run.sh\") stores shell script path\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ shn(script = \"run.sh\") failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* Test: sh node with list args *)

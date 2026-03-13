@@ -54,11 +54,11 @@ p = pipeline {
 }
 ```
 
-Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()` and `rn()` as shortcuts for Python and R runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
+Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, and `shn()` as shortcuts for Python, R, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
 ### Using the `script` Argument
 
-Instead of inlining code with `command`, you can point a node to an external source file using the `script` argument. This works with `node()`, `pyn()`, and `rn()`. The `script` and `command` arguments are mutually exclusive.
+Instead of inlining code with `command`, you can point a node to an external source file using the `script` argument. This works with `node()`, `pyn()`, `rn()`, and `shn()`. The `script` and `command` arguments are mutually exclusive.
 
 ```t
 p = pipeline {
@@ -68,12 +68,46 @@ p = pipeline {
   -- Execute an external Python script
   predictions = pyn(script = "predict.py", deserializer = "pmml")
 
+  -- Execute an external shell script
+  report = shn(script = "postprocess.sh")
+
   -- node() auto-detects the runtime from the file extension
   summary = node(script = "summarise.R", serializer = "json")
 }
 ```
 
-When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
+When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.sh` → sh) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
+
+### Shell / Bash nodes with `shn()`
+
+Use `shn()` for pipeline steps that are easiest to express as shell or CLI commands. It is a convenience wrapper around `node(runtime = sh, ...)`, just like `rn()` and `pyn()` wrap `node()` for R and Python.
+
+```t
+p = pipeline {
+  -- Exec-style shell node: command + positional argv
+  fields = shn(
+    command = "printf",
+    args = ["first line\\nsecond line\\n"]
+  )
+
+  -- Script-style shell node: inline shell source executed with `sh`
+  report = shn(command = <{
+#!/bin/sh
+set -eu
+
+# Dependencies for T's lexical pipeline analysis: summary_r summary_py
+printf 'R summary: %s\n' "$T_NODE_summary_r/artifact"
+printf 'Python summary: %s\n' "$T_NODE_summary_py/artifact"
+  }>)
+}
+```
+
+There are two useful modes:
+
+- **Exec mode**: provide a string `command` plus `args = [...]` to run a program directly with positional arguments.
+- **Shell mode**: provide raw shell source with `<{ ... }>` or a `.sh` `script`, optionally overriding the interpreter with `shell = "bash"` and `shell_args = ["-lc"]` when you need Bash-specific syntax.
+
+Shell nodes default to `serializer = text`, which makes them a good fit for reports, command output, and glue code between other pipeline nodes. For a full end-to-end example that mixes T, R, Python, and `sh`, see `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
 
 ---
 

@@ -203,6 +203,7 @@
 | [seq](seq.html) | Generate a sequence of integers |
 | [serialize](serialize.html) | Serialize Value |
 | [shape](shape.html) | Get NDArray dimensions |
+| [shn](shn.html) | Configure a Shell Pipeline Node |
 | [sigma](sigma.html) | Residual Standard Deviation |
 | [sign](sign.html) | Sign of number |
 | [signif](signif.html) | Significant-digit rounding |
