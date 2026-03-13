@@ -405,7 +405,10 @@ names = node(
 ```
 
 This is a good example of why shell-string mode is still useful: redirection into
-`T_OUTPUT` is simple and obvious.
+`T_OUTPUT` is simple and obvious. It intentionally uses shell-string mode even
+though the general recommendation is to prefer argv, because `awk` itself does
+not have a built-in “write to this artifact path” flag and shell redirection is
+the cleanest way to express the artifact contract.
 
 ### 2. `jq` returning JSON
 
@@ -426,11 +429,13 @@ summary = node(
 cleaned = node(
   runtime = sh,
   script = "scripts/clean_data.sh",
-  args = list("$T_NODE_raw_data", "$T_OUTPUT"),
   serializer = text,
   deserializer = text
 )
 ```
+
+In this contract, the script would read `T_NODE_raw_data` and `T_OUTPUT` from
+its environment rather than expecting shell-style expansion inside `args`.
 
 ---
 
