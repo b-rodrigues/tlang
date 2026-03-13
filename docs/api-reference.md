@@ -1794,7 +1794,7 @@ cumany([false, true, false]) -- Vector[false, true, true]
 
 Pipeline introspection and management.
 
-### `node(command, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)`
+### `node(command, script = null, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = null, shell_args = [], functions = [], include = [], noop = false)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -1832,9 +1832,9 @@ include = "config.yml"
 
 ---
 
-### `py(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `py(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
-### `pyn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `pyn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
@@ -1855,7 +1855,7 @@ The evaluated return value of the command.
 
 ---
 
-### `rn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `rn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
@@ -1876,7 +1876,7 @@ The evaluated return value of the command.
 
 ---
 
-### `shn(command, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
+### `shn(command, script = null, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
 
 Configure a shell pipeline node. A convenience wrapper around `node()` with `runtime = "sh"`. Use it for CLI tools, inline shell scripts, and `.sh` files inside `pipeline { ... }` blocks.
 
