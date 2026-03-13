@@ -830,7 +830,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr with
-      | Call { fn = Var "node"; _ } | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+      | Call { fn = Var "node"; _ } | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Call { fn = Var "shn"; _ } | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
     if is_node_call then
@@ -927,6 +927,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       | Some dep_runtime -> 
           dep_runtime <> my_runtime && 
           my_runtime <> "Quarto" && 
+          my_runtime <> "sh" &&
           un.un_deserializer = Var "default"
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in

@@ -646,7 +646,7 @@ def py_read_pmml(path):
 
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
-    if runtime = "Quarto" then
+    if runtime = "Quarto" || runtime = "sh" then
       ""
     else
       let get_des_call dep_name =
@@ -913,19 +913,8 @@ EOF
 EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
-    else
-      if is_raw_code then
-        Printf.sprintf {|      echo "      %s = {" >> node_script.t
-      cat <<'EOF' >> node_script.t
-%s
-EOF
-      echo "      }" >> node_script.t
-      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
-      echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
-      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
-      else if runtime = "sh" then
-      match expr with
+    else if runtime = "sh" then
+      (match expr with
       | RawCode { raw_text; _ } ->
           Printf.sprintf "      cat <<'EOF' >> node_script.sh\n%s\nEOF" raw_text
       | Value (VString cmd) | Value (VSymbol cmd) ->
@@ -940,8 +929,19 @@ EOF
             | _ -> None) runtime_args in
           let cmd_line = String.concat " " (cmd :: cli_args_tokens) in
           Printf.sprintf "      printf '%%s\\n' %s >> node_script.sh" (shell_single_quote cmd_line)
-      | _ -> "      printf '%%s\\n' true >> node_script.sh"
-    else
+      | _ -> "      printf '%%s\\n' true >> node_script.sh")
+    else (* T runtime *)
+      if is_raw_code then
+        Printf.sprintf {|      echo "      %s = {" >> node_script.t
+      cat <<'EOF' >> node_script.t
+%s
+EOF
+      echo "      }" >> node_script.t
+      echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
+      echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
+      echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
+      else
         Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
 EOF

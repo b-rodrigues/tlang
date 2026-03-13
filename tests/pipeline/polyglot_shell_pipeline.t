@@ -20,7 +20,7 @@ p = pipeline {
     )
 
     summary_py = pyn(
-        command = <{ raw_data.groupby("cyl").agg({"mpg": "mean"}).reset_index().rename(columns={"mpg": "avg_mpg"}) }>,
+        command = <{ summary_py = raw_data.groupby("cyl").agg({"mpg": "mean"}).reset_index().rename(columns={"mpg": "avg_mpg"}) }>,
         serializer = py_write_csv,
         deserializer = py_read_csv,
         functions = "tests/pipeline/iolib.py"

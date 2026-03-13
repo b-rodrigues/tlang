@@ -7,11 +7,7 @@ print("")
 print("Shell report contents:")
 print(report_text)
 
-ok = contains(report_text, "Polyglot summary report") and
-     contains(report_text, "raw_data artifact:") and
-     contains(report_text, "R summary") and
-     contains(report_text, "Python summary") and
-     contains(report_text, "avg_mpg")
+ok = (contains(report_text, "Polyglot summary report") && contains(report_text, "raw_data artifact:") && contains(report_text, "R summary") && contains(report_text, "Python summary") && contains(report_text, "avg_mpg"))
 
 if (ok) {
     print("Shell polyglot pipeline verified!")
