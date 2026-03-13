@@ -1760,7 +1760,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     guint n_chunks;
     GArrowArray **chunks;
     gint64 *chunk_starts;
-    gint64 *chunk_lengths;
+    gint64 *chunk_ends;        /* Pre-calculated chunk end boundaries */
     guint cur_chunk;           /* Current chunk for sequential scan */
     int type_tag;              /* Pre-determined type for fast dispatch:
                                   0=int64, 1=int32, 2=int16, 3=uint32,
@@ -1768,13 +1768,19 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   } PreResolvedCol;
 
   PreResolvedCol *pre_cols = (PreResolvedCol *)malloc(sizeof(PreResolvedCol) * (size_t)n_keys);
+  if (pre_cols == NULL) {
+    for (int k2 = 0; k2 < n_keys; k2++) g_object_unref(key_cols[k2]);
+    free(key_cols); free(key_names); free(key_indices); free(key_types);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
   for (int k = 0; k < n_keys; k++) {
     GArrowChunkedArray *chunked = key_cols[k];
     guint nc = garrow_chunked_array_get_n_chunks(chunked);
     pre_cols[k].n_chunks = nc;
     pre_cols[k].chunks = (GArrowArray **)malloc(sizeof(GArrowArray *) * nc);
     pre_cols[k].chunk_starts = (gint64 *)malloc(sizeof(gint64) * nc);
-    pre_cols[k].chunk_lengths = (gint64 *)malloc(sizeof(gint64) * nc);
+    pre_cols[k].chunk_ends = (gint64 *)malloc(sizeof(gint64) * nc);
     pre_cols[k].cur_chunk = 0;
     pre_cols[k].type_tag = -1;
     gint64 start = 0;
@@ -1782,7 +1788,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       pre_cols[k].chunks[c] = garrow_chunked_array_get_chunk(chunked, c);
       gint64 len = garrow_array_get_length(pre_cols[k].chunks[c]);
       pre_cols[k].chunk_starts[c] = start;
-      pre_cols[k].chunk_lengths[c] = len;
+      pre_cols[k].chunk_ends[c] = start + len;
       start += len;
       /* Determine type tag from first non-empty chunk */
       if (c == 0 && len > 0) {
@@ -1811,7 +1817,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
       PreResolvedCol *pc = &pre_cols[k];
       /* Advance cursor to correct chunk (sequential — O(1) amortized) */
       while (pc->cur_chunk < pc->n_chunks &&
-             r >= pc->chunk_starts[pc->cur_chunk] + pc->chunk_lengths[pc->cur_chunk]) {
+             r >= pc->chunk_ends[pc->cur_chunk]) {
         pc->cur_chunk++;
       }
       
@@ -1973,7 +1979,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
     }
     free(pre_cols[k].chunks);
     free(pre_cols[k].chunk_starts);
-    free(pre_cols[k].chunk_lengths);
+    free(pre_cols[k].chunk_ends);
   }
   free(pre_cols);
 
@@ -2527,6 +2533,10 @@ CAMLprim value caml_arrow_group_multi_aggregate(
   char **agg_types = (char **)malloc(sizeof(char *) * n_aggs);
   char **col_names = (char **)malloc(sizeof(char *) * n_aggs);
   char **result_names = (char **)malloc(sizeof(char *) * n_aggs);
+  if (agg_types == NULL || col_names == NULL || result_names == NULL) {
+    free(agg_types); free(col_names); free(result_names);
+    CAMLreturn(Val_none);
+  }
 
   iter = v_agg_types;
   value iter2 = v_col_names;
