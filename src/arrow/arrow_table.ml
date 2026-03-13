@@ -99,6 +99,11 @@ let arrow_type_of_tag = function
   | 7 -> ArrowDate
   | _ -> ArrowNull
 
+(** Rebuild schema from a native table pointer *)
+let schema_from_native_ptr (ptr : nativeint) : arrow_schema =
+  let pairs = Arrow_ffi.arrow_table_get_schema ptr in
+  List.map (fun (name, tag) -> (name, arrow_type_of_tag tag)) pairs
+
 (* --- GC Finalizer --- *)
 
 (** Register a GC finalizer that frees the native Arrow table when collected *)
@@ -572,6 +577,25 @@ let add_column (t : t) (name : string) (col : column_data) : t =
   in
   { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
 
+(** Add a column to [dst] by taking it from [src]. 
+    Stays native if both have native handles. *)
+let add_column_from_table (dst : t) (new_name : string) (src : t) (src_name : string) : t =
+  match dst.native_handle, src.native_handle with
+  | Some h_dst, Some h_src when not h_dst.freed && not h_src.freed ->
+      (match Arrow_ffi.arrow_table_add_column_from_table h_dst.ptr new_name h_src.ptr src_name with
+       | Some new_ptr ->
+           let schema = schema_from_native_ptr new_ptr in
+           create_from_native new_ptr schema dst.nrows
+       | None -> 
+           (* Fallback: materialize column and add it *)
+           match get_column src src_name with
+           | Some col -> add_column dst new_name col
+           | None -> dst)
+  | _ ->
+      match get_column src src_name with
+      | Some col -> add_column dst new_name col
+      | None -> dst
+
 let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int) : column_data =
   (* Precompute the source indices to avoid O(n²) repeated scanning *)
   let indices = Array.make new_nrows 0 in
@@ -612,7 +636,8 @@ let filter_rows (t : t) (mask : bool array) : t =
   | Some handle when not handle.freed ->
       (match Arrow_ffi.arrow_table_filter_mask handle.ptr mask with
        | Some new_ptr ->
-           create_from_native new_ptr t.schema new_nrows
+           let schema = schema_from_native_ptr new_ptr in
+           create_from_native new_ptr schema new_nrows
        | None ->
            (* Native filter failed — materialize columns from FFI first *)
            let filter_col col = _filter_column_pure col mask new_nrows in
@@ -627,89 +652,133 @@ let filter_rows (t : t) (mask : bool array) : t =
       let columns = List.map (fun (name, col) -> (name, filter_col col)) t.columns in
       { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
 
+(** Slice rows: offset, length *)
+let slice (t : t) (offset : int) (len : int) : t =
+  match t.native_handle with
+  | Some handle when not handle.freed ->
+      (match Arrow_ffi.arrow_table_slice handle.ptr (Int64.of_int offset) (Int64.of_int len) with
+       | Some new_ptr ->
+           let schema = schema_from_native_ptr new_ptr in
+           create_from_native new_ptr schema len
+       | None ->
+           let columns = List.map (fun (name, _) ->
+             let col = match get_column t name with Some c -> c | None -> NullColumn t.nrows in
+             (name, slice_column col offset len)
+           ) t.schema in
+           { schema = t.schema; columns; nrows = len; native_handle = None } |> materialize)
+  | _ ->
+      let columns = List.map (fun (name, col) -> (name, slice_column col offset len)) t.columns in
+      { schema = t.schema; columns; nrows = len; native_handle = None } |> materialize
+
+
 (** Take rows by index list *)
 let take_rows (t : t) (indices : int list) : t =
-  (* Materialize native columns if needed, then take rows *)
-  let source_columns =
-    match t.native_handle with
-    | Some handle when not handle.freed ->
-        List.map (fun (n, _) ->
-          match get_column t n with
-          | Some data -> (n, data)
-          | None -> (n, NullColumn t.nrows)
-        ) t.schema
-    | _ -> t.columns
-  in
-  let new_nrows = List.length indices in
-  let idx_arr = Array.of_list indices in
-  let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) source_columns in
-  { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
+  match t.native_handle with
+  | Some handle when not handle.freed ->
+      let idx_arr = Array.of_list indices in
+      (match Arrow_ffi.arrow_table_take handle.ptr idx_arr with
+       | Some new_ptr ->
+           let schema = schema_from_native_ptr new_ptr in
+           let new_nrows = List.length indices in
+           create_from_native new_ptr schema new_nrows
+       | None ->
+           (* Fallback if native take fails *)
+           let source_columns = List.map (fun (n, _) ->
+             match get_column t n with
+             | Some data -> (n, data)
+             | None -> (n, NullColumn t.nrows)
+           ) t.schema in
+           let idx_arr = Array.of_list indices in
+           let new_nrows = List.length indices in
+           let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) source_columns in
+           { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
+  | _ ->
+      let idx_arr = Array.of_list indices in
+      let new_nrows = List.length indices in
+      let columns = List.map (fun (name, col) -> (name, take_col col idx_arr new_nrows)) t.columns in
+      { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize
 
 (** Reorder rows by index array *)
 let sort_by_indices (t : t) (indices : int array) : t =
-  (* Materialize native columns if needed, then sort *)
-  let source_columns =
-    match t.native_handle with
-    | Some handle when not handle.freed ->
-        List.map (fun (n, _) ->
-          match get_column t n with
-          | Some data -> (n, data)
-          | None -> (n, NullColumn t.nrows)
-        ) t.schema
-    | _ -> t.columns
-  in
-  let n = Array.length indices in
-  let sort_col = function
-    | IntColumn a -> IntColumn (Array.init n (fun i -> a.(indices.(i))))
-    | FloatColumn a -> FloatColumn (Array.init n (fun i -> a.(indices.(i))))
-    | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(indices.(i))))
-    | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
-    | DateColumn a -> DateColumn (Array.init n (fun i -> a.(indices.(i))))
-    | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(indices.(i))), tz)
-    | NullColumn _ -> NullColumn n
-    | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
-    | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
-  in
-  let columns = List.map (fun (name, col) -> (name, sort_col col)) source_columns in
-  { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize
+  match t.native_handle with
+  | Some handle when not handle.freed ->
+      (match Arrow_ffi.arrow_table_take handle.ptr indices with
+       | Some new_ptr ->
+           let schema = schema_from_native_ptr new_ptr in
+           create_from_native new_ptr schema (Array.length indices)
+       | None -> 
+           (* Fallback: Materialize native columns if needed, then sort *)
+           let source_columns =
+             List.map (fun (n, _) ->
+               match get_column t n with
+               | Some data -> (n, data)
+               | None -> (n, NullColumn t.nrows)
+             ) t.schema
+           in
+           let n = Array.length indices in
+           let sort_col = function
+             | IntColumn a -> IntColumn (Array.init n (fun i -> a.(indices.(i))))
+             | FloatColumn a -> FloatColumn (Array.init n (fun i -> a.(indices.(i))))
+             | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(indices.(i))))
+             | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
+             | DateColumn a -> DateColumn (Array.init n (fun i -> a.(indices.(i))))
+             | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(indices.(i))), tz)
+             | NullColumn _ -> NullColumn n
+             | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
+             | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
+           in
+           let columns = List.map (fun (name, col) -> (name, sort_col col)) source_columns in
+           { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize)
+  | _ ->
+    let n = Array.length indices in
+    let sort_col = function
+      | IntColumn a -> IntColumn (Array.init n (fun i -> a.(indices.(i))))
+      | FloatColumn a -> FloatColumn (Array.init n (fun i -> a.(indices.(i))))
+      | BoolColumn a -> BoolColumn (Array.init n (fun i -> a.(indices.(i))))
+      | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
+      | DateColumn a -> DateColumn (Array.init n (fun i -> a.(indices.(i))))
+      | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(indices.(i))), tz)
+      | NullColumn _ -> NullColumn n
+      | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
+      | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
+    in
+    let columns = List.map (fun (name, col) -> (name, sort_col col)) t.columns in
+    { schema = t.schema; columns; nrows = n; native_handle = None } |> materialize
 
 (** Rename columns based on an old_name -> new_name mapping. *)
 let rename_columns (t : t) (mapping : (string * string) list) : t =
-  let old_to_new = List.map (fun (new_n, old_n) -> (old_n, new_n)) mapping in
-  let new_schema =
-    List.map
-      (fun (name, type_) ->
+  match t.native_handle with
+  | Some handle when not handle.freed ->
+      let rec apply_native_renames current_ptr current_schema renames =
+        match renames with
+        | [] -> Some (current_ptr, current_schema)
+        | (new_n, old_n) :: rest ->
+            match Arrow_ffi.arrow_table_rename_column current_ptr old_n new_n with
+            | Some next_ptr ->
+                let next_schema = schema_from_native_ptr next_ptr in
+                apply_native_renames next_ptr next_schema rest
+            | None -> None
+      in
+      (match apply_native_renames handle.ptr t.schema mapping with
+       | Some (final_ptr, final_schema) ->
+           create_from_native final_ptr final_schema t.nrows
+       | None ->
+           (* Fallback: materialize all columns and then rename *)
+           let old_to_new = List.map (fun (new_n, old_n) -> (old_n, new_n)) mapping in
+           let new_schema = List.map (fun (name, ty) ->
+             match List.assoc_opt name old_to_new with
+             | Some new_name -> (new_name, ty) | None -> (name, ty)) t.schema in
+           let columns = List.map (fun (name, _) ->
+             let col = match get_column t name with Some c -> c | None -> NullColumn t.nrows in
+             match List.assoc_opt name old_to_new with
+             | Some new_name -> (new_name, col) | None -> (name, col)) t.schema in
+           { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize)
+  | _ ->
+      let old_to_new = List.map (fun (new_n, old_n) -> (old_n, new_n)) mapping in
+      let new_schema = List.map (fun (name, ty) ->
         match List.assoc_opt name old_to_new with
-        | Some new_name -> (new_name, type_)
-        | None -> (name, type_))
-      t.schema
-  in
-  (* For native-backed tables, load each column into pure OCaml storage first
-     so we don't lose data when renaming (materialize only converts pure→native). *)
-  let t =
-    match t.native_handle with
-    | Some _ ->
-        let loaded_columns =
-          List.map
-            (fun (name, _) ->
-              let col =
-                match get_column t name with
-                | Some c -> c
-                | None -> NullColumn t.nrows
-              in
-              (name, col))
-            t.schema
-        in
-        { t with columns = loaded_columns; native_handle = None }
-    | None -> t
-  in
-  let new_columns =
-    List.map
-      (fun (name, data) ->
+        | Some new_name -> (new_name, ty) | None -> (name, ty)) t.schema in
+      let columns = List.map (fun (name, data) ->
         match List.assoc_opt name old_to_new with
-        | Some new_name -> (new_name, data)
-        | None -> (name, data))
-      t.columns
-  in
-  { t with schema = new_schema; columns = new_columns; native_handle = None }
-  |> materialize
+        | Some new_name -> (new_name, data) | None -> (name, data)) t.columns in
+      { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize

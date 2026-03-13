@@ -34,8 +34,7 @@ let register env =
       let take_head_df arrow_table group_keys n =
         let nrows = Arrow_table.num_rows arrow_table in
         let take_n = min n nrows in
-        let indices = List.init take_n (fun i -> i) in
-        let new_table = Arrow_table.take_rows arrow_table indices in
+        let new_table = Arrow_table.slice arrow_table 0 take_n in
         VDataFrame { arrow_table = new_table; group_keys }
       in
       match args with

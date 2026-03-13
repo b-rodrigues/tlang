@@ -1,8 +1,15 @@
 open Ast
 
+(** Scalar literals extracted from AST nodes for vectorized mutate lowering.
+    Keeping integer and float literals distinct preserves integer arithmetic
+    semantics for operations like Int column + Int scalar. *)
+type scalar_literal =
+  | IntScalar of int
+  | FloatScalar of float
+
 let extract_scalar = function
-  | Value (VInt i) -> Some (float_of_int i)
-  | Value (VFloat f) -> Some f
+  | Value (VInt i) -> Some (IntScalar i)
+  | Value (VFloat f) -> Some (FloatScalar f)
   | _ -> None
 
 let is_col_ref param = function
@@ -51,12 +58,25 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
         match expr with
         | BinOp { op; left; right } ->
           let try_col_scalar source_table source_col scalar =
-            match scalar_op_fn op with
-            | Some f ->
-              (match f source_table source_col scalar with
-               | Some result_table -> Some (result_table, source_col)
+            let apply_table_result = function
+              | Some result_table -> Some (result_table, source_col)
+              | None -> None
+            in
+            match scalar with
+            | IntScalar scalar_value ->
+              (match op with
+               | Plus -> apply_table_result (Arrow_compute.add_int_scalar source_table source_col scalar_value)
+               | Mul -> apply_table_result (Arrow_compute.multiply_int_scalar source_table source_col scalar_value)
+               | Minus -> apply_table_result (Arrow_compute.subtract_int_scalar source_table source_col scalar_value)
+               | Div ->
+                 (match scalar_op_fn op with
+                  | Some f -> apply_table_result (f source_table source_col (float_of_int scalar_value))
+                  | None -> None)
+               | _ -> None)
+            | FloatScalar scalar_value ->
+              (match scalar_op_fn op with
+               | Some f -> apply_table_result (f source_table source_col scalar_value)
                | None -> None)
-            | None -> None
           in
           (match is_col_ref param left, is_col_ref param right with
            | Some c1, Some c2 ->
@@ -110,10 +130,9 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
      | Some (result_table, result_col) ->
        if result_col = col_name then Some result_table
        else
-         (match Arrow_table.get_column result_table result_col with
-          | Some col_data -> Some (Arrow_table.add_column table col_name col_data)
-          | None -> None)
-     | None -> None)
+         Some (Arrow_table.add_column_from_table table col_name result_table result_col)
+     | None ->
+       None)
   | _ -> None
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =

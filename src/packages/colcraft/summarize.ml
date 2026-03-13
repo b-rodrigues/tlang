@@ -51,10 +51,26 @@ let column_has_nulls (table : Arrow_table.t) (col_name : string) : bool =
   | None -> true
   | _ -> true
 
-let can_vectorize_agg (table : Arrow_table.t) (agg_name : string) (col_name : string) (na_rm : bool) : bool =
+let column_has_nulls_cached
+    (table : Arrow_table.t)
+    (null_cache : (string, bool) Hashtbl.t)
+    (col_name : string) : bool =
+  match Hashtbl.find_opt null_cache col_name with
+  | Some has_nulls -> has_nulls
+  | None ->
+    let has_nulls = column_has_nulls table col_name in
+    Hashtbl.replace null_cache col_name has_nulls;
+    has_nulls
+
+let can_vectorize_agg
+    (table : Arrow_table.t)
+    (null_cache : (string, bool) Hashtbl.t)
+    (agg_name : string)
+    (col_name : string)
+    (na_rm : bool) : bool =
   match agg_name with
   | "n" | "n_distinct" -> true
-  | _ -> na_rm || not (column_has_nulls table col_name)
+  | _ -> na_rm || not (column_has_nulls_cached table null_cache col_name)
 
 let finalize_vectorized_agg_value (agg_name : string) (value : value) : value =
   match agg_name, value with
@@ -104,15 +120,18 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           (match parse_pairs [] rest_args with
            | Error e -> e
            | Ok pairs ->
-             if pairs = [] then
-               Error.make_error ArityError "Function `summarize` requires at least one $column = expr argument."
-             else if df.group_keys = [] then
-               (* Ungrouped summarize: try vectorized path for each aggregation *)
+              let null_cache = Hashtbl.create (max 1 (List.length pairs)) in
+              if pairs = [] then
+                Error.make_error ArityError "Function `summarize` requires at least one $column = expr argument."
+              else if df.group_keys = [] then
+                (* Ungrouped summarize: try vectorized path for each aggregation *)
                 let result_cols = List.map (fun (name, fn) ->
                   match detect_vectorizable_agg fn with
                   | Some (agg_name, col_name, na_rm) ->
                     (* Vectorized path: use Arrow compute column aggregation *)
-                    let can_vectorize = can_vectorize_agg df.arrow_table agg_name col_name na_rm in
+                    let can_vectorize =
+                      can_vectorize_agg df.arrow_table null_cache agg_name col_name na_rm
+                    in
                     if can_vectorize then
                       let agg_fn = match agg_name with
                         | "mean" -> Arrow_compute.mean_column
@@ -141,20 +160,20 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                   let value_columns = List.map (fun (name, v) -> (name, [|v|])) result_cols in
                   let arrow_table = Arrow_bridge.table_from_value_columns value_columns 1 in
                   VDataFrame { arrow_table; group_keys = [] })
-              else
-                let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
+               else
+                 let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
                 let vectorized_pairs =
                   List.map (fun (name, fn) ->
                     match detect_vectorizable_agg fn with
                     | Some (agg_name, col_name, na_rm)
-                      when can_vectorize_agg df.arrow_table agg_name col_name na_rm ->
-                        let agg_name_eff =
-                          match agg_name with
-                          | "nrow" | "n" -> "count"
-                          | "n_distinct" -> "count_distinct"
-                          | _ -> agg_name
-                        in
-                        Some (name, fn, agg_name, agg_name_eff, col_name)
+                      when can_vectorize_agg df.arrow_table null_cache agg_name col_name na_rm ->
+                      let agg_name_eff =
+                        match agg_name with
+                        | "nrow" | "n" -> "count"
+                        | "n_distinct" -> "count_distinct"
+                        | _ -> agg_name
+                      in
+                      Some (name, fn, agg_name, agg_name_eff, col_name)
                     | _ -> None
                   ) pairs
                 in
@@ -165,58 +184,21 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                 in
                 (match collect_if_all_vectorizable [] vectorized_pairs with
                 | Some specs ->
-                  let had_error = ref None in
                   (match specs with
                    | [] ->
                      Error.make_error ArityError "Function `summarize` requires at least one $column = expr argument."
-                   | (first_name, _, first_agg_name, first_agg_name_eff, first_col_name) :: rest_specs ->
-                     let first_result_table =
-                       Arrow_compute.group_aggregate grouped first_agg_name_eff first_col_name
-                     in
-                     let n_groups = Arrow_table.num_rows first_result_table in
-                     let key_result_cols = List.map (fun key ->
-                       match Arrow_table.get_column first_result_table key with
-                       | Some col -> (key, Arrow_bridge.column_to_values col)
-                       | None -> (key, Array.make n_groups VNull)
-                     ) df.group_keys in
-                     (* Local helper: extract and rename the aggregated output
-                        column from a grouped Arrow result table. agg_name is
-                        the public T aggregation name used for result
-                        post-processing, while agg_name_eff is the internal
-                        Arrow aggregation name used to locate the produced
-                        result column. *)
-                      let extract_result_col result_name agg_name agg_name_eff col_name result_table =
-                        let result_col_key = if agg_name_eff = "count" then "n" else col_name in
-                        match Arrow_table.get_column result_table result_col_key with
-                        | Some col ->
-                          let values = Arrow_bridge.column_to_values col in
-                          (result_name, finalize_vectorized_agg_values agg_name values)
-                        | None ->
-                          let msg =
-                            Printf.sprintf
-                              "Function `summarize` could not retrieve grouped result column `%s` from Arrow aggregation."
-                              result_col_key
-                          in
-                          let err = Error.make_error RuntimeError msg in
-                          had_error := Some err;
-                          (result_name, Array.make n_groups VNull)
-                      in
-                     let first_summary_col =
-                       extract_result_col first_name first_agg_name first_agg_name_eff first_col_name first_result_table
-                     in
-                     let summary_result_cols =
-                       first_summary_col ::
-                       List.map (fun (name, _fn, agg_name, agg_name_eff, col_name) ->
-                         let result_table = Arrow_compute.group_aggregate grouped agg_name_eff col_name in
-                         extract_result_col name agg_name agg_name_eff col_name result_table
-                       ) rest_specs
-                     in
-                      (match !had_error with
-                       | Some e -> e
-                       | None ->
-                         let all_columns = key_result_cols @ summary_result_cols in
-                         let arrow_table = Arrow_bridge.table_from_value_columns all_columns n_groups in
-                         VDataFrame { arrow_table; group_keys = [] }))
+                   | (first_name, _, _first_agg, first_agg_eff, first_col) :: rest_specs ->
+                     let first_res = Arrow_compute.group_aggregate grouped first_agg_eff first_col in
+                     let first_col_key = if first_agg_eff = "count" then "n" else first_col in
+                     (* Rename the first result column to its target name and keep it native *)
+                     let base_table = Arrow_table.rename_columns first_res [(first_name, first_col_key)] in
+                     
+                     let final_table = List.fold_left (fun acc (name, _fn, _agg, agg_eff, col) ->
+                       let res_table = Arrow_compute.group_aggregate grouped agg_eff col in
+                       let res_col_key = if agg_eff = "count" then "n" else col in
+                       Arrow_table.add_column_from_table acc name res_table res_col_key
+                     ) base_table rest_specs in
+                     VDataFrame { arrow_table = final_table; group_keys = [] })
                 | None ->
                   let groups = Arrow_compute.get_ocaml_groups grouped in
                   let n_groups = List.length groups in
@@ -243,24 +225,26 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                   let summary_result_cols = List.map (fun (name, fn) ->
                     if !had_error <> None then (name, Array.make n_groups VNull)
                     else
-                       match detect_vectorizable_agg fn with
-                       | Some (agg_name, col_name, na_rm) ->
-                         (* Vectorized grouped aggregation via Arrow_compute.group_aggregate *)
-                          let can_vectorize = can_vectorize_agg df.arrow_table agg_name col_name na_rm in
-                          if can_vectorize then
-                            let agg_name_eff =
-                              match agg_name with
-                              | "nrow" | "n" -> "count"
-                              | "n_distinct" -> "count_distinct"
-                              | _ -> agg_name
-                            in
-                            let result_table = Arrow_compute.group_aggregate grouped agg_name_eff col_name in
-                            let result_col_key = if agg_name_eff = "count" then "n" else col_name in
-                            (match Arrow_table.get_column result_table result_col_key with
-                             | Some col ->
-                               let values = Arrow_bridge.column_to_values col in
-                               (name, finalize_vectorized_agg_values agg_name values)
-                             | None ->
+                      match detect_vectorizable_agg fn with
+                      | Some (agg_name, col_name, na_rm) ->
+                        (* Vectorized grouped aggregation via Arrow_compute.group_aggregate *)
+                        let can_vectorize =
+                          can_vectorize_agg df.arrow_table null_cache agg_name col_name na_rm
+                        in
+                        if can_vectorize then
+                          let agg_name_eff =
+                            match agg_name with
+                            | "nrow" | "n" -> "count"
+                            | "n_distinct" -> "count_distinct"
+                            | _ -> agg_name
+                          in
+                          let result_table = Arrow_compute.group_aggregate grouped agg_name_eff col_name in
+                          let result_col_key = if agg_name_eff = "count" then "n" else col_name in
+                          (match Arrow_table.get_column result_table result_col_key with
+                           | Some col ->
+                             let values = Arrow_bridge.column_to_values col in
+                             (name, finalize_vectorized_agg_values agg_name values)
+                           | None ->
                              (* Native group_aggregate failed — fall back to per-group *)
                              let col = Array.init n_groups (fun g_idx ->
                                let (_, row_indices) = groups_array.(g_idx) in

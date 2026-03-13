@@ -110,6 +110,21 @@ external arrow_table_project : nativeint -> string list -> nativeint option
 external arrow_table_filter_mask : nativeint -> bool array -> nativeint option
   = "caml_arrow_table_filter_mask"
 
+external arrow_table_remove_column : nativeint -> string -> nativeint option
+  = "caml_arrow_table_remove_column"
+
+external arrow_table_rename_column : nativeint -> string -> string -> nativeint option
+  = "caml_arrow_table_rename_column"
+
+external arrow_table_add_column_from_table : nativeint -> string -> nativeint -> string -> nativeint option
+  = "caml_arrow_table_add_column_from_table"
+
+external arrow_table_slice : nativeint -> int64 -> int64 -> nativeint option
+  = "caml_arrow_table_slice"
+
+external arrow_table_take : nativeint -> int array -> nativeint option
+  = "caml_arrow_table_take"
+
 (* ===================================================================== *)
 (* Sort                                                                  *)
 (* ===================================================================== *)

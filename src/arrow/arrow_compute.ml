@@ -71,57 +71,132 @@ let schema_from_native_ptr (ptr : nativeint) : Arrow_table.arrow_schema =
   let pairs = Arrow_ffi.arrow_table_get_schema ptr in
   List.map (fun (name, tag) -> (name, Arrow_table.arrow_type_of_tag tag)) pairs
 
-(** Add a scalar to every element of a named column.
-    Uses Arrow Compute 'add' kernel when native handle is present. *)
-let add_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arrow_table.t option =
+(** Add or replace a computed column while preserving the native path when
+    possible. For native-backed destination tables, materialize only the new
+    column into a temporary one-column native table and splice it in via the
+    dedicated add-column FFI helper, avoiding full-table materialization. *)
+let add_computed_column (t : Arrow_table.t) (name : string)
+    (col : Arrow_table.column_data) : Arrow_table.t =
   match t.native_handle with
   | Some handle when not handle.Arrow_table.freed ->
-      (match Arrow_ffi.arrow_compute_add_scalar handle.ptr col_name scalar with
+      let temp_table =
+        Arrow_table.create [ (name, col) ] t.nrows |> Arrow_table.materialize in
+      if Arrow_table.is_native_backed temp_table then
+        Arrow_table.add_column_from_table t name temp_table name
+      else
+        Arrow_table.add_column t name col
+  | _ ->
+      Arrow_table.add_column t name col
+
+(** Apply a scalar arithmetic operation element-wise to a named numeric column.
+    Returns Some(column_data) suitable for replacing the source column. *)
+let column_scalar_op (t : Arrow_table.t) (col_name : string)
+    (scalar : float) (op : float -> float -> float)
+    : Arrow_table.column_data option =
+  match Arrow_table.get_column t col_name with
+  | Some (Arrow_table.FloatColumn a) ->
+      Some (Arrow_table.FloatColumn
+        (Array.map (function Some f -> Some (op f scalar) | None -> None) a))
+  | Some (Arrow_table.IntColumn a) ->
+      Some (Arrow_table.FloatColumn
+        (Array.map (function Some i -> Some (op (float_of_int i) scalar) | None -> None) a))
+  | _ -> None
+
+(** Apply a scalar arithmetic kernel and return a table with the source column
+    replaced by the computed result. Uses the native Arrow implementation when
+    available and falls back to a pure OCaml column operation otherwise. *)
+let scalar_op_to_table (t : Arrow_table.t) (col_name : string) (scalar : float)
+    (native_fn : nativeint -> string -> float -> nativeint option)
+    (ocaml_fn : Arrow_table.t -> string -> float -> Arrow_table.column_data option)
+    : Arrow_table.t option =
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+      (match native_fn handle.ptr col_name scalar with
        | Some new_ptr ->
            let schema = schema_from_native_ptr new_ptr in
            let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
            Some (Arrow_table.create_from_native new_ptr schema nrows)
-       | None -> None)
+       | None ->
+           (match ocaml_fn t col_name scalar with
+            | Some col_data -> Some (add_computed_column t col_name col_data)
+            | None -> None))
+  | _ ->
+      (match ocaml_fn t col_name scalar with
+       | Some col_data -> Some (add_computed_column t col_name col_data)
+        | None -> None)
+
+(** Apply an integer scalar arithmetic operation element-wise to a named Int64
+    column while preserving integer output. Returns None for non-integer input
+    columns so callers can fall back to the generic numeric path. *)
+let int_column_scalar_op (t : Arrow_table.t) (col_name : string)
+    (scalar : int) (op : int -> int -> int)
+    : Arrow_table.column_data option =
+  match Arrow_table.get_column t col_name with
+  | Some (Arrow_table.IntColumn a) ->
+      Some (Arrow_table.IntColumn
+        (Array.map (function Some i -> Some (op i scalar) | None -> None) a))
   | _ -> None
+
+(** Apply an integer scalar arithmetic operation to a table column.
+    Preserves Int64 output for integral columns and falls back to the existing
+    float-based scalar path for non-integral numeric columns. *)
+let int_scalar_op_to_table (t : Arrow_table.t) (col_name : string) (scalar : int)
+    (int_op : int -> int -> int)
+    (native_fn : nativeint -> string -> float -> nativeint option)
+    (float_ocaml_fn : Arrow_table.t -> string -> float -> Arrow_table.column_data option)
+    : Arrow_table.t option =
+  match int_column_scalar_op t col_name scalar int_op with
+  | Some col_data -> Some (add_computed_column t col_name col_data)
+  | None -> scalar_op_to_table t col_name (float_of_int scalar) native_fn float_ocaml_fn
+
+(** Add a scalar to every element of a named column.
+      Uses Arrow Compute 'add' kernel when native handle is present. *)
+let add_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arrow_table.t option =
+  scalar_op_to_table t col_name scalar
+    Arrow_ffi.arrow_compute_add_scalar
+    (fun table name scalar_value -> column_scalar_op table name scalar_value ( +. ))
+
+(** Add an integer scalar to every element of a named column, preserving Int64
+    output when the source column is integral. *)
+let add_int_scalar (t : Arrow_table.t) (col_name : string) (scalar : int) : Arrow_table.t option =
+  int_scalar_op_to_table t col_name scalar ( + )
+    Arrow_ffi.arrow_compute_add_scalar
+    (fun table name scalar_value -> column_scalar_op table name scalar_value ( +. ))
 
 (** Multiply every element of a named column by a scalar.
-    Uses Arrow Compute 'multiply' kernel when native handle is present. *)
+      Uses Arrow Compute 'multiply' kernel when native handle is present. *)
 let multiply_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arrow_table.t option =
-  match t.native_handle with
-  | Some handle when not handle.Arrow_table.freed ->
-      (match Arrow_ffi.arrow_compute_multiply_scalar handle.ptr col_name scalar with
-       | Some new_ptr ->
-           let schema = schema_from_native_ptr new_ptr in
-           let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
-           Some (Arrow_table.create_from_native new_ptr schema nrows)
-       | None -> None)
-  | _ -> None
+  scalar_op_to_table t col_name scalar
+    Arrow_ffi.arrow_compute_multiply_scalar
+    (fun table name scalar_value -> column_scalar_op table name scalar_value ( *. ))
+
+(** Multiply every element of a named column by an integer scalar, preserving
+    Int64 output when the source column is integral. *)
+let multiply_int_scalar (t : Arrow_table.t) (col_name : string) (scalar : int) : Arrow_table.t option =
+  int_scalar_op_to_table t col_name scalar ( * )
+    Arrow_ffi.arrow_compute_multiply_scalar
+    (fun table name scalar_value -> column_scalar_op table name scalar_value ( *. ))
 
 (** Subtract a scalar from every element of a named column.
-    Uses Arrow Compute 'subtract' kernel when native handle is present. *)
+      Uses Arrow Compute 'subtract' kernel when native handle is present. *)
 let subtract_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arrow_table.t option =
-  match t.native_handle with
-  | Some handle when not handle.Arrow_table.freed ->
-      (match Arrow_ffi.arrow_compute_subtract_scalar handle.ptr col_name scalar with
-       | Some new_ptr ->
-           let schema = schema_from_native_ptr new_ptr in
-           let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
-           Some (Arrow_table.create_from_native new_ptr schema nrows)
-       | None -> None)
-  | _ -> None
+  scalar_op_to_table t col_name scalar
+    Arrow_ffi.arrow_compute_subtract_scalar
+    (fun table name scalar_value -> column_scalar_op table name scalar_value ( -. ))
+
+(** Subtract an integer scalar from every element of a named column,
+    preserving Int64 output when the source column is integral. *)
+let subtract_int_scalar (t : Arrow_table.t) (col_name : string) (scalar : int) : Arrow_table.t option =
+  int_scalar_op_to_table t col_name scalar ( - )
+    Arrow_ffi.arrow_compute_subtract_scalar
+    (fun table name scalar_value -> column_scalar_op table name scalar_value ( -. ))
 
 (** Divide every element of a named column by a scalar.
-    Uses Arrow Compute 'divide' kernel when native handle is present. *)
+      Uses Arrow Compute 'divide' kernel when native handle is present. *)
 let divide_scalar (t : Arrow_table.t) (col_name : string) (scalar : float) : Arrow_table.t option =
-  match t.native_handle with
-  | Some handle when not handle.Arrow_table.freed ->
-      (match Arrow_ffi.arrow_compute_divide_scalar handle.ptr col_name scalar with
-       | Some new_ptr ->
-           let schema = schema_from_native_ptr new_ptr in
-           let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
-           Some (Arrow_table.create_from_native new_ptr schema nrows)
-       | None -> None)
-  | _ -> None
+  scalar_op_to_table t col_name scalar
+    Arrow_ffi.arrow_compute_divide_scalar
+    (fun table name scalar_value -> column_scalar_op table name scalar_value ( /. ))
 
 (* ===================================================================== *)
 (* Column-to-Column Arithmetic (Vectorized Processing)                    *)
@@ -198,16 +273,16 @@ let column_binary_op_to_table (t : Arrow_table.t) (col1 : string) (col2 : string
   | Some handle when not handle.Arrow_table.freed ->
       (match native_fn handle.ptr col1 col2 result_name with
        | Some new_ptr ->
-           let schema = schema_from_native_ptr new_ptr in
-           let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
-           Some (Arrow_table.create_from_native new_ptr schema nrows)
+            let schema = schema_from_native_ptr new_ptr in
+            let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
+            Some (Arrow_table.create_from_native new_ptr schema nrows)
        | None ->
            (match ocaml_fn t col1 col2 with
-            | Some col_data -> Some (Arrow_table.add_column t result_name col_data)
+            | Some col_data -> Some (add_computed_column t result_name col_data)
             | None -> None))
   | _ ->
       (match ocaml_fn t col1 col2 with
-       | Some col_data -> Some (Arrow_table.add_column t result_name col_data)
+       | Some col_data -> Some (add_computed_column t result_name col_data)
        | None -> None)
 
 let add_columns_to_table (t : Arrow_table.t) (col1 : string) (col2 : string)
@@ -441,11 +516,11 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
         if !count > 0 then Ast.VFloat (!sum /. float_of_int !count)
         else Ast.VNA Ast.NAFloat
     | "count" ->
-        Ast.VFloat (float_of_int (List.length indices))
+        Ast.VInt (List.length indices)
     | "count_distinct" ->
         let seen = Value_hash.ValueHash.create (max 1 (min 64 (List.length indices))) in
         List.iter (fun i -> Value_hash.ValueHash.replace seen target_vals.(i) ()) indices;
-        Ast.VFloat (float_of_int (Value_hash.ValueHash.length seen))
+        Ast.VInt (Value_hash.ValueHash.length seen)
     | "min" ->
         let m = ref None in
         List.iter (fun i ->
