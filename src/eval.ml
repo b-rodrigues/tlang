@@ -1399,6 +1399,7 @@ and eval_call env_ref fn_val raw_args =
              proper NSE row context in mutate/summarize. *)
           (match name, expr with
            | None, Call _ -> (name, expr)
+           | None, BinOp { op = (Pipe | MaybePipe); _ } -> (name, expr)
             | _ ->
                let desugared = desugar_nse_expr expr in
                (name, make_row_lambda desugared))
