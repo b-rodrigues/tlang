@@ -49,7 +49,7 @@ let register env =
               p_serializers  = rename_key p.p_serializers;
               p_deserializers = rename_key p.p_deserializers;
               p_env_vars     = rename_key p.p_env_vars;
-              p_args         = rename_key p.p_args;
+              p_args         = rename_key p.p_args; p_shells       = rename_key p.p_shells; p_shell_args   = rename_key p.p_shell_args;
               p_functions    = rename_key p.p_functions;
               p_includes     = rename_key p.p_includes;
               p_noops        = rename_key p.p_noops;

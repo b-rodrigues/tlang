@@ -268,7 +268,7 @@ p_cross = pipeline {
 
   test "node args must be a dict"
     {|node(runtime = Quarto, args = 1)|}
-    {|Error(TypeError: "Function `node` expects `args` to be a Dict.")|};
+    {|Error(TypeError: "Function `node` expects `args` to be a Dict or List.")|};
 
   test "node args values must stay shallow"
     {|node(runtime = Quarto, args = [path: "report.qmd", extra: [nested: [too_deep: 1]]])|}

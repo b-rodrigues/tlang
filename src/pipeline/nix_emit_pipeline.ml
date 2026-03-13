@@ -52,8 +52,9 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
       let includes = match List.assoc_opt name p.p_includes with Some f -> f | None -> [] in
       let noop = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
       let script = match List.assoc_opt name p.p_scripts with Some s -> s | None -> None in
-      emit_node (name, expr) deps node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script)
-
+      let shell = match List.assoc_opt name p.p_shells with Some s -> s | None -> None in
+      let shell_args = match List.assoc_opt name p.p_shell_args with Some args -> args | None -> [] in
+      emit_node (name, expr) deps node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args)
     |> String.concat "\n"
   in
   let final_copy =

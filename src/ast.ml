@@ -70,6 +70,8 @@ and pipeline_result = {
   p_deserializers : (string * expr) list;    (* Map node name -> deserializer expr *)
   p_env_vars : (string * (string * value) list) list;  (* Map node name -> build env vars *)
   p_args : (string * (string * value) list) list;      (* Map node name -> runtime/tool args *)
+  p_shells : (string * string option) list;          (* Map node name -> shell interpreter name *)
+  p_shell_args : (string * expr list) list;          (* Map node name -> shell interpreter args *)
   p_functions : (string * expr list) list;   (* Map node name -> function files *)
   p_includes : (string * expr list) list;    (* Map node name -> included files *)
   p_noops : (string * bool) list;            (* Map node name -> noop flag *)
@@ -103,6 +105,8 @@ and unbuilt_node = {
   un_deserializer : expr;
   un_env_vars : (string * value) list;
   un_args : (string * value) list;
+  un_shell : string option;
+  un_shell_args : expr list;
   un_functions : expr list;
   un_includes : expr list;
   un_noop : bool;
