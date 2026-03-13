@@ -66,7 +66,7 @@ let is_valid_nix_pkg_name s =
 (** Filter a list of package names to only valid Nix identifiers.
     Prints a warning for each rejected entry so users are informed
     when their config contains an invalid or potentially unsafe identifier. *)
-let safe_pkg_names_with_warning ?(warn = true) names =
+let safe_pkg_names ?(warn = true) names =
   List.filter (fun name ->
     if is_valid_nix_pkg_name name then true
     else begin
@@ -77,9 +77,6 @@ let safe_pkg_names_with_warning ?(warn = true) names =
       false
     end
   ) names
-
-let safe_pkg_names names =
-  safe_pkg_names_with_warning ~warn:true names
 
 (** Generate a complete project flake.nix from dependencies *)
 let generate_project_flake
@@ -94,8 +91,8 @@ let generate_project_flake
     ?(latex_pkgs : string list = [])
     ?(warn_invalid_pkg_names : bool = true)
     () : string =
-  let additional_tools = safe_pkg_names_with_warning ~warn:warn_invalid_pkg_names additional_tools in
-  let latex_pkgs = safe_pkg_names_with_warning ~warn:warn_invalid_pkg_names latex_pkgs in
+  let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
+  let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
   (* Inputs section *)
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
@@ -235,8 +232,8 @@ let generate_package_flake
     ?(latex_pkgs : string list = [])
     ?(warn_invalid_pkg_names : bool = true)
     () : string =
-  let additional_tools = safe_pkg_names_with_warning ~warn:warn_invalid_pkg_names additional_tools in
-  let latex_pkgs = safe_pkg_names_with_warning ~warn:warn_invalid_pkg_names latex_pkgs in
+  let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
+  let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =
