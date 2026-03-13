@@ -927,7 +927,7 @@ EOF
            args, and optional shell/shell_args metadata.
            - Exec mode (no shell key): runs command directly with argv
            - Shell mode (shell = "sh" or "bash"): runs through the specified shell *)
-        let cmd_s = Nix_unparse.expr_to_string expr in
+        let command_string = Nix_unparse.expr_to_string expr in
         let shell_interpreter =
           match List.assoc_opt "shell" runtime_args with
           | Some (Ast.VString s) -> Some s
@@ -955,7 +955,7 @@ EOF
                | Ast.VBool false -> Some "false"
                | _ -> None)
         in
-        let script_exec = match script with
+        let execution_command = match script with
           | Some script_path ->
               Printf.sprintf "%s %s" (shell_single_quote script_path)
                 (String.concat " " positional_argv)
@@ -966,18 +966,18 @@ EOF
                    Printf.sprintf "%s %s %s"
                      (shell_single_quote sh)
                      (String.concat " " (List.map shell_single_quote sh_args))
-                     (shell_single_quote cmd_s)
+                     (shell_single_quote command_string)
                | None ->
                    if positional_argv = [] then
-                     shell_single_quote cmd_s
+                     shell_single_quote command_string
                    else
                      Printf.sprintf "%s %s"
-                       (shell_single_quote cmd_s)
+                       (shell_single_quote command_string)
                        (String.concat " " positional_argv))
         in
         Printf.sprintf {|export T_OUTPUT=$out/artifact
       %s
-      echo "ShellOutput" > $out/class|} script_exec
+      echo "ShellOutput" > $out/class|} execution_command
     | "Quarto" ->
         let cli_block =
           if quarto_cli_args_block = "" then ""

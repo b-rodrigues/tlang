@@ -16,9 +16,9 @@
 --# @param runtime :: Symbol (Optional) The runtime environment (T, R, Python, Quarto, sh). Default = T.
 --#   Use `sh` for shell/CLI-backed nodes that execute arbitrary commands or scripts.
 --# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
---#   For shell nodes: `text`, `lines`, `json`, `arrow`.
+--#   For shell nodes, supported values include: `text`, `lines`, `json`, `arrow`.
 --# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.
---#   For shell nodes: `text`, `lines`, `json`, `arrow`.
+--#   Accepts the same values as `serializer`.
 --# @param args :: Dict | List (Optional) Runtime/tool arguments.
 --#   For Quarto, use this to pass CLI arguments such as `subcommand`, `path`, and additional options.
 --#   For `sh` exec mode, use a List of String arguments (the argv).
