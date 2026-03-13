@@ -499,9 +499,10 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                  Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
       in
       let lookup_runtime_args () =
-        let rec is_arg_value = function
+        let rec is_arg_value ~allow_list = function
           | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
-          | VList items -> List.for_all (fun (_, v) -> is_arg_value v) items
+          | VList items when allow_list ->
+              List.for_all (fun (_, v) -> is_arg_value ~allow_list:false v) items
           | _ -> false
         in
         match List.assoc_opt (Some "args") args with
@@ -509,14 +510,20 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         | Some e ->
             (match eval_expr env_ref e with
              | VDict pairs ->
-                  (match List.find_opt (fun (_, v) -> not (is_arg_value v)) pairs with
+                  (match List.find_opt (fun (_, v) -> not (is_arg_value ~allow_list:true v)) pairs with
                    | None -> Ok pairs
                    | Some (key, _) ->
                        Error (Error.type_error
                                 (Printf.sprintf "Function `%s` expects runtime arg `%s` to be a String, Symbol, Int, Float, Bool, Null, or List of those values." fn_name key)))
+             | VList items ->
+                  (match List.find_opt (fun (_, v) -> not (is_arg_value ~allow_list:false v)) items with
+                   | None -> Ok (List.mapi (fun i (_, v) -> (string_of_int i, v)) items)
+                   | Some _ ->
+                       Error (Error.type_error
+                                (Printf.sprintf "Function `%s` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values." fn_name)))
              | VNull -> Ok []
              | _ ->
-                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict." fn_name)))
+                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict or List." fn_name)))
       in
       let lookup_list name =
         match List.assoc_opt (Some name) args with
@@ -542,6 +549,12 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              | _ -> None)
         | None -> None
       in
+      let shell_opt =
+        match List.assoc_opt (Some "shell") args with
+        | Some e -> (match eval_expr env_ref e with VString s -> Some s | VSymbol s -> Some s | _ -> None)
+        | None -> None
+      in
+      let shell_args = lookup_list "shell_args" in
       let command = lookup_arg "command" (Value VNull) in
       (match lookup_env_vars (), lookup_runtime_args () with
       | Error err, _ | _, Error err -> err
@@ -574,9 +587,9 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               let explicit = eval_string "runtime" "" in
               if explicit <> "" then explicit
               else match explicit_script_path_opt with
-                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | _ -> default_runtime)
+                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | _ -> default_runtime)
                 | None -> (match arg_path_opt with
-                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | _ -> default_runtime)
+                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | _ -> default_runtime)
                     | _ -> default_runtime)
             in
             if has_command && runtime = "Quarto" then
@@ -613,15 +626,41 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | RawCode _ ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_arg "serializer" (Var "default");
+                      un_serializer = lookup_arg "serializer" (match runtime with "sh" -> Var "text" | _ -> Var "default");
                       un_deserializer = lookup_arg "deserializer" (Var "default");
                       un_env_vars; un_args;
+                      un_shell = shell_opt;
+                      un_shell_args = shell_args;
+                      un_functions = lookup_list "functions";
+                      un_includes;
+                      un_noop = eval_bool "noop" false;
+                    }
+                | Value (VString _) | Value (VSymbol _) | Value VNull when runtime = "sh" ->
+                    VNode {
+                      un_command; un_script; un_runtime = runtime;
+                      un_serializer = lookup_arg "serializer" (Var "text");
+                      un_deserializer = lookup_arg "deserializer" (Var "default");
+                      un_env_vars; un_args;
+                      un_shell = shell_opt;
+                      un_shell_args = shell_args;
+                      un_functions = lookup_list "functions";
+                      un_includes;
+                      un_noop = eval_bool "noop" false;
+                    }
+                | _ when Option.is_some un_script ->
+                    VNode {
+                      un_command; un_script; un_runtime = runtime;
+                      un_serializer = lookup_arg "serializer" (match runtime with "sh" -> Var "text" | _ -> Var "default");
+                      un_deserializer = lookup_arg "deserializer" (Var "default");
+                      un_env_vars; un_args;
+                      un_shell = shell_opt;
+                      un_shell_args = shell_args;
                       un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
                     }
                 | _ ->
-                    let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, or .qmd file." runtime in
+                    let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, .sh, or .qmd file." runtime in
                     Error.make_error TypeError msg
               else
                 VNode {
@@ -629,6 +668,8 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_serializer = lookup_arg "serializer" (Var "default");
                   un_deserializer = lookup_arg "deserializer" (Var "default");
                   un_env_vars; un_args;
+                  un_shell = shell_opt;
+                  un_shell_args = shell_args;
                   un_functions = lookup_list "functions";
                   un_includes;
                   un_noop = eval_bool "noop" false;
@@ -768,6 +809,8 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     un_deserializer = Var "default";
     un_env_vars = [];
     un_args = [];
+    un_shell = None;
+    un_shell_args = [];
     un_functions = [];
     un_includes = [];
     un_noop = false;
@@ -796,6 +839,8 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             un_deserializer = Var "default";
             un_env_vars = [];
             un_args = [];
+            un_shell = None;
+            un_shell_args = [];
             un_functions = [];
             un_includes = [];
             un_noop = false;
@@ -996,6 +1041,8 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       p_deserializers = List.map (fun (name, un) -> (name, un.un_deserializer)) desugared_nodes;
       p_env_vars = List.map (fun (name, un) -> (name, un.un_env_vars)) desugared_nodes;
       p_args = List.map (fun (name, un) -> (name, un.un_args)) desugared_nodes;
+      p_shells = List.map (fun (name, un) -> (name, un.un_shell)) desugared_nodes;
+      p_shell_args = List.map (fun (name, un) -> (name, un.un_shell_args)) desugared_nodes;
       p_functions = List.map (fun (name, un) -> (name, un.un_functions)) desugared_nodes;
       p_includes = List.map (fun (name, un) -> (name, un.un_includes)) desugared_nodes;
       p_noops = List.map (fun (name, un) -> (name, un.un_noop)) desugared_nodes;
@@ -1014,6 +1061,8 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
       un_deserializer = List.assoc name prev.p_deserializers;
       un_env_vars = (match List.assoc_opt name prev.p_env_vars with Some vars -> vars | None -> []);
       un_args = (match List.assoc_opt name prev.p_args with Some runtime_args -> runtime_args | None -> []);
+      un_shell = (match List.assoc_opt name prev.p_shells with Some s -> s | None -> None);
+      un_shell_args = (match List.assoc_opt name prev.p_shell_args with Some s_args -> s_args | None -> []);
       un_functions = List.assoc name prev.p_functions;
       un_includes = List.assoc name prev.p_includes;
       un_noop = List.assoc name prev.p_noops;
@@ -1345,6 +1394,8 @@ and eval_dot_access env_ref target_expr field =
       | "serializer" -> VString (Nix_unparse.unparse_expr un.un_serializer)
       | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
       | "args" -> VDict un.un_args
+      | "shell" -> (match un.un_shell with Some s -> VString s | None -> VNull)
+      | "shell_args" -> VList (List.map (fun e -> (None, VString (Nix_unparse.unparse_expr e))) un.un_shell_args)
       | "noop" -> VBool un.un_noop
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
   | VShellResult sr ->

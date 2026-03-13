@@ -51,6 +51,8 @@ let filter_pipeline (names : string list) (p : pipeline_result) : pipeline_resul
     p_deserializers = List.filter (fun (n, _) -> keep n) p.p_deserializers;
     p_env_vars     = List.filter (fun (n, _) -> keep n) p.p_env_vars;
     p_args         = List.filter (fun (n, _) -> keep n) p.p_args;
+    p_shells       = List.filter (fun (n, _) -> keep n) p.p_shells;
+    p_shell_args   = List.filter (fun (n, _) -> keep n) p.p_shell_args;
     p_functions    = List.filter (fun (n, _) -> keep n) p.p_functions;
     p_includes     = List.filter (fun (n, _) -> keep n) p.p_includes;
     p_noops        = List.filter (fun (n, _) -> keep n) p.p_noops;
@@ -96,6 +98,8 @@ let register env =
               p_deserializers = replace_at p.p_deserializers un.un_deserializer;
               p_env_vars     = replace_at p.p_env_vars un.un_env_vars;
               p_args         = replace_at p.p_args un.un_args;
+              p_shells       = replace_at p.p_shells un.un_shell;
+              p_shell_args   = replace_at p.p_shell_args un.un_shell_args;
               p_functions    = replace_at p.p_functions un.un_functions;
               p_includes     = replace_at p.p_includes un.un_includes;
               p_noops        = replace_at p.p_noops un.un_noop;
