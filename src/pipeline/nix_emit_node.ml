@@ -833,10 +833,20 @@ def py_read_pmml(path):
            All pipeline dependencies are already available as variables from deps_script_lines.
            Use shell_single_quote to safely embed the source/exec call in an echo command. *)
         if runtime = "sh" then
-          let cli_args = List.map (fun (_, v) -> match v with VString s | VSymbol s -> s | _ -> "") runtime_args |> String.concat " " in
+          let cli_args_tokens = List.filter_map (fun (_, v) ->
+            match v with
+            | VString s | VSymbol s -> Some s
+            | VInt i -> Some (string_of_int i)
+            | VFloat f -> Some (Printf.sprintf "%.15g" f)
+            | VBool true -> Some "true"
+            | VBool false -> Some "false"
+            | VNull -> None
+            | _ -> None) runtime_args in
           let shell_cmd = match shell with Some s -> s | None -> "sh" in
           let shell_args_str = match shell_args with [] -> "" | _ -> List.map Nix_unparse.unparse_expr shell_args |> String.concat " " in
-          Printf.sprintf "      echo \"%s %s %s %s\" >> node_script.sh" shell_cmd shell_args_str script_path cli_args
+          let cmd_parts = List.filter (fun s -> s <> "") ([shell_cmd; shell_args_str; script_path] @ cli_args_tokens) in
+          let cmd_line = String.concat " " cmd_parts in
+          Printf.sprintf "      printf '%%s\\n' %s >> node_script.sh" (shell_single_quote cmd_line)
         else if runtime = "R" then
           let r_source = shell_single_quote (Printf.sprintf {|source("%s")|} script_path) in
           let r_ser = shell_single_quote (Printf.sprintf {|%s(%s, "$out/artifact")|} ser_call name) in
@@ -919,9 +929,18 @@ EOF
       | RawCode { raw_text; _ } ->
           Printf.sprintf "      cat <<'EOF' >> node_script.sh\n%s\nEOF" raw_text
       | Value (VString cmd) | Value (VSymbol cmd) ->
-          let cli_args = List.map (fun (_, v) -> match v with VString s | VSymbol s -> s | _ -> "") runtime_args |> String.concat " " in
-          Printf.sprintf "      echo \"%s %s\" >> node_script.sh" cmd cli_args
-      | _ -> "      echo \"true\" >> node_script.sh"
+          let cli_args_tokens = List.filter_map (fun (_, v) ->
+            match v with
+            | VString s | VSymbol s -> Some s
+            | VInt i -> Some (string_of_int i)
+            | VFloat f -> Some (Printf.sprintf "%.15g" f)
+            | VBool true -> Some "true"
+            | VBool false -> Some "false"
+            | VNull -> None
+            | _ -> None) runtime_args in
+          let cmd_line = String.concat " " (cmd :: cli_args_tokens) in
+          Printf.sprintf "      printf '%%s\\n' %s >> node_script.sh" (shell_single_quote cmd_line)
+      | _ -> "      printf '%%s\\n' true >> node_script.sh"
     else
         Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
@@ -959,11 +978,8 @@ EOF
       echo "QuartoOutput" > $out/class|} cli_block (match script with Some s -> s | None -> ".") (match script with Some s -> s | None -> ".")
     | "sh" ->
         let shell_cmd = match shell with Some s -> s | None -> "sh" in
-        let shell_args_str = match shell_args with [] -> "" | _ -> (List.map Nix_unparse.unparse_expr shell_args |> String.concat " ") in
-        if shell_cmd <> "sh" || shell_args_str <> "" then
-           Printf.sprintf "%s %s node_script.sh" shell_cmd shell_args_str
-        else
-           "sh node_script.sh"
+        let shell_args_str = match shell_args with [] -> "" | _ -> " " ^ (List.map Nix_unparse.unparse_expr shell_args |> String.concat " ") in
+        Printf.sprintf "%s%s node_script.sh > $out/artifact\n      echo ShellOutput > $out/class" shell_cmd shell_args_str
     | _ -> "t run --unsafe node_script.t"
   in
 
