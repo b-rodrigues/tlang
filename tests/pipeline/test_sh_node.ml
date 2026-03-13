@@ -177,7 +177,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|node(runtime = sh, args = [["a"]])|}
     {|Error(TypeError: "Function `node` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values.")|};
 
-  test "node args must be a dict"
+  test "node args must be a dict or list"
     {|node(command = 1, args = 1)|}
     {|Error(TypeError: "Function `node` expects `args` to be a Dict or List.")|};
 
