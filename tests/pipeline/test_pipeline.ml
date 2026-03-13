@@ -537,4 +537,180 @@ p_cross = pipeline {
     incr fail_count; Printf.printf "  ✗ pipeline with script node\n    Expected: [\"data\", \"result\"]\n    Got: %s\n" pipeline_nodes_s
   end;
 
+  print_newline ();
+
+  Printf.printf "Phase 3 — Shell Runtime (runtime = sh):\n";
+
+  (* Test: basic sh node with command string *)
+  let (v_sh_node, _) = eval_string_env
+    {|node(runtime = sh, command = "awk")|}
+    (Packages.init_env ()) in
+  (match v_sh_node with
+   | Ast.VNode un when un.un_runtime = "sh" ->
+       incr pass_count; Printf.printf "  ✓ node(runtime = sh, command = \"awk\") creates sh node\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ sh node creation failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: sh node with args as list *)
+  let (v_sh_args, _) = eval_string_env
+    {|node(runtime = sh, command = "awk", args = list("-F", ","))|}
+    (Packages.init_env ()) in
+  (match v_sh_args with
+   | Ast.VNode un when un.un_runtime = "sh" ->
+       let has_0 = List.assoc_opt "0" un.un_args = Some (Ast.VString "-F") in
+       let has_1 = List.assoc_opt "1" un.un_args = Some (Ast.VString ",") in
+       if has_0 && has_1 then begin
+         incr pass_count; Printf.printf "  ✓ sh node stores list args as numbered keys\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ sh node list args storage failed\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ sh node with list args failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: sh node with shell and shell_args *)
+  let (v_sh_shell, _) = eval_string_env
+    {|node(runtime = sh, command = "echo hello | sort", shell = "bash", shell_args = list("-lc"))|}
+    (Packages.init_env ()) in
+  (match v_sh_shell with
+   | Ast.VNode un when un.un_runtime = "sh" ->
+       let shell_ok = List.assoc_opt "shell" un.un_args = Some (Ast.VString "bash") in
+       let shell_args_ok = match List.assoc_opt "shell_args" un.un_args with
+         | Some (Ast.VList items) ->
+             (match items with [(_, Ast.VString "-lc")] -> true | _ -> false)
+         | _ -> false
+       in
+       if shell_ok && shell_args_ok then begin
+         incr pass_count; Printf.printf "  ✓ sh node stores shell and shell_args in args\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ sh node shell/shell_args storage failed\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ sh node with shell/shell_args failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: sh node dot access for runtime *)
+  test "sh node .runtime returns sh"
+    {|n = node(runtime = sh, command = "echo"); n.runtime|}
+    {|"sh"|};
+
+  (* Test: sh node dot access for shell field *)
+  test "sh node .shell returns shell value"
+    {|n = node(runtime = sh, command = "echo", shell = "bash"); n.shell|}
+    {|"bash"|};
+
+  (* Test: sh node .shell returns null when not set *)
+  test "sh node .shell returns null when unset"
+    {|n = node(runtime = sh, command = "echo"); n.shell|}
+    "null";
+
+  (* Test: sh node with script auto-detects runtime *)
+  let (v_sh_auto, _) = eval_string_env
+    {|node(script = "clean_data.sh")|}
+    (Packages.init_env ()) in
+  (match v_sh_auto with
+   | Ast.VNode un when un.un_runtime = "sh" ->
+       incr pass_count; Printf.printf "  ✓ runtime auto-detected as sh for .sh script\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ runtime auto-detection for .sh failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: sh node with serializer/deserializer *)
+  let (v_sh_ser, _) = eval_string_env
+    {|node(runtime = sh, command = "awk", serializer = text, deserializer = lines)|}
+    (Packages.init_env ()) in
+  (match v_sh_ser with
+   | Ast.VNode un when un.un_runtime = "sh" ->
+       let ser_s = Nix_unparse.expr_to_string un.un_serializer in
+       let des_s = Nix_unparse.expr_to_string un.un_deserializer in
+       if ser_s = "text" && des_s = "lines" then begin
+         incr pass_count; Printf.printf "  ✓ sh node stores text/lines serializer\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ sh node serializer: ser=%s des=%s\n" ser_s des_s
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ sh node with serializer failed: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: sh node inside pipeline *)
+  let (v_sh_pipeline, _) = eval_string_env
+    {|pipeline {
+  data = 1
+  processed = node(runtime = sh, command = "awk", serializer = text, deserializer = text)
+}|}
+    (Packages.init_env ()) in
+  (match v_sh_pipeline with
+   | Ast.VPipeline p ->
+       let runtime_ok = List.assoc_opt "processed" p.p_runtimes = Some "sh" in
+       if runtime_ok then begin
+         incr pass_count; Printf.printf "  ✓ sh node in pipeline has correct runtime\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ sh node in pipeline runtime check failed\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ pipeline with sh node should return VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: sh node Nix emission contains T_OUTPUT *)
+  let (v_sh_nix_p, _) = eval_string_env
+    {|pipeline {
+  result = node(runtime = sh, command = "echo hello", serializer = text, deserializer = text)
+}|}
+    (Packages.init_env ()) in
+  (match v_sh_nix_p with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has_t_output = contains_substring nix "T_OUTPUT" in
+       let has_shell_output = contains_substring nix "ShellOutput" in
+       if has_t_output && has_shell_output then begin
+         incr pass_count; Printf.printf "  ✓ sh node Nix emission contains T_OUTPUT and ShellOutput class\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ sh node Nix emission missing T_OUTPUT or ShellOutput\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ sh nix emission test: expected VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: sh node Nix emission with shell mode *)
+  let (v_sh_shell_nix, _) = eval_string_env
+    {|pipeline {
+  result = node(runtime = sh, command = "echo hello | sort", shell = "bash", shell_args = list("-lc"), serializer = text, deserializer = text)
+}|}
+    (Packages.init_env ()) in
+  (match v_sh_shell_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has_bash = contains_substring nix "'bash'" in
+       let has_lc = contains_substring nix "'-lc'" in
+       if has_bash && has_lc then begin
+         incr pass_count; Printf.printf "  ✓ sh node Nix emission includes shell and shell_args\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ sh node shell mode Nix emission missing bash or -lc\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ sh shell mode nix test: expected VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* Test: sh node Nix emission with exec mode and args *)
+  let (v_sh_exec_nix, _) = eval_string_env
+    {|pipeline {
+  result = node(runtime = sh, command = "awk", args = list("-F", ","), serializer = text, deserializer = text)
+}|}
+    (Packages.init_env ()) in
+  (match v_sh_exec_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has_awk = contains_substring nix "'awk'" in
+       let has_f = contains_substring nix "'-F'" in
+       let has_comma = contains_substring nix "','" in
+       if has_awk && has_f && has_comma then begin
+         incr pass_count; Printf.printf "  ✓ sh node exec mode Nix emission includes command and argv\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ sh node exec mode Nix emission missing command/argv\n"
+       end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ sh exec mode nix test: expected VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
   print_newline ()

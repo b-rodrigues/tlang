@@ -1148,6 +1148,95 @@ p_broken |> pipeline_assert
 
 ---
 
+## 29. Shell Runtime (`runtime = sh`)
+
+T supports shell/CLI-backed pipeline nodes via `runtime = sh`. This lets you incorporate
+command-line tools like `awk`, `sed`, `jq`, `grep`, or custom shell scripts into your
+pipeline while preserving the standard node contract: explicit dependencies, serializers,
+and reproducible artifacts.
+
+### Exec Mode (recommended)
+
+In exec mode, the command is run directly with an argument vector — no shell parsing involved.
+This is the safest and most predictable form:
+
+```t
+names = node(
+  runtime = sh,
+  command = "awk",
+  args = list("-F", ",", "NR > 1 { print $1 }", "input.csv"),
+  serializer = text,
+  deserializer = lines
+)
+```
+
+### Shell Mode (opt-in)
+
+For commands that need shell features like pipes, redirections, or variable expansion,
+opt in to shell parsing by specifying the `shell` parameter:
+
+```t
+processed = node(
+  runtime = sh,
+  command = "awk -F, 'NR > 1 { print $1 }' \"$T_NODE_raw_csv\" > \"$T_OUTPUT\"",
+  shell = "bash",
+  shell_args = list("-lc"),
+  serializer = text,
+  deserializer = lines
+)
+```
+
+### Script-backed Shell Nodes
+
+Existing shell scripts can be used directly:
+
+```t
+cleaned = node(
+  runtime = sh,
+  script = "scripts/clean_data.sh",
+  serializer = text,
+  deserializer = text
+)
+```
+
+The `.sh` extension is auto-detected, so `runtime = sh` is inferred when using a `.sh` script path.
+
+### Execution Contract
+
+Shell nodes follow the same artifact-based contract as other runtimes:
+
+- **Inputs**: Upstream dependency paths are exposed as `T_NODE_<name>` environment variables
+- **Output**: The node must write its result to `T_OUTPUT` (exposed as an environment variable)
+- **Exit code**: Non-zero exit codes cause the build to fail
+- **Class**: Shell nodes report `ShellOutput` as their class
+
+### Serializers and Deserializers
+
+Shell nodes support the following serializer/deserializer keywords:
+
+| Keyword | Description |
+|---------|-------------|
+| `text` | Raw UTF-8 text |
+| `lines` | Newline-delimited text → `List[String]` |
+| `json` | Structured JSON data |
+| `arrow` | Tabular Arrow data |
+| `default` | Standard T serialization |
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `command` | String | Executable name/path (exec mode) or full command string (shell mode) |
+| `args` | List | Positional arguments for exec mode |
+| `script` | String | Path to an external `.sh` script file |
+| `shell` | String | Shell interpreter for shell mode (`"sh"`, `"bash"`) |
+| `shell_args` | List | Arguments passed to the shell before the command (e.g., `list("-c")` or `list("-lc")`) |
+| `serializer` | Symbol | Output serialization format |
+| `deserializer` | Symbol | Input deserialization format |
+| `env_vars` | Dict | Additional environment variables for the shell process |
+
+---
+
 ## Best Practices
 
 1. **Name nodes descriptively**: Use names like `raw_data`, `filtered_sales`, `summary_stats`
