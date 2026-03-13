@@ -690,7 +690,7 @@ let init_env () =
      Add new runtimes or serializer names here as they are introduced. *)
   let known_symbols = [
     (* Runtimes *)
-    "R"; "Python"; "T"; "Julia"; "Quarto";
+    "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
     (* Serialization defaults *)
     "default";
     (* R serializers *)
@@ -702,6 +702,8 @@ let init_env () =
     "write_json"; "read_json";
     (* PMML *)
     "pmml";
+    (* Shell serializers / deserializers *)
+    "text"; "lines";
   ] in
   let env = List.fold_left (fun acc name ->
     Env.add name (VSymbol name) acc

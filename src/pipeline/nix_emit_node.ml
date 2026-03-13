@@ -53,6 +53,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
         "py", inputs
     | "Quarto" ->
         "sh", "pkgs.quarto pkgs.which"
+    | "sh" ->
+        "sh", ""
     | _ -> "t", ""
   in
 
@@ -184,7 +186,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
       funcs |> List.map (fun f -> Printf.sprintf "      echo \"source('%s')\" >> node_script.R" f) |> String.concat "\n"
     else if runtime = "Python" then
       funcs |> List.map (fun f -> Printf.sprintf "      echo \"exec(open('%s').read())\" >> node_script.py" f) |> String.concat "\n"
-    else if runtime = "Quarto" then
+    else if runtime = "Quarto" || runtime = "sh" then
       ""
     else
       funcs |> List.map (fun f -> Printf.sprintf "      echo %s >> node_script.t" (shell_single_quote (Printf.sprintf "import \"%s\"" f))) |> String.concat "\n"
@@ -643,7 +645,7 @@ def py_read_pmml(path):
 
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
-    if runtime = "Quarto" then
+    if runtime = "Quarto" || runtime = "sh" then
       ""
     else
       let get_des_call dep_name =
@@ -821,7 +823,7 @@ def py_read_pmml(path):
 
 
   let assign_script_lines =
-    if runtime = "Quarto" then
+    if runtime = "Quarto" || runtime = "sh" then
       ""
     else match script with
     | Some script_path ->
@@ -920,6 +922,62 @@ EOF
   let run_cmd = match runtime with
     | "R" -> "Rscript node_script.R"
     | "Python" -> "python node_script.py"
+    | "sh" ->
+        (* Shell runtime: build the execution command from the node's command,
+           args, and optional shell/shell_args metadata.
+           - Exec mode (no shell key): runs command directly with argv
+           - Shell mode (shell = "sh" or "bash"): runs through the specified shell *)
+        let cmd_s = Nix_unparse.expr_to_string expr in
+        let shell_interpreter =
+          match List.assoc_opt "shell" runtime_args with
+          | Some (Ast.VString s) -> Some s
+          | _ -> None
+        in
+        let shell_args_list =
+          match List.assoc_opt "shell_args" runtime_args with
+          | Some (Ast.VList items) ->
+              List.filter_map (fun (_, v) -> match v with Ast.VString s -> Some s | _ -> None) items
+          | _ -> []
+        in
+        (* Collect positional argv from numbered keys in runtime_args *)
+        let positional_argv =
+          runtime_args
+          |> List.filter (fun (k, _) -> k <> "shell" && k <> "shell_args" &&
+                                         (try ignore (int_of_string k); true with _ -> false))
+          |> List.sort (fun (a, _) (b, _) -> compare (int_of_string a) (int_of_string b))
+          |> List.filter_map (fun (_, v) ->
+               match v with
+               | Ast.VString s -> Some (shell_single_quote s)
+               | Ast.VSymbol s -> Some (shell_single_quote s)
+               | Ast.VInt i -> Some (string_of_int i)
+               | Ast.VFloat f -> Some (Printf.sprintf "%.15g" f)
+               | Ast.VBool true -> Some "true"
+               | Ast.VBool false -> Some "false"
+               | _ -> None)
+        in
+        let script_exec = match script with
+          | Some script_path ->
+              Printf.sprintf "%s %s" (shell_single_quote script_path)
+                (String.concat " " positional_argv)
+          | None ->
+              (match shell_interpreter with
+               | Some sh ->
+                   let sh_args = if shell_args_list = [] then ["-c"] else shell_args_list in
+                   Printf.sprintf "%s %s %s"
+                     (shell_single_quote sh)
+                     (String.concat " " (List.map shell_single_quote sh_args))
+                     (shell_single_quote cmd_s)
+               | None ->
+                   if positional_argv = [] then
+                     shell_single_quote cmd_s
+                   else
+                     Printf.sprintf "%s %s"
+                       (shell_single_quote cmd_s)
+                       (String.concat " " positional_argv))
+        in
+        Printf.sprintf {|export T_OUTPUT=$out/artifact
+      %s
+      echo "ShellOutput" > $out/class|} script_exec
     | "Quarto" ->
         let cli_block =
           if quarto_cli_args_block = "" then ""

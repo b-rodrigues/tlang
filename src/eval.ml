@@ -514,9 +514,16 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                    | Some (key, _) ->
                        Error (Error.type_error
                                 (Printf.sprintf "Function `%s` expects runtime arg `%s` to be a String, Symbol, Int, Float, Bool, Null, or List of those values." fn_name key)))
+             | VList items ->
+                  let values = List.map snd items in
+                  if List.for_all is_arg_value values then
+                    Ok (List.mapi (fun i v -> (string_of_int i, v)) values)
+                  else
+                    Error (Error.type_error
+                             (Printf.sprintf "Function `%s` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values." fn_name))
              | VNull -> Ok []
              | _ ->
-                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict." fn_name)))
+                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict or List." fn_name)))
       in
       let lookup_list name =
         match List.assoc_opt (Some name) args with
@@ -574,9 +581,9 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               let explicit = eval_string "runtime" "" in
               if explicit <> "" then explicit
               else match explicit_script_path_opt with
-                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | _ -> default_runtime)
+                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | _ -> default_runtime)
                 | None -> (match arg_path_opt with
-                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | _ -> default_runtime)
+                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | _ -> default_runtime)
                     | _ -> default_runtime)
             in
             if has_command && runtime = "Quarto" then
@@ -608,7 +615,40 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
                   "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
-              else if runtime <> "T" && runtime <> "Quarto" then
+              else
+                (* For `sh` runtime: resolve command to a string, merge shell/shell_args
+                   into un_args, and allow plain string commands (not just RawCode). *)
+                let un_command, un_args =
+                  if runtime = "sh" then
+                    let resolved_cmd = match un_command with
+                      | Value VNull when un_script <> None -> un_command
+                      | _ ->
+                          let cmd_val = eval_expr env_ref un_command in
+                          (match cmd_val with
+                           | VString s -> Value (VString s)
+                           | VSymbol s -> Value (VString s)
+                           | _ -> un_command)
+                    in
+                    let shell_val = eval_string "shell" "" in
+                    let shell_args_list =
+                      match List.assoc_opt (Some "shell_args") args with
+                      | Some e ->
+                          (match eval_expr env_ref e with
+                           | VList items ->
+                               List.filter_map (fun (_, v) -> match v with VString s | VSymbol s -> Some s | _ -> None) items
+                           | _ -> [])
+                      | None -> []
+                    in
+                    let extra_args =
+                      (if shell_val <> "" then [("shell", VString shell_val)] else []) @
+                      (if shell_args_list <> [] then
+                         [("shell_args", VList (List.map (fun s -> (None, VString s)) shell_args_list))]
+                       else [])
+                    in
+                    (resolved_cmd, un_args @ extra_args)
+                  else (un_command, un_args)
+                in
+              if runtime <> "T" && runtime <> "Quarto" && runtime <> "sh" then
                 match un_command with
                 | RawCode _ ->
                     VNode {
@@ -876,6 +916,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       | Some dep_runtime -> 
           dep_runtime <> my_runtime && 
           my_runtime <> "Quarto" && 
+          my_runtime <> "sh" &&
           un.un_deserializer = Var "default"
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in
@@ -1346,6 +1387,14 @@ and eval_dot_access env_ref target_expr field =
       | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
       | "args" -> VDict un.un_args
       | "noop" -> VBool un.un_noop
+      | "shell" ->
+          (match List.assoc_opt "shell" un.un_args with
+           | Some (VString s) -> VString s
+           | _ -> VNull)
+      | "shell_args" ->
+          (match List.assoc_opt "shell_args" un.un_args with
+           | Some (VList _ as l) -> l
+           | _ -> VList [])
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
   | VShellResult sr ->
       (match field with
