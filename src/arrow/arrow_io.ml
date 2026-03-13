@@ -260,7 +260,9 @@ let read_csv_fallback (path : string) : (Arrow_table.t, string) result =
 (** Read a CSV file into an Arrow table.
     Uses native Arrow CSV reader when available, falls back to pure OCaml. *)
 let read_csv_local (path : string) : (Arrow_table.t, string) result =
-  if Arrow_ffi.arrow_available then (
+  if not (Sys.file_exists path) then
+    read_csv_fallback path
+  else if Arrow_ffi.arrow_available then (
     (* Try native Arrow CSV reader first *)
     match read_csv_native path with
     | Ok _ as result -> result

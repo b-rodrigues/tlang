@@ -563,6 +563,7 @@ min_version = "0.5.0"
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
       ~t_version:"0.5.0" ~deps:[]
+      ~warn_invalid_pkg_names:false
       ~additional_tools:["valid-pkg"; "$(evil)"; "valid_pkg2"; "bad pkg"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
