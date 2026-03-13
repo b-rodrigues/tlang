@@ -7,8 +7,12 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  golden-tests:
-    runs-on: ubuntu-latest
+  build:
+    name: Golden tests on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     
     steps:
     - name: Checkout repository
