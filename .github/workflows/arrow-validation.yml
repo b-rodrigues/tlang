@@ -47,7 +47,7 @@ jobs:
   # Job 2: Verify the Pure OCaml Fallback (Robustness)
   arrow-fallback:
     name: Arrow OCaml Fallback Validation
-    runs-on: ubuntu-latest
+    runs-on: [ ubuntu-latest, macos-latest ]   
     permissions:
       contents: read
     env:
