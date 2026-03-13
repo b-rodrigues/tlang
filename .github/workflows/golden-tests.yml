@@ -49,20 +49,3 @@ jobs:
     - name: Compare outputs (testthat)
       run: nix develop --accept-flake-config --command make golden-compare
     
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: golden-test-outputs
-        path: |
-          tests/golden/t_outputs/
-          tests/golden/expected/
-        retention-days: 7
-    
-    - name: Upload test report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: golden-test-report
-        path: tests/golden/test_results.xml
-        retention-days: 30
