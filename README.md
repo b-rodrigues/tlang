@@ -5,7 +5,7 @@
 
 **T** is an experimental, **reproducibility- and pipeline-first** programming language for declarative data manipulation and statistical analysis. Built on the foundation of **Nix**, T is designed from the ground up to ensure that every analysis is a strictly defined, reproducible workflow. 
 
-Inspired by R's tidyverse and OCaml's type discipline, T provides a small, focused core for data wrangling, but its true strength lies in its **mandatory pipeline architecture** and **seamless integration with R and Python (and Julia in a future update)**.
+Inspired by R's tidyverse and OCaml's type discipline, T provides a small, focused core for data wrangling, but its true strength lies in its **mandatory pipeline architecture** and **seamless integration with R, Python, and shell/CLI tooling (and Julia in a future update)**.
 
 ### The Canonical T Script
 
@@ -47,23 +47,34 @@ p = pipeline {
     |> mutate($pred = predict(model_py, test_data))
     |> summarize($rmse = mean(($score - $pred) * ($score - $pred)) |> sqrt)
   )
+
+  # 5. Produce a plain-text shell report with the shn() wrapper
+  shell_report = shn(command = <{
+#!/bin/sh
+set -eu
+
+# Dependencies for T's lexical pipeline analysis: eval_r eval_py
+printf 'R evaluation artifact: %s\n' "$T_NODE_eval_r/artifact"
+printf 'Python evaluation artifact: %s\n' "$T_NODE_eval_py/artifact"
+  }>)
 }
 
 # Materialize the pipeline into reproducible Nix artifacts
 build_pipeline(p)
 ```
 
-Alternatively, `node()`, `rn()`, and `pyn()` all accept a `script` argument pointing to an external `.R` or `.py` file instead of an inline `command`:
+Alternatively, `node()`, `rn()`, `pyn()`, and `shn()` all accept a `script` argument pointing to an external `.R`, `.py`, or `.sh` file instead of an inline `command`:
 
 ```t
 p = pipeline {
   model_r  = rn(script  = "train_model.R",  serializer = "pmml")
   model_py = pyn(script = "train_model.py", serializer = "pmml")
+  report   = shn(script = "postprocess.sh")
 }
 build_pipeline(p)
 ```
 
-The runtime is auto-detected from the file extension, so you can also use `node(script = "train_model.R")` without specifying `runtime = "R"` explicitly.
+The runtime is auto-detected from the file extension, so you can also use `node(script = "train_model.R")` or `node(script = "postprocess.sh")` without specifying `runtime` explicitly. `shn()` defaults to `runtime = sh`; use `shell = "bash"` with `shell_args = ["-lc"]` when you need full Bash parsing instead of plain POSIX `sh`.
 
 ## Key Features
 

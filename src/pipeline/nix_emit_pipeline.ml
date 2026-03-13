@@ -12,8 +12,13 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   let is_arrow_ser_or_des name =
     let ser = List.assoc name p.p_serializers in
     let des = List.assoc name p.p_deserializers in
-    (match ser with Value (VString "arrow") -> true | _ -> false) ||
-    (match des with Value (VString "arrow") -> true | _ -> false)
+    let check = function
+      | Value (VString s) | Value (VSymbol s) | Var s -> 
+          let s = String.lowercase_ascii s in
+          s = "arrow" || s = "write_parquet" || s = "read_parquet" || s = "write_feather" || s = "read_feather"
+      | _ -> false
+    in
+    check ser || check des
   in
   let needs_r_arrow = p.p_exprs |> List.exists (fun (name, _) ->
     let runtime = List.assoc name p.p_runtimes in
@@ -27,8 +32,11 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   let is_pmml_ser_or_des name =
     let ser = List.assoc name p.p_serializers in
     let des = List.assoc name p.p_deserializers in
-    (match ser with Value (VString "pmml") -> true | _ -> false) ||
-    (match des with Value (VString "pmml") -> true | _ -> false)
+    let check = function
+      | Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "pmml"
+      | _ -> false
+    in
+    check ser || check des
   in
   let needs_r_pmml = p.p_exprs |> List.exists (fun (name, _) ->
     let runtime = List.assoc name p.p_runtimes in
@@ -65,21 +73,31 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   let is_csv_ser_or_des name =
     let ser = List.assoc name p.p_serializers in
     let des = List.assoc name p.p_deserializers in
-    (match ser with Value (VString "csv") -> true | _ -> false) ||
-    (match des with
-     | Value (VString "csv") -> true
-     | ListLit items -> List.exists (fun (_, e) -> match e with Value (VString "csv") -> true | _ -> false) items
-     | DictLit items -> List.exists (fun (_, e) -> match e with Value (VString "csv") -> true | _ -> false) items
-     | _ -> false)
+    let check = function
+      | Value (VString s) | Value (VSymbol s) | Var s ->
+          let s = String.lowercase_ascii s in
+          s = "csv" || s = "r_write_csv" || s = "r_read_csv" || s = "py_write_csv" || s = "py_read_csv" || s = "t_write_csv" || s = "t_read_csv" || s = "pandas"
+      | ListLit items ->
+          List.exists (fun (_, e) -> match e with Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "csv" | _ -> false) items
+      | DictLit items ->
+          List.exists (fun (_, e) -> match e with Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "csv" | _ -> false) items
+      | _ -> false
+    in
+    check ser || check des
   in
   let needs_py_csv = p.p_exprs |> List.exists (fun (name, _) ->
     let runtime = List.assoc name p.p_runtimes in
     runtime = "Python" && is_csv_ser_or_des name
   ) in
+  let needs_r_csv = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "R" && is_csv_ser_or_des name
+  ) in
 
   let r_extra_pkgs = 
     (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
-    (if needs_r_pmml then " pkgs.rPackages.r2pmml pkgs.rPackages.XML" else "")
+    (if needs_r_pmml then " pkgs.rPackages.r2pmml pkgs.rPackages.XML" else "") ^
+    (if needs_r_csv then " pkgs.rPackages.readr pkgs.rPackages.dplyr" else "")
   in
   let py_extra_pkgs = 
     (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^

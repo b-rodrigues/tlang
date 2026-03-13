@@ -1794,7 +1794,7 @@ cumany([false, true, false]) -- Vector[false, true, true]
 
 Pipeline introspection and management.
 
-### `node(command, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `node(command, script = null, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = null, shell_args = [], functions = [], include = [], noop = false)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -1802,10 +1802,13 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 
 - `command` — The expression to evaluate (positional or named).
-- `runtime` (optional) — The runtime environment (`T`, `R`, `Python`). Default: `T`.
+- `runtime` (optional) — The runtime environment (`T`, `R`, `Python`, `sh`, `Quarto`). Default: `T`.
 - `serializer` (optional) — Write artifact overriding mechanism.
 - `deserializer` (optional) — Read artifact overriding mechanism.
 - `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
+- `args` (optional) — Runtime/tool arguments. Lists become positional CLI arguments for `runtime = sh`.
+- `shell` (optional) — Shell interpreter for `runtime = sh`. Default: `sh`.
+- `shell_args` (optional) — Additional arguments passed to the shell interpreter.
 - `functions` (optional) — Code files to source before execution.
 - `include` (optional) — Additional files to bring into the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub.
@@ -1829,9 +1832,9 @@ include = "config.yml"
 
 ---
 
-### `py(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `py(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
-### `pyn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `pyn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
@@ -1852,7 +1855,7 @@ The evaluated return value of the command.
 
 ---
 
-### `rn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `rn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
@@ -1864,6 +1867,30 @@ Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtim
 - `deserializer` (optional) — Custom deserializer function. Default: `default`.
 - `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — R scripts to source before execution.
+- `include` (optional) — Additional files for the sandbox.
+- `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
+
+**Returns:**
+
+The evaluated return value of the command.
+
+---
+
+### `shn(command, script = null, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
+
+Configure a shell pipeline node. A convenience wrapper around `node()` with `runtime = "sh"`. Use it for CLI tools, inline shell scripts, and `.sh` files inside `pipeline { ... }` blocks.
+
+**Parameters:**
+
+- `command` — The shell command or raw shell script body to execute.
+- `script` (optional) — Path to an external `.sh` file. Mutually exclusive with `command`.
+- `serializer` (optional) — Custom serializer function. Default: `text`.
+- `deserializer` (optional) — Custom deserializer function. Default: `default`.
+- `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
+- `args` (optional) — Runtime arguments. Lists become positional CLI arguments for exec-style shell nodes.
+- `shell` (optional) — Shell interpreter. Default: `sh`; use `bash` when you need Bash-specific parsing.
+- `shell_args` (optional) — Additional arguments for the shell interpreter, such as `["-lc"]`.
+- `functions` (optional) — Additional files to include in the sandbox before execution.
 - `include` (optional) — Additional files for the sandbox.
 - `noop` (optional) — Whether to skip execution and generate a stub. Default: `false`.
 
