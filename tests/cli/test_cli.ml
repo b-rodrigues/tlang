@@ -53,7 +53,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
      | Ok _ -> false);
   print_newline ();
 
-  Printf.printf "Phase 7 — CLI: packages() builtin:\n";
+  Printf.printf "CLI — packages() builtin coverage:\n";
   test "packages returns list"
     "type(packages())"
     {|"List"|};
