@@ -84,8 +84,8 @@ module Server = struct
     Symbol_table.register_keywords scope;
     Symbol_table.populate_from_env scope server.base_env;
     let diagnostics = ref [] in
+    let lexbuf = Lexing.from_string text in
     (try
-       let lexbuf = Lexing.from_string text in
        let program = Parser.program Lexer.token lexbuf in
        Analyzer.analyze program scope
       with

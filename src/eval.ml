@@ -49,7 +49,7 @@ and desugar_nse_stmt stmt =
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
 
-let source_location ?file pos =
+let source_location ?file pos : Ast.source_location =
   {
     file;
     line = pos.Lexing.pos_lnum;
