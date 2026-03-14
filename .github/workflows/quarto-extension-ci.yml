@@ -105,19 +105,17 @@ EOF
 
           # Enter the project shell to provision the Quarto extension, then render.
           nix develop --accept-flake-config --command bash -c '
-            test -f _extensions/tlang/_extension.yml
-            if [ -L _extensions/tlang ]; then
-              target=$(readlink _extensions/tlang)
-              case "$target" in
-                */share/tlang/quarto/tlang)
-                  test -f "$target/_extension.yml"
-                  ;;
-                *)
-                  echo "❌ Error: _extensions/tlang points to unexpected target: $target"
-                  exit 1
-                  ;;
-              esac
-            fi
+            test -L _extensions/tlang
+            target=$(readlink _extensions/tlang)
+            case "$target" in
+              */share/tlang/quarto/tlang)
+                test -f "$target/_extension.yml"
+                ;;
+              *)
+                echo "❌ Error: _extensions/tlang points to unexpected target: $target"
+                exit 1
+                ;;
+            esac
             quarto render example.qmd
           '
           
