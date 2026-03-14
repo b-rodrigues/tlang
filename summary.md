@@ -10,6 +10,7 @@ The **T Programming Language** is an experimental, reproducibility-first functio
 - **Object Interchange**: T uses Apache Arrow for data frames and PMML for models, passing data natively between R, Python, and T without serialization overhead or loss of fidelity. Factor (categorical) columns are stored natively as Arrow Dictionary arrays for efficient interop.
 - **Immutability and No Loops**: T has no loops and no mutable variables.
 - **Explicit NA Handling**: NA does not propagate silently; if NA is encountered in aggregation functions without `na_rm = true`, an error is thrown. 
+- **Context-Aware Errors**: Errors include source locations (line/column, plus filename when available).
 - **Non-Standard Evaluation (NSE)**: Uses `$` prefix for referring to variables/columns concisely (e.g. `filter($age > 30)`).
 
 ## Basic Syntax

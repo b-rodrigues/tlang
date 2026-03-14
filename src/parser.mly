@@ -14,7 +14,7 @@ type bracket_item =
   | BrExpr of Ast.expr
   | BrPair of string * Ast.expr
 
-let build_bracket_literal (items : bracket_item list) : Ast.expr =
+let build_bracket_literal (items : bracket_item list) : Ast.expr_node =
   let rec loop saw_expr saw_pair dict_rev list_rev = function
     | [] ->
       if saw_expr && saw_pair then raise Mixed_bracket_form
@@ -26,6 +26,23 @@ let build_bracket_literal (items : bracket_item list) : Ast.expr =
       loop saw_expr true ((k, v) :: dict_rev) list_rev rest
   in
   loop false false [] [] items
+;;
+
+let loc_of_pos (pos : Lexing.position) : Ast.source_location =
+  let file =
+    if pos.Lexing.pos_fname = "" then None else Some pos.Lexing.pos_fname
+  in
+  {
+    file;
+    line = pos.Lexing.pos_lnum;
+    column = max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1);
+  }
+
+let with_loc node pos =
+  Ast.mk_expr ~loc:(Some (loc_of_pos pos)) node
+
+let with_stmt_loc node pos =
+  Ast.mk_stmt ~loc:(Some (loc_of_pos pos)) node
 %}
 
 /* TOKENS */
@@ -120,18 +137,18 @@ sep:
 
 statement:
   | name = any_ident EQUALS e = expr
-    { Assignment { name; typ = None; expr = e } }
+    { with_stmt_loc (Assignment { name; typ = None; expr = e }) $startpos }
   | name = any_ident COLON t = typ EQUALS e = expr
-    { Assignment { name; typ = Some t; expr = e } }
+    { with_stmt_loc (Assignment { name; typ = Some t; expr = e }) $startpos }
   | name = any_ident COLON_EQ e = expr
-    { Reassignment { name; expr = e } }
-  | IMPORT s = STRING { Import s }
+    { with_stmt_loc (Reassignment { name; expr = e }) $startpos }
+  | IMPORT s = STRING { with_stmt_loc (Import s) $startpos }
   | IMPORT s = STRING LBRACK skip_sep names = import_name_list RBRACK
-    { ImportFileFrom { filename = s; names } }
+    { with_stmt_loc (ImportFileFrom { filename = s; names }) $startpos }
   | IMPORT id = any_ident LBRACK skip_sep names = import_name_list RBRACK
-    { ImportFrom { package = id; names } }
-  | IMPORT id = any_ident { ImportPackage id }
-  | e = expr { Expression e }
+    { with_stmt_loc (ImportFrom { package = id; names }) $startpos }
+  | IMPORT id = any_ident { with_stmt_loc (ImportPackage id) $startpos }
+  | e = expr { with_stmt_loc (Expression e) $startpos }
   ;
 
 import_name_list:
@@ -152,95 +169,95 @@ expr:
 pipe_expr:
   | e = formula_expr { e }
   | left = pipe_expr PIPE right = formula_expr
-    { BinOp { op = Pipe; left; right } }
+    { with_loc (BinOp { op = Pipe; left; right }) $startpos }
   | left = pipe_expr MAYBE_PIPE right = formula_expr
-    { BinOp { op = MaybePipe; left; right } }
+    { with_loc (BinOp { op = MaybePipe; left; right }) $startpos }
   ;
 
 formula_expr:
   | e = or_expr { e }
   | left = or_expr TILDE right = or_expr
-    { BinOp { op = Formula; left; right } }
+    { with_loc (BinOp { op = Formula; left; right }) $startpos }
   ;
 
 or_expr:
   | e = and_expr { e }
   | left = or_expr OR right = and_expr
-    { BinOp { op = Or; left; right } }
+    { with_loc (BinOp { op = Or; left; right }) $startpos }
   ;
 
 and_expr:
   | e = bit_or_expr { e }
   | left = and_expr AND right = bit_or_expr
-    { BinOp { op = And; left; right } }
+    { with_loc (BinOp { op = And; left; right }) $startpos }
   ;
 
 bit_or_expr:
   | e = bit_and_expr { e }
   | left = bit_or_expr BITOR right = bit_and_expr
-    { BinOp { op = BitOr; left; right } }
+    { with_loc (BinOp { op = BitOr; left; right }) $startpos }
   | left = bit_or_expr DOT_BITOR right = bit_and_expr
-    { BroadcastOp { op = BitOr; left; right } }
+    { with_loc (BroadcastOp { op = BitOr; left; right }) $startpos }
   ;
 
 bit_and_expr:
   | e = cmp_expr { e }
   | left = bit_and_expr BITAND right = cmp_expr
-    { BinOp { op = BitAnd; left; right } }
+    { with_loc (BinOp { op = BitAnd; left; right }) $startpos }
   | left = bit_and_expr DOT_BITAND right = cmp_expr
-    { BroadcastOp { op = BitAnd; left; right } }
+    { with_loc (BroadcastOp { op = BitAnd; left; right }) $startpos }
   ;
 
 cmp_expr:
   | e = add_expr { e }
-  | left = add_expr EQ right = add_expr  { BinOp { op = Eq; left; right } }
-  | left = add_expr NEQ right = add_expr { BinOp { op = NEq; left; right } }
-  | left = add_expr LT right = add_expr  { BinOp { op = Lt; left; right } }
-  | left = add_expr GT right = add_expr  { BinOp { op = Gt; left; right } }
-  | left = add_expr LTE right = add_expr { BinOp { op = LtEq; left; right } }
-  | left = add_expr GTE right = add_expr { BinOp { op = GtEq; left; right } }
-  | left = add_expr DOT_EQ right = add_expr  { BroadcastOp { op = Eq; left; right } }
-  | left = add_expr DOT_NEQ right = add_expr { BroadcastOp { op = NEq; left; right } }
-  | left = add_expr DOT_LT right = add_expr  { BroadcastOp { op = Lt; left; right } }
-  | left = add_expr DOT_GT right = add_expr  { BroadcastOp { op = Gt; left; right } }
-  | left = add_expr DOT_LTE right = add_expr { BroadcastOp { op = LtEq; left; right } }
-  | left = add_expr DOT_GTE right = add_expr { BroadcastOp { op = GtEq; left; right } }
-  | left = add_expr IN right = add_expr { BinOp { op = In; left; right } }
+  | left = add_expr EQ right = add_expr  { with_loc (BinOp { op = Eq; left; right }) $startpos }
+  | left = add_expr NEQ right = add_expr { with_loc (BinOp { op = NEq; left; right }) $startpos }
+  | left = add_expr LT right = add_expr  { with_loc (BinOp { op = Lt; left; right }) $startpos }
+  | left = add_expr GT right = add_expr  { with_loc (BinOp { op = Gt; left; right }) $startpos }
+  | left = add_expr LTE right = add_expr { with_loc (BinOp { op = LtEq; left; right }) $startpos }
+  | left = add_expr GTE right = add_expr { with_loc (BinOp { op = GtEq; left; right }) $startpos }
+  | left = add_expr DOT_EQ right = add_expr  { with_loc (BroadcastOp { op = Eq; left; right }) $startpos }
+  | left = add_expr DOT_NEQ right = add_expr { with_loc (BroadcastOp { op = NEq; left; right }) $startpos }
+  | left = add_expr DOT_LT right = add_expr  { with_loc (BroadcastOp { op = Lt; left; right }) $startpos }
+  | left = add_expr DOT_GT right = add_expr  { with_loc (BroadcastOp { op = Gt; left; right }) $startpos }
+  | left = add_expr DOT_LTE right = add_expr { with_loc (BroadcastOp { op = LtEq; left; right }) $startpos }
+  | left = add_expr DOT_GTE right = add_expr { with_loc (BroadcastOp { op = GtEq; left; right }) $startpos }
+  | left = add_expr IN right = add_expr { with_loc (BinOp { op = In; left; right }) $startpos }
   ;
 
 add_expr:
   | e = mul_expr { e }
-  | left = add_expr PLUS right = mul_expr  { BinOp { op = Plus; left; right } }
-  | left = add_expr MINUS right = mul_expr { BinOp { op = Minus; left; right } }
-  | left = add_expr DOT_PLUS right = mul_expr  { BroadcastOp { op = Plus; left; right } }
-  | left = add_expr DOT_MINUS right = mul_expr { BroadcastOp { op = Minus; left; right } }
+  | left = add_expr PLUS right = mul_expr  { with_loc (BinOp { op = Plus; left; right }) $startpos }
+  | left = add_expr MINUS right = mul_expr { with_loc (BinOp { op = Minus; left; right }) $startpos }
+  | left = add_expr DOT_PLUS right = mul_expr  { with_loc (BroadcastOp { op = Plus; left; right }) $startpos }
+  | left = add_expr DOT_MINUS right = mul_expr { with_loc (BroadcastOp { op = Minus; left; right }) $startpos }
   ;
 
 mul_expr:
   | e = unary_expr { e }
-  | left = mul_expr STAR right = unary_expr  { BinOp { op = Mul; left; right } }
-  | left = mul_expr SLASH right = unary_expr { BinOp { op = Div; left; right } }
-  | left = mul_expr PERCENT right = unary_expr { BinOp { op = Mod; left; right } }
-  | left = mul_expr DOT_MUL right = unary_expr  { BroadcastOp { op = Mul; left; right } }
-  | left = mul_expr DOT_DIV right = unary_expr { BroadcastOp { op = Div; left; right } }
-  | left = mul_expr DOT_PERCENT right = unary_expr { BroadcastOp { op = Mod; left; right } }
+  | left = mul_expr STAR right = unary_expr  { with_loc (BinOp { op = Mul; left; right }) $startpos }
+  | left = mul_expr SLASH right = unary_expr { with_loc (BinOp { op = Div; left; right }) $startpos }
+  | left = mul_expr PERCENT right = unary_expr { with_loc (BinOp { op = Mod; left; right }) $startpos }
+  | left = mul_expr DOT_MUL right = unary_expr  { with_loc (BroadcastOp { op = Mul; left; right }) $startpos }
+  | left = mul_expr DOT_DIV right = unary_expr { with_loc (BroadcastOp { op = Div; left; right }) $startpos }
+  | left = mul_expr DOT_PERCENT right = unary_expr { with_loc (BroadcastOp { op = Mod; left; right }) $startpos }
   ;
 
 unary_expr:
   | e = postfix_expr { e }
-  | MINUS e = unary_expr { UnOp { op = Neg; operand = e } }
-  | BANG e = unary_expr { UnOp { op = Not; operand = e } }
-  | BANG_BANG e = unary_expr { Unquote e }
-  | BANG_BANG_BANG e = unary_expr { UnquoteSplice e }
+  | MINUS e = unary_expr { with_loc (UnOp { op = Neg; operand = e }) $startpos }
+  | BANG e = unary_expr { with_loc (UnOp { op = Not; operand = e }) $startpos }
+  | BANG_BANG e = unary_expr { with_loc (Unquote e) $startpos }
+  | BANG_BANG_BANG e = unary_expr { with_loc (UnquoteSplice e) $startpos }
   ;
 
 /* Function calls and dot access are postfix operations */
 postfix_expr:
   | e = primary_expr { e }
   | fn = postfix_expr LPAREN skip_sep args = call_args RPAREN
-    { Call { fn; args } }
+    { with_loc (Call { fn; args }) $startpos }
   | target = postfix_expr DOT field = any_ident
-    { DotAccess { target; field } }
+    { with_loc (DotAccess { target; field }) $startpos }
   ;
 
 call_args:
@@ -259,18 +276,18 @@ arg:
 
 /* Primary (atomic) expressions */
 primary_expr:
-  | i = INT { Value (VInt i) }
-  | f = FLOAT { Value (VFloat f) }
-  | s = STRING { Value (VString s) }
-  | TRUE { Value (VBool true) }
-  | FALSE { Value (VBool false) }
-  | NULL { Value VNull }
-  | NA { Value (VNA NAGeneric) }
-  | col = COLUMN_REF { ColumnRef col }
-  | id = any_ident { Var id }
+  | i = INT { with_loc (Value (VInt i)) $startpos }
+  | f = FLOAT { with_loc (Value (VFloat f)) $startpos }
+  | s = STRING { with_loc (Value (VString s)) $startpos }
+  | TRUE { with_loc (Value (VBool true)) $startpos }
+  | FALSE { with_loc (Value (VBool false)) $startpos }
+  | NULL { with_loc (Value VNull) $startpos }
+  | NA { with_loc (Value (VNA NAGeneric)) $startpos }
+  | col = COLUMN_REF { with_loc (ColumnRef col) $startpos }
+  | id = any_ident { with_loc (Var id) $startpos }
   | LPAREN skip_sep e = expr skip_sep RPAREN { e }
   | LPAREN skip_sep fn = expr COMMA skip_sep args = call_args RPAREN
-    { Call { fn; args } }
+    { with_loc (Call { fn; args }) $startpos }
   | b = bracket_lit { b }
   | l = lambda_expr { l }
   | i = if_expr { i }
@@ -279,12 +296,12 @@ primary_expr:
   | b = block_expr { b }
   | raw = RAW_CODE
     { let text = String.trim raw in
-      RawCode { raw_text = text; raw_identifiers = Ast.extract_identifiers text } }
-  | cmd = SHELL_CMD { ShellExpr cmd }
+      with_loc (RawCode { raw_text = text; raw_identifiers = Ast.extract_identifiers text }) $startpos }
+  | cmd = SHELL_CMD { with_loc (ShellExpr cmd) $startpos }
   ;
 
 block_expr:
-  | LBRACE skip_sep stmts = stmt_list RBRACE { Block stmts }
+  | LBRACE skip_sep stmts = stmt_list RBRACE { with_loc (Block stmts) $startpos }
   ;
 
 lambda_expr:
@@ -292,7 +309,7 @@ lambda_expr:
     {
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
-      Lambda {
+      with_loc (Lambda {
         params = names;
         param_types;
         return_type = p.return_type;
@@ -300,13 +317,13 @@ lambda_expr:
         variadic = p.has_variadic;
         body;
         env = None;
-      }
+      }) $startpos
     }
   | FUNCTION g = generic_params_opt LPAREN p = params RPAREN body = expr
     {
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
-      Lambda {
+      with_loc (Lambda {
         params = names;
         param_types;
         return_type = p.return_type;
@@ -314,7 +331,7 @@ lambda_expr:
         variadic = p.has_variadic;
         body;
         env = None;
-      }
+      }) $startpos
     }
   ;
 
@@ -359,14 +376,14 @@ param:
 
 if_expr:
   | IF LPAREN cond = expr RPAREN then_ = primary_expr
-    { IfElse { cond; then_; else_ = Value VNull } }
+    { with_loc (IfElse { cond; then_; else_ = with_loc (Value VNull) $startpos }) $startpos }
   | IF LPAREN cond = expr RPAREN then_ = primary_expr ELSE else_ = primary_expr
-    { IfElse { cond; then_; else_ } }
+    { with_loc (IfElse { cond; then_; else_ }) $startpos }
   ;
 
 pipeline_expr:
   | PIPELINE LBRACE skip_sep nodes = pipeline_node_list RBRACE
-    { PipelineDef nodes }
+    { with_loc (PipelineDef nodes) $startpos }
   ;
 
 pipeline_node_list:
@@ -381,7 +398,7 @@ pipeline_node:
 
 intent_expr:
   | INTENT LBRACE skip_sep pairs = intent_field_list RBRACE
-    { IntentDef pairs }
+    { with_loc (IntentDef pairs) $startpos }
   ;
 
 intent_field_list:
@@ -397,9 +414,9 @@ intent_field:
 
 bracket_lit:
   | LBRACK skip_sep items = bracket_items RBRACK
-    { build_bracket_literal items }
+    { with_loc (build_bracket_literal items) $startpos }
   | LBRACK skip_sep COLON skip_sep RBRACK
-    { DictLit [] }
+    { with_loc (DictLit []) $startpos }
   ;
 
 bracket_items:

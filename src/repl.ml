@@ -48,13 +48,8 @@ let parse_and_eval ?filename mode env input =
   try
     let program = Parser.program Lexer.token lexbuf in
     match Typecheck.validate_program ~mode program with
-    | Error msg ->
-        (Ast.VError {
-           code = Ast.TypeError;
-           message = msg;
-           context = [];
-           location = None;
-         }, env)
+    | Error err ->
+        (Ast.VError err, env)
     | Ok () -> Eval.eval_program program env
   with
   | Lexer.SyntaxError msg ->
@@ -85,34 +80,34 @@ let run_file mode filename env =
 
 (** Recursively check if an expression contains a call to build_pipeline *)
 let rec expr_has_build_pipeline = function
-  | Ast.Call { fn = Ast.Var "build_pipeline"; _ } -> true
-  | Ast.Call { fn = Ast.Var "populate_pipeline"; _ } -> true
-  | Ast.Call { fn; args; _ } ->
+  | { Ast.node = Ast.Call { fn = { Ast.node = Ast.Var "build_pipeline"; _ }; _ }; _ } -> true
+  | { Ast.node = Ast.Call { fn = { Ast.node = Ast.Var "populate_pipeline"; _ }; _ }; _ } -> true
+  | { Ast.node = Ast.Call { fn; args; _ }; _ } ->
       expr_has_build_pipeline fn ||
       List.exists (fun (_, e) -> expr_has_build_pipeline e) args
-  | Ast.BinOp { left; right; _ } | Ast.BroadcastOp { left; right; _ } ->
+  | { Ast.node = Ast.BinOp { left; right; _ } | Ast.BroadcastOp { left; right; _ }; _ } ->
       expr_has_build_pipeline left || expr_has_build_pipeline right
-  | Ast.IfElse { cond; then_; else_ } ->
+  | { Ast.node = Ast.IfElse { cond; then_; else_ }; _ } ->
       expr_has_build_pipeline cond ||
       expr_has_build_pipeline then_ ||
       expr_has_build_pipeline else_
-  | Ast.Lambda { body; _ } -> expr_has_build_pipeline body
-  | Ast.ListLit items -> List.exists (fun (_, e) -> expr_has_build_pipeline e) items
-  | Ast.DictLit pairs -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
-  | Ast.UnOp { operand; _ } -> expr_has_build_pipeline operand
-  | Ast.DotAccess { target; _ } -> expr_has_build_pipeline target
-  | Ast.Block stmts -> List.exists stmt_has_build_pipeline stmts
-  | Ast.PipelineDef nodes ->
+  | { Ast.node = Ast.Lambda { body; _ }; _ } -> expr_has_build_pipeline body
+  | { Ast.node = Ast.ListLit items; _ } -> List.exists (fun (_, e) -> expr_has_build_pipeline e) items
+  | { Ast.node = Ast.DictLit pairs; _ } -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
+  | { Ast.node = Ast.UnOp { operand; _ }; _ } -> expr_has_build_pipeline operand
+  | { Ast.node = Ast.DotAccess { target; _ }; _ } -> expr_has_build_pipeline target
+  | { Ast.node = Ast.Block stmts; _ } -> List.exists stmt_has_build_pipeline stmts
+  | { Ast.node = Ast.PipelineDef nodes; _ } ->
       List.exists (fun (_, e) -> expr_has_build_pipeline e) nodes
-  | Ast.ListComp { expr; _ } -> expr_has_build_pipeline expr
-  | Ast.IntentDef pairs -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
+  | { Ast.node = Ast.ListComp { expr; _ }; _ } -> expr_has_build_pipeline expr
+  | { Ast.node = Ast.IntentDef pairs; _ } -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs
   | _ -> false
 
 and stmt_has_build_pipeline = function
-  | Ast.Expression e -> expr_has_build_pipeline e
-  | Ast.Assignment { expr; _ } -> expr_has_build_pipeline expr
-  | Ast.Reassignment { expr; _ } -> expr_has_build_pipeline expr
-  | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _ -> false
+  | { Ast.node = Ast.Expression e; _ } -> expr_has_build_pipeline e
+  | { Ast.node = Ast.Assignment { expr; _ }; _ } -> expr_has_build_pipeline expr
+  | { Ast.node = Ast.Reassignment { expr; _ }; _ } -> expr_has_build_pipeline expr
+  | { Ast.node = Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _; _ } -> false
 
 let program_has_build_pipeline (program : Ast.program) =
   List.exists stmt_has_build_pipeline program

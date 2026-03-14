@@ -9,22 +9,22 @@ open Ast
 let detect_vectorizable_agg (fn : value) : (string * string * bool) option =
   match fn with
   | VLambda { params = [param]; body; _ } ->
-    (match body with
+    (match body.node with
      (* Pattern: n(row) — inserted by eval for summarize($x = n()) *)
-     | Call { fn = Var "n"; args = [(None, Var p)] }
+     | Call { fn = { node = Var "n"; _ }; args = [(None, { node = Var p; _ })] }
        when p = param ->
        Some ("n", "", false)
      (* Pattern: agg(row.col) *)
-     | Call { fn = Var agg_name;
-              args = [(None, DotAccess { target = Var p; field })] }
+     | Call { fn = { node = Var agg_name; _ };
+              args = [(None, { node = DotAccess { target = { node = Var p; _ }; field }; _ })] }
         when p = param ->
         (match agg_name with
          | "mean" | "sum" | "min" | "max" | "count" | "nrow" | "n_distinct" -> Some (agg_name, field, false)
          | _ -> None)
      (* Pattern: agg(row.col, na_rm = true) *)
-     | Call { fn = Var agg_name;
-              args = [(None, DotAccess { target = Var p; field });
-                      (Some "na_rm", Value (VBool true))] }
+     | Call { fn = { node = Var agg_name; _ };
+              args = [(None, { node = DotAccess { target = { node = Var p; _ }; field }; _ });
+                      (Some "na_rm", { node = Value (VBool true); _ })] }
         when p = param ->
         (match agg_name with
          | "mean" | "sum" | "min" | "max" | "count" | "nrow" -> Some (agg_name, field, true)
@@ -87,7 +87,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
   (* Helper: apply aggregation fn with arg if callable, otherwise use fn as a constant value *)
   let apply_aggregation env fn arg =
     match fn with
-    | VLambda _ | VBuiltin _ -> eval_call env fn [(None, Value arg)]
+    | VLambda _ | VBuiltin _ -> eval_call env fn [(None, Ast.mk_expr (Value arg))]
     | v -> v
   in
   (*

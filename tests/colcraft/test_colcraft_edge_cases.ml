@@ -1,4 +1,10 @@
+open Str
+
 let run_tests pass_count fail_count _eval_string eval_string_env test =
+  let strip_location s =
+    let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
+    Str.global_replace re "" s
+  in
   (* === Grouped Operations Edge Cases === *)
 
   (* Create test CSV for edge case tests *)
@@ -69,7 +75,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v_repeat_agg, _) = eval_string_env
     {|df_na |> group_by($name) |> summarize($min_val = min($value), $max_val = max($value))|}
     env_na in
-  let result_repeat_agg = Ast.Utils.value_to_string v_repeat_agg in
+  let result_repeat_agg = strip_location (Ast.Utils.value_to_string v_repeat_agg) in
   if result_repeat_agg = {|Error(TypeError: "Function `min` encountered NA value. Handle missingness explicitly.")|} then begin
     incr pass_count; Printf.printf "  ✓ repeated grouped aggs on nullable column preserve NA error semantics\n"
   end else begin

@@ -33,11 +33,12 @@ let dedent s =
 (** Extract a plain string from an expression if it wraps VString/VSymbol,
     otherwise fall back to the general unparser. Used for serializer/deserializer fields.  *)
 let rec expr_to_string expr =
-  match expr with
+  match expr.node with
   | Ast.Value (Ast.VString s) | Ast.Value (Ast.VSymbol s) -> s
-  | e -> unparse_expr e
+  | _ -> unparse_expr expr
 
-and unparse_expr = function
+and unparse_expr expr =
+  match expr.node with
   | Value (VComputedNode cn) ->
       Printf.sprintf "computed_node(name=\"%s\", runtime=\"%s\", path=\"%s\")"
         (Serialization.json_escape cn.cn_name)
@@ -91,22 +92,22 @@ and unparse_expr = function
       "null"
 
 let unparse_import_stmt = function
-  | Ast.Import filename -> Printf.sprintf "import \"%s\"" filename
-  | Ast.ImportPackage pkg -> Printf.sprintf "import %s" pkg
-  | Ast.ImportFrom { package; names } ->
+  | { Ast.node = Ast.Import filename; _ } -> Printf.sprintf "import \"%s\"" filename
+  | { Ast.node = Ast.ImportPackage pkg; _ } -> Printf.sprintf "import %s" pkg
+  | { Ast.node = Ast.ImportFrom { package; names }; _ } ->
       let name_strs = List.map (fun (s : Ast.import_spec) ->
         match s.import_alias with
         | Some alias -> Printf.sprintf "%s=%s" alias s.import_name
         | None -> s.import_name
       ) names in
       Printf.sprintf "import %s[%s]" package (String.concat ", " name_strs)
-  | Ast.ImportFileFrom { filename; names } ->
+  | { Ast.node = Ast.ImportFileFrom { filename; names }; _ } ->
       let name_strs = List.map (fun (s : Ast.import_spec) ->
         match s.import_alias with
         | Some alias -> Printf.sprintf "%s=%s" alias s.import_name
         | None -> s.import_name
       ) names in
       Printf.sprintf "import \"%s\"[%s]" filename (String.concat ", " name_strs)
-  | Ast.Assignment { name; expr; _ } ->
+  | { Ast.node = Ast.Assignment { name; expr; _ }; _ } ->
       Printf.sprintf "%s = %s" name (unparse_expr expr)
   | _ -> ""

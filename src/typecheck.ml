@@ -23,12 +23,15 @@ let rec collect_type_vars = function
   | TDataFrame (Some schema) -> collect_type_vars schema
   | _ -> []
 
-let validate_lambda name (l : lambda) =
+let make_type_error ?location message =
+  { code = Ast.TypeError; message; context = []; location }
+
+let validate_lambda ?location name (l : lambda) =
   let all_params_annotated = List.for_all Option.is_some l.param_types in
   if not all_params_annotated then
-    Error (Printf.sprintf "Strict mode: top-level function '%s' must annotate all parameter types." name)
+    Error (make_type_error ?location (Printf.sprintf "Strict mode: top-level function '%s' must annotate all parameter types." name))
   else if Option.is_none l.return_type then
-    Error (Printf.sprintf "Strict mode: top-level function '%s' must annotate a return type." name)
+    Error (make_type_error ?location (Printf.sprintf "Strict mode: top-level function '%s' must annotate a return type." name))
   else
     (* Collect all type variables used in parameter types and return type *)
     let used_vars =
@@ -37,14 +40,14 @@ let validate_lambda name (l : lambda) =
       List.sort_uniq String.compare (param_vars @ return_vars)
     in
     if used_vars <> [] && l.generic_params = [] then
-      Error (Printf.sprintf "Strict mode: top-level function '%s' uses generic type variables %s but declares none. Use syntax like \\<T, U>(...) -> ..."
-        name (String.concat ", " used_vars))
+      Error (make_type_error ?location (Printf.sprintf "Strict mode: top-level function '%s' uses generic type variables %s but declares none. Use syntax like \\<T, U>(...) -> ..."
+        name (String.concat ", " used_vars)))
     else
       (* Check that all used type variables are declared *)
       let undeclared = List.filter (fun v -> not (List.mem v l.generic_params)) used_vars in
       if undeclared <> [] then
-        Error (Printf.sprintf "Strict mode: top-level function '%s' uses undeclared type variables: %s"
-          name (String.concat ", " undeclared))
+        Error (make_type_error ?location (Printf.sprintf "Strict mode: top-level function '%s' uses undeclared type variables: %s"
+          name (String.concat ", " undeclared)))
       else
         Ok ()
 
@@ -54,10 +57,16 @@ let validate_program ~(mode : mode) (program : program) =
   | Strict ->
       let rec go = function
         | [] -> Ok ()
-        | Assignment { name; expr = Lambda l; _ } :: rest ->
-            (match validate_lambda name l with
-            | Ok () -> go rest
-            | Error _ as e -> e)
-        | _ :: rest -> go rest
+        | stmt :: rest ->
+            (match stmt.node with
+            | Assignment { name; expr; _ } ->
+                (match expr.node with
+                | Lambda l ->
+                    let location = match expr.loc with Some _ as loc -> loc | None -> stmt.loc in
+                    (match validate_lambda ?location name l with
+                    | Ok () -> go rest
+                    | Error _ as e -> e)
+                | _ -> go rest)
+            | _ -> go rest)
       in
       go program

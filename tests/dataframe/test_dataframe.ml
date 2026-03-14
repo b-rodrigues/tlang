@@ -1,4 +1,10 @@
+open Str
+
 let run_tests pass_count fail_count _eval_string eval_string_env test =
+  let strip_location s =
+    let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
+    Str.global_replace re "" s
+  in
   (* Create test CSV file for Phase 2 tests *)
   let csv_path = "test_phase2.csv" in
   let oc = open_out csv_path in
@@ -111,7 +117,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   let (v, _) = eval_string_env "df.nonexistent" env in
-  let result = Ast.Utils.value_to_string v in
+  let result = strip_location (Ast.Utils.value_to_string v) in
   if result = {|Error(KeyError: "Column `nonexistent` not found in DataFrame.")|} then begin
     incr pass_count; Printf.printf "  ✓ missing column returns error\n"
   end else begin

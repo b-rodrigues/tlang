@@ -7,43 +7,45 @@ open Ast
 
 (** Create a structured error value *)
 let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
-  match expr with
+  let loc = expr.loc in
+  match expr.node with
   | ColumnRef field ->
       (* $field → row.field *)
-      DotAccess { target = Var "row"; field }
+      Ast.mk_expr ?loc (DotAccess { target = Ast.mk_expr ?loc (Var "row"); field })
   | BinOp { op; left; right } ->
       (* Recursively transform both sides *)
-      BinOp { op; left = desugar_nse_expr left; right = desugar_nse_expr right }
+      Ast.mk_expr ?loc (BinOp { op; left = desugar_nse_expr left; right = desugar_nse_expr right })
   | BroadcastOp { op; left; right } ->
-      BroadcastOp { op; left = desugar_nse_expr left; right = desugar_nse_expr right }
+      Ast.mk_expr ?loc (BroadcastOp { op; left = desugar_nse_expr left; right = desugar_nse_expr right })
   | UnOp { op; operand } ->
-      UnOp { op; operand = desugar_nse_expr operand }
+      Ast.mk_expr ?loc (UnOp { op; operand = desugar_nse_expr operand })
   | Call { fn; args } ->
-      Call { fn = desugar_nse_expr fn; 
-             args = List.map (fun (n, e) -> (n, desugar_nse_expr e)) args }
+      Ast.mk_expr ?loc (Call { fn = desugar_nse_expr fn; 
+             args = List.map (fun (n, e) -> (n, desugar_nse_expr e)) args })
   | IfElse { cond; then_; else_ } ->
-      IfElse { 
+      Ast.mk_expr ?loc (IfElse { 
         cond = desugar_nse_expr cond;
         then_ = desugar_nse_expr then_;
         else_ = desugar_nse_expr else_ 
-      }
+      })
   | ListLit items ->
-      ListLit (List.map (fun (n, e) -> (n, desugar_nse_expr e)) items)
+      Ast.mk_expr ?loc (ListLit (List.map (fun (n, e) -> (n, desugar_nse_expr e)) items))
   | DictLit entries ->
-      DictLit (List.map (fun (k, v) -> (k, desugar_nse_expr v)) entries)
+      Ast.mk_expr ?loc (DictLit (List.map (fun (k, v) -> (k, desugar_nse_expr v)) entries))
   | DotAccess { target; field } ->
-      DotAccess { target = desugar_nse_expr target; field }
+      Ast.mk_expr ?loc (DotAccess { target = desugar_nse_expr target; field })
   | Block stmts ->
       (* We need to desugar inside statements too *)
-      Block (List.map desugar_nse_stmt stmts)
+      Ast.mk_expr ?loc (Block (List.map desugar_nse_stmt stmts))
   | RawCode _ -> expr  (* Foreign code, opaque *)
   | _ -> expr
 
 and desugar_nse_stmt stmt =
-  match stmt with
-  | Expression e -> Expression (desugar_nse_expr e)
-  | Assignment { name; typ; expr } -> Assignment { name; typ; expr = desugar_nse_expr expr }
-  | Reassignment { name; expr } -> Reassignment { name; expr = desugar_nse_expr expr }
+  let loc = stmt.loc in
+  match stmt.node with
+  | Expression e -> Ast.mk_stmt ?loc (Expression (desugar_nse_expr e))
+  | Assignment { name; typ; expr } -> Ast.mk_stmt ?loc (Assignment { name; typ; expr = desugar_nse_expr expr })
+  | Reassignment { name; expr } -> Ast.mk_stmt ?loc (Reassignment { name; expr = desugar_nse_expr expr })
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
 
 (** Global flag to control warning output (e.g., for tests) *)
@@ -55,6 +57,17 @@ let source_location ?file pos : Ast.source_location =
     line = pos.Lexing.pos_lnum;
     column = max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1);
   }
+
+let attach_location location value =
+  match value, location with
+  | VError err, Some loc when err.location = None -> VError { err with location = Some loc }
+  | _ -> value
+
+let attach_expr_location (expr : Ast.expr) value =
+  attach_location expr.loc value
+
+let attach_stmt_location (stmt : Ast.stmt) value =
+  attach_location stmt.loc value
 
 let pipeline_error_message ~node_name ~detail =
   let prefix = Printf.sprintf "Pipeline node `%s` failed" node_name in
@@ -72,7 +85,7 @@ let annotate_pipeline_error ?runtime node_name = function
 
 (** Check if an expression uses NSE (contains $field references) *)
 let rec uses_nse (expr : Ast.expr) : bool =
-  match expr with
+  match expr.node with
   | ColumnRef _ -> true
   | BinOp { left; right; _ } -> uses_nse left || uses_nse right
   | BroadcastOp { left; right; _ } -> uses_nse left || uses_nse right
@@ -88,7 +101,7 @@ let rec uses_nse (expr : Ast.expr) : bool =
   | _ -> false
 
 and uses_nse_stmt stmt =
-  match stmt with
+  match stmt.node with
   | Expression e -> uses_nse e
   | Assignment { expr; _ } -> uses_nse expr
   | Reassignment { expr; _ } -> uses_nse expr
@@ -368,7 +381,7 @@ let rec broadcast2 op v1 v2 =
     Supports: x, x + y, x + y + z
     Returns list of variable names *)
 let rec extract_formula_vars (expr : Ast.expr) : string list =
-  match expr with
+  match expr.node with
   | Var s -> [s]
   | BinOp { op = Plus; left; right } ->
       extract_formula_vars left @ extract_formula_vars right
@@ -431,138 +444,133 @@ let name_error_with_lazy_suggestion name env_ref =
   | Some suggestion -> Error.name_error_with_suggestion name suggestion
   | None -> Error.name_error name
 
+let vexpr v = Ast.mk_expr (Value v)
+let varexpr name = Ast.mk_expr (Var name)
+
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
-  match expr with
-  | Unquote _ | UnquoteSplice _ ->
-      make_error GenericError "!! and !!! can only be used inside expr() or other quoting contexts"
-  | ShellExpr cmd -> eval_shell_expr env_ref cmd
-  | Value v -> v
-  | Var s ->
-      (match Env.find_opt s !env_ref with
-      | Some v -> v
-      | None -> 
-          (match !Ast.node_resolver s with
-           | Some v -> v
-           | None -> name_error_with_lazy_suggestion s env_ref))
-  
-  | ColumnRef field ->
-      (* Column references ($name) evaluate to a special symbol value
-         that data verbs can recognize and process. The symbol is prefixed
-         with "$" to distinguish it from regular symbols. *)
-      VSymbol ("$" ^ field)
+  let result =
+    match expr.node with
+    | Unquote _ | UnquoteSplice _ ->
+        make_error GenericError "!! and !!! can only be used inside expr() or other quoting contexts"
+    | ShellExpr cmd -> eval_shell_expr env_ref cmd
+    | Value v -> v
+    | Var s ->
+        (match Env.find_opt s !env_ref with
+        | Some v -> v
+        | None -> 
+            (match !Ast.node_resolver s with
+             | Some v -> v
+             | None -> name_error_with_lazy_suggestion s env_ref))
+    
+    | ColumnRef field ->
+        (* Column references ($name) evaluate to a special symbol value
+           that data verbs can recognize and process. The symbol is prefixed
+           with "$" to distinguish it from regular symbols. *)
+        VSymbol ("$" ^ field)
 
-  | BinOp { op; left; right } -> eval_binop env_ref op left right
-  | BroadcastOp { op; left; right } ->
-      let v1 = eval_expr env_ref left in
-      let v2 = eval_expr env_ref right in
-      broadcast2 op v1 v2
-  | UnOp { op; operand } -> eval_unop env_ref op operand
+    | BinOp { op; left; right } -> eval_binop env_ref op left right
+    | BroadcastOp { op; left; right } ->
+        let v1 = eval_expr env_ref left in
+        let v2 = eval_expr env_ref right in
+        broadcast2 op v1 v2
+    | UnOp { op; operand } -> eval_unop env_ref op operand
 
-  | IfElse { cond; then_; else_ } ->
-      let cond_val = eval_expr env_ref cond in
-      (match cond_val with
-       | VError _ as e -> e
-       | VNA _ -> make_error TypeError "Cannot use NA as a condition"
-       | VBool true -> eval_expr env_ref then_
-       | VBool false -> eval_expr env_ref else_
-       | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
+    | IfElse { cond; then_; else_ } ->
+        let cond_val = eval_expr env_ref cond in
+        (match cond_val with
+         | VError _ as e -> e
+         | VNA _ -> make_error TypeError "Cannot use NA as a condition"
+         | VBool true -> eval_expr env_ref then_
+         | VBool false -> eval_expr env_ref else_
+         | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
 
-  | Call { fn = Var "expr"; args } ->
-      (match args with
-       | [(_name, e)] -> VExpr (quote_expr env_ref e)
-       | _ -> make_error ArityError "expr() expects exactly 1 argument")
+    | Call { fn = { node = Var "expr"; _ }; args } ->
+        (match args with
+         | [(_name, e)] -> VExpr (quote_expr env_ref e)
+         | _ -> make_error ArityError "expr() expects exactly 1 argument")
 
-  | Call { fn = Var "exprs"; args } ->
-      VList (List.map (fun (name, e) -> (name, VExpr (quote_expr env_ref e))) args)
+    | Call { fn = { node = Var "exprs"; _ }; args } ->
+        VList (List.map (fun (name, e) -> (name, VExpr (quote_expr env_ref e))) args)
 
-  | Call { fn = Var "eval"; args } ->
-      (match args with
-       | [(_name, e)] ->
-           (match eval_expr env_ref e with
-            | VExpr quoted -> eval_expr env_ref quoted
-            | other -> other)
-       | _ -> make_error ArityError "eval() expects exactly 1 argument")
+    | Call { fn = { node = Var "eval"; _ }; args } ->
+        (match args with
+         | [(_name, e)] ->
+             (match eval_expr env_ref e with
+              | VExpr quoted -> eval_expr env_ref quoted
+              | other -> other)
+         | _ -> make_error ArityError "eval() expects exactly 1 argument")
 
-  | (Call { fn = Var "node"; args }
-    | Call { fn = Var "py"; args }
-    | Call { fn = Var "pyn"; args }
-    | Call { fn = Var "rn"; args }
-    | Call { fn = Var "shn"; args }) as call ->
-      let fn_name = match call with
-        | Call { fn = Var "py"; _ } -> "py"
-        | Call { fn = Var "pyn"; _ } -> "pyn"
-        | Call { fn = Var "rn"; _ } -> "rn"
-        | Call { fn = Var "shn"; _ } -> "shn"
-        | _ -> "node"
-      in
-      let lookup_arg name default =
-        match List.assoc_opt (Some name) args with
-        | Some e -> e
-        | None ->
-            (match name with
-             | "command" ->
-                 (match List.filter (fun (k, _) -> k = None) args with
-                  | [(_, c)] -> c | _ -> default)
-             | _ -> default)
-      in
-      let lookup_env_vars () =
-        let is_env_value = function
-          | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
-          | _ -> false
+    | Call { fn = { node = Var name; _ }; args }
+      when List.mem name ["node"; "py"; "pyn"; "rn"; "shn"] ->
+        let fn_name = name in
+        let lookup_arg name default =
+          match List.assoc_opt (Some name) args with
+          | Some e -> e
+          | None ->
+              (match name with
+               | "command" ->
+                   (match List.filter (fun (k, _) -> k = None) args with
+                    | [(_, c)] -> c | _ -> default)
+               | _ -> default)
         in
-        match List.assoc_opt (Some "env_vars") args with
-        | None -> Ok []
-        | Some e ->
-            (match eval_expr env_ref e with
-             | VDict pairs ->
-                  (match List.find_opt (fun (_, v) -> not (is_env_value v)) pairs with
-                   | None -> Ok pairs
-                   | Some (key, _) ->
-                       Error (Error.type_error
-                                (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." fn_name key)))
-             | VNull -> Ok []
-             | _ ->
-                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
-      in
-      let lookup_runtime_args () =
-        let rec is_arg_value ~allow_list = function
-          | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
-          | VList items when allow_list ->
-              List.for_all (fun (_, v) -> is_arg_value ~allow_list:false v) items
-          | _ -> false
+        let lookup_env_vars () =
+          let is_env_value = function
+            | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
+            | _ -> false
+          in
+          match List.assoc_opt (Some "env_vars") args with
+          | None -> Ok []
+          | Some e ->
+              (match eval_expr env_ref e with
+               | VDict pairs ->
+                    (match List.find_opt (fun (_, v) -> not (is_env_value v)) pairs with
+                     | None -> Ok pairs
+                     | Some (key, _) ->
+                         Error (Error.type_error
+                                  (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." fn_name key)))
+               | VNull -> Ok []
+               | _ ->
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
         in
-        match List.assoc_opt (Some "args") args with
-        | None -> Ok []
-        | Some e ->
-            (match eval_expr env_ref e with
-             | VDict pairs ->
-                  (match List.find_opt (fun (_, v) -> not (is_arg_value ~allow_list:true v)) pairs with
-                   | None -> Ok pairs
-                   | Some (key, _) ->
-                       Error (Error.type_error
-                                (Printf.sprintf "Function `%s` expects runtime arg `%s` to be a String, Symbol, Int, Float, Bool, Null, or List of those values." fn_name key)))
-             | VList items ->
-                  (match List.find_opt (fun (_, v) -> not (is_arg_value ~allow_list:false v)) items with
-                   | None -> Ok (List.mapi (fun i (_, v) -> (string_of_int i, v)) items)
-                   | Some _ ->
-                       Error (Error.type_error
-                                (Printf.sprintf "Function `%s` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values." fn_name)))
-             | VNull -> Ok []
-             | _ ->
-                 Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict or List." fn_name)))
-      in
-      let lookup_list name =
-        match List.assoc_opt (Some name) args with
-        | Some (ListLit items) -> List.map snd items
-        | Some expr -> [expr]
-        | None -> []
-      in
+        let lookup_runtime_args () =
+          let rec is_arg_value ~allow_list = function
+            | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
+            | VList items when allow_list ->
+                List.for_all (fun (_, v) -> is_arg_value ~allow_list:false v) items
+            | _ -> false
+          in
+          match List.assoc_opt (Some "args") args with
+          | None -> Ok []
+          | Some e ->
+              (match eval_expr env_ref e with
+               | VDict pairs ->
+                    (match List.find_opt (fun (_, v) -> not (is_arg_value ~allow_list:true v)) pairs with
+                     | None -> Ok pairs
+                     | Some (key, _) ->
+                         Error (Error.type_error
+                                  (Printf.sprintf "Function `%s` expects runtime arg `%s` to be a String, Symbol, Int, Float, Bool, Null, or List of those values." fn_name key)))
+               | VList items ->
+                    (match List.find_opt (fun (_, v) -> not (is_arg_value ~allow_list:false v)) items with
+                     | None -> Ok (List.mapi (fun i (_, v) -> (string_of_int i, v)) items)
+                     | Some _ ->
+                         Error (Error.type_error
+                                  (Printf.sprintf "Function `%s` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values." fn_name)))
+               | VNull -> Ok []
+               | _ ->
+                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict or List." fn_name)))
+        in
+        let lookup_list name =
+          match List.assoc_opt (Some name) args with
+          | Some { node = ListLit items; _ } -> List.map snd items
+          | Some expr -> [expr]
+          | None -> []
+        in
       let eval_string name default =
-        match eval_expr env_ref (lookup_arg name (Value (VString default))) with
+        match eval_expr env_ref (lookup_arg name (vexpr (VString default))) with
         | VString s -> s | VSymbol s -> s | _ -> default
       in
       let eval_bool name default =
-        match eval_expr env_ref (lookup_arg name (Value (VBool default))) with
+        match eval_expr env_ref (lookup_arg name (vexpr (VBool default))) with
         | VBool b -> b | _ -> default
       in
       (* Evaluate the optional script argument — must be a string path to a .R, .py, or .qmd file *)
@@ -581,7 +589,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         | None -> None
       in
       let shell_args = lookup_list "shell_args" in
-      let command = lookup_arg "command" (Value VNull) in
+      let command = lookup_arg "command" (vexpr VNull) in
       (match lookup_env_vars (), lookup_runtime_args () with
       | Error err, _ | _, Error err -> err
       | Ok un_env_vars, Ok un_args ->
@@ -594,7 +602,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             in
             List.find_map find_path [ "path"; "file"; "qmd_file"; "input" ]
           in
-          let has_command = command <> Value VNull in
+          let has_command = match command.node with Value VNull -> false | _ -> true in
           let execution_path_opt =
             match explicit_script_path_opt with
             | Some _ as s -> s
@@ -603,10 +611,10 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
           if has_command && explicit_script_path_opt <> None then
             Error.make_error TypeError (Printf.sprintf "%s() cannot use both 'command' and 'script' arguments — choose one." fn_name)
           else
-             let default_runtime = match call with
-               | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } -> "Python"
-               | Call { fn = Var "rn"; _ } -> "R"
-               | Call { fn = Var "shn"; _ } -> "sh"
+             let default_runtime = match name with
+               | "py" | "pyn" -> "Python"
+               | "rn" -> "R"
+               | "shn" -> "sh"
                | _ -> "T"
              in
             (* Auto-detect runtime from script/arg extension only if not explicit *)
@@ -634,27 +642,27 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                         Bytes.to_string buf)
                       in Ast.extract_identifiers content
                     with Sys_error _ | End_of_file -> []
-                    in (RawCode { raw_text = ""; raw_identifiers = ids }, Some path)
+                    in (Ast.mk_expr (RawCode { raw_text = ""; raw_identifiers = ids }), Some path)
                 | None -> (command, None)
               in
               let base_includes = lookup_list "includes" in
               let un_includes =
                 match arg_path_opt with
                 | Some p when has_command ->
-                    let already_included = List.exists (function Value (VString s) | Value (VSymbol s) -> s = p | _ -> false) base_includes in
-                    if already_included then base_includes else base_includes @ [Value (VString p)]
+                    let already_included = List.exists (function { node = Value (VString s); _ } | { node = Value (VSymbol s); _ } -> s = p | _ -> false) base_includes in
+                    if already_included then base_includes else base_includes @ [vexpr (VString p)]
                 | _ -> base_includes
               in
               if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
                   "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
               else if runtime <> "T" && runtime <> "Quarto" then
-                match un_command with
+                match un_command.node with
                 | RawCode _ ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_arg "serializer" (match runtime with "sh" -> Var "text" | _ -> Var "default");
-                      un_deserializer = lookup_arg "deserializer" (Var "default");
+                      un_serializer = lookup_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
+                      un_deserializer = lookup_arg "deserializer" (varexpr "default");
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -665,8 +673,8 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | Value (VString _) | Value (VSymbol _) | Value VNull when runtime = "sh" ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_arg "serializer" (Var "text");
-                      un_deserializer = lookup_arg "deserializer" (Var "default");
+                      un_serializer = lookup_arg "serializer" (varexpr "text");
+                      un_deserializer = lookup_arg "deserializer" (varexpr "default");
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -677,8 +685,8 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | _ when Option.is_some un_script ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_arg "serializer" (match runtime with "sh" -> Var "text" | _ -> Var "default");
-                      un_deserializer = lookup_arg "deserializer" (Var "default");
+                      un_serializer = lookup_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
+                      un_deserializer = lookup_arg "deserializer" (varexpr "default");
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -692,8 +700,8 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               else
                 VNode {
                   un_command; un_script; un_runtime = runtime;
-                  un_serializer = lookup_arg "serializer" (Var "default");
-                  un_deserializer = lookup_arg "deserializer" (Var "default");
+                  un_serializer = lookup_arg "serializer" (varexpr "default");
+                  un_deserializer = lookup_arg "deserializer" (varexpr "default");
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;
@@ -702,23 +710,25 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_noop = eval_bool "noop" false;
                 }
 )
-  | Call { fn; args } ->
-      let fn_val = eval_expr env_ref fn in
-      eval_call env_ref fn_val args
+    | Call { fn; args } ->
+        let fn_val = eval_expr env_ref fn in
+        eval_call env_ref fn_val args
 
-  | Lambda l -> VLambda { l with env = Some !env_ref } (* Capture the current environment *)
+    | Lambda l -> VLambda { l with env = Some !env_ref } (* Capture the current environment *)
 
 
-  (* Structural expressions *)
-  | ListLit items -> eval_list_lit env_ref items
-  | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env_ref e)) pairs)
-  | DotAccess { target; field } -> eval_dot_access env_ref target field
-  | RawCode _ ->
-      make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated directly in T. Use them only in `node(command = ..., runtime = R|Python|Julia)`-style foreign-runtime nodes. Quarto nodes work differently: they require a `.qmd` script and do not support raw code blocks."
-  | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
-  | Block stmts -> eval_block env_ref stmts
-  | PipelineDef nodes -> eval_pipeline env_ref nodes
-  | IntentDef pairs -> eval_intent env_ref pairs
+    (* Structural expressions *)
+    | ListLit items -> eval_list_lit env_ref items
+    | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env_ref e)) pairs)
+    | DotAccess { target; field } -> eval_dot_access env_ref target field
+    | RawCode _ ->
+        make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated directly in T. Use them only in `node(command = ..., runtime = R|Python|Julia)`-style foreign-runtime nodes. Quarto nodes work differently: they require a `.qmd` script and do not support raw code blocks."
+    | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
+    | Block stmts -> eval_block env_ref stmts
+    | PipelineDef nodes -> eval_pipeline env_ref nodes
+    | IntentDef pairs -> eval_intent env_ref pairs
+  in
+  attach_expr_location expr result
 
 and eval_block env_ref stmts =
   let rec loop () = function
@@ -756,35 +766,35 @@ and eval_intent env_ref pairs =
 (** Extract free variable names from an expression *)
 and free_vars (expr : Ast.expr) : string list =
   let rec collect = function
-    | Value _ -> []
-    | Var s -> [s]
-    | ColumnRef _ -> []
-    | Call { fn; args } ->
+    | { node = Value _; _ } -> []
+    | { node = Var s; _ } -> [s]
+    | { node = ColumnRef _; _ } -> []
+    | { node = Call { fn; args }; _ } ->
         collect fn @ List.concat_map (fun (_, e) -> collect e) args
-    | Lambda { body; params; _ } ->
+    | { node = Lambda { body; params; _ }; _ } ->
         let bound = params in
         List.filter (fun v -> not (List.mem v bound)) (collect body)
-    | IfElse { cond; then_; else_ } ->
+    | { node = IfElse { cond; then_; else_ }; _ } ->
         collect cond @ collect then_ @ collect else_
-    | ListLit items -> List.concat_map (fun (_, e) -> collect e) items
-    | ListComp _ -> []
-    | DictLit pairs -> List.concat_map (fun (_, e) -> collect e) pairs
-    | BinOp { left; right; _ } -> collect left @ collect right
-    | UnOp { operand; _ } -> collect operand
-    | BroadcastOp { left; right; _ } -> collect left @ collect right
-    | DotAccess { target; _ } -> collect target
-    | RawCode { raw_identifiers; _ } -> raw_identifiers  (* Lexically extracted identifiers for dependency detection *)
-    | Block stmts -> List.concat_map collect_stmt stmts
-    | PipelineDef _ -> []
-    | IntentDef pairs -> List.concat_map (fun (_, e) -> collect e) pairs
-    | Unquote e | UnquoteSplice e -> collect e
-    | ShellExpr _ -> []
+    | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect e) items
+    | { node = ListComp _; _ } -> []
+    | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect e) pairs
+    | { node = BinOp { left; right; _ }; _ } -> collect left @ collect right
+    | { node = UnOp { operand; _ }; _ } -> collect operand
+    | { node = BroadcastOp { left; right; _ }; _ } -> collect left @ collect right
+    | { node = DotAccess { target; _ }; _ } -> collect target
+    | { node = RawCode { raw_identifiers; _ }; _ } -> raw_identifiers  (* Lexically extracted identifiers for dependency detection *)
+    | { node = Block stmts; _ } -> List.concat_map collect_stmt stmts
+    | { node = PipelineDef _; _ } -> []
+    | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect e) pairs
+    | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect e
+    | { node = ShellExpr _; _ } -> []
 
   and collect_stmt = function
-    | Expression e -> collect e
-    | Assignment { expr; _ } -> collect expr
-    | Reassignment { expr; _ } -> collect expr
-    | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> []
+    | { node = Expression e; _ } -> collect e
+    | { node = Assignment { expr; _ }; _ } -> collect expr
+    | { node = Reassignment { expr; _ }; _ } -> collect expr
+    | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> []
   in
   let vars = collect expr in
   List.sort_uniq String.compare vars
@@ -832,8 +842,8 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     un_command = expr;
     un_script = None;
     un_runtime = "T";
-    un_serializer = Var "default";
-    un_deserializer = Var "default";
+    un_serializer = varexpr "default";
+    un_deserializer = varexpr "default";
     un_env_vars = [];
     un_args = [];
     un_shell = None;
@@ -850,8 +860,9 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
      we catch it and defer it as an unbuilt node so pipeline topological
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
-    let is_node_call = match node_expr with
-      | Call { fn = Var "node"; _ } | Call { fn = Var "py"; _ } | Call { fn = Var "pyn"; _ } | Call { fn = Var "rn"; _ } | Call { fn = Var "shn"; _ } | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
+    let is_node_call = match node_expr.node with
+      | Call { fn = { node = Var ("node" | "py" | "pyn" | "rn" | "shn"); _ }; _ }
+      | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
     if is_node_call then
@@ -859,11 +870,11 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       | VNode un -> Ok (name, un)
       | VComputedNode cn ->
           Ok (name, {
-            un_command = Value (VComputedNode cn);
+            un_command = vexpr (VComputedNode cn);
             un_script = None;
             un_runtime = cn.cn_runtime;
-            un_serializer = Value (VString cn.cn_serializer);
-            un_deserializer = Var "default";
+            un_serializer = vexpr (VString cn.cn_serializer);
+            un_deserializer = varexpr "default";
             un_env_vars = [];
             un_args = [];
             un_shell = None;
@@ -899,7 +910,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   let node_names = List.map fst desugared_nodes in
   let deps = List.map (fun (name, un) ->
     let fv = free_vars un.un_command in
-    let is_raw = match un.un_command with RawCode _ -> true | _ -> false in
+    let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
     let has_self_ref = List.exists (fun v -> v = name) fv in
     if has_self_ref && not is_raw then
       invalid_arg ("Self-referential node detected in command for node: " ^ name)
@@ -949,7 +960,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
           dep_runtime <> my_runtime && 
           my_runtime <> "Quarto" && 
           my_runtime <> "sh" &&
-          un.un_deserializer = Var "default"
+          (match un.un_deserializer.node with Var "default" -> true | _ -> false)
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in
     if offenders <> [] then
@@ -975,7 +986,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       else if un.un_runtime = "T" then
         let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
         let is_unbuilt d = match Env.find_opt d !current_env_ref with Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>" | _ -> false in
-        let is_raw = match un.un_command with RawCode _ -> true | _ -> false in
+        let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
         if is_raw || List.exists is_unbuilt node_deps then
           VComputedNode {
             cn_name = name;
@@ -997,12 +1008,12 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
               | (n, e) :: _ when n = target -> Some e
               | _ :: rest -> lookup_in_dict target rest
             in
-            let strategy_expr = match un.un_deserializer with
+            let strategy_expr = match un.un_deserializer.node with
               | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> un.un_deserializer)
               | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> un.un_deserializer)
               | _ -> un.un_deserializer
             in
-            match strategy_expr with
+            match strategy_expr.node with
             | Ast.Value (Ast.VString s) -> s
             | Ast.Var s -> s
             | _ -> "default"
@@ -1112,7 +1123,7 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
             cn_name = name;
             cn_runtime = "T";
             cn_path = "<unbuilt>";
-            cn_serializer = (match un.un_serializer with Ast.Value (Ast.VString s) -> s | e -> Nix_unparse.unparse_expr e);
+            cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.unparse_expr un.un_serializer);
             cn_class = "Unknown";
             cn_dependencies = node_deps;
           }
@@ -1128,12 +1139,12 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
               | (n, e) :: _ when n = target -> Some e
               | _ :: rest -> lookup_in_dict target rest
             in
-            let strategy_expr = match un.un_deserializer with
+            let strategy_expr = match un.un_deserializer.node with
               | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> un.un_deserializer)
               | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> un.un_deserializer)
               | _ -> un.un_deserializer
             in
-            match strategy_expr with
+            match strategy_expr.node with
             | Ast.Value (Ast.VString s) -> s
             | Ast.Var s -> s
             | _ -> "default"
@@ -1155,14 +1166,14 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
                      acc)
             | _ -> acc
           ) !env_ref node_deps in
-          let cmd = match un.un_command with Value (VExpr e) -> e | e -> e in
+          let cmd = match un.un_command.node with Value (VExpr e) -> e | _ -> un.un_command in
           eval_expr (ref env_with_deserialized) cmd
           |> annotate_pipeline_error ~runtime:"T" name
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
         cn_path = "<unbuilt>";
-        cn_serializer = (match un.un_serializer with Ast.Value (Ast.VString s) -> s | e -> Nix_unparse.unparse_expr e);
+        cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.unparse_expr un.un_serializer);
         cn_class = "Unknown";
         cn_dependencies = List.assoc name prev.p_deps;
       }
@@ -1212,27 +1223,27 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
     Used by quote_expr in Call args, ListLit items, and DictLit pairs. *)
 and splice_into_named_pairs env_ref fallback_name e =
   match eval_expr env_ref e with
-  | VList items  -> List.map (fun (n, v) -> (n, Value v)) items
-  | VDict items  -> List.map (fun (k, v) -> (Some k, Value v)) items
-  | VVector arr  -> Array.to_list arr |> List.map (fun v -> (None, Value v))
+  | VList items  -> List.map (fun (n, v) -> (n, vexpr v)) items
+  | VDict items  -> List.map (fun (k, v) -> (Some k, vexpr v)) items
+  | VVector arr  -> Array.to_list arr |> List.map (fun v -> (None, vexpr v))
   | other ->
       let msg = "!!! operand must evaluate to a List, Vector, or Dict, got "
                 ^ Utils.type_name other in
-      [(fallback_name, Value (make_error TypeError msg))]
+      [(fallback_name, vexpr (make_error TypeError msg))]
 
 (** Evaluate a splice operand for DictLit pairs (string-keyed). *)
 and splice_into_dict_pairs env_ref fallback_key e =
   match eval_expr env_ref e with
-  | VDict items -> List.map (fun (k, v) -> (k, Value v)) items
+  | VDict items -> List.map (fun (k, v) -> (k, vexpr v)) items
   | VList items ->
       List.map (fun (name, v) ->
         let key = match name with Some n -> n | None -> fallback_key in
-        (key, Value v)
+        (key, vexpr v)
       ) items
   | other ->
       let msg = "!!! operand must evaluate to a List, Vector, or Dict, got "
                 ^ Utils.type_name other in
-      [(fallback_key, Value (make_error TypeError msg))]
+      [(fallback_key, vexpr (make_error TypeError msg))]
 
 (** Quote an expression: recursively walk the AST, leaving it unevaluated
     except where !! (unquote) and !!! (unquote-splice) request evaluation. *)
@@ -1240,55 +1251,56 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
   let q  = quote_expr env_ref in
   let qs = quote_stmt env_ref in
   let qpair (n, e) = (n, q e) in
-  match expr with
+  let loc = expr.loc in
+  match expr.node with
   (* ── Unquoting ─────────────────────────────────────────────── *)
   | Unquote e ->
-      (match eval_expr env_ref e with VExpr ex -> ex | v -> Value v)
+      (match eval_expr env_ref e with VExpr ex -> ex | v -> Ast.mk_expr ?loc (Value v))
 
   | UnquoteSplice _ ->
-      Value (make_error TypeError
-        "!!! can only be used inside a Call, List, or Dict literal within expr()")
+      Ast.mk_expr ?loc (Value (make_error TypeError
+        "!!! can only be used inside a Call, List, or Dict literal within expr()"))
 
   (* ── Compound forms that support !!! splicing ──────────────── *)
   | Call { fn; args } ->
       let quoted_args = List.concat_map (fun (name, arg) ->
-        match arg with
+        match arg.node with
         | UnquoteSplice e -> splice_into_named_pairs env_ref name e
         | _               -> [(name, q arg)]
       ) args in
-      Call { fn = q fn; args = quoted_args }
+      Ast.mk_expr ?loc (Call { fn = q fn; args = quoted_args })
 
   | ListLit items ->
       let quoted = List.concat_map (fun (name, item) ->
-        match item with
+        match item.node with
         | UnquoteSplice e -> splice_into_named_pairs env_ref name e
         | _               -> [(name, q item)]
       ) items in
-      ListLit quoted
+      Ast.mk_expr ?loc (ListLit quoted)
 
   | DictLit pairs ->
       let quoted = List.concat_map (fun (k, v) ->
-        match v with
+        match v.node with
         | UnquoteSplice e -> splice_into_dict_pairs env_ref k e
         | _               -> [(k, q v)]
       ) pairs in
-      DictLit quoted
+      Ast.mk_expr ?loc (DictLit quoted)
 
   (* ── Binary / unary operators ──────────────────────────────── *)
-  | BinOp { op; left; right }      -> BinOp { op; left = q left; right = q right }
-  | BroadcastOp { op; left; right } -> BroadcastOp { op; left = q left; right = q right }
-  | UnOp { op; operand }            -> UnOp { op; operand = q operand }
+  | BinOp { op; left; right }      -> Ast.mk_expr ?loc (BinOp { op; left = q left; right = q right })
+  | BroadcastOp { op; left; right } -> Ast.mk_expr ?loc (BroadcastOp { op; left = q left; right = q right })
+  | UnOp { op; operand }            -> Ast.mk_expr ?loc (UnOp { op; operand = q operand })
 
   (* ── Control flow / structure ───────────────────────────────── *)
   | IfElse { cond; then_; else_ } ->
-      IfElse { cond = q cond; then_ = q then_; else_ = q else_ }
-  | Block stmts       -> Block (List.map qs stmts)
-  | Lambda l          -> Lambda { l with body = q l.body }
-  | DotAccess { target; field } -> DotAccess { target = q target; field }
+      Ast.mk_expr ?loc (IfElse { cond = q cond; then_ = q then_; else_ = q else_ })
+  | Block stmts       -> Ast.mk_expr ?loc (Block (List.map qs stmts))
+  | Lambda l          -> Ast.mk_expr ?loc (Lambda { l with body = q l.body })
+  | DotAccess { target; field } -> Ast.mk_expr ?loc (DotAccess { target = q target; field })
 
   (* ── Named-pair containers ─────────────────────────────────── *)
-  | PipelineDef nodes  -> PipelineDef (List.map qpair nodes)
-  | IntentDef fields   -> IntentDef (List.map qpair fields)
+  | PipelineDef nodes  -> Ast.mk_expr ?loc (PipelineDef (List.map qpair nodes))
+  | IntentDef fields   -> Ast.mk_expr ?loc (IntentDef (List.map qpair fields))
 
   (* ── List comprehension ────────────────────────────────────── *)
   | ListComp { expr = e; clauses } ->
@@ -1296,18 +1308,19 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
         | CFor { var; iter }  -> CFor { var; iter = q iter }
         | CFilter filter_expr -> CFilter (q filter_expr)
       in
-      ListComp { expr = q e; clauses = List.map qclause clauses }
+      Ast.mk_expr ?loc (ListComp { expr = q e; clauses = List.map qclause clauses })
 
   (* ── Leaves (Value, Var, ColumnRef, RawCode) pass through ── *)
-  | other -> other
+  | _ -> expr
 
 and quote_stmt (env_ref : environment ref) (stmt : Ast.stmt) : Ast.stmt =
   let q = quote_expr env_ref in
-  match stmt with
-  | Expression e                  -> Expression (q e)
-  | Assignment { name; typ; expr } -> Assignment { name; typ; expr = q expr }
-  | Reassignment { name; expr }   -> Reassignment { name; expr = q expr }
-  | other -> other
+  let loc = stmt.loc in
+  match stmt.node with
+  | Expression e                   -> Ast.mk_stmt ?loc (Expression (q e))
+  | Assignment { name; typ; expr } -> Ast.mk_stmt ?loc (Assignment { name; typ; expr = q expr })
+  | Reassignment { name; expr }    -> Ast.mk_stmt ?loc (Reassignment { name; expr = q expr })
+  | _ -> stmt
 
 and eval_list_lit env_ref items =
     let evaluated_items = List.map (fun (name, e) ->
@@ -1451,7 +1464,7 @@ and eval_call env_ref fn_val raw_args =
     | _ -> None
   in
   let make_row_lambda body =
-    Lambda {
+    Ast.mk_expr (Lambda {
       params = ["row"];
       param_types = [None];
       return_type = None;
@@ -1459,19 +1472,19 @@ and eval_call env_ref fn_val raw_args =
       variadic = false;
       body;
       env = None;
-    }
+    })
   in
   (* NSE auto-transformation: if an argument is a complex expression containing
      ColumnRef nodes (not a bare ColumnRef), wrap it in a lambda \(row) <desugared>
      before evaluation. Bare ColumnRef stays as-is (evaluates to VSymbol). *)
   let transform_nse_args args =
     List.map (fun (name, expr) ->
-      match expr with
-      | Call { fn = Var "n"; args = [] }
+      match expr.node with
+      | Call { fn = { node = Var "n"; _ }; args = [] }
         when current_builtin_name = Some "summarize" && Option.is_some name ->
-          (name, make_row_lambda (Call { fn = Var "n"; args = [(None, Var "row")] }))
+          (name, make_row_lambda (Ast.mk_expr (Call { fn = varexpr "n"; args = [(None, varexpr "row")] })))
       | ColumnRef _ -> (name, expr)  (* bare $col → keep, evaluates to VSymbol *)
-      | ListLit items when List.for_all (fun (_, e) -> match e with ColumnRef _ -> true | _ -> false) items ->
+      | ListLit items when List.for_all (fun (_, e) -> match e.node with ColumnRef _ -> true | _ -> false) items ->
           (name, expr) (* list of bare $cols → keep as-is *)
       | _ when uses_nse expr ->
           (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
@@ -1480,7 +1493,7 @@ and eval_call env_ref fn_val raw_args =
              will handle the inner ColumnRef args as VSymbol values. Named Call expressions
              (e.g. mutate($count = nrow($dept))) still need lambda wrapping to maintain
              proper NSE row context in mutate/summarize. *)
-          (match name, expr with
+          (match name, expr.node with
            | None, Call _ -> (name, expr)
            | None, BinOp { op = (Pipe | MaybePipe); _ } -> (name, expr)
             | _ ->
@@ -1576,7 +1589,7 @@ and eval_call env_ref fn_val raw_args =
            if String.length s > 0 && s.[0] = '$' then
              let field = String.sub s 1 (String.length s - 1) in
              let fn = VLambda { params = ["row"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
-                                body = DotAccess { target = Var "row"; field }; env = Some !env_ref } in
+                               body = Ast.mk_expr (DotAccess { target = Ast.mk_expr (Var "row"); field }); env = Some !env_ref } in
              eval_call env_ref fn raw_args
            else
              let names = List.map fst (Env.bindings !env_ref) in
@@ -1610,26 +1623,26 @@ and eval_binop env_ref op left right =
       (match lval with
        | VError _ as e -> e
        | _ ->
-         match right with
+         match right.node with
          | Call { fn; args } ->
              (* Insert pipe value as first argument *)
              let fn_val = eval_expr env_ref fn in
-             eval_call env_ref fn_val ((None, Value lval) :: args)
+             eval_call env_ref fn_val ((None, vexpr lval) :: args)
          | _ ->
              (* RHS is a bare function name or expression *)
              let fn_val = eval_expr env_ref right in
-             eval_call env_ref fn_val [(None, Value lval)]
+             eval_call env_ref fn_val [(None, vexpr lval)]
       )
   | MaybePipe ->
       let lval = eval_expr env_ref left in
       (* Unconditional pipe — always forward, even errors *)
-      (match right with
+      (match right.node with
        | Call { fn; args } ->
            let fn_val = eval_expr env_ref fn in
-           eval_call env_ref fn_val ((None, Value lval) :: args)
+           eval_call env_ref fn_val ((None, vexpr lval) :: args)
        | _ ->
            let fn_val = eval_expr env_ref right in
-           eval_call env_ref fn_val [(None, Value lval)]
+           eval_call env_ref fn_val [(None, vexpr lval)]
       )
 
   (* Logical (Short-circuiting) *)
@@ -1723,142 +1736,145 @@ and eval_unop env_ref op operand =
 (* --- Statement & Program Evaluation --- *)
 
 and eval_statement (env : environment) (stmt : stmt) : value * environment =
-  match stmt with
-  | Expression e ->
-      let env_ref = ref env in
-      let v = eval_expr env_ref e in
-      (match e with
-       | ShellExpr _ ->
-           (match v with
-            | VShellResult sr -> print_string sr.sr_stdout; flush stdout; (VNull, !env_ref)
-            | _ -> (v, !env_ref))
-       | _ -> (v, !env_ref))
-  | Assignment { name; expr; _ } ->
-      if Env.mem name env then
-        let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite." name in
-        (make_error NameError msg, env)
-      else
+  let (v, env') =
+    match stmt.node with
+    | Expression e ->
         let env_ref = ref env in
-        let v = eval_expr env_ref expr in
-        let new_env = Env.add name v !env_ref in
-        (match v with
-         | VError _ -> (v, new_env)
-         | _ -> (VNull, new_env))
-  | Reassignment { name; expr } ->
-      if not (Env.mem name env) then
-        let msg = Printf.sprintf "Cannot overwrite '%s': variable not defined. Use '=' for first assignment." name in
-        (make_error NameError msg, env)
-      else
-        let env_ref = ref env in
-        let v = eval_expr env_ref expr in
-        if !show_warnings then
-          Printf.eprintf "Warning: overwriting variable '%s'\n" name;
-        let new_env = Env.add name v !env_ref in
-        (match v with
-         | VError _ -> (v, new_env)
-         | _ -> (VNull, new_env))
-  | Import filename ->
-      (try
-        let ch = open_in filename in
-        let content = really_input_string ch (in_channel_length ch) in
-        close_in ch;
-        let lexbuf = Lexing.from_string content in
-        lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+        let v = eval_expr env_ref e in
+        (match e.node with
+         | ShellExpr _ ->
+             (match v with
+              | VShellResult sr -> print_string sr.sr_stdout; flush stdout; (VNull, !env_ref)
+              | _ -> (v, !env_ref))
+         | _ -> (v, !env_ref))
+    | Assignment { name; expr; _ } ->
+        if Env.mem name env then
+          let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite." name in
+          (make_error NameError msg, env)
+        else
+          let env_ref = ref env in
+          let v = eval_expr env_ref expr in
+          let new_env = Env.add name v !env_ref in
+          (match v with
+           | VError _ -> (v, new_env)
+           | _ -> (VNull, new_env))
+    | Reassignment { name; expr } ->
+        if not (Env.mem name env) then
+          let msg = Printf.sprintf "Cannot overwrite '%s': variable not defined. Use '=' for first assignment." name in
+          (make_error NameError msg, env)
+        else
+          let env_ref = ref env in
+          let v = eval_expr env_ref expr in
+          if !show_warnings then
+            Printf.eprintf "Warning: overwriting variable '%s'\n" name;
+          let new_env = Env.add name v !env_ref in
+          (match v with
+           | VError _ -> (v, new_env)
+           | _ -> (VNull, new_env))
+    | Import filename ->
         (try
-          let program = Parser.program Lexer.token lexbuf in
-          let (_v, new_env) = eval_program program env in
-          current_imports := !current_imports @ [Import filename];
-          (VNull, new_env)
-        with
-        | Lexer.SyntaxError msg ->
-            let pos = Lexing.lexeme_start_p lexbuf in
-            (make_error
-               ~location:(source_location ~file:filename pos)
-               SyntaxError
-               (Printf.sprintf "Import syntax error in '%s': %s" filename msg),
-             env)
-        | Parser.Error ->
-            let pos = Lexing.lexeme_start_p lexbuf in
-            (make_error
-               ~location:(source_location ~file:filename pos)
-               SyntaxError
-               (Printf.sprintf "Import parse error in '%s'" filename),
-             env))
-      with
-      | Sys_error msg ->
-          (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
-  | ImportPackage pkg_name ->
-      if is_standard_package pkg_name then begin
-        current_imports := !current_imports @ [ImportPackage pkg_name];
-        (VNull, env)
-      end else
-      (match Package_loader.load_package ~do_eval_program:eval_program pkg_name env with
-       | Ok new_env ->
-            current_imports := !current_imports @ [ImportPackage pkg_name];
+          let ch = open_in filename in
+          let content = really_input_string ch (in_channel_length ch) in
+          close_in ch;
+          let lexbuf = Lexing.from_string content in
+          lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+          (try
+            let program = Parser.program Lexer.token lexbuf in
+            let (_v, new_env) = eval_program program env in
+            current_imports := !current_imports @ [Ast.mk_stmt (Import filename)];
             (VNull, new_env)
-        | Error msg -> (make_error FileError msg, env))
-  | ImportFrom { package; names } ->
-      (match Package_loader.load_package_selective ~do_eval_program:eval_program package names env with
-       | Ok new_env ->
-           current_imports := !current_imports @ [ImportFrom { package; names }];
-           (VNull, new_env)
-       | Error msg -> (make_error FileError msg, env))
-  | ImportFileFrom { filename; names } ->
-      (try
-        let ch = open_in filename in
-        let content = really_input_string ch (in_channel_length ch) in
-        close_in ch;
-        let lexbuf = Lexing.from_string content in
-        lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
-        (try
-          let program = Parser.program Lexer.token lexbuf in
-          let (_v, temp_env) = eval_program program env in
-          let new_bindings = 
-            Env.fold (fun name value acc ->
-              if Env.mem name env then acc
-              else (name, value) :: acc
-            ) temp_env []
-          in
-          
-          let result_env_ref = ref env in
-          let missing_names = ref [] in
-          
-          List.iter (fun (spec : Ast.import_spec) ->
-            match List.assoc_opt spec.import_name new_bindings with
-            | None -> missing_names := spec.import_name :: !missing_names
-            | Some value ->
-                let target_name = match spec.import_alias with
-                  | Some alias -> alias
-                  | None -> spec.import_name
-                in
-                result_env_ref := Env.add target_name value !result_env_ref
-          ) names;
-          
-          if !missing_names <> [] then
-            let msg = Printf.sprintf "Name(s) not found in '%s': %s" filename (String.concat ", " (List.rev !missing_names)) in
-            (make_error NameError msg, env)
-          else begin
-            current_imports := !current_imports @ [ImportFileFrom { filename; names }];
-            (VNull, !result_env_ref)
-          end
+          with
+          | Lexer.SyntaxError msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 (Printf.sprintf "Import syntax error in '%s': %s" filename msg),
+               env)
+          | Parser.Error ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 (Printf.sprintf "Import parse error in '%s'" filename),
+               env))
         with
-        | Lexer.SyntaxError msg ->
-            let pos = Lexing.lexeme_start_p lexbuf in
-            (make_error
-               ~location:(source_location ~file:filename pos)
-               SyntaxError
-               (Printf.sprintf "Import syntax error in '%s': %s" filename msg),
-             env)
-        | Parser.Error ->
-            let pos = Lexing.lexeme_start_p lexbuf in
-            (make_error
-               ~location:(source_location ~file:filename pos)
-               SyntaxError
-               (Printf.sprintf "Import parse error in '%s'" filename),
-             env))
-      with
-      | Sys_error msg ->
-          (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
+        | Sys_error msg ->
+            (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
+    | ImportPackage pkg_name ->
+        if is_standard_package pkg_name then begin
+          current_imports := !current_imports @ [Ast.mk_stmt (ImportPackage pkg_name)];
+          (VNull, env)
+        end else
+        (match Package_loader.load_package ~do_eval_program:eval_program pkg_name env with
+         | Ok new_env ->
+              current_imports := !current_imports @ [Ast.mk_stmt (ImportPackage pkg_name)];
+              (VNull, new_env)
+          | Error msg -> (make_error FileError msg, env))
+    | ImportFrom { package; names } ->
+        (match Package_loader.load_package_selective ~do_eval_program:eval_program package names env with
+         | Ok new_env ->
+             current_imports := !current_imports @ [Ast.mk_stmt (ImportFrom { package; names })];
+             (VNull, new_env)
+         | Error msg -> (make_error FileError msg, env))
+    | ImportFileFrom { filename; names } ->
+        (try
+          let ch = open_in filename in
+          let content = really_input_string ch (in_channel_length ch) in
+          close_in ch;
+          let lexbuf = Lexing.from_string content in
+          lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+          (try
+            let program = Parser.program Lexer.token lexbuf in
+            let (_v, temp_env) = eval_program program env in
+            let new_bindings = 
+              Env.fold (fun name value acc ->
+                if Env.mem name env then acc
+                else (name, value) :: acc
+              ) temp_env []
+            in
+            
+            let result_env_ref = ref env in
+            let missing_names = ref [] in
+            
+            List.iter (fun (spec : Ast.import_spec) ->
+              match List.assoc_opt spec.import_name new_bindings with
+              | None -> missing_names := spec.import_name :: !missing_names
+              | Some value ->
+                  let target_name = match spec.import_alias with
+                    | Some alias -> alias
+                    | None -> spec.import_name
+                  in
+                  result_env_ref := Env.add target_name value !result_env_ref
+            ) names;
+            
+            if !missing_names <> [] then
+              let msg = Printf.sprintf "Name(s) not found in '%s': %s" filename (String.concat ", " (List.rev !missing_names)) in
+              (make_error NameError msg, env)
+            else begin
+              current_imports := !current_imports @ [Ast.mk_stmt (ImportFileFrom { filename; names })];
+              (VNull, !result_env_ref)
+            end
+          with
+          | Lexer.SyntaxError msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 (Printf.sprintf "Import syntax error in '%s': %s" filename msg),
+               env)
+          | Parser.Error ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 (Printf.sprintf "Import parse error in '%s'" filename),
+               env))
+        with
+        | Sys_error msg ->
+            (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
+  in
+  (attach_stmt_location stmt v, env')
 
 and eval_program (program : program) (env : environment) : value * environment =
   let rec go env = function
