@@ -129,6 +129,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "serialize and deserialize roundtrip"
     {|serialize([1, 2, 3], "test_roundtrip.tobj"); deserialize("test_roundtrip.tobj")|}
     "[1, 2, 3]";
+  let legacy_cache_path = "test_roundtrip_legacy.tobj" in
+  let oc_legacy = open_out_bin legacy_cache_path in
+  output_string oc_legacy (Serialization.serialized_value_magic ^ "0.4.0\n");
+  Marshal.to_channel oc_legacy (Ast.VInt 3) [];
+  close_out oc_legacy;
+  test "deserialize rejects older serialized value versions"
+    {|deserialize("test_roundtrip_legacy.tobj")|}
+    {|Error(FileError: "deserialize failed: Serialized value version `0.4.0` is not compatible with T 0.5.0. Rebuild or re-serialize this artifact with the current T version.")|};
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with Pipes:\n";
@@ -176,6 +184,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_mock mock_log;
   close_out oc_mock;
 
+  let legacy_node_path = "test_legacy_node.tobj" in
+  let oc_legacy_node = open_out_bin legacy_node_path in
+  output_string oc_legacy_node (Serialization.serialized_value_magic ^ "0.4.0\n");
+  Marshal.to_channel oc_legacy_node (Ast.VInt 7) [];
+  close_out oc_legacy_node;
+  let legacy_log = Printf.sprintf {|{
+    "timestamp": "20240101-000001",
+    "hash": "legacy",
+    "out_path": "/tmp",
+    "nodes": [
+      { "node": "legacy_node", "path": "%s", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
+    ]
+  }|} legacy_node_path in
+  let oc_legacy_log = open_out "_pipeline/build_log_legacy_version.json" in
+  output_string oc_legacy_log legacy_log;
+  close_out oc_legacy_log;
+
   test "read_node propagates R runtime on error"
     "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).runtime"
     "\"R\"";
@@ -183,6 +208,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "read_node propagates Python runtime on error"
     "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).runtime"
     "\"Python\"";
+
+  test "read_node rejects older serialized node versions"
+    "read_node(\"legacy_node\", which_log=\"legacy_version\")"
+    {|Error(FileError: "Failed to read node `legacy_node` from `test_legacy_node.tobj`: Serialized value version `0.4.0` is not compatible with T 0.5.0. Rebuild or re-serialize this artifact with the current T version.")|};
 
   print_newline ();
 

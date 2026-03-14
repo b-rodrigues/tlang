@@ -137,14 +137,65 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     }|}
     (Packages.init_env ()) in
   (match v_sh_shell_nix with
+    | Ast.VPipeline p ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        if contains_substring nix "bash" && contains_substring nix "-lc" then
+          begin incr pass_count; Printf.printf "  ✓ sh node shell mode Nix emission contains bash or -lc\n" end
+        else
+          begin incr fail_count; Printf.printf "  ✗ sh node shell mode Nix emission missing bash or -lc: %s\n" nix end
+    | _ ->
+        incr fail_count; Printf.printf "  ✗ sh node shell mode Nix emission failed\n");
+
+  (* Test: exec-style shell args are emitted via argv-safe wrapper *)
+  let (v_sh_exec_args_nix, _) = eval_string_env
+    {|pipeline {
+      out = node(runtime = sh, command = "printf", args = ["%s", "hello 'quoted' `backtick`"])
+    }|}
+    (Packages.init_env ()) in
+  (match v_sh_exec_args_nix with
    | Ast.VPipeline p ->
        let nix = Nix_emit_pipeline.emit_pipeline p in
-       if contains_substring nix "bash" && contains_substring nix "-lc" then
-         begin incr pass_count; Printf.printf "  ✓ sh node shell mode Nix emission contains bash or -lc\n" end
+       if contains_substring nix "set -- " && contains_substring nix {|exec 'printf' "$@"|} then
+         begin incr pass_count; Printf.printf "  ✓ sh exec mode emits argv-safe wrapper\n" end
        else
-         begin incr fail_count; Printf.printf "  ✗ sh node shell mode Nix emission missing bash or -lc: %s\n" nix end
+         begin incr fail_count; Printf.printf "  ✗ sh exec mode argv wrapper missing: %s\n" nix end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ sh node shell mode Nix emission failed\n");
+       incr fail_count; Printf.printf "  ✗ sh exec mode argv wrapper test failed\n");
+
+  (* Test: shell-string mode keeps args positional instead of string-joining them *)
+  let (v_sh_shell_args_nix, _) = eval_string_env
+    {|pipeline {
+      out = node(runtime = sh, command = "printf '%s|%s' \"$1\" \"$2\"", args = ["alpha", "line1\nline2"], shell = "bash", shell_args = ["-lc"])
+    }|}
+    (Packages.init_env ()) in
+  (match v_sh_shell_args_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       if contains_substring nix "set -- 'alpha' 'line1" &&
+          contains_substring nix {|printf '%s|%s' "$1" "$2"|} &&
+          contains_substring nix ". ./node_script.sh"
+       then
+         begin incr pass_count; Printf.printf "  ✓ sh shell mode passes args positionally\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ sh shell mode positional args emission failed: %s\n" nix end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ sh shell mode positional args test failed\n");
+
+  (* Test: shell runtime execution is hermetic *)
+  let (v_sh_env_nix, _) = eval_string_env
+    {|pipeline {
+      out = node(runtime = sh, command = "echo hello", env_vars = [MODE: "fast"])
+    }|}
+    (Packages.init_env ()) in
+  (match v_sh_env_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       if contains_substring nix {|env -i HOME="$TMPDIR" PATH="$PATH" TMPDIR="$TMPDIR" MODE='fast'|} then
+         begin incr pass_count; Printf.printf "  ✓ sh node runtime is emitted with a hermetic environment\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ sh node hermetic env emission missing: %s\n" nix end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ sh node hermetic env test failed\n");
 
   (* Test: sh exec mode execution (nix) *)
   let (v_sh_exec_nix, _) = eval_string_env
