@@ -62,7 +62,7 @@ let register env =
                    | _ -> had_error := Some (Error.type_error "Function `cumsum` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))
-      | _ -> Error.arity_error_named "cumsum" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "cumsum" 1 (List.length args)
     ))
     env
   in
@@ -120,7 +120,7 @@ let register env =
                    | _ -> had_error := Some (Error.type_error "Function `cummin` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))
-      | _ -> Error.arity_error_named "cummin" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "cummin" 1 (List.length args)
     ))
     env
   in
@@ -178,7 +178,7 @@ let register env =
                    | _ -> had_error := Some (Error.type_error "Function `cummax` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))
-      | _ -> Error.arity_error_named "cummax" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "cummax" 1 (List.length args)
     ))
     env
   in
@@ -245,7 +245,7 @@ let register env =
                    | _ -> had_error := Some (Error.type_error "Function `cummean` requires numeric values.")
              done;
              (match !had_error with Some e -> e | None -> VVector result))
-      | _ -> Error.arity_error_named "cummean" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "cummean" 1 (List.length args)
     ))
     env
   in
@@ -289,7 +289,7 @@ let register env =
                    result.(i) <- VBool !running
              done;
              VVector result)
-      | _ -> Error.arity_error_named "cumall" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "cumall" 1 (List.length args)
     ))
     env
   in
@@ -333,7 +333,7 @@ let register env =
                    result.(i) <- VBool !running
              done;
              VVector result)
-      | _ -> Error.arity_error_named "cumany" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "cumany" 1 (List.length args)
     ))
     env
   in

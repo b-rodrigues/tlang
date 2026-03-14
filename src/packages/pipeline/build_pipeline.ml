@@ -25,6 +25,6 @@ let register env =
             | Ok out_path -> VString out_path
             | Error msg -> Error.make_error FileError msg)
       | [_] -> Error.type_error "Function `build_pipeline` expects a Pipeline."
-      | _ -> Error.arity_error_named "build_pipeline" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "build_pipeline" 1 (List.length args)
     ))
     env

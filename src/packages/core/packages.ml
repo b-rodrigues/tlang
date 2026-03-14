@@ -292,7 +292,7 @@ let register env =
       match args with
       | [VExpr quoted] -> Eval.eval_expr_immutable env quoted
       | [v] -> v
-      | _ -> Error.arity_error_named "eval" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "eval" 1 (List.length args)
     ))
     env
   in
@@ -315,8 +315,8 @@ let register env =
   let env = Env.add "expr"
     (make_builtin ~name:"expr" 1 (fun args _env ->
       match args with
-      | [v] -> VExpr (Value v)
-      | _ -> Error.arity_error_named "expr" ~expected:1 ~received:(List.length args)
+      | [v] -> VExpr (Ast.mk_expr (Value v))
+      | _ -> Error.arity_error_named "expr" 1 (List.length args)
     ))
     env
   in
@@ -337,7 +337,7 @@ let register env =
 *)
   let env = Env.add "exprs"
     (make_builtin_named ~name:"exprs" ~variadic:true 0 (fun args _env ->
-      VList (List.map (fun (name, v) -> (name, VExpr (Value v))) args)
+      VList (List.map (fun (name, v) -> (name, VExpr (Ast.mk_expr (Value v)))) args)
     ))
     env
   in
@@ -367,7 +367,7 @@ let register env =
            | Some doc -> VString (Printf.sprintf "Built-in function implemented in %s:%d" doc.source_path doc.line_number)
            | None -> VNA NAGeneric)
       | [v] -> Error.type_error (Printf.sprintf "body: expected a Function, got %s." (Utils.type_name v))
-      | _ -> Error.arity_error_named "body" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "body" 1 (List.length args)
     ))
     env
   in
@@ -414,7 +414,7 @@ let register env =
                    VString (String.concat "\n" (List.rev !lines)))
            | None -> VString (Printf.sprintf "No source metadata for `%s`" name))
       | [v] -> Error.type_error (Printf.sprintf "source: expected a Function, got %s." (Utils.type_name v))
-      | _ -> Error.arity_error_named "source" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "source" 1 (List.length args)
     ))
     env
   in
@@ -540,7 +540,7 @@ let init_env () =
           VList (List.map (fun s -> (None, VString s)) cleaned)
       | [VNA _] -> Error.type_error "Function `clean_colnames` expects a DataFrame or List.\nReceived NA."
       | [_] -> Error.type_error "Function `clean_colnames` expects a DataFrame or List of strings."
-      | _ -> Error.arity_error_named "clean_colnames" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "clean_colnames" 1 (List.length args)
     ))
     env
   in

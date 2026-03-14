@@ -1,4 +1,3 @@
-open Str
 
 let run_tests pass_count fail_count eval_string _eval_string_env test =
   Printf.printf "Phase 1 — Structured Errors:\n";

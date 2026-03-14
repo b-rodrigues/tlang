@@ -55,6 +55,6 @@ let register env =
               ) in
               VDict pairs)
       | [v] -> Error.type_error (Printf.sprintf "args() expects a Function, got %s" (Utils.type_name v))
-      | _ -> Error.arity_error_named "args" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "args" 1 (List.length args)
     ))
     env

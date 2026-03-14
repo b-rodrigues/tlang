@@ -73,6 +73,6 @@ let register env =
            | None -> if !is_float then VFloat !total_float else VInt !total_int)
       | Some (VNA _) -> Error.type_error "Function `sum` encountered NA value. Handle missingness explicitly."
       | Some _ -> Error.type_error "Function `sum` expects a List or Vector argument."
-      | None -> Error.arity_error_named "sum" ~expected:1 ~received:(List.length args)
+      | None -> Error.arity_error_named "sum" 1 (List.length args)
     ))
     env

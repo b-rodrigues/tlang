@@ -36,10 +36,10 @@ let not_callable_error ?location received_type =
 
 (** Arity Errors *)
 
-let arity_error ?location ~expected ~received =
+let arity_error ?location expected received =
   make_error ?location ArityError (Printf.sprintf "Function expects %d arguments but received %d." expected received)
 
-let arity_error_named ?location name ~expected ~received =
+let arity_error_named ?location name expected received =
   make_error ?location ArityError (Printf.sprintf "Function `%s` expects %d arguments but received %d." name expected received)
 
 (** Value Errors *)

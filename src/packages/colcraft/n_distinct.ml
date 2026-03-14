@@ -30,6 +30,6 @@ let register env =
           VInt (count_distinct_in_array arr)
       | [VNA _] -> Error.type_error "Function `n_distinct` expects a vector or list, got NA."
       | [_] -> Error.type_error "Function `n_distinct` expects a vector or list."
-      | _ -> Error.arity_error_named "n_distinct" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "n_distinct" 1 (List.length args)
     ))
     env

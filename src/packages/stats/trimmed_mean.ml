@@ -53,4 +53,4 @@ let register env =
                   Array.sort compare arr;
                   let kept = Array.sub arr k (n - (2 * k)) in
                   VFloat (Array.fold_left ( +. ) 0.0 kept /. float_of_int (Array.length kept))))
-    | _ -> Error.arity_error_named "trimmed_mean" ~expected:2 ~received:(List.length args))) env
+    | _ -> Error.arity_error_named "trimmed_mean" 2 (List.length args))) env

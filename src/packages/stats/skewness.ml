@@ -75,4 +75,4 @@ let register env =
                else
                  let m3 = List.fold_left (fun a v -> let d = v -. m in a +. d *. d *. d) 0.0 xs /. float_of_int n in
                  VFloat (m3 /. Float.pow m2 1.5))
-    | args -> Error.arity_error_named "skewness" ~expected:1 ~received:(List.length args))) env
+    | args -> Error.arity_error_named "skewness" 1 (List.length args))) env

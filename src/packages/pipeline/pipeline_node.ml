@@ -23,6 +23,6 @@ let register env =
            | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." name))
       | [VPipeline _; _] -> Error.type_error "Function `pipeline_node` expects a String node name as second argument."
       | [_; _] -> Error.type_error "Function `pipeline_node` expects a Pipeline as first argument."
-      | _ -> Error.arity_error_named "pipeline_node" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_node" 2 (List.length args)
     ))
     env

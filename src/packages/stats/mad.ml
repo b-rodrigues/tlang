@@ -70,4 +70,4 @@ let register env =
              let med = Option.get (quantile xs 0.5) in
              let ad = List.map (fun v -> Float.abs (v -. med)) xs in
              VFloat (1.4826 *. Option.get (quantile ad 0.5)))
-    | args -> Error.arity_error_named "mad" ~expected:1 ~received:(List.length args))) env
+    | args -> Error.arity_error_named "mad" 1 (List.length args))) env

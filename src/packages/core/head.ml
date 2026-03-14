@@ -62,6 +62,6 @@ let register env =
           VVector (Array.sub arr 0 take_n)
       | [VNA _] -> Error.type_error "Function `head` cannot be called on NA."
       | [_] -> Error.type_error "Function `head` expects a DataFrame, List, or Vector."
-      | _ -> Error.arity_error_named "head" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "head" 2 (List.length args)
     ))
     env

@@ -23,5 +23,5 @@ let register env =
       | [VFloat y; VFloat x] -> VFloat (Float.atan2 y x)
       | [VNA _; _] | [_; VNA _] -> Error.type_error "Function `atan2` encountered NA value. Handle missingness explicitly."
       | [_; _] -> Error.type_error "Function `atan2` expects numeric arguments."
-      | _ -> Error.arity_error_named "atan2" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "atan2" 2 (List.length args)
     )) env

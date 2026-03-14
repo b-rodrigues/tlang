@@ -1,7 +1,6 @@
 (* tests/test_runner.ml *)
 (* Test orchestrator — calls into per-module test files *)
 
-open Str
 
 let pass_count = ref 0
 let fail_count = ref 0

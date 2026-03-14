@@ -7,7 +7,7 @@ This document outlines the critical hardening tasks required to transition T fro
 ## 1. Core Language & Execution Safety
 
 ### Context-Aware Error Messages
-* [ ] **Source Locations**: Ensure every `Error()` return in the interpreter and analyzer carries a `Lexing.position`. Users should never see a naked `TypeError: "expected int"`; they should see `[L12:C5] TypeError: "expected int, got float"`.
+* [x] **Source Locations**: Ensure every `Error()` return in the interpreter and analyzer carries a `Lexing.position`. Users should never see a naked `TypeError: "expected int"`; they should see `[L12:C5] TypeError: "expected int, got float"`.
 * [x] **Pipeline Debugging**: When a pipeline node fails, the error message must include the node name. (Implemented prefixes for interpreter re-runs).
 
 ### REPL & CLI Stability

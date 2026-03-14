@@ -57,4 +57,4 @@ let register env =
     let na_rm = has_na_rm named_args in
     match strip_na_rm named_args with
     | [x] -> (match numeric_values ~label:"median" ~na_rm x with Error e -> e | Ok [] -> VNA NAFloat | Ok xs -> (match quantile xs 0.5 with Some v -> VFloat v | None -> VNA NAFloat))
-    | args -> Error.arity_error_named "median" ~expected:1 ~received:(List.length args))) env
+    | args -> Error.arity_error_named "median" 1 (List.length args))) env

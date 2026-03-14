@@ -293,7 +293,7 @@ let read_pmml path =
           ("family", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "family" j with `String s -> VString s | _ -> VNull) | None -> VNull));
           ("link", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "link" j with `String s -> VString s | _ -> VNull) | None -> VNull));
           ("formula", (match !response_name with
-            | Some r -> VFormula { response = [r]; predictors = List.rev !predictors; raw_lhs = Value VNull; raw_rhs = Value VNull }
+            | Some r -> VFormula { response = [r]; predictors = List.rev !predictors; raw_lhs = Ast.mk_expr (Value VNull); raw_rhs = Ast.mk_expr (Value VNull) }
             | None -> VNull));
           ("_display_keys", VList display_keys);
         ])

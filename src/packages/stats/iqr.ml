@@ -63,4 +63,4 @@ let register env =
     let na_rm = has_na_rm named_args in
     match strip_na_rm named_args with
     | [x] -> (match numeric_values ~label:"iqr" ~na_rm x with Error e -> e | Ok [] -> VNA NAFloat | Ok xs -> (match quantile xs 0.25, quantile xs 0.75 with Some q1, Some q3 -> VFloat (q3 -. q1) | _ -> VNA NAFloat))
-    | args -> Error.arity_error_named "iqr" ~expected:1 ~received:(List.length args))) env
+    | args -> Error.arity_error_named "iqr" 1 (List.length args))) env

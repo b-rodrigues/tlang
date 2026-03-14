@@ -78,7 +78,7 @@ let register env =
                result.(orig_idx) <- VInt (rank_minus_1 + 1)
              ) sorted;
              VVector result)
-      | _ -> Error.arity_error_named "row_number" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "row_number" 1 (List.length args)
     ))
     env
   in
@@ -128,7 +128,7 @@ let register env =
                done;
                VVector result
              end)
-      | _ -> Error.arity_error_named "min_rank" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "min_rank" 1 (List.length args)
     ))
     env
   in
@@ -177,7 +177,7 @@ let register env =
                done;
                VVector result
              end)
-      | _ -> Error.arity_error_named "dense_rank" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "dense_rank" 1 (List.length args)
     ))
     env
   in
@@ -225,7 +225,7 @@ let register env =
                done;
                VVector result
              end)
-      | _ -> Error.arity_error_named "cume_dist" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "cume_dist" 1 (List.length args)
     ))
     env
   in
@@ -281,7 +281,7 @@ let register env =
                ) min_ranks;
                VVector result
              end)
-      | _ -> Error.arity_error_named "percent_rank" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "percent_rank" 1 (List.length args)
     ))
     env
   in
@@ -338,7 +338,7 @@ let register env =
       | [_; VInt n] when n <= 0 ->
         Error.value_error "Function `ntile` requires a positive number of tiles."
       | [_; _] -> Error.type_error "Function `ntile` expects an integer as second argument."
-      | _ -> Error.arity_error_named "ntile" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "ntile" 2 (List.length args)
     ))
     env
   in

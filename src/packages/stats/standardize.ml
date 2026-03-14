@@ -71,4 +71,4 @@ let register env =
                let s = Float.sqrt (List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int (n - 1)) in
                if s = 0.0 then Error.value_error "Function `standardize` undefined for zero-variance data."
                else vecf (List.map (fun v -> (v -. m) /. s) xs))
-    | _ -> Error.arity_error_named "standardize" ~expected:1 ~received:(List.length args))) env
+    | _ -> Error.arity_error_named "standardize" 1 (List.length args))) env

@@ -233,7 +233,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
       in
       match named_args with
       | [] ->
-          Error.arity_error_named "mutate" ~expected:2 ~received:0
+          Error.arity_error_named "mutate" 2 0
       | (None, VDataFrame df) :: rest when rest <> [] ->
           let rec apply_named_mutations current_df = function
             | [] -> VDataFrame current_df
@@ -256,7 +256,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           apply_named_mutations df rest
 
       | [(None, VDataFrame _)] ->
-          Error.arity_error_named "mutate" ~expected:2 ~received:1
+          Error.arity_error_named "mutate" 2 1
       | (None, VDataFrame _) :: (None, _) :: _ ->
           Error.type_error "Function `mutate` expects named arguments for new columns (e.g. $col = expr)."
       | _ ->

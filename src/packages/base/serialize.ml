@@ -23,6 +23,6 @@ let register env =
           | Ok () -> VNull
           | Error msg -> Error.make_error FileError (Printf.sprintf "serialize failed: %s" msg))
       | [_; _] -> Error.type_error "Function `serialize` expects (Any, String)."
-      | _ -> Error.arity_error_named "serialize" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "serialize" 2 (List.length args)
     ))
     env

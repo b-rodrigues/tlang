@@ -28,7 +28,7 @@ let register ~eval_call env =
   Env.add "mutate_node"
     (make_builtin_named ~name:"mutate_node" ~variadic:true 1 (fun named_args env ->
       match named_args with
-      | [] -> Error.arity_error_named "mutate_node" ~expected:1 ~received:0
+      | [] -> Error.arity_error_named "mutate_node" 1 0
       | (_, VPipeline p) :: rest ->
           (* Separate the optional `where` predicate from field assignments.
              Named args arrive as (string option * value) pairs. *)

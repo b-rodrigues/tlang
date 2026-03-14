@@ -21,8 +21,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     echo "Build skipped for %s" > $out/NOOPBUILD
   '';|} name name name
   else
-  let expr_matches target expr =
-    match expr.Ast.node with
+  let expr_matches target expr_node =
+    match expr_node with
     | Ast.Value (Ast.VString s) | Ast.Value (Ast.VSymbol s) | Ast.Var s ->
         s = target ||
         (target = "arrow" && (s = "read_arrow" || s = "write_arrow")) ||
@@ -38,11 +38,11 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let has_strategy name =
     match deserializer.Ast.node with
     | e when expr_matches name e -> true
-    | Ast.ListLit items -> List.exists (fun (_, e) -> expr_matches name e) items
-    | Ast.DictLit items -> List.exists (fun (_, e) -> expr_matches name e) items
+    | Ast.ListLit items -> List.exists (fun (_, e) -> expr_matches name e.Ast.node) items
+    | Ast.DictLit items -> List.exists (fun (_, e) -> expr_matches name e.Ast.node) items
     | _ -> false
   in
-  let is_ser name = expr_matches name serializer in
+  let is_ser name = expr_matches name serializer.Ast.node in
   let is_pmml_ser = is_ser "pmml" in
   let is_pmml_des = has_strategy "pmml" in
 

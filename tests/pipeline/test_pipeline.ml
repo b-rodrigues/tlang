@@ -1,4 +1,3 @@
-open Str
 
 let run_tests pass_count fail_count _eval_string eval_string_env test =
   let strip_location s =

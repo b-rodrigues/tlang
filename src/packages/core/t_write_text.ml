@@ -26,6 +26,6 @@ let register env =
             Error.make_error FileError (Printf.sprintf "Failed to write to file `%s`: %s" path (Printexc.to_string e)))
       | [VString _; _] -> Error.type_error "Function `write_text` expects a string as second argument."
       | [_; _] -> Error.type_error "Function `write_text` expects a string as first argument."
-      | _ -> Error.arity_error_named "write_text" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "write_text" 2 (List.length args)
     ))
     env

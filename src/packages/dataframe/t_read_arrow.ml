@@ -25,6 +25,6 @@ let register env =
           | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
       | [VNA _] -> Error.type_error "Function `read_arrow` expects a String path, got NA."
       | [_] -> Error.type_error "Function `read_arrow` expects a String path."
-      | _ -> Error.arity_error_named "read_arrow" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "read_arrow" 1 (List.length args)
     ))
     env

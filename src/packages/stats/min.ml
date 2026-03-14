@@ -48,6 +48,6 @@ let register env =
              VFloat (Array.fold_left Float.min Float.infinity nums))
       | [VNA _] -> Error.type_error "Function `min` encountered NA value. Handle missingness explicitly."
       | [_] -> Error.type_error "Function `min` expects a numeric List or Vector."
-      | _ -> Error.arity_error_named "min" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "min" 1 (List.length args)
     ))
     env

@@ -1455,7 +1455,7 @@ and eval_dot_access env_ref target_expr field =
   | other -> Error.type_error (Printf.sprintf "Cannot access field `%s` on %s." field (Utils.type_name other))
 
 and lambda_arity_error params args =
-  Error.arity_error ~expected:(List.length params) ~received:(List.length args)
+  Error.arity_error (List.length params) (List.length args)
 
 and eval_call env_ref fn_val raw_args =
   let current_builtin_name =
@@ -1508,7 +1508,7 @@ and eval_call env_ref fn_val raw_args =
       let named_args = List.map (fun (name, e) -> (name, eval_expr env_ref e)) raw_args in
       let arg_count = List.length named_args in
       if not b_variadic && arg_count <> b_arity then
-        Error.arity_error ~expected:b_arity ~received:arg_count
+        Error.arity_error b_arity arg_count
       else
         b_func named_args env_ref
 

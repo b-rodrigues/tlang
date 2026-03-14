@@ -52,6 +52,6 @@ let register env =
              VNDArray { shape = arr.shape; data = result }
       | [VNA _] -> Error.type_error "Function `sqrt` encountered NA value. Handle missingness explicitly."
       | [_] -> Error.type_error "Function `sqrt` expects a number, numeric Vector, or NDArray."
-      | _ -> Error.arity_error_named "sqrt" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "sqrt" 1 (List.length args)
     ))
     env

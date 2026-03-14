@@ -39,10 +39,10 @@ let loc_of_pos (pos : Lexing.position) : Ast.source_location =
   }
 
 let with_loc node pos =
-  Ast.mk_expr ~loc:(Some (loc_of_pos pos)) node
+  Ast.mk_expr ~loc:(loc_of_pos pos) node
 
 let with_stmt_loc node pos =
-  Ast.mk_stmt ~loc:(Some (loc_of_pos pos)) node
+  Ast.mk_stmt ~loc:(loc_of_pos pos) node
 %}
 
 /* TOKENS */

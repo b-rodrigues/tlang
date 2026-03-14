@@ -48,6 +48,6 @@ let register env =
              VFloat (Array.fold_left Float.max Float.neg_infinity nums))
       | [VNA _] -> Error.type_error "Function `max` encountered NA value. Handle missingness explicitly."
       | [_] -> Error.type_error "Function `max` expects a numeric List or Vector."
-      | _ -> Error.arity_error_named "max" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "max" 1 (List.length args)
     ))
     env
