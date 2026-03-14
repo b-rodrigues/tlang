@@ -47,8 +47,8 @@ jobs:
           # Point the filter to the locally built T binary
           export TLANG_BIN=$(readlink -f ../result/bin/t)
           
-          # Render using quarto from Nix shell
-          nix develop .. --accept-flake-config --command quarto render example.qmd
+          # Render using quarto from Nix shell, keeping the TLANG_BIN env var
+          nix develop .. --accept-flake-config --keep TLANG_BIN --command quarto render example.qmd
           
           # Verify HTML generation
           if [ ! -f example.html ]; then

@@ -4,7 +4,9 @@ local t_state = {
 
 local function has_class(el, class_name)
   for _, class in ipairs(el.classes) do
-    if class == class_name then
+    -- Strip any surrounding {} and convert to lower for robustness
+    local clean_class = class:gsub("^{", ""):gsub("}$", ""):lower()
+    if clean_class == class_name:lower() then
       return true
     end
   end
@@ -169,7 +171,7 @@ local function make_output_block(output)
 end
 
 function CodeBlock(el)
-  if not has_class(el, "t") then
+  if not (has_class(el, "t") or has_class(el, "tlang")) then
     return nil
   end
 
