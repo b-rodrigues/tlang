@@ -252,46 +252,49 @@ min_version = "0.5.0"
     in
     Update_manager.parse_remote_tag_refs output = ["v0.1.0"; "v0.2.0"]);
 
+  let run_git argv =
+    let prog = argv.(0) in
+    let pid = Unix.create_process prog argv Unix.stdin Unix.stdout Unix.stderr in
+    match Unix.waitpid [] pid with
+    | _, Unix.WEXITED 0 -> true
+    | _, _ -> false
+  in
+
+  let write_file path content =
+    let ch = open_out path in
+    output_string ch content;
+    close_out ch
+  in
+
   test_pm "check_remote_tags finds newer local git tag" (fun () ->
     match make_temp_dir 8 with
     | None -> false
     | Some base_dir ->
         let repo_dir = Filename.concat base_dir "remote-repo" in
         let project_dir = Filename.concat base_dir "project" in
-        let run prog argv =
-          let pid = Unix.create_process prog argv Unix.stdin Unix.stdout Unix.stderr in
-          match Unix.waitpid [] pid with
-          | _, Unix.WEXITED 0 -> true
-          | _, _ -> false
-        in
-        let write path content =
-          let ch = open_out path in
-          output_string ch content;
-          close_out ch
-        in
         let result =
           try
             let setup_ok =
               (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run "git" [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run "git" [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run "git" [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && run_git [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run_git [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run_git [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
             else begin
-              write (Filename.concat repo_dir "README.md") "test repo\n";
+              write_file (Filename.concat repo_dir "README.md") "test repo\n";
               let committed =
-                run "git" [| "git"; "-C"; repo_dir; "add"; "README.md" |]
-                && run "git" [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
-                && run "git" [| "git"; "-C"; repo_dir; "tag"; "v0.1.0" |]
-                && run "git" [| "git"; "-C"; repo_dir; "tag"; "v0.2.0" |]
+                run_git [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && run_git [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && run_git [| "git"; "-C"; repo_dir; "tag"; "v0.1.0" |]
+                && run_git [| "git"; "-C"; repo_dir; "tag"; "v0.2.0" |]
                 && (try Unix.mkdir project_dir 0o755; true with Unix.Unix_error _ -> false)
               in
               if not committed then
                 Error "repo commit failed"
               else begin
-                write
+                write_file
                   (Filename.concat project_dir "tproject.toml")
                   (Printf.sprintf
                      {|[project]
@@ -325,13 +328,197 @@ min_version = "0.5.0"
             true
           with _ -> false
         in
+         match result with
+         | Ok [update] ->
+             cleanup_ok
+             && update.dependency_name = "stats"
+             && update.current_tag = "v0.1.0"
+             && update.latest_tag = "v0.2.0"
+         | _ -> false);
+
+  test_pm "validate_update_prerequisites requires a git remote" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let repo_dir = Filename.concat base_dir "project" in
+        let result =
+          try
+            let setup_ok =
+              (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
+              && run_git [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run_git [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run_git [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+            in
+            if not setup_ok then
+              Error "setup failed"
+            else
+              let old_cwd = Sys.getcwd () in
+              Sys.chdir repo_dir;
+              let validation_result =
+                try Update_manager.validate_update_prerequisites () with exn ->
+                  Sys.chdir old_cwd;
+                  raise exn
+              in
+              Sys.chdir old_cwd;
+              validation_result
+          with exn ->
+            Error (Printexc.to_string exn)
+        in
+        let cleanup_ok =
+          try
+            remove_path base_dir;
+            true
+          with _ -> false
+        in
+        cleanup_ok
+        &&
         match result with
-        | Ok [update] ->
-            cleanup_ok
-            && update.dependency_name = "stats"
-            && update.current_tag = "v0.1.0"
-            && update.latest_tag = "v0.2.0"
-        | _ -> false);
+        | Error msg ->
+            msg = "Git remote is not configured. Add a remote and push the project before running `t update`."
+        | Ok () -> false);
+
+  test_pm "validate_update_prerequisites requires a clean working tree" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let remote_dir = Filename.concat base_dir "remote.git" in
+        let repo_dir = Filename.concat base_dir "project" in
+        let result =
+          try
+            let setup_ok =
+              run_git [| "git"; "init"; "--bare"; remote_dir |]
+              && (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
+              && run_git [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run_git [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run_git [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+            in
+            if not setup_ok then
+              Error "setup failed"
+            else begin
+              write_file (Filename.concat repo_dir "README.md") "clean repo\n";
+              let remote_ok =
+                run_git [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && run_git [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && run_git [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
+              in
+              if not remote_ok then
+                Error "remote setup failed"
+              else begin
+                write_file (Filename.concat repo_dir "dirty.txt") "needs commit\n";
+                let old_cwd = Sys.getcwd () in
+                Sys.chdir repo_dir;
+                let validation_result =
+                  try Update_manager.validate_update_prerequisites () with exn ->
+                    Sys.chdir old_cwd;
+                    raise exn
+                in
+                Sys.chdir old_cwd;
+                validation_result
+              end
+            end
+          with exn ->
+            Error (Printexc.to_string exn)
+        in
+        let cleanup_ok =
+          try
+            remove_path base_dir;
+            true
+          with _ -> false
+        in
+        cleanup_ok
+        &&
+        match result with
+        | Error msg -> msg = "Git working directory is not clean. Commit or stash changes first."
+        | Ok () -> false);
+
+  test_pm "validate_update_prerequisites accepts clean repo with remote" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let remote_dir = Filename.concat base_dir "remote.git" in
+        let repo_dir = Filename.concat base_dir "project" in
+        let result =
+          try
+            let setup_ok =
+              run_git [| "git"; "init"; "--bare"; remote_dir |]
+              && (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
+              && run_git [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run_git [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run_git [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+            in
+            if not setup_ok then
+              Error "setup failed"
+            else begin
+              write_file (Filename.concat repo_dir "README.md") "clean repo\n";
+              let remote_ok =
+                run_git [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && run_git [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && run_git [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
+              in
+              if not remote_ok then
+                Error "remote setup failed"
+              else begin
+                let old_cwd = Sys.getcwd () in
+                Sys.chdir repo_dir;
+                let validation_result =
+                  try Update_manager.validate_update_prerequisites () with exn ->
+                    Sys.chdir old_cwd;
+                    raise exn
+                in
+                Sys.chdir old_cwd;
+                validation_result
+              end
+            end
+          with exn ->
+            Error (Printexc.to_string exn)
+        in
+        let cleanup_ok =
+          try
+            remove_path base_dir;
+            true
+          with _ -> false
+        in
+        cleanup_ok && result = Ok ());
+
+  test_pm "summarize_flake_lock_changes reports structured updates" (fun () ->
+    let before = {|
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1,
+        "narHash": "sha256-old",
+        "rev": "oldrev"
+      },
+      "original": {
+        "ref": "2026-03-11"
+      }
+    }
+  }
+}
+|} in
+    let after = {|
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 2,
+        "narHash": "sha256-new",
+        "rev": "newrev"
+      },
+      "original": {
+        "ref": "2026-03-12"
+      }
+    }
+  }
+}
+|} in
+    let summary = Update_manager.summarize_flake_lock_changes (Some before) (Some after) in
+    List.mem "  - nixpkgs" summary
+    && List.mem "      original.ref: 2026-03-11 -> 2026-03-12" summary
+    && List.mem "      locked.lastModified: 1 -> 2" summary
+    && List.mem "      locked.narHash: sha256-old -> sha256-new" summary
+    && List.mem "      locked.rev: oldrev -> newrev" summary);
 
   print_newline ();
 

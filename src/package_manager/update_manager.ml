@@ -257,6 +257,226 @@ let check_remote_tags () =
         flush stdout;
         Ok updates
 
+let validate_update_prerequisites () =
+  match validate_git_remote () with
+  | Error _ as err -> err
+  | Ok () -> validate_clean_git ()
+
+type lock_section =
+  | Locked
+  | Original
+
+type flake_lock_node_snapshot = {
+  name : string;
+  locked_fields : (string * string) list;
+  original_fields : (string * string) list;
+}
+
+type flake_lock_parse_state = {
+  inside_nodes : bool;
+  current_node : string option;
+  current_section : lock_section option;
+  current_locked : (string * string) list;
+  current_original : (string * string) list;
+  nodes : flake_lock_node_snapshot list;
+}
+
+let trim_trailing_comma value =
+  let trimmed = String.trim value in
+  let len = String.length trimmed in
+  if len > 0 && trimmed.[len - 1] = ',' then
+    String.sub trimmed 0 (len - 1)
+  else
+    trimmed
+
+let normalize_json_value value =
+  let trimmed = trim_trailing_comma value in
+  let len = String.length trimmed in
+  if len >= 2 && trimmed.[0] = '"' && trimmed.[len - 1] = '"' then
+    String.sub trimmed 1 (len - 2)
+  else
+    trimmed
+
+let finalize_current_node state =
+  match state.current_node with
+  | None -> state
+  | Some name ->
+      {
+        state with
+        current_node = None;
+        current_locked = [];
+        current_original = [];
+        nodes =
+          {
+            name;
+            locked_fields = List.rev state.current_locked;
+            original_fields = List.rev state.current_original;
+          }
+          :: state.nodes;
+      }
+
+let parse_flake_lock_nodes content =
+  let lines = String.split_on_char '\n' content in
+  let nodes_start_re = Str.regexp {|^  "nodes": {$|} in
+  let node_re = Str.regexp {|^    "\([^"]+\)": {$|} in
+  let subsection_re = Str.regexp {|^      "\(locked\|original\)": {$|} in
+  let field_re = Str.regexp {|^        "\([^"]+\)": \(.*\)$|} in
+  let initial_state =
+    {
+      inside_nodes = false;
+      current_node = None;
+      current_section = None;
+      current_locked = [];
+      current_original = [];
+      nodes = [];
+    }
+  in
+  let final_state =
+    List.fold_left
+      (fun state line ->
+        if (not state.inside_nodes) && Str.string_match nodes_start_re line 0 then
+          { state with inside_nodes = true }
+        else if state.inside_nodes then
+          match state.current_node, state.current_section with
+          | None, _ when line = "  }," || line = "  }" ->
+              { state with inside_nodes = false }
+          | Some _, Some _ when line = "      }," || line = "      }" ->
+              { state with current_section = None }
+          | Some _, None when line = "    }," || line = "    }" ->
+              finalize_current_node state
+          | None, _ when Str.string_match node_re line 0 ->
+              {
+                state with
+                current_node = Some (Str.matched_group 1 line);
+                current_section = None;
+                current_locked = [];
+                current_original = [];
+              }
+          | Some _, None when Str.string_match subsection_re line 0 ->
+              let section_name = Str.matched_group 1 line in
+              let current_section =
+                if section_name = "locked" then Some Locked else Some Original
+              in
+              { state with current_section }
+          | Some _, Some section when Str.string_match field_re line 0 ->
+              let key = Str.matched_group 1 line in
+              let value = normalize_json_value (Str.matched_group 2 line) in
+              (match section with
+              | Locked ->
+                  { state with current_locked = (key, value) :: state.current_locked }
+              | Original ->
+                  {
+                    state with
+                    current_original = (key, value) :: state.current_original;
+                  })
+          | _ -> state
+        else
+          state)
+      initial_state
+      lines
+  in
+  let final_state = finalize_current_node final_state in
+  List.rev final_state.nodes
+
+let find_flake_lock_node name nodes =
+  List.find_opt (fun node -> node.name = name) nodes
+
+let field_value fields key = List.assoc_opt key fields
+
+let append_unique value values =
+  if List.mem value values then values else values @ [value]
+
+let summarize_flake_lock_changes before_content after_content =
+  match before_content, after_content with
+  | None, None -> []
+  | None, Some _ -> [ "  - flake.lock created." ]
+  | Some before, Some after when before = after -> []
+  | Some before, Some after ->
+      let before_nodes = parse_flake_lock_nodes before in
+      let after_nodes = parse_flake_lock_nodes after in
+      let node_names =
+        List.fold_left
+          (fun acc node -> append_unique node.name acc)
+          []
+          (before_nodes @ after_nodes)
+      in
+      let describe_field_changes section_name before_fields after_fields =
+        let field_names =
+          List.fold_left
+            (fun acc (key, _) -> append_unique key acc)
+            []
+            (before_fields @ after_fields)
+        in
+        List.fold_left
+          (fun acc field_name ->
+            match field_value before_fields field_name, field_value after_fields field_name with
+            | Some before_value, Some after_value when before_value <> after_value ->
+                acc
+                @
+                [
+                  Printf.sprintf
+                    "      %s.%s: %s -> %s"
+                    section_name
+                    field_name
+                    before_value
+                    after_value;
+                ]
+            | None, Some after_value ->
+                acc
+                @
+                [
+                  Printf.sprintf
+                    "      %s.%s: (missing) -> %s"
+                    section_name
+                    field_name
+                    after_value;
+                ]
+            | Some before_value, None ->
+                acc
+                @
+                [
+                  Printf.sprintf
+                    "      %s.%s: %s -> (missing)"
+                    section_name
+                    field_name
+                    before_value;
+                ]
+            | _ -> acc)
+          []
+          field_names
+      in
+      let lines =
+        List.fold_left
+          (fun acc node_name ->
+            match find_flake_lock_node node_name before_nodes, find_flake_lock_node node_name after_nodes with
+            | None, Some _ -> acc @ [Printf.sprintf "  - %s: added to flake.lock" node_name]
+            | Some _, None -> acc @ [Printf.sprintf "  - %s: removed from flake.lock" node_name]
+            | Some before_node, Some after_node ->
+                let node_changes =
+                  describe_field_changes "original" before_node.original_fields after_node.original_fields
+                  @ describe_field_changes "locked" before_node.locked_fields after_node.locked_fields
+                in
+                if node_changes = [] then
+                  acc
+                else
+                  acc @ (Printf.sprintf "  - %s" node_name :: node_changes)
+            | None, None -> acc)
+          []
+          node_names
+      in
+      if lines = [] then [ "  - flake.lock changed." ] else lines
+  | Some _, None -> [ "  - flake.lock was removed." ]
+
+let report_flake_lock_changes before_content after_content =
+  let summary_lines = summarize_flake_lock_changes before_content after_content in
+  if summary_lines = [] then
+    Printf.printf "flake.lock is already up to date.\n"
+  else begin
+    Printf.printf "flake.lock changes:\n";
+    List.iter (fun line -> Printf.printf "%s\n" line) summary_lines
+  end;
+  flush stdout
+
 (*
 --# Update Dependencies
 --#
@@ -273,6 +493,7 @@ let update_flake_lock () =
   let tproject_path = Filename.concat dir "tproject.toml" in
   let description_path = Filename.concat dir "DESCRIPTION.toml" in
   let flake_path = Filename.concat dir "flake.nix" in
+  let flake_lock_path = Filename.concat dir "flake.lock" in
   (* Read existing flake.nix to extract nixpkgs_date *)
   let nixpkgs_date =
     match read_file flake_path with
@@ -286,74 +507,94 @@ let update_flake_lock () =
        let t = Unix.gmtime (Unix.gettimeofday ()) in
        Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday
    in
-  match check_remote_tags () with
+  let flake_lock_before =
+    if Sys.file_exists flake_lock_path then
+      match read_file flake_lock_path with
+      | Ok content -> Some content
+      | Error _ -> None
+    else
+      None
+  in
+  match validate_update_prerequisites () with
   | Error msg -> Error msg
-  | Ok _ ->
-      (* Detect and regenerate flake.nix *)
-      let regen_result =
-        if Sys.file_exists tproject_path then begin
-          match read_file tproject_path with
-          | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
-          | Ok content ->
-              match Toml_parser.parse_tproject_toml content with
-              | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
-              | Ok cfg ->
-                  Printf.printf "Syncing %d dependency(ies) from tproject.toml → flake.nix...\n"
-                    (List.length cfg.proj_dependencies);
-                  flush stdout;
-                  match Nix_generator.install_flake
-                          ~kind:Project
-                          ~name:cfg.proj_name
-                          ~version:"0.0.0"
-                          ~nixpkgs_date
-                          ~t_version:cfg.proj_min_t_version
-                          ~deps:cfg.proj_dependencies
-                          ~r_deps:cfg.proj_r_dependencies
-                          ~py_deps:cfg.proj_py_dependencies
-                          ~py_version:cfg.proj_py_version
-                          ~additional_tools:cfg.proj_additional_tools
-                          ~latex_pkgs:cfg.proj_latex_packages
-                          ~dir
-                          ~dry_run:false
-                          ()
-                  with
-                  | Ok _ -> Ok ()
-                  | Error msg -> Error msg
-        end
-        else if Sys.file_exists description_path then begin
-          match read_file description_path with
-          | Error msg -> Error (Printf.sprintf "Cannot read DESCRIPTION.toml: %s" msg)
-          | Ok content ->
-              match Toml_parser.parse_description_toml content with
-              | Error msg -> Error (Printf.sprintf "Cannot parse DESCRIPTION.toml: %s" msg)
-              | Ok cfg ->
-                  Printf.printf "Syncing %d dependency(ies) from DESCRIPTION.toml → flake.nix...\n"
-                    (List.length cfg.dependencies);
-                  flush stdout;
-                  match Nix_generator.install_flake
-                          ~kind:Package
-                          ~name:cfg.name
-                          ~version:cfg.version
-                          ~nixpkgs_date
-                          ~t_version:cfg.min_t_version
-                          ~deps:cfg.dependencies
-                          ~additional_tools:cfg.additional_tools
-                          ~latex_pkgs:cfg.latex_packages
-                          ~dir
-                          ~dry_run:false
-                          ()
-                  with
-                  | Ok _ -> Ok ()
-                  | Error msg -> Error msg
-        end
-        else
-          Error "No tproject.toml or DESCRIPTION.toml found in the current directory."
-      in
-      match regen_result with
+  | Ok () ->
+      match check_remote_tags () with
       | Error msg -> Error msg
-      | Ok () ->
-          Printf.printf "Running nix flake update...\n";
-          flush stdout;
-          match run_command "nix flake update --accept-flake-config" with
-          | Ok _ -> Ok ()
-          | Error msg -> Error ("Failed to update dependencies: " ^ msg)
+      | Ok _ ->
+          let regen_result =
+            if Sys.file_exists tproject_path then begin
+              match read_file tproject_path with
+              | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
+              | Ok content ->
+                  match Toml_parser.parse_tproject_toml content with
+                  | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
+                  | Ok cfg ->
+                      Printf.printf "Syncing %d dependency(ies) from tproject.toml → flake.nix...\n"
+                        (List.length cfg.proj_dependencies);
+                      flush stdout;
+                      match Nix_generator.install_flake
+                              ~kind:Project
+                              ~name:cfg.proj_name
+                              ~version:"0.0.0"
+                              ~nixpkgs_date
+                              ~t_version:cfg.proj_min_t_version
+                              ~deps:cfg.proj_dependencies
+                              ~r_deps:cfg.proj_r_dependencies
+                              ~py_deps:cfg.proj_py_dependencies
+                              ~py_version:cfg.proj_py_version
+                              ~additional_tools:cfg.proj_additional_tools
+                              ~latex_pkgs:cfg.proj_latex_packages
+                              ~dir
+                              ~dry_run:false
+                              ()
+                      with
+                      | Ok _ -> Ok ()
+                      | Error msg -> Error msg
+            end
+            else if Sys.file_exists description_path then begin
+              match read_file description_path with
+              | Error msg -> Error (Printf.sprintf "Cannot read DESCRIPTION.toml: %s" msg)
+              | Ok content ->
+                  match Toml_parser.parse_description_toml content with
+                  | Error msg -> Error (Printf.sprintf "Cannot parse DESCRIPTION.toml: %s" msg)
+                  | Ok cfg ->
+                      Printf.printf "Syncing %d dependency(ies) from DESCRIPTION.toml → flake.nix...\n"
+                        (List.length cfg.dependencies);
+                      flush stdout;
+                      match Nix_generator.install_flake
+                              ~kind:Package
+                              ~name:cfg.name
+                              ~version:cfg.version
+                              ~nixpkgs_date
+                              ~t_version:cfg.min_t_version
+                              ~deps:cfg.dependencies
+                              ~additional_tools:cfg.additional_tools
+                              ~latex_pkgs:cfg.latex_packages
+                              ~dir
+                              ~dry_run:false
+                              ()
+                      with
+                      | Ok _ -> Ok ()
+                      | Error msg -> Error msg
+            end
+            else
+              Error "No tproject.toml or DESCRIPTION.toml found in the current directory."
+          in
+          match regen_result with
+          | Error msg -> Error msg
+          | Ok () ->
+              Printf.printf "Running nix flake update...\n";
+              flush stdout;
+              match run_command "nix flake update --accept-flake-config" with
+              | Ok _ ->
+                  let flake_lock_after =
+                    if Sys.file_exists flake_lock_path then
+                      match read_file flake_lock_path with
+                      | Ok content -> Some content
+                      | Error _ -> None
+                    else
+                      None
+                  in
+                  report_flake_lock_changes flake_lock_before flake_lock_after;
+                  Ok ()
+              | Error msg -> Error ("Failed to update dependencies: " ^ msg)

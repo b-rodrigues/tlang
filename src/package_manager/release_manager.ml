@@ -70,6 +70,16 @@ let validate_clean_git () =
       else Error "Git working directory is not clean. Commit or stash changes first."
   | Error msg -> Error ("Failed to check git status: " ^ msg)
 
+(** Check if the current git repository has at least one configured remote *)
+let validate_git_remote () =
+  match run_command "git remote" with
+  | Ok output ->
+      if String.trim output = "" then
+        Error "Git remote is not configured. Add a remote and push the project before running `t update`."
+      else
+        Ok ()
+  | Error msg -> Error ("Failed to check git remotes: " ^ msg)
+
 (** Run the test suite *)
 let validate_tests_pass () =
   Printf.printf "Running tests...\n";
