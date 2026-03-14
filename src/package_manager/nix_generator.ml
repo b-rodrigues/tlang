@@ -217,14 +217,18 @@ let generate_project_flake
   Buffer.add_string buf "            echo \"\"\n";
   if has_quarto then begin
     Buffer.add_string buf "            mkdir -p _extensions\n";
+    Buffer.add_string buf "            expected_quarto_ext=\"${t-lang.packages.${system}.default}/share/tlang/quarto/tlang\"\n";
     Buffer.add_string buf "            if [ -L \"_extensions/tlang\" ]; then\n";
-    Buffer.add_string buf "              rm -f \"_extensions/tlang\"\n";
-    Buffer.add_string buf "              ln -s \"${t-lang.packages.${system}.default}/share/tlang/quarto/tlang\" \"_extensions/tlang\"\n";
-    Buffer.add_string buf "              echo \"Provisioned T Quarto extension at _extensions/tlang\"\n";
+    Buffer.add_string buf "              current_quarto_ext=\"$(readlink \"_extensions/tlang\")\"\n";
+    Buffer.add_string buf "              if [ \"$current_quarto_ext\" != \"$expected_quarto_ext\" ]; then\n";
+    Buffer.add_string buf "                rm -f \"_extensions/tlang\"\n";
+    Buffer.add_string buf "                ln -s \"$expected_quarto_ext\" \"_extensions/tlang\"\n";
+    Buffer.add_string buf "                echo \"Provisioned T Quarto extension at _extensions/tlang\"\n";
+    Buffer.add_string buf "              fi\n";
     Buffer.add_string buf "            elif [ -e \"_extensions/tlang\" ]; then\n";
     Buffer.add_string buf "              echo \"Quarto extension path _extensions/tlang already exists; leaving it unchanged.\"\n";
     Buffer.add_string buf "            else\n";
-    Buffer.add_string buf "              ln -s \"${t-lang.packages.${system}.default}/share/tlang/quarto/tlang\" \"_extensions/tlang\"\n";
+    Buffer.add_string buf "              ln -s \"$expected_quarto_ext\" \"_extensions/tlang\"\n";
     Buffer.add_string buf "              echo \"Provisioned T Quarto extension at _extensions/tlang\"\n";
     Buffer.add_string buf "            fi\n";
     Buffer.add_string buf "            echo \"Quarto is enabled via [additional-tools]. Render {t} chunks with filters: [tlang].\"\n";
