@@ -780,17 +780,17 @@ let () =
   | _ :: "run" :: "--expr" :: [] ->
       Printf.eprintf "Missing expression after --expr.\n";
       exit 1
-  | _ :: "run" :: "--expr" :: _ :: _ ->
-      Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
-      exit 1
   | _ :: "run" :: "--expr" :: expr :: [] ->
       let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
       cmd_run_expr script_mode expr env
+  | _ :: "run" :: "--expr" :: _ ->
+      Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
+      exit 1
   | _ :: "run" :: filename :: [] ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
       let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
       cmd_run ~unsafe script_mode filename env
-  | _ :: "run" :: _ :: _ ->
+  | _ :: "run" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
       exit 1
   | _ :: "repl" :: _ -> cmd_repl mode env
