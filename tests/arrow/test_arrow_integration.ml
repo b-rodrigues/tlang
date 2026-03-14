@@ -520,7 +520,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "2";
 
   (* Zero-copy telemetry for project/filter on native-backed tables *)
+  let prev_zero_copy_debug = Sys.getenv_opt "TLANG_ZERO_COPY_DEBUG" in
   Unix.putenv "TLANG_ZERO_COPY_DEBUG" "1";
+  Fun.protect ~finally:(fun () ->
+    match prev_zero_copy_debug with
+    | Some v -> Unix.putenv "TLANG_ZERO_COPY_DEBUG" v
+    | None -> Unix.putenv "TLANG_ZERO_COPY_DEBUG" "")
+  (fun () ->
   (match Arrow_io.read_csv_local csv_compute with
    | Ok tbl when Arrow_table.is_native_backed tbl ->
        ignore (Arrow_table.take_zero_copy_events ());
@@ -547,7 +553,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
        Test_arrow_helpers.record_native_requirement_result pass_count fail_count
          (Printf.sprintf "zero-copy telemetry CSV read failed: %s" msg);
        Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-         "zero-copy filter telemetry (native) skipped");
+         "zero-copy filter telemetry (native) skipped"));
 
   (* Test 32: chained compute operations *)
   test "Compute: filter + select + arrange pipeline"
