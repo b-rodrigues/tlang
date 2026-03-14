@@ -16,7 +16,6 @@
    test_arrow_integration
    test_owl_bridge
    test_arrow_performance
-   test_pmml_validation
    test_colcraft_edge_cases
    test_window_edge_cases
    test_formula_edge_cases

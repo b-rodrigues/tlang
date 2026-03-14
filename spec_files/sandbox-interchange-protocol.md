@@ -332,7 +332,7 @@ This guards against silent divergence.
 1. Language neutrality
 2. Standardized data and model planes
 3. No embedded runtimes
-4. Strong schema validation
+4. Schema-aware parsing with explicit error handling
 5. Reduced glue code
 6. Cleaner node abstraction
 
@@ -350,7 +350,7 @@ This guards against silent divergence.
 # Security Considerations
 
 * Arrow schema validation
-* Strict PMML schema validation
+* Explicit PMML parsing rules
 * No execution of arbitrary code
 * Reject unsupported constructs explicitly
 
