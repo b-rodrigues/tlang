@@ -58,7 +58,12 @@ let parse_mode_args (args : string list) : (mode_parse, string) result =
 
 let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, string) result =
   let commands = ["run"; "repl"; "test"; "explain"; "init"; "doc"; "doctor"; "docs"; "update"; "publish"; "--help"; "-h"; "--version"; "-v"] in
-  let command = List.find_opt (fun x -> List.mem x commands) args in
+  let command =
+    if List.mem "run" args then Some "run"
+    else match List.find_opt (fun x -> List.mem x commands) args with
+      | Some cmd -> Some cmd
+      | None -> if List.length args > 1 then Some "run" else None
+  in
   let run_expr = (command = Some "run") && List.mem "--expr" args in
   let mode_allowed =
     match command with
