@@ -61,10 +61,21 @@ let pretty_print_dataframe ?(headers) { arrow_table; group_keys } =
     Buffer.contents buf
 
 (** Pretty-print an error value *)
-let pretty_print_error { code; message; context } =
+let pretty_print_error { code; message; context; location } =
   let buf = Buffer.create 128 in
+  let rendered_message =
+    match location with
+    | Some { file; line; column } ->
+        let prefix =
+          match file with
+          | Some filename -> Printf.sprintf "[%s:L%d:C%d]" filename line column
+          | None -> Printf.sprintf "[L%d:C%d]" line column
+        in
+        prefix ^ " " ^ message
+    | None -> message
+  in
   Buffer.add_string buf (Printf.sprintf "Error(%s): %s\n"
-    (Utils.error_code_to_string code) message);
+    (Utils.error_code_to_string code) rendered_message);
   if context <> [] then begin
     Buffer.add_string buf "  Context:\n";
     List.iter (fun (k, v) ->

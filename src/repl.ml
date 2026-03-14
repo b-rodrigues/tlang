@@ -17,32 +17,69 @@ let () =
 
 (* --- Parsing and Evaluation --- *)
 
-let parse_and_eval mode env input =
+let source_location ?file pos : Ast.source_location =
+  {
+    file;
+    line = pos.Lexing.pos_lnum;
+    column = max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1);
+  }
+
+let make_located_error ?file code message pos =
+  Ast.VError {
+    code;
+    message;
+    context = [];
+    location = Some (source_location ?file pos);
+  }
+
+let interrupt_error () =
+  Ast.VError {
+    code = Ast.RuntimeError;
+    message = "Interrupted.";
+    context = [];
+    location = None;
+  }
+
+let parse_and_eval ?filename mode env input =
   let lexbuf = Lexing.from_string input in
+  (match filename with
+   | Some file -> lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = file }
+   | None -> ());
   try
     let program = Parser.program Lexer.token lexbuf in
     match Typecheck.validate_program ~mode program with
-    | Error msg -> (Ast.VError { code = Ast.TypeError; message = msg; context = [] }, env)
+    | Error msg ->
+        (Ast.VError {
+           code = Ast.TypeError;
+           message = msg;
+           context = [];
+           location = None;
+         }, env)
     | Ok () -> Eval.eval_program program env
   with
   | Lexer.SyntaxError msg ->
-      (Ast.VError { code = Ast.GenericError; message = "Syntax Error: " ^ msg; context = [] }, env)
+      let pos = Lexing.lexeme_start_p lexbuf in
+      (make_located_error ?file:filename Ast.SyntaxError ("Syntax Error: " ^ msg) pos, env)
   | Parser.Error ->
       let pos = Lexing.lexeme_start_p lexbuf in
-      let msg = Printf.sprintf "Parse Error at line %d, column %d"
-        pos.Lexing.pos_lnum
-        (pos.Lexing.pos_cnum - pos.Lexing.pos_bol)
-      in
-      (Ast.VError { code = Ast.GenericError; message = msg; context = [] }, env)
+      (make_located_error ?file:filename Ast.SyntaxError "Parse Error" pos, env)
+  | Sys.Break ->
+      (interrupt_error (), env)
 
 let run_file mode filename env =
   try
     let ch = open_in filename in
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
-    parse_and_eval mode env content
+    parse_and_eval ~filename mode env content
   with
-  | Sys_error msg -> (Ast.VError { code = Ast.FileError; message = "File Error: " ^ msg; context = [] }, env)
+  | Sys_error msg ->
+      (Ast.VError {
+         code = Ast.FileError;
+         message = "File Error: " ^ msg;
+         context = [];
+         location = None;
+       }, env)
 
 (* --- Pipeline Detection --- *)
 
@@ -145,8 +182,8 @@ let repl_display_value v =
   in
   match v with
   | Ast.VNull -> ()
-  | Ast.VError { code; message; context } ->
-      Printf.printf "%sError(%s):%s %s\n" color_red (Ast.Utils.error_code_to_string code) color_reset message;
+  | Ast.VError { context; _ } ->
+      Printf.printf "%s%s%s\n" color_red (Ast.Utils.value_to_string v) color_reset;
       if context <> [] then begin
         Printf.printf "%sContext:%s\n" color_gray color_reset;
         List.iter (fun (k, v) -> Printf.printf "  %s: %s\n" k (Ast.Utils.value_to_string v)) context
@@ -240,8 +277,18 @@ let print_help () =
 let print_version () =
   Printf.printf "T language version %s\n" version
 
+let exit_with_error message =
+  Printf.eprintf "Error: %s\n" message;
+  exit 1
+
+let ensure_file_path filename =
+  match Cli_args.validate_path ~kind:Cli_args.File filename with
+  | Ok () -> ()
+  | Error msg -> exit_with_error msg
+
 let cmd_run ?(unsafe=false) mode filename env =
   Packages.ensure_docs_loaded ();
+  ensure_file_path filename;
   if not unsafe then begin
     try
       let ch = open_in filename in
@@ -260,8 +307,8 @@ let cmd_run ?(unsafe=false) mode filename env =
   end;
   let (result, _env) = run_file mode filename env in
   match result with
-  | Ast.VError { code; message; _ } ->
-      Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
+  | Ast.VError _ ->
+      Printf.eprintf "%s\n" (Ast.Utils.value_to_string result); exit 1
   | Ast.VNull -> ()
   | v -> print_endline (Ast.Utils.value_to_string v)
 
@@ -269,8 +316,8 @@ let cmd_run_expr mode expr env =
   Packages.ensure_docs_loaded ();
   let (result, _) = parse_and_eval mode env expr in
   match result with
-  | Ast.VError { code; message; _ } ->
-      Printf.eprintf "Error(%s): %s\n" (Ast.Utils.error_code_to_string code) message; exit 1
+  | Ast.VError _ ->
+      Printf.eprintf "%s\n" (Ast.Utils.value_to_string result); exit 1
   | Ast.VNull -> ()
   | v -> print_endline (Ast.Utils.value_to_string v)
 
@@ -315,8 +362,16 @@ let cmd_explain mode rest env =
   end
 
 let cmd_test args =
-  let verbose = List.mem "--verbose" args || List.mem "-v" args in
-  let suite_result = Test_discovery.run_suite ~verbose (Sys.getcwd ()) in
+  let cwd = Sys.getcwd () in
+  let opts =
+    match Cli_args.parse_test_args ~cwd args with
+    | Ok opts -> opts
+    | Error msg -> exit_with_error msg
+  in
+  (match Cli_args.validate_path ~kind:Cli_args.Directory opts.target_dir with
+   | Ok () -> ()
+   | Error msg -> exit_with_error msg);
+  let suite_result = Test_discovery.run_suite ~verbose:opts.verbose opts.target_dir in
   if suite_result.failed > 0 then exit 1
 
 let cmd_doctor () = Package_doctor.run_doctor ()
@@ -552,6 +607,7 @@ let cmd_repl mode env =
 (* --- Entry Point --- *)
 
 let () =
+  Sys.catch_break true;
   let raw_args = Array.to_list Sys.argv in
   let rec extract_mode acc = function
     | [] -> (List.rev acc, Typecheck.Repl)
@@ -602,18 +658,17 @@ let () =
                  | _ -> 
                      env_ref := new_env;
                      Printf.printf "Ran %s successfully.\n" filename; flush stdout; Ast.VNull)
-              with
-              | Lexer.SyntaxError msg ->
-                  Ast.VError { code = Ast.GenericError; message = Printf.sprintf "Syntax error in '%s': %s" filename msg; context = [] }
-              | Parser.Error ->
-                  let pos = Lexing.lexeme_start_p lexbuf in
-                  Ast.VError { code = Ast.GenericError;
-                    message = Printf.sprintf "Parse error in '%s' at line %d, column %d" filename pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol);
-                    context = [] })
-            with
-            | Sys_error msg ->
-                Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_run failed: %s" msg; context = [] })
-        | _ -> Ast.VError { code = Ast.TypeError; message = "t_run expects a file path string."; context = [] })
+               with
+               | Lexer.SyntaxError msg ->
+                   let pos = Lexing.lexeme_start_p lexbuf in
+                   make_located_error ~file:filename Ast.SyntaxError ("Syntax error in '" ^ filename ^ "': " ^ msg) pos
+               | Parser.Error ->
+                   let pos = Lexing.lexeme_start_p lexbuf in
+                   make_located_error ~file:filename Ast.SyntaxError (Printf.sprintf "Parse error in '%s'" filename) pos)
+             with
+             | Sys_error msg ->
+                 Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_run failed: %s" msg; context = []; location = None })
+        | _ -> Ast.VError { code = Ast.TypeError; message = "t_run expects a file path string."; context = []; location = None })
     })
     env
   in
@@ -634,7 +689,7 @@ let () =
         let dir = Sys.getcwd () in
         let suite_result = Test_discovery.run_suite ~verbose:false dir in
         if suite_result.failed > 0 then
-          Ast.VError { code = Ast.GenericError; message = Printf.sprintf "%d test(s) failed." suite_result.failed; context = [] }
+          Ast.VError { code = Ast.GenericError; message = Printf.sprintf "%d test(s) failed." suite_result.failed; context = []; location = None }
         else begin
           Printf.printf "All %d test(s) passed.\n" suite_result.passed;
           flush stdout;
@@ -709,8 +764,8 @@ let () =
             flush stdout;
             Ast.VNull
         | [Ast.VString other] ->
-            Ast.VError { code = Ast.ValueError; message = Printf.sprintf "t_doc expects \"parse\" or \"generate\", got \"%s\"." other; context = [] }
-        | _ -> Ast.VError { code = Ast.TypeError; message = "t_doc expects a string argument: \"parse\" or \"generate\"."; context = [] })
+            Ast.VError { code = Ast.ValueError; message = Printf.sprintf "t_doc expects \"parse\" or \"generate\", got \"%s\"." other; context = []; location = None }
+        | _ -> Ast.VError { code = Ast.TypeError; message = "t_doc expects a string argument: \"parse\" or \"generate\"."; context = []; location = None })
     })
     env
   in
@@ -719,13 +774,25 @@ let () =
   let unsafe = List.mem "--unsafe" raw_args in
   let args = if unsafe then List.filter (fun s -> s <> "--unsafe") args else args in
   match args with
-  | _ :: "run" :: "--expr" :: expr :: _ ->
+  | _ :: "run" :: [] ->
+      Printf.eprintf "Usage: t run <file.t> | t run --expr <expr>\n";
+      exit 1
+  | _ :: "run" :: "--expr" :: [] ->
+      Printf.eprintf "Missing expression after --expr.\n";
+      exit 1
+  | _ :: "run" :: "--expr" :: expr :: [] ->
       let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
       cmd_run_expr script_mode expr env
-  | _ :: "run" :: filename :: _ ->
+  | _ :: "run" :: "--expr" :: _ ->
+      Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
+      exit 1
+  | _ :: "run" :: filename :: [] ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
       let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
       cmd_run ~unsafe script_mode filename env
+  | _ :: "run" :: _ ->
+      Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
+      exit 1
   | _ :: "repl" :: _ -> cmd_repl mode env
   | _ :: "explain" :: rest -> cmd_explain mode rest env
   | _ :: "init" :: "package" :: rest -> cmd_init_package rest

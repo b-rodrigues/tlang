@@ -29,7 +29,31 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     end
   in
 
-  Printf.printf "Phase 7 — CLI: packages() builtin:\n";
+  Printf.printf "Phase 7 — CLI argument parsing helpers:\n";
+  let cwd = "/tmp/project" in
+  test_message "parse_test_args defaults to cwd"
+    (match Cli_args.parse_test_args ~cwd [] with
+     | Ok { Cli_args.verbose = verbose; target_dir } -> (not verbose) && target_dir = cwd
+     | Error _ -> false);
+  test_message "parse_test_args accepts verbose flag and explicit directory"
+    (match Cli_args.parse_test_args ~cwd ["--verbose"; "tests"] with
+     | Ok { Cli_args.verbose = verbose; target_dir } -> verbose && target_dir = "tests"
+     | Error _ -> false);
+  test_message "parse_test_args rejects unknown flags"
+    (match Cli_args.parse_test_args ~cwd ["--wat"] with
+     | Error msg -> contains msg "Unknown option: --wat"
+     | Ok _ -> false);
+  test_message "parse_test_args rejects multiple directories"
+    (match Cli_args.parse_test_args ~cwd ["tests"; "extra"] with
+     | Error msg -> contains msg "Unexpected argument: extra"
+     | Ok _ -> false);
+  test_message "init flag parsing rejects unexpected positional arguments"
+    (match Scaffold.parse_init_flags ["pkg"; "extra"] with
+     | Error msg -> contains msg "Unexpected argument: extra"
+     | Ok _ -> false);
+  print_newline ();
+
+  Printf.printf "CLI — packages() builtin coverage:\n";
   test "packages returns list"
     "type(packages())"
     {|"List"|};

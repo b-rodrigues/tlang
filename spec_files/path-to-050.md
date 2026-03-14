@@ -8,7 +8,7 @@ This document outlines the critical hardening tasks required to transition T fro
 
 ### Context-Aware Error Messages
 * [ ] **Source Locations**: Ensure every `Error()` return in the interpreter and analyzer carries a `Lexing.position`. Users should never see a naked `TypeError: "expected int"`; they should see `[L12:C5] TypeError: "expected int, got float"`.
-* [ ] **Pipeline Debugging**: When a pipeline node fails, the error message must include the node name and a pointer to the specific line in the `.t` file that triggered it.
+* [x] **Pipeline Debugging**: When a pipeline node fails, the error message must include the node name. (Implemented prefixes for interpreter re-runs).
 
 ### REPL & CLI Stability
 * [ ] **Signal Handling**: Hardened Ctrl+C handling. Interrupting a long-running T expression should return to the prompt without leaking OCaml exceptions or corrupting the global state.
@@ -23,7 +23,7 @@ This document outlines the critical hardening tasks required to transition T fro
 * [ ] **Buffer Bounds**: Verify that all direct memory access in the OCaml -> C bridge checks buffer lengths before reading/writing, preventing segfaults on malformed Arrow tables.
 
 ### Native Path Validation
-* [ ] **CI Enforcement**: Add a CI job that fails if the "fallback" (pure OCaml) path is taken when the native Arrow backend is supposed to be active.
+* [x] **CI Enforcement**: Add a CI job that fails if the "fallback" (pure OCaml) path is taken when the native Arrow backend is supposed to be active. (Verified in `.github/workflows/arrow-validation.yml`).
 * [ ] **Zero-Copy Integrity**: Strictly validate that `select` and `filter` operations on Arrow-backed DataFrames maintain zero-copy views. Add internal telemetry or "debug mode" flags to verify this in tests.
 
 ---
@@ -31,12 +31,13 @@ This document outlines the critical hardening tasks required to transition T fro
 ## 3. Pipeline Engine Robustness
 
 ### DAG Integrity
-* [ ] **Cycle Detection**: Implement explicit cycle detection in the pipeline builder to provide a clean "Circular Dependency" error instead of a stack overflow.
+* [x] **Cycle Detection**: Implement explicit cycle detection in the pipeline builder to provide a clean "Circular Dependency" error instead of a stack overflow.
 * [ ] **Serialization Versioning**: Add a version header to serialized pipeline nodes (`.tcache` or similar). Version 0.5.0 should gracefully reject (or migrate) nodes from older versions.
 
 ### Polyglot Shell Nodes
 * [ ] **Escape Handling**: Harden the command generation for `shn` (shell nodes). Ensure that passing complex strings (with quotes, backticks, or newlines) between T, R, and Python nodes does not lead to shell injection or broken scripts.
 * [ ] **Environment Hermeticity**: Ensure that shell nodes derive their environment exclusively from the `tproject.toml` configuration, preventing "it works on my machine" issues.
+* [x] **Cross-Runtime Error Propagation**: Enhance `read_node` and `pipeline_run` to capture and surface detailed error messages (including tracebacks) from R, Python, and Shell nodes that fail during Nix builds. Errors should be surfaced as first-class `VError` values, allowing inspection via `explain(p.node_name)`.
 
 ### PMML Interchange
 * [ ] **Schema Validation**: When exporting or importing models via PMML (e.g., from `lm()`), validate the XML against the PMML 4.4.1 schema to ensure interoperability with other tools (Scikit-Learn, R).

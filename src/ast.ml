@@ -35,11 +35,19 @@ type error_code =
   | RuntimeError
   | GenericError
 
+(** Structured source location *)
+type source_location = {
+  file : string option;
+  line : int;
+  column : int;
+}
+
 (** Structured error information *)
 type error_info = {
   code : error_code;
   message : string;
   context : (string * value) list;
+  location : source_location option;
 }
 
 (** DataFrame type — Arrow-backed columnar storage *)
@@ -516,8 +524,19 @@ module Utils = struct
     | VNA na_t ->
         let tag = na_type_to_string na_t in
         if tag = "" then "NA" else "NA(" ^ tag ^ ")"
-    | VError { code; message; _ } ->
-        "Error(" ^ error_code_to_string code ^ ": \"" ^ message ^ "\")"
+    | VError { code; message; location; _ } ->
+        let rendered_message =
+          match location with
+          | Some { file; line; column } ->
+              let prefix =
+                match file with
+                | Some filename -> Printf.sprintf "[%s:L%d:C%d]" filename line column
+                | None -> Printf.sprintf "[L%d:C%d]" line column
+              in
+              prefix ^ " " ^ message
+          | None -> message
+        in
+        "Error(" ^ error_code_to_string code ^ ": \"" ^ rendered_message ^ "\")"
     | VNull -> "null"
     | VFactor (idx, levels, ordered) ->
         let level_str = match List.nth_opt levels idx with Some s -> "\"" ^ String.escaped s ^ "\"" | None -> "NA" in
@@ -618,8 +637,8 @@ let type_conversion_hint left_type right_type =
   | _ -> None
 
 (** Create a structured error value *)
-let make_error ?(context=[]) code message =
-  VError { code; message; context }
+let make_error ?location ?(context=[]) code message =
+  VError { code; message; context; location }
 
 (** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?name ?(variadic=false) arity func =

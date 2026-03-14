@@ -147,7 +147,38 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(ValueError: "Pipeline has a dependency cycle involving node `a`.")|};
   test "pipeline with error in node"
     "pipeline {\n  a = 1 / 0\n  b = a + 1\n}"
-    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Division by zero.\n  - `b` failed: Upstream error: Division by zero.";
+    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Pipeline node `a` failed: Division by zero.\n  - `b` failed: Pipeline node `b` failed: Upstream error: Pipeline node `a` failed: Division by zero.";
+  
+  test "explain shows runtime for T node error"
+    "p = pipeline { a = 1 / 0 }; info = explain(p.a); info.runtime"
+    "\"T\"";
+
+  test "explain shows runtime for upstream T error"
+    "p = pipeline { a = 1 / 0; b = a + 1 }; info = explain(p.b); info.runtime"
+    "\"T\"";
+
+  (try Unix.mkdir "_pipeline" 0o755 with _ -> ());
+  let mock_log = {|{
+    "timestamp": "20240101-000000",
+    "hash": "mock",
+    "out_path": "/tmp",
+    "nodes": [
+      { "node": "r_fail", "path": "/nonexistent", "runtime": "R", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+      { "node": "py_fail", "path": "/nonexistent", "runtime": "Python", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
+    ]
+  }|} in
+  let oc_mock = open_out "_pipeline/build_log_ocaml_mock.json" in
+  output_string oc_mock mock_log;
+  close_out oc_mock;
+
+  test "read_node propagates R runtime on error"
+    "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).runtime"
+    "\"R\"";
+
+  test "read_node propagates Python runtime on error"
+    "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).runtime"
+    "\"Python\"";
+
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with DataFrame:\n";

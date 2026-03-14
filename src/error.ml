@@ -5,8 +5,8 @@
 open Ast
 
 (** Create a raw error value *)
-let make_error ?(context=[]) code message =
-  VError { code; message; context }
+let make_error ?location ?(context=[]) code message =
+  VError { code; message; context; location }
 
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false

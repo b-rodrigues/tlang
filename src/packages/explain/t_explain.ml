@@ -160,13 +160,14 @@ let register env =
             ("kind", VString "value");
             ("type", VString "Null");
           ]
-      | [VError { code; message; _ }] ->
-          VDict [
+      | [VError { code; message; context; _ }] ->
+          let base = [
             ("kind", VString "value");
             ("type", VString "Error");
             ("error_code", VString (Utils.error_code_to_string code));
             ("error_message", VString message);
-          ]
+          ] in
+          VDict (base @ context)
       | [VSymbol s] ->
           VDict [
             ("kind", VString "symbol");
@@ -183,6 +184,23 @@ let register env =
           VDict [
             ("kind", VString "value");
             ("type", VString "Function");
+          ]
+      | [VComputedNode cn] ->
+          VDict [
+            ("kind", VString "computed_node");
+            ("name", VString cn.cn_name);
+            ("runtime", VString cn.cn_runtime);
+            ("path", VString cn.cn_path);
+            ("serializer", VString cn.cn_serializer);
+            ("class", VString cn.cn_class);
+            ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies));
+          ]
+      | [VNode un] ->
+          VDict [
+            ("kind", VString "node");
+            ("runtime", VString un.un_runtime);
+            ("command", VString (Nix_unparse.unparse_expr un.un_command));
+            ("noop", VBool un.un_noop);
           ]
       | [_] ->
           let v = List.hd args in
