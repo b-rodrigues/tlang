@@ -11,6 +11,33 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
+  let is_valid_env_var_name key =
+    let is_initial = function
+      | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+      | _ -> false
+    in
+    let is_continue = function
+      | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true
+      | _ -> false
+    in
+    String.length key > 0
+    && is_initial key.[0]
+    && let rec loop idx =
+         idx >= String.length key
+         || (is_continue key.[idx] && loop (idx + 1))
+       in
+       loop 1
+  in
+  let sanitize_env_var_suffix s =
+    let buffer = Buffer.create (String.length s) in
+    String.iter (function
+      | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' as c -> Buffer.add_char buffer c
+      | _ -> Buffer.add_char buffer '_'
+    ) s;
+    let sanitized = Buffer.contents buffer in
+    if sanitized = "" then "_" else sanitized
+  in
+  let dep_env_var_name dep = "T_NODE_" ^ sanitize_env_var_suffix dep in
 
 
 
@@ -63,7 +90,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let deps_inputs = String.concat " " (if extra_input = "" then deps else extra_input :: deps) in
   let deps_exports =
     deps
-    |> List.map (fun d -> Printf.sprintf "      export T_NODE_%s=${%s}\n" d d)
+    |> List.map (fun d -> Printf.sprintf "      export %s=${%s}\n" (dep_env_var_name d) d)
     |> String.concat ""
   in
   let imports_echo =
@@ -105,6 +132,74 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
         (match env_value_to_string value with
          | Some s -> [s]
          | None -> [])
+  in
+  let shell_args_tokens =
+    shell_args
+    |> List.map (fun expr ->
+      let value = Eval.eval_expr (ref (Ast.Env.empty)) expr in
+      match env_value_to_string value with
+      | Some s -> s
+      | None -> Nix_unparse.unparse_expr expr)
+  in
+  let sh_cli_args_tokens =
+    runtime_args
+    |> List.map snd
+    |> List.concat_map arg_value_to_strings
+  in
+  let shell_quote_words words =
+    String.concat " " (List.map shell_single_quote words)
+  in
+  let shell_set_args_block words =
+    match words with
+    | [] -> ""
+    | _ -> Printf.sprintf "      set -- %s\n" (shell_quote_words words)
+  in
+  let shell_uses_command_string args =
+    List.exists (fun arg -> arg = "-c" || arg = "-lc" || arg = "-cl") args
+  in
+  let is_simple_exec_command cmd =
+    let looks_like_env_assignment =
+      let rec find_equals idx =
+        if idx >= String.length cmd then
+          None
+        else if cmd.[idx] = '=' then
+          Some idx
+        else
+          find_equals (idx + 1)
+      in
+      let is_assignment_name_char = function
+        | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true
+        | _ -> false
+      in
+      match find_equals 0 with
+      | Some eq_idx when eq_idx > 0 ->
+          let name = String.sub cmd 0 eq_idx in
+          let starts_ok =
+            match name.[0] with
+            | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+            | _ -> false
+          in
+          starts_ok
+          && let rec loop idx =
+               idx >= String.length name
+               || (is_assignment_name_char name.[idx] && loop (idx + 1))
+             in
+             loop 1
+      | _ -> false
+    in
+    let rec loop i =
+      if i >= String.length cmd then
+        true
+      else
+        match cmd.[i] with
+        | ' ' | '\t' | '\n' | '\r'
+        | '\'' | '"' | '`' | '$' | '\\'
+        | ';' | '&' | '|' | '<' | '>'
+        | '(' | ')' | '{' | '}' | '[' | ']' ->
+            false
+        | _ -> loop (i + 1)
+    in
+    cmd <> "" && not looks_like_env_assignment && loop 0
   in
   let flag_key_to_cli_format key =
     String.map (fun c -> if c = '_' then '-' else c) key
@@ -705,20 +800,20 @@ def py_read_pmml(path):
       |> List.map (fun d ->
         let des_call = get_des_call d in
         if runtime = "R" then
-          Printf.sprintf "      echo \"%s <- %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext
+          Printf.sprintf "      echo \"%s <- %s(\\\"$%s/artifact\\\")\" >> node_script.%s" d des_call (dep_env_var_name d) ext
         else
-          Printf.sprintf "      echo \"%s = %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext)
+          Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" d des_call (dep_env_var_name d) ext)
       |> String.concat "\n"
   in
   let quarto_read_node_substitutions =
     match runtime, script with
     | "Quarto", Some script_path ->
         deps
-        |> List.map (fun d ->
+      |> List.map (fun d ->
           let double_quoted_read_node = Printf.sprintf {|read_node(\"%s\")|} d in
-          let double_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$T_NODE_" ^ d) in
+          let double_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$" ^ dep_env_var_name d) in
           let single_quoted_read_node = Printf.sprintf {|read_node('%s')|} d in
-          let single_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$T_NODE_" ^ d) in
+          let single_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$" ^ dep_env_var_name d) in
           Printf.sprintf
             {|      sed -i -e "s|%s|%s|g" -e "s|%s|%s|g" %s|}
             double_quoted_read_node
@@ -898,20 +993,10 @@ def py_read_pmml(path):
            All pipeline dependencies are already available as variables from deps_script_lines.
            Use shell_single_quote to safely embed the source/exec call in an echo command. *)
         if runtime = "sh" then
-          let cli_args_tokens = List.filter_map (fun (_, v) ->
-            match v with
-            | VString s | VSymbol s -> Some s
-            | VInt i -> Some (string_of_int i)
-            | VFloat f -> Some (Printf.sprintf "%.15g" f)
-            | VBool true -> Some "true"
-            | VBool false -> Some "false"
-            | VNull -> None
-            | _ -> None) runtime_args in
           let shell_cmd = match shell with Some s -> s | None -> "sh" in
-          let shell_args_str = match shell_args with [] -> "" | _ -> List.map Nix_unparse.unparse_expr shell_args |> String.concat " " in
-          let cmd_parts = List.filter (fun s -> s <> "") ([shell_cmd; shell_args_str; script_path] @ cli_args_tokens) in
-          let cmd_line = String.concat " " cmd_parts in
-          Printf.sprintf "      printf '%%s\\n' %s >> node_script.sh" (shell_single_quote cmd_line)
+          let script_tokens = shell_cmd :: shell_args_tokens @ [ script_path ] @ sh_cli_args_tokens in
+          Printf.sprintf "      printf '%%s\\n' %s >> node_script.sh"
+            (shell_single_quote ("exec " ^ shell_quote_words script_tokens))
         else if runtime = "R" then
           let r_source = shell_single_quote (Printf.sprintf {|source("%s")|} script_path) in
           let r_ser = shell_single_quote (Printf.sprintf {|%s(%s, "$out/artifact")|} ser_call name) in
@@ -983,17 +1068,16 @@ EOF
       | RawCode { raw_text; _ } ->
           Printf.sprintf "      cat <<'EOF' >> node_script.sh\n%s\nEOF" raw_text
       | Value (VString cmd) | Value (VSymbol cmd) ->
-          let cli_args_tokens = List.filter_map (fun (_, v) ->
-            match v with
-            | VString s | VSymbol s -> Some s
-            | VInt i -> Some (string_of_int i)
-            | VFloat f -> Some (Printf.sprintf "%.15g" f)
-            | VBool true -> Some "true"
-            | VBool false -> Some "false"
-            | VNull -> None
-            | _ -> None) runtime_args in
-          let cmd_line = String.concat " " (cmd :: cli_args_tokens) in
-          Printf.sprintf "      printf '%%s\\n' %s >> node_script.sh" (shell_single_quote cmd_line)
+          if shell = None && shell_args_tokens = [] && sh_cli_args_tokens <> [] && is_simple_exec_command cmd then
+            let set_args = shell_set_args_block sh_cli_args_tokens in
+            Printf.sprintf {|%s      printf '%%s\n' %s >> node_script.sh|}
+              set_args
+              (shell_single_quote (Printf.sprintf "exec %s \"$@\"" (shell_single_quote cmd)))
+          else
+            let set_args = shell_set_args_block sh_cli_args_tokens in
+            Printf.sprintf {|%s      cat <<'EOF' >> node_script.sh
+%s
+EOF|} set_args cmd
       | _ -> "      printf '%%s\\n' true >> node_script.sh")
     else (* T runtime *)
       if is_raw_code then
@@ -1043,8 +1127,40 @@ EOF
       echo "QuartoOutput" > $out/class|} cli_block (match script with Some s -> s | None -> ".") (match script with Some s -> s | None -> ".")
     | "sh" ->
         let shell_cmd = match shell with Some s -> s | None -> "sh" in
-        let shell_args_str = match shell_args with [] -> "" | _ -> " " ^ (List.map Nix_unparse.unparse_expr shell_args |> String.concat " ") in
-        Printf.sprintf "%s%s node_script.sh > $out/artifact\n      echo ShellOutput > $out/class" shell_cmd shell_args_str
+        let launcher =
+          if shell_uses_command_string shell_args_tokens then
+            String.concat " "
+              (shell_single_quote shell_cmd
+               :: List.map shell_single_quote shell_args_tokens
+               @ [ shell_single_quote ". ./node_script.sh" ])
+          else
+            String.concat " "
+              (shell_single_quote shell_cmd
+               :: List.map shell_single_quote shell_args_tokens
+               @ [ shell_single_quote "node_script.sh" ])
+        in
+        let hermetic_env =
+          let node_env =
+            env_vars
+            |> List.filter_map (fun (key, value) ->
+              if not (is_valid_env_var_name key) then
+                None
+              else
+              match env_value_to_string value with
+              | Some s -> Some (Printf.sprintf "%s=%s" key (shell_single_quote s))
+              | None -> None)
+          in
+          let dep_env =
+            deps
+            |> List.map (fun dep ->
+              let env_name = dep_env_var_name dep in
+              Printf.sprintf "%s=\"$%s\"" env_name env_name)
+          in
+          String.concat " "
+            ([ "env -i"; "HOME=\"$TMPDIR\""; "PATH=\"$PATH\""; "TMPDIR=\"$TMPDIR\"" ]
+             @ dep_env @ node_env)
+        in
+        Printf.sprintf "%s %s > $out/artifact\n      echo ShellOutput > $out/class" hermetic_env launcher
     | _ -> "t run --unsafe node_script.t"
   in
 

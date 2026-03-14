@@ -9,6 +9,38 @@ let ensure_parent_dir path =
   in
   ensure dir
 
+let serialized_value_magic = "TLANG_SERIALIZED:"
+let serialized_value_format_version = "0.5.0"
+
+let serialized_value_header =
+  serialized_value_magic ^ serialized_value_format_version ^ "\n"
+
+let read_serialized_value_header ic =
+  try
+    let magic = really_input_string ic (String.length serialized_value_magic) in
+    if magic <> serialized_value_magic then
+      Error
+        (Printf.sprintf
+           "Serialized value is missing the `%s` format header. Rebuild or re-serialize this artifact with the current serializer."
+           serialized_value_format_version)
+    else
+      let version = input_line ic in
+      if version = serialized_value_format_version then
+        Ok ()
+      else
+        Error
+          (Printf.sprintf
+             "Serialized value format version `%s` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer."
+             version
+             serialized_value_format_version)
+  with
+  | End_of_file ->
+      Error
+        (Printf.sprintf
+           "Serialized value is truncated or missing the `%s` format header."
+           serialized_value_format_version)
+  | exn -> Error (Printexc.to_string exn)
+
 (*
 --# Binary Serialization
 --#
@@ -24,6 +56,7 @@ let serialize_to_file path value =
   try
     ensure_parent_dir path;
     let oc = open_out_bin path in
+    output_string oc serialized_value_header;
     Marshal.to_channel oc value [];
     close_out oc;
     Ok ()
@@ -43,9 +76,15 @@ let serialize_to_file path value =
 let deserialize_from_file path =
   try
     let ic = open_in_bin path in
-    let value = (Marshal.from_channel ic : Ast.value) in
-    close_in ic;
-    Ok value
+    let result =
+      match read_serialized_value_header ic with
+      | Error _ as err -> err
+      | Ok () ->
+          let value = (Marshal.from_channel ic : Ast.value) in
+          Ok value
+    in
+    close_in_noerr ic;
+    result
   with exn ->
     Error (Printexc.to_string exn)
 
