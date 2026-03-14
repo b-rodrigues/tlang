@@ -37,7 +37,7 @@ let register env =
               | VFloat f ->
                   if f < 0.0 then had_error := Some (Error.value_error "Function `sqrt` is undefined for negative numbers.")
                   else result.(i) <- VFloat (Float.sqrt f)
-              | VNA _ -> had_error := Some (Error.type_error "Function `sqrt` encountered NA value. Handle missingness explicitly.")
+              | VNA _ -> had_error := Some (Error.na_value_error "sqrt")
               | _ -> had_error := Some (Error.type_error "Function `sqrt` requires numeric values.")
           ) arr;
           (match !had_error with Some e -> e | None -> VVector result)
@@ -50,7 +50,7 @@ let register env =
              Error.value_error "Function `sqrt` encountered negative values in NDArray."
           else
              VNDArray { shape = arr.shape; data = result }
-      | [VNA _] -> Error.type_error "Function `sqrt` encountered NA value. Handle missingness explicitly."
+      | [VNA _] -> Error.na_value_error "sqrt"
       | [_] -> Error.type_error "Function `sqrt` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "sqrt" 1 (List.length args)
     ))

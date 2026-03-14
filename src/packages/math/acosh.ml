@@ -23,12 +23,12 @@ let map_numeric_unary ~fname f = function
           match v with
           | VInt n -> out.(i) <- VFloat (f (float_of_int n))
           | VFloat x -> out.(i) <- VFloat (f x)
-          | VNA _ -> err := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." fname))
+          | VNA _ -> err := Some (Error.na_value_error fname)
           | _ -> err := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." fname))
       ) arr;
       (match !err with Some e -> e | None -> VVector out)
   | [VNDArray arr] -> VNDArray { shape = arr.shape; data = Array.map f arr.data }
-  | [VNA _] -> Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." fname)
+  | [VNA _] -> Error.na_value_error fname
   | [_] -> Error.type_error (Printf.sprintf "Function `%s` expects numeric input." fname)
   | args -> Error.arity_error_named fname 1 (List.length args)
 

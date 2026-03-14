@@ -39,7 +39,7 @@ let register env =
           | (_, VInt n) :: rest -> go (float_of_int n :: acc) rest
           | (_, VFloat f) :: rest -> go (f :: acc) rest
           | (_, VNA _) :: rest when na_rm -> go acc rest
-          | (_, VNA _) :: _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+          | (_, VNA _) :: _ -> Error (Error.na_value_error ~na_rm:true label)
           | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         in go [] vals
       in
@@ -52,7 +52,7 @@ let register env =
             | VInt n -> nums := float_of_int n :: !nums
             | VFloat f -> nums := f :: !nums
             | VNA _ when na_rm -> ()
-            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | VNA _ -> had_error := Some (Error.na_value_error ~na_rm:true label)
             | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok (Array.of_list (List.rev !nums))
@@ -66,7 +66,7 @@ let register env =
             match arr.(i) with
             | VInt n -> result.(i) <- float_of_int n
             | VFloat f -> result.(i) <- f
-            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | VNA _ -> had_error := Some (Error.na_value_error ~na_rm:true label)
             | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
@@ -96,7 +96,7 @@ let register env =
              | Ok nums ->
                let sum = Array.fold_left ( +. ) 0.0 nums in
                VFloat (sum /. float_of_int (Array.length nums)))
-      | Some (VNA _) -> Error.type_error "Function `mean` encountered NA value. Handle missingness explicitly."
+      | Some (VNA _) -> Error.na_value_error ~na_rm:true "mean"
       | Some _ -> Error.type_error "Function `mean` expects a numeric List or Vector."
       | None -> Error.arity_error_named "mean" 1 (List.length args)
     ))

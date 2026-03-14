@@ -40,7 +40,7 @@ let register env =
                  match v with
                  | VInt n -> result.(i) <- VFloat (Float.pow (float_of_int n) e)
                  | VFloat f -> result.(i) <- VFloat (Float.pow f e)
-                 | VNA _ -> had_error := Some (Error.make_error TypeError "Function `pow` encountered NA value. Handle missingness explicitly.")
+                 | VNA _ -> had_error := Some (Error.na_value_error "pow")
                  | _ -> had_error := Some (Error.make_error TypeError "Function `pow` requires numeric values.")
              ) arr;
              (match !had_error with Some e -> e | None -> VVector result))
@@ -55,7 +55,7 @@ let register env =
             | Some e ->
               let result = Array.map (fun f -> Float.pow f e) arr.data in
               VNDArray { shape = arr.shape; data = result })
-      | [VNA _; _] | [_; VNA _] -> Error.make_error TypeError "Function `pow` encountered NA value. Handle missingness explicitly."
+      | [VNA _; _] | [_; VNA _] -> Error.na_value_error "pow"
       | [_; _] -> Error.make_error TypeError "Function `pow` expects numeric arguments (NDArray base supported)."
       | _ -> Error.make_error ArityError "Function `pow` expects 2 arguments."
     ))

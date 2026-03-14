@@ -37,7 +37,7 @@ let register env =
               | VFloat f ->
                   if f <= 0.0 then had_error := Some (Error.value_error "Function `log` is undefined for non-positive numbers.")
                   else result.(i) <- VFloat (Float.log f)
-              | VNA _ -> had_error := Some (Error.type_error "Function `log` encountered NA value. Handle missingness explicitly.")
+              | VNA _ -> had_error := Some (Error.na_value_error "log")
               | _ -> had_error := Some (Error.type_error "Function `log` requires numeric values.")
           ) arr;
           (match !had_error with Some e -> e | None -> VVector result)
@@ -50,7 +50,7 @@ let register env =
              Error.value_error "Function `log` encountered non-positive values in NDArray."
           else
              VNDArray { shape = arr.shape; data = result }
-      | [VNA _] -> Error.type_error "Function `log` encountered NA value. Handle missingness explicitly."
+      | [VNA _] -> Error.na_value_error "log"
       | [_] -> Error.type_error "Function `log` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "log" 1 (List.length args)
     ))

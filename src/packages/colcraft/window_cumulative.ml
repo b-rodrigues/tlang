@@ -4,7 +4,7 @@ open Ast
 let to_value_array label = function
   | VVector arr -> Ok arr
   | VList items -> Ok (Array.of_list (List.map snd items))
-  | VNA _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+  | VNA _ -> Error (Error.na_value_error label)
   | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a Vector or List." label))
 
 let register env =
