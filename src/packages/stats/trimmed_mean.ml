@@ -18,7 +18,7 @@ let numeric_values ~label ~na_rm v =
     match v with
     | VVector arr -> Ok (Array.to_list arr)
     | VList items -> Ok (List.map snd items)
-    | VNA _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+    | VNA _ -> Error (Error.na_value_error ~na_rm:true label)
     | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a numeric List or Vector." label))
   in
   match vals with
@@ -29,7 +29,7 @@ let numeric_values ~label ~na_rm v =
         | VInt n :: tl -> go (float_of_int n :: acc) tl
         | VFloat f :: tl -> go (f :: acc) tl
         | VNA _ :: tl when na_rm -> go acc tl
-        | VNA _ :: _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+        | VNA _ :: _ -> Error (Error.na_value_error ~na_rm:true label)
         | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
       in
       go [] vals

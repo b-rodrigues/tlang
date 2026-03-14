@@ -139,11 +139,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "sum with NA gives clear error"
     {|sum([1, NA, 3])|}
-    {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "mean with NA gives clear error"
     {|mean([1, NA, 3])|}
-    {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "head on NA returns error"
     {|head(NA)|}

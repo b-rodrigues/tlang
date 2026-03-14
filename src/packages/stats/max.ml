@@ -27,7 +27,7 @@ let register env =
             match arr.(i) with
             | VInt n -> result.(i) <- float_of_int n
             | VFloat f -> result.(i) <- f
-            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | VNA _ -> had_error := Some (Error.na_value_error label)
             | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
@@ -46,7 +46,7 @@ let register env =
            | Error e -> e
            | Ok nums ->
              VFloat (Array.fold_left Float.max Float.neg_infinity nums))
-      | [VNA _] -> Error.type_error "Function `max` encountered NA value. Handle missingness explicitly."
+      | [VNA _] -> Error.na_value_error "max"
       | [_] -> Error.type_error "Function `max` expects a numeric List or Vector."
       | _ -> Error.arity_error_named "max" 1 (List.length args)
     ))

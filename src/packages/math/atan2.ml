@@ -28,7 +28,7 @@ let register env =
       | [VFloat y; VFloat x] -> VFloat (Float.atan2 y x)
       | [VVector arr; x_val] ->
           (match x_val with
-           | VNA _ -> Error.type_error "Function `atan2` encountered NA value. Handle missingness explicitly."
+           | VNA _ -> Error.na_value_error "atan2"
            | _ ->
                (match scalar_of x_val with
                 | None -> Error.type_error "Function `atan2` expects numeric arguments."
@@ -40,13 +40,13 @@ let register env =
                         match v with
                         | VInt y -> result.(i) <- VFloat (Float.atan2 (float_of_int y) x)
                         | VFloat y -> result.(i) <- VFloat (Float.atan2 y x)
-                        | VNA _ -> had_error := Some (Error.type_error "Function `atan2` encountered NA value. Handle missingness explicitly.")
+                        | VNA _ -> had_error := Some (Error.na_value_error "atan2")
                         | _ -> had_error := Some (Error.type_error "Function `atan2` requires numeric values."))
                       arr;
                     match !had_error with Some e -> e | None -> VVector result))
       | [VNDArray arr; x_val] ->
           (match x_val with
-           | VNA _ -> Error.type_error "Function `atan2` encountered NA value. Handle missingness explicitly."
+           | VNA _ -> Error.na_value_error "atan2"
            | _ ->
                (match scalar_of x_val with
                 | None -> Error.type_error "Function `atan2` expects numeric arguments."
@@ -55,7 +55,7 @@ let register env =
       | [VNA _; _]
       | [VInt _; VNA _]
       | [VFloat _; VNA _] ->
-          Error.type_error "Function `atan2` encountered NA value. Handle missingness explicitly."
+          Error.na_value_error "atan2"
       | [_; _] -> Error.type_error "Function `atan2` expects numeric arguments."
       | _ -> Error.arity_error_named "atan2" 2 (List.length args)
     )) env

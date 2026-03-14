@@ -32,7 +32,7 @@ let register env =
             match arr.(i) with
             | VInt n -> result.(i) <- float_of_int n
             | VFloat f -> result.(i) <- f
-            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | VNA _ -> had_error := Some (Error.na_value_error ~na_rm:true label)
             | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
@@ -80,7 +80,7 @@ let register env =
             (match extract_nums_arr "sd" arr with
              | Error e -> e
              | Ok nums -> compute_sd nums (Array.length nums))
-      | Some (VNA _) -> Error.type_error "Function `sd` encountered NA value. Handle missingness explicitly."
+      | Some (VNA _) -> Error.na_value_error ~na_rm:true "sd"
       | Some _ -> Error.type_error "Function `sd` expects a numeric List or Vector."
       | None -> Error.arity_error_named "sd" 1 (List.length args)
     ))

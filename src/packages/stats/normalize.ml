@@ -21,7 +21,7 @@ let register env =
         match v with
         | VVector arr -> Ok (Array.to_list arr)
         | VList items -> Ok (List.map snd items)
-        | VNA _ -> Error (Error.type_error "Function `normalize` encountered NA value. Handle missingness explicitly.")
+        | VNA _ -> Error (Error.na_value_error "normalize")
         | _ -> Error (Error.type_error "Function `normalize` expects a numeric List or Vector.")
       in
       match vals with
@@ -31,7 +31,7 @@ let register env =
             | [] -> Ok (List.rev acc)
             | VInt n :: tl -> go (float_of_int n :: acc) tl
             | VFloat f :: tl -> go (f :: acc) tl
-            | VNA _ :: _ -> Error (Error.type_error "Function `normalize` encountered NA value. Handle missingness explicitly.")
+            | VNA _ :: _ -> Error (Error.na_value_error "normalize")
             | _ -> Error (Error.type_error "Function `normalize` requires numeric values.")
           in
           go [] vals

@@ -31,7 +31,7 @@ let register env =
             match arr.(i) with
             | VInt n -> result.(i) <- float_of_int n
             | VFloat f -> result.(i) <- f
-            | VNA _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | VNA _ -> had_error := Some (Error.na_value_error ~na_rm:true label)
             | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with Some e -> Error e | None -> Ok result
@@ -57,7 +57,7 @@ let register env =
           (match (to_arr v1, to_arr v2) with
            | (None, _) | (_, None) ->
                (match (v1, v2) with
-                | (VNA _, _) | (_, VNA _) -> Error.type_error "Function `cor` encountered NA value. Handle missingness explicitly."
+                | (VNA _, _) | (_, VNA _) -> Error.na_value_error ~na_rm:true "cor"
                 | _ -> Error.type_error "Function `cor` expects two numeric Vectors or Lists.")
            | (Some arr1, Some arr2) ->
              if Array.length arr1 <> Array.length arr2 then

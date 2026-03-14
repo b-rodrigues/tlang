@@ -3,30 +3,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "mean of int list" "mean([1, 2, 3, 4, 5])" "3.";
   test "mean of float list" "mean([1.0, 2.0, 3.0])" "2.";
   test "mean empty" "mean([])" {|Error(ValueError: "Function `mean` called on empty List.")|};
-  test "mean with NA" "mean([1, NA, 3])" {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly.")|};
+  test "mean with NA" "mean([1, NA, 3])" {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   test "mean non-numeric" {|mean("hello")|} {|Error(TypeError: "Function `mean` expects a numeric List or Vector.")|};
   test "mean na_rm=true skips NA" "mean([1.0, 2.0, NA, 4.0], na_rm = true)" "2.33333333333";
   test "mean na_rm=true no NAs" "mean([1.0, 2.0, 3.0], na_rm = true)" "2.";
   test "mean na_rm=true all NAs" "mean([NA, NA, NA], na_rm = true)" "NA(Float)";
-  test "mean na_rm=false with NA errors" "mean([1, NA, 3], na_rm = false)" {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly.")|};
+  test "mean na_rm=false with NA errors" "mean([1, NA, 3], na_rm = false)" {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: sum() with na_rm:\n";
   test "sum na_rm=true skips NA" "sum([1, NA, 3], na_rm = true)" "4";
   test "sum na_rm=true no NAs" "sum([1, 2, 3], na_rm = true)" "6";
   test "sum na_rm=true all NAs" "sum([NA, NA, NA], na_rm = true)" "0";
-  test "sum na_rm=false with NA errors" "sum([1, NA, 3], na_rm = false)" {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly.")|};
+  test "sum na_rm=false with NA errors" "sum([1, NA, 3], na_rm = false)" {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   test "sum na_rm=true float" "sum([1.5, NA, 2.5], na_rm = true)" "4.";
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: sd():\n";
   test "sd of list" "sd([2, 4, 4, 4, 5, 5, 7, 9])" "2.1380899353";
   test "sd single value" "sd([42])" {|Error(ValueError: "Function `sd` requires at least 2 values.")|};
-  test "sd with NA" "sd([1, NA, 3])" {|Error(TypeError: "Function `sd` encountered NA value. Handle missingness explicitly.")|};
+  test "sd with NA" "sd([1, NA, 3])" {|Error(TypeError: "Function `sd` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   test "sd na_rm=true skips NA" "sd([2, 4, NA, 4, 5, 5, NA, 9], na_rm = true)" "2.31660671385";
   test "sd na_rm=true no NAs" "sd([2, 4, 4, 4, 5, 5, 7, 9], na_rm = true)" "2.1380899353";
   test "sd na_rm=true all NAs" "sd([NA, NA, NA], na_rm = true)" "NA(Float)";
-  test "sd na_rm=false with NA errors" "sd([1, NA, 3], na_rm = false)" {|Error(TypeError: "Function `sd` encountered NA value. Handle missingness explicitly.")|};
+  test "sd na_rm=false with NA errors" "sd([1, NA, 3], na_rm = false)" {|Error(TypeError: "Function `sd` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: quantile():\n";
@@ -39,7 +39,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "quantile na_rm=true skips NA" "quantile([1, NA, 3, NA, 5], 0.5, na_rm = true)" "3.";
   test "quantile na_rm=true no NAs" "quantile([1, 2, 3, 4, 5], 0.5, na_rm = true)" "3.";
   test "quantile na_rm=true all NAs" "quantile([NA, NA, NA], 0.5, na_rm = true)" "NA(Float)";
-  test "quantile na_rm=false with NA errors" "quantile([1, NA, 3], 0.5, na_rm = false)" {|Error(TypeError: "Function `quantile` encountered NA value. Handle missingness explicitly.")|};
+  test "quantile na_rm=false with NA errors" "quantile([1, NA, 3], 0.5, na_rm = false)" {|Error(TypeError: "Function `quantile` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: cor():\n";
@@ -72,13 +72,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(TypeError: "Function `cor` expects two numeric Vectors or Lists.")|};
   test "cor with NA"
     "cor(NA, [1, 2, 3])"
-    {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   test "cor na_rm=true pairwise deletion" "cor([1, NA, 3, 4, 5], [2, 4, NA, 8, 10], na_rm = true)" "1.";
   test "cor na_rm=true no NAs" "cor([1, 2, 3], [2, 4, 6], na_rm = true)" "1.";
   test "cor na_rm=true all NAs" "cor([NA, NA, NA], [NA, NA, NA], na_rm = true)" "NA(Float)";
   test "cor na_rm=false with NA errors"
     "cor([1, NA, 3], [4, 5, 6], na_rm = false)"
-    {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly.")|};
+    {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   (try Sys.remove csv_p5_cor with _ -> ());
   Printf.printf "Phase 5 — Stats: extended stats():\n";

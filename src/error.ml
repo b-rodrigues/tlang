@@ -47,6 +47,13 @@ let arity_error_named ?location name expected received =
 let value_error ?location msg =
   make_error ?location ValueError msg
 
+let na_value_error ?location ?(na_rm=false) function_name =
+  let guidance =
+    if na_rm then "Handle missingness explicitly or set `na_rm` to true."
+    else "Handle missingness explicitly."
+  in
+  type_error ?location (Printf.sprintf "Function `%s` encountered NA value. %s" function_name guidance)
+
 let broadcast_length_error ?location len1 len2 =
   let msg = Printf.sprintf "Broadcast requires lists of equal length.\nLeft has length %d, right has length %d." len1 len2 in
   make_error ?location ValueError msg

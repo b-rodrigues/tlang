@@ -25,7 +25,7 @@ let numeric_values ~label ~na_rm v =
     match v with
     | VVector arr -> Ok (Array.to_list arr)
     | VList items -> Ok (List.map snd items)
-    | VNA _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+    | VNA _ -> Error (Error.na_value_error ~na_rm:true label)
     | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects a numeric List or Vector." label))
   in
   match vals with
@@ -36,7 +36,7 @@ let numeric_values ~label ~na_rm v =
         | VInt n :: tl -> go (float_of_int n :: acc) tl
         | VFloat f :: tl -> go (f :: acc) tl
         | VNA _ :: tl when na_rm -> go acc tl
-        | VNA _ :: _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+        | VNA _ :: _ -> Error (Error.na_value_error ~na_rm:true label)
         | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
       in
       go [] vals
@@ -63,7 +63,7 @@ let paired_numeric_values ~label ~na_rm x y =
   let to_arr = function
     | VVector arr -> Ok arr
     | VList items -> Ok (Array.of_list (List.map snd items))
-    | VNA _ -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+    | VNA _ -> Error (Error.na_value_error ~na_rm:true label)
     | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` expects two numeric Vectors or Lists." label))
   in
   match (to_arr x, to_arr y) with
@@ -79,7 +79,7 @@ let paired_numeric_values ~label ~na_rm x y =
             | VFloat a, VInt b -> loop (i + 1) (a :: xs) (float_of_int b :: ys)
             | VFloat a, VFloat b -> loop (i + 1) (a :: xs) (b :: ys)
             | (VNA _, _) | (_, VNA _) when na_rm -> loop (i + 1) xs ys
-            | (VNA _, _) | (_, VNA _) -> Error (Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." label))
+            | (VNA _, _) | (_, VNA _) -> Error (Error.na_value_error ~na_rm:true label)
             | _ -> Error (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         in
         loop 0 [] []
