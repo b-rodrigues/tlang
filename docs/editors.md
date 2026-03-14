@@ -36,6 +36,19 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
    - **Windows**: `%USERPROFILE%\.vscode\extensions\`
 2. Restart VS Code.
 
+### Quarto
+
+For literate programming with executable `{t}` chunks, copy `editors/quarto/tlang/_extensions/tlang` into your Quarto project as `_extensions/tlang` and enable the `tlang` filter in your document front matter:
+
+```yaml
+---
+filters:
+  - tlang
+---
+```
+
+The extension lives in `editors/quarto/tlang` and includes a ready-to-copy example document.
+
 ---
 
 ## ⚡ Language Server Protocol (LSP)

@@ -25,6 +25,12 @@ This directory contains syntax highlighting and language support for the T progr
 2. Restart VS Code.
 3. Alternatively, you can open the `vscode/t-lang` folder in VS Code and press `F5` to test it in a "Development Host" window.
 
+## Quarto
+
+If you want executable `{t}` blocks in Quarto documents, copy the extension in `quarto/tlang/_extensions/tlang` into your Quarto project and enable the `tlang` filter in your document front matter.
+
+See `quarto/tlang/README.md` for installation and usage details.
+
 ## LSP (Language Server Protocol)
 
 The T language server is implemented in `src/lsp_server.ml`. When you build the project via Nix, a wrapped binary called `t-lsp` is created. This binary is pre-configured with the correct library paths for all dependencies (Arrow, GLib, etc.).
