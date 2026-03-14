@@ -1,6 +1,11 @@
 # Literate Programming with Quarto
 
-T supports **Quarto** as a first-class runtime for literate programming within pipelines. This allows you to combine T code, R, Python, and markdown to generate beautiful, reproducible reports, websites, and books.
+T supports **Quarto** in two complementary ways:
+
+1. as a **pipeline runtime** for rendering `.qmd` reports inside T pipelines
+2. via the **Quarto editor extension** in `editors/quarto/tlang`, which lets you write executable `{t}` chunks directly in Quarto documents
+
+The runtime integration is documented below. For inline `t` chunks, copy `editors/quarto/tlang/_extensions/tlang` into your Quarto project, enable the `tlang` filter, and render as usual with Quarto.
 
 ## Defining a Quarto Node
 

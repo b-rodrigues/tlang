@@ -1,0 +1,26 @@
+---
+title: "Executable T chunks"
+filters:
+  - tlang
+---
+
+# Simple example
+
+```{t}
+values = [1, 2, 3, 4]
+```
+
+```{t}
+mean(values)
+```
+
+# Chunk options
+
+```{t}
+#| echo: false
+summary = "This chunk still runs, but its source is hidden."
+```
+
+```{t}
+summary
+```
