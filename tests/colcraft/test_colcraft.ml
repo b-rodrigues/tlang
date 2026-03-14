@@ -614,6 +614,9 @@ df |> filter($age > 25)
   test "bind_cols combines columns"
     {|bind_cols(dataframe([[id: 1], [id: 2]]), dataframe([[value: "a"], [value: "b"]])).value|}
     {|Vector["a", "b"]|};
+  test "unite na_rm removes missing values"
+    {|unite(dataframe([[x: "a", y: NA], [x: NA, y: "b"]]), "xy", $x, $y, na_rm = true).xy|}
+    {|Vector["a", "b"]|};
   test "select where numeric columns"
     {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng"]]); select(wide, where(is_numeric)) |> ncol|}
     "2";

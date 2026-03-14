@@ -90,6 +90,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "sin" "sin(0)" "0.";
   test "cos" "cos(0)" "1.";
   test "atan2" "atan2(1, 1)" "0.785398163397";
+  test "atan2 vectorized" {|angles = dataframe([[y: 0], [y: 1], [y: 0 - 1]]); atan2(angles.y, 1)|} "Vector[0., 0.785398163397, -0.785398163397]";
   test "sinh" "sinh(0)" "0.";
   print_newline ();
 
@@ -109,6 +110,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "log on ndarray" "log(ndarray([1, 10]))" "NDArray(shape=[2], data=[0., 2.30258509299])";
   test "exp on ndarray" "exp(ndarray([0, 1]))" "NDArray(shape=[2], data=[1., 2.71828182846])";
   test "pow on ndarray" "pow(ndarray([[1, 2], [3, 4]]), 2)" "NDArray(shape=[2, 2], data=[1., 4., 9., 16.])";
+  test "atan2 on ndarray" "atan2(ndarray([0, 1, -1]), 1)" "NDArray(shape=[3], data=[0., 0.785398163397, -0.785398163397])";
   
   (* Error case tests *)
   test "ndarray with empty list" "ndarray([])" {|Error(ValueError: "NDArray shape dimensions must be strictly positive.")|};
