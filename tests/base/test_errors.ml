@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
+let run_tests pass_count fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 1 — Structured Errors:\n";
   test "error() constructor" {|error("something went wrong")|} {|Error(GenericError: "something went wrong")|};
   test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};
@@ -9,6 +9,34 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "error_code on type error" {|error_code(error("TypeError", "bad type"))|} {|"TypeError"|};
   test "error_code on non-error" "error_code(42)" {|Error(TypeError: "Function `error_code` expects an Error value.")|};
   test "error_message on non-error" {|error_message("hello")|} {|Error(TypeError: "Function `error_message` expects an Error value.")|};
+  let located_error =
+    Ast.make_error
+      ~location:{ Ast.file = Some "script.t"; line = 12; column = 5 }
+      Ast.TypeError
+      "expected int, got float"
+  in
+  if Ast.Utils.value_to_string located_error
+     = {|Error(TypeError: "[script.t:L12:C5] expected int, got float")|} then begin
+    incr pass_count;
+    Printf.printf "  ✓ located errors include file/line/column prefix\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ located errors include file/line/column prefix\n"
+  end;
+  let repl_error =
+    Ast.make_error
+      ~location:{ Ast.file = None; line = 3; column = 9 }
+      Ast.SyntaxError
+      "Parse Error"
+  in
+  if Ast.Utils.value_to_string repl_error
+     = {|Error(SyntaxError: "[L3:C9] Parse Error")|} then begin
+    incr pass_count;
+    Printf.printf "  ✓ located errors omit filename when unavailable\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ located errors omit filename when unavailable\n"
+  end;
   print_newline ();
 
   Printf.printf "Phase 1 — Enhanced Assert:\n";

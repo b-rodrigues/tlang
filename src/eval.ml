@@ -49,6 +49,23 @@ and desugar_nse_stmt stmt =
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
 
+let source_location ?file pos =
+  {
+    file;
+    line = pos.Lexing.pos_lnum;
+    column = max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1);
+  }
+
+let pipeline_error_message ~node_name ~detail =
+  let prefix = Printf.sprintf "Pipeline node `%s` failed" node_name in
+  if String.starts_with ~prefix detail then detail
+  else prefix ^ ": " ^ detail
+
+let annotate_pipeline_error node_name = function
+  | VError err ->
+      VError { err with message = pipeline_error_message ~node_name ~detail:err.message }
+  | value -> value
+
 (** Check if an expression uses NSE (contains $field references) *)
 let rec uses_nse (expr : Ast.expr) : bool =
   match expr with
@@ -1004,6 +1021,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             | _ -> acc
           ) !current_env_ref node_deps in
           eval_expr (ref env_with_deserialized) un.un_command
+          |> annotate_pipeline_error name
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
@@ -1029,8 +1047,8 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
                  else
                      "Upstream error: " ^ err.message
                  in
-                 Ast.VError { err with message = msg }
-             | _ -> eval_or_defer name un current_env_ref)
+                 Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg }
+              | _ -> eval_or_defer name un current_env_ref)
         | None -> eval_or_defer name un current_env_ref
       in
       current_env_ref := Env.add name v !current_env_ref;
@@ -1135,6 +1153,7 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
           ) !env_ref node_deps in
           let cmd = match un.un_command with Value (VExpr e) -> e | e -> e in
           eval_expr (ref env_with_deserialized) cmd
+          |> annotate_pipeline_error name
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
@@ -1169,8 +1188,8 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
                    else
                        "Upstream error: " ^ err.message
                    in
-                   Ast.VError { err with message = msg }
-               | _ -> rerun_eval_or_defer name un current_env_ref)
+                   Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg }
+                | _ -> rerun_eval_or_defer name un current_env_ref)
           | None -> rerun_eval_or_defer name un current_env_ref
         in
         current_env_ref := Env.add name v !current_env_ref;
@@ -1738,6 +1757,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         let content = really_input_string ch (in_channel_length ch) in
         close_in ch;
         let lexbuf = Lexing.from_string content in
+        lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
         (try
           let program = Parser.program Lexer.token lexbuf in
           let (_v, new_env) = eval_program program env in
@@ -1745,12 +1765,19 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
           (VNull, new_env)
         with
         | Lexer.SyntaxError msg ->
-            (make_error GenericError (Printf.sprintf "Import syntax error in '%s': %s" filename msg), env)
+            let pos = Lexing.lexeme_start_p lexbuf in
+            (make_error
+               ~location:(source_location ~file:filename pos)
+               SyntaxError
+               (Printf.sprintf "Import syntax error in '%s': %s" filename msg),
+             env)
         | Parser.Error ->
             let pos = Lexing.lexeme_start_p lexbuf in
-            let msg = Printf.sprintf "Import parse error in '%s' at line %d, column %d"
-              filename pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
-            (make_error GenericError msg, env))
+            (make_error
+               ~location:(source_location ~file:filename pos)
+               SyntaxError
+               (Printf.sprintf "Import parse error in '%s'" filename),
+             env))
       with
       | Sys_error msg ->
           (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))
@@ -1776,6 +1803,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         let content = really_input_string ch (in_channel_length ch) in
         close_in ch;
         let lexbuf = Lexing.from_string content in
+        lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
         (try
           let program = Parser.program Lexer.token lexbuf in
           let (_v, temp_env) = eval_program program env in
@@ -1809,12 +1837,19 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
           end
         with
         | Lexer.SyntaxError msg ->
-            (make_error GenericError (Printf.sprintf "Import syntax error in '%s': %s" filename msg), env)
+            let pos = Lexing.lexeme_start_p lexbuf in
+            (make_error
+               ~location:(source_location ~file:filename pos)
+               SyntaxError
+               (Printf.sprintf "Import syntax error in '%s': %s" filename msg),
+             env)
         | Parser.Error ->
             let pos = Lexing.lexeme_start_p lexbuf in
-            let msg = Printf.sprintf "Import parse error in '%s' at line %d, column %d"
-              filename pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
-            (make_error GenericError msg, env))
+            (make_error
+               ~location:(source_location ~file:filename pos)
+               SyntaxError
+               (Printf.sprintf "Import parse error in '%s'" filename),
+             env))
       with
       | Sys_error msg ->
           (make_error FileError (Printf.sprintf "Import failed: %s" msg), env))

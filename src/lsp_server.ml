@@ -88,20 +88,35 @@ module Server = struct
        let lexbuf = Lexing.from_string text in
        let program = Parser.program Lexer.token lexbuf in
        Analyzer.analyze program scope
-     with
-     | Parser.Error ->
-         (* Simple error reporting for now - ideally we'd get position from lexbuf *)
-         let d =
-           Diagnostic.create ~range:(Range.create ~start:(Position.create ~line:0 ~character:0) ~end_:(Position.create ~line:0 ~character:0))
-             ~message:(`String "Syntax error") ~severity:DiagnosticSeverity.Error ()
-         in
-         diagnostics := [ d ]
-     | Lexer.SyntaxError msg ->
-         let d =
-           Diagnostic.create ~range:(Range.create ~start:(Position.create ~line:0 ~character:0) ~end_:(Position.create ~line:0 ~character:0))
-             ~message:(`String (Printf.sprintf "Lexer error: %s" msg)) ~severity:DiagnosticSeverity.Error ()
-         in
-         diagnostics := [ d ]
+      with
+      | Parser.Error ->
+          let pos = Lexing.lexeme_start_p lexbuf in
+          let line = max 0 (pos.Lexing.pos_lnum - 1) in
+          let character = max 0 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
+          let d =
+            Diagnostic.create
+              ~range:(Range.create
+                        ~start:(Position.create ~line ~character)
+                        ~end_:(Position.create ~line ~character))
+              ~message:(`String "Syntax error")
+              ~severity:DiagnosticSeverity.Error
+              ()
+          in
+          diagnostics := [ d ]
+      | Lexer.SyntaxError msg ->
+          let pos = Lexing.lexeme_start_p lexbuf in
+          let line = max 0 (pos.Lexing.pos_lnum - 1) in
+          let character = max 0 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
+          let d =
+            Diagnostic.create
+              ~range:(Range.create
+                        ~start:(Position.create ~line ~character)
+                        ~end_:(Position.create ~line ~character))
+              ~message:(`String (Printf.sprintf "Lexer error: %s" msg))
+              ~severity:DiagnosticSeverity.Error
+              ()
+          in
+          diagnostics := [ d ]
      | _ -> ());
     let doc = { uri; text; scope; diagnostics = !diagnostics } in
     Hashtbl.replace server.documents uri doc;
@@ -297,4 +312,3 @@ end
 let () =
   let server = Server.create () in
   Server.run server
-

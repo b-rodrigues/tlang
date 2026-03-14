@@ -154,7 +154,7 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
                             | VBool false -> cast_value target_type (get_at false_val i)
                             | VNA _ -> cast_value target_type (get_at missing_val i)
                             | VNull -> cast_value target_type (get_at missing_val i)
-                            | _ -> VError { code = TypeError; message = "Condition must be logical"; context = [] }
+                            | _ -> VError { code = TypeError; message = "Condition must be logical"; context = []; location = None }
                           ) in
                           (match Array.find_opt Error.is_error_value result with
                           | Some err -> err
@@ -296,7 +296,7 @@ let casewhen eval_func args env =
              | VNA _ -> find_match rest
              | VNull -> find_match rest
              | VError e -> VError e
-             | other -> VError { code = TypeError; message = "Condition must be logical, got " ^ Utils.type_name other; context = [] }
+             | other -> VError { code = TypeError; message = "Condition must be logical, got " ^ Utils.type_name other; context = []; location = None }
        
        in
        let v = find_match indexed_cases in
