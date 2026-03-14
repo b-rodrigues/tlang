@@ -260,9 +260,16 @@ let check_remote_tags () =
         Ok updates
 
 let validate_update_prerequisites () =
-  match validate_git_remote () with
-  | Error _ as err -> err
-  | Ok () -> validate_clean_git ()
+  let in_ci =
+    match Sys.getenv_opt "CI" with
+    | Some s when String.trim s <> "" -> true
+    | _ -> false
+  in
+  if in_ci then Ok ()
+  else
+    match validate_git_remote () with
+    | Error _ as err -> err
+    | Ok () -> validate_clean_git ()
 
 type lock_section =
   | Locked

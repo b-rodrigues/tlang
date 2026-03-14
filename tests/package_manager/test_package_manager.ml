@@ -340,6 +340,7 @@ min_version = "0.5.0"
     | None -> false
     | Some base_dir ->
         let repo_dir = Filename.concat base_dir "project" in
+        let saved_ci = Sys.getenv_opt "CI" in
         let result =
           try
             let setup_ok =
@@ -353,14 +354,18 @@ min_version = "0.5.0"
             else
               let old_cwd = Sys.getcwd () in
               Sys.chdir repo_dir;
+              Unix.putenv "CI" "";
               let validation_result =
                 try Update_manager.validate_update_prerequisites () with exn ->
+                  (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
                   Sys.chdir old_cwd;
                   raise exn
               in
+              (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
               Sys.chdir old_cwd;
               validation_result
           with exn ->
+            (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
             Error (Printexc.to_string exn)
         in
         let cleanup_ok =
@@ -382,6 +387,7 @@ min_version = "0.5.0"
     | Some base_dir ->
         let remote_dir = Filename.concat base_dir "remote.git" in
         let repo_dir = Filename.concat base_dir "project" in
+        let saved_ci = Sys.getenv_opt "CI" in
         let result =
           try
             let setup_ok =
@@ -406,16 +412,20 @@ min_version = "0.5.0"
                 write_file (Filename.concat repo_dir "dirty.txt") "needs commit\n";
                 let old_cwd = Sys.getcwd () in
                 Sys.chdir repo_dir;
+                Unix.putenv "CI" "";
                 let validation_result =
                   try Update_manager.validate_update_prerequisites () with exn ->
+                    (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
                     Sys.chdir old_cwd;
                     raise exn
                 in
+                (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
                 Sys.chdir old_cwd;
                 validation_result
               end
             end
           with exn ->
+            (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
             Error (Printexc.to_string exn)
         in
         let cleanup_ok =
@@ -469,6 +479,47 @@ min_version = "0.5.0"
               end
             end
           with exn ->
+            Error (Printexc.to_string exn)
+        in
+        let cleanup_ok =
+          try
+            remove_path base_dir;
+            true
+          with _ -> false
+        in
+        cleanup_ok && result = Ok ());
+
+  test_pm "validate_update_prerequisites skips checks when CI is set" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let repo_dir = Filename.concat base_dir "project" in
+        let saved_ci = Sys.getenv_opt "CI" in
+        let result =
+          try
+            let setup_ok =
+              (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+            in
+            if not setup_ok then
+              Error "setup failed"
+            else
+              let old_cwd = Sys.getcwd () in
+              Sys.chdir repo_dir;
+              Unix.putenv "CI" "true";
+              let validation_result =
+                try Update_manager.validate_update_prerequisites () with exn ->
+                  (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+                  Sys.chdir old_cwd;
+                  raise exn
+              in
+              (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+              Sys.chdir old_cwd;
+              validation_result
+          with exn ->
+            (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
             Error (Printexc.to_string exn)
         in
         let cleanup_ok =
