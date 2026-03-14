@@ -35,6 +35,10 @@ jobs:
         run: |
           CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' flake.nix | head -n 1 | xargs)
           EXT_VERSION=$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' editors/quarto/tlang/_extensions/tlang/_extension.yml | head -n 1 | xargs)
+          if [ -z "$CORE_VERSION" ] || [ -z "$EXT_VERSION" ]; then
+            echo "❌ Error: Failed to extract core or extension version."
+            exit 1
+          fi
           if [ "$CORE_VERSION" != "$EXT_VERSION" ]; then
             echo "❌ Error: Quarto extension version ($EXT_VERSION) does not match core T version ($CORE_VERSION)."
             exit 1
@@ -58,6 +62,10 @@ jobs:
         run: |
           REPO_ROOT=$(pwd)
           CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' "$REPO_ROOT/flake.nix" | head -n 1 | xargs)
+          if [ -z "$CORE_VERSION" ]; then
+            echo "❌ Error: Failed to extract core version from flake.nix."
+            exit 1
+          fi
           TLANG_BIN="$REPO_ROOT/result/bin/t"
           export TLANG_BIN
 
@@ -101,7 +109,9 @@ EOF
             if [ -L _extensions/tlang ]; then
               target=$(readlink _extensions/tlang)
               case "$target" in
-                */share/tlang/quarto/tlang) ;;
+                */share/tlang/quarto/tlang)
+                  test -f "$target/_extension.yml"
+                  ;;
                 *)
                   echo "❌ Error: _extensions/tlang points to unexpected target: $target"
                   exit 1
