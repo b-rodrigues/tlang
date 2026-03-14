@@ -1,5 +1,4 @@
 local t_state = {
-  chunks = {},
   session_source = ""
 }
 
@@ -223,7 +222,6 @@ function CodeBlock(el)
 
   -- Only update the session state after successful execution
   t_state.session_source = new_session_source
-  table.insert(t_state.chunks, body)
 
   if show_output then
     local output_block = make_output_block(output)
