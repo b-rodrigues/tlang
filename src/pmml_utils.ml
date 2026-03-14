@@ -13,7 +13,9 @@ let find_pmml_schema () =
   let candidates =
     (match Sys.getenv_opt "T_PMML_SCHEMA_PATH" with Some p -> [p] | None -> [])
     @ (match Sys.getenv_opt "TLANG_REPO_ROOT" with
-       | Some root -> [Filename.concat root "resources/pmml/pmml-4-4-1.xsd"]
+       | Some root ->
+           [Filename.concat root ".cache/pmml-4-4-1.xsd";
+            Filename.concat root "resources/pmml/pmml-4-4-1.xsd"]
        | None -> [])
     @ [Filename.concat (Sys.getcwd ()) "resources/pmml/pmml-4-4-1.xsd"]
   in

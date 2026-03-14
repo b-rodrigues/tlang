@@ -98,6 +98,7 @@
             pkgs.glib
             pkgs.glib.dev
             pkgs.libxml2
+            pkgs.unzip
             # Owl — OCaml numerical library for linear algebra and statistics
             # Used by Arrow-Owl bridge for matrix operations in lm(), cor()
             # ocamlVersion.owl
@@ -114,7 +115,7 @@
             cp _build/default/src/repl.exe $out/bin/.t-unwrapped
             cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
             mkdir -p $out/share/t/pmml
-            cp resources/pmml/pmml-4-4-1.xsd $out/share/t/pmml/
+            ${pkgs.unzip}/bin/unzip -p ${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar pmml.xsd > $out/share/t/pmml/pmml-4-4-1.xsd
             
             makeWrapper $out/bin/.t-unwrapped $out/bin/t \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}" \
@@ -203,6 +204,7 @@
             pkgs.glib.dev
             pkgs.pkg-config
             pkgs.libxml2
+            pkgs.unzip
 
             # 4. Owl — OCaml numerical library (OPTIONAL)
             # -------------------------------------------------------
@@ -227,8 +229,13 @@
             elif [[ -f "$PWD/dune-project" ]]; then
               export TLANG_REPO_ROOT="$PWD"
             fi
-            if [[ -n "$TLANG_REPO_ROOT" && -f "$TLANG_REPO_ROOT/resources/pmml/pmml-4-4-1.xsd" ]]; then
-              export T_PMML_SCHEMA_PATH="$TLANG_REPO_ROOT/resources/pmml/pmml-4-4-1.xsd"
+            if [[ -n "$TLANG_REPO_ROOT" ]]; then
+              schema_cache="$TLANG_REPO_ROOT/.cache/pmml-4-4-1.xsd"
+              if [[ ! -f "$schema_cache" ]]; then
+                mkdir -p "$TLANG_REPO_ROOT/.cache"
+                ${pkgs.unzip}/bin/unzip -p ${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar pmml.xsd > "$schema_cache"
+              fi
+              export T_PMML_SCHEMA_PATH="$schema_cache"
             fi
             export T_XMLLINT="${pkgs.libxml2}/bin/xmllint"
 

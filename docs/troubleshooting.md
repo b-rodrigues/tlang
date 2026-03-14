@@ -318,8 +318,8 @@ df = read_csv("data.csv", clean_colnames = true)
 **Problem**: `t_read_pmml()` or PMML pipeline nodes report schema validation errors.
 
 **Solution**:
-- Ensure the PMML 4.4.1 schema is available (in the repo: `resources/pmml/pmml-4-4-1.xsd`).
-- Set `T_PMML_SCHEMA_PATH` to the schema location if running outside the repo.
+- The Nix build extracts the PMML 4.4.1 schema from `jpmml-statsmodels` into the install path, and the dev shell caches it under `.cache/pmml-4-4-1.xsd`.
+- Set `T_PMML_SCHEMA_PATH` if you run outside the Nix shell or use a custom schema path.
 - Ensure `xmllint` is available (Nix shell sets `T_XMLLINT` automatically).
 
 ---
