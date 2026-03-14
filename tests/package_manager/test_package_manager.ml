@@ -252,7 +252,7 @@ min_version = "0.5.0"
     in
     Update_manager.parse_remote_tag_refs output = ["v0.1.0"; "v0.2.0"]);
 
-  let run_git_command argv =
+  let git_command_succeeds argv =
     let pid = Unix.create_process "git" argv Unix.stdin Unix.stdout Unix.stderr in
     match Unix.waitpid [] pid with
     | _, Unix.WEXITED 0 -> true
@@ -275,19 +275,19 @@ min_version = "0.5.0"
           try
             let setup_ok =
               (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run_git_command [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
             else begin
               write_file (Filename.concat repo_dir "README.md") "test repo\n";
               let committed =
-                run_git_command [| "git"; "-C"; repo_dir; "add"; "README.md" |]
-                && run_git_command [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
-                && run_git_command [| "git"; "-C"; repo_dir; "tag"; "v0.1.0" |]
-                && run_git_command [| "git"; "-C"; repo_dir; "tag"; "v0.2.0" |]
+                git_command_succeeds [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && git_command_succeeds [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && git_command_succeeds [| "git"; "-C"; repo_dir; "tag"; "v0.1.0" |]
+                && git_command_succeeds [| "git"; "-C"; repo_dir; "tag"; "v0.2.0" |]
                 && (try Unix.mkdir project_dir 0o755; true with Unix.Unix_error _ -> false)
               in
               if not committed then
@@ -344,9 +344,9 @@ min_version = "0.5.0"
           try
             let setup_ok =
               (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run_git_command [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
@@ -385,20 +385,20 @@ min_version = "0.5.0"
         let result =
           try
             let setup_ok =
-              run_git_command [| "git"; "init"; "--bare"; remote_dir |]
+              git_command_succeeds [| "git"; "init"; "--bare"; remote_dir |]
               && (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run_git_command [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
             else begin
               write_file (Filename.concat repo_dir "README.md") "clean repo\n";
               let remote_ok =
-                run_git_command [| "git"; "-C"; repo_dir; "add"; "README.md" |]
-                && run_git_command [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
-                && run_git_command [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
+                git_command_succeeds [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && git_command_succeeds [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && git_command_succeeds [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
               in
               if not remote_ok then
                 Error "remote setup failed"
@@ -439,20 +439,20 @@ min_version = "0.5.0"
         let result =
           try
             let setup_ok =
-              run_git_command [| "git"; "init"; "--bare"; remote_dir |]
+              git_command_succeeds [| "git"; "init"; "--bare"; remote_dir |]
               && (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run_git_command [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && git_command_succeeds [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
             else begin
               write_file (Filename.concat repo_dir "README.md") "clean repo\n";
               let remote_ok =
-                run_git_command [| "git"; "-C"; repo_dir; "add"; "README.md" |]
-                && run_git_command [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
-                && run_git_command [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
+                git_command_succeeds [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && git_command_succeeds [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && git_command_succeeds [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
               in
               if not remote_ok then
                 Error "remote setup failed"

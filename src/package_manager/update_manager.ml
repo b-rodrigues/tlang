@@ -285,12 +285,12 @@ type flake_lock_parse_state = {
 
 (** Remove the trailing JSON comma from a pretty-printed flake.lock field value. *)
 let trim_trailing_comma value =
-  let trimmed = String.trim value in
-  let len = String.length trimmed in
-  if len > 0 && trimmed.[len - 1] = ',' then
-    String.sub trimmed 0 (len - 1)
+  let value = String.trim value in
+  let len = String.length value in
+  if len > 0 && value.[len - 1] = ',' then
+    String.sub value 0 (len - 1)
   else
-    trimmed
+    value
 
 (** Normalize a pretty-printed flake.lock field value by trimming commas and quotes. *)
 let normalize_json_value value =
@@ -390,16 +390,23 @@ let find_flake_lock_node name nodes =
 
 let field_value fields key = List.assoc_opt key fields
 
-let ordered_unique values =
+(** Collect unique projected string values from multiple lists while preserving
+    first-seen order across the input lists. *)
+let collect_unique_ordered_by project lists =
   let _, reversed =
     List.fold_left
-      (fun (seen, acc) value ->
-        if String_set.mem value seen then
+      (fun (seen, acc) items ->
+        List.fold_left
+          (fun (seen, acc) item ->
+            let value = project item in
+            if String_set.mem value seen then
+              (seen, acc)
+            else
+              (String_set.add value seen, value :: acc))
           (seen, acc)
-        else
-          (String_set.add value seen, value :: acc))
+          items)
       (String_set.empty, [])
-      values
+      lists
   in
   List.rev reversed
 
@@ -411,53 +418,45 @@ let summarize_flake_lock_changes before_content after_content =
   | Some before, Some after ->
       let before_nodes = parse_flake_lock_nodes before in
       let after_nodes = parse_flake_lock_nodes after in
-      let node_names = ordered_unique (List.map (fun node -> node.name) (before_nodes @ after_nodes)) in
+      let node_names = collect_unique_ordered_by (fun node -> node.name) [before_nodes; after_nodes] in
       let describe_field_changes section_name before_fields after_fields =
-        let field_names = ordered_unique (List.map fst (before_fields @ after_fields)) in
+        let field_names = collect_unique_ordered_by fst [before_fields; after_fields] in
         List.fold_left
           (fun acc field_name ->
             match field_value before_fields field_name, field_value after_fields field_name with
             | Some before_value, Some after_value when before_value <> after_value ->
-                acc
-                @
-                [
-                  Printf.sprintf
-                    "      %s.%s: %s -> %s"
-                    section_name
-                    field_name
-                    before_value
-                    after_value;
-                ]
+                Printf.sprintf
+                  "      %s.%s: %s -> %s"
+                  section_name
+                  field_name
+                  before_value
+                  after_value
+                :: acc
             | None, Some after_value ->
-                acc
-                @
-                [
-                  Printf.sprintf
-                    "      %s.%s: (missing) -> %s"
-                    section_name
-                    field_name
-                    after_value;
-                ]
+                Printf.sprintf
+                  "      %s.%s: (missing) -> %s"
+                  section_name
+                  field_name
+                  after_value
+                :: acc
             | Some before_value, None ->
-                acc
-                @
-                [
-                  Printf.sprintf
-                    "      %s.%s: %s -> (missing)"
-                    section_name
-                    field_name
-                    before_value;
-                ]
+                Printf.sprintf
+                  "      %s.%s: %s -> (missing)"
+                  section_name
+                  field_name
+                  before_value
+                :: acc
             | _ -> acc)
           []
           field_names
+        |> List.rev
       in
       let lines =
         List.fold_left
           (fun acc node_name ->
             match find_flake_lock_node node_name before_nodes, find_flake_lock_node node_name after_nodes with
-            | None, Some _ -> acc @ [Printf.sprintf "  - %s: added to flake.lock" node_name]
-            | Some _, None -> acc @ [Printf.sprintf "  - %s: removed from flake.lock" node_name]
+            | None, Some _ -> Printf.sprintf "  - %s: added to flake.lock" node_name :: acc
+            | Some _, None -> Printf.sprintf "  - %s: removed from flake.lock" node_name :: acc
             | Some before_node, Some after_node ->
                 let node_changes =
                   describe_field_changes "original" before_node.original_fields after_node.original_fields
@@ -466,10 +465,11 @@ let summarize_flake_lock_changes before_content after_content =
                 if node_changes = [] then
                   acc
                 else
-                  acc @ (Printf.sprintf "  - %s" node_name :: node_changes)
+                  List.rev_append (Printf.sprintf "  - %s" node_name :: node_changes) acc
             | None, None -> acc)
           []
           node_names
+        |> List.rev
       in
       if lines = [] then [ "  - flake.lock changed." ] else lines
   | Some _, None -> [ "  - flake.lock was removed." ]
