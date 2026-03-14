@@ -803,6 +803,24 @@ def py_read_pmml(path):
            String.sub l 0 (String.length prefix_eq) = prefix_eq))
   in
 
+  let is_python_assignment s =
+    let depth = ref 0 in
+    let found_assignment = ref false in
+    for i = 0 to String.length s - 1 do
+      match s.[i] with
+      | '(' | '[' | '{' -> incr depth
+      | ')' | ']' | '}' -> if !depth > 0 then decr depth
+      | '=' when !depth = 0 ->
+          let is_comparison =
+            (i > 0 && (match s.[i-1] with '<' | '>' | '!' | '=' -> true | _ -> false)) ||
+            (i < String.length s - 1 && s.[i+1] = '=')
+          in
+          if not is_comparison then found_assignment := true
+      | _ -> ()
+    done;
+    !found_assignment
+  in
+
   (* expr_s with import/library lines removed, for use in assignment wrappers *)
   let expr_s_no_imports, _python_was_auto_returned =
     if is_raw_code then
@@ -812,7 +830,7 @@ def py_read_pmml(path):
       let non_imports = List.filter (fun l -> String.trim l <> "") non_imports in
       if runtime = "Python" && not (raw_assigns_to name expr_s) then
          match List.rev non_imports with
-         | last :: rest when not (String.contains last '=') && not (String.starts_with ~prefix:"print(" (String.trim last)) ->
+         | last :: rest when not (is_python_assignment last) && not (String.starts_with ~prefix:"print(" (String.trim last)) ->
              let last_trimmed = String.trim last in
              String.concat "\n" (List.rev (("return " ^ last_trimmed) :: rest)), true
          | _ -> String.concat "\n" non_imports, false
