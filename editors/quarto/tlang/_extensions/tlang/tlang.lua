@@ -182,7 +182,16 @@ function CodeBlock(el)
   local show_output = include and normalize_bool(options.output, true) and results ~= "hide"
 
   if trim(body) == "" then
-    return include and el or {}
+    local rendered_blocks = {}
+
+    -- For chunks that only contain options (#| lines) and no body:
+    -- - respect include/echo
+    -- - do not re-emit the original block (which would include #| lines)
+    if include and show_code then
+      table.insert(rendered_blocks, pandoc.CodeBlock("", el.attr))
+    end
+
+    return rendered_blocks
   end
 
   local rendered_blocks = {}
