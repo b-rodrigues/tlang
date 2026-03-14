@@ -1010,7 +1010,7 @@ EOF
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
-           Printf.sprintf "      cat <<'EOF' >> node_script.sh\n%s\nEOF" raw_text
+          Printf.sprintf "      cat <<'EOF' >> node_script.sh\n%s\nEOF" raw_text
       | Value (VString cmd) | Value (VSymbol cmd) ->
           if shell = None && shell_args_tokens = [] && sh_cli_args_tokens <> [] && is_simple_exec_command cmd then
             let set_args = shell_set_args_block sh_cli_args_tokens in
