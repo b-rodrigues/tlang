@@ -803,7 +803,7 @@ def py_read_pmml(path):
            String.sub l 0 (String.length prefix_eq) = prefix_eq))
   in
 
-  let is_python_assignment s =
+  let is_assignment_stmt s =
     let depth = ref 0 in
     let found_assignment = ref false in
     for i = 0 to String.length s - 1 do
@@ -821,6 +821,41 @@ def py_read_pmml(path):
     !found_assignment
   in
 
+  let get_assignment_name s =
+    let depth = ref 0 in
+    let found_pos = ref (-1) in
+    for i = 0 to String.length s - 1 do
+      if !found_pos = -1 then
+        match s.[i] with
+        | '(' | '[' | '{' -> incr depth
+        | ')' | ']' | '}' -> if !depth > 0 then decr depth
+        | '=' when !depth = 0 ->
+            let is_comparison =
+              (i > 0 && (match s.[i-1] with '<' | '>' | '!' | '=' -> true | _ -> false)) ||
+              (i < String.length s - 1 && s.[i+1] = '=')
+            in
+            if not is_comparison then found_pos := i
+        | _ -> ()
+    done;
+    if !found_pos = -1 then None
+    else
+      let left = String.sub s 0 !found_pos in
+      let rec trim_right_ops t =
+        if t = "" then ""
+        else
+          let last = t.[String.length t - 1] in
+          if List.mem last ['+'; '-'; '*'; '/'; '%'; '&'; '|'; '^'; '<'; '>'; ':'] then
+            trim_right_ops (String.sub t 0 (String.length t - 1) |> String.trim)
+          else t
+      in
+      let t = String.trim left |> trim_right_ops in
+      let name = match String.split_on_char ':' t with
+        | [] -> t
+        | h :: _ -> String.trim h
+      in
+      Some name
+  in
+
   (* expr_s with import/library lines removed, for use in assignment wrappers *)
   let expr_s_no_imports, _python_was_auto_returned =
     if is_raw_code then
@@ -830,9 +865,20 @@ def py_read_pmml(path):
       let non_imports = List.filter (fun l -> String.trim l <> "") non_imports in
       if runtime = "Python" && not (raw_assigns_to name expr_s) then
          match List.rev non_imports with
-         | last :: rest when not (is_python_assignment last) && not (String.starts_with ~prefix:"print(" (String.trim last)) ->
+         | last :: rest when not (is_assignment_stmt last) && not (String.starts_with ~prefix:"print(" (String.trim last)) ->
              let last_trimmed = String.trim last in
              String.concat "\n" (List.rev (("return " ^ last_trimmed) :: rest)), true
+         | last :: rest ->
+             (match get_assignment_name last with
+              | Some n -> String.concat "\n" (List.rev (("return " ^ n) :: last :: rest)), true
+              | None -> String.concat "\n" non_imports, false)
+         | _ -> String.concat "\n" non_imports, false
+      else if runtime = "T" then
+         match List.rev non_imports with
+         | last :: rest when (is_assignment_stmt last) ->
+             (match get_assignment_name last with
+              | Some n -> String.concat "\n" (List.rev (n :: last :: rest)), false
+              | None -> String.concat "\n" non_imports, false)
          | _ -> String.concat "\n" non_imports, false
       else
         String.concat "\n" non_imports, false
@@ -959,7 +1005,7 @@ EOF
       echo "      res1 = %s(%s, \"$out/artifact\")" >> node_script.t
       echo "      if (is_error(res1)) { print(\"Serialization failed:\"); print(res1); exit(1) } else { 0 }" >> node_script.t
       echo "      res2 = write_text(\"$out/class\", type(%s))" >> node_script.t
-      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s ser_call name name
+      echo "      if (is_error(res2)) { print(\"Class write failed:\"); print(res2); exit(1) } else { 0 }" >> node_script.t|} name expr_s_no_imports ser_call name name
       else
         Printf.sprintf {|      cat <<'EOF' >> node_script.t
       %s = %s
