@@ -1047,7 +1047,7 @@ Fit a linear regression model (ordinary least squares).
 
 **Returns:**
 
-Model object. Use `summary()` and `fit_stats()` to inspect.
+Model object. Use `summary()` and `fit_stats()` to inspect. PMML imports accept T's extended fields (e.g. `std_error`, `statistic`, `p_value`) and are not schema-validated.
 
 **Examples:**
 ```t

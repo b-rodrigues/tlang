@@ -14,6 +14,7 @@
 #include <caml/fail.h>
 #include <caml/bigarray.h>
 #include <math.h>
+#include <stdint.h>
 
 /* ===================================================================== */
 /* Memory Management                                                     */
@@ -101,8 +102,7 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
     Store_field(v_cons, 1, v_result);
     v_result = v_cons;
 
-    /* dtype and field are full transfers but unreffing here might be problematic if they are cached?
-       Actually, documentation says they are full. Keeping unref for field but removing for dtype for now. */
+    /* dtype is transfer-none (borrowed); do not unref */
     g_object_unref(field);
   }
 
@@ -530,8 +530,8 @@ CAMLprim value caml_arrow_read_list_column(value v_array_ptr) {
     if (garrow_array_is_null(array, i)) {
       Store_field(v_slices, i, Val_none);
     } else {
-      gint32 offset = garrow_list_array_get_value_offset(list_array, i);
-      gint32 len = garrow_list_array_get_value_length(list_array, i);
+      gint64 offset = (gint64)garrow_list_array_get_value_offset(list_array, i);
+      gint64 len = (gint64)garrow_list_array_get_value_length(list_array, i);
       v_tuple = caml_alloc(2, 0);
       Store_field(v_tuple, 0, Val_int(offset));
       Store_field(v_tuple, 1, Val_int(len));
@@ -602,6 +602,8 @@ CAMLprim value caml_arrow_read_struct_fields(value v_ptr) {
     Store_field(v_cons, 0, v_tuple);
     Store_field(v_cons, 1, v_result);
     v_result = v_cons;
+
+    /* field and fdtype are transfer-none; do not unref */
   }
 
   g_object_unref(base_dtype);
@@ -1747,10 +1749,50 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
   /* Store per-group key values: GPtrArray of gchar** arrays */
   GPtrArray *group_key_vals = g_ptr_array_new();
 
+  if (n_keys <= 0) {
+    for (int j = 0; j < n_keys; j++) g_free(key_names[j]);
+    free(key_names); free(key_indices); free(key_types);
+    g_ptr_array_free(group_order, TRUE);
+    g_ptr_array_free(group_rows, TRUE);
+    g_ptr_array_free(group_key_vals, TRUE);
+    g_hash_table_destroy(group_map);
+    CAMLreturn(Val_none);
+  }
+  size_t n_keys_u = (size_t)n_keys;
+  if (n_keys_u > SIZE_MAX / sizeof(GArrowChunkedArray *)) {
+    for (int j = 0; j < n_keys; j++) g_free(key_names[j]);
+    free(key_names); free(key_indices); free(key_types);
+    g_ptr_array_free(group_order, TRUE);
+    g_ptr_array_free(group_rows, TRUE);
+    g_ptr_array_free(group_key_vals, TRUE);
+    g_hash_table_destroy(group_map);
+    CAMLreturn(Val_none);
+  }
+
   /* Pre-fetch columns for aggregation loop */
-  GArrowChunkedArray **key_cols = (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * n_keys);
+  GArrowChunkedArray **key_cols = (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * n_keys_u);
+  if (key_cols == NULL) {
+    for (int j = 0; j < n_keys; j++) g_free(key_names[j]);
+    free(key_names); free(key_indices); free(key_types);
+    g_ptr_array_free(group_order, TRUE);
+    g_ptr_array_free(group_rows, TRUE);
+    g_ptr_array_free(group_key_vals, TRUE);
+    g_hash_table_destroy(group_map);
+    CAMLreturn(Val_none);
+  }
   for (int k = 0; k < n_keys; k++) {
     key_cols[k] = garrow_table_get_column_data(table, key_indices[k]);
+    if (key_cols[k] == NULL) {
+      for (int j = 0; j < k; j++) g_object_unref(key_cols[j]);
+      free(key_cols);
+      for (int j = 0; j < n_keys; j++) g_free(key_names[j]);
+      free(key_names); free(key_indices); free(key_types);
+      g_ptr_array_free(group_order, TRUE);
+      g_ptr_array_free(group_rows, TRUE);
+      g_ptr_array_free(group_key_vals, TRUE);
+      g_hash_table_destroy(group_map);
+      CAMLreturn(Val_none);
+    }
   }
 
   /* Pre-resolve chunk structures for sequential scanning.
@@ -1767,7 +1809,16 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
                                   4=double, 5=float, 6=bool, 7=string, -1=other */
   } PreResolvedCol;
 
-  PreResolvedCol *pre_cols = (PreResolvedCol *)malloc(sizeof(PreResolvedCol) * (size_t)n_keys);
+  if (n_keys_u > SIZE_MAX / sizeof(PreResolvedCol)) {
+    for (int k2 = 0; k2 < n_keys; k2++) g_object_unref(key_cols[k2]);
+    free(key_cols); free(key_names); free(key_indices); free(key_types);
+    g_ptr_array_free(group_order, TRUE);
+    g_ptr_array_free(group_rows, TRUE);
+    g_ptr_array_free(group_key_vals, TRUE);
+    g_hash_table_destroy(group_map);
+    CAMLreturn(Val_none);
+  }
+  PreResolvedCol *pre_cols = (PreResolvedCol *)malloc(sizeof(PreResolvedCol) * n_keys_u);
   if (pre_cols == NULL) {
     for (int k2 = 0; k2 < n_keys; k2++) g_object_unref(key_cols[k2]);
     free(key_cols); free(key_names); free(key_indices); free(key_types);
@@ -2911,7 +2962,23 @@ CAMLprim value caml_arrow_float64_array_to_bigarray(value v_array_ptr) {
   GBytes *bytes = garrow_buffer_get_data(buffer);
   gsize size = 0;
   const guint8 *data = (const guint8 *)g_bytes_get_data(bytes, &size);
-  intnat n_elements = (intnat)(size / sizeof(double));
+  gint64 length = garrow_array_get_length(array);
+  /* Guard against overflow in (gsize)length * sizeof(double) and against
+     length exceeding the max OCaml Bigarray dimension (intnat). */
+  if (length < 0 ||
+      (gsize)length > G_MAXSIZE / sizeof(double) ||
+      length > (gint64)CAML_INTNAT_MAX) {
+    g_bytes_unref(bytes);
+    g_object_unref(buffer);
+    CAMLreturn(Val_none);
+  }
+  gsize expected = (gsize)length * sizeof(double);
+  if (size < expected) {
+    g_bytes_unref(bytes);
+    g_object_unref(buffer);
+    CAMLreturn(Val_none);
+  }
+  intnat n_elements = (intnat)length;
   intnat dims[1] = { n_elements };
 
   value ba = caml_ba_alloc(
@@ -2953,7 +3020,23 @@ CAMLprim value caml_arrow_int64_array_to_bigarray(value v_array_ptr) {
   GBytes *bytes = garrow_buffer_get_data(buffer);
   gsize size = 0;
   const guint8 *data = (const guint8 *)g_bytes_get_data(bytes, &size);
-  intnat n_elements = (intnat)(size / sizeof(gint64));
+  gint64 length = garrow_array_get_length(array);
+  /* Guard against overflow in (gsize)length * sizeof(gint64) and against
+     length exceeding the max OCaml Bigarray dimension (intnat). */
+  if (length < 0 ||
+      (gsize)length > G_MAXSIZE / sizeof(gint64) ||
+      length > (gint64)CAML_INTNAT_MAX) {
+    g_bytes_unref(bytes);
+    g_object_unref(buffer);
+    CAMLreturn(Val_none);
+  }
+  gsize expected = (gsize)length * sizeof(gint64);
+  if (size < expected) {
+    g_bytes_unref(bytes);
+    g_object_unref(buffer);
+    CAMLreturn(Val_none);
+  }
+  intnat n_elements = (intnat)length;
   intnat dims[1] = { n_elements };
 
   value ba = caml_ba_alloc(
@@ -3675,9 +3758,24 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         int n_offsets = Wosize_val(v_offsets);
         int n_list_rows = Wosize_val(v_present);
         int n_total_vals = 0;
-        if (n_offsets > 0) {
-          n_total_vals = Int_val(Field(v_offsets, n_offsets - 1));
+        if (n_offsets != n_list_rows + 1) {
+          g_set_error_literal(&error, G_FILE_ERROR, G_FILE_ERROR_FAILED,
+                              "list column: offset count does not match row count");
+          break;
         }
+        int offsets_ok = 1;
+        int last_offset = 0;
+        for (int k = 0; k < n_offsets; k++) {
+          int off = Int_val(Field(v_offsets, k));
+          if (off < 0 || (k > 0 && off < last_offset)) { offsets_ok = 0; break; }
+          last_offset = off;
+        }
+        if (!offsets_ok) {
+          g_set_error_literal(&error, G_FILE_ERROR, G_FILE_ERROR_FAILED,
+                              "list column: offsets are not monotonically non-decreasing");
+          break;
+        }
+        n_total_vals = last_offset;
 
         /* Count sub-columns */
         int n_sub_cols = 0;
@@ -3685,7 +3783,11 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           while (v_cnt != Val_emptylist) { n_sub_cols++; v_cnt = Field(v_cnt, 1); }
         }
 
-        if (n_sub_cols == 0) break; /* empty struct — skip */
+        if (n_sub_cols == 0) {
+          g_set_error_literal(&error, G_FILE_ERROR, G_FILE_ERROR_FAILED,
+                              "list column: struct has no sub-columns");
+          break;
+        }
 
         GArrowField **sub_fields = g_new0(GArrowField *, n_sub_cols);
         GArrowArray **sub_arrays = g_new0(GArrowArray *, n_sub_cols);
@@ -3698,6 +3800,11 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           const char *sub_name = String_val(Field(v_sub, 0));
           int sub_tag = Int_val(Field(v_sub, 1));
           value v_sub_data = Field(v_sub, 2);
+
+          if (Wosize_val(v_sub_data) != n_total_vals) {
+            sub_ok = 0;
+            break;
+          }
 
           GArrowDataType *sub_dtype = NULL;
           GArrowArrayBuilder *sub_builder = NULL;
@@ -3801,6 +3908,9 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           }
           g_free(sub_fields);
           g_free(sub_arrays);
+          if (!error)
+            g_set_error_literal(&error, G_FILE_ERROR, G_FILE_ERROR_FAILED,
+                                "list column: sub-column building failed");
           break;
         }
 
@@ -3830,6 +3940,8 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
 
         if (struct_arr_obj == NULL) {
           g_object_unref(struct_dtype_obj);
+          g_set_error_literal(&error, G_FILE_ERROR, G_FILE_ERROR_FAILED,
+                              "list column: struct array construction failed");
           break;
         }
 
@@ -3874,18 +3986,22 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           n_list_rows, offsets_buf,
           GARROW_ARRAY(struct_arr_obj),
           null_bmp, n_nulls);
- 
-        /* Lifecycle management: some versions of arrow-glib seem to have issues
-           if we unref these immediately. We accept a small leak for stability. */
-        /* g_object_unref(offsets_buf); */
-        /* if (null_bmp) g_object_unref(null_bmp); */
-        /* g_object_unref(struct_arr_obj); */
         g_object_unref(struct_dtype_obj);
-
         if (list_arr_obj == NULL) {
+          if (null_bmp) g_object_unref(null_bmp);
+          g_object_unref(offsets_buf);
+          g_object_unref(struct_arr_obj);
           g_object_unref(list_dtype_obj);
+          g_set_error_literal(&error, G_FILE_ERROR, G_FILE_ERROR_FAILED,
+                              "list column: list array construction failed");
           break;
         }
+
+        /* Lifecycle management: keep buffers and child array alive.
+           Unrefing these here has caused invalid nested reads in practice. */
+        /* if (null_bmp) g_object_unref(null_bmp); */
+        /* g_object_unref(offsets_buf); */
+        /* g_object_unref(struct_arr_obj); */
 
         /* Wrap in chunked array */
         GList *lchunks = g_list_append(NULL, list_arr_obj);
@@ -3896,6 +4012,9 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         if (error || lchunked == NULL) {
           if (lchunked) g_object_unref(lchunked);
           g_object_unref(list_dtype_obj);
+          if (!error)
+            g_set_error_literal(&error, G_FILE_ERROR, G_FILE_ERROR_FAILED,
+                                "list column: chunked array construction failed");
           break;
         }
 

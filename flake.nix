@@ -112,7 +112,6 @@
             mkdir -p $out/bin
             cp _build/default/src/repl.exe $out/bin/.t-unwrapped
             cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
-            
             makeWrapper $out/bin/.t-unwrapped $out/bin/t \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}" \
               --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
@@ -221,7 +220,6 @@
             elif [[ -f "$PWD/dune-project" ]]; then
               export TLANG_REPO_ROOT="$PWD"
             fi
-
 
             # Simple shell function to find and run the language binary without startup overhead
             t() {
