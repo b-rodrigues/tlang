@@ -93,6 +93,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "trimmed mean" "trimmed_mean([1, 2, 100, 101], 0.25)" "51.";
   test "winsorize" "winsorize([1, 2, 3, 100], 0.25)" "Vector[1.75, 2., 3., 27.25]";
   test "huber loss scalar" "huber_loss(3, 1.5)" "3.375";
+  test "huber loss vector" "huber_loss([1, 2, 3], 1.5)" "Vector[0.5, 1.875, 3.375]";
   test "scale" "scale([1, 2, 3])" "Vector[-1., 0., 1.]";
   test "normalize" "normalize([10, 20, 30])" "Vector[0., 0.5, 1.]";
   print_newline ();

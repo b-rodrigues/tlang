@@ -15,7 +15,7 @@ open Arrow_table
 --#   Defaults to "_".
 --# @param remove :: Bool (Optional) If true, remove the input columns from the result. 
 --#   Defaults to true.
---# @param na.rm :: Bool (Optional) If true, missing values will be removed prior to uniting. 
+--# @param na_rm :: Bool (Optional) If true, missing values will be removed prior to uniting. 
 --#   Defaults to false.
 --# @return :: DataFrame The united DataFrame.
 --# @example
@@ -64,7 +64,7 @@ let register env =
         | _ -> true
       in
       
-      let na_rm = match get_named "na.rm" with
+      let na_rm = match get_named "na_rm" with
         | Some (VBool b) -> b
         | _ -> false
       in

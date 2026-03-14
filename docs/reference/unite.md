@@ -16,7 +16,7 @@ unite() is a convenience function that pastes together multiple columns into a s
 
 - **remove** (`Bool`): (Optional) If true, remove the input columns from the result.
 
-- **na.rm** (`Bool`): (Optional) If true, missing values will be removed prior to uniting.
+- **na_rm** (`Bool`): (Optional) If true, missing values will be removed prior to uniting.
 
 
 ## Returns
@@ -28,4 +28,3 @@ The united DataFrame.
 ```t
 unite(df, "full_name", $first_name, $last_name, sep = " ")
 ```
-
