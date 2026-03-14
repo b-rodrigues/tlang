@@ -535,6 +535,19 @@ min_version = "0.5.0"
     has "additionalTools" && has "pandoc" && has "jq"
     && has "++ additionalTools");
 
+  test_pm "generate project flake auto-provisions quarto extension" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.5.0" ~deps:[]
+      ~additional_tools:["quarto"; "jq"] () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    has "mkdir -p _extensions"
+    && has "_extensions/tlang"
+    && has "/share/tlang/quarto/tlang"
+    && has "Provisioned T Quarto extension"
+    && has "Quarto is enabled via [additional-tools]");
+
   test_pm "generate project flake with latex_pkgs" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"

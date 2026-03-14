@@ -18,12 +18,21 @@ This is intentionally minimal. It is meant for literate programming and console-
 
 ## Install into a Quarto project
 
-From your Quarto project root:
+In a T project, declare Quarto in `tproject.toml`:
+
+```toml
+[additional-tools]
+packages = ["quarto"]
+```
+
+Then sync the flake and enter the project shell from the project root:
 
 ```bash
-mkdir -p _extensions/tlang
-cp -R /path/to/tlang/editors/quarto/tlang/_extensions/tlang/* _extensions/tlang/
+t update
+nix develop
 ```
+
+When `quarto` is requested as an additional tool, T auto-provisions `_extensions/tlang` from the Nix store as you enter the project shell, so Quarto can resolve the `tlang` filter without running `quarto add`.
 
 Make sure the `t` executable is available on your `PATH` when Quarto renders the document. If you need a specific binary, set `TLANG_BIN` before rendering:
 

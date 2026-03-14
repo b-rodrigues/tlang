@@ -366,7 +366,10 @@ version = "python314"
 packages = []
 
 [additional-tools]
-# Additional Nix packages for the project (e.g., git, awk, jq)
+# Additional Nix packages for the project (e.g., git, awk, jq, quarto)
+# If quarto is listed here, run `t update` and then `nix develop` to
+# provision `_extensions/tlang` automatically from the T flake so Quarto
+# can render `{t}` chunks.
 packages = []
 
 [latex]
@@ -442,6 +445,9 @@ result
 
 # Generated outputs (regenerated from source)
 outputs/
+
+# Auto-provisioned Quarto extension symlink (from nix develop when quarto is enabled)
+_extensions/tlang
 
 # Editor files
 *~

@@ -5,7 +5,7 @@ T supports **Quarto** in two complementary ways:
 1. as a **pipeline runtime** for rendering `.qmd` reports inside T pipelines
 2. via the **Quarto editor extension** in `editors/quarto/tlang`, which lets you write executable `{t}` chunks directly in Quarto documents
 
-The runtime integration is documented below. For inline `t` chunks, copy `editors/quarto/tlang/_extensions/tlang` into your Quarto project, enable the `tlang` filter, and render as usual with Quarto.
+The runtime integration is documented below. For inline `t` chunks, add `quarto` to `[additional-tools]` in `tproject.toml`, run `t update`, and enter the project with `nix develop`. T will provision `_extensions/tlang` automatically from the Nix store; then enable the `tlang` filter and render as usual with Quarto.
 
 ## Defining a Quarto Node
 

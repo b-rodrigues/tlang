@@ -31,24 +31,93 @@ jobs:
       - name: Build T Binary
         run: nix build .#default --accept-flake-config
 
-      - name: Render Quarto Document with T Filter
+      - name: Verify Quarto extension version matches core T version
         run: |
-          # Create a clean test workspace
+          CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' flake.nix | head -n 1 | xargs)
+          EXT_VERSION=$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' editors/quarto/tlang/_extensions/tlang/_extension.yml | head -n 1 | xargs)
+          if [ -z "$CORE_VERSION" ] || [ -z "$EXT_VERSION" ]; then
+            echo "❌ Error: Failed to extract core or extension version."
+            exit 1
+          fi
+          if [ "$CORE_VERSION" != "$EXT_VERSION" ]; then
+            echo "❌ Error: Quarto extension version ($EXT_VERSION) does not match core T version ($CORE_VERSION)."
+            exit 1
+          fi
+          echo "✅ Quarto extension version matches core T version: $CORE_VERSION"
+
+      - name: Install Lua linter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 luarocks
+          sudo luarocks --lua-version=5.4 install luacheck
+
+      - name: Lint Quarto Lua filter
+        run: luacheck --globals pandoc CodeBlock editors/quarto/tlang/_extensions/tlang/tlang.lua
+
+      - name: Render Quarto Document with T Filter
+        env:
+          # Point generated project flakes at this checkout so `t update`
+          # tests the current branch's Quarto-extension provisioning logic.
+          TLANG_FLAKE_URL: git+file://${{ github.workspace }}
+        run: |
+          REPO_ROOT=$(pwd)
+          CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' "$REPO_ROOT/flake.nix" | head -n 1 | xargs)
+          if [ -z "$CORE_VERSION" ]; then
+            echo "❌ Error: Failed to extract core version from flake.nix."
+            exit 1
+          fi
+          TLANG_BIN="$REPO_ROOT/result/bin/t"
+          export TLANG_BIN
+
+          # Create a clean workspace and initialize a T project
+          cd ..
           mkdir quarto-test-run
           cd quarto-test-run
-          
-          # Initialize the extension structure as documented in README
-          mkdir -p _extensions/tlang
-          cp -r ../editors/quarto/tlang/_extensions/tlang/* _extensions/tlang/
-          
+          "$TLANG_BIN" init project quarto_extension_test --no-git
+          cd quarto_extension_test
+
+          cat > tproject.toml <<EOF
+[project]
+name = "quarto_extension_test"
+description = "Validate auto-provisioned Quarto extension"
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python314"
+packages = []
+
+[additional-tools]
+packages = ["quarto"]
+
+[latex]
+packages = []
+
+[t]
+min_version = "$CORE_VERSION"
+EOF
+
+          "$TLANG_BIN" update
+
           # Copy the example document
-          cp ../editors/quarto/tlang/example.qmd .
-          
-          # Point the filter to the locally built T binary
-          export TLANG_BIN=$(readlink -f ../result/bin/t)
-          
-          # Render using quarto from Nix shell
-          nix develop .. --accept-flake-config --command quarto render example.qmd
+          cp "$REPO_ROOT/editors/quarto/tlang/example.qmd" .
+
+          # Enter the project shell to provision the Quarto extension, then render.
+          nix develop --accept-flake-config --command bash -c '
+            test -L _extensions/tlang
+            target=$(readlink _extensions/tlang)
+            case "$target" in
+              */share/tlang/quarto/tlang)
+                test -f "$target/_extension.yml"
+                ;;
+              *)
+                echo "❌ Error: _extensions/tlang points to unexpected target: $target"
+                exit 1
+                ;;
+            esac
+            quarto render example.qmd
+          '
           
           # Verify HTML generation
           if [ ! -f example.html ]; then
@@ -82,4 +151,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: quarto-rendered-example
-          path: quarto-test-run/example.html
+          path: ../quarto-test-run/quarto_extension_test/example.html

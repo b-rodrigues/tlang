@@ -50,9 +50,9 @@ This document outlines the critical hardening tasks required to transition T fro
 * [ ] **Vectorization Coverage**: Verify that all core math functions in `src/packages/math` and `src/packages/stats` are fully vectorized and handle `Vector` vs `Scalar` inputs predictably.
 
 ### Quarto Extension
-* [ ] **Versioning**: Sync the Quarto extension version in `_extension.yml` with the core T version.
-* [ ] **Self-Contained Installer**: Provide a single `quarto install` command that doesn't require manual file copying.
-* [ ] **Lua Linter**: Integrate `selene` or `luacheck` into the Quarto CI to catch Lua-specific bugs.
+* [x] **Versioning**: Sync the Quarto extension version in `_extension.yml` with the core T version.
+* [x] **Project-Scoped Provisioning**: Since T is distributed as a flake, provision the Quarto extension automatically when entering a T project whose `tproject.toml` requests `quarto` in `[additional-tools]`, so users do not need to run `quarto add`.
+* [x] **Lua Linter**: Integrate `selene` or `luacheck` into the Quarto CI to catch Lua-specific bugs.
 
 ### Package Manager (`t update`)
 * [ ] **Remote Tag Matching**: Finalize and verify the logic in `update_manager.ml`. Users should be able to run `t update` and see a clear diff of what will change in their `flake.lock`.
