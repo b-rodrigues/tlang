@@ -19,9 +19,9 @@ mean(values)
 
 ```{t}
 #| echo: false
-summary = "This chunk still runs, but its source is hidden."
+text_summary = "This chunk still runs, but its source is hidden."
 ```
 
 ```{t}
-summary
+text_summary
 ```

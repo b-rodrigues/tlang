@@ -68,7 +68,7 @@ jobs:
           fi
           
           # Verify that echo: false worked
-          # The summary chunk has #| echo: false, so "summary =" shouldn't be in the HTML (as code)
+          # The summary chunk has #| echo: false, so "text_summary =" shouldn't be in the HTML (as code)
           # but the value "This chunk still runs" should be.
           if grep -q "This chunk still runs" example.html; then
             echo "✅ Success: Found output from hidden chunk."
