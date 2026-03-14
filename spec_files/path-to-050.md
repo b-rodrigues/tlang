@@ -48,15 +48,15 @@ This document outlines the critical hardening tasks required to transition T fro
 ### Standard Library Consistency
 * [ ] **Function Signature Audit**: Ensure consistent parameter naming across all packages (e.g., `na.rm` vs `handle_na`).
 * [ ] **Vectorization Coverage**: Verify that all core math functions in `src/packages/math` and `src/packages/stats` are fully vectorized and handle `Vector` vs `Scalar` inputs predictably.
-
+ 
 ### Quarto Extension
 * [x] **Versioning**: Sync the Quarto extension version in `_extension.yml` with the core T version.
-* [x] **Project-Scoped Provisioning**: Since T is distributed as a flake, provision the Quarto extension automatically when entering a T project whose `tproject.toml` requests `quarto` in `[additional-tools]`, so users do not need to run `quarto add`.
+* [x] **Project-Scoped Provisioning**: Since T is distributed as a flake, avoid a standalone installer. Instead, provision the Quarto extension automatically when entering a T project whose `tproject.toml` requests `quarto` in `[additional-tools]`. (Verified in `nix_generator.ml`).
 * [x] **Lua Linter**: Integrate `selene` or `luacheck` into the Quarto CI to catch Lua-specific bugs.
 
 ### Package Manager (`t update`)
 * [ ] **Remote Tag Matching**: Finalize and verify the logic in `update_manager.ml`. Users should be able to run `t update` and see a clear diff of what will change in their `flake.lock`.
-* [ ] **Rollback Safety**: Ensure `t update` creates a backup of `flake.lock` (or relies on git) so users can safely undo a dependency sync.
+* [ ] **Rollback Safety**: Ensure `t update` verifies that the project is correctly versioned by checking if a remote is set and if there are pending changes in the working directory to commit and push. Only allow `t update` to run if the project is correctly versioned and there are no pending changes in the working directory.
 
 ### LSP Server
 * [ ] **Performance**: Optimize the LSP for files >1000 lines. Ensure the type-checking pass isn't blocking the main UI thread in editors.
@@ -79,4 +79,4 @@ This document outlines the critical hardening tasks required to transition T fro
 
 ### Pure Nix Environment
 * [ ] **Build Isolation**: Audit the `flake.nix` to ensure no "impure" lookups are happening during the build phase.
-* [ ] **Binary Distribution**: Ensure the `nix build` produces a statically linked (where possible) or correctly wrapped binary for Linux and macOS.
+
