@@ -11,6 +11,33 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
+  let is_valid_env_var_name key =
+    let is_initial = function
+      | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+      | _ -> false
+    in
+    let is_continue = function
+      | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true
+      | _ -> false
+    in
+    String.length key > 0
+    && is_initial key.[0]
+    && let rec loop idx =
+         idx >= String.length key
+         || (is_continue key.[idx] && loop (idx + 1))
+       in
+       loop 1
+  in
+  let sanitize_env_var_suffix s =
+    let buffer = Buffer.create (String.length s) in
+    String.iter (function
+      | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' as c -> Buffer.add_char buffer c
+      | _ -> Buffer.add_char buffer '_'
+    ) s;
+    let sanitized = Buffer.contents buffer in
+    if sanitized = "" then "_" else sanitized
+  in
+  let dep_env_var_name dep = "T_NODE_" ^ sanitize_env_var_suffix dep in
 
 
 
@@ -63,7 +90,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let deps_inputs = String.concat " " (if extra_input = "" then deps else extra_input :: deps) in
   let deps_exports =
     deps
-    |> List.map (fun d -> Printf.sprintf "      export T_NODE_%s=${%s}\n" d d)
+    |> List.map (fun d -> Printf.sprintf "      export %s=${%s}\n" (dep_env_var_name d) d)
     |> String.concat ""
   in
   let imports_echo =
@@ -131,6 +158,35 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     List.exists (fun arg -> arg = "-c" || arg = "-lc" || arg = "-cl") args
   in
   let is_simple_exec_command cmd =
+    let looks_like_env_assignment =
+      let rec find_equals idx =
+        if idx >= String.length cmd then
+          None
+        else if cmd.[idx] = '=' then
+          Some idx
+        else
+          find_equals (idx + 1)
+      in
+      let is_assignment_name_char = function
+        | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true
+        | _ -> false
+      in
+      match find_equals 0 with
+      | Some eq_idx when eq_idx > 0 ->
+          let name = String.sub cmd 0 eq_idx in
+          let starts_ok =
+            match name.[0] with
+            | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+            | _ -> false
+          in
+          starts_ok
+          && let rec loop idx =
+               idx >= String.length name
+               || (is_assignment_name_char name.[idx] && loop (idx + 1))
+             in
+             loop 1
+      | _ -> false
+    in
     let rec loop i =
       if i >= String.length cmd then
         true
@@ -143,7 +199,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
             false
         | _ -> loop (i + 1)
     in
-    cmd <> "" && loop 0
+    cmd <> "" && not looks_like_env_assignment && loop 0
   in
   let flag_key_to_cli_format key =
     String.map (fun c -> if c = '_' then '-' else c) key
@@ -744,20 +800,20 @@ def py_read_pmml(path):
       |> List.map (fun d ->
         let des_call = get_des_call d in
         if runtime = "R" then
-          Printf.sprintf "      echo \"%s <- %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext
+          Printf.sprintf "      echo \"%s <- %s(\\\"$%s/artifact\\\")\" >> node_script.%s" d des_call (dep_env_var_name d) ext
         else
-          Printf.sprintf "      echo \"%s = %s(\\\"$T_NODE_%s/artifact\\\")\" >> node_script.%s" d des_call d ext)
+          Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" d des_call (dep_env_var_name d) ext)
       |> String.concat "\n"
   in
   let quarto_read_node_substitutions =
     match runtime, script with
     | "Quarto", Some script_path ->
         deps
-        |> List.map (fun d ->
+      |> List.map (fun d ->
           let double_quoted_read_node = Printf.sprintf {|read_node(\"%s\")|} d in
-          let double_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$T_NODE_" ^ d) in
+          let double_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$" ^ dep_env_var_name d) in
           let single_quoted_read_node = Printf.sprintf {|read_node('%s')|} d in
-          let single_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$T_NODE_" ^ d) in
+          let single_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$" ^ dep_env_var_name d) in
           Printf.sprintf
             {|      sed -i -e "s|%s|%s|g" -e "s|%s|%s|g" %s|}
             double_quoted_read_node
@@ -1087,13 +1143,18 @@ EOF
           let node_env =
             env_vars
             |> List.filter_map (fun (key, value) ->
+              if not (is_valid_env_var_name key) then
+                None
+              else
               match env_value_to_string value with
               | Some s -> Some (Printf.sprintf "%s=%s" key (shell_single_quote s))
               | None -> None)
           in
           let dep_env =
             deps
-            |> List.map (fun dep -> Printf.sprintf "T_NODE_%s=\"$T_NODE_%s\"" dep dep)
+            |> List.map (fun dep ->
+              let env_name = dep_env_var_name dep in
+              Printf.sprintf "%s=\"$%s\"" env_name env_name)
           in
           String.concat " "
             ([ "env -i"; "HOME=\"$TMPDIR\""; "PATH=\"$PATH\""; "TMPDIR=\"$TMPDIR\"" ]

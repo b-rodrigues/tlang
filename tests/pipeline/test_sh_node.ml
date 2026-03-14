@@ -140,7 +140,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     | Ast.VPipeline p ->
         let nix = Nix_emit_pipeline.emit_pipeline p in
         if contains_substring nix "bash" && contains_substring nix "-lc" then
-          begin incr pass_count; Printf.printf "  ✓ sh node shell mode Nix emission contains bash or -lc\n" end
+          begin incr pass_count; Printf.printf "  ✓ sh node shell mode Nix emission contains bash and -lc\n" end
         else
           begin incr fail_count; Printf.printf "  ✗ sh node shell mode Nix emission missing bash or -lc: %s\n" nix end
     | _ ->
@@ -155,12 +155,28 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (match v_sh_exec_args_nix with
    | Ast.VPipeline p ->
        let nix = Nix_emit_pipeline.emit_pipeline p in
-       if contains_substring nix "set -- " && contains_substring nix {|exec 'printf' "$@"|} then
+       if contains_substring nix "set -- " && contains_substring nix "exec " && contains_substring nix "\"$@\"" then
          begin incr pass_count; Printf.printf "  ✓ sh exec mode emits argv-safe wrapper\n" end
        else
          begin incr fail_count; Printf.printf "  ✗ sh exec mode argv wrapper missing: %s\n" nix end
    | _ ->
        incr fail_count; Printf.printf "  ✗ sh exec mode argv wrapper test failed\n");
+
+  (* Test: assignment-style command strings stay in shell mode *)
+  let (v_sh_assignment_cmd_nix, _) = eval_string_env
+    {|pipeline {
+      out = node(runtime = sh, command = "FOO=1", args = ["printf"])
+    }|}
+    (Packages.init_env ()) in
+  (match v_sh_assignment_cmd_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       if contains_substring nix "FOO=1" && not (contains_substring nix "\"$@\"") then
+         begin incr pass_count; Printf.printf "  ✓ sh assignment-style commands stay in shell mode\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ sh assignment-style command heuristic failed: %s\n" nix end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ sh assignment-style command test failed\n");
 
   (* Test: shell-string mode keeps args positional instead of string-joining them *)
   let (v_sh_shell_args_nix, _) = eval_string_env
@@ -191,11 +207,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
    | Ast.VPipeline p ->
        let nix = Nix_emit_pipeline.emit_pipeline p in
        if contains_substring nix {|env -i HOME="$TMPDIR" PATH="$PATH" TMPDIR="$TMPDIR" MODE='fast'|} then
-         begin incr pass_count; Printf.printf "  ✓ sh node runtime is emitted with a hermetic environment\n" end
-       else
-         begin incr fail_count; Printf.printf "  ✗ sh node hermetic env emission missing: %s\n" nix end
+          begin incr pass_count; Printf.printf "  ✓ sh node runtime is emitted with a hermetic environment\n" end
+        else
+          begin incr fail_count; Printf.printf "  ✗ sh node hermetic env emission missing: %s\n" nix end
    | _ ->
        incr fail_count; Printf.printf "  ✗ sh node hermetic env test failed\n");
+
+  test "node env_vars keys must be valid environment variable names"
+    {|node(runtime = sh, command = "echo hello", env_vars = [`bad key`: "fast"])|}
+    {|Error(TypeError: "Function `node` expects `env_vars` key `bad key` to be a valid environment variable name ([A-Za-z_][A-Za-z0-9_]*).")|};
 
   (* Test: sh exec mode execution (nix) *)
   let (v_sh_exec_nix, _) = eval_string_env

@@ -10,10 +10,10 @@ let ensure_parent_dir path =
   ensure dir
 
 let serialized_value_magic = "TLANG_SERIALIZED:"
-let serialized_value_version = "0.5.0"
+let serialized_value_format_version = "0.5.0"
 
 let serialized_value_header =
-  serialized_value_magic ^ serialized_value_version ^ "\n"
+  serialized_value_magic ^ serialized_value_format_version ^ "\n"
 
 let read_serialized_value_header ic =
   try
@@ -21,24 +21,24 @@ let read_serialized_value_header ic =
     if magic <> serialized_value_magic then
       Error
         (Printf.sprintf
-           "Serialized value is missing a T %s version header. Rebuild or re-serialize this artifact with the current T version."
-           serialized_value_version)
+           "Serialized value is missing the `%s` format header. Rebuild or re-serialize this artifact with the current serializer."
+           serialized_value_format_version)
     else
       let version = input_line ic in
-      if version = serialized_value_version then
+      if version = serialized_value_format_version then
         Ok ()
       else
         Error
           (Printf.sprintf
-             "Serialized value version `%s` is not compatible with T %s. Rebuild or re-serialize this artifact with the current T version."
+             "Serialized value format version `%s` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer."
              version
-             serialized_value_version)
+             serialized_value_format_version)
   with
   | End_of_file ->
       Error
         (Printf.sprintf
-           "Serialized value is truncated or missing its T %s version header."
-           serialized_value_version)
+           "Serialized value is truncated or missing the `%s` format header."
+           serialized_value_format_version)
   | exn -> Error (Printexc.to_string exn)
 
 (*

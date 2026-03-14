@@ -518,19 +518,43 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
             | _ -> false
           in
+          let is_valid_env_var_name key =
+            let is_initial = function
+              | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+              | _ -> false
+            in
+            let is_continue = function
+              | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true
+              | _ -> false
+            in
+            String.length key > 0
+            && is_initial key.[0]
+            && let rec loop idx =
+                 idx >= String.length key
+                 || (is_continue key.[idx] && loop (idx + 1))
+               in
+               loop 1
+          in
           match List.assoc_opt (Some "env_vars") args with
           | None -> Ok []
           | Some e ->
-              (match eval_expr env_ref e with
-               | VDict pairs ->
-                    (match List.find_opt (fun (_, v) -> not (is_env_value v)) pairs with
-                     | None -> Ok pairs
-                     | Some (key, _) ->
-                         Error (Error.type_error
-                                  (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." fn_name key)))
-               | VNull -> Ok []
-               | _ ->
-                   Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
+               (match eval_expr env_ref e with
+                | VDict pairs ->
+                     (match List.find_opt (fun (key, _) -> not (is_valid_env_var_name key)) pairs with
+                      | Some (key, _) ->
+                          Error (Error.type_error
+                                   (Printf.sprintf
+                                      "Function `%s` expects `env_vars` key `%s` to be a valid environment variable name ([A-Za-z_][A-Za-z0-9_]*)."
+                                      fn_name key))
+                      | None ->
+                     (match List.find_opt (fun (_, v) -> not (is_env_value v)) pairs with
+                      | None -> Ok pairs
+                      | Some (key, _) ->
+                          Error (Error.type_error
+                                   (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." fn_name key))))
+                | VNull -> Ok []
+                | _ ->
+                    Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
         in
         let lookup_runtime_args () =
           let rec is_arg_value ~allow_list = function

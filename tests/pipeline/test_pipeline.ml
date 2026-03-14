@@ -134,9 +134,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   output_string oc_legacy (Serialization.serialized_value_magic ^ "0.4.0\n");
   Marshal.to_channel oc_legacy (Ast.VInt 3) [];
   close_out oc_legacy;
+  let legacy_deserialize_error =
+    Printf.sprintf
+      {|Error(FileError: "deserialize failed: Serialized value format version `0.4.0` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer.")|}
+      Serialization.serialized_value_format_version
+  in
   test "deserialize rejects older serialized value versions"
     {|deserialize("test_roundtrip_legacy.tobj")|}
-    {|Error(FileError: "deserialize failed: Serialized value version `0.4.0` is not compatible with T 0.5.0. Rebuild or re-serialize this artifact with the current T version.")|};
+    legacy_deserialize_error;
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline with Pipes:\n";
@@ -200,6 +205,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let oc_legacy_log = open_out "_pipeline/build_log_legacy_version.json" in
   output_string oc_legacy_log legacy_log;
   close_out oc_legacy_log;
+  let legacy_node_error =
+    Printf.sprintf
+      {|Error(FileError: "Failed to read node `legacy_node` from `test_legacy_node.tobj`: Serialized value format version `0.4.0` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer.")|}
+      Serialization.serialized_value_format_version
+  in
 
   test "read_node propagates R runtime on error"
     "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).runtime"
@@ -211,7 +221,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "read_node rejects older serialized node versions"
     "read_node(\"legacy_node\", which_log=\"legacy_version\")"
-    {|Error(FileError: "Failed to read node `legacy_node` from `test_legacy_node.tobj`: Serialized value version `0.4.0` is not compatible with T 0.5.0. Rebuild or re-serialize this artifact with the current T version.")|};
+    legacy_node_error;
 
   print_newline ();
 
