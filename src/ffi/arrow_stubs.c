@@ -2967,7 +2967,7 @@ CAMLprim value caml_arrow_float64_array_to_bigarray(value v_array_ptr) {
      length exceeding the max OCaml Bigarray dimension (intnat). */
   if (length < 0 ||
       (gsize)length > G_MAXSIZE / sizeof(double) ||
-      length > (gint64)Max_intnat) {
+      length > (gint64)CAML_INTNAT_MAX) {
     g_bytes_unref(bytes);
     g_object_unref(buffer);
     CAMLreturn(Val_none);
@@ -3025,7 +3025,7 @@ CAMLprim value caml_arrow_int64_array_to_bigarray(value v_array_ptr) {
      length exceeding the max OCaml Bigarray dimension (intnat). */
   if (length < 0 ||
       (gsize)length > G_MAXSIZE / sizeof(gint64) ||
-      length > (gint64)Max_intnat) {
+      length > (gint64)CAML_INTNAT_MAX) {
     g_bytes_unref(bytes);
     g_object_unref(buffer);
     CAMLreturn(Val_none);
