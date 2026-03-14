@@ -57,6 +57,7 @@ let parse_mode_args (args : string list) : (mode_parse, string) result =
   extract [] Typecheck.Repl false args
 
 let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, string) result =
+  Printf.eprintf "CLI_DEBUG: Sys.argv=[%s]\n%!" (String.concat "; " (Array.to_list Sys.argv));
   let commands = ["run"; "repl"; "test"; "explain"; "init"; "doc"; "doctor"; "docs"; "update"; "publish"; "--help"; "-h"; "--version"; "-v"] in
   let command =
     if List.mem "run" args then Some "run"
