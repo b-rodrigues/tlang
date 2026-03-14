@@ -1,5 +1,6 @@
 local t_state = {
-  chunks = {}
+  chunks = {},
+  session_source = ""
 }
 
 local function has_class(el, class_name)
@@ -194,13 +195,15 @@ function CodeBlock(el)
     return rendered_blocks
   end
 
-  local session_chunks = {}
-  for _, chunk in ipairs(t_state.chunks) do
-    table.insert(session_chunks, chunk)
+  -- Build the new session source incrementally without rebuilding all chunks
+  local new_session_source
+  if t_state.session_source == "" then
+    new_session_source = body
+  else
+    new_session_source = t_state.session_source .. "\n\n" .. body
   end
-  table.insert(session_chunks, body)
 
-  local ok, output = execute_t_unsafe(table.concat(session_chunks, "\n\n"))
+  local ok, output = execute_t_unsafe(new_session_source)
   if not ok then
     if include then
       table.insert(rendered_blocks, render_error(output))
@@ -209,6 +212,8 @@ function CodeBlock(el)
     return {}
   end
 
+  -- Only update the session state after successful execution
+  t_state.session_source = new_session_source
   table.insert(t_state.chunks, body)
 
   if show_output then
