@@ -8,6 +8,8 @@ The **T Programming Language** is an experimental, reproducibility-first functio
 - **Mandatory Pipelines**: Non-interactive execution requires defining a `pipeline`, enforcing DAG-based computation to prevent spaghetti code. 
 - **Polyglot Architecture**: T orchestrates code. You can have `node` blocks that run natively in T, or external blocks (`rn()` for R, `pyn()` for Python). 
 - **Object Interchange**: T uses Apache Arrow for data frames and PMML for models, passing data natively between R, Python, and T without serialization overhead or loss of fidelity. Factor (categorical) columns are stored natively as Arrow Dictionary arrays for efficient interop.
+- **Arrow Native Safety**: Native Arrow select/filter stays on the zero-copy path with telemetry, plus stricter FFI bounds checks.
+- **PMML Schema Validation**: PMML imports are validated against the PMML 4.4.1 schema for interoperability.
 - **Immutability and No Loops**: T has no loops and no mutable variables.
 - **Explicit NA Handling**: NA does not propagate silently; if NA is encountered in aggregation functions without `na_rm = true`, an error is thrown. 
 - **Context-Aware Errors**: Errors include source locations (line/column, plus filename when available).

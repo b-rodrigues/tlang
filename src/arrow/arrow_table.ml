@@ -26,6 +26,27 @@ type native_handle = {
   mutable freed : bool;
 }
 
+type zero_copy_event = {
+  op : string;
+  reason : string;
+}
+
+let env_flag name =
+  match Sys.getenv_opt name with
+  | Some ("1" | "true" | "yes" | "on") -> true
+  | _ -> false
+
+let zero_copy_events : zero_copy_event list ref = ref []
+
+let record_zero_copy_event op reason =
+  if env_flag "TLANG_ZERO_COPY_DEBUG" then
+    zero_copy_events := { op; reason } :: !zero_copy_events
+
+let take_zero_copy_events () =
+  let events = List.rev !zero_copy_events in
+  zero_copy_events := [];
+  events
+
 (** Typed columnar data with explicit nullability (NA support) *)
 type column_data =
   | IntColumn of int option array
@@ -204,10 +225,18 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
       ) field_infos in
       (* Clean up the child struct array *)
       Arrow_ffi.arrow_unref child_ptr;
+      let max_len =
+        match field_cols with
+        | [] -> 0
+        | (_, _, col) :: _ -> column_length col
+      in
       (* Reconstruct sub-tables by slicing the flattened columns *)
       let nested = Array.map (function
         | None -> None
         | Some (offset, len) ->
+            if offset < 0 || len < 0 || offset + len > max_len then
+              None
+            else
             let sub_cols = List.map (fun (fname, _, col) ->
               (fname, slice_column col offset len)
             ) field_cols in
@@ -529,6 +558,7 @@ let project (t : t) (names : string list) : t =
            let new_schema = List.map safe_assoc_schema names in
            create_from_native new_ptr new_schema t.nrows
         | None ->
+            record_zero_copy_event "project" "native project returned None";
             (* Fallback if native project fails *)
             let schema = List.map safe_assoc_schema names in
             let columns = List.map (fun n ->
@@ -639,6 +669,7 @@ let filter_rows (t : t) (mask : bool array) : t =
            let schema = schema_from_native_ptr new_ptr in
            create_from_native new_ptr schema new_nrows
        | None ->
+           record_zero_copy_event "filter" "native filter returned None";
            (* Native filter failed — materialize columns from FFI first *)
            let filter_col col = _filter_column_pure col mask new_nrows in
            let columns = List.map (fun (name, _) ->

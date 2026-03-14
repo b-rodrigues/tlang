@@ -19,12 +19,12 @@ This document outlines the critical hardening tasks required to transition T fro
 ## 2. Apache Arrow & FFI Hardening
 
 ### C FFI Audit
-* [ ] **Refcounting**: Perform a manual audit of `src/arrow/arrow_stubs.c` to ensure all `g_object_unref` calls match their allocations. Use Valgrind/ASAN in a dedicated CI job.
-* [ ] **Buffer Bounds**: Verify that all direct memory access in the OCaml -> C bridge checks buffer lengths before reading/writing, preventing segfaults on malformed Arrow tables.
+* [x] **Refcounting**: Perform a manual audit of `src/arrow/arrow_stubs.c` to ensure all `g_object_unref` calls match their allocations. Use Valgrind/ASAN in a dedicated CI job.
+* [x] **Buffer Bounds**: Verify that all direct memory access in the OCaml -> C bridge checks buffer lengths before reading/writing, preventing segfaults on malformed Arrow tables.
 
 ### Native Path Validation
 * [x] **CI Enforcement**: Add a CI job that fails if the "fallback" (pure OCaml) path is taken when the native Arrow backend is supposed to be active. (Verified in `.github/workflows/arrow-validation.yml`).
-* [ ] **Zero-Copy Integrity**: Strictly validate that `select` and `filter` operations on Arrow-backed DataFrames maintain zero-copy views. Add internal telemetry or "debug mode" flags to verify this in tests.
+* [x] **Zero-Copy Integrity**: Strictly validate that `select` and `filter` operations on Arrow-backed DataFrames maintain zero-copy views. Add internal telemetry or "debug mode" flags to verify this in tests.
 
 ---
 
@@ -40,7 +40,7 @@ This document outlines the critical hardening tasks required to transition T fro
 * [x] **Cross-Runtime Error Propagation**: Enhance `read_node` and `pipeline_run` to capture and surface detailed error messages (including tracebacks) from R, Python, and Shell nodes that fail during Nix builds. Errors should be surfaced as first-class `VError` values, allowing inspection via `explain(p.node_name)`.
 
 ### PMML Interchange
-* [ ] **Schema Validation**: When exporting or importing models via PMML (e.g., from `lm()`), validate the XML against the PMML 4.4.1 schema to ensure interoperability with other tools (Scikit-Learn, R).
+* [x] **Schema Validation**: When exporting or importing models via PMML (e.g., from `lm()`), validate the XML against the PMML 4.4.1 schema to ensure interoperability with other tools (Scikit-Learn, R).
 
 ---
 

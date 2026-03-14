@@ -9,9 +9,55 @@ type predictor_info = {
   mutable p_value: float option;
 }
 
+let find_pmml_schema () =
+  let candidates =
+    (match Sys.getenv_opt "T_PMML_SCHEMA_PATH" with Some p -> [p] | None -> [])
+    @ (match Sys.getenv_opt "TLANG_REPO_ROOT" with
+       | Some root -> [Filename.concat root "resources/pmml/pmml-4-4-1.xsd"]
+       | None -> [])
+    @ [Filename.concat (Sys.getcwd ()) "resources/pmml/pmml-4-4-1.xsd"]
+  in
+  List.find_opt Sys.file_exists candidates
+
+let validate_pmml_schema path =
+  match find_pmml_schema () with
+  | None ->
+      Error "PMML schema not found. Set T_PMML_SCHEMA_PATH to pmml-4-4-1.xsd."
+  | Some schema_path ->
+      let xmllint =
+        match Sys.getenv_opt "T_XMLLINT" with
+        | Some p -> p
+        | None -> "xmllint"
+      in
+      let cmd =
+        Printf.sprintf "%s --noout --schema %s %s 2>&1"
+          (Filename.quote xmllint)
+          (Filename.quote schema_path)
+          (Filename.quote path)
+      in
+      let ic = Unix.open_process_in cmd in
+      let buf = Buffer.create 256 in
+      (try
+        while true do
+          Buffer.add_string buf (input_line ic);
+          Buffer.add_char buf '\n'
+        done
+      with End_of_file -> ());
+      match Unix.close_process_in ic with
+      | Unix.WEXITED 0 -> Ok ()
+      | _ ->
+          let msg = String.trim (Buffer.contents buf) in
+          if msg = "" then
+            Error "PMML schema validation failed."
+          else
+            Error ("PMML schema validation failed: " ^ msg)
+
 (** PMML parser for RegressionModel.
     Extracts coefficients, standard errors, and model stats into a full T linear model object. *)
 let read_pmml path =
+  match validate_pmml_schema path with
+  | Error msg -> Error msg
+  | Ok () ->
   try
     let ic = open_in path in
     Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->

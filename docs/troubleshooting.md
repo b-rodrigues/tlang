@@ -313,6 +313,17 @@ df = read_csv("data.csv", clean_colnames = true)
 
 ---
 
+### PMML schema validation fails
+
+**Problem**: `t_read_pmml()` or PMML pipeline nodes report schema validation errors.
+
+**Solution**:
+- Ensure the PMML 4.4.1 schema is available (in the repo: `resources/pmml/pmml-4-4-1.xsd`).
+- Set `T_PMML_SCHEMA_PATH` to the schema location if running outside the repo.
+- Ensure `xmllint` is available (Nix shell sets `T_XMLLINT` automatically).
+
+---
+
 ## Performance Issues
 
 ### Operations are very slow

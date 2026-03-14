@@ -90,6 +90,7 @@ let () =
   Test_arrow_integration.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_owl_bridge.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_arrow_performance.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_pmml_validation.run_tests pass_count fail_count eval_string eval_string_env test;
 
   (* Week 2: Edge case hardening + large dataset tests *)
   Test_colcraft_edge_cases.run_tests pass_count fail_count eval_string eval_string_env test;

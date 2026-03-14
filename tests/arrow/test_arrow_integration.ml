@@ -519,6 +519,36 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf {|df = read_csv("%s"); filter(df, $age > 28) |> nrow|} csv_compute)
     "2";
 
+  (* Zero-copy telemetry for project/filter on native-backed tables *)
+  Unix.putenv "TLANG_ZERO_COPY_DEBUG" "1";
+  (match Arrow_io.read_csv_local csv_compute with
+   | Ok tbl when Arrow_table.is_native_backed tbl ->
+       ignore (Arrow_table.take_zero_copy_events ());
+       ignore (Arrow_table.project tbl ["name"; "score"]);
+       let events = Arrow_table.take_zero_copy_events () in
+       if events = [] then
+         (incr pass_count; Printf.printf "  ✓ zero-copy project stayed on native path\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ zero-copy project fell back to OCaml\n");
+       ignore (Arrow_table.take_zero_copy_events ());
+       let mask = Array.init (Arrow_table.num_rows tbl) (fun i -> i mod 2 = 0) in
+       ignore (Arrow_table.filter_rows tbl mask);
+       let events = Arrow_table.take_zero_copy_events () in
+       if events = [] then
+         (incr pass_count; Printf.printf "  ✓ zero-copy filter stayed on native path\n")
+       else
+         (incr fail_count; Printf.printf "  ✗ zero-copy filter fell back to OCaml\n")
+   | Ok _ ->
+       Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+         "zero-copy project telemetry (native) skipped";
+       Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+         "zero-copy filter telemetry (native) skipped"
+   | Error msg ->
+       Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+         (Printf.sprintf "zero-copy telemetry CSV read failed: %s" msg);
+       Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+         "zero-copy filter telemetry (native) skipped");
+
   (* Test 32: chained compute operations *)
   test "Compute: filter + select + arrange pipeline"
     (Printf.sprintf
