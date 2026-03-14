@@ -51,22 +51,56 @@ jobs:
         run: luacheck --globals pandoc CodeBlock editors/quarto/tlang/_extensions/tlang/tlang.lua
 
       - name: Render Quarto Document with T Filter
+        env:
+          TLANG_FLAKE_URL: git+file://${{ github.workspace }}
         run: |
-          # Create a clean test workspace
+          REPO_ROOT=$(pwd)
+          CORE_VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' "$REPO_ROOT/flake.nix" | head -n 1)
+          TLANG_BIN="$REPO_ROOT/result/bin/t"
+          export TLANG_BIN
+
+          # Create a clean workspace and initialize a T project
+          cd ..
           mkdir quarto-test-run
           cd quarto-test-run
-          
-          # Install the extension using Quarto's native installer
-          quarto add ../editors/quarto/tlang --no-prompt
-          
+          "$TLANG_BIN" init project quarto_extension_test --no-git
+          cd quarto_extension_test
+
+          cat > tproject.toml <<EOF
+[project]
+name = "quarto_extension_test"
+description = "Validate auto-provisioned Quarto extension"
+
+[r-dependencies]
+packages = []
+
+[py-dependencies]
+version = "python314"
+packages = []
+
+[additional-tools]
+packages = ["quarto"]
+
+[latex]
+packages = []
+
+[t]
+min_version = "$CORE_VERSION"
+EOF
+
+          "$TLANG_BIN" update
+
           # Copy the example document
-          cp ../editors/quarto/tlang/example.qmd .
-          
-          # Point the filter to the locally built T binary
-          export TLANG_BIN=$(readlink -f ../result/bin/t)
-          
-          # Render using quarto from Nix shell
-          nix develop .. --accept-flake-config --command quarto render example.qmd
+          cp "$REPO_ROOT/editors/quarto/tlang/example.qmd" .
+
+          # Enter the project shell to provision the Quarto extension, then render.
+          nix develop --accept-flake-config --command bash -lc '
+            test -f _extensions/tlang/_extension.yml
+            if [ -L _extensions/tlang ]; then
+              readlink _extensions/tlang | grep "/share/tlang/quarto/tlang$"
+            fi
+            quarto render example.qmd
+          '
           
           # Verify HTML generation
           if [ ! -f example.html ]; then
@@ -100,4 +134,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: quarto-rendered-example
-          path: quarto-test-run/example.html
+          path: ../quarto-test-run/quarto_extension_test/example.html

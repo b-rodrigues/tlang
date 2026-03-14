@@ -38,13 +38,16 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
 
 ### Quarto
 
-For literate programming with executable `{t}` chunks, install the extension from your Quarto project with:
+For literate programming with executable `{t}` chunks, add Quarto to your T project tools:
 
-```bash
-quarto add /path/to/tlang/editors/quarto/tlang
+```toml
+[additional-tools]
+packages = ["quarto"]
 ```
 
-Then enable the `tlang` filter in your document front matter:
+Then run `t update` and enter the project with `nix develop`. T will provision `_extensions/tlang` automatically from the Nix store.
+
+After that, enable the `tlang` filter in your document front matter:
 
 ```yaml
 ---

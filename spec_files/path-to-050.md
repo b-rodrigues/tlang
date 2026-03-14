@@ -51,7 +51,7 @@ This document outlines the critical hardening tasks required to transition T fro
 
 ### Quarto Extension
 * [x] **Versioning**: Sync the Quarto extension version in `_extension.yml` with the core T version.
-* [x] **Self-Contained Installer**: Provide a single `quarto install` command that doesn't require manual file copying.
+* [x] **Project-Scoped Provisioning**: Since T is distributed as a flake, provision the Quarto extension automatically when entering a T project whose `tproject.toml` requests `quarto` in `[additional-tools]`, so users do not need to run `quarto add`.
 * [x] **Lua Linter**: Integrate `selene` or `luacheck` into the Quarto CI to catch Lua-specific bugs.
 
 ### Package Manager (`t update`)

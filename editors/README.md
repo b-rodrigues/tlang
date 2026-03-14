@@ -27,7 +27,7 @@ This directory contains syntax highlighting and language support for the T progr
 
 ## Quarto
 
-If you want executable `{t}` blocks in Quarto documents, install the extension with `quarto add /path/to/tlang/editors/quarto/tlang` from your Quarto project and enable the `tlang` filter in your document front matter.
+If you want executable `{t}` blocks in Quarto documents, add `quarto` to `[additional-tools]` in `tproject.toml`, run `t update`, and enter the project with `nix develop`. T will provision `_extensions/tlang` automatically from the Nix store; then enable the `tlang` filter in your document front matter.
 
 See `quarto/tlang/README.md` for installation and usage details.
 
