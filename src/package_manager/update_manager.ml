@@ -4,6 +4,8 @@
 open Package_types
 open Release_manager
 
+module String_set = Set.Make (String)
+
 type remote_tag_update = {
   dependency_name : string;
   current_tag : string;
@@ -281,6 +283,7 @@ type flake_lock_parse_state = {
   nodes : flake_lock_node_snapshot list;
 }
 
+(** Remove the trailing JSON comma from a pretty-printed flake.lock field value. *)
 let trim_trailing_comma value =
   let trimmed = String.trim value in
   let len = String.length trimmed in
@@ -289,6 +292,7 @@ let trim_trailing_comma value =
   else
     trimmed
 
+(** Normalize a pretty-printed flake.lock field value by trimming commas and quotes. *)
 let normalize_json_value value =
   let trimmed = trim_trailing_comma value in
   let len = String.length trimmed in
@@ -315,6 +319,9 @@ let finalize_current_node state =
           :: state.nodes;
       }
 
+(** Parse the top-level nodes from flake.lock's standard pretty-printed JSON output.
+    This expects nix's usual indentation for nodes and locked/original sections
+    (2/4/6/8 spaces respectively). *)
 let parse_flake_lock_nodes content =
   let lines = String.split_on_char '\n' content in
   let nodes_start_re = Str.regexp {|^  "nodes": {$|} in
@@ -383,8 +390,18 @@ let find_flake_lock_node name nodes =
 
 let field_value fields key = List.assoc_opt key fields
 
-let append_unique value values =
-  if List.mem value values then values else values @ [value]
+let ordered_unique values =
+  let _, reversed =
+    List.fold_left
+      (fun (seen, acc) value ->
+        if String_set.mem value seen then
+          (seen, acc)
+        else
+          (String_set.add value seen, value :: acc))
+      (String_set.empty, [])
+      values
+  in
+  List.rev reversed
 
 let summarize_flake_lock_changes before_content after_content =
   match before_content, after_content with
@@ -394,19 +411,9 @@ let summarize_flake_lock_changes before_content after_content =
   | Some before, Some after ->
       let before_nodes = parse_flake_lock_nodes before in
       let after_nodes = parse_flake_lock_nodes after in
-      let node_names =
-        List.fold_left
-          (fun acc node -> append_unique node.name acc)
-          []
-          (before_nodes @ after_nodes)
-      in
+      let node_names = ordered_unique (List.map (fun node -> node.name) (before_nodes @ after_nodes)) in
       let describe_field_changes section_name before_fields after_fields =
-        let field_names =
-          List.fold_left
-            (fun acc (key, _) -> append_unique key acc)
-            []
-            (before_fields @ after_fields)
-        in
+        let field_names = ordered_unique (List.map fst (before_fields @ after_fields)) in
         List.fold_left
           (fun acc field_name ->
             match field_value before_fields field_name, field_value after_fields field_name with

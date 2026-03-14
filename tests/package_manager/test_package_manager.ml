@@ -252,9 +252,8 @@ min_version = "0.5.0"
     in
     Update_manager.parse_remote_tag_refs output = ["v0.1.0"; "v0.2.0"]);
 
-  let run_git argv =
-    let prog = argv.(0) in
-    let pid = Unix.create_process prog argv Unix.stdin Unix.stdout Unix.stderr in
+  let run_git_command argv =
+    let pid = Unix.create_process "git" argv Unix.stdin Unix.stdout Unix.stderr in
     match Unix.waitpid [] pid with
     | _, Unix.WEXITED 0 -> true
     | _, _ -> false
@@ -276,19 +275,19 @@ min_version = "0.5.0"
           try
             let setup_ok =
               (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run_git [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run_git [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run_git [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
             else begin
               write_file (Filename.concat repo_dir "README.md") "test repo\n";
               let committed =
-                run_git [| "git"; "-C"; repo_dir; "add"; "README.md" |]
-                && run_git [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
-                && run_git [| "git"; "-C"; repo_dir; "tag"; "v0.1.0" |]
-                && run_git [| "git"; "-C"; repo_dir; "tag"; "v0.2.0" |]
+                run_git_command [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && run_git_command [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && run_git_command [| "git"; "-C"; repo_dir; "tag"; "v0.1.0" |]
+                && run_git_command [| "git"; "-C"; repo_dir; "tag"; "v0.2.0" |]
                 && (try Unix.mkdir project_dir 0o755; true with Unix.Unix_error _ -> false)
               in
               if not committed then
@@ -328,13 +327,13 @@ min_version = "0.5.0"
             true
           with _ -> false
         in
-         match result with
-         | Ok [update] ->
-             cleanup_ok
-             && update.dependency_name = "stats"
-             && update.current_tag = "v0.1.0"
-             && update.latest_tag = "v0.2.0"
-         | _ -> false);
+        match result with
+        | Ok [update] ->
+            cleanup_ok
+            && update.dependency_name = "stats"
+            && update.current_tag = "v0.1.0"
+            && update.latest_tag = "v0.2.0"
+        | _ -> false);
 
   test_pm "validate_update_prerequisites requires a git remote" (fun () ->
     match make_temp_dir 8 with
@@ -345,9 +344,9 @@ min_version = "0.5.0"
           try
             let setup_ok =
               (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run_git [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run_git [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run_git [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
@@ -372,10 +371,10 @@ min_version = "0.5.0"
         in
         cleanup_ok
         &&
-        match result with
+        (match result with
         | Error msg ->
             msg = "Git remote is not configured. Add a remote and push the project before running `t update`."
-        | Ok () -> false);
+        | Ok () -> false));
 
   test_pm "validate_update_prerequisites requires a clean working tree" (fun () ->
     match make_temp_dir 8 with
@@ -386,20 +385,20 @@ min_version = "0.5.0"
         let result =
           try
             let setup_ok =
-              run_git [| "git"; "init"; "--bare"; remote_dir |]
+              run_git_command [| "git"; "init"; "--bare"; remote_dir |]
               && (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run_git [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run_git [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run_git [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
             else begin
               write_file (Filename.concat repo_dir "README.md") "clean repo\n";
               let remote_ok =
-                run_git [| "git"; "-C"; repo_dir; "add"; "README.md" |]
-                && run_git [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
-                && run_git [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
+                run_git_command [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && run_git_command [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && run_git_command [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
               in
               if not remote_ok then
                 Error "remote setup failed"
@@ -427,9 +426,9 @@ min_version = "0.5.0"
         in
         cleanup_ok
         &&
-        match result with
+        (match result with
         | Error msg -> msg = "Git working directory is not clean. Commit or stash changes first."
-        | Ok () -> false);
+        | Ok () -> false));
 
   test_pm "validate_update_prerequisites accepts clean repo with remote" (fun () ->
     match make_temp_dir 8 with
@@ -440,20 +439,20 @@ min_version = "0.5.0"
         let result =
           try
             let setup_ok =
-              run_git [| "git"; "init"; "--bare"; remote_dir |]
+              run_git_command [| "git"; "init"; "--bare"; remote_dir |]
               && (try Unix.mkdir repo_dir 0o755; true with Unix.Unix_error _ -> false)
-              && run_git [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
-              && run_git [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
-              && run_git [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "init"; "--quiet" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.email"; "test@example.com" |]
+              && run_git_command [| "git"; "-C"; repo_dir; "config"; "user.name"; "Test User" |]
             in
             if not setup_ok then
               Error "setup failed"
             else begin
               write_file (Filename.concat repo_dir "README.md") "clean repo\n";
               let remote_ok =
-                run_git [| "git"; "-C"; repo_dir; "add"; "README.md" |]
-                && run_git [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
-                && run_git [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
+                run_git_command [| "git"; "-C"; repo_dir; "add"; "README.md" |]
+                && run_git_command [| "git"; "-C"; repo_dir; "commit"; "--quiet"; "-m"; "init" |]
+                && run_git_command [| "git"; "-C"; repo_dir; "remote"; "add"; "origin"; remote_dir |]
               in
               if not remote_ok then
                 Error "remote setup failed"
