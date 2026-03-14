@@ -32,6 +32,11 @@ export TLANG_BIN=/path/to/t
 quarto render report.qmd
 ```
 
+> [!WARNING]
+> This extension executes T chunks with `t --mode strict --unsafe run`.
+> `--unsafe` disables T's normal requirement that non-interactive scripts must contain `build_pipeline()` or `populate_pipeline()` calls.
+> Use this only for trusted Quarto documents. Every `{t}` chunk is executed during render and can run whatever T code the document contains, including code that reads or writes local files through the surrounding project. Do not render untrusted `.qmd` files with this extension.
+
 ## Use in a document
 
 Enable the filter in the document front matter:
@@ -59,5 +64,5 @@ x + 1
 ## Notes
 
 - Chunks are executed by replaying all earlier `t` chunks plus the current chunk with `t --mode strict --unsafe run`.
-- Because T normally requires a pipeline for non-interactive scripts, the extension uses `--unsafe` so prose-first Quarto documents can still run exploratory chunks.
+- Because T normally requires a pipeline for non-interactive scripts, the extension uses `--unsafe` to allow Quarto chunks that are not wrapped in `build_pipeline()` or `populate_pipeline()` calls.
 - Chunk output is rendered as plain text.

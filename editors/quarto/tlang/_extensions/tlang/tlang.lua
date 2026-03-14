@@ -53,6 +53,9 @@ local function parse_chunk_options(text)
   local parsing_options = true
 
   for _, line in ipairs(split_lines(text)) do
+    -- Accept Quarto-style leading chunk options such as:
+    --   #| echo: false
+    --   #| results: hide
     local key, value = line:match("^%s*#|%s*([%w_-]+)%s*:%s*(.-)%s*$")
     if parsing_options and key ~= nil then
       options[key] = value
@@ -75,6 +78,42 @@ local function write_file(path, content)
   handle:close()
 end
 
+local function resolve_binary()
+  local binary = os.getenv("TLANG_BIN")
+  if binary == nil or trim(binary) == "" then
+    return "t"
+  end
+
+  if binary:match("[\r\n]") ~= nil or binary:match("%z") ~= nil then
+    error("TLANG_BIN must point to a single executable path.")
+  end
+
+  local normalized = binary
+  if binary:match("^[A-Za-z]:[\\/]") ~= nil then
+    normalized = binary:sub(3)
+  elseif binary:match(":") ~= nil then
+    error("TLANG_BIN may only use ':' in a Windows drive prefix.")
+  end
+
+  if not normalized:match("^[%w%._/%-\\]+$") then
+    error("TLANG_BIN contains unsupported characters.")
+  end
+
+  if normalized:match("%.%.") ~= nil then
+    error("TLANG_BIN may not contain parent-directory traversal segments.")
+  end
+
+  if binary:match("[/\\]") ~= nil then
+    local handle = io.open(binary, "r")
+    if handle == nil then
+      error("TLANG_BIN does not point to a readable executable path.")
+    end
+    handle:close()
+  end
+
+  return binary
+end
+
 local function render_error(message)
   return pandoc.CodeBlock(
     "T execution failed:\n" .. tostring(message),
@@ -82,15 +121,43 @@ local function render_error(message)
   )
 end
 
-local function execute_t(chunk_source)
-  local temp_path = os.tmpname()
-  write_file(temp_path, chunk_source)
+-- Execute Quarto T chunks in strict mode while intentionally bypassing the
+-- normal pipeline-only script guard so prose-first documents can render.
+local function execute_t_unsafe(chunk_source)
+  if pandoc.system == nil or pandoc.system.with_temporary_directory == nil then
+    return false, "This Quarto filter requires pandoc.system.with_temporary_directory()."
+  end
 
-  local binary = os.getenv("TLANG_BIN") or "t"
-  local ok, output = pcall(pandoc.pipe, binary, { "--mode", "strict", "--unsafe", "run", temp_path }, "")
+  local binary_ok, binary = pcall(resolve_binary)
+  if not binary_ok then
+    return false, tostring(binary)
+  end
+  local function run_temp_script(temp_path)
+    write_file(temp_path, chunk_source)
+    -- pandoc.pipe executes the binary directly with argv, not through a shell.
+    return pcall(pandoc.pipe, binary, { "--mode", "strict", "--unsafe", "run", temp_path }, "")
+  end
 
-  os.remove(temp_path)
-  return ok, output
+  local wrapped_ok, ok, output = pcall(
+    pandoc.system.with_temporary_directory,
+    "tlang",
+    function(temp_dir)
+      return run_temp_script(temp_dir .. "/chunk.t")
+    end
+  )
+  if not wrapped_ok then
+    return false, tostring(ok)
+  end
+
+  if ok then
+    return true, output
+  end
+
+  local message = tostring(output)
+  if message:match("not found") or message:match("No such file") then
+    return false, string.format("Could not run `%s`. Make sure the T CLI is installed or set TLANG_BIN to the correct binary.\n%s", binary, message)
+  end
+  return false, message
 end
 
 local function make_output_block(output)
@@ -110,12 +177,8 @@ function CodeBlock(el)
   local include = normalize_bool(options.include, true)
   local should_eval = normalize_bool(options.eval, true)
   local show_code = normalize_bool(options.echo, true)
-  local show_output = include and normalize_bool(options.output, true)
   local results = options.results and trim(options.results):lower() or nil
-
-  if results == "hide" then
-    show_output = false
-  end
+  local show_output = include and normalize_bool(options.output, true) and results ~= "hide"
 
   if trim(body) == "" then
     return include and el or {}
@@ -137,7 +200,7 @@ function CodeBlock(el)
   end
   table.insert(session_chunks, body)
 
-  local ok, output = execute_t(table.concat(session_chunks, "\n\n"))
+  local ok, output = execute_t_unsafe(table.concat(session_chunks, "\n\n"))
   if not ok then
     if include then
       table.insert(rendered_blocks, render_error(output))
