@@ -57,13 +57,15 @@ let parse_mode_args (args : string list) : (mode_parse, string) result =
   extract [] Typecheck.Repl false args
 
 let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, string) result =
-  Printf.eprintf "CLI_DEBUG: Sys.argv=[%s]\n%!" (String.concat "; " (Array.to_list Sys.argv));
   let commands = ["run"; "repl"; "test"; "explain"; "init"; "doc"; "doctor"; "docs"; "update"; "publish"; "--help"; "-h"; "--version"; "-v"] in
   let command =
-    if List.mem "run" args then Some "run"
-    else match List.find_opt (fun x -> List.mem x commands) args with
-      | Some cmd -> Some cmd
-      | None -> if List.length args > 1 then Some "run" else None
+    match args with
+    | _ :: "run" :: _ -> Some "run"
+    | _ :: cmd :: _ when List.mem cmd commands -> Some cmd
+    | _ :: file :: _ when String.ends_with ~suffix:".t" file -> Some "run"
+    | _ :: ("help" | "--help" | "-h") :: _ -> Some "--help"
+    | _ :: ("version" | "--version" | "-v") :: _ -> Some "--version"
+    | _ -> None
   in
   let run_expr = (command = Some "run") && List.mem "--expr" args in
   let mode_allowed =
@@ -73,8 +75,8 @@ let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, str
     | Some "run"
     | Some "explain"
     | Some "--help"
-    | Some "-h"
     | Some "--version"
+    | Some "-h"
     | Some "-v" -> true
     | _ -> false
   in
@@ -82,7 +84,7 @@ let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, str
     Error "--unsafe is only valid with `t run <file.t>`."
   else if unsafe_flag && run_expr then
     Error "--unsafe cannot be used with `t run --expr`."
-  else if mode_flag && not mode_allowed then
+  else if mode_flag && (not mode_allowed) then
     Error "--mode only applies to repl/run/explain."
   else
     Ok ()
