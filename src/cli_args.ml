@@ -61,6 +61,7 @@ let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, str
   let command =
     match args with
     | _ :: "run" :: _ -> Some "run"
+    | _ :: "repl" :: _ -> Some "repl"
     | _ :: cmd :: _ when List.mem cmd commands -> Some cmd
     | _ :: file :: _ when String.ends_with ~suffix:".t" file -> Some "run"
     | _ :: ("help" | "--help" | "-h") :: _ -> Some "--help"
@@ -80,8 +81,13 @@ let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, str
     | Some "-v" -> true
     | _ -> false
   in
-  if unsafe_flag && command <> Some "run" then
-    Error "--unsafe is only valid with `t run <file.t>`."
+  let unsafe_allowed =
+    match command with
+    | None | Some "run" | Some "repl" -> true
+    | _ -> false
+  in
+  if unsafe_flag && not unsafe_allowed then
+    Error "--unsafe is only valid with `t run <file.t>` or `t` (REPL)."
   else if unsafe_flag && run_expr then
     Error "--unsafe cannot be used with `t run --expr`."
   else if mode_flag && (not mode_allowed) then
