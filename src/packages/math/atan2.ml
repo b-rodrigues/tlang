@@ -7,7 +7,7 @@ open Ast
 --#
 --# @name atan2
 --# @param y :: Number | List | Vector | NDArray Y coordinate(s).
---# @param x :: Number X coordinate.
+--# @param x :: Number Scalar X coordinate.
 --# @return :: Number | Vector | NDArray Computed result (scalar or vectorized).
 --# @family math
 --# @export
