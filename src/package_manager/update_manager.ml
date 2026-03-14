@@ -522,12 +522,12 @@ let update_flake_lock () =
     else
       None
   in
-  match validate_update_prerequisites () with
+  match check_remote_tags () with
   | Error msg -> Error msg
-  | Ok () ->
-      match check_remote_tags () with
+  | Ok _ ->
+      match validate_update_prerequisites () with
       | Error msg -> Error msg
-      | Ok _ ->
+      | Ok () ->
           let regen_result =
             if Sys.file_exists tproject_path then begin
               match read_file tproject_path with

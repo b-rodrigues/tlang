@@ -479,6 +479,36 @@ min_version = "0.5.0"
         in
         cleanup_ok && result = Ok ());
 
+  test_pm "update_flake_lock reports missing project config before git checks" (fun () ->
+    match make_temp_dir 8 with
+    | None -> false
+    | Some base_dir ->
+        let result =
+          try
+            let old_cwd = Sys.getcwd () in
+            Sys.chdir base_dir;
+            let update_result =
+              try Update_manager.update_flake_lock () with exn ->
+                Sys.chdir old_cwd;
+                raise exn
+            in
+            Sys.chdir old_cwd;
+            update_result
+          with exn ->
+            Error (Printexc.to_string exn)
+        in
+        let cleanup_ok =
+          try
+            remove_path base_dir;
+            true
+          with _ -> false
+        in
+        cleanup_ok
+        &&
+        (match result with
+        | Error msg -> msg = "No tproject.toml or DESCRIPTION.toml found in the current directory."
+        | Ok () -> false));
+
   test_pm "summarize_flake_lock_changes reports structured updates" (fun () ->
     let before = {|
 {
