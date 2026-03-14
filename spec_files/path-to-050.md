@@ -39,8 +39,7 @@ This document outlines the critical hardening tasks required to transition T fro
 * [ ] **Environment Hermeticity**: Ensure that shell nodes derive their environment exclusively from the `tproject.toml` configuration, preventing "it works on my machine" issues.
 * [x] **Cross-Runtime Error Propagation**: Enhance `read_node` and `pipeline_run` to capture and surface detailed error messages (including tracebacks) from R, Python, and Shell nodes that fail during Nix builds. Errors should be surfaced as first-class `VError` values, allowing inspection via `explain(p.node_name)`.
 
-### PMML Interchange
-* [ ] **Schema Validation**: When exporting or importing models via PMML (e.g., from `lm()`), validate the XML against the PMML 4.4.1 schema to ensure interoperability with other tools (Scikit-Learn, R).
+
 
 ---
 
