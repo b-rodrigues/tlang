@@ -54,6 +54,8 @@ The T REPL (`dune exec src/repl.exe`) supports:
 - **Ghost hints**: greyed-out inline completions from history
 - **Multi-line input**: automatically detected for open brackets, parens, braces
 - **Magic commands**: `:help`, `:quit`, `:clear` (or prefix `run_file("path.t")` to execute a script)
+- **Signal-safe interrupts**: Ctrl+C cancels evaluation and returns to the prompt without crashing
+- **Stricter CLI flag validation**: `--mode`/`--unsafe` are rejected on conflicting commands
 
 ### Language Server Protocol (LSP)
 T ships a native LSP server (`t-lsp`) that integrates with VS Code and other editors:

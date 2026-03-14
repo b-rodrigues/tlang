@@ -264,6 +264,7 @@ df = read_csv("huge.csv")
 **Solution**:
 - Press Ctrl+C to cancel
 - Check for unclosed `(`, `{`, `[`
+- Ctrl+C now safely interrupts long-running evaluations and returns you to the prompt
 
 ---
 
