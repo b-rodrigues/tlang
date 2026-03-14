@@ -2,6 +2,7 @@
 title: "Executable T chunks"
 filters:
   - tlang
+jupyter: false
 ---
 
 # Simple example

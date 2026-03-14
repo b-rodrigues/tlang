@@ -51,6 +51,8 @@
           scikit-learn
           sklearn2pmml
           statsmodels
+          nbformat
+          ipykernel
         ]);
 
         # Pin a specific version of OCaml for reproducibility.
@@ -183,6 +185,7 @@
 
             # Markdown to HTML compiler
             pkgs.pandoc
+            pkgs.quarto
 
             # 3. Arrow C GLib — Apache Arrow columnar data library
             # -------------------------------------------------------
