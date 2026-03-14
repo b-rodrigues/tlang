@@ -265,6 +265,13 @@ min_version = "0.5.0"
     close_out ch
   in
 
+  (* Helper: restore CI env var to its saved value. Setting to "" is
+     equivalent to "unset" for validate_update_prerequisites because
+     its check requires a non-empty, non-whitespace value. *)
+  let restore_ci saved =
+    match saved with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" ""
+  in
+
   test_pm "check_remote_tags finds newer local git tag" (fun () ->
     match make_temp_dir 8 with
     | None -> false
@@ -357,15 +364,15 @@ min_version = "0.5.0"
               Unix.putenv "CI" "";
               let validation_result =
                 try Update_manager.validate_update_prerequisites () with exn ->
-                  (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+                  restore_ci saved_ci;
                   Sys.chdir old_cwd;
                   raise exn
               in
-              (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+              restore_ci saved_ci;
               Sys.chdir old_cwd;
               validation_result
           with exn ->
-            (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+            restore_ci saved_ci;
             Error (Printexc.to_string exn)
         in
         let cleanup_ok =
@@ -415,17 +422,17 @@ min_version = "0.5.0"
                 Unix.putenv "CI" "";
                 let validation_result =
                   try Update_manager.validate_update_prerequisites () with exn ->
-                    (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+                    restore_ci saved_ci;
                     Sys.chdir old_cwd;
                     raise exn
                 in
-                (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+                restore_ci saved_ci;
                 Sys.chdir old_cwd;
                 validation_result
               end
             end
           with exn ->
-            (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+            restore_ci saved_ci;
             Error (Printexc.to_string exn)
         in
         let cleanup_ok =
@@ -511,15 +518,15 @@ min_version = "0.5.0"
               Unix.putenv "CI" "true";
               let validation_result =
                 try Update_manager.validate_update_prerequisites () with exn ->
-                  (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+                  restore_ci saved_ci;
                   Sys.chdir old_cwd;
                   raise exn
               in
-              (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+              restore_ci saved_ci;
               Sys.chdir old_cwd;
               validation_result
           with exn ->
-            (match saved_ci with Some v -> Unix.putenv "CI" v | None -> Unix.putenv "CI" "");
+            restore_ci saved_ci;
             Error (Printexc.to_string exn)
         in
         let cleanup_ok =
