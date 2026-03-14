@@ -52,7 +52,10 @@ let register env =
                 | None -> Error.type_error "Function `atan2` expects numeric arguments."
                 | Some x ->
                     VNDArray { shape = arr.shape; data = Array.map (fun y -> Float.atan2 y x) arr.data }))
-      | [VNA _; _] | [_; VNA _] -> Error.type_error "Function `atan2` encountered NA value. Handle missingness explicitly."
+      | [VNA _; _]
+      | [VInt _; VNA _]
+      | [VFloat _; VNA _] ->
+          Error.type_error "Function `atan2` encountered NA value. Handle missingness explicitly."
       | [_; _] -> Error.type_error "Function `atan2` expects numeric arguments."
       | _ -> Error.arity_error_named "atan2" 2 (List.length args)
     )) env
