@@ -1,4 +1,5 @@
-let run_tests pass_count fail_count _eval_string _eval_string_env test =
+
+let run_tests pass_count fail_count eval_string _eval_string_env test =
   Printf.printf "Phase 1 — Structured Errors:\n";
   test "error() constructor" {|error("something went wrong")|} {|Error(GenericError: "something went wrong")|};
   test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};
@@ -36,6 +37,20 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   end else begin
     incr fail_count;
     Printf.printf "  ✗ located errors omit filename when unavailable\n"
+  end;
+  let runtime_error = eval_string "1 / 0" |> Ast.Utils.value_to_string in
+  let has_loc =
+    try
+      let _ = Str.search_forward (Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\]") runtime_error 0 in
+      true
+    with Not_found -> false
+  in
+  if has_loc then begin
+    incr pass_count;
+    Printf.printf "  ✓ runtime errors include source location prefix\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ runtime errors include source location prefix\n"
   end;
   print_newline ();
 

@@ -284,7 +284,7 @@ let lines_impl args _env =
       Error.type_error
         (Printf.sprintf "str_lines expects a String or ShellResult, got %s"
            (Utils.type_name other))
-  | _ -> Error.arity_error_named "str_lines" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "str_lines" 1 (List.length args)
 
 (*
 --# Split string into words
@@ -313,7 +313,7 @@ let words_impl args _env =
       Error.type_error
         (Printf.sprintf "str_words expects a String or ShellResult, got %s"
            (Utils.type_name other))
-  | _ -> Error.arity_error_named "str_words" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "str_words" 1 (List.length args)
 
 (*
 --# Repeat a string
@@ -578,7 +578,7 @@ let str_pad_impl named_args _env =
              ) value)
   | [_; _] ->
       Error.type_error "Function `str_pad` expects (String, Int, side = String, pad = String)."
-  | values -> Error.arity_error_named "str_pad" ~expected:2 ~received:(List.length values)
+  | values -> Error.arity_error_named "str_pad" 2 (List.length values)
 
 let str_trunc_impl named_args _env =
   let positional = List.filter_map (function None, v -> Some v | _ -> None) named_args in
@@ -617,7 +617,7 @@ let str_trunc_impl named_args _env =
              ) value)
   | [_; _] ->
       Error.type_error "Function `str_trunc` expects (String, Int, side = String, ellipsis = String)."
-  | values -> Error.arity_error_named "str_trunc" ~expected:2 ~received:(List.length values)
+  | values -> Error.arity_error_named "str_trunc" 2 (List.length values)
 
 let str_flatten_impl named_args _env =
   let positional = List.filter_map (function None, v -> Some v | _ -> None) named_args in
@@ -635,8 +635,7 @@ let str_flatten_impl named_args _env =
        | [VList items] -> flatten (List.map snd items)
        | [value] -> VString (Ast.Utils.value_to_raw_string value)
        | values ->
-           Error.arity_error_named "str_flatten" ~expected:1
-             ~received:(List.length values))
+           Error.arity_error_named "str_flatten" 1 (List.length values))
 
 let nchar_scalar args _env =
   match args with
@@ -730,7 +729,7 @@ let strsplit_impl args _env =
   | [VString s; VString sep]                     -> do_split s sep
   | [VShellResult { sr_stdout; _ }; VString sep] -> do_split sr_stdout sep
   | [_; _] -> Error.type_error "Function `str_split` expects (String, String)."
-  | _      -> Error.arity_error_named "str_split" ~expected:2 ~received:(List.length args)
+  | _      -> Error.arity_error_named "str_split" 2 (List.length args)
 
 (*
 --# Format a string

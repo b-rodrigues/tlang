@@ -82,6 +82,6 @@ let register env =
              | Ok nums -> compute_sd nums (Array.length nums))
       | Some (VNA _) -> Error.type_error "Function `sd` encountered NA value. Handle missingness explicitly."
       | Some _ -> Error.type_error "Function `sd` expects a numeric List or Vector."
-      | None -> Error.arity_error_named "sd" ~expected:1 ~received:(List.length args)
+      | None -> Error.arity_error_named "sd" 1 (List.length args)
     ))
     env

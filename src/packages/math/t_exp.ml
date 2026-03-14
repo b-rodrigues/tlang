@@ -38,6 +38,6 @@ let register env =
           VNDArray { shape = arr.shape; data = result }
       | [VNA _] -> Error.type_error "Function `exp` encountered NA value. Handle missingness explicitly."
       | [_] -> Error.type_error "Function `exp` expects a number, numeric Vector, or NDArray."
-      | _ -> Error.arity_error_named "exp" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "exp" 1 (List.length args)
     ))
     env

@@ -160,14 +160,22 @@ let register env =
             ("kind", VString "value");
             ("type", VString "Null");
           ]
-      | [VError { code; message; context; _ }] ->
+      | [VError { code; message; context; location }] ->
           let base = [
             ("kind", VString "value");
             ("type", VString "Error");
             ("error_code", VString (Utils.error_code_to_string code));
             ("error_message", VString message);
           ] in
-          VDict (base @ context)
+          let loc_fields = 
+            match location with
+            | Some { file; line; column } ->
+                [("file", match file with Some f -> VString f | None -> VNull);
+                 ("line", VInt line);
+                 ("column", VInt column)]
+            | None -> []
+          in
+          VDict (base @ loc_fields @ context)
       | [VSymbol s] ->
           VDict [
             ("kind", VString "symbol");
@@ -209,6 +217,6 @@ let register env =
             ("type", VString (Utils.type_name v));
             ("hint", VString "Internal structure not exposed for this type.");
           ]
-      | _ -> Error.arity_error_named "explain" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "explain" 1 (List.length args)
     ))
     env

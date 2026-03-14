@@ -59,8 +59,8 @@ let node_metadata_dict
       (p : pipeline_result)
       (depths : (string * int) list) : (string * value) list =
   let runtime      = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-  let ser_expr     = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Var "default" in
-  let des_expr     = match List.assoc_opt name p.p_deserializers with Some s -> s | None -> Var "default" in
+  let ser_expr     = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Var "default") in
+  let des_expr     = match List.assoc_opt name p.p_deserializers with Some s -> s | None -> Ast.mk_expr (Var "default") in
   let serializer   = Nix_unparse.expr_to_string ser_expr in
   let deserializer = Nix_unparse.expr_to_string des_expr in
   let noop         = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
@@ -95,11 +95,11 @@ let register env =
             Some (match List.assoc_opt n p.p_runtimes with Some r -> r | None -> "T")) in
           let arr_serializer  = Array.init nrows (fun i ->
             let n = List.nth node_names i in
-            let e = match List.assoc_opt n p.p_serializers with Some s -> s | None -> Var "default" in
+            let e = match List.assoc_opt n p.p_serializers with Some s -> s | None -> Ast.mk_expr (Var "default") in
             Some (Nix_unparse.expr_to_string e)) in
           let arr_deserializer = Array.init nrows (fun i ->
             let n = List.nth node_names i in
-            let e = match List.assoc_opt n p.p_deserializers with Some s -> s | None -> Var "default" in
+            let e = match List.assoc_opt n p.p_deserializers with Some s -> s | None -> Ast.mk_expr (Var "default") in
             Some (Nix_unparse.expr_to_string e)) in
           let arr_noop        = Array.init nrows (fun i ->
             let n = List.nth node_names i in
@@ -127,6 +127,6 @@ let register env =
           let arrow_table = Arrow_table.create columns nrows in
           VDataFrame { arrow_table; group_keys = [] }
       | [_] -> Error.type_error "Function `pipeline_to_frame` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_to_frame" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_to_frame" 1 (List.length args)
     ))
     env

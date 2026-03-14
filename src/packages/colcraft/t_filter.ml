@@ -21,13 +21,13 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
       | None -> None
       | Some op_s ->
         (* Pattern: row.field op scalar *)
-        (match left, right with
-         | DotAccess { target = Var p; field }, Value scalar when p = param ->
+        (match left.node, right.node with
+         | DotAccess { target = { node = Var p; _ }; field }, Value scalar when p = param ->
            (match extract_scalar scalar with
             | Some sf -> Arrow_compute.compare_column_scalar table field sf op_s
             | None -> None)
          (* Pattern: scalar op row.field → flip comparison *)
-         | Value scalar, DotAccess { target = Var p; field } when p = param ->
+         | Value scalar, DotAccess { target = { node = Var p; _ }; field } when p = param ->
            let flipped_op = match op_s with
              | "gt" -> "lt" | "lt" -> "gt" | "ge" -> "le" | "le" -> "ge"
              | other -> other
@@ -39,15 +39,15 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
     in
     (* Recursively try to vectorize an expression, handling AND/OR *)
     let rec try_vectorize_expr expr =
-      match expr with
+      match expr.node with
       | UnOp { op = Not; operand } ->
         (match try_vectorize_expr operand with
          | Some mask ->
            let n = Array.length mask in
            Some (Array.init n (fun i -> not mask.(i)))
          | None -> None)
-      | Call { fn = Var "is_na";
-               args = [(None, DotAccess { target = Var p; field })] }
+      | Call { fn = { node = Var "is_na"; _ };
+               args = [(None, { node = DotAccess { target = { node = Var p; _ }; field }; _ })] }
           when p = param ->
         Arrow_compute.column_null_mask table field
       | BinOp { op; left; right } ->
@@ -105,7 +105,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
              for i = 0 to nrows - 1 do
                if !had_error = None then begin
                  let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
-                 let result = eval_call env fn [(None, Value row_dict)] in
+                 let result = eval_call env fn [(None, Ast.mk_expr (Value row_dict))] in
                  match result with
                  | VBool true -> keep.(i) <- true
                  | VBool false -> ()

@@ -65,7 +65,7 @@ let register env =
               }
           end
       | [_; _] -> Error.type_error "Function `chain` expects two Pipeline arguments."
-      | _ -> Error.arity_error_named "chain" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "chain" 2 (List.length args)
     ))
     env
   in
@@ -118,7 +118,7 @@ let register env =
               p_scripts      = merge_new p1.p_scripts p2.p_scripts;
             }
       | [_; _] -> Error.type_error "Function `parallel` expects two Pipeline arguments."
-      | _ -> Error.arity_error_named "parallel" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "parallel" 2 (List.length args)
     ))
     env
   in

@@ -20,6 +20,6 @@ let register env =
       match args with
       | [VError _] -> VBool true
       | [_] -> VBool false
-      | _ -> Error.arity_error_named "is_error" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "is_error" 1 (List.length args)
     ))
     env

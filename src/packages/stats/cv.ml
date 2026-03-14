@@ -74,4 +74,4 @@ let register env =
                else
                  let s = Float.sqrt (List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int (n - 1)) in
                  VFloat (s /. m))
-    | args -> Error.arity_error_named "cv" ~expected:1 ~received:(List.length args))) env
+    | args -> Error.arity_error_named "cv" 1 (List.length args))) env

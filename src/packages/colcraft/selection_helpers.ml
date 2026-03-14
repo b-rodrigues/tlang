@@ -22,13 +22,13 @@ let starts_with_impl args env =
   match args with
   | [VString prefix] -> matcher_of "starts_with" (fun n -> String.starts_with ~prefix n)
   | _ when List.length args >= 2 -> String_ops.starts_with_impl args env
-  | _ -> Error.arity_error_named "starts_with" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "starts_with" 1 (List.length args)
 
 let ends_with_impl args env =
   match args with
   | [VString suffix] -> matcher_of "ends_with" (fun n -> String.ends_with ~suffix n)
   | _ when List.length args >= 2 -> String_ops.ends_with_impl args env
-  | _ -> Error.arity_error_named "ends_with" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "ends_with" 1 (List.length args)
 
 let contains_impl args env =
   match args with
@@ -37,12 +37,12 @@ let contains_impl args env =
       | _ -> true
       | exception Not_found -> false)
   | _ when List.length args >= 2 -> String_ops.contains_impl args env
-  | _ -> Error.arity_error_named "contains" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "contains" 1 (List.length args)
 
 let everything_impl args _env =
   match args with
   | [] -> matcher_of "everything" (fun _ -> true)
-  | _ -> Error.arity_error_named "everything" ~expected:0 ~received:(List.length args)
+  | _ -> Error.arity_error_named "everything" 0 (List.length args)
 
 let bool_of_type_predicate predicate_name col_value =
   let all_non_na satisfy values =
@@ -84,7 +84,7 @@ let type_predicate_impl name satisfy args _env =
       ) values;
       VBool (!saw_value && !ok)
   | [value] -> VBool (satisfy value)
-  | _ -> Error.arity_error_named name ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named name 1 (List.length args)
 
 let matcher_builtin ?(compute_names=(fun names -> names)) name compute =
   VBuiltin {
@@ -130,7 +130,7 @@ let matches_impl args _env =
                   match Str.search_forward re name 0 with
                   | _ -> true
                   | exception Not_found -> false)))
-  | _ -> Error.arity_error_named "matches" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "matches" 1 (List.length args)
 
 let string_names_of_value function_name = function
   | VString s -> Ok [s]
@@ -165,7 +165,7 @@ let all_of_impl args _env =
       (match string_names_of_value "all_of" value with
        | Ok names -> VList (List.map (fun name -> (None, VString name)) names)
        | Error err -> err)
-  | _ -> Error.arity_error_named "all_of" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "all_of" 1 (List.length args)
 
 let any_of_impl args _env =
   match args with
@@ -178,7 +178,7 @@ let any_of_impl args _env =
              "any_of" (fun df ->
              let existing = Arrow_table.column_names df.arrow_table in
              List.filter (fun name -> List.mem name existing) names))
-  | _ -> Error.arity_error_named "any_of" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "any_of" 1 (List.length args)
 
 let where_impl args _env =
   match args with
@@ -197,7 +197,7 @@ let where_impl args _env =
                        | VBool ok -> ok
                        | _ -> false)))
   | [_] -> Error.type_error "Function `where` expects a builtin predicate function."
-  | _ -> Error.arity_error_named "where" ~expected:1 ~received:(List.length args)
+  | _ -> Error.arity_error_named "where" 1 (List.length args)
 
 let register env =
   let env = Env.add "starts_with" (make_builtin ~name:"starts_with" ~variadic:true 1 starts_with_impl) env in

@@ -160,7 +160,7 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
                           | Some err -> err
                           | None when len = 1 -> result.(0)
                           | None -> VVector result))))
-      | _ -> Error.arity_error_named "ifelse" ~expected:3 ~received:(List.length positional_args))
+      | _ -> Error.arity_error_named "ifelse" 3 (List.length positional_args))
 
 
 (*

@@ -28,7 +28,7 @@ let register ~eval_call env =
   Env.add "mutate_node"
     (make_builtin_named ~name:"mutate_node" ~variadic:true 1 (fun named_args env ->
       match named_args with
-      | [] -> Error.arity_error_named "mutate_node" ~expected:1 ~received:0
+      | [] -> Error.arity_error_named "mutate_node" 1 0
       | (_, VPipeline p) :: rest ->
           (* Separate the optional `where` predicate from field assignments.
              Named args arrive as (string option * value) pairs. *)
@@ -41,7 +41,7 @@ let register ~eval_call env =
             | None -> true
             | Some pred ->
                 let row_dict = VDict (Pipeline_to_frame.node_metadata_dict name p depths) in
-                (match eval_call env pred [(None, Value row_dict)] with
+                (match eval_call env pred [(None, Ast.mk_expr (Value row_dict))] with
                  | VBool b -> b
                  | _ -> false)
           in
@@ -76,7 +76,7 @@ let register ~eval_call env =
             | None -> p.p_serializers
             | Some (VString v) ->
                 List.map (fun (n, old) ->
-                  if matches n then (n, Ast.Value (Ast.VString v)) else (n, old)
+                  if matches n then (n, Ast.mk_expr (Ast.Value (Ast.VString v))) else (n, old)
                 ) p.p_serializers
             | Some v ->
                 if !first_error = None then
@@ -88,7 +88,7 @@ let register ~eval_call env =
             | None -> p.p_deserializers
             | Some (VString v) ->
                 List.map (fun (n, old) ->
-                  if matches n then (n, Ast.Value (Ast.VString v)) else (n, old)
+                  if matches n then (n, Ast.mk_expr (Ast.Value (Ast.VString v))) else (n, old)
                 ) p.p_deserializers
             | Some v ->
                 if !first_error = None then

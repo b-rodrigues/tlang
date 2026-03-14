@@ -30,7 +30,7 @@ let map_numeric_unary ~fname f = function
   | [VNDArray arr] -> VNDArray { shape = arr.shape; data = Array.map f arr.data }
   | [VNA _] -> Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." fname)
   | [_] -> Error.type_error (Printf.sprintf "Function `%s` expects numeric input." fname)
-  | args -> Error.arity_error_named fname ~expected:1 ~received:(List.length args)
+  | args -> Error.arity_error_named fname 1 (List.length args)
 
 let register env =
   Env.add "tanh" (make_builtin ~name:"tanh" 1 (fun args _env -> map_numeric_unary ~fname:"tanh" Float.tanh args)) env

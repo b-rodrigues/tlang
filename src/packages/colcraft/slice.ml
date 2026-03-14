@@ -22,7 +22,7 @@ let slice_impl args env =
   | [VString _; VInt _; VInt _] ->
       String_ops.substring_impl args env
   | _ when List.length args = 3 -> 
-       Error.arity_error_named "slice" ~expected:2 ~received:3
+       Error.arity_error_named "slice" 2 3
   | _ -> Error.make_error ArityError "Function `slice` requires a DataFrame and an index vector, or a String and start/end indices."
 
 let register env =

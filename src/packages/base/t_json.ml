@@ -23,7 +23,7 @@ let register env =
             | Ok () -> VNull
             | Error msg -> Error.make_error FileError (Printf.sprintf "t_write_json failed: %s" msg))
         | [_; _] -> Error.type_error "Function `t_write_json` expects (Any, String)."
-        | _ -> Error.arity_error_named "t_write_json" ~expected:2 ~received:(List.length args)
+        | _ -> Error.arity_error_named "t_write_json" 2 (List.length args)
       ))
       env
   in
@@ -47,6 +47,6 @@ let register env =
           | Ok value -> value
           | Error msg -> Error.make_error FileError (Printf.sprintf "t_read_json failed: %s" msg))
       | [_] -> Error.type_error "Function `t_read_json` expects a String path."
-      | _ -> Error.arity_error_named "t_read_json" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "t_read_json" 1 (List.length args)
     ))
     env

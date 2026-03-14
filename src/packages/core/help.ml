@@ -84,7 +84,7 @@ let rec help_impl args _env =
   | [v] ->
       Error.type_error (Printf.sprintf "help expects a function name or value, got %s" (Utils.type_name v))
   | _ ->
-      Error.arity_error_named "help" ~expected:1 ~received:(List.length args)
+      Error.arity_error_named "help" 1 (List.length args)
 
 (*
 --# Search for functions by keyword

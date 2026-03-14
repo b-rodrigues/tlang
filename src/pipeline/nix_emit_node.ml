@@ -21,7 +21,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     echo "Build skipped for %s" > $out/NOOPBUILD
   '';|} name name name
   else
-  let expr_matches target = function
+  let expr_matches target expr_node =
+    match expr_node with
     | Ast.Value (Ast.VString s) | Ast.Value (Ast.VSymbol s) | Ast.Var s ->
         s = target ||
         (target = "arrow" && (s = "read_arrow" || s = "write_arrow")) ||
@@ -35,13 +36,13 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | _ -> false
   in
   let has_strategy name =
-    match deserializer with
+    match deserializer.Ast.node with
     | e when expr_matches name e -> true
-    | Ast.ListLit items -> List.exists (fun (_, e) -> expr_matches name e) items
-    | Ast.DictLit items -> List.exists (fun (_, e) -> expr_matches name e) items
+    | Ast.ListLit items -> List.exists (fun (_, e) -> expr_matches name e.Ast.node) items
+    | Ast.DictLit items -> List.exists (fun (_, e) -> expr_matches name e.Ast.node) items
     | _ -> false
   in
-  let is_ser name = expr_matches name serializer in
+  let is_ser name = expr_matches name serializer.Ast.node in
   let is_pmml_ser = is_ser "pmml" in
   let is_pmml_des = has_strategy "pmml" in
 
@@ -660,12 +661,12 @@ def py_read_pmml(path):
           | (n, e) :: _ when n = target -> Some e
           | _ :: rest -> lookup_in_dict target rest
         in
-        let strategy_expr = match deserializer with
+        let strategy_expr = match deserializer.Ast.node with
           | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> deserializer)
           | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> deserializer)
           | _ -> deserializer
         in
-        let strategy_is_string = match strategy_expr with Ast.Value (Ast.VString _) -> true | _ -> false in
+        let strategy_is_string = match strategy_expr.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         (* Association list: strategy name -> read function name *)
@@ -730,7 +731,7 @@ def py_read_pmml(path):
   in
 
   let expr_s = Nix_unparse.unparse_expr expr in
-  let ser_expr_is_string = match serializer with Ast.Value (Ast.VString _) -> true | _ -> false in
+  let ser_expr_is_string = match serializer.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
   let ser_s = Nix_unparse.expr_to_string serializer in
   let ser_call =
     (* Association list: strategy name -> write function name *)
@@ -766,7 +767,7 @@ def py_read_pmml(path):
       ser_s
   in
 
-  let is_raw_code = match expr with RawCode _ -> true | _ -> false in
+  let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in
 
   let is_import_line line =
     let l = String.trim line in
@@ -914,7 +915,7 @@ EOF
       echo "%s(%s, \"$out/artifact\")" >> node_script.py
       echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
     else if runtime = "sh" then
-      (match expr with
+      (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
           Printf.sprintf "      cat <<'EOF' >> node_script.sh\n%s\nEOF" raw_text
       | Value (VString cmd) | Value (VSymbol cmd) ->

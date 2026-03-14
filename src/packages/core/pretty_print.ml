@@ -167,6 +167,6 @@ let register env =
       | [v] ->
           print_string (pretty_print_value v);
           VNull
-      | _ -> Error.arity_error_named "pretty_print" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pretty_print" 1 (List.length args)
     ))
     env

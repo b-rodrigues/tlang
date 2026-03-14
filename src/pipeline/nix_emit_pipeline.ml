@@ -12,7 +12,8 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   let is_arrow_ser_or_des name =
     let ser = List.assoc name p.p_serializers in
     let des = List.assoc name p.p_deserializers in
-    let check = function
+    let check expr =
+      match expr.Ast.node with
       | Value (VString s) | Value (VSymbol s) | Var s -> 
           let s = String.lowercase_ascii s in
           s = "arrow" || s = "write_parquet" || s = "read_parquet" || s = "write_feather" || s = "read_feather"
@@ -32,7 +33,8 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   let is_pmml_ser_or_des name =
     let ser = List.assoc name p.p_serializers in
     let des = List.assoc name p.p_deserializers in
-    let check = function
+    let check expr =
+      match expr.Ast.node with
       | Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "pmml"
       | _ -> false
     in
@@ -73,14 +75,15 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   let is_csv_ser_or_des name =
     let ser = List.assoc name p.p_serializers in
     let des = List.assoc name p.p_deserializers in
-    let check = function
+    let check expr =
+      match expr.Ast.node with
       | Value (VString s) | Value (VSymbol s) | Var s ->
           let s = String.lowercase_ascii s in
           s = "csv" || s = "r_write_csv" || s = "r_read_csv" || s = "py_write_csv" || s = "py_read_csv" || s = "t_write_csv" || s = "t_read_csv" || s = "pandas"
       | ListLit items ->
-          List.exists (fun (_, e) -> match e with Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "csv" | _ -> false) items
+          List.exists (fun (_, e) -> match e.Ast.node with Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "csv" | _ -> false) items
       | DictLit items ->
-          List.exists (fun (_, e) -> match e with Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "csv" | _ -> false) items
+          List.exists (fun (_, e) -> match e.Ast.node with Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "csv" | _ -> false) items
       | _ -> false
     in
     check ser || check des

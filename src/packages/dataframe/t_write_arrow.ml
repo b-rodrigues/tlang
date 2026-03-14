@@ -27,6 +27,6 @@ let register env =
       | [_; VString _] -> Error.type_error "Function `write_arrow` expects a DataFrame as first argument."
       | [VDataFrame _; _] -> Error.type_error "Function `write_arrow` expects a String path as second argument."
       | [_; _] -> Error.type_error "Function `write_arrow` expects (DataFrame, String)."
-      | _ -> Error.arity_error_named "write_arrow" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "write_arrow" 2 (List.length args)
     ))
     env

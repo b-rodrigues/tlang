@@ -100,4 +100,4 @@ let register env =
                let mx = Option.get (mean xs) in
                let my = Option.get (mean ys) in
                VFloat (List.fold_left2 (fun a xv yv -> a +. (xv -. mx) *. (yv -. my)) 0.0 xs ys /. float_of_int (n - 1)))
-    | args -> Error.arity_error_named "cov" ~expected:2 ~received:(List.length args))) env
+    | args -> Error.arity_error_named "cov" 2 (List.length args))) env

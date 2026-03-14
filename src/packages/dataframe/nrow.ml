@@ -22,6 +22,6 @@ let register env =
       | [VVector v] -> VInt (Array.length v)
       | [VNA _] -> Error.type_error "Function `nrow` expects a DataFrame or vector, got NA."
       | [_] -> Error.type_error "Function `nrow` expects a DataFrame or vector."
-      | _ -> Error.arity_error_named "nrow" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "nrow" 1 (List.length args)
     ))
     env

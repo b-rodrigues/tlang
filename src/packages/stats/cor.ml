@@ -85,6 +85,6 @@ let register env =
                   | None ->
                     Error.value_error "Function `cor` undefined: one or both vectors have zero variance."
                   | Some r -> VFloat r))
-      | _ -> Error.arity_error_named "cor" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "cor" 2 (List.length args)
     ))
     env

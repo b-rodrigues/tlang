@@ -48,7 +48,7 @@ let register env =
           VBool exists
       | [(_, other)] ->
           Error.type_error (Printf.sprintf "Function `file_exists` expects a String, got %s." (Utils.type_name other))
-      | _ -> Error.arity_error_named "file_exists" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "file_exists" 1 (List.length args)
     ))
     env
   in
@@ -78,7 +78,7 @@ let register env =
           VBool exists
       | [(_, other)] ->
           Error.type_error (Printf.sprintf "Function `dir_exists` expects a String, got %s." (Utils.type_name other))
-      | _ -> Error.arity_error_named "dir_exists" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "dir_exists" 1 (List.length args)
     ))
     env
   in
@@ -114,7 +114,7 @@ let register env =
             Error.make_error FileError (Printf.sprintf "read_file: %s" (Printexc.to_string exn)))
       | [(_, other)] ->
           Error.type_error (Printf.sprintf "Function `read_file` expects a String, got %s." (Utils.type_name other))
-      | _ -> Error.arity_error_named "read_file" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "read_file" 1 (List.length args)
     ))
     env
   in
@@ -138,7 +138,7 @@ let register env =
       let positional = List.filter (fun (name, _) -> name = None) args in
       let n_positional = List.length positional in
       if n_positional > 1 then
-        Error.arity_error_named "list_files" ~expected:1 ~received:n_positional
+        Error.arity_error_named "list_files" 1 n_positional
       else
       let path_result = match positional with
         | [(_, VString s)] | [(_, VSymbol s)] -> Ok s
@@ -203,7 +203,7 @@ let register env =
            | None -> VNull)
       | [(_, other)] ->
           Error.type_error (Printf.sprintf "Function `env` expects a String, got %s." (Utils.type_name other))
-      | _ -> Error.arity_error_named "env" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "env" 1 (List.length args)
     ))
     env
   in

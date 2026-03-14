@@ -72,4 +72,4 @@ let register env =
              (match quantile xs 0.25, quantile xs 0.5, quantile xs 0.75 with
               | Some q1, Some med, Some q3 -> vecf [mn; q1; med; q3; mx]
               | _ -> VNA NAFloat))
-    | args -> Error.arity_error_named "fivenum" ~expected:1 ~received:(List.length args))) env
+    | args -> Error.arity_error_named "fivenum" 1 (List.length args))) env

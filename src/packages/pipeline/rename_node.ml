@@ -63,6 +63,6 @@ let register env =
           Error.type_error "Function `rename_node` expects String arguments for old and new names."
       | [_; _; _] ->
           Error.type_error "Function `rename_node` expects a Pipeline as first argument."
-      | _ -> Error.arity_error_named "rename_node" ~expected:3 ~received:(List.length args)
+      | _ -> Error.arity_error_named "rename_node" 3 (List.length args)
     ))
     env

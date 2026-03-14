@@ -23,6 +23,6 @@ let register env =
            | None -> Error.make_error KeyError (Printf.sprintf "Intent field `%s` not found." key))
       | [VIntent _; _] -> Error.type_error "Function `intent_get` expects a String key as second argument."
       | [_; _] -> Error.type_error "Function `intent_get` expects an Intent value as first argument."
-      | _ -> Error.arity_error_named "intent_get" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "intent_get" 2 (List.length args)
     ))
     env

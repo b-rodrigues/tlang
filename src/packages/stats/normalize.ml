@@ -46,4 +46,4 @@ let register env =
              let mx = List.fold_left max neg_infinity xs in
              if mx = mn then Error.value_error "Function `normalize` undefined when min equals max."
              else vecf (List.map (fun v -> (v -. mn) /. (mx -. mn)) xs))
-    | _ -> Error.arity_error_named "normalize" ~expected:1 ~received:(List.length args))) env
+    | _ -> Error.arity_error_named "normalize" 1 (List.length args))) env

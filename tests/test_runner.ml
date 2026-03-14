@@ -1,6 +1,7 @@
 (* tests/test_runner.ml *)
 (* Test orchestrator — calls into per-module test files *)
 
+
 let pass_count = ref 0
 let fail_count = ref 0
 
@@ -19,6 +20,10 @@ let eval_string_env input env =
   let program = Parser.program Lexer.token lexbuf in
   Eval.eval_program program env
 
+let strip_location s =
+  let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
+  Str.global_replace re "" s
+
 let test name input expected =
   let result = try
     let v = eval_string input in
@@ -26,7 +31,9 @@ let test name input expected =
   with e ->
     Printf.sprintf "EXCEPTION: %s" (Printexc.to_string e)
   in
-  if result = expected then begin
+  let result_norm = strip_location result in
+  let expected_norm = strip_location expected in
+  if result_norm = expected_norm then begin
     incr pass_count;
     Printf.printf "  ✓ %s\n" name
   end else begin

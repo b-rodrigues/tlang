@@ -19,6 +19,6 @@ let register env =
       | [VIntent { intent_fields }] ->
           VDict (List.map (fun (k, v) -> (k, VString v)) intent_fields)
       | [_] -> Error.type_error "Function `intent_fields` expects an Intent value."
-      | _ -> Error.arity_error_named "intent_fields" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "intent_fields" 1 (List.length args)
     ))
     env

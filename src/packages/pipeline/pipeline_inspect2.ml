@@ -65,7 +65,7 @@ let register env =
           ) p_deps in
           VList edges
       | [_] -> Error.type_error "Function `pipeline_edges` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_edges" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_edges" 1 (List.length args)
     ))
     env
   in
@@ -91,7 +91,7 @@ let register env =
           let roots = root_nodes p_deps in
           VList (List.map (fun n -> (None, VString n)) roots)
       | [_] -> Error.type_error "Function `pipeline_roots` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_roots" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_roots" 1 (List.length args)
     ))
     env
   in
@@ -117,7 +117,7 @@ let register env =
           let leaves = leaf_nodes p_deps in
           VList (List.map (fun n -> (None, VString n)) leaves)
       | [_] -> Error.type_error "Function `pipeline_leaves` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_leaves" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_leaves" 1 (List.length args)
     ))
     env
   in
@@ -145,7 +145,7 @@ let register env =
           let max_d = List.fold_left (fun acc (_, d) -> max acc d) 0 depths in
           VInt max_d
       | [_] -> Error.type_error "Function `pipeline_depth` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_depth" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_depth" 1 (List.length args)
     ))
     env
   in
@@ -172,7 +172,7 @@ let register env =
           let cycles = detect_cycles p.p_deps in
           VList (List.map (fun n -> (None, VString n)) cycles)
       | [_] -> Error.type_error "Function `pipeline_cycles` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_cycles" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_cycles" 1 (List.length args)
     ))
     env
   in
@@ -204,7 +204,7 @@ let register env =
                | _ -> Error.type_error "pipeline_summary: pipeline_to_frame not a builtin.")
            | None -> Error.name_error "pipeline_to_frame")
       | [_] -> Error.type_error "Function `pipeline_summary` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_summary" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_summary" 1 (List.length args)
     ))
     env
   in
@@ -251,7 +251,7 @@ let register env =
               (String.concat ", " cycles) :: !errors;
           VList (List.map (fun msg -> (None, VString msg)) (List.rev !errors))
       | [_] -> Error.type_error "Function `pipeline_validate` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_validate" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_validate" 1 (List.length args)
     ))
     env
   in
@@ -296,7 +296,7 @@ let register env =
                       (String.concat ", " cycles))
                else v)
       | [_] -> Error.type_error "Function `pipeline_assert` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_assert" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_assert" 1 (List.length args)
     ))
     env
   in
@@ -334,7 +334,7 @@ let register env =
           ) node_names;
           VNull
       | [_] -> Error.type_error "Function `pipeline_print` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_print" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_print" 1 (List.length args)
     ))
     env
   in
@@ -383,7 +383,7 @@ let register env =
           Buffer.add_string buf "}\n";
           VString (Buffer.contents buf)
       | [_] -> Error.type_error "Function `pipeline_dot` expects a Pipeline."
-      | _ -> Error.arity_error_named "pipeline_dot" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "pipeline_dot" 1 (List.length args)
     ))
     env
   in

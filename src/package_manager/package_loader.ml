@@ -77,7 +77,7 @@ let load_private_names (pkg_dir : string) : string list =
     bindings reserved by the runtime. *)
 let defined_names_in_program (program : Ast.program) : string list =
   List.filter_map (fun stmt ->
-    match stmt with
+    match stmt.Ast.node with
     | Ast.Assignment { name; _ }
     | Ast.Reassignment { name; _ } when not (Import_registry.is_internal_key name) ->
         Some name

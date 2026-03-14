@@ -21,7 +21,7 @@ let register ~eval_call env =
       match args with
       | [VList items; fn] ->
           let mapped = List.map (fun (name, v) ->
-            let result = eval_call env fn [(None, Value v)] in
+            let result = eval_call env fn [(None, Ast.mk_expr (Value v))] in
             (name, result)
           ) items in
           VList mapped

@@ -21,6 +21,6 @@ let register env =
           | Ok value -> value
           | Error msg -> Error.make_error FileError (Printf.sprintf "deserialize failed: %s" msg))
       | [_] -> Error.type_error "Function `deserialize` expects a String path."
-      | _ -> Error.arity_error_named "deserialize" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "deserialize" 1 (List.length args)
     ))
     env

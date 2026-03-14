@@ -42,6 +42,12 @@ type source_location = {
   column : int;
 }
 
+(** Generic located wrapper *)
+type 'a located = {
+  node : 'a;
+  loc : source_location option;
+}
+
 (** Structured error information *)
 type error_info = {
   code : error_code;
@@ -202,7 +208,9 @@ and lambda = {
   env : value Env.t option;
 }
 
-and expr =
+and expr = expr_node located
+
+and expr_node =
   | Value of value
   | Var of symbol
   | ColumnRef of string  (* NSE: $column_name references *)
@@ -222,10 +230,11 @@ and expr =
   | Unquote of expr
   | UnquoteSplice of expr
   | ShellExpr of string
-
   | Block of stmt list
 
-and stmt =
+and stmt = stmt_node located
+
+and stmt_node =
   | Expression of expr
   | Assignment of { name : symbol; typ : typ option; expr : expr }
   | Reassignment of { name : symbol; expr : expr }
@@ -261,6 +270,14 @@ and typ =
 
 type program = stmt list
 
+(** Located constructors and accessors *)
+let mk_expr ?loc node = { node; loc }
+let mk_stmt ?loc node = { node; loc }
+let expr_node (e : expr) = e.node
+let expr_loc (e : expr) = e.loc
+let stmt_node (s : stmt) = s.node
+let stmt_loc (s : stmt) = s.loc
+
 (** Global hook for resolving node names to values (e.g. from build logs) *)
 let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 
@@ -294,7 +311,7 @@ module Utils = struct
       Intended for use in NSE-aware functions that need to inspect AST nodes
       before evaluation (e.g., future filter/mutate NSE support). *)
   let is_column_ref = function
-    | ColumnRef field -> Some field
+    | { node = ColumnRef field; _ } -> Some field
     | _ -> None
 
   (** Extract column name from a runtime value, supporting NSE ($column) syntax.
@@ -384,7 +401,8 @@ module Utils = struct
     | And -> "&&" | Or -> "||" | BitAnd -> "&" | BitOr -> "|"
     | In -> "in" | Pipe -> "|>" | MaybePipe -> "?|>" | Formula -> "~"
 
-  and unparse_expr = function
+  and unparse_expr expr =
+    match expr.node with
     | Value v -> value_to_string v
     | Var s -> s
     | ColumnRef s -> "$" ^ s
@@ -426,9 +444,10 @@ module Utils = struct
     | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
     | ListComp _ -> "[...]"
     | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
-  | IntentDef _ -> "intent { ... }"
+    | IntentDef _ -> "intent { ... }"
 
-  and unparse_stmt = function
+  and unparse_stmt stmt =
+    match stmt.node with
     | Expression e -> unparse_expr e
     | Assignment { name; expr; _ } -> name ^ " = " ^ unparse_expr expr
     | Reassignment { name; expr } -> name ^ " := " ^ unparse_expr expr

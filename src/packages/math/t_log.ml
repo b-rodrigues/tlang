@@ -52,6 +52,6 @@ let register env =
              VNDArray { shape = arr.shape; data = result }
       | [VNA _] -> Error.type_error "Function `log` encountered NA value. Handle missingness explicitly."
       | [_] -> Error.type_error "Function `log` expects a number, numeric Vector, or NDArray."
-      | _ -> Error.arity_error_named "log" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "log" 1 (List.length args)
     ))
     env

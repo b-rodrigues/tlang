@@ -47,4 +47,4 @@ let register env =
     let na_rm = has_na_rm named_args in
     match strip_na_rm named_args with
     | [x] -> (match numeric_values ~label:"range" ~na_rm x with Error e -> e | Ok [] -> VNA NAFloat | Ok xs -> vecf [List.fold_left min infinity xs; List.fold_left max neg_infinity xs])
-    | args -> Error.arity_error_named "range" ~expected:1 ~received:(List.length args))) env
+    | args -> Error.arity_error_named "range" 1 (List.length args))) env

@@ -33,7 +33,7 @@ let register ~eval_call env =
           let depths = Pipeline_to_frame.compute_depths p.p_deps in
           let keep = List.filter (fun (name, _) ->
             let row_dict = VDict (Pipeline_to_frame.node_metadata_dict name p depths) in
-            match eval_call env predicate [(None, Value row_dict)] with
+            match eval_call env predicate [(None, Ast.mk_expr (Value row_dict))] with
             | VBool b -> b
             | _ -> false
           ) p.p_exprs in
@@ -57,6 +57,6 @@ let register ~eval_call env =
             p_scripts      = List.filter (fun (n, _) -> keep_set n) p.p_scripts;
           }
       | [_; _] -> Error.type_error "Function `filter_node` expects a Pipeline as first argument."
-      | _ -> Error.arity_error_named "filter_node" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "filter_node" 2 (List.length args)
     ))
     env

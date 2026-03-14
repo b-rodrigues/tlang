@@ -112,7 +112,7 @@ let register env =
           Error.type_error "Function `swap` expects a String node name as the second argument."
       | [_; _; _] ->
           Error.type_error "Function `swap` expects a Pipeline as first argument."
-      | _ -> Error.arity_error_named "swap" ~expected:3 ~received:(List.length args)
+      | _ -> Error.arity_error_named "swap" 3 (List.length args)
     ))
     env
   in
@@ -175,7 +175,7 @@ let register env =
       | [_; _] ->
           Error.type_error "Function `rewire` expects a Pipeline and a node name String."
       | _ ->
-          Error.arity_error_named "rewire" ~expected:2 ~received:(List.length positionals)
+          Error.arity_error_named "rewire" 2 (List.length positionals)
     ))
     env
   in
@@ -208,7 +208,7 @@ let register env =
           ) p.p_exprs in
           VPipeline (filter_pipeline keep p)
       | [_] -> Error.type_error "Function `prune` expects a Pipeline."
-      | _ -> Error.arity_error_named "prune" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "prune" 1 (List.length args)
     ))
     env
   in
@@ -243,7 +243,7 @@ let register env =
           Error.type_error "Function `upstream_of` expects a String node name."
       | [_; _] ->
           Error.type_error "Function `upstream_of` expects a Pipeline as first argument."
-      | _ -> Error.arity_error_named "upstream_of" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "upstream_of" 2 (List.length args)
     ))
     env
   in
@@ -278,7 +278,7 @@ let register env =
           Error.type_error "Function `downstream_of` expects a String node name."
       | [_; _] ->
           Error.type_error "Function `downstream_of` expects a Pipeline as first argument."
-      | _ -> Error.arity_error_named "downstream_of" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "downstream_of" 2 (List.length args)
     ))
     env
   in
@@ -317,7 +317,7 @@ let register env =
           Error.type_error "Function `subgraph` expects a String node name."
       | [_; _] ->
           Error.type_error "Function `subgraph` expects a Pipeline as first argument."
-      | _ -> Error.arity_error_named "subgraph" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "subgraph" 2 (List.length args)
     ))
     env
   in

@@ -7,13 +7,15 @@ type scalar_literal =
   | IntScalar of int
   | FloatScalar of float
 
-let extract_scalar = function
+let extract_scalar expr =
+  match expr.node with
   | Value (VInt i) -> Some (IntScalar i)
   | Value (VFloat f) -> Some (FloatScalar f)
   | _ -> None
 
-let is_col_ref param = function
-  | DotAccess { target = Var p; field } when p = param -> Some field
+let is_col_ref param expr =
+  match expr.node with
+  | DotAccess { target = { node = Var p; _ }; field } when p = param -> Some field
   | ColumnRef field -> Some field
   | _ -> None
 
@@ -55,7 +57,7 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
       match is_col_ref param expr with
       | Some col -> Some (current_table, col)
       | None ->
-        match expr with
+        match expr.node with
         | BinOp { op; left; right } ->
           let try_col_scalar source_table source_col scalar =
             let apply_table_result = function
@@ -164,7 +166,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
             if !had_error = None then begin
               let sub_table = Arrow_compute.take_rows df.arrow_table row_indices in
               let sub_df = VDataFrame { arrow_table = sub_table; group_keys = [] } in
-              let result = eval_call env fn [(None, Value sub_df)] in
+              let result = eval_call env fn [(None, Ast.mk_expr (Value sub_df))] in
               match result with
               | VError _ -> had_error := Some result
               | VVector vec when Array.length vec = List.length row_indices ->
@@ -184,7 +186,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           | Some new_table ->
             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
           | None ->
-            let whole_result = eval_call env fn [(None, Value (VDataFrame df))] in
+            let whole_result = eval_call env fn [(None, Ast.mk_expr (Value (VDataFrame df)))] in
             (match whole_result with
              | VVector vec when Array.length vec = nrows ->
                let arrow_col = Arrow_bridge.values_to_column vec in
@@ -203,7 +205,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
              | _ ->
                let new_col = Array.init nrows (fun i ->
                  let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
-                 eval_call env fn [(None, Value row_dict)]
+                 eval_call env fn [(None, Ast.mk_expr (Value row_dict))]
                ) in
                let first_error = ref None in
                Array.iter (fun v ->
@@ -231,7 +233,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
       in
       match named_args with
       | [] ->
-          Error.arity_error_named "mutate" ~expected:2 ~received:0
+          Error.arity_error_named "mutate" 2 0
       | (None, VDataFrame df) :: rest when rest <> [] ->
           let rec apply_named_mutations current_df = function
             | [] -> VDataFrame current_df
@@ -254,7 +256,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           apply_named_mutations df rest
 
       | [(None, VDataFrame _)] ->
-          Error.arity_error_named "mutate" ~expected:2 ~received:1
+          Error.arity_error_named "mutate" 2 1
       | (None, VDataFrame _) :: (None, _) :: _ ->
           Error.type_error "Function `mutate` expects named arguments for new columns (e.g. $col = expr)."
       | _ ->

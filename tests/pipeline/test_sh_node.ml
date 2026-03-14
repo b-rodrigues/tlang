@@ -96,7 +96,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|node(runtime = sh, command = "ls")|}
     (Packages.init_env ()) in
   (match v_sh_ser with
-   | Ast.VNode un when (match un.un_serializer with Value (VString "text") | Value (VSymbol "text") | Var "text" | Value (VString "lines") | Value (VSymbol "lines") | Var "lines" -> true | _ -> false) ->
+   | Ast.VNode un when (match un.un_serializer.Ast.node with Value (VString "text") | Value (VSymbol "text") | Var "text" | Value (VString "lines") | Value (VSymbol "lines") | Var "lines" -> true | _ -> false) ->
        incr pass_count; Printf.printf "  ✓ sh node stores text/lines serializer\n"
    | other ->
        incr fail_count; Printf.printf "  ✗ sh node stores text/lines serializer failed: %s\n" (Ast.Utils.value_to_string other));

@@ -1,4 +1,9 @@
+
 let run_tests pass_count fail_count _eval_string eval_string_env test =
+  let strip_location s =
+    let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
+    Str.global_replace re "" s
+  in
   Printf.printf "Phase 3 — Basic Pipeline:\n";
   test "simple pipeline"
     "pipeline {\n  x = 1\n  y = 2\n  z = x + y\n}"
@@ -29,7 +34,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ pipeline node access via dot (total)\n    Expected: 30\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "p.nonexistent" env_p3 in
-  let result = Ast.Utils.value_to_string v in
+  let result = strip_location (Ast.Utils.value_to_string v) in
   if result = {|Error(KeyError: "Node `nonexistent` not found in Pipeline.")|} then begin
     incr pass_count; Printf.printf "  ✓ missing pipeline node returns error\n"
   end else begin
@@ -321,7 +326,7 @@ p_cross = pipeline {
     {|rn(command = <{ read_csv(path) }>, args = [path: "data.csv"])|}
     (Packages.init_env ()) in
   (match v_r_mixed with
-   | Ast.VNode un when un.un_runtime = "R" && List.exists (function Ast.Value (VString "data.csv") -> true | _ -> false) un.un_includes ->
+   | Ast.VNode un when un.un_runtime = "R" && List.exists (function { Ast.node = Ast.Value (VString "data.csv"); _ } -> true | _ -> false) un.un_includes ->
        incr pass_count; Printf.printf "  ✓ R node supports both command and args.path (auto-included)\n"
    | other ->
        incr fail_count; Printf.printf "  ✗ R node command/args mixed test failed: %s\n"

@@ -24,6 +24,6 @@ let register env =
           | Error msg -> Error.make_error FileError msg)
       | [VNA _] -> Error.type_error "Function `read_parquet` expects a String path, got NA."
       | [_] -> Error.type_error "Function `read_parquet` expects a String path."
-      | _ -> Error.arity_error_named "read_parquet" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "read_parquet" 1 (List.length args)
     ))
     env

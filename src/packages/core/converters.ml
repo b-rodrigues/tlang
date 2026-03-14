@@ -61,7 +61,7 @@ let register_integer env =
           ) items in
           (match !had_error with Some e -> e | None -> VList res)
       | [v] -> convert v
-      | _ -> Error.arity_error_named "to_integer" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "to_integer" 1 (List.length args)
     ))
     env
 
@@ -113,7 +113,7 @@ let register_float env =
           ) items in
           (match !had_error with Some e -> e | None -> VList res)
       | [v] -> convert v
-      | _ -> Error.arity_error_named "to_float" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "to_float" 1 (List.length args)
     ))
     env
 
@@ -160,7 +160,7 @@ let register_numeric env =
           ) items in
           (match !had_error with Some e -> e | None -> VList res)
       | [v] -> convert v
-      | _ -> Error.arity_error_named "to_numeric" ~expected:1 ~received:(List.length args)
+      | _ -> Error.arity_error_named "to_numeric" 1 (List.length args)
     ))
     env
 

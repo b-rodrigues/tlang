@@ -30,4 +30,4 @@ let register env =
     | [VVector arr] -> calc (Array.to_list arr)
     | [VList items] -> calc (List.map snd items)
     | [_] -> Error.type_error "Function `mode` expects a List or Vector."
-    | _ -> Error.arity_error_named "mode" ~expected:1 ~received:(List.length args))) env
+    | _ -> Error.arity_error_named "mode" 1 (List.length args))) env

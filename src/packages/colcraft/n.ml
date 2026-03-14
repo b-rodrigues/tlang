@@ -23,6 +23,6 @@ let register env =
       | [VList values] -> VInt (List.length values)
       | [] -> Error.value_error "Function `n` is only valid inside `summarize()`."
       | [_] -> Error.type_error "Function `n` expects a DataFrame, vector, or list aggregation context."
-      | _ -> Error.arity_error_named "n" ~expected:0 ~received:(List.length args)
+      | _ -> Error.arity_error_named "n" 0 (List.length args)
     ))
     env

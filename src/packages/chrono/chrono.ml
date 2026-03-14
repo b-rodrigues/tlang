@@ -652,7 +652,7 @@ let round_date_impl function_name kind args _env =
   | [_; _] ->
       Error.type_error
         (Printf.sprintf "Function `%s` expects (Date|Datetime, String)." function_name)
-  | values -> Error.arity_error_named function_name ~expected:2 ~received:(List.length values)
+  | values -> Error.arity_error_named function_name 2 (List.length values)
 
 let rec relabel_timezone function_name timezone = function
   | VDatetime (micros, _) -> VDatetime (micros, Some timezone)
@@ -670,7 +670,7 @@ let timezone_impl function_name args _env =
   | [_; _] ->
       Error.type_error
         (Printf.sprintf "Function `%s` expects (Datetime, String)." function_name)
-  | values -> Error.arity_error_named function_name ~expected:2 ~received:(List.length values)
+  | values -> Error.arity_error_named function_name 2 (List.length values)
 
 let leap_year_impl args _env =
   let rec apply = function
@@ -689,7 +689,7 @@ let leap_year_impl args _env =
   in
   match args with
   | [value] -> apply value
-  | values -> Error.arity_error_named "is_leap_year" ~expected:1 ~received:(List.length values)
+  | values -> Error.arity_error_named "is_leap_year" 1 (List.length values)
 
 let rec days_in_month_impl args _env =
   match args with
@@ -732,7 +732,7 @@ let interval_impl args _env =
                iv_tz = (match start_tz with Some _ -> start_tz | None -> end_tz);
              }
        | Error err, _ | _, Error err -> err)
-  | values -> Error.arity_error_named "interval" ~expected:2 ~received:(List.length values)
+  | values -> Error.arity_error_named "interval" 2 (List.length values)
 
 let within_impl args _env =
   let rec apply interval = function
@@ -749,7 +749,7 @@ let within_impl args _env =
   match args with
   | [value; VInterval interval] -> apply interval value
   | [_; _] -> Error.type_error "Function `%within%` expects (Date|Datetime, Interval)."
-  | values -> Error.arity_error_named "%within%" ~expected:2 ~received:(List.length values)
+  | values -> Error.arity_error_named "%within%" 2 (List.length values)
 
 let register env =
   let parse_date_result s fmt =
@@ -790,14 +790,14 @@ let register env =
     make_builtin ~name 1 (fun args _env ->
       match args with
       | [v] -> scalar_component name fn v
-      | _ -> Error.arity_error_named name ~expected:1 ~received:(List.length args))
+      | _ -> Error.arity_error_named name 1 (List.length args))
   in
   let add_simple_parser env name order =
     Env.add name (make_builtin ~name 1 (fun args _env ->
       match args with
       | [VVector arr] -> VVector (Array.map (parse_scalar_string_vectorized (parse_shorthand_date order)) arr)
       | [value] -> parse_scalar_string name (parse_shorthand_date order) value
-      | _ -> Error.arity_error_named name ~expected:1 ~received:(List.length args))) env
+      | _ -> Error.arity_error_named name 1 (List.length args))) env
   in
   let add_datetime_parser env name order count =
     Env.add name (make_builtin_named ~name ~variadic:true 1 (fun named_args _env ->
@@ -807,7 +807,7 @@ let register env =
           (match positional_args named_args with
            | [VVector arr] -> VVector (Array.map (parse_scalar_string_vectorized (parse_shorthand_datetime order count ?tz)) arr)
            | [value] -> parse_scalar_string name (parse_shorthand_datetime order count ?tz) value
-           | values -> Error.arity_error_named name ~expected:1 ~received:(List.length values)))) env
+           | values -> Error.arity_error_named name 1 (List.length values)))) env
   in
   let add_period_ctor env name f =
     Env.add name (make_builtin ~name 1 (fun args _env ->
@@ -815,13 +815,13 @@ let register env =
       | [VInt n] -> VPeriod (f n)
       | [VNA _] -> VNA NAGeneric
       | [_] -> Error.type_error (Printf.sprintf "Function `%s` expects an Int." name)
-      | _ -> Error.arity_error_named name ~expected:1 ~received:(List.length args))) env
+      | _ -> Error.arity_error_named name 1 (List.length args))) env
   in
   let add_predicate env name pred =
     Env.add name (make_builtin ~name 1 (fun args _env ->
       match args with
       | [v] -> VBool (pred v)
-      | _ -> Error.arity_error_named name ~expected:1 ~received:(List.length args))) env
+      | _ -> Error.arity_error_named name 1 (List.length args))) env
   in
   let env = add_simple_parser env "ymd" `YMD in
   let env = add_simple_parser env "mdy" `MDY in
@@ -843,8 +843,7 @@ let register env =
              Error.type_error
                "Function `parse_date` expects (String, String) or (Vector[String], String)."
          | _ ->
-             Error.arity_error_named "parse_date" ~expected:2
-               ~received:(List.length args)))
+             Error.arity_error_named "parse_date" 2 (List.length args)))
       env
   in
   let env = Env.add "parse_datetime" (make_builtin_named ~name:"parse_datetime" ~variadic:true 2 (fun named_args _env ->
@@ -856,7 +855,7 @@ let register env =
          | [VVector arr; VString fmt] ->
              VVector (Array.map (parse_datetime_vector_value tz fmt) arr)
          | [_; _] -> Error.type_error "Function `parse_datetime` expects (String, String) or (Vector[String], String)."
-         | values -> Error.arity_error_named "parse_datetime" ~expected:2 ~received:(List.length values)))) env in
+         | values -> Error.arity_error_named "parse_datetime" 2 (List.length values)))) env in
   let env = Env.add "today" (make_builtin ~name:"today" 0 (fun _args _env -> current_date_value ())) env in
   let env = Env.add "now" (make_builtin_named ~name:"now" ~variadic:true 0 (fun named_args _env ->
     match string_named_arg "tz" None named_args with
@@ -869,7 +868,7 @@ let register env =
     | Ok label ->
         (match positional_args named_args with
          | [v] -> scalar_component "month" (month_value label) v
-         | values -> Error.arity_error_named "month" ~expected:1 ~received:(List.length values)))) env in
+         | values -> Error.arity_error_named "month" 1 (List.length values)))) env in
   let env = Env.add "day" (scalar_date_component "day" (simple_component (fun (_, _, d) -> d))) env in
   let env = Env.add "mday" (scalar_date_component "mday" (simple_component (fun (_, _, d) -> d))) env in
   let env =
@@ -902,7 +901,7 @@ let register env =
         in
         (match positional_args named_args with
          | [v] -> scalar_component "wday" fn v
-         | values -> Error.arity_error_named "wday" ~expected:1 ~received:(List.length values))
+         | values -> Error.arity_error_named "wday" 1 (List.length values))
     | Error err, _ | _, Error err -> err)) env in
   let week_component value =
     match value with
@@ -1037,7 +1036,7 @@ let register env =
         match args with
         | [VPeriod p] -> VInt (getter p)
         | [_] -> Error.type_error (Printf.sprintf "Function `%s` expects a Period." name)
-        | _ -> Error.arity_error_named name ~expected:1 ~received:(List.length args))) env
+        | _ -> Error.arity_error_named name 1 (List.length args))) env
     ) env [
       ("period_years", (fun p -> p.p_years));
       ("period_months", (fun p -> p.p_months));
@@ -1052,13 +1051,13 @@ let register env =
     | [VDate days; VString fmt] -> VString (format_datetime_value (Int64.mul (Int64.of_int days) micros_per_day) None fmt)
     | [VDatetime (micros, tz); VString fmt] -> VString (format_datetime_value micros tz fmt)
     | [_; _] -> Error.type_error "Function `format_date` expects (Date, String)."
-    | _ -> Error.arity_error_named "format_date" ~expected:2 ~received:(List.length args))) env in
+    | _ -> Error.arity_error_named "format_date" 2 (List.length args))) env in
   let env = Env.add "format_datetime" (make_builtin ~name:"format_datetime" 2 (fun args _env ->
     match args with
     | [VDate days; VString fmt] -> VString (format_datetime_value (Int64.mul (Int64.of_int days) micros_per_day) None fmt)
     | [VDatetime (micros, tz); VString fmt] -> VString (format_datetime_value micros tz fmt)
     | [_; _] -> Error.type_error "Function `format_datetime` expects (Date|Datetime, String)."
-    | _ -> Error.arity_error_named "format_datetime" ~expected:2 ~received:(List.length args))) env in
+    | _ -> Error.arity_error_named "format_datetime" 2 (List.length args))) env in
   let env = Env.add "as_date" (make_builtin_named ~name:"as_date" ~variadic:true 1 (fun named_args _env ->
     let origin =
       match string_named_arg "origin" None named_args with
@@ -1080,7 +1079,7 @@ let register env =
          | [VFloat f] -> VDate (origin_days + int_of_float f)
          | [VNA _] -> VNA NAGeneric
          | [_] -> Error.type_error "Function `as_date` expects a String, Date, Datetime, Int, or Float."
-         | values -> Error.arity_error_named "as_date" ~expected:1 ~received:(List.length values)))) env in
+         | values -> Error.arity_error_named "as_date" 1 (List.length values)))) env in
   let env = Env.add "as_datetime" (make_builtin_named ~name:"as_datetime" ~variadic:true 1 (fun named_args _env ->
     let origin =
       match string_named_arg "origin" None named_args with
@@ -1115,7 +1114,7 @@ let register env =
                tz)
          | [VNA _] -> VNA NAGeneric
          | [_] -> Error.type_error "Function `as_datetime` expects a String, Date, Datetime, Int, or Float."
-         | values -> Error.arity_error_named "as_datetime" ~expected:1 ~received:(List.length values)))) env in
+         | values -> Error.arity_error_named "as_datetime" 1 (List.length values)))) env in
   let env = add_predicate env "is_date" (function VDate _ -> true | _ -> false) in
   let env = add_predicate env "is_datetime" (function VDatetime _ -> true | _ -> false) in
   let env = add_predicate env "is_period" (function VPeriod _ -> true | _ -> false) in

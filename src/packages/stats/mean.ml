@@ -98,6 +98,6 @@ let register env =
                VFloat (sum /. float_of_int (Array.length nums)))
       | Some (VNA _) -> Error.type_error "Function `mean` encountered NA value. Handle missingness explicitly."
       | Some _ -> Error.type_error "Function `mean` expects a numeric List or Vector."
-      | None -> Error.arity_error_named "mean" ~expected:1 ~received:(List.length args)
+      | None -> Error.arity_error_named "mean" 1 (List.length args)
     ))
     env

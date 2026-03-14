@@ -100,6 +100,6 @@ let register env =
                 | Ok nums -> compute_quantile nums p))
       | [VNA _; _] | [_; VNA _] -> Error.type_error "Function `quantile` encountered NA value. Handle missingness explicitly."
       | [_; _] -> Error.type_error "Function `quantile` expects a numeric List or Vector as first argument."
-      | _ -> Error.arity_error_named "quantile" ~expected:2 ~received:(List.length args)
+      | _ -> Error.arity_error_named "quantile" 2 (List.length args)
     ))
     env

@@ -44,7 +44,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
                 let class_path = Filename.concat node_path "class" in
                 let class_val = match read_file_first_line class_path with Some c -> c | None -> "Unknown" in
                 let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
-                let serializer_expr = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.Var "default" in
+                let serializer_expr = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
                 let serializer = Nix_unparse.expr_to_string serializer_expr in
                 let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
                 Serialization.json_dict [

@@ -31,7 +31,7 @@ let map_numeric_unary ~fname f = function
   | [VNDArray arr] -> VNDArray { shape = arr.shape; data = Array.map f arr.data }
   | [VNA _] -> Error.type_error (Printf.sprintf "Function `%s` encountered NA value. Handle missingness explicitly." fname)
   | [_] -> Error.type_error (Printf.sprintf "Function `%s` expects numeric input." fname)
-  | args -> Error.arity_error_named fname ~expected:1 ~received:(List.length args)
+  | args -> Error.arity_error_named fname 1 (List.length args)
 
 let register env =
   Env.add "signif" (make_builtin ~name:"signif" 2 (fun args _env ->
@@ -52,4 +52,4 @@ let register env =
         else
           Error.value_error "Function `signif` expects positive integer digits."
     | [_; _] -> Error.value_error "Function `signif` expects positive integer digits."
-    | _ -> Error.arity_error_named "signif" ~expected:2 ~received:(List.length args))) env
+    | _ -> Error.arity_error_named "signif" 2 (List.length args))) env

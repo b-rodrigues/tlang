@@ -77,4 +77,4 @@ let register env =
              let lq = Option.get (quantile xs lo) in
              let uq = Option.get (quantile xs (1.0 -. hi)) in
              vecf (List.map (fun v -> if v < lq then lq else if v > uq then uq else v) xs))
-    | _ -> Error.arity_error_named "winsorize" ~expected:2 ~received:(List.length args))) env
+    | _ -> Error.arity_error_named "winsorize" 2 (List.length args))) env
