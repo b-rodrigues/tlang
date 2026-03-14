@@ -39,15 +39,15 @@ let read_node ?which_log name =
               then
                 (match Serialization.deserialize_from_file cn.Ast.cn_path with
                 | Ok v -> v
-                | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
               else if cn.Ast.cn_serializer = "json" then
                 (match Serialization.read_json cn.Ast.cn_path with
                  | Ok v -> v
-                 | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read JSON node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                 | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read JSON node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
               else if cn.Ast.cn_serializer = "arrow" then
                 (match Arrow_io.read_ipc cn.Ast.cn_path with
                  | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
-                 | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                 | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
               else if cn.Ast.cn_serializer = "csv" then
                 (try
                   let ch = open_in cn.Ast.cn_path in
@@ -55,10 +55,10 @@ let read_node ?which_log name =
                   close_in ch;
                   T_read_csv.parse_csv_string content
                 with exn ->
-                  Error.make_error FileError (Printf.sprintf "Failed to read CSV node `%s` from `%s`: %s" name cn.Ast.cn_path (Printexc.to_string exn)))
+                  Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read CSV node `%s` from `%s`: %s" name cn.Ast.cn_path (Printexc.to_string exn)))
               else if cn.Ast.cn_serializer = "pmml" then
                 (match Pmml_utils.read_pmml cn.Ast.cn_path with
                  | Ok v -> v
-                 | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                 | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
               else
                 VComputedNode cn)

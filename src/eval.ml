@@ -61,9 +61,13 @@ let pipeline_error_message ~node_name ~detail =
   if String.starts_with ~prefix detail then detail
   else prefix ^ ": " ^ detail
 
-let annotate_pipeline_error node_name = function
+let annotate_pipeline_error ?runtime node_name = function
   | VError err ->
-      VError { err with message = pipeline_error_message ~node_name ~detail:err.message }
+      let context = match runtime with
+        | Some r -> if List.mem_assoc "runtime" err.context then err.context else ("runtime", VString r) :: err.context
+        | None -> err.context
+      in
+      VError { err with message = pipeline_error_message ~node_name ~detail:err.message; context }
   | value -> value
 
 (** Check if an expression uses NSE (contains $field references) *)
@@ -1153,7 +1157,7 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
           ) !env_ref node_deps in
           let cmd = match un.un_command with Value (VExpr e) -> e | e -> e in
           eval_expr (ref env_with_deserialized) cmd
-          |> annotate_pipeline_error name
+          |> annotate_pipeline_error ~runtime:"T" name
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
