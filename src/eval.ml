@@ -1025,7 +1025,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             | _ -> acc
           ) !current_env_ref node_deps in
           eval_expr (ref env_with_deserialized) un.un_command
-          |> annotate_pipeline_error name
+          |> annotate_pipeline_error ~runtime:un.un_runtime name
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
@@ -1192,7 +1192,9 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
                    else
                        "Upstream error: " ^ err.message
                    in
-                   Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg }
+                   let runtime = match List.assoc_opt "runtime" err.context with Some (VString r) -> Some r | _ -> None in
+                  Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg;
+                                        context = (match runtime with Some r -> if List.mem_assoc "runtime" err.context then err.context else ("runtime", VString r) :: err.context | None -> err.context) }
                 | _ -> rerun_eval_or_defer name un current_env_ref)
           | None -> rerun_eval_or_defer name un current_env_ref
         in
