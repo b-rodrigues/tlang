@@ -32,11 +32,11 @@ This document outlines the critical hardening tasks required to transition T fro
 
 ### DAG Integrity
 * [x] **Cycle Detection**: Implement explicit cycle detection in the pipeline builder to provide a clean "Circular Dependency" error instead of a stack overflow.
-* [ ] **Serialization Versioning**: Add a version header to serialized pipeline nodes (`.tcache` or similar). Version 0.5.0 should gracefully reject (or migrate) nodes from older versions.
+* [x] **Serialization Versioning**: Add a version header to serialized pipeline nodes (`.tcache` or similar). Version 0.5.0 should gracefully reject (or migrate) nodes from older versions.
 
 ### Polyglot Shell Nodes
-* [ ] **Escape Handling**: Harden the command generation for `shn` (shell nodes). Ensure that passing complex strings (with quotes, backticks, or newlines) between T, R, and Python nodes does not lead to shell injection or broken scripts.
-* [ ] **Environment Hermeticity**: Ensure that shell nodes derive their environment exclusively from the `tproject.toml` configuration, preventing "it works on my machine" issues.
+* [x] **Escape Handling**: Harden the command generation for `shn` (shell nodes). Ensure that passing complex strings (with quotes, backticks, or newlines) between T, R, and Python nodes does not lead to shell injection or broken scripts.
+* [x] **Environment Hermeticity**: Ensure that shell nodes derive their environment exclusively from the `tproject.toml` configuration, preventing "it works on my machine" issues.
 * [x] **Cross-Runtime Error Propagation**: Enhance `read_node` and `pipeline_run` to capture and surface detailed error messages (including tracebacks) from R, Python, and Shell nodes that fail during Nix builds. Errors should be surfaced as first-class `VError` values, allowing inspection via `explain(p.node_name)`.
 
 
