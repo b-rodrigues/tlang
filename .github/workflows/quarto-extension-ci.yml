@@ -31,15 +31,33 @@ jobs:
       - name: Build T Binary
         run: nix build .#default --accept-flake-config
 
+      - name: Verify Quarto extension version matches core T version
+        run: |
+          CORE_VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' flake.nix | head -n 1)
+          EXT_VERSION=$(grep -oP '^version:\s*\K.*' editors/quarto/tlang/_extensions/tlang/_extension.yml)
+          if [ "$CORE_VERSION" != "$EXT_VERSION" ]; then
+            echo "❌ Error: Quarto extension version ($EXT_VERSION) does not match core T version ($CORE_VERSION)."
+            exit 1
+          fi
+          echo "✅ Quarto extension version matches core T version: $CORE_VERSION"
+
+      - name: Install Lua linter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 luarocks
+          sudo luarocks --lua-version=5.4 install luacheck
+
+      - name: Lint Quarto Lua filter
+        run: luacheck --globals pandoc CodeBlock editors/quarto/tlang/_extensions/tlang/tlang.lua
+
       - name: Render Quarto Document with T Filter
         run: |
           # Create a clean test workspace
           mkdir quarto-test-run
           cd quarto-test-run
           
-          # Initialize the extension structure as documented in README
-          mkdir -p _extensions/tlang
-          cp -r ../editors/quarto/tlang/_extensions/tlang/* _extensions/tlang/
+          # Install the extension using Quarto's native installer
+          quarto add ../editors/quarto/tlang --no-prompt
           
           # Copy the example document
           cp ../editors/quarto/tlang/example.qmd .

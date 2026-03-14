@@ -38,7 +38,13 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
 
 ### Quarto
 
-For literate programming with executable `{t}` chunks, copy `editors/quarto/tlang/_extensions/tlang` into your Quarto project as `_extensions/tlang` and enable the `tlang` filter in your document front matter:
+For literate programming with executable `{t}` chunks, install the extension from your Quarto project with:
+
+```bash
+quarto add /path/to/tlang/editors/quarto/tlang
+```
+
+Then enable the `tlang` filter in your document front matter:
 
 ```yaml
 ---

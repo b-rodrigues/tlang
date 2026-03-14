@@ -18,11 +18,10 @@ This is intentionally minimal. It is meant for literate programming and console-
 
 ## Install into a Quarto project
 
-From your Quarto project root:
+From your Quarto project root, install the extension with Quarto's native extension command:
 
 ```bash
-mkdir -p _extensions/tlang
-cp -R /path/to/tlang/editors/quarto/tlang/_extensions/tlang/* _extensions/tlang/
+quarto add /path/to/tlang/editors/quarto/tlang
 ```
 
 Make sure the `t` executable is available on your `PATH` when Quarto renders the document. If you need a specific binary, set `TLANG_BIN` before rendering:
