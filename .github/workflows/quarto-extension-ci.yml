@@ -33,8 +33,8 @@ jobs:
 
       - name: Verify Quarto extension version matches core T version
         run: |
-          CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' flake.nix | head -n 1)
-          EXT_VERSION=$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' editors/quarto/tlang/_extensions/tlang/_extension.yml | head -n 1)
+          CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' flake.nix | head -n 1 | xargs)
+          EXT_VERSION=$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' editors/quarto/tlang/_extensions/tlang/_extension.yml | head -n 1 | xargs)
           if [ "$CORE_VERSION" != "$EXT_VERSION" ]; then
             echo "❌ Error: Quarto extension version ($EXT_VERSION) does not match core T version ($CORE_VERSION)."
             exit 1
@@ -57,7 +57,7 @@ jobs:
           TLANG_FLAKE_URL: git+file://${{ github.workspace }}
         run: |
           REPO_ROOT=$(pwd)
-          CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' "$REPO_ROOT/flake.nix" | head -n 1)
+          CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' "$REPO_ROOT/flake.nix" | head -n 1 | xargs)
           TLANG_BIN="$REPO_ROOT/result/bin/t"
           export TLANG_BIN
 
@@ -96,7 +96,7 @@ EOF
           cp "$REPO_ROOT/editors/quarto/tlang/example.qmd" .
 
           # Enter the project shell to provision the Quarto extension, then render.
-          nix develop --accept-flake-config --command bash -lc '
+          nix develop --accept-flake-config --command bash -c '
             test -f _extensions/tlang/_extension.yml
             if [ -L _extensions/tlang ]; then
               target=$(readlink _extensions/tlang)
