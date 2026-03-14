@@ -11,8 +11,8 @@ This document outlines the critical hardening tasks required to transition T fro
 * [x] **Pipeline Debugging**: When a pipeline node fails, the error message must include the node name. (Implemented prefixes for interpreter re-runs).
 
 ### REPL & CLI Stability
-* [ ] **Signal Handling**: Hardened Ctrl+C handling. Interrupting a long-running T expression should return to the prompt without leaking OCaml exceptions or corrupting the global state.
-* [ ] **CLI Argument Parsing**: Audit all CLI entry points (`run`, `init`, `test`) for robust error handling when passed malformed paths or conflicting flags.
+* [x] **Signal Handling**: Hardened Ctrl+C handling. Interrupting a long-running T expression should return to the prompt without leaking OCaml exceptions or corrupting the global state.
+* [x] **CLI Argument Parsing**: Audit all CLI entry points (`run`, `init`, `test`) for robust error handling when passed malformed paths or conflicting flags.
 
 ---
 

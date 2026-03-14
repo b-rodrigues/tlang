@@ -509,16 +509,17 @@ let cmd_repl mode env =
   flush stdout;
   let rec repl env =
     let prompt = "T> " in
-    match LNoise.linenoise prompt with
-    | None ->
-        print_endline "\nGoodbye."
-    | Some line ->
-        let trimmed = String.trim line in
-        if trimmed = "" then repl env
-        else begin
-          if trimmed = ":quit" || trimmed = ":q" then
-            print_endline "Exiting T REPL."
-          else if trimmed = ":help" || trimmed = ":h" then begin
+    try
+      match LNoise.linenoise prompt with
+      | None ->
+          print_endline "\nGoodbye."
+      | Some line ->
+          let trimmed = String.trim line in
+          if trimmed = "" then repl env
+          else begin
+            if trimmed = ":quit" || trimmed = ":q" then
+              print_endline "Exiting T REPL."
+            else if trimmed = ":help" || trimmed = ":h" then begin
             Printf.printf "T language REPL commands:\n";
             Printf.printf "  :quit, :q     Exit the REPL\n";
             Printf.printf "  :help, :h     Show this help message\n";
@@ -541,49 +542,53 @@ let cmd_repl mode env =
             Printf.printf "  Expressions with unclosed (, [, { or trailing |> automatically continue on the next line.\n\n";
             flush stdout;
             repl env
-          end
-          else if trimmed = ":version" then begin
+            end
+            else if trimmed = ":version" then begin
             Printf.printf "T language version %s\n" version;
             flush stdout;
             repl env
-          end
-          else if trimmed = ":packages" then begin
+            end
+            else if trimmed = ":packages" then begin
             List.iter (fun (pkg : Packages.package_info) ->
               Printf.printf "  %-12s  %s\n" pkg.name pkg.description
             ) Packages.all_packages;
             print_newline ();
             flush stdout;
             repl env
-          end
-          else if String.length trimmed > 0 && trimmed.[0] = '%' then begin
+            end
+            else if String.length trimmed > 0 && trimmed.[0] = '%' then begin
             let (new_env, handled) = handle_magic trimmed env mode base_keys in
             if handled then (
               ignore (LNoise.history_add line);
               ignore (LNoise.history_save ~filename:history_file);
               repl new_env
             ) else repl env
-          end
-          else begin
+            end
+            else begin
             (* Multi-line input: accumulate lines while expression is incomplete *)
             let rec read_multiline acc =
               let combined = acc in
               if is_incomplete combined then begin
-                match LNoise.linenoise ".. " with
-                | None ->
-                    combined  (* Return what we have *)
-                | Some next_line ->
-                    (* If the previous line ends with |> or ?|>, move it to the start of
-                       the next line so the lexer recognizes the continuation *)
-                    let trimmed_acc = String.trim combined in
-                    let len = String.length trimmed_acc in
-                    if len >= 3 && String.sub trimmed_acc (len - 3) 3 = "?|>" then
-                      let prefix = String.sub combined 0 (String.length combined - 3) in
-                      read_multiline (String.trim prefix ^ "\n  ?|> " ^ next_line)
-                    else if len >= 2 && String.sub trimmed_acc (len - 2) 2 = "|>" then
-                      let prefix = String.sub combined 0 (String.length combined - 2) in
-                      read_multiline (String.trim prefix ^ "\n  |> " ^ next_line)
-                    else
-                      read_multiline (combined ^ "\n" ^ next_line)
+                try
+                  match LNoise.linenoise ".. " with
+                  | None ->
+                      combined  (* Return what we have *)
+                  | Some next_line ->
+                      (* If the previous line ends with |> or ?|>, move it to the start of
+                         the next line so the lexer recognizes the continuation *)
+                      let trimmed_acc = String.trim combined in
+                      let len = String.length trimmed_acc in
+                      if len >= 3 && String.sub trimmed_acc (len - 3) 3 = "?|>" then
+                        let prefix = String.sub combined 0 (String.length combined - 3) in
+                        read_multiline (String.trim prefix ^ "\n  ?|> " ^ next_line)
+                      else if len >= 2 && String.sub trimmed_acc (len - 2) 2 = "|>" then
+                        let prefix = String.sub combined 0 (String.length combined - 2) in
+                        read_multiline (String.trim prefix ^ "\n  |> " ^ next_line)
+                      else
+                        read_multiline (combined ^ "\n" ^ next_line)
+                with
+                | Sys.Break ->
+                    raise Sys.Break
               end else
                 combined
             in
@@ -594,8 +599,12 @@ let cmd_repl mode env =
             Symbol_table.populate_from_env scope new_env;
             repl_display_value result;
             repl new_env
+            end
           end
-        end
+    with
+    | Sys.Break ->
+        print_endline "Interrupted.";
+        repl env
   in
   repl env
 
@@ -604,20 +613,16 @@ let cmd_repl mode env =
 let () =
   Sys.catch_break true;
   let raw_args = Array.to_list Sys.argv in
-  let rec extract_mode acc = function
-    | [] -> (List.rev acc, Typecheck.Repl)
-    | "--mode" :: [] ->
-        Printf.eprintf "Missing value for --mode. Use --mode repl|strict\n";
-        exit 1
-    | "--mode" :: m :: rest ->
-        (match Typecheck.mode_of_string m with
-         | Some mode -> (List.rev_append acc rest, mode)
-         | None ->
-             Printf.eprintf "Invalid mode '%s'. Use --mode repl|strict\n" m;
-             exit 1)
-    | x :: xs -> extract_mode (x :: acc) xs
+  let mode_parse =
+    match Cli_args.parse_mode_args raw_args with
+    | Ok parsed -> parsed
+    | Error msg -> Printf.eprintf "%s\n" msg; exit 1
   in
-  let args, mode = extract_mode [] raw_args in
+  let unsafe = List.mem "--unsafe" raw_args in
+  let args = if unsafe then List.filter (fun s -> s <> "--unsafe") mode_parse.args else mode_parse.args in
+  (match Cli_args.validate_cli_flags ~mode_flag:mode_parse.mode_flag ~unsafe_flag:unsafe args with
+   | Ok () -> ()
+   | Error msg -> exit_with_error msg);
   let env = Packages.init_env () in
   (* Register interactive CLI wrappers — must be here (not in packages.ml)
      to avoid dependency cycles with Test_discovery *)
@@ -645,7 +650,7 @@ let () =
               let content = really_input_string ch (in_channel_length ch) in
               close_in ch;
               let lexbuf = Lexing.from_string content in
-              (try
+               (try
                 let program = Parser.program Lexer.token lexbuf in
                 let (v, new_env) = Eval.eval_program program !env_ref in
                 (match v with
@@ -659,7 +664,9 @@ let () =
                    make_located_error ~file:filename Ast.SyntaxError ("Syntax error in '" ^ filename ^ "': " ^ msg) pos
                | Parser.Error ->
                    let pos = Lexing.lexeme_start_p lexbuf in
-                   make_located_error ~file:filename Ast.SyntaxError (Printf.sprintf "Parse error in '%s'" filename) pos)
+                   make_located_error ~file:filename Ast.SyntaxError (Printf.sprintf "Parse error in '%s'" filename) pos
+               | Sys.Break ->
+                   interrupt_error ())
              with
              | Sys_error msg ->
                  Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_run failed: %s" msg; context = []; location = None })
@@ -765,9 +772,6 @@ let () =
     env
   in
 
-  (* Extract --unsafe flag *)
-  let unsafe = List.mem "--unsafe" raw_args in
-  let args = if unsafe then List.filter (fun s -> s <> "--unsafe") args else args in
   match args with
   | _ :: "run" :: [] ->
       Printf.eprintf "Usage: t run <file.t> | t run --expr <expr>\n";
@@ -776,20 +780,20 @@ let () =
       Printf.eprintf "Missing expression after --expr.\n";
       exit 1
   | _ :: "run" :: "--expr" :: expr :: [] ->
-      let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       cmd_run_expr script_mode expr env
   | _ :: "run" :: "--expr" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
       exit 1
   | _ :: "run" :: filename :: [] ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
-      let script_mode = if mode = Typecheck.Repl && not (List.mem "--mode" raw_args) then Typecheck.Strict else mode in
+      let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       cmd_run ~unsafe script_mode filename env
   | _ :: "run" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
       exit 1
-  | _ :: "repl" :: _ -> cmd_repl mode env
-  | _ :: "explain" :: rest -> cmd_explain mode rest env
+  | _ :: "repl" :: _ -> cmd_repl mode_parse.mode env
+  | _ :: "explain" :: rest -> cmd_explain mode_parse.mode rest env
   | _ :: "init" :: "package" :: rest -> cmd_init_package rest
   | _ :: "init" :: "project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
@@ -807,9 +811,9 @@ let () =
   | _ :: "--version" :: _ | _ :: "-v" :: _ -> print_version ()
   | [_] ->
       (* No arguments: start the REPL (default behavior) *)
-      cmd_repl mode env
+      cmd_repl mode_parse.mode env
   | _ :: unknown :: _ ->
       Printf.eprintf "Unknown command: %s\n" unknown;
       Printf.eprintf "Run 't --help' for usage information.\n";
       exit 1
-  | [] -> cmd_repl mode env
+  | [] -> cmd_repl mode_parse.mode env

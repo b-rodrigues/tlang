@@ -7,6 +7,12 @@ type test_options = {
   target_dir : string;
 }
 
+type mode_parse = {
+  args : string list;
+  mode : Typecheck.mode;
+  mode_flag : bool;
+}
+
 let validate_path ~kind path =
   let kind_name = function
     | File -> "File"
@@ -27,6 +33,60 @@ let validate_path ~kind path =
       | _ -> Ok ()
   with
   | Sys_error msg -> Error msg
+
+let parse_mode_args (args : string list) : (mode_parse, string) result =
+  let rec extract acc mode seen = function
+    | [] ->
+        Ok {
+          args = List.rev acc;
+          mode;
+          mode_flag = seen;
+        }
+    | "--mode" :: [] ->
+        Error "Missing value for --mode. Use --mode repl|strict"
+    | "--mode" :: m :: rest ->
+        if seen then
+          Error "Duplicate --mode flag. Use --mode repl|strict only once."
+        else
+          (match Typecheck.mode_of_string m with
+           | Some mode' -> extract acc mode' true rest
+           | None ->
+               Error (Printf.sprintf "Invalid mode '%s'. Use --mode repl|strict" m))
+    | x :: xs -> extract (x :: acc) mode seen xs
+  in
+  extract [] Typecheck.Repl false args
+
+let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, string) result =
+  let command =
+    match args with
+    | _ :: cmd :: _ -> Some cmd
+    | [] | [_] -> None
+  in
+  let run_expr =
+    match args with
+    | _ :: "run" :: "--expr" :: _ -> true
+    | _ -> false
+  in
+  let mode_allowed =
+    match command with
+    | None
+    | Some "repl"
+    | Some "run"
+    | Some "explain"
+    | Some "--help"
+    | Some "-h"
+    | Some "--version"
+    | Some "-v" -> true
+    | _ -> false
+  in
+  if unsafe_flag && command <> Some "run" then
+    Error "--unsafe is only valid with `t run <file.t>`."
+  else if unsafe_flag && run_expr then
+    Error "--unsafe cannot be used with `t run --expr`."
+  else if mode_flag && not mode_allowed then
+    Error "--mode only applies to repl/run/explain."
+  else
+    Ok ()
 
 let parse_test_args ~cwd (args : string list) : (test_options, string) result =
   let verbose = ref false in
