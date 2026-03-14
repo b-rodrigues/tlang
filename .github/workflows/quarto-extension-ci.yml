@@ -1,0 +1,88 @@
+name: Quarto Extension CI
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+
+jobs:
+  test-quarto-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v13
+        with:
+          name: rstats-on-nix
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+      - name: Build T Binary
+        run: nix build .#default --accept-flake-config
+
+      - name: Setup Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Render Quarto Document with T Filter
+        run: |
+          # Create a clean test workspace
+          mkdir quarto-test-run
+          cd quarto-test-run
+          
+          # Initialize the extension structure as documented in README
+          mkdir -p _extensions/tlang
+          cp -r ../editors/quarto/tlang/_extensions/tlang/* _extensions/tlang/
+          
+          # Copy the example document
+          cp ../editors/quarto/tlang/example.qmd .
+          
+          # Point the filter to the locally built T binary
+          export TLANG_BIN=$(readlink -f ../result/bin/t)
+          
+          # Render!
+          quarto render example.qmd
+          
+          # Verify HTML generation
+          if [ ! -f example.html ]; then
+            echo "❌ Error: example.html was not generated."
+            exit 1
+          fi
+          
+          # Verify correct execution of T chunks
+          # The document contains mean([1, 2, 3, 4]) which should output 2.5
+          if grep -q "2.5" example.html; then
+            echo "✅ Success: Found expected output '2.5' in rendered document."
+          else
+            echo "❌ Error: Expected output '2.5' not found in example.html."
+            # Debug: show some output
+            grep -C 5 "mean" example.html || head -n 100 example.html
+            exit 1
+          fi
+          
+          # Verify that echo: false worked
+          # The summary chunk has #| echo: false, so "summary =" shouldn't be in the HTML (as code)
+          # but the value "This chunk still runs" should be.
+          if grep -q "This chunk still runs" example.html; then
+            echo "✅ Success: Found output from hidden chunk."
+          else
+            echo "❌ Error: Output from hidden chunk not found."
+            exit 1
+          fi
+
+      - name: Upload Rendered Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarto-rendered-example
+          path: quarto-test-run/example.html
