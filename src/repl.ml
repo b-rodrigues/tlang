@@ -780,7 +780,7 @@ let () =
   | _ :: "run" :: "--expr" :: [] ->
       Printf.eprintf "Missing expression after --expr.\n";
       exit 1
-  | _ :: "run" :: "--expr" :: _ :: _ :: _ ->
+  | _ :: "run" :: "--expr" :: _ :: _ ->
       Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
       exit 1
   | _ :: "run" :: "--expr" :: expr :: [] ->
