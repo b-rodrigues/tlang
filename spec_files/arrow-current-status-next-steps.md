@@ -159,8 +159,6 @@ The code also shows some areas that are either incomplete or intentionally const
   - `Arrow_table.DatetimeColumn` exists and `Arrow_io.build_column` can parse timestamps,
   - but `Arrow_table.is_arrow_table_new_supported` still rejects `DatetimeColumn`,
   - and the Arrow type-tag mapping does not currently expose a dedicated timestamp tag in the same way it does for date/dictionary/list.
-- **Null-only native rebuild**
-  - `NullColumn` still falls back rather than rebuilding natively.
 - **List columns**
   - native support exists, but only for list-of-struct shapes whose sub-fields are primitive supported types and whose nested tables share a schema.
 - **CSV path consistency**

@@ -1902,6 +1902,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "write_arrow/read_arrow round-trip"
   end;
 
+  if Sys.file_exists null_ipc_path then Sys.remove null_ipc_path;
+  if Sys.file_exists list_ipc_path then Sys.remove list_ipc_path;
+  if Sys.file_exists dict_ipc_path then Sys.remove dict_ipc_path;
+  if Sys.file_exists ipc_path then Sys.remove ipc_path;
+
   print_newline ();
   Printf.printf "Arrow Integration — Parquet Reading:\n";
 

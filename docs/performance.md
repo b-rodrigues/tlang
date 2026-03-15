@@ -39,8 +39,8 @@ explain(df2).storage_backend     -- often still "native_arrow" for supported sch
 explain(df2).native_path_active  -- true when native backing was preserved
 
 df3 = dataframe([[missing: NA], [missing: NA]])
-explain(df3).storage_backend     -- "pure_ocaml" for unsupported native builders
-explain(df3).native_path_active  -- false
+explain(df3).storage_backend     -- "native_arrow" for null-only schemas
+explain(df3).native_path_active  -- true
 ```
 
 This is the quickest way to understand whether a pipeline is still on the fast Arrow path or has already materialized into OCaml/T-managed arrays.

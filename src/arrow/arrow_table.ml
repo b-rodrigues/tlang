@@ -385,8 +385,8 @@ let is_primitive_tag_supported = function
   | _ -> false
 
 (** Column builders currently supported by Arrow_ffi.arrow_table_new.
-    Primitive columns, dictionary columns, and list-of-struct columns with
-    all-primitive fields are supported. *)
+    Primitive columns, null-only columns, dictionary columns, and
+    list-of-struct columns with all-primitive fields are supported. *)
 let is_arrow_table_new_supported = function
   | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DateColumn _ | NullColumn _ | DictionaryColumn _ -> true
   | ListColumn a ->
