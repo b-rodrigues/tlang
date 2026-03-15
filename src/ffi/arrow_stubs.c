@@ -3653,7 +3653,8 @@ CAMLprim value caml_arrow_write_ipc(value v_ptr, value v_path) {
 }
 /* Create a native Arrow table from a list of (name, type_tag, timezone, array)
    tuples.
-   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String, 7=Date, 8=Timestamp.
+   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String, 4=Dictionary,
+             5=List, 6=Null, 7=Date, 8=Timestamp.
    array is an OCaml option array (None = null, Some x = value). */
 CAMLprim value caml_arrow_table_new(value v_cols) {
   CAMLparam1(v_cols);
