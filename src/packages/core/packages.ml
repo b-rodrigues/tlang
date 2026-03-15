@@ -247,7 +247,6 @@ let register env =
     ))
     env
   in
-  
   (* Helper to keep named args *)
   let make_builtin_named ?name ?(variadic=false) arity func =
     VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
@@ -336,7 +335,10 @@ let register env =
 *)
   let env = Env.add "expr"
     (make_builtin ~name:"expr" 1 (fun args _env ->
+      (* Evaluator special form handles the actual capture. 
+         This builtin is for reflection/environment presence. *)
       match args with
+      | [VExpr _ as e] -> e
       | [v] -> VExpr (Ast.mk_expr (Value v))
       | _ -> Error.arity_error_named "expr" 1 (List.length args)
     ))
@@ -344,10 +346,6 @@ let register env =
   in
 
 (*
---# Capture multiple expressions
---#
---# Captures one or more expressions as a List of Expr values.
---# Useful for metaprogramming and non-standard evaluation.
 --#
 --# @name exprs
 --# @param ... :: Any One or more expressions to capture.
@@ -359,7 +357,11 @@ let register env =
 *)
   let env = Env.add "exprs"
     (make_builtin_named ~name:"exprs" ~variadic:true 0 (fun args _env ->
-      VList (List.map (fun (name, v) -> (name, VExpr (Ast.mk_expr (Value v)))) args)
+      VList (List.map (fun (name, v) -> 
+        match v with
+        | VExpr _ -> (name, v)
+        | _ -> (name, VExpr (Ast.mk_expr (Value v)))
+      ) args)
     ))
     env
   in
@@ -383,6 +385,15 @@ let register env =
 --# @family core
 --# @export
 *)
+  let env = Env.add "quo"
+    (make_builtin ~name:"quo" 1 (fun args _env ->
+      match args with
+      | [VQuo _ as q] -> q
+      | [v] -> VQuo { q_expr = Ast.mk_expr (Value v); q_env = Env.empty }
+      | _ -> Error.arity_error_named "quo" 1 (List.length args)
+    ))
+    env
+  in
 
 (*
 --# Capture multiple expressions with their lexical environment (quosures)
@@ -401,6 +412,16 @@ let register env =
 --# @family core
 --# @export
 *)
+  let env = Env.add "quos"
+    (make_builtin_named ~name:"quos" ~variadic:true 0 (fun args _env ->
+      VList (List.map (fun (name, v) -> 
+        match v with
+        | VQuo _ -> (name, v)
+        | _ -> (name, VQuo { q_expr = Ast.mk_expr (Value v); q_env = Env.empty })
+      ) args)
+    ))
+    env
+  in
 
 (*
 --# Capture a function argument's expression (non-standard evaluation)
@@ -421,6 +442,12 @@ let register env =
 --# @family core
 --# @export
 *)
+  let env = Env.add "enquo"
+    (make_builtin ~name:"enquo" 1 (fun _ _ ->
+      Error.make_error GenericError "enquo() must be called inside a T function body."
+    ))
+    env
+  in
 
 (*
 --# Capture variadic argument expressions (non-standard evaluation)
@@ -441,6 +468,12 @@ let register env =
 --# @family core
 --# @export
 *)
+  let env = Env.add "enquos"
+    (make_builtin_named ~name:"enquos" ~variadic:true 0 (fun _ _ -> 
+      Error.make_error GenericError "enquos() must be called inside a T function body."
+    ))
+    env
+  in
 
 (*
 --# Get function body
