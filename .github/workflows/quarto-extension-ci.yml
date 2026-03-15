@@ -77,26 +77,26 @@ jobs:
           cd quarto_extension_test
 
           cat > tproject.toml <<EOF
-[project]
-name = "quarto_extension_test"
-description = "Validate auto-provisioned Quarto extension"
-
-[r-dependencies]
-packages = []
-
-[py-dependencies]
-version = "python314"
-packages = []
-
-[additional-tools]
-packages = ["quarto"]
-
-[latex]
-packages = []
-
-[t]
-min_version = "$CORE_VERSION"
-EOF
+          [project]
+          name = "quarto_extension_test"
+          description = "Validate auto-provisioned Quarto extension"
+          
+          [r-dependencies]
+          packages = []
+          
+          [py-dependencies]
+          version = "python314"
+          packages = []
+          
+          [additional-tools]
+          packages = ["quarto"]
+          
+          [latex]
+          packages = []
+          
+          [t]
+          min_version = "$CORE_VERSION"
+          EOF
 
           "$TLANG_BIN" update
 
