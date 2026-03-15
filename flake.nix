@@ -247,6 +247,7 @@
             echo "  dune test            - Run tests"
             echo "  dune clean           - Clean build artifacts"
             echo "  R                    - Launch R console"
+            echo "  actionlint           - Lint GitHub Actions workflows"
             echo ""
             echo "Golden tests:"
             echo "  Rscript tests/golden/generate_datasets.R       - Generate test data"
