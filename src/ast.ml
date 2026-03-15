@@ -187,7 +187,7 @@ and value =
   | VNode of unbuilt_node
   | VExpr of expr
   (* Quosure: expression captured with its lexical environment (like rlang::quo) *)
-  | VQuo of { q_expr: expr; q_env: environment }
+  | VQuo of { q_expr: expr; q_env: value Env.t }
   (* Shell escape result *)
   | VShellResult of shell_result
   (* Metaprogramming intermediate values *)
@@ -195,7 +195,7 @@ and value =
   | VUnquoteSplice of value
   | VDynamicArg of string * value
   (* Internal: environment as a first-class value, used by __q_caller_env__ *)
-  | VEnv of environment
+  | VEnv of value Env.t
 
 
 
