@@ -207,7 +207,7 @@ let group_by df keys =
 
 ### Known Gaps
 
-From `hardening-alpha.md`, several edge cases need testing:
+From `archive/hardening-alpha.md`, several edge cases need testing:
 
 #### 1. Grouped Operations Edge Cases
 

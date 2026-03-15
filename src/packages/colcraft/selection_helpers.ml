@@ -199,6 +199,117 @@ let where_impl args _env =
   | [_] -> Error.type_error "Function `where` expects a builtin predicate function."
   | _ -> Error.arity_error_named "where" 1 (List.length args)
 
+(*
+--# Match columns by prefix
+--#
+--# Selection helper that returns columns whose names start with the supplied prefix.
+--# When called with two arguments, it falls back to the string predicate of the same name.
+--#
+--# @name starts_with
+--# @family colcraft
+--# @export
+*)
+(*
+--# Match columns by suffix
+--#
+--# Selection helper that returns columns whose names end with the supplied suffix.
+--# When called with two arguments, it falls back to the string predicate of the same name.
+--#
+--# @name ends_with
+--# @family colcraft
+--# @export
+*)
+(*
+--# Match columns by substring
+--#
+--# Selection helper that returns columns whose names contain the supplied substring.
+--# When called with two arguments, it falls back to the string predicate of the same name.
+--#
+--# @name contains
+--# @family colcraft
+--# @export
+*)
+(*
+--# Select every column
+--#
+--# Selection helper that returns every column name from a DataFrame.
+--#
+--# @name everything
+--# @family colcraft
+--# @export
+*)
+(*
+--# Select columns by predicate
+--#
+--# Selection helper that keeps columns for which a predicate function returns true.
+--#
+--# @name where
+--# @family colcraft
+--# @export
+*)
+(*
+--# Match columns by regex
+--#
+--# Selection helper that returns columns whose names match a regular expression.
+--#
+--# @name matches
+--# @family colcraft
+--# @export
+*)
+(*
+--# Select an explicit set of columns
+--#
+--# Selection helper that returns the supplied column names and errors if names are malformed.
+--#
+--# @name all_of
+--# @family colcraft
+--# @export
+*)
+(*
+--# Select columns that exist
+--#
+--# Selection helper that keeps the supplied column names when they are present.
+--#
+--# @name any_of
+--# @family colcraft
+--# @export
+*)
+(*
+--# Check for numeric columns
+--#
+--# Predicate helper for numeric columns or numeric vectors.
+--#
+--# @name is_numeric
+--# @family colcraft
+--# @export
+*)
+(*
+--# Check for character columns
+--#
+--# Predicate helper for string columns or string vectors.
+--#
+--# @name is_character
+--# @family colcraft
+--# @export
+*)
+(*
+--# Check for logical columns
+--#
+--# Predicate helper for boolean columns or boolean vectors.
+--#
+--# @name is_logical
+--# @family colcraft
+--# @export
+*)
+(*
+--# Check for factor columns
+--#
+--# Predicate helper for factor columns or factor vectors.
+--#
+--# @name is_factor
+--# @family colcraft
+--# @export
+*)
 let register env =
   let env = Env.add "starts_with" (make_builtin ~name:"starts_with" ~variadic:true 1 starts_with_impl) env in
   let env = Env.add "ends_with" (make_builtin ~name:"ends_with" ~variadic:true 1 ends_with_impl) env in

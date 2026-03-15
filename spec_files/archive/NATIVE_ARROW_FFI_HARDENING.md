@@ -6,7 +6,7 @@
 
 ## Overview
 
-Following the recommendations in `spec_files/ALPHA_RELEASE_FINDINGS.md`, we initiated a series of hardening passes on the native Arrow FFI layer and the T-Pipeline integration. These changes were triggered by several critical issues uncovered during end-to-end pipeline Stress tests, particularly related to memory safety (segmentation faults) and the preservation of the "fast path" (native Arrow handles).
+Following the recommendations in `spec_files/archive/ALPHA_RELEASE_FINDINGS.md`, we initiated a series of hardening passes on the native Arrow FFI layer and the T-Pipeline integration. These changes were triggered by several critical issues uncovered during end-to-end pipeline Stress tests, particularly related to memory safety (segmentation faults) and the preservation of the "fast path" (native Arrow handles).
 
 ## 1. Problems Identified
 
@@ -54,7 +54,7 @@ Modified `get_column` to detect the "Empty Table + Missing Chunk" case. If the t
 
 ---
 
-## 3. Comparison to `ALPHA_RELEASE_FINDINGS.md`
+## 3. Comparison to `archive/ALPHA_RELEASE_FINDINGS.md`
 
 The work performed since commit `9a85f864` addresses two major areas identified as Alpha blockers:
 

@@ -332,6 +332,69 @@ let bind_cols_impl args _env =
              in
              VDataFrame { arrow_table = Arrow_bridge.table_from_value_columns columns expected_rows; group_keys = [] })
 
+(*
+--# Join rows from the left table
+--#
+--# Joins two DataFrames and keeps every row from the left-hand side.
+--#
+--# @name left_join
+--# @family colcraft
+--# @export
+*)
+(*
+--# Join matching rows
+--#
+--# Joins two DataFrames and keeps only rows whose keys match in both inputs.
+--#
+--# @name inner_join
+--# @family colcraft
+--# @export
+*)
+(*
+--# Join all rows from both tables
+--#
+--# Joins two DataFrames and keeps rows appearing in either input.
+--#
+--# @name full_join
+--# @family colcraft
+--# @export
+*)
+(*
+--# Filter rows using matches in another table
+--#
+--# Keeps rows from the left DataFrame that have a matching key in the right DataFrame.
+--#
+--# @name semi_join
+--# @family colcraft
+--# @export
+*)
+(*
+--# Filter rows lacking matches
+--#
+--# Keeps rows from the left DataFrame that do not have a matching key in the right DataFrame.
+--#
+--# @name anti_join
+--# @family colcraft
+--# @export
+*)
+(*
+--# Stack DataFrames by rows
+--#
+--# Appends rows from multiple DataFrames into a single DataFrame.
+--#
+--# @name bind_rows
+--# @family colcraft
+--# @export
+*)
+(*
+--# Combine DataFrames by columns
+--#
+--# Combines columns from multiple DataFrames side by side.
+--#
+--# @name bind_cols
+--# @family colcraft
+--# @export
+*)
 let register env =
   let env =
     Env.add "left_join"

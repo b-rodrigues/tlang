@@ -25,5 +25,14 @@ let count_impl (named_args : (string option * value) list) _env =
   | _ :: _ -> Error.type_error "Function `count` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `count` requires a DataFrame."
 
+(*
+--# Count rows by group
+--#
+--# Counts rows in a DataFrame, optionally by selected columns or existing group keys.
+--#
+--# @name count
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "count" (make_builtin_named ~name:"count" ~variadic:true 1 count_impl) env

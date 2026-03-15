@@ -107,5 +107,14 @@ let unnest_impl (named_args : (string option * value) list) _env =
   | _ :: _ -> Error.type_error "Function `unnest` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `unnest` requires a DataFrame."
 
+(*
+--# Expand nested columns
+--#
+--# Expands nested list or DataFrame columns back into regular rows and columns.
+--#
+--# @name unnest
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "unnest" (make_builtin_named ~name:"unnest" ~variadic:true 1 unnest_impl) env

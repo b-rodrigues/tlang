@@ -690,6 +690,168 @@ let fct_c_impl (args : (string option * value) list) _env =
       in
       VVector (Array.of_list factor_values)
 
+(*
+--# Create factor values
+--#
+--# Converts values to factor-encoded vectors with derived or explicit levels.
+--#
+--# @name factor
+--# @family colcraft
+--# @export
+*)
+(*
+--# Coerce values to factors
+--#
+--# Alias for factor() that converts values to factor-encoded vectors.
+--#
+--# @name as_factor
+--# @family colcraft
+--# @export
+*)
+(*
+--# Order factor levels by frequency
+--#
+--# Reorders factor levels so that more frequent levels appear first.
+--#
+--# @name fct_infreq
+--# @family colcraft
+--# @export
+*)
+(*
+--# Get factor levels
+--#
+--# Returns the level labels stored on a factor vector.
+--#
+--# @name levels
+--# @family colcraft
+--# @export
+*)
+(*
+--# Reverse factor levels
+--#
+--# Reverses the order of the levels in a factor vector.
+--#
+--# @name fct_rev
+--# @family colcraft
+--# @export
+*)
+(*
+--# Rename factor levels
+--#
+--# Recodes existing factor levels using named replacements.
+--#
+--# @name fct_recode
+--# @family colcraft
+--# @export
+*)
+(*
+--# Order factor levels by another vector
+--#
+--# Reorders factor levels using summary statistics computed from a companion numeric vector.
+--#
+--# @name fct_reorder
+--# @family colcraft
+--# @export
+*)
+(*
+--# Keep the most frequent factor levels
+--#
+--# Collapses infrequent factor levels into an other bucket while keeping the most frequent levels.
+--#
+--# @name fct_lump_n
+--# @family colcraft
+--# @export
+*)
+(*
+--# Lump factor levels below a minimum count
+--#
+--# Collapses factor levels whose counts fall below a minimum threshold.
+--#
+--# @name fct_lump_min
+--# @family colcraft
+--# @export
+*)
+(*
+--# Lump factor levels below a minimum proportion
+--#
+--# Collapses factor levels whose frequency falls below a proportion threshold.
+--#
+--# @name fct_lump_prop
+--# @family colcraft
+--# @export
+*)
+(*
+--# Create factors in first-seen order
+--#
+--# Creates a factor whose levels follow the first appearance order of the input values.
+--#
+--# @name fct
+--# @family colcraft
+--# @export
+*)
+(*
+--# Move selected levels to the front
+--#
+--# Explicitly reorders a factor by moving named levels ahead of the remaining levels.
+--#
+--# @name fct_relevel
+--# @family colcraft
+--# @export
+*)
+(*
+--# Collapse multiple levels
+--#
+--# Merges several existing factor levels into new grouped levels.
+--#
+--# @name fct_collapse
+--# @family colcraft
+--# @export
+*)
+(*
+--# Replace unlisted levels with Other
+--#
+--# Keeps selected factor levels and maps the rest to an other bucket.
+--#
+--# @name fct_other
+--# @family colcraft
+--# @export
+*)
+(*
+--# Drop unused factor levels
+--#
+--# Removes levels that are not referenced by any value in the factor vector.
+--#
+--# @name fct_drop
+--# @family colcraft
+--# @export
+*)
+(*
+--# Add explicit factor levels
+--#
+--# Adds extra levels to a factor without changing existing assignments.
+--#
+--# @name fct_expand
+--# @family colcraft
+--# @export
+*)
+(*
+--# Concatenate factor vectors
+--#
+--# Combines multiple factor vectors while reconciling their levels.
+--#
+--# @name fct_c
+--# @family colcraft
+--# @export
+*)
+(*
+--# Create ordered factors
+--#
+--# Creates factor vectors marked as ordered for ordinal comparisons.
+--#
+--# @name ordered
+--# @family colcraft
+--# @export
+*)
 let register env =
   let env = Env.add "factor" (make_builtin_named ~name:"factor" ~variadic:true 1 factor_impl) env in
   let env = Env.add "as_factor" (make_builtin_named ~name:"as_factor" ~variadic:true 1 as_factor_impl) env in

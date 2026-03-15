@@ -3,6 +3,21 @@
 
 open Tdoc_types
 
+let percent_encode_for_link (name : string) : string =
+  let buf = Buffer.create (String.length name) in
+  String.iter (fun c ->
+    match c with
+    | 'A' .. 'Z'
+    | 'a' .. 'z'
+    | '0' .. '9'
+    | '-'
+    | '_'
+    | '.'
+    | '~' -> Buffer.add_char buf c
+    | _ -> Printf.bprintf buf "%%%02X" (Char.code c)
+  ) name;
+  Buffer.contents buf
+
 let normalize_named_argument_syntax (line : string) : string =
   let len = String.length line in
   let buf = Buffer.create len in
@@ -81,7 +96,11 @@ let generate_function_doc entry =
   
   if entry.see_also <> [] then begin
     Printf.bprintf buf "## See Also\n\n";
-    let links = List.map (fun s -> Printf.sprintf "[%s](%s.html)" s s) entry.see_also in
+    let links =
+      List.map
+        (fun s -> Printf.sprintf "[%s](%s.html)" s (percent_encode_for_link s))
+        entry.see_also
+    in
     Printf.bprintf buf "%s\n\n" (String.concat ", " links);
   end;
   
@@ -96,7 +115,10 @@ let generate_index entries =
   
   List.iter (fun e ->
     if e.is_export then
-      Printf.bprintf buf "| [%s](%s.html) | %s |\n" e.name e.name e.description_brief
+      Printf.bprintf buf "| [%s](%s.html) | %s |\n"
+        e.name
+        (percent_encode_for_link e.name)
+        e.description_brief
   ) (List.sort (fun a b -> String.compare a.name b.name) entries);
   
   Buffer.contents buf

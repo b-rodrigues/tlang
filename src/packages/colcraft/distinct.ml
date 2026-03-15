@@ -38,5 +38,14 @@ let distinct_impl (named_args : (string option * value) list) _env =
   | _ :: _ -> Error.type_error "Function `distinct` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `distinct` requires a DataFrame."
 
+(*
+--# Keep unique rows
+--#
+--# Returns the distinct rows of a DataFrame, optionally using selected columns as uniqueness keys.
+--#
+--# @name distinct
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "distinct" (make_builtin_named ~name:"distinct" ~variadic:true 1 distinct_impl) env

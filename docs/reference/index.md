@@ -2,15 +2,23 @@
 
 | Function | Description |
 | --- | --- |
+| [%within%](%25within%25.html) | Test interval membership |
 | [abs](abs.html) | Absolute value |
 | [acos](acos.html) | Inverse cosine |
 | [acosh](acosh.html) | Inverse hyperbolic cosine |
 | [add_diagnostics](add_diagnostics.html) | Add Model Diagnostics |
+| [all_of](all_of.html) | Select an explicit set of columns |
+| [am](am.html) | Check whether a time is before noon |
 | [anova](anova.html) | Analysis of Variance (ANOVA) |
+| [anti_join](anti_join.html) | Filter rows lacking matches |
+| [any_of](any_of.html) | Select columns that exist |
 | [apropos](apropos.html) | Search for functions by keyword |
 | [args](args.html) | Get function arguments and their types |
 | [arrange](arrange.html) | Arrange rows |
 | [arrange_node](arrange_node.html) | Arrange Pipeline Nodes |
+| [as_date](as_date.html) | Convert values to Date |
+| [as_datetime](as_datetime.html) | Convert values to Datetime |
+| [as_factor](as_factor.html) | Coerce values to factors |
 | [asin](asin.html) | Inverse sine |
 | [asinh](asinh.html) | Inverse hyperbolic sine |
 | [assert](assert.html) | Assert Condition |
@@ -18,6 +26,8 @@
 | [atan2](atan2.html) | Two-argument arctangent |
 | [atanh](atanh.html) | Inverse hyperbolic tangent |
 | [augment](augment.html) | Augment Data with Model Calculations |
+| [bind_cols](bind_cols.html) | Combine DataFrames by columns |
+| [bind_rows](bind_rows.html) | Stack DataFrames by rows |
 | [body](body.html) | Get function body |
 | [build_pipeline](build_pipeline.html) | Build Pipeline Artifacts |
 | [build_pipeline_internal](build_pipeline_internal.html) | Build Pipeline Internally |
@@ -27,6 +37,7 @@
 | [cbind](cbind.html) | Column bind matrices |
 | [ceil](ceil.html) | Ceiling alias |
 | [ceiling](ceiling.html) | Ceiling function |
+| [ceiling_date](ceiling_date.html) | Round dates up |
 | [chain](chain.html) | Chain Two Pipelines |
 | [char_at](char_at.html) | Get character at index |
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
@@ -39,6 +50,7 @@
 | [cor](cor.html) | Correlation |
 | [cos](cos.html) | Cosine |
 | [cosh](cosh.html) | Hyperbolic cosine |
+| [count](count.html) | Count rows by group |
 | [cov](cov.html) | Covariance |
 | [crossing](crossing.html) | Create a data frame from all combinations of inputs |
 | [cumall](cumall.html) | Cumulative All |
@@ -51,13 +63,16 @@
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
 | [dataframe](dataframe.html) | Create a DataFrame |
+| [day](day.html) | Extract the day of month |
+| [days_in_month](days_in_month.html) | Get the number of days in a month |
 | [dense_rank](dense_rank.html) | Dense Rank |
 | [deserialize](deserialize.html) | Deserialize Value |
 | [df_residual](df_residual.html) | Residual Degrees of Freedom |
 | [diag](diag.html) | Create or extract diagonal |
-| [difference](difference.html) | Difference of Two Pipelines |
+| [difference](difference.html) | Subtract one pipeline from another |
 | [dir_exists](dir_exists.html) | Check if directory exists |
 | [dispersion](dispersion.html) | Dispersion Parameter |
+| [distinct](distinct.html) | Keep unique rows |
 | [downstream_of](downstream_of.html) | Extract Downstream Subgraph |
 | [drop_na](drop_na.html) | Remove rows with missing values |
 | [ends_with](ends_with.html) | Check if string ends with suffix |
@@ -66,12 +81,30 @@
 | [error_code](error_code.html) | Get error code |
 | [error_context](error_context.html) | Get error context |
 | [error_message](error_message.html) | Get error message |
+| [eval](eval.html) | Evaluate a quoted expression |
+| [everything](everything.html) | Select every column |
+| [exit](exit.html) | Exit the interpreter |
 | [exp](exp.html) | Exponential function |
 | [expand](expand.html) | Create all combinations of values |
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [expr](expr.html) | Capture an expression |
 | [exprs](exprs.html) | Capture multiple expressions |
+| [factor](factor.html) | Create factor values |
+| [fct](fct.html) | Create factors in first-seen order |
+| [fct_c](fct_c.html) | Concatenate factor vectors |
+| [fct_collapse](fct_collapse.html) | Collapse multiple levels |
+| [fct_drop](fct_drop.html) | Drop unused factor levels |
+| [fct_expand](fct_expand.html) | Add explicit factor levels |
+| [fct_infreq](fct_infreq.html) | Order factor levels by frequency |
+| [fct_lump_min](fct_lump_min.html) | Lump factor levels below a minimum count |
+| [fct_lump_n](fct_lump_n.html) | Keep the most frequent factor levels |
+| [fct_lump_prop](fct_lump_prop.html) | Lump factor levels below a minimum proportion |
+| [fct_other](fct_other.html) | Replace unlisted levels with Other |
+| [fct_recode](fct_recode.html) | Rename factor levels |
+| [fct_relevel](fct_relevel.html) | Move selected levels to the front |
+| [fct_reorder](fct_reorder.html) | Order factor levels by another vector |
+| [fct_rev](fct_rev.html) | Reverse factor levels |
 | [file_exists](file_exists.html) | Check if file exists |
 | [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
@@ -79,6 +112,11 @@
 | [fit_stats](fit_stats.html) | Model Fit Statistics |
 | [fivenum](fivenum.html) | Five-number summary |
 | [floor](floor.html) | Floor function |
+| [floor_date](floor_date.html) | Round dates down |
+| [force_tz](force_tz.html) | Retag a datetime with a timezone |
+| [format_date](format_date.html) | Format dates as strings |
+| [format_datetime](format_datetime.html) | Format datetimes as strings |
+| [full_join](full_join.html) | Join all rows from both tables |
 | [get](get.html) | Get element by index |
 | [getwd](getwd.html) | Get current working directory |
 | [glimpse](glimpse.html) | Glimpse DataFrame |
@@ -86,41 +124,62 @@
 | [group_by](group_by.html) | Group by columns |
 | [head](head.html) | Get the first n rows/items |
 | [help](help.html) | Display documentation for a function |
+| [hour](hour.html) | Extract the hour |
 | [huber_loss](huber_loss.html) | Huber loss |
 | [ifelse](ifelse.html) | Vectorized If-Else |
 | [index_of](index_of.html) | Find index of substring |
+| [inner_join](inner_join.html) | Join matching rows |
 | [inspect_node](inspect_node.html) | Inspect Pipeline Node Metadata |
 | [inspect_pipeline](inspect_pipeline.html) | Inspect Pipeline Logs |
 | [intent_fields](intent_fields.html) | Get All Intent Fields |
 | [intent_get](intent_get.html) | Get Intent Field |
-| [intersect](intersect.html) | Intersection of Two Pipelines |
+| [intersect](intersect.html) | Keep shared pipeline nodes |
+| [interval](interval.html) | Create an interval |
 | [inv](inv.html) | Matrix inverse |
 | [iota](iota.html) | Create a vector of ones |
 | [iqr](iqr.html) | Interquartile range |
+| [is_character](is_character.html) | Check for character columns |
 | [is_empty](is_empty.html) | Check if string is empty |
 | [is_error](is_error.html) | Check if a value is an Error |
+| [is_factor](is_factor.html) | Check for factor columns |
+| [is_leap_year](is_leap_year.html) | Check for leap years |
+| [is_logical](is_logical.html) | Check for logical columns |
 | [is_na](is_na.html) | Check for NA |
+| [is_numeric](is_numeric.html) | Check for numeric columns |
+| [isoweek](isoweek.html) | Extract the ISO week number |
+| [isoyear](isoyear.html) | Extract the ISO week-based year |
 | [kron](kron.html) | Kronecker product |
 | [kurtosis](kurtosis.html) | Excess kurtosis |
 | [lag](lag.html) | Lag values |
 | [last_index_of](last_index_of.html) | Find last index of substring |
 | [lead](lead.html) | Lead values |
+| [left_join](left_join.html) | Join rows from the left table |
 | [length](length.html) | Get length |
+| [levels](levels.html) | Get factor levels |
 | [list_files](list_files.html) | List files in directory |
 | [list_logs](list_logs.html) | List Pipeline Logs |
 | [lm](lm.html) | Linear Model |
 | [log](log.html) | Natural logarithm |
 | [mad](mad.html) | Median absolute deviation |
+| [make_date](make_date.html) | Construct a Date value |
+| [make_datetime](make_datetime.html) | Construct a Datetime value |
+| [make_period](make_period.html) | Create a period value |
 | [map](map.html) | Map a function over a list |
+| [matches](matches.html) | Match columns by regex |
 | [matmul](matmul.html) | Matrix multiplication |
 | [max](max.html) | Maximum value |
+| [mday](mday.html) | Extract the day of month |
 | [mean](mean.html) | Compute arithmetic mean of numeric values |
 | [median](median.html) | Median |
 | [min](min.html) | Minimum value |
 | [min_rank](min_rank.html) | Minimum Rank |
+| [minute](minute.html) | Extract the minute |
 | [mode](mode.html) | Mode |
-| [mutate](mutate.html) | Create or modify columns |
+| [month](month.html) | Extract or label the month |
+| [mutate](mutate.html) | Mutate DataFrame |
 | [mutate_node](mutate_node.html) | Mutate Pipeline Node Metadata |
+| [n](n.html) | Group size aggregation |
+| [n_distinct](n_distinct.html) | Count distinct values |
 | [na](na.html) | Generic NA |
 | [na_bool](na_bool.html) | Boolean NA |
 | [na_float](na_float.html) | Float NA |
@@ -129,24 +188,31 @@
 | [ncol](ncol.html) | Number of columns |
 | [ndarray](ndarray.html) | Create an N-dimensional array |
 | [ndarray_data](ndarray_data.html) | Get NDArray data |
+| [nest](nest.html) | Nest columns into sub-dataframes |
 | [nesting](nesting.html) | Helper to find combinations present in data |
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
 | [normalize](normalize.html) | Normalize values |
+| [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
 | [ntile](ntile.html) | N-tiles |
+| [ordered](ordered.html) | Create ordered factors |
 | [package_info](package_info.html) | Get package information |
 | [packages](packages.html) | List available packages |
 | [parallel](parallel.html) | Combine Pipelines in Parallel |
+| [parse_date](parse_date.html) | Parse dates from strings |
+| [parse_datetime](parse_datetime.html) | Parse datetimes from strings |
 | [parse_file](parse_file.html) | Parse T-Doc Comments |
-| [patch](patch.html) | Patch a Pipeline |
+| [patch](patch.html) | Overlay one pipeline onto another |
 | [path_abs](path_abs.html) | Resolve relative path to absolute |
 | [path_basename](path_basename.html) | Get filename component of a path |
 | [path_dirname](path_dirname.html) | Get directory portion of a path |
 | [path_ext](path_ext.html) | Get file extension |
 | [path_join](path_join.html) | Join multiple path segments |
 | [path_stem](path_stem.html) | Get filename without extension |
+| [pchisq](pchisq.html) | Chi-squared distribution CDF |
 | [percent_rank](percent_rank.html) | Percent Rank |
+| [pf](pf.html) | F distribution CDF |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
 | [pipeline_copy](pipeline_copy.html) | Copy Pipeline Node Artifacts to Local Directory |
 | [pipeline_cycles](pipeline_cycles.html) | Detect Pipeline Cycles |
@@ -165,6 +231,8 @@
 | [pipeline_validate](pipeline_validate.html) | Validate a Pipeline |
 | [pivot_longer](pivot_longer.html) | Pivot longer |
 | [pivot_wider](pivot_wider.html) | Pivot wider |
+| [pm](pm.html) | Check whether a time is after noon |
+| [pnorm](pnorm.html) | Normal distribution CDF |
 | [poly](poly.html) | Polynomial basis expansion |
 | [populate_pipeline](populate_pipeline.html) | Populate Pipeline |
 | [pow](pow.html) | Power function |
@@ -172,15 +240,20 @@
 | [pretty_print](pretty_print.html) | Pretty-print a value |
 | [print](print.html) | Print values to standard output |
 | [prune](prune.html) | Prune Pipeline Leaf Nodes |
+| [pt](pt.html) | Student t distribution CDF |
 | [pull](pull.html) | Extract column as vector |
 | [pyn](pyn.html) | Configure a Python Pipeline Node |
 | [quantile](quantile.html) | Quantiles |
+| [quarter](quarter.html) | Extract the quarter |
 | [range](range.html) | Range |
 | [read_arrow](read_arrow.html) | Read Arrow IPC file |
 | [read_csv](read_csv.html) | Read CSV file |
 | [read_file](read_file.html) | Read file contents |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
+| [read_parquet](read_parquet.html) | Read Parquet file |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
+| [relocate](relocate.html) | Move columns to a new position |
+| [rename](rename.html) | Rename DataFrame columns |
 | [rename_node](rename_node.html) | Rename a Pipeline Node |
 | [replace_first](replace_first.html) | Replace first occurrence |
 | [replace_na](replace_na.html) | Replace missing values |
@@ -189,6 +262,7 @@
 | [rewire](rewire.html) | Rewire a Node's Dependencies |
 | [rn](rn.html) | Configure an R Pipeline Node |
 | [round](round.html) | Round values |
+| [round_date](round_date.html) | Round dates to the nearest unit |
 | [row_number](row_number.html) | Row Number |
 | [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
@@ -197,9 +271,13 @@
 | [scale](scale.html) | Scale values |
 | [score](score.html) | Model Scoring |
 | [sd](sd.html) | Standard Deviation |
+| [second](second.html) | Extract the second |
 | [select](select.html) | Select columns |
 | [select_node](select_node.html) | Select Node Metadata Fields |
+| [semester](semester.html) | Extract the semester |
+| [semi_join](semi_join.html) | Filter rows using matches in another table |
 | [separate](separate.html) | Separate a character column into multiple columns |
+| [separate_rows](separate_rows.html) | Split delimited values into rows |
 | [seq](seq.html) | Generate a sequence of integers |
 | [serialize](serialize.html) | Serialize Value |
 | [shape](shape.html) | Get NDArray dimensions |
@@ -211,14 +289,22 @@
 | [sinh](sinh.html) | Hyperbolic sine |
 | [skewness](skewness.html) | Skewness |
 | [slice](slice.html) | Extract slice |
+| [slice_max](slice_max.html) | Keep rows with the largest values |
+| [slice_min](slice_min.html) | Keep rows with the smallest values |
 | [source](source.html) | Get function source code |
 | [sqrt](sqrt.html) | Square root |
 | [standardize](standardize.html) | Standardize values |
 | [starts_with](starts_with.html) | Check if string starts with prefix |
+| [str_count](str_count.html) | Count regex matches |
+| [str_detect](str_detect.html) | Test whether a regex matches |
+| [str_extract](str_extract.html) | Extract the first regex match |
+| [str_extract_all](str_extract_all.html) | Extract all regex matches |
+| [str_flatten](str_flatten.html) | Flatten a collection of strings |
 | [str_format](str_format.html) | Named string interpolation |
 | [str_join](str_join.html) | Join strings with a separator |
 | [str_lines](str_lines.html) | Split string into lines |
 | [str_nchar](str_nchar.html) | Get character count |
+| [str_pad](str_pad.html) | Pad strings to a target width |
 | [str_repeat](str_repeat.html) | Repeat a string |
 | [str_replace](str_replace.html) | Replace all occurrences |
 | [str_split](str_split.html) | Split a string on a delimiter |
@@ -226,6 +312,7 @@
 | [str_string](str_string.html) | Convert to string |
 | [str_substring](str_substring.html) | Extract substring |
 | [str_trim](str_trim.html) | Trim whitespace |
+| [str_trunc](str_trunc.html) | Truncate strings for display |
 | [str_words](str_words.html) | Split string into words |
 | [subgraph](subgraph.html) | Extract Connected Subgraph |
 | [sum](sum.html) | Sum of numeric values |
@@ -234,6 +321,7 @@
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
 | [t_doc](t_doc.html) | Generate Documentation |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
+| [t_read_pmml](t_read_pmml.html) | Read a PMML model file |
 | [t_run](t_run.html) | Run a T script |
 | [t_test](t_test.html) | Run tests |
 | [t_write_json](t_write_json.html) | Write Value to JSON |
@@ -246,6 +334,7 @@
 | [to_lower](to_lower.html) | Convert to lowercase |
 | [to_numeric](to_numeric.html) | Convert to Numeric |
 | [to_upper](to_upper.html) | Convert to uppercase |
+| [today](today.html) | Get the current date |
 | [trace_nodes](trace_nodes.html) | Trace Pipeline Nodes |
 | [transpose](transpose.html) | Transpose matrix |
 | [trim_end](trim_end.html) | Trim trailing whitespace |
@@ -253,15 +342,24 @@
 | [trimmed_mean](trimmed_mean.html) | Trimmed mean |
 | [trunc](trunc.html) | Truncate values |
 | [type](type.html) | Get the type name of a value |
+| [tz](tz.html) | Extract the timezone label |
+| [uncount](uncount.html) | Expand rows by weight |
 | [ungroup](ungroup.html) | Remove grouping |
-| [union](union.html) | Union of Two Pipelines |
+| [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
+| [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
 | [var](var.html) | Variance |
 | [vcov](vcov.html) | Variance-Covariance Matrix |
 | [wald_test](wald_test.html) | Joint Wald Test |
+| [wday](wday.html) | Extract or label the weekday |
+| [week](week.html) | Extract the week number |
+| [where](where.html) | Select columns by predicate |
 | [winsorize](winsorize.html) | Winsorize values |
+| [with_tz](with_tz.html) | Convert a datetime to a new timezone |
 | [write_arrow](write_arrow.html) | Write Arrow IPC file |
 | [write_csv](write_csv.html) | Write CSV file |
 | [write_text](write_text.html) | Write text to a file |
+| [yday](yday.html) | Extract the day of year |
+| [year](year.html) | Extract the year component |

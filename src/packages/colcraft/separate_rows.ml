@@ -48,5 +48,14 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
   | _ :: _ -> Error.type_error "Function `separate_rows` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `separate_rows` requires a DataFrame."
 
+(*
+--# Split delimited values into rows
+--#
+--# Expands delimited string values into multiple rows while repeating the remaining columns.
+--#
+--# @name separate_rows
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "separate_rows" (make_builtin_named ~name:"separate_rows" ~variadic:true 1 separate_rows_impl) env

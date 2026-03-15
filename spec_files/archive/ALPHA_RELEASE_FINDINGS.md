@@ -68,14 +68,14 @@ This is not a huge blocker, but it is one of the few clearly unfinished user-fac
 
 ### 4. Reconcile stale planning docs before release
 
-Several planning/spec files still describe features as beta work even though the current repo already includes them. Examples include old references to joins, pivots, and other already-implemented functionality in `spec_files/ROADMAP.md` and `spec_files/hardening-alpha.md`.
+Several planning/spec files still describe features as beta work even though the current repo already includes them. Examples include old references to joins, pivots, and other already-implemented functionality in `spec_files/ROADMAP.md` and `spec_files/archive/hardening-alpha.md`.
 
 **Why this matters for alpha:** confusing release scope is a real product problem. If docs say "not implemented" while the code says otherwise, users and contributors will not know what alpha actually contains.
 
 **Suggested addition:**
 - do one documentation audit pass over:
   - `spec_files/ROADMAP.md`
-  - `spec_files/hardening-alpha.md`
+  - `spec_files/archive/hardening-alpha.md`
   - `spec_files/README_PLANNING_DOCS.md`
   - any alpha-facing release notes / summary docs
 

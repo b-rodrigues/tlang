@@ -1,9 +1,10 @@
 # API Reference
 
-Complete reference for all functions in T's standard library.
+Package-oriented guide to T's standard library.
 
-> **Version**: Alpha 0.1  
-> **Auto-loaded**: All packages are automatically available in every T session
+> **Coverage**: Package overview and worked examples  
+> **Exhaustive per-function reference**: [`docs/reference/index.md`](reference/index.md), generated from source docstrings  
+> **Auto-loaded**: All standard packages are automatically available in every T session
 
 ---
 
@@ -18,6 +19,10 @@ Complete reference for all functions in T's standard library.
 - [Colcraft Package](#colcraft-package) — Data manipulation verbs and window functions
 - [Pipeline Package](#pipeline-package) — Pipeline introspection
 - [Explain Package](#explain-package) — Introspection and debugging tools
+
+---
+
+For generated one-page documentation for every exported function, including newer Chrono, string, join, factor, and helper APIs, use the [Function Reference](reference/index.md).
 
 ---
 
