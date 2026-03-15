@@ -420,6 +420,9 @@ CAMLprim value caml_arrow_read_timestamp_column(value v_array_ptr) {
           break;
         case GARROW_TIME_UNIT_NANO:
           micros = raw / 1000LL;
+          if (raw < 0 && (raw % 1000LL) != 0) {
+            micros -= 1;
+          }
           break;
         default:
           micros = raw;
