@@ -195,6 +195,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let env = Packages.init_env () in
   let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env in
 
+  if Arrow_ffi.arrow_available then begin
+    match Ast.Env.find_opt "df" env with
+    | Some (Ast.VDataFrame { arrow_table; _ }) ->
+        if Arrow_table.is_native_backed arrow_table then begin
+          incr pass_count; Printf.printf "  ✓ public read_csv default path preserves native Arrow handle\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ public read_csv default path lost native Arrow handle\n"
+        end
+    | Some _ ->
+        incr fail_count; Printf.printf "  ✗ public read_csv did not bind a DataFrame value\n"
+    | None ->
+        incr fail_count; Printf.printf "  ✗ public read_csv did not bind `df` in the environment\n"
+  end else
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "public read_csv default path preserves native Arrow handle";
+
   let (v, _) = eval_string_env "nrow(df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin

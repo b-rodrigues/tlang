@@ -25,11 +25,12 @@ The most important caveat is that the repository currently mixes **current-state
 - some newer files reflect the real backend well,
 - while some older planning/spec documents still describe Arrow as mostly unimplemented or stubbed.
 
-There is also an important implementation gap between the backend and the public CSV entry point:
+There is also still an important CSV-path distinction to document clearly:
 
 - `src/arrow/arrow_io.ml` contains a native Arrow CSV reader,
-- but the public `read_csv` builtin in `src/packages/dataframe/t_read_csv.ml` still parses CSV in OCaml and then converts the result into an Arrow table.
-- based on the current source, this reads more like an unfinished integration split than a clearly documented intentional design choice.
+- and the public `read_csv` builtin in `src/packages/dataframe/t_read_csv.ml` now delegates to `Arrow_io.read_csv` when callers use the default CSV options.
+- non-default parsing behaviors such as custom separators, header skipping, line skipping, and column-name cleaning still use the OCaml parser path.
+- this is now a documented split between the fast native default path and the richer compatibility path, rather than an entirely missing integration.
 
 So Arrow support is real and broad, but not yet fully unified or fully documented from a user point of view.
 
@@ -105,7 +106,7 @@ Arrow also shows up outside `src/arrow/`:
 - `src/packages/dataframe/t_dataframe.ml`
   - `dataframe`, `pull`, and `to_array` all interact with Arrow-backed tables and Arrow-derived column types.
 - `src/packages/dataframe/t_read_csv.ml`
-  - creates Arrow-backed DataFrames, but does so through OCaml CSV parsing plus `Arrow_bridge`, not through `Arrow_io.read_csv`.
+  - creates Arrow-backed DataFrames and uses `Arrow_io.read_csv` for the default public CSV path, while routing non-default parsing options through the OCaml parser plus `Arrow_bridge`.
 - `src/pipeline/builder_read_node.ml` and `src/packages/pipeline/read_node.ml`
   - use Arrow IPC reading in pipeline flows.
 - `src/pipeline/nix_emit_node.ml`
@@ -146,7 +147,7 @@ These features exist in the backend, but are not yet cleanly represented in user
 
 - Arrow IPC support is implemented, but under-documented.
 - Pipeline Arrow interop exists, but most of the narrative lives in `spec_files/` and tests rather than in `docs/`.
-- Native Arrow CSV reading exists in `src/arrow/arrow_io.ml`, but the public `read_csv()` builtin does not appear to use it yet.
+- Native Arrow CSV reading exists in `src/arrow/arrow_io.ml`, and the public `read_csv()` builtin uses it for the default CSV path.
 - `docs/performance.md` still describes dictionary/factor, list, and date columns as unsupported for native rebuild even though the code now includes native dictionary, list, and date materialization paths.
 
 ### Partially implemented or still limited
@@ -191,8 +192,9 @@ The code also shows some areas that are either incomplete or intentionally const
 
 The main implementation gaps that stand out from the current code are:
 
-1. **Public CSV path not yet unified around `Arrow_io.read_csv`**
-   - This is the clearest gap between backend capability and public API behavior.
+1. **Public CSV path still has a split implementation**
+   - The default `read_csv()` path now uses `Arrow_io.read_csv`, but option-rich parsing still uses the OCaml parser path.
+   - This is now mostly a documentation and consistency question rather than a missing integration.
 
 2. **Native datetime round-trip/materialization**
    - Date is present; datetime/timestamp support is only partial.
