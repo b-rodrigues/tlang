@@ -94,12 +94,36 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
       type_tag = 8;
       GTimeZone *time_zone = NULL;
       g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
+      
+      const gchar *identifier = NULL;
       if (time_zone != NULL) {
-        const gchar *identifier = g_time_zone_get_identifier(time_zone);
-        if (identifier != NULL) {
-          v_tz = caml_alloc(1, 0);
-          Store_field(v_tz, 0, caml_copy_string(identifier));
+        identifier = g_time_zone_get_identifier(time_zone);
+      }
+
+      /* Fallback: parse from string representation if identifier is NULL.
+         Arrow string format: timestamp[unit, tz=identifier] */
+      if (identifier == NULL) {
+        gchar *type_str = garrow_data_type_to_string(dtype);
+        if (type_str != NULL) {
+          const gchar *tz_prefix = "tz=";
+          gchar *start = g_strstr_len(type_str, -1, tz_prefix);
+          if (start != NULL) {
+            start += 3;
+            gchar *end = g_strrstr(start, "]");
+            if (end != NULL) {
+              *end = '\0';
+              v_tz = caml_alloc(1, 0);
+              Store_field(v_tz, 0, caml_copy_string(start));
+            }
+          }
+          g_free(type_str);
         }
+      } else {
+        v_tz = caml_alloc(1, 0);
+        Store_field(v_tz, 0, caml_copy_string(identifier));
+      }
+
+      if (time_zone != NULL) {
         g_time_zone_unref(time_zone);
       }
     }
@@ -4128,7 +4152,7 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         break;
       case 8: { // Timestamp (microseconds since epoch)
         GTimeZone *time_zone = Is_block(v_time_zone)
-          ? g_time_zone_new(String_val(Field(v_time_zone, 0)))
+          ? g_time_zone_new_identifier(String_val(Field(v_time_zone, 0)))
           : NULL;
         GArrowTimestampDataType *timestamp_dtype =
           garrow_timestamp_data_type_new(GARROW_TIME_UNIT_MICRO, time_zone);
