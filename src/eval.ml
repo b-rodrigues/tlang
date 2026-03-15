@@ -470,7 +470,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              | None -> name_error_with_lazy_suggestion s env_ref))
     
     | ColumnRef field ->
-        (match Env.find_opt field !env_ref with
+        (match Env.find_opt ("$" ^ field) !env_ref with
          | Some v -> v
          | None -> VSymbol ("$" ^ field))
 
@@ -1858,20 +1858,26 @@ and eval_call env_ref fn_val raw_args =
        x = 1 / 0; x(1)  →  Error(DivisionByZero: ...) *)
   | VExpr e ->
       (* Calling an expression value: evaluate it.
-         If exactly one VDict argument is provided, use it as a data mask. *)
+         If exactly one VDict argument is provided, use it as a data mask.
+         We add both the plain key and the '$'-prefixed key to support ColumnRef lookup. *)
       let env_to_use = match named_args with
         | [(_, VDict d)] -> 
-            let merged = List.fold_left (fun acc (k, v) -> Env.add k v acc) !env_ref d in
+            let merged = List.fold_left (fun acc (k, v) -> 
+              Env.add k v (Env.add ("$" ^ k) v acc)
+            ) !env_ref d in
             ref merged
         | _ -> env_ref
       in
       eval_expr env_to_use e
   | VQuo { q_expr; q_env } ->
       (* Calling a quosure: evaluate in its captured environment.
-         If exactly one VDict argument is provided, use it as a data mask overlay. *)
+         If exactly one VDict argument is provided, use it as a data mask overlay.
+         We add both the plain key and the '$'-prefixed key to support ColumnRef lookup. *)
       let env_to_use = match named_args with
         | [(_, VDict d)] -> 
-            let merged = List.fold_left (fun acc (k, v) -> Env.add k v acc) q_env d in
+            let merged = List.fold_left (fun acc (k, v) -> 
+              Env.add k v (Env.add ("$" ^ k) v acc)
+            ) q_env d in
             ref merged
         | _ -> ref q_env
       in
