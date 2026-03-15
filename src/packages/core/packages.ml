@@ -69,7 +69,7 @@ let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
   functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get";
-               "ifelse"; "case_when"; "run"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "enquo"; "enquos"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
+               "ifelse"; "case_when"; "run"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
 
@@ -298,9 +298,10 @@ let register env =
   let env = Env.add "casewhen" (make_builtin_named ~name:"casewhen" ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr_immutable)) env in
 
 (*
---# Evaluate a quoted expression
+--# Evaluate a quoted expression or quosure
 --#
---# Evaluates Expr values in the current environment and returns plain values unchanged.
+--# Evaluates an Expression in the current environment, or a Quosure in its
+--# captured lexical environment. Returns plain values unchanged.
 --#
 --# @name eval
 --# @family core
@@ -311,6 +312,7 @@ let register env =
     (make_builtin ~name:"eval" 1 (fun args env ->
       match args with
       | [VExpr quoted] -> Eval.eval_expr_immutable env quoted
+      | [VQuo { q_expr; q_env }] -> Eval.eval_expr_immutable q_env q_expr
       | [v] -> v
       | _ -> Error.arity_error_named "eval" 1 (List.length args)
     ))
@@ -361,6 +363,44 @@ let register env =
     ))
     env
   in
+
+(*
+--# Capture an expression with its lexical environment (quosure)
+--#
+--# Captures the provided expression as a **Quosure**: a pair of the expression AST
+--# and the current lexical environment. When later evaluated with `eval()`, the
+--# expression is evaluated in the captured environment, not the caller's.
+--# This matches the semantics of `rlang::quo()` in R.
+--#
+--# @name quo
+--# @param x :: Any The expression to capture as a quosure.
+--# @return :: Quosure The captured expression with its environment.
+--# @example
+--#   x = 10
+--#   q = quo(1 + x)   -- captures x = 10
+--#   x = 99
+--#   eval(q)           -- returns 11, not 100
+--# @family core
+--# @export
+*)
+
+(*
+--# Capture multiple expressions with their lexical environment (quosures)
+--#
+--# Captures one or more expressions as a List of Quosure values, each paired with
+--# the current lexical environment. Supports named arguments.
+--# Matches the semantics of `rlang::quos()` in R.
+--#
+--# @name quos
+--# @param ... :: Any One or more expressions to capture as quosures.
+--# @return :: List[Quosure] A list of captured quosures.
+--# @example
+--#   x = 10
+--#   qs = quos(a = 1 + x, b = 2 * x)
+--#   eval(qs$a)   -- returns 11
+--# @family core
+--# @export
+*)
 
 (*
 --# Capture a function argument's expression (non-standard evaluation)

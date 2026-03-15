@@ -494,11 +494,13 @@ pipeline_copy()
 - `parallel(p1 :: Pipeline, p2 :: Pipeline) :: Pipeline`
 
 ## Metaprogramming
-- `expr(code)`: Quotation block capturing code as an AST.
-- `exprs(...)`: Capture multiple expressions as a named List of Expr values.
-- `!!value`: Unquote single value into `expr`.
-- `!!!list`: Unquote-splice a list into `expr`.
-- `!!name := value`: Dynamic naming — use a String/Symbol as the argument name inside `expr()`.
-- `eval(expr)`: Evaluates a quoted expression.
-- `enquo(param)`: Inside a function, capture the caller's expression for parameter `param`.
-- `enquos(...)`: Inside a function, capture all variadic expressions as a named List.
+- `expr(code)`: Capture code as a naked expression (no environment).
+- `exprs(...)`: Capture multiple expressions as a named List of naked Expressions.
+- `quo(code)`: Capture code as a Quosure (expression + lexical environment), like `rlang::quo()`.
+- `quos(...)`: Capture multiple expressions as a List of Quosures.
+- `!!value`: Unquote: evaluate and inject a value or expression into `expr()`/`quo()`.
+- `!!!list`: Unquote-splice: expand a list into arguments within `expr()`/`quo()`.
+- `!!name := value`: Dynamic naming — use a String/Symbol as the argument name inside `expr()`/`quo()`.
+- `eval(e)`: Evaluate an Expression in the current env, or a Quosure in its captured env.
+- `enquo(param)`: Inside a function, capture the caller's expression for `param` as a Quosure.
+- `enquos(...)`: Inside a function, capture all variadic expressions as a List of Quosures.
