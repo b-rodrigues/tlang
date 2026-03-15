@@ -37,9 +37,9 @@ res_df <- iris_data %>%
 
 write_csv(res_df, file.path(expected_dir, "metaprog_expr_building.csv"))
 
-# 4. Quos Pattern
-multi_quo <- quos(a = 1 + 1, b = 2 + 2)
-write_csv(iris_data %>% head(1) %>% mutate(!!!multi_quo), file.path(expected_dir, "metaprog_quos.csv"))
+# 4. Exprs Pattern
+multi_exprs <- rlang::exprs(a = 1 + 1, b = 2 + 2)
+write_csv(iris_data %>% head(1) %>% mutate(!!!multi_exprs), file.path(expected_dir, "metaprog_exprs.csv"))
 
 # 5. Dynamic Name in Mutate
 new_name <- "Sepal.Large"

@@ -69,7 +69,7 @@ let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
   functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get";
-               "ifelse"; "case_when"; "run"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
+               "ifelse"; "case_when"; "run"; "t_run"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "enquo"; "enquos"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
 
@@ -361,6 +361,46 @@ let register env =
     ))
     env
   in
+
+(*
+--# Capture a function argument's expression (non-standard evaluation)
+--#
+--# Must be called inside a function body. Captures the unevaluated expression
+--# that the caller passed as the named parameter, returning it as an Expr.
+--# Accepts exactly one argument: a bare symbol naming one of the function's parameters.
+--#
+--# @name enquo
+--# @param param :: Symbol The name of the parameter whose expression to capture.
+--# @return :: Expr The captured expression object.
+--# @example
+--#   my_select = \(df: DataFrame, col: Any -> DataFrame) {
+--#     col_expr = enquo(col)
+--#     eval(expr(df |> select(!!col_expr)))
+--#   }
+--#   my_select(iris, $Sepal.Length)
+--# @family core
+--# @export
+*)
+
+(*
+--# Capture variadic argument expressions (non-standard evaluation)
+--#
+--# Must be called inside a function body. Captures the unevaluated expressions
+--# passed through the variadic `...` parameter as a named List of Expr values.
+--# Call with `...` or with no arguments.
+--#
+--# @name enquos
+--# @param ... :: Any The variadic parameter to capture.
+--# @return :: List[Expr] A list of captured expressions, preserving argument names.
+--# @example
+--#   my_summarize = \(df: DataFrame, ... -> DataFrame) {
+--#     cols = enquos(...)
+--#     eval(expr(df |> summarize(!!!cols)))
+--#   }
+--#   my_summarize(iris, mean_sep = mean($Sepal.Length))
+--# @family core
+--# @export
+*)
 
 (*
 --# Get function body

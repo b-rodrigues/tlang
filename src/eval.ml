@@ -484,12 +484,12 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | VBool false -> eval_expr env_ref else_
          | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
 
-    | Call { fn = { node = Var ("expr" | "quo"); _ }; args } ->
+    | Call { fn = { node = Var "expr"; _ }; args } ->
         (match args with
          | [(_name, e)] -> VExpr (quote_expr env_ref e)
-         | _ -> make_error ArityError "expr()/quo() expects exactly 1 argument")
+         | _ -> make_error ArityError "expr() expects exactly 1 argument")
 
-    | Call { fn = { node = Var ("exprs" | "quos"); _ }; args } ->
+    | Call { fn = { node = Var "exprs"; _ }; args } ->
         VList (List.map (fun (name, e) -> (name, VExpr (quote_expr env_ref e))) args)
 
     | Call { fn = { node = Var "eval"; _ }; args } ->
@@ -1289,18 +1289,35 @@ and splice_into_dict_pairs env_ref fallback_key e =
                 ^ Utils.type_name other in
       [(fallback_key, vexpr (make_error TypeError msg))]
 
-and extract_name v = 
+and extract_name_opt v =
   match v with
-  | VString s -> s
-  | VSymbol s -> s
-  | VExpr e -> 
+  | VString s -> Some s
+  | VSymbol s -> Some s
+  | VExpr e ->
       (match e.node with
-       | Var s -> s
-       | ColumnRef s -> s
-       | Value (VString s) -> s
-       | Value (VSymbol s) -> s
-       | _ -> Nix_unparse.unparse_expr e)
-  | _ -> "ERROR_DYNAMIC_NAME"
+       | Var s -> Some s
+       | ColumnRef s -> Some s
+       | Value (VString s) -> Some s
+       | Value (VSymbol s) -> Some s
+       | _ -> Some (Nix_unparse.unparse_expr e))
+  | _ -> None
+
+(** Expand a !!name := value dynamic argument inside a quoting context.
+    @param n_expr  The expression for the left-hand name (must eval to String/Symbol).
+    @param v_expr  The expression for the right-hand value.
+    @return A pair [(Some name_str, quoted_value)] on success, or
+            [(None, error_expression)] when the name does not evaluate to a
+            String or Symbol. The caller should propagate the error expression
+            so it surfaces at evaluation time. *)
+and quote_dyn_arg env_ref loc n_expr v_expr =
+  let q = quote_expr env_ref in
+  let name_val = eval_expr env_ref n_expr in
+  match extract_name_opt name_val with
+  | Some name_str -> (Some name_str, q v_expr)
+  | None ->
+      (None, Ast.mk_expr ?loc (Value (make_error TypeError
+        (Printf.sprintf "!! := requires a String or Symbol as the left-hand name, got %s"
+           (Utils.type_name name_val)))))
 
 (** Quote an expression: recursively walk the AST, leaving it unevaluated
     except where !! (unquote) and !!! (unquote-splice) request evaluation. *)
@@ -1323,8 +1340,7 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
       let quoted_args = List.concat_map (fun (name, arg) ->
         match name, arg.node with
         | None, Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
-            let name_str = extract_name (eval_expr env_ref n_expr) in
-            [(Some name_str, q v_expr)]
+            [quote_dyn_arg env_ref loc n_expr v_expr]
         | _, UnquoteSplice e -> splice_into_named_pairs env_ref name e
         | _               -> [(name, q arg)]
       ) args in
@@ -1334,8 +1350,7 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
       let quoted = List.concat_map (fun (name, item) ->
         match name, item.node with
         | None, Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
-            let name_str = extract_name (eval_expr env_ref n_expr) in
-            [(Some name_str, q v_expr)]
+            [quote_dyn_arg env_ref loc n_expr v_expr]
         | _, UnquoteSplice e -> splice_into_named_pairs env_ref name e
         | _               -> [(name, q item)]
       ) items in
@@ -1346,8 +1361,12 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
         match v.node with
         | UnquoteSplice e -> splice_into_dict_pairs env_ref k e
         | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
-            let name_str = extract_name (eval_expr env_ref n_expr) in
-            [(name_str, q v_expr)]
+            let (opt_name, qv) = quote_dyn_arg env_ref loc n_expr v_expr in
+            (* If name extraction failed, opt_name is None and qv is a VError expression.
+               Use the original key k as a placeholder so the DictLit is structurally valid;
+               the error will surface when the expression is evaluated. *)
+            let name_str = match opt_name with Some n -> n | None -> k in
+            [(name_str, qv)]
         | _               -> [(k, q v)]
       ) pairs in
       Ast.mk_expr ?loc (DictLit quoted)
@@ -1395,9 +1414,9 @@ and eval_list_lit env_ref items =
         let v = match e.node with
           | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
               let n_val = eval_expr env_ref n_expr in
-              let n = extract_name n_val in
-              let v = eval_expr env_ref v_expr in
-              VDynamicArg (n, v)
+              (match extract_name_opt n_val with
+               | None -> make_error TypeError (Printf.sprintf "!! := requires a String or Symbol as the left-hand name, got %s" (Utils.type_name n_val))
+               | Some n -> VDynamicArg (n, eval_expr env_ref v_expr))
           | _ -> eval_expr env_ref e
         in
         match v with
@@ -1424,9 +1443,9 @@ and eval_dict_lit env_ref items =
         let v = match e.node with
           | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
               let n_val = eval_expr env_ref n_expr in
-              let n = extract_name n_val in
-              let v = eval_expr env_ref v_expr in
-              VDynamicArg (n, v)
+              (match extract_name_opt n_val with
+               | None -> make_error TypeError (Printf.sprintf "!! := requires a String or Symbol as the left-hand name, got %s" (Utils.type_name n_val))
+               | Some n -> VDynamicArg (n, eval_expr env_ref v_expr))
           | _ -> eval_expr env_ref e
         in
         match v with
@@ -1633,9 +1652,9 @@ and eval_call env_ref fn_val raw_args =
         let v = match e.node with
           | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, name_expr); (_, value_expr)] } ->
               let n_val = eval_expr env_ref name_expr in
-              let n = extract_name n_val in
-              let v = eval_expr env_ref value_expr in
-              VDynamicArg (n, v)
+              (match extract_name_opt n_val with
+               | None -> make_error TypeError (Printf.sprintf "!! := requires a String or Symbol as the left-hand name, got %s" (Utils.type_name n_val))
+               | Some n -> VDynamicArg (n, eval_expr env_ref value_expr))
           | _ -> eval_expr env_ref e
         in
         match v with

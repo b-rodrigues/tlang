@@ -101,6 +101,64 @@ print(e)
 -- Output: expr(f(x = 10, y = 20, z = 30))
 ```
 
+### `!!name := value` (Dynamic Naming)
+
+The `!!name := value` syntax allows you to use a dynamically computed string or symbol as the name of an argument or list element inside a quoting context. The left-hand side (`name`) must evaluate to a `String` or `Symbol`.
+
+```t
+col = "age"
+e = expr(mutate(df, !!col := 42))
+print(e)
+-- Output: expr(mutate(df, age = 42))
+```
+
+This is especially useful when building expressions where the argument names are not known at write time:
+
+```t
+new_col = "doubled_value"
+result = eval(expr(mutate(df, !!new_col := value * 2)))
+```
+
+If `!!name` does not evaluate to a `String` or `Symbol`, a `TypeError` is raised.
+
+## Non-Standard Evaluation (NSE)
+
+For writing functions that accept unevaluated expressions from the caller — similar to `dplyr` verbs in R — T provides `enquo()` and `enquos()`.
+
+### `enquo(param)`
+
+`enquo()` must be called inside a function body. It captures the **expression** that was passed as the named argument `param` by the caller, without evaluating it.
+
+```t
+my_select = \(df: DataFrame, col: Any -> DataFrame) {
+  col_expr = enquo(col)
+  eval(expr(df |> select(!!col_expr)))
+}
+
+my_select(iris, $Sepal.Length)
+-- Equivalent to: iris |> select($Sepal.Length)
+```
+
+`enquo()` accepts exactly one argument, which must be a bare symbol (the name of one of the function's parameters).
+
+### `enquos(...)`
+
+`enquos()` is the variadic counterpart to `enquo()`. It captures all expressions passed through the variadic `...` parameter as a named list of Expression objects.
+
+```t
+my_summarize = \(df: DataFrame, ... -> DataFrame) {
+  cols = enquos(...)
+  eval(expr(df |> summarize(!!!cols)))
+}
+
+my_summarize(iris,
+  mean_sepal = mean($Sepal.Length),
+  mean_petal = mean($Petal.Length))
+-- Evaluates to: iris |> summarize(mean_sepal = mean($Sepal.Length), mean_petal = mean($Petal.Length))
+```
+
+`enquos()` is called with `...` or with no arguments; both capture the variadic expressions from the enclosing call.
+
 ## Advanced Examples
 
 ### Dynamic Pipeline Generation
@@ -136,3 +194,6 @@ e = expr((add, 1, 2))
 | `eval(e)` | Evaluate Expression `e`. |
 | `!!x` | Evaluate `x` and inject into `expr()`. |
 | `!!!x` | Evaluate `x` and splice elements into `expr()`. |
+| `!!name := value` | Use a dynamic String/Symbol as an argument name inside `expr()`. |
+| `enquo(param)` | Inside a function: capture the expression passed as `param` by the caller. |
+| `enquos(...)` | Inside a function: capture all variadic expressions as a named List. |

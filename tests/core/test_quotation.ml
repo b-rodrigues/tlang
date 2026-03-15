@@ -32,4 +32,40 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   (* roundtrip: expr + eval *)
   test "expr then eval roundtrip" "e = expr(3 * 7)\neval(e)" "21";
 
+  (* enquo() — capture caller's argument expression *)
+  test "enquo captures caller expression"
+    "my_f = \\(x: Any -> Expr) enquo(x)\nmy_f(1 + 2)"
+    "expr(1 + 2)";
+  test "enquo captures column ref"
+    "my_f = \\(col: Any -> Expr) enquo(col)\nmy_f($sepal_length)"
+    "expr($sepal_length)";
+  test "enquo outside call context gives NameError"
+    "enquo(x)"
+    {|Error(NameError: "enquo: argument `x` not found in current call context.")|};
+  test "enquo with non-symbol argument gives ArityError"
+    "enquo(1 + 2)"
+    {|Error(ArityError: "enquo() expects exactly 1 symbol argument")|};
+
+  (* enquos() — capture variadic caller expressions *)
+  test "enquos captures variadic expressions"
+    "my_f = \\(... -> List) enquos(...)\nmy_f(1 + 1, 2 + 2)"
+    "[expr(1 + 1), expr(2 + 2)]";
+  test "enquos captures named variadic expressions"
+    "my_f = \\(... -> List) enquos(...)\nmy_f(a = 1 + 1, b = 2 + 2)"
+    "[a: expr(1 + 1), b: expr(2 + 2)]";
+  test "enquos with no dots returns empty list"
+    "my_f = \\(... -> List) enquos(...)\nmy_f()"
+    "[]";
+
+  (* !!name := value — dynamic naming *)
+  test "dynamic name from string variable"
+    "col = \"age\"\neval(expr(f(!!col := 42)))"
+    "f(age = 42)";
+  test "dynamic name from string variable in list"
+    "col = \"x\"\neval(expr([!!col := 10]))"
+    "[x: 10]";
+  test "dynamic name with non-string gives type error"
+    "col = 99\neval(expr(f(!!col := 1)))"
+    {|Error(TypeError: "!! := requires a String or Symbol as the left-hand name, got Int")|};
+
   print_newline ()

@@ -495,6 +495,10 @@ pipeline_copy()
 
 ## Metaprogramming
 - `expr(code)`: Quotation block capturing code as an AST.
+- `exprs(...)`: Capture multiple expressions as a named List of Expr values.
 - `!!value`: Unquote single value into `expr`.
 - `!!!list`: Unquote-splice a list into `expr`.
+- `!!name := value`: Dynamic naming — use a String/Symbol as the argument name inside `expr()`.
 - `eval(expr)`: Evaluates a quoted expression.
+- `enquo(param)`: Inside a function, capture the caller's expression for parameter `param`.
+- `enquos(...)`: Inside a function, capture all variadic expressions as a named List.
