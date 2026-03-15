@@ -239,7 +239,6 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
                   let (idx, lvl, ord) = Arrow_ffi.arrow_read_dictionary_column fptr in
                   DictionaryColumn (idx, lvl, ord)
               | 7 -> DateColumn (Arrow_ffi.arrow_read_date32_column fptr)
-              | 8 -> DatetimeColumn (Arrow_ffi.arrow_read_timestamp_column fptr, None)
               | _ -> Arrow_ffi.arrow_unref fptr; NullColumn 0
             in
             (fname, ftag, col)
