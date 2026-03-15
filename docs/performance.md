@@ -10,7 +10,7 @@ T's DataFrame operations are backed by [Apache Arrow](https://arrow.apache.org/)
 
 - **Zero-copy column access**: Column views reference the underlying Arrow buffer directly, avoiding data copies when reading column data
 - **Vectorized compute**: Arithmetic, math, and comparison operations use Arrow Compute kernels for SIMD-accelerated processing
-- **Arrow-backed CSV results**: The public `read_csv()` builtin currently parses CSV in OCaml and then builds an Arrow-backed table; a lower-level native Arrow CSV reader also exists in the backend
+- **Arrow-backed CSV results**: The public `read_csv()` builtin uses `Arrow_io.read_csv` on the default CSV path, preserving native Arrow handles when the native reader succeeds; non-default parsing options still use the richer OCaml fallback path
 - **Hash-based grouping**: `group_by()` operations use Arrow's hash-based grouping when a native handle is present
 
 > [!IMPORTANT]
