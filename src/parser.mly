@@ -3,6 +3,9 @@
 (* Menhir grammar for the T language — Phase 0 Alpha *)
 open Ast
 
+(* Custom exception for mixed bracket forms - avoids circular dependency with Parser.Error *)
+exception Mixed_bracket_form
+
 (* Helper to build a parameter record from parsing *)
 type parsed_param = string * Ast.typ option
 type param_info = { params: parsed_param list; has_variadic: bool; return_type: Ast.typ option }
@@ -10,22 +13,28 @@ type param_info = { params: parsed_param list; has_variadic: bool; return_type: 
 type bracket_item =
   | BrExpr of Ast.expr
   | BrPair of string * Ast.expr
+  | BrDynamic of Ast.expr
 
 let build_bracket_literal (items : bracket_item list) : Ast.expr_node =
-  let rec loop dict_rev list_rev = function
+  let rec loop saw_expr saw_pair dict_rev list_rev = function
     | [] ->
-      let has_pairs = dict_rev <> [] in
-      let has_plain_exprs = List.exists (fun (n, _) -> n = None) list_rev in
-      if has_pairs && not has_plain_exprs then
-        DictLit (List.rev_map (fun (n, v) -> (match n with Some s -> s | None -> "expr"), v) list_rev)
-      else
-        ListLit (List.rev list_rev)
+      if saw_expr && saw_pair then raise Mixed_bracket_form
+      else if saw_pair then DictLit (List.rev dict_rev)
+      else ListLit (List.rev list_rev)
     | BrExpr e :: rest ->
-      loop dict_rev ((None, e) :: list_rev) rest
+      (match e.node with
+       | UnquoteSplice _ -> 
+           (* !!! can go anywhere, doesn't force list/dict *)
+           loop saw_expr saw_pair dict_rev ((None, e) :: list_rev) rest
+       | _ -> 
+           loop true saw_pair dict_rev ((None, e) :: list_rev) rest)
     | BrPair (k, v) :: rest ->
-      loop ((k, v) :: dict_rev) ((Some k, v) :: list_rev) rest
+      loop saw_expr true ((k, v) :: dict_rev) ((Some k, v) :: list_rev) rest
+    | BrDynamic e :: rest ->
+      (* Dynamic args can go in both List and Dict. They don't force one or the other. *)
+      loop saw_expr saw_pair dict_rev ((None, e) :: list_rev) rest
   in
-  loop [] [] items
+  loop false false [] [] items
 ;;
 
 let loc_of_pos (pos : Lexing.position) : Ast.source_location =
@@ -432,7 +441,7 @@ bracket_items:
 bracket_item:
   | key = any_ident COLON value = expr { BrPair (key, value) }
   | BANG_BANG name_expr = unary_expr COLON_EQ value = expr
-    { BrPair ("__dynamic_arg__", with_loc (Call { fn = with_loc (Var "__dynamic_arg__") $startpos;
+    { BrDynamic (with_loc (Call { fn = with_loc (Var "__dynamic_arg__") $startpos;
                                               args = [(None, name_expr); (None, value)] }) $startpos) }
   | e = expr { BrExpr e }
   ;

@@ -38,6 +38,8 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
       (* We need to desugar inside statements too *)
       Ast.mk_expr ?loc (Block (List.map desugar_nse_stmt stmts))
   | RawCode _ -> expr  (* Foreign code, opaque *)
+  | Unquote e -> Ast.mk_expr ?loc (Unquote (desugar_nse_expr e))
+  | UnquoteSplice e -> Ast.mk_expr ?loc (UnquoteSplice (desugar_nse_expr e))
   | _ -> expr
 
 and desugar_nse_stmt stmt =
@@ -98,6 +100,8 @@ let rec uses_nse (expr : Ast.expr) : bool =
   | DotAccess { target; _ } -> uses_nse target
   | RawCode _ -> false
   | Block stmts -> List.exists uses_nse_stmt stmts
+  | Unquote e -> uses_nse e
+  | UnquoteSplice e -> uses_nse e
   | _ -> false
 
 and uses_nse_stmt stmt =
@@ -466,10 +470,9 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              | None -> name_error_with_lazy_suggestion s env_ref))
     
     | ColumnRef field ->
-        (* Column references ($name) evaluate to a special symbol value
-           that data verbs can recognize and process. The symbol is prefixed
-           with "$" to distinguish it from regular symbols. *)
-        VSymbol ("$" ^ field)
+        (match Env.find_opt field !env_ref with
+         | Some v -> v
+         | None -> VSymbol ("$" ^ field))
 
     | BinOp { op; left; right } -> eval_binop env_ref op left right
     | BroadcastOp { op; left; right } ->
@@ -1318,22 +1321,25 @@ and splice_into_dict_pairs env_ref fallback_key e =
       [(fallback_key, vexpr (make_error TypeError msg))]
 
 and extract_name_opt v =
+  let strip_dollar s =
+    if String.length s > 0 && s.[0] = '$' then String.sub s 1 (String.length s - 1) else s
+  in
   match v with
   | VString s -> Some s
-  | VSymbol s -> Some s
+  | VSymbol s -> Some (strip_dollar s)
   | VExpr e ->
       (match e.node with
        | Var s -> Some s
        | ColumnRef s -> Some s
        | Value (VString s) -> Some s
-       | Value (VSymbol s) -> Some s
+       | Value (VSymbol s) -> Some (strip_dollar s)
        | _ -> Some (Nix_unparse.unparse_expr e))
   | VQuo { q_expr = e; _ } ->
       (match e.node with
        | Var s -> Some s
        | ColumnRef s -> Some s
        | Value (VString s) -> Some s
-       | Value (VSymbol s) -> Some s
+       | Value (VSymbol s) -> Some (strip_dollar s)
        | _ -> Some (Nix_unparse.unparse_expr e))
   | _ -> None
 
@@ -1852,11 +1858,24 @@ and eval_call env_ref fn_val raw_args =
        x = 1 / 0; x(1)  →  Error(DivisionByZero: ...) *)
   | VExpr e ->
       (* Calling an expression value: evaluate it.
-         Used when a quoted expression is passed to a verb like mutate. *)
-      eval_expr env_ref e
+         If exactly one VDict argument is provided, use it as a data mask. *)
+      let env_to_use = match named_args with
+        | [(_, VDict d)] -> 
+            let merged = List.fold_left (fun acc (k, v) -> Env.add k v acc) !env_ref d in
+            ref merged
+        | _ -> env_ref
+      in
+      eval_expr env_to_use e
   | VQuo { q_expr; q_env } ->
-      (* Calling a quosure: evaluate in its captured environment. *)
-      eval_expr (ref q_env) q_expr
+      (* Calling a quosure: evaluate in its captured environment.
+         If exactly one VDict argument is provided, use it as a data mask overlay. *)
+      let env_to_use = match named_args with
+        | [(_, VDict d)] -> 
+            let merged = List.fold_left (fun acc (k, v) -> Env.add k v acc) q_env d in
+            ref merged
+        | _ -> ref q_env
+      in
+      eval_expr env_to_use q_expr
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | _ -> Error.not_callable_error (Utils.type_name fn_val)

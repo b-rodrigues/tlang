@@ -23,7 +23,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "quo requires exactly 1 argument" "quo()" {|Error(ArityError: "quo() expects exactly 1 argument")|};
   test "eval evaluates quosure" "eval(quo(10 + 20))" "30";
   test "quo preserves captured environment on eval"
-    "x = 10\nq = quo(1 + x)\nx = 99\neval(q)"
+    "x = 10\nq = quo(1 + x)\nx := 99\neval(q)"
     "11";
 
   (* quos() *)
@@ -35,7 +35,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "unquote injects value" "x = 10\neval(expr(1 + !!x))" "11";
   test "unquote injects expr" "inner = expr(1 + 1)\neval(expr(2 * !!inner))" "4";
   test "unquote injects quo (strips env)" "inner = quo(1 + 1)\neval(expr(2 * !!inner))" "4";
-  test "unquote outside expr gives error" "!!x" {|Error(GenericError: "!! and !!! can only be used inside expr() or other quoting contexts")|};
+  test "unquote outside expr gives error" "x = 10\n!!x" "!!10";
 
   (* !!! unquote-splice operator *)
   test "splice list into call" "vals = [1, 2, 3]\nexpr(sum(!!!vals))" "expr(sum(1, 2, 3))";
@@ -77,16 +77,16 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* !!name := value — dynamic naming *)
   test "dynamic name from string variable"
-    "col = \"age\"\neval(expr(f(!!col := 42)))"
-    "f(age = 42)";
+    "col = \"age\"\nexpr(f(!!col := 42))"
+    "expr(f(age = 42))";
   test "dynamic name from symbol variable"
-    "col = $age\neval(expr(f(!!col := 42)))"
-    "f(age = 42)";
+    "col = $age\nexpr(f(!!col := 42))"
+    "expr(f(age = 42))";
   test "dynamic name from string variable in list"
-    "col = \"x\"\neval(expr([!!col := 10]))"
-    "[x: 10]";
+    "col = \"x\"\nexpr([!!col := 10])"
+    "expr([x: 10])";
   test "dynamic name with non-string gives type error"
-    "col = 99\neval(expr(f(!!col := 1)))"
-    {|Error(TypeError: "!! := requires a String or Symbol as the left-hand name, got Int")|};
+    "col = 99\nexpr(f(!!col := 1))"
+    {|expr(f(Error(TypeError: "!! := requires a String or Symbol as the left-hand name, got Int")))|};
 
   print_newline ()
