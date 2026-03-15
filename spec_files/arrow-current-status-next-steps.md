@@ -38,7 +38,7 @@ So Arrow support is real and broad, but not yet fully unified or fully documente
 
 ### Documentation in `docs/`
 
-The existing documentation mentions Arrow in several places, but there is no dedicated Arrow overview/status page yet.
+The existing documentation mentions Arrow in several places, and `docs/arrow-current-status-next-steps.md` now serves as the dedicated Arrow overview/status page.
 
 Relevant files:
 
@@ -60,11 +60,10 @@ Current documentation strengths:
 
 Current documentation gaps:
 
-- no single page summarizes the Arrow backend, Arrow IPC support, Arrow pipeline interop, and current feature coverage,
-- no dedicated user-facing docs for `read_arrow` / `write_arrow`,
-- no clear explanation of which Arrow types are fully supported, partially supported, or still fallback-only,
-- no explicit “current status vs roadmap” page,
-- no direct summary of what the Arrow tests cover.
+- the generated reference docs for `read_arrow` / `write_arrow` exist, but there is still no broader user-facing Arrow I/O guide,
+- there is still no concise support matrix explaining which Arrow types are fully supported, partially supported, or still fallback-only,
+- the status page exists, but the rest of the docs do not yet surface it as the central Arrow landing page,
+- there is still no short docs-facing summary of what the Arrow tests cover.
 
 ### Source code in `src/`
 
@@ -91,6 +90,7 @@ Taken together, these files provide:
 - Arrow IPC read/write,
 - native list-column and dictionary-column support,
 - date support,
+- null-only native materialization support,
 - zero-copy numeric column views via Bigarray,
 - conversion between Arrow storage and T runtime values,
 - bridge utilities for statistical work via `Arrow_owl_bridge`.
@@ -136,6 +136,7 @@ Based on the code currently in the repository, the following are present:
 - dictionary/factor columns
 - list columns with nested DataFrame reconstruction
 - date columns
+- null-only columns
 - zero-copy views for native numeric columns
 - Arrow-to-Owl bridge for numeric/statistical workflows
 - serialization hardening for native-backed DataFrames crossing process boundaries
@@ -158,8 +159,6 @@ The code also shows some areas that are either incomplete or intentionally const
   - `Arrow_table.DatetimeColumn` exists and `Arrow_io.build_column` can parse timestamps,
   - but `Arrow_table.is_arrow_table_new_supported` still rejects `DatetimeColumn`,
   - and the Arrow type-tag mapping does not currently expose a dedicated timestamp tag in the same way it does for date/dictionary/list.
-- **Null-only native rebuild**
-  - `NullColumn` still falls back rather than rebuilding natively.
 - **List columns**
   - native support exists, but only for list-of-struct shapes whose sub-fields are primitive supported types and whose nested tables share a schema.
 - **CSV path consistency**
@@ -200,7 +199,6 @@ The main implementation gaps that stand out from the current code are:
    - Date is present; datetime/timestamp support is only partial.
 
 3. **Broader native materialization coverage**
-   - `NullColumn` still falls back.
    - list-column support is constrained to compatible nested schemas.
 
 4. **Documentation/source alignment**
@@ -296,16 +294,18 @@ The current tests are strong, but there are still some obvious gaps.
 
 ### Highest-priority tests to add
 
-1. **Arrow IPC read/write tests**
-   - Direct tests for:
+1. **Broaden Arrow IPC round-trip coverage**
+   - Dedicated tests already exist for:
      - `Arrow_io.read_ipc`
      - `Arrow_io.write_ipc`
      - `read_arrow`
      - `write_arrow`
-   - Expected round-trips should include:
+   - Round-trips now cover:
      - primitive tables,
      - dictionary/factor tables,
-     - list-column tables where supported.
+     - list-column tables where supported,
+     - null-only columns.
+   - The remaining useful additions are edge cases such as empty structures and future datetime/timestamp coverage.
 
 2. **Public `read_csv()` path tests that distinguish implementation path**
    - The repository currently tests `read_csv()` behavior, but not the architectural distinction between:
@@ -321,7 +321,8 @@ The current tests are strong, but there are still some obvious gaps.
      - eventual native round-trip once implemented.
 
 4. **IPC/pipeline regression tests for Arrow serializer helpers**
-   - Add focused tests around the `read_node` / pipeline Arrow IPC path rather than relying only on larger end-to-end pipeline scenarios.
+   - There is already meaningful Arrow serializer/deserializer coverage through `tests/pipeline/test_arrow_interop.t` and other pipeline fixtures.
+   - A smaller focused `read_node`/serializer boundary test would still be useful so this behavior is not covered only through broader end-to-end scenarios.
 
 ### Good next regression additions
 
@@ -344,17 +345,23 @@ The current tests are strong, but there are still some obvious gaps.
 
 ### Add
 
-1. **This file**
-   - a current-state summary page for Arrow.
+1. **A dedicated user-facing Arrow I/O page**
+   - `docs/reference/read_arrow.md` and `docs/reference/write_arrow.md` already exist.
+   - The remaining gap is a broader narrative page that explains Arrow IPC workflows and where they are used.
 
-2. **A dedicated user-facing Arrow I/O page**
-   - explain `read_arrow`, `write_arrow`, Arrow IPC, and where they are used.
-
-3. **A support matrix page or section**
+2. **A support matrix page or section**
    - per type / operation:
      - supported natively,
      - supported with fallback,
      - not yet implemented.
+
+3. **Better docs surfacing for the current status page**
+   - link this page from the main Arrow-related docs so readers can find the implementation-status overview without searching `spec_files/` or `docs/`.
+
+### Recently closed gap
+
+- **Null-only native rebuild/materialization**
+  - `NullColumn` can now be materialized back into a native Arrow table, which means null-only DataFrames can remain on the native Arrow path and participate in Arrow IPC round-trips.
 
 ### Update
 
