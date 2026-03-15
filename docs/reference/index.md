@@ -2,7 +2,7 @@
 
 | Function | Description |
 | --- | --- |
-| [%within%](%within%.html) | Test interval membership |
+| [%within%](%25within%25.html) | Test interval membership |
 | [abs](abs.html) | Absolute value |
 | [acos](acos.html) | Inverse cosine |
 | [acosh](acosh.html) | Inverse hyperbolic cosine |

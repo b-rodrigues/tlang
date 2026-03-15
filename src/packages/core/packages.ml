@@ -235,7 +235,7 @@ let register env =
 --# @family core
 --# @export
 *)
-  
+
   let env = Env.add "exit"
     (make_builtin ~name:"exit" ~variadic:true 0 (fun args _env ->
       let code = match args with
@@ -306,7 +306,7 @@ let register env =
 --# @family core
 --# @export
 *)
- 
+
   let env = Env.add "eval"
     (make_builtin ~name:"eval" 1 (fun args env ->
       match args with
