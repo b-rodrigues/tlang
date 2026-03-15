@@ -13,6 +13,7 @@ type param_info = { params: parsed_param list; has_variadic: bool; return_type: 
 type bracket_item =
   | BrExpr of Ast.expr
   | BrPair of string * Ast.expr
+  | BrDynamic of Ast.expr
 
 let build_bracket_literal (items : bracket_item list) : Ast.expr_node =
   let rec loop saw_expr saw_pair dict_rev list_rev = function
@@ -21,9 +22,17 @@ let build_bracket_literal (items : bracket_item list) : Ast.expr_node =
       else if saw_pair then DictLit (List.rev dict_rev)
       else ListLit (List.rev list_rev)
     | BrExpr e :: rest ->
-      loop true saw_pair dict_rev ((None, e) :: list_rev) rest
+      (match e.node with
+       | UnquoteSplice _ -> 
+           (* !!! can go anywhere, doesn't force list/dict *)
+           loop saw_expr saw_pair dict_rev ((None, e) :: list_rev) rest
+       | _ -> 
+           loop true saw_pair dict_rev ((None, e) :: list_rev) rest)
     | BrPair (k, v) :: rest ->
-      loop saw_expr true ((k, v) :: dict_rev) list_rev rest
+      loop saw_expr true ((k, v) :: dict_rev) ((Some k, v) :: list_rev) rest
+    | BrDynamic e :: rest ->
+      (* Dynamic args can go in both List and Dict. They don't force one or the other. *)
+      loop saw_expr saw_pair dict_rev ((None, e) :: list_rev) rest
   in
   loop false false [] [] items
 ;;
@@ -272,6 +281,9 @@ arg:
   | name = any_ident EQUALS e = expr { (Some name, e) }
   | DOT name = IDENT EQUALS e = expr { (Some ("." ^ name), e) }
   | col = COLUMN_REF EQUALS e = expr { (Some col, e) }
+  | BANG_BANG name_expr = unary_expr COLON_EQ e = expr
+    { (None, with_loc (Call { fn = with_loc (Var "__dynamic_arg__") $startpos;
+                            args = [(None, name_expr); (None, e)] }) $startpos) }
   ;
 
 /* Primary (atomic) expressions */
@@ -285,6 +297,7 @@ primary_expr:
   | NA { with_loc (Value (VNA NAGeneric)) $startpos }
   | col = COLUMN_REF { with_loc (ColumnRef col) $startpos }
   | id = any_ident { with_loc (Var id) $startpos }
+  | DOTDOTDOT { with_loc (Var "...") $startpos }
   | LPAREN skip_sep e = expr skip_sep RPAREN { e }
   | LPAREN skip_sep fn = expr COMMA skip_sep args = call_args RPAREN
     { with_loc (Call { fn; args }) $startpos }
@@ -427,6 +440,9 @@ bracket_items:
 
 bracket_item:
   | key = any_ident COLON value = expr { BrPair (key, value) }
+  | BANG_BANG name_expr = unary_expr COLON_EQ value = expr
+    { BrDynamic (with_loc (Call { fn = with_loc (Var "__dynamic_arg__") $startpos;
+                                              args = [(None, name_expr); (None, value)] }) $startpos) }
   | e = expr { BrExpr e }
   ;
 
@@ -449,6 +465,7 @@ typ:
     | "Dict" -> TDict (None, None)
     | "Tuple" -> TTuple []
     | "DataFrame" -> TDataFrame None
+    | "Expr" -> TExpr
     | other when String.length other = 1 && Char.uppercase_ascii other.[0] = other.[0] -> TVar other
     | other -> TCustom other
   }

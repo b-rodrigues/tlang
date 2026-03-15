@@ -38,6 +38,8 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
       (* We need to desugar inside statements too *)
       Ast.mk_expr ?loc (Block (List.map desugar_nse_stmt stmts))
   | RawCode _ -> expr  (* Foreign code, opaque *)
+  | Unquote e -> Ast.mk_expr ?loc (Unquote (desugar_nse_expr e))
+  | UnquoteSplice e -> Ast.mk_expr ?loc (UnquoteSplice (desugar_nse_expr e))
   | _ -> expr
 
 and desugar_nse_stmt stmt =
@@ -98,6 +100,8 @@ let rec uses_nse (expr : Ast.expr) : bool =
   | DotAccess { target; _ } -> uses_nse target
   | RawCode _ -> false
   | Block stmts -> List.exists uses_nse_stmt stmts
+  | Unquote e -> uses_nse e
+  | UnquoteSplice e -> uses_nse e
   | _ -> false
 
 and uses_nse_stmt stmt =
@@ -444,14 +448,17 @@ let name_error_with_lazy_suggestion name env_ref =
   | Some suggestion -> Error.name_error_with_suggestion name suggestion
   | None -> Error.name_error name
 
-let vexpr v = Ast.mk_expr (Value v)
+let vexpr v = match v with
+  | VExpr e -> e
+  | VQuo { q_expr; _ } -> q_expr   (* strip env; used only for splice/inject *)
+  | _ -> Ast.mk_expr (Value v)
 let varexpr name = Ast.mk_expr (Var name)
 
 let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   let result =
     match expr.node with
-    | Unquote _ | UnquoteSplice _ ->
-        make_error GenericError "!! and !!! can only be used inside expr() or other quoting contexts"
+    | Unquote inner -> VUnquote (eval_expr env_ref inner)
+    | UnquoteSplice inner -> VUnquoteSplice (eval_expr env_ref inner)
     | ShellExpr cmd -> eval_shell_expr env_ref cmd
     | Value v -> v
     | Var s ->
@@ -463,10 +470,9 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              | None -> name_error_with_lazy_suggestion s env_ref))
     
     | ColumnRef field ->
-        (* Column references ($name) evaluate to a special symbol value
-           that data verbs can recognize and process. The symbol is prefixed
-           with "$" to distinguish it from regular symbols. *)
-        VSymbol ("$" ^ field)
+        (match Env.find_opt ("$" ^ field) !env_ref with
+         | Some v -> v
+         | None -> VSymbol ("$" ^ field))
 
     | BinOp { op; left; right } -> eval_binop env_ref op left right
     | BroadcastOp { op; left; right } ->
@@ -492,13 +498,58 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | Call { fn = { node = Var "exprs"; _ }; args } ->
         VList (List.map (fun (name, e) -> (name, VExpr (quote_expr env_ref e))) args)
 
+    (* quo/quos capture the expression WITH the current lexical environment (quosure) *)
+    | Call { fn = { node = Var "quo"; _ }; args } ->
+        (match args with
+         | [(_name, e)] -> VQuo { q_expr = quote_expr env_ref e; q_env = !env_ref }
+         | _ -> make_error ArityError "quo() expects exactly 1 argument")
+
+    | Call { fn = { node = Var "quos"; _ }; args } ->
+        let current_env = !env_ref in
+        VList (List.map (fun (name, e) ->
+          (name, VQuo { q_expr = quote_expr env_ref e; q_env = current_env })
+        ) args)
+
     | Call { fn = { node = Var "eval"; _ }; args } ->
         (match args with
          | [(_name, e)] ->
              (match eval_expr env_ref e with
               | VExpr quoted -> eval_expr env_ref quoted
-              | other -> other)
+              | VQuo { q_expr; q_env } -> eval_expr (ref q_env) q_expr
+              | v -> v)
          | _ -> make_error ArityError "eval() expects exactly 1 argument")
+
+    | Call { fn = { node = Var "enquo"; _ }; args } ->
+        (match args with
+         | [(_, { node = Var name; _ })] ->
+             let q_env = match Env.find_opt "__q_caller_env__" !env_ref with
+               | Some (VEnv e) -> e
+               | _ -> !env_ref
+             in
+             (match Env.find_opt ("__q_" ^ name) !env_ref with
+              | Some (VExpr q) -> VQuo { q_expr = q; q_env }
+              | _ -> Error.make_error NameError (Printf.sprintf "enquo: argument `%s` not found in current call context." name))
+         | _ -> Error.make_error ArityError "enquo() expects exactly 1 symbol argument")
+
+    | Call { fn = { node = Var "enquos"; _ }; args } ->
+        let q_env = match Env.find_opt "__q_caller_env__" !env_ref with
+          | Some (VEnv e) -> e
+          | _ -> !env_ref
+        in
+        let wrap_as_quo = fun (name, v) -> match v with
+          | VExpr e -> (name, VQuo { q_expr = e; q_env })
+          | other -> (name, other)
+        in
+        (match args with
+         | [(_, { node = Var name; _ })] when name = "..." ->
+             (match Env.find_opt "__q_dots" !env_ref with
+              | Some (VList q_dots) -> VList (List.map wrap_as_quo q_dots)
+              | _ -> VList [])
+         | [] ->
+             (match Env.find_opt "__q_dots" !env_ref with
+              | Some (VList q_dots) -> VList (List.map wrap_as_quo q_dots)
+              | _ -> VList [])
+         | _ -> Error.make_error ArityError "enquos() expects no arguments or `...`")
 
     | Call { fn = { node = Var name; _ }; args }
       when List.mem name ["node"; "py"; "pyn"; "rn"; "shn"] ->
@@ -743,7 +794,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
 
     (* Structural expressions *)
     | ListLit items -> eval_list_lit env_ref items
-    | DictLit pairs -> VDict (List.map (fun (k, e) -> (k, eval_expr env_ref e)) pairs)
+    | DictLit pairs -> eval_dict_lit env_ref pairs
     | DotAccess { target; field } -> eval_dot_access env_ref target field
     | RawCode _ ->
         make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated directly in T. Use them only in `node(command = ..., runtime = R|Python|Julia)`-style foreign-runtime nodes. Quarto nodes work differently: they require a `.qmd` script and do not support raw code blocks."
@@ -1269,6 +1320,49 @@ and splice_into_dict_pairs env_ref fallback_key e =
                 ^ Utils.type_name other in
       [(fallback_key, vexpr (make_error TypeError msg))]
 
+and extract_name_opt v =
+  let strip_dollar s =
+    if String.length s > 0 && s.[0] = '$' then String.sub s 1 (String.length s - 1) else s
+  in
+  match v with
+  | VString s -> Some s
+  | VSymbol s -> Some (strip_dollar s)
+  | VExpr e ->
+      (match e.node with
+       | Var s -> Some s
+       | ColumnRef s -> Some s
+       | Value (VString s) -> Some s
+       | Value (VSymbol s) -> Some (strip_dollar s)
+       | _ -> Some (Nix_unparse.unparse_expr e))
+  | VQuo { q_expr = e; _ } ->
+      (match e.node with
+       | Var s -> Some s
+       | ColumnRef s -> Some s
+       | Value (VString s) -> Some s
+       | Value (VSymbol s) -> Some (strip_dollar s)
+       | _ -> Some (Nix_unparse.unparse_expr e))
+  | _ -> None
+
+(** Expand a !!name := value dynamic argument inside a quoting context.
+    @param env_ref  The current evaluation environment reference (for evaluating n_expr).
+    @param loc      Source location to attach to any generated error expressions.
+    @param n_expr   The expression for the left-hand name (must eval to String/Symbol).
+    @param v_expr   The expression for the right-hand value.
+    @return A pair of type [(string option * Ast.expr)]:
+            [(Some name_str, quoted_value)] on success, or
+            [(None, error_expression)] when the name does not evaluate to a
+            String or Symbol. The caller should propagate the error expression
+            so it surfaces at evaluation time. *)
+and quote_dyn_arg env_ref loc n_expr v_expr =
+  let q = quote_expr env_ref in
+  let name_val = eval_expr env_ref n_expr in
+  match extract_name_opt name_val with
+  | Some name_str -> (Some name_str, q v_expr)
+  | None ->
+      (None, Ast.mk_expr ?loc (Value (make_error TypeError
+        (Printf.sprintf "!! := requires a String or Symbol as the left-hand name, got %s"
+           (Utils.type_name name_val)))))
+
 (** Quote an expression: recursively walk the AST, leaving it unevaluated
     except where !! (unquote) and !!! (unquote-splice) request evaluation. *)
 and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
@@ -1279,25 +1373,32 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
   match expr.node with
   (* ── Unquoting ─────────────────────────────────────────────── *)
   | Unquote e ->
-      (match eval_expr env_ref e with VExpr ex -> ex | v -> Ast.mk_expr ?loc (Value v))
+      (match eval_expr env_ref e with
+       | VExpr ex -> ex
+       | VQuo { q_expr; _ } -> q_expr   (* strip env: !! injects just the expression *)
+       | v -> Ast.mk_expr ?loc (Value v))
 
   | UnquoteSplice _ ->
       Ast.mk_expr ?loc (Value (make_error TypeError
         "!!! can only be used inside a Call, List, or Dict literal within expr()"))
 
-  (* ── Compound forms that support !!! splicing ──────────────── *)
+  (* ── Compound forms that support !!! splicing and !! dynamic names ── *)
   | Call { fn; args } ->
       let quoted_args = List.concat_map (fun (name, arg) ->
-        match arg.node with
-        | UnquoteSplice e -> splice_into_named_pairs env_ref name e
+        match name, arg.node with
+        | None, Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
+            [quote_dyn_arg env_ref loc n_expr v_expr]
+        | _, UnquoteSplice e -> splice_into_named_pairs env_ref name e
         | _               -> [(name, q arg)]
       ) args in
       Ast.mk_expr ?loc (Call { fn = q fn; args = quoted_args })
 
   | ListLit items ->
       let quoted = List.concat_map (fun (name, item) ->
-        match item.node with
-        | UnquoteSplice e -> splice_into_named_pairs env_ref name e
+        match name, item.node with
+        | None, Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
+            [quote_dyn_arg env_ref loc n_expr v_expr]
+        | _, UnquoteSplice e -> splice_into_named_pairs env_ref name e
         | _               -> [(name, q item)]
       ) items in
       Ast.mk_expr ?loc (ListLit quoted)
@@ -1306,6 +1407,13 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
       let quoted = List.concat_map (fun (k, v) ->
         match v.node with
         | UnquoteSplice e -> splice_into_dict_pairs env_ref k e
+        | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
+            let (opt_name, qv) = quote_dyn_arg env_ref loc n_expr v_expr in
+            (* When name extraction failed, opt_name is None and qv is a VError expression.
+               Use "__dyn_error__" as the placeholder key so the dict stays structurally valid
+               and the error is unambiguous when the dict is evaluated. *)
+            let name_str = match opt_name with Some n -> n | None -> "__dyn_error__" in
+            [(name_str, qv)]
         | _               -> [(k, q v)]
       ) pairs in
       Ast.mk_expr ?loc (DictLit quoted)
@@ -1347,14 +1455,62 @@ and quote_stmt (env_ref : environment ref) (stmt : Ast.stmt) : Ast.stmt =
   | _ -> stmt
 
 and eval_list_lit env_ref items =
-    let evaluated_items = List.map (fun (name, e) ->
-        match eval_expr env_ref e with
-        | VError _ as err -> (name, err)
-        | v -> (name, v)
-    ) items in
-    match List.find_opt (fun (_, v) -> match v with VError _ -> true | _ -> false) evaluated_items with
-    | Some (_, err_val) -> err_val
-    | None -> VList evaluated_items
+  let rec process_items acc = function
+    | [] -> VList (List.rev acc)
+    | (name, e) :: rest ->
+        let v = match e.node with
+          | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
+              let n_val = eval_expr env_ref n_expr in
+              (match extract_name_opt n_val with
+               | None -> make_error TypeError (Printf.sprintf "!! := requires a String or Symbol as the left-hand name, got %s" (Utils.type_name n_val))
+               | Some n -> VDynamicArg (n, eval_expr env_ref v_expr))
+          | _ -> eval_expr env_ref e
+        in
+        match v with
+        | VError _ as err -> err
+        | VUnquote inner -> process_items ((name, inner) :: acc) rest
+        | VUnquoteSplice sv ->
+            let units = match sv with
+              | VList items -> items
+              | VVector vx -> Array.to_list vx |> List.map (fun x -> (None, x))
+              | VDict d -> List.map (fun (k, v) -> (Some k, v)) d
+              | _ -> [(name, sv)]
+            in
+            process_items (List.rev_append units acc) rest
+        | VDynamicArg (n, v) ->
+            process_items ((Some n, v) :: acc) rest
+        | _ -> process_items ((name, v) :: acc) rest
+  in
+  process_items [] items
+
+and eval_dict_lit env_ref items =
+  let rec process_pairs acc = function
+    | [] -> VDict (List.rev acc)
+    | (k, e) :: rest ->
+        let v = match e.node with
+          | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, n_expr); (_, v_expr)] } ->
+              let n_val = eval_expr env_ref n_expr in
+              (match extract_name_opt n_val with
+               | None -> make_error TypeError (Printf.sprintf "!! := requires a String or Symbol as the left-hand name, got %s" (Utils.type_name n_val))
+               | Some n -> VDynamicArg (n, eval_expr env_ref v_expr))
+          | _ -> eval_expr env_ref e
+        in
+        match v with
+        | VError _ as err -> err
+        | VUnquote inner -> process_pairs ((k, inner) :: acc) rest
+        | VUnquoteSplice sv ->
+            let units = match sv with
+              | VDict d -> d
+              | VList items -> List.map (fun (n, v) -> (match n with Some name -> name | None -> "expr"), v) items
+              | VVector vx -> Array.to_list vx |> List.mapi (fun i x -> (string_of_int i, x))
+              | _ -> [(k, sv)]
+            in
+            process_pairs (List.rev_append units acc) rest
+        | VDynamicArg (n, v) ->
+            process_pairs ((n, v) :: acc) rest
+        | _ -> process_pairs ((k, v) :: acc) rest
+  in
+  process_pairs [] items
 
 
 and eval_dot_access env_ref target_expr field =
@@ -1503,11 +1659,20 @@ and eval_call env_ref fn_val raw_args =
      before evaluation. Bare ColumnRef stays as-is (evaluates to VSymbol). *)
   let transform_nse_args args =
     List.map (fun (name, expr) ->
+      let loc = expr.loc in
       match expr.node with
       | Call { fn = { node = Var "n"; _ }; args = [] }
         when current_builtin_name = Some "summarize" && Option.is_some name ->
           (name, make_row_lambda (Ast.mk_expr (Call { fn = varexpr "n"; args = [(None, varexpr "row")] })))
       | ColumnRef _ -> (name, expr)  (* bare $col → keep, evaluates to VSymbol *)
+      | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [n_arg; (v_name, v_expr)] } ->
+          (* Support NSE inside the value part of a dynamic argument (!!name := <NSE>) *)
+          if uses_nse v_expr then
+            let desugared = desugar_nse_expr v_expr in
+            (name, Ast.mk_expr ?loc (Call { fn = Ast.mk_expr ?loc (Var "__dynamic_arg__"); 
+                                           args = [n_arg; (v_name, make_row_lambda desugared)] }))
+          else
+            (name, expr)
       | ListLit items when List.for_all (fun (_, e) -> match e.node with ColumnRef _ -> true | _ -> false) items ->
           (name, expr) (* list of bare $cols → keep as-is *)
       | _ when uses_nse expr ->
@@ -1527,21 +1692,52 @@ and eval_call env_ref fn_val raw_args =
     ) args
   in
   let raw_args = transform_nse_args raw_args in
+  
+  let rec process_args_spliced acc = function
+    | [] -> acc
+    | (name, e) :: rest ->
+        let v = match e.node with
+          | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, name_expr); (_, value_expr)] } ->
+              let n_val = eval_expr env_ref name_expr in
+              (match extract_name_opt n_val with
+               | None -> make_error TypeError (Printf.sprintf "!! := requires a String or Symbol as the left-hand name, got %s" (Utils.type_name n_val))
+               | Some n -> VDynamicArg (n, eval_expr env_ref value_expr))
+          | _ -> eval_expr env_ref e
+        in
+        match v with
+        | VUnquote inner -> process_args_spliced (acc @ [(name, inner)]) rest
+        | VUnquoteSplice sv ->
+            let units = match sv with
+              | VList items -> items
+              | VVector vx -> Array.to_list vx |> List.map (fun x -> (None, x))
+              | VDict d -> List.map (fun (k, v) -> (Some k, v)) d
+              | _ -> [(name, sv)]
+            in
+            process_args_spliced (acc @ units) rest
+        | VDynamicArg (n, v) ->
+            process_args_spliced (acc @ [(Some n, v)]) rest
+        | _ -> process_args_spliced (acc @ [(name, v)]) rest
+  in
+
+  let named_args = process_args_spliced [] raw_args in
+
   match fn_val with
   | VBuiltin { b_arity; b_variadic; b_func; _ } ->
-      let named_args = List.map (fun (name, e) -> (name, eval_expr env_ref e)) raw_args in
       let arg_count = List.length named_args in
       if not b_variadic && arg_count <> b_arity then
         Error.arity_error b_arity arg_count
       else
         b_func named_args env_ref
 
-  | VLambda { params; param_types; return_type; variadic = _; body; env = Some closure_env; _ } ->
-      let args = List.map (fun (_, e) -> eval_expr env_ref e) raw_args in
-      if List.length params <> List.length args then
-        lambda_arity_error params args
+  | VLambda { params; param_types; return_type; variadic; body; env = Some closure_env; _ } ->
+      let args_vals = List.map snd named_args in
+      let n_params = List.length params in
+      let n_args = List.length args_vals in
+      if (not variadic && n_params <> n_args) || (variadic && n_args < n_params) then
+        lambda_arity_error params args_vals
       else
-        (* Runtime Type Check: Arguments *)
+        (* Runtime Type Check: Arguments (fixed-arity part) *)
+        let fixed_args = if n_args > n_params then List.filteri (fun i _ -> i < n_params) args_vals else args_vals in
         let type_errors = List.filter_map (fun (v, t_opt) ->
           match t_opt with
           | Some t when not (Ast.is_compatible v t) ->
@@ -1549,7 +1745,7 @@ and eval_call env_ref fn_val raw_args =
               let got = Ast.Utils.type_name v in
               Some (Printf.sprintf "Expected %s, got %s" expected got)
           | _ -> None
-        ) (List.combine args param_types) in
+        ) (List.combine fixed_args param_types) in
 
         if type_errors <> [] then
           Error.type_error (String.concat "; " type_errors)
@@ -1557,8 +1753,24 @@ and eval_call env_ref fn_val raw_args =
           let call_env =
             List.fold_left2
               (fun current_env name value -> Env.add name value current_env)
-              closure_env params args
+              closure_env params fixed_args
           in
+          (* Bind expressions for enquo() — also store the caller's env for quosure capture *)
+          let caller_env = !env_ref in
+          let call_raw_args = List.map snd raw_args in
+          let call_env = List.fold_left2 (fun acc name e ->
+            Env.add ("__q_" ^ name) (VExpr e) acc
+          ) call_env params (if List.length call_raw_args > n_params then List.filteri (fun i _ -> i < n_params) call_raw_args else call_raw_args) in
+          let call_env = Env.add "__q_caller_env__" (VEnv caller_env) call_env in
+
+          (* Handle variadic ... *)
+          let call_env = if variadic then
+             let dots_vals = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) args_vals |> List.map (fun v -> (None, v)) else [] in
+             let dots_exprs = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) raw_args |> List.map (fun (n, e) -> (n, VExpr e)) else [] in
+             let env = Env.add "..." (VList dots_vals) call_env in
+             Env.add "__q_dots" (VList dots_exprs) env
+          else call_env in
+
           let call_env_ref = ref call_env in
           let result = eval_expr call_env_ref body in
           (* Runtime Type Check: Return Value *)
@@ -1569,13 +1781,16 @@ and eval_call env_ref fn_val raw_args =
                Error.type_error (Printf.sprintf "Function returned %s, but expected %s" got expected)
            | _ -> result)
 
-  | VLambda { params; param_types; return_type; variadic = _; body; env = None; _ } ->
+  | VLambda { params; param_types; return_type; variadic; body; env = None; _ } ->
       (* Lambda without closure — use current env *)
-      let args = List.map (fun (_, e) -> eval_expr env_ref e) raw_args in
-      if List.length params <> List.length args then
-        lambda_arity_error params args
+      let args_vals = List.map snd named_args in
+      let n_params = List.length params in
+      let n_args = List.length args_vals in
+      if (not variadic && n_params <> n_args) || (variadic && n_args < n_params) then
+        lambda_arity_error params args_vals
       else
-        (* Runtime Type Check: Arguments *)
+        (* Runtime Type Check: Arguments (fixed-arity part) *)
+        let fixed_args = if n_args > n_params then List.filteri (fun i _ -> i < n_params) args_vals else args_vals in
         let type_errors = List.filter_map (fun (v, t_opt) ->
           match t_opt with
           | Some t when not (Ast.is_compatible v t) ->
@@ -1583,7 +1798,7 @@ and eval_call env_ref fn_val raw_args =
               let got = Ast.Utils.type_name v in
               Some (Printf.sprintf "Expected %s, got %s" expected got)
           | _ -> None
-        ) (List.combine args param_types) in
+        ) (List.combine fixed_args param_types) in
 
         if type_errors <> [] then
           Error.type_error (String.concat "; " type_errors)
@@ -1591,8 +1806,24 @@ and eval_call env_ref fn_val raw_args =
           let call_env =
             List.fold_left2
               (fun current_env name value -> Env.add name value current_env)
-              !env_ref params args
+              !env_ref params fixed_args
           in
+          (* Bind expressions for enquo() — also store the caller's env for quosure capture *)
+          let caller_env = !env_ref in
+          let call_raw_args = List.map snd raw_args in
+          let call_env = List.fold_left2 (fun acc name e ->
+            Env.add ("__q_" ^ name) (VExpr e) acc
+          ) call_env params (if List.length call_raw_args > n_params then List.filteri (fun i _ -> i < n_params) call_raw_args else call_raw_args) in
+          let call_env = Env.add "__q_caller_env__" (VEnv caller_env) call_env in
+
+          (* Handle variadic ... *)
+          let call_env = if variadic then
+             let dots_vals = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) args_vals |> List.map (fun v -> (None, v)) else [] in
+             let dots_exprs = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) raw_args |> List.map (fun (n, e) -> (n, VExpr e)) else [] in
+             let env = Env.add "..." (VList dots_vals) call_env in
+             Env.add "__q_dots" (VList dots_exprs) env
+          else call_env in
+
           let call_env_ref = ref call_env in
           let result = eval_expr call_env_ref body in
           (* Runtime Type Check: Return Value *)
@@ -1625,6 +1856,32 @@ and eval_call env_ref fn_val raw_args =
      value as a function.  We keep the original error (not a generic
      TypeError) so that the root cause is visible.  Example:
        x = 1 / 0; x(1)  →  Error(DivisionByZero: ...) *)
+  | VExpr e ->
+      (* Calling an expression value: evaluate it.
+         If exactly one VDict argument is provided, use it as a data mask.
+         We add both the plain key and the '$'-prefixed key to support ColumnRef lookup. *)
+      let env_to_use = match named_args with
+        | [(_, VDict d)] -> 
+            let merged = List.fold_left (fun acc (k, v) -> 
+              Env.add k v (Env.add ("$" ^ k) v acc)
+            ) !env_ref d in
+            ref merged
+        | _ -> env_ref
+      in
+      eval_expr env_to_use e
+  | VQuo { q_expr; q_env } ->
+      (* Calling a quosure: evaluate in its captured environment.
+         If exactly one VDict argument is provided, use it as a data mask overlay.
+         We add both the plain key and the '$'-prefixed key to support ColumnRef lookup. *)
+      let env_to_use = match named_args with
+        | [(_, VDict d)] -> 
+            let merged = List.fold_left (fun acc (k, v) -> 
+              Env.add k v (Env.add ("$" ^ k) v acc)
+            ) q_env d in
+            ref merged
+        | _ -> ref q_env
+      in
+      eval_expr env_to_use q_expr
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | _ -> Error.not_callable_error (Utils.type_name fn_val)

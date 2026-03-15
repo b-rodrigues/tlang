@@ -587,6 +587,30 @@ test_that("CHRONO: filter and arrange on parsed dates", {
 })
 
 # ============================================================================
+# Test Suite 25: METAPROGRAMMING
+# ============================================================================
+
+test_that("METAPROG: enquo mutate", {
+  compare_csvs("metaprog_enquo_mutate")
+})
+
+test_that("METAPROG: enquos summarize", {
+  compare_csvs("metaprog_enquos_summarize")
+})
+
+test_that("METAPROG: expression building", {
+  compare_csvs("metaprog_expr_building")
+})
+
+test_that("METAPROG: quos", {
+  compare_csvs("metaprog_quos")
+})
+
+test_that("METAPROG: dynamic name", {
+  compare_csvs("metaprog_dyn_name")
+})
+
+# ============================================================================
 # SUMMARY REPORT
 # ============================================================================
 
