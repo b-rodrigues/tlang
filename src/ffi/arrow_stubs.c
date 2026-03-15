@@ -4028,6 +4028,14 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
         n_rows = 0;
         break;
       }
+      case 6: // Null
+        dtype = (GArrowDataType *)garrow_null_data_type_new();
+        builder = (GArrowArrayBuilder *)garrow_null_array_builder_new();
+        for (int i = 0; i < n_rows; i++) {
+          garrow_array_builder_append_null(builder, &error);
+          if (error) break;
+        }
+        break;
       case 7: // Date32 (days since epoch)
         dtype = (GArrowDataType *)garrow_date32_data_type_new();
         builder = (GArrowArrayBuilder *)garrow_date32_array_builder_new();

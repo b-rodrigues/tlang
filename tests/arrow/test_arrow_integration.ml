@@ -1740,6 +1740,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let ipc_path = "test_arrow_roundtrip.arrow" in
   let dict_ipc_path = "test_arrow_dict_roundtrip.arrow" in
   let list_ipc_path = "test_arrow_list_roundtrip.arrow" in
+  let null_ipc_path = "test_arrow_null_roundtrip.arrow" in
   let ipc_tbl_src = Arrow_table.create [
     ("id", Arrow_table.IntColumn [| Some 1; Some 2; Some 3 |]);
     ("name", Arrow_table.StringColumn [| Some "alpha"; Some "beta"; Some "gamma" |]);
@@ -1823,7 +1824,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     ] 2 in
     (match Arrow_io.write_ipc list_ipc_tbl list_ipc_path with
      | Ok () ->
-         (match Arrow_io.read_ipc list_ipc_path with
+          (match Arrow_io.read_ipc list_ipc_path with
           | Ok list_tbl ->
               (match Arrow_table.get_column list_tbl "nested" with
                | Some (Arrow_table.ListColumn nested) ->
@@ -1841,10 +1842,29 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                    end
                | _ ->
                    incr fail_count; Printf.printf "  ✗ ListColumn IPC read-back returned wrong type\n")
-          | Error msg ->
-              incr fail_count; Printf.printf "  ✗ ListColumn IPC read failed: %s\n" msg)
+           | Error msg ->
+               incr fail_count; Printf.printf "  ✗ ListColumn IPC read failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
+          incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
+
+    let null_ipc_tbl = Arrow_table.create [
+      ("missing", Arrow_table.NullColumn 3);
+    ] 3 in
+    (match Arrow_io.write_ipc null_ipc_tbl null_ipc_path with
+     | Ok () ->
+         (match Arrow_io.read_ipc null_ipc_path with
+          | Ok null_tbl ->
+              (match Arrow_table.get_column null_tbl "missing" with
+               | Some (Arrow_table.NullColumn 3) ->
+                   incr pass_count; Printf.printf "  ✓ NullColumn IPC round-trip preserves null-only columns\n"
+               | Some _ ->
+                   incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back returned wrong type or row count\n"
+               | None ->
+                   incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back lost the null-only column\n")
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ NullColumn IPC read failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ NullColumn IPC write failed: %s\n" msg);
 
     let env_ipc = Packages.init_env () in
     let (_, env_ipc) =
@@ -1876,6 +1896,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "DictionaryColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "ListColumn IPC round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "NullColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "write_arrow/read_arrow round-trip"
   end;

@@ -388,7 +388,7 @@ let is_primitive_tag_supported = function
     Primitive columns, dictionary columns, and list-of-struct columns with
     all-primitive fields are supported. *)
 let is_arrow_table_new_supported = function
-  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DateColumn _ | DictionaryColumn _ -> true
+  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DateColumn _ | NullColumn _ | DictionaryColumn _ -> true
   | ListColumn a ->
       (* All non-None sub-tables must have same schema of only primitive types.
          At least one non-None sub-table must exist to determine the struct schema. *)
@@ -399,7 +399,7 @@ let is_arrow_table_new_supported = function
            first.schema <> [] &&
            List.for_all (fun t -> t.schema = first.schema) rest &&
            List.for_all (fun (_, ty) -> is_primitive_tag_supported ty) first.schema)
-  | NullColumn _ | DatetimeColumn _ -> false
+  | DatetimeColumn _ -> false
 
 (** Flatten a ListColumn into (offsets, present_flags, sub_column_specs) for FFI.
     offsets : int array of length nrows+1
@@ -483,6 +483,7 @@ let materialize (t : t) : t =
         let arrow_string_tag = 3 in
         let arrow_dictionary_tag = 4 in
         let arrow_list_tag = 5 in
+        let arrow_null_tag = 6 in
         let arrow_date_tag = 7 in
         let arrow_unsupported_tag = 8 in
         let tag_of = function
@@ -492,8 +493,9 @@ let materialize (t : t) : t =
           | ArrowString -> arrow_string_tag
           | ArrowDictionary -> arrow_dictionary_tag
           | ArrowList _ -> arrow_list_tag
+          | ArrowNull -> arrow_null_tag
           | ArrowDate -> arrow_date_tag
-          | ArrowNull | ArrowTimestamp _ | ArrowStruct _ -> arrow_unsupported_tag
+          | ArrowTimestamp _ | ArrowStruct _ -> arrow_unsupported_tag
         in
         let ffi_cols = List.map (fun (name, type_) ->
           let tag = tag_of type_ in
