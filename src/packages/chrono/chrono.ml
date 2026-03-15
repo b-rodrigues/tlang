@@ -751,6 +751,339 @@ let within_impl args _env =
   | [_; _] -> Error.type_error "Function `%within%` expects (Date|Datetime, Interval)."
   | values -> Error.arity_error_named "%within%" 2 (List.length values)
 
+(*
+--# Parse dates from strings
+--#
+--# Parses strings or string vectors into Date values using an explicit format string.
+--#
+--# @name parse_date
+--# @family chrono
+--# @export
+*)
+(*
+--# Parse datetimes from strings
+--#
+--# Parses strings or string vectors into Datetime values using an explicit format string and optional timezone.
+--#
+--# @name parse_datetime
+--# @family chrono
+--# @export
+*)
+(*
+--# Get the current date
+--#
+--# Returns the current local date as a Date value.
+--#
+--# @name today
+--# @family chrono
+--# @export
+*)
+(*
+--# Get the current datetime
+--#
+--# Returns the current datetime and accepts an optional timezone override.
+--#
+--# @name now
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the year component
+--#
+--# Returns the calendar year from Date or Datetime values.
+--#
+--# @name year
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract or label the month
+--#
+--# Returns the month number, or month labels when requested, from Date or Datetime values.
+--#
+--# @name month
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the day of month
+--#
+--# Returns the day-of-month component from Date or Datetime values.
+--#
+--# @name day
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the day of month
+--#
+--# Alias for day() that returns the day-of-month component from Date or Datetime values.
+--#
+--# @name mday
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the day of year
+--#
+--# Returns the day-of-year component from Date or Datetime values.
+--#
+--# @name yday
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract or label the weekday
+--#
+--# Returns weekday numbers, or weekday labels when requested, from Date or Datetime values.
+--#
+--# @name wday
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the week number
+--#
+--# Returns the week number for Date or Datetime values.
+--#
+--# @name week
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the ISO week number
+--#
+--# Returns the ISO week number for Date or Datetime values.
+--#
+--# @name isoweek
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the ISO week-based year
+--#
+--# Returns the ISO week-based year for Date or Datetime values.
+--#
+--# @name isoyear
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the quarter
+--#
+--# Returns the quarter number for Date or Datetime values.
+--#
+--# @name quarter
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the semester
+--#
+--# Returns 1 for the first half of the year and 2 for the second half.
+--#
+--# @name semester
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the hour
+--#
+--# Returns the hour component from Datetime values.
+--#
+--# @name hour
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the minute
+--#
+--# Returns the minute component from Datetime values.
+--#
+--# @name minute
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the second
+--#
+--# Returns the second component from Datetime values.
+--#
+--# @name second
+--# @family chrono
+--# @export
+*)
+(*
+--# Extract the timezone label
+--#
+--# Returns the timezone string attached to a Datetime value.
+--#
+--# @name tz
+--# @family chrono
+--# @export
+*)
+(*
+--# Create a period value
+--#
+--# Builds a period from named year, month, day, hour, minute, and second components.
+--#
+--# @name make_period
+--# @family chrono
+--# @export
+*)
+(*
+--# Format dates as strings
+--#
+--# Formats Date values with a user-supplied format string.
+--#
+--# @name format_date
+--# @family chrono
+--# @export
+*)
+(*
+--# Format datetimes as strings
+--#
+--# Formats Datetime values with a user-supplied format string.
+--#
+--# @name format_datetime
+--# @family chrono
+--# @export
+*)
+(*
+--# Convert values to Date
+--#
+--# Converts strings, datetimes, and related temporal values to Date values.
+--#
+--# @name as_date
+--# @family chrono
+--# @export
+*)
+(*
+--# Convert values to Datetime
+--#
+--# Converts strings, dates, and related temporal values to Datetime values.
+--#
+--# @name as_datetime
+--# @family chrono
+--# @export
+*)
+(*
+--# Round dates down
+--#
+--# Rounds Date or Datetime values down to the requested unit boundary.
+--#
+--# @name floor_date
+--# @family chrono
+--# @export
+*)
+(*
+--# Round dates up
+--#
+--# Rounds Date or Datetime values up to the requested unit boundary.
+--#
+--# @name ceiling_date
+--# @family chrono
+--# @export
+*)
+(*
+--# Round dates to the nearest unit
+--#
+--# Rounds Date or Datetime values to the nearest requested unit boundary.
+--#
+--# @name round_date
+--# @family chrono
+--# @export
+*)
+(*
+--# Convert a datetime to a new timezone
+--#
+--# Retains the instant in time while changing the displayed timezone label.
+--#
+--# @name with_tz
+--# @family chrono
+--# @export
+*)
+(*
+--# Retag a datetime with a timezone
+--#
+--# Reinterprets local clock components under a new timezone label.
+--#
+--# @name force_tz
+--# @family chrono
+--# @export
+*)
+(*
+--# Create an interval
+--#
+--# Builds an interval from two Date or Datetime endpoints.
+--#
+--# @name interval
+--# @family chrono
+--# @export
+*)
+(*
+--# Test interval membership
+--#
+--# Returns true when a Date or Datetime value falls inside an interval.
+--#
+--# @name %within%
+--# @family chrono
+--# @export
+*)
+(*
+--# Check for leap years
+--#
+--# Returns true when the supplied year or date falls in a leap year.
+--#
+--# @name is_leap_year
+--# @family chrono
+--# @export
+*)
+(*
+--# Get the number of days in a month
+--#
+--# Returns the number of days in the month described by a date, datetime, or explicit year/month pair.
+--#
+--# @name days_in_month
+--# @family chrono
+--# @export
+*)
+(*
+--# Construct a Date value
+--#
+--# Builds a Date value from named year, month, and day components.
+--#
+--# @name make_date
+--# @family chrono
+--# @export
+*)
+(*
+--# Construct a Datetime value
+--#
+--# Builds a Datetime value from named date, time, and timezone components.
+--#
+--# @name make_datetime
+--# @family chrono
+--# @export
+*)
+(*
+--# Check whether a time is before noon
+--#
+--# Returns true for Date values and for Datetime values whose hour is earlier than 12.
+--#
+--# @name am
+--# @family chrono
+--# @export
+*)
+(*
+--# Check whether a time is after noon
+--#
+--# Returns true for Datetime values whose hour is 12 or later.
+--#
+--# @name pm
+--# @family chrono
+--# @export
+*)
 let register env =
   let parse_date_result s fmt =
     match parse_custom_format `Date s fmt None with

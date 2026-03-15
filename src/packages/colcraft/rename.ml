@@ -30,5 +30,14 @@ let rename_impl (named_args : (string option * value) list) _env =
   | _ :: _ -> Error.type_error "Function `rename` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `rename` requires a DataFrame and at least one new_name = $old_name pair."
 
+(*
+--# Rename DataFrame columns
+--#
+--# Renames selected DataFrame columns using named arguments.
+--#
+--# @name rename
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "rename" (make_builtin_named ~name:"rename" ~variadic:true 1 rename_impl) env

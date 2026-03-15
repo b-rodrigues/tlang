@@ -46,6 +46,24 @@ let slice_generic ~desc (named_args : (string option * value) list) _env =
 let slice_max_impl = slice_generic ~desc:true
 let slice_min_impl = slice_generic ~desc:false
 
+(*
+--# Keep rows with the largest values
+--#
+--# Returns the rows with the highest values in an ordering column.
+--#
+--# @name slice_max
+--# @family colcraft
+--# @export
+*)
+(*
+--# Keep rows with the smallest values
+--#
+--# Returns the rows with the lowest values in an ordering column.
+--#
+--# @name slice_min
+--# @family colcraft
+--# @export
+*)
 let register env =
   let env = Env.add "slice_max" (make_builtin_named ~name:"slice_max" ~variadic:true 1 slice_max_impl) env in
   let env = Env.add "slice_min" (make_builtin_named ~name:"slice_min" ~variadic:true 1 slice_min_impl) env in

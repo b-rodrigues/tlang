@@ -107,5 +107,14 @@ let nest_impl (named_args : (string option * value) list) _env =
   | _ :: _ -> Error.type_error "Function `nest` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `nest` requires a DataFrame."
 
+(*
+--# Nest columns into sub-dataframes
+--#
+--# Packs selected columns into nested DataFrame values grouped by the remaining columns.
+--#
+--# @name nest
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "nest" (make_builtin_named ~name:"nest" ~variadic:true 1 nest_impl) env

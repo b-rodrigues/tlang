@@ -143,6 +143,42 @@ let pchisq q df =
 
 (* --- Registration --- *)
 
+(*
+--# Normal distribution CDF
+--#
+--# Returns cumulative probabilities from the standard normal distribution.
+--#
+--# @name pnorm
+--# @family stats
+--# @export
+*)
+(*
+--# Student t distribution CDF
+--#
+--# Returns cumulative probabilities from the Student t distribution.
+--#
+--# @name pt
+--# @family stats
+--# @export
+*)
+(*
+--# F distribution CDF
+--#
+--# Returns cumulative probabilities from the F distribution.
+--#
+--# @name pf
+--# @family stats
+--# @export
+*)
+(*
+--# Chi-squared distribution CDF
+--#
+--# Returns cumulative probabilities from the chi-squared distribution.
+--#
+--# @name pchisq
+--# @family stats
+--# @export
+*)
 let register env =
   let env = Env.add "pnorm" (make_builtin ~name:"pnorm" 1 (fun args _env ->
     match args with

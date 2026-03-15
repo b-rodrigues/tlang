@@ -80,5 +80,14 @@ let uncount_impl (named_args : (string option * value) list) _env =
   | _ :: _ -> Error.type_error "Function `uncount` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `uncount` requires a DataFrame."
 
+(*
+--# Expand rows by weight
+--#
+--# Repeats each row according to a count column or weight expression.
+--#
+--# @name uncount
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "uncount" (make_builtin_named ~name:"uncount" ~variadic:true 1 uncount_impl) env

@@ -43,5 +43,14 @@ let relocate_impl (named_args : (string option * value) list) _env =
   | _ :: _ -> Error.type_error "Function `relocate` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `relocate` requires a DataFrame and columns to move."
 
+(*
+--# Move columns to a new position
+--#
+--# Reorders DataFrame columns by moving selected columns before or after another column.
+--#
+--# @name relocate
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "relocate" (make_builtin_named ~name:"relocate" ~variadic:true 1 relocate_impl) env

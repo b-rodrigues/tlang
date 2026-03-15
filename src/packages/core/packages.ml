@@ -225,6 +225,16 @@ let register env =
     ))
     env
   in
+
+(*
+--# Exit the interpreter
+--#
+--# Terminates the current T process and accepts an optional numeric exit status.
+--#
+--# @name exit
+--# @family core
+--# @export
+*)
   
   let env = Env.add "exit"
     (make_builtin ~name:"exit" ~variadic:true 0 (fun args _env ->
@@ -287,6 +297,16 @@ let register env =
 *)
   let env = Env.add "casewhen" (make_builtin_named ~name:"casewhen" ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr_immutable)) env in
 
+(*
+--# Evaluate a quoted expression
+--#
+--# Evaluates Expr values in the current environment and returns plain values unchanged.
+--#
+--# @name eval
+--# @family core
+--# @export
+*)
+ 
   let env = Env.add "eval"
     (make_builtin ~name:"eval" 1 (fun args env ->
       match args with

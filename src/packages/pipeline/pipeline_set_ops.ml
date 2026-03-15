@@ -84,6 +84,42 @@ let patch p1 p2 =
     p_scripts      = p1_filtered.p_scripts @ p2_filtered.p_scripts;
   }
 
+(*
+--# Combine two pipelines
+--#
+--# Returns a pipeline containing nodes from both inputs and errors on name collisions.
+--#
+--# @name union
+--# @family pipeline
+--# @export
+*)
+(*
+--# Subtract one pipeline from another
+--#
+--# Returns the nodes that appear in the first pipeline but not the second.
+--#
+--# @name difference
+--# @family pipeline
+--# @export
+*)
+(*
+--# Keep shared pipeline nodes
+--#
+--# Returns the nodes from the first pipeline whose names also appear in the second.
+--#
+--# @name intersect
+--# @family pipeline
+--# @export
+*)
+(*
+--# Overlay one pipeline onto another
+--#
+--# Replaces matching nodes in one pipeline with definitions from another pipeline.
+--#
+--# @name patch
+--# @family pipeline
+--# @export
+*)
 let register env =
   let env = Env.add "union" (make_builtin ~name:"union" 2 (fun args _ ->
     match args with

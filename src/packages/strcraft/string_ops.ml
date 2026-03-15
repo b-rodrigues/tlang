@@ -1002,6 +1002,69 @@ let strsplit_impl args _env =
 *)
 
 
+(*
+--# Extract the first regex match
+--#
+--# Returns the first regular-expression match found in each string.
+--#
+--# @name str_extract
+--# @family string
+--# @export
+*)
+(*
+--# Extract all regex matches
+--#
+--# Returns every regular-expression match found in each string.
+--#
+--# @name str_extract_all
+--# @family string
+--# @export
+*)
+(*
+--# Test whether a regex matches
+--#
+--# Returns true when a regular expression matches a string.
+--#
+--# @name str_detect
+--# @family string
+--# @export
+*)
+(*
+--# Pad strings to a target width
+--#
+--# Pads strings on the left, right, or both sides until they reach a requested width.
+--#
+--# @name str_pad
+--# @family string
+--# @export
+*)
+(*
+--# Truncate strings for display
+--#
+--# Shortens strings to a maximum width and appends an ellipsis when needed.
+--#
+--# @name str_trunc
+--# @family string
+--# @export
+*)
+(*
+--# Flatten a collection of strings
+--#
+--# Concatenates string collections into a single string with an optional separator.
+--#
+--# @name str_flatten
+--# @family string
+--# @export
+*)
+(*
+--# Count regex matches
+--#
+--# Counts how many times a regular expression matches within each string.
+--#
+--# @name str_count
+--# @family string
+--# @export
+*)
 let register env =
   let env = Env.add "is_empty" (make_builtin ~name:"is_empty" 1 is_empty_impl) env in
   let env = Env.add "length" (make_builtin ~name:"length" 1 length_impl) env in

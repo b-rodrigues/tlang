@@ -25,5 +25,14 @@ let slice_impl args env =
        Error.arity_error_named "slice" 2 3
   | _ -> Error.make_error ArityError "Function `slice` requires a DataFrame and an index vector, or a String and start/end indices."
 
+(*
+--# Select rows by position
+--#
+--# Returns rows from a DataFrame using explicit row positions.
+--#
+--# @name slice
+--# @family colcraft
+--# @export
+*)
 let register env =
   Env.add "slice" (make_builtin ~name:"slice" ~variadic:true 2 slice_impl) env
