@@ -105,10 +105,10 @@ print(e)
 ```
 
 ```t
-inner = quo(1 + 1)
+inner = quo(1.5 + 2.5)
 outer = expr(2 * !!inner)   -- !! strips env from quosure
 print(outer)
--- Output: expr(2 * (1 + 1))
+-- Output: expr(2 * (1.5 + 2.5))
 ```
 
 ### `!!!` (Unquote-Splice)
@@ -179,8 +179,8 @@ my_summarize = \(df: DataFrame, ... -> DataFrame) {
 }
 
 my_summarize(iris,
-  mean_sepal = mean($Sepal.Length),
-  mean_petal = mean($Petal.Length))
+  mean_sepal = mean($`Sepal.Length`),
+  mean_petal = mean($`Petal.Length`))
 -- Evaluates to: iris |> summarize(mean_sepal = ..., mean_petal = ...)
 ```
 
@@ -226,3 +226,34 @@ e = expr((add, 1, 2))
 | `!!name := value` | Use a dynamic String/Symbol as an argument name inside `expr()`/`quo()`. |
 | `enquo(param)` | Inside a function: capture caller's expression for `param` as a Quosure. |
 | `enquos(...)` | Inside a function: capture all variadic expressions as a List of Quosures. |
+
+## Data Masking & Column Resolution
+
+When an Expression or Quosure is evaluated inside a data verb (like `mutate`, `filter`, or `summarize`), it uses a **Data Mask**.
+
+T handles column resolution using a specific prefixing logic to avoid collisions with global functions:
+
+1.  **Prefix `$`: ** Expressions like `$score` are parsed as `ColumnRef`. 
+2.  **Resolution Priority:**
+    - The evaluator first checks the environment for a key named `$score`.
+    - Data verbs automatically populate the environment with both the plain name (`score`) and the prefixed name (`$score`) for every column in the current DataFrame.
+    - If a plain variable `score` is defined in the global environment (e.g., as a function), it does **not** interfere with `$score`.
+
+### Example: Avoiding Collisions
+
+```t
+-- Global 'score' function
+score = \(x, y) x + y
+
+df = [score: 1, 2, 3]
+
+-- This works correctly because '$score' looks for '$score' in the mask,
+-- ignoring the global 'score' function.
+df |> mutate(new = $score * 2)
+```
+
+## Best Practices
+
+1.  **Use `quo` by default**: When in doubt, use `quo` instead of `expr`. It ensures the code "remembers" its environment, preventing `NameError` when evaluated in different contexts.
+2.  **Quotation in Functions**: Always use `enquo` to capture arguments intended for data verbs. This allows callers to pass unquoted column names or complex expressions naturally.
+3.  **Dynamic Naming**: Use `!!name := !!value` for maximum flexibility when writing generic data processing functions.
