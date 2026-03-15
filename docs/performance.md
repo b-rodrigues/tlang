@@ -14,7 +14,7 @@ T's DataFrame operations are backed by [Apache Arrow](https://arrow.apache.org/)
 - **Hash-based grouping**: `group_by()` operations use Arrow's hash-based grouping when a native handle is present
 
 > [!IMPORTANT]
-> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. Primitive, dictionary/factor, date, null-only, and several list-column shapes can now stay native; datetime/timestamp rebuilds are still important fallback cases, so users should still inspect the active backend explicitly.
+> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. Primitive, dictionary/factor, date, datetime/timestamp, null-only, and several list-column shapes can now stay native; users should still inspect the active backend explicitly for more complex nested schemas.
 
 ### Dual-Path Architecture
 
@@ -84,7 +84,7 @@ For numeric columns (`Float64`, `Int64`), `zero_copy_view` returns a Bigarray th
 **When does the fallback trigger?**
 
 - When a transformation produces columns the current native Arrow builder path does not support
-- When a table contains datetime/timestamp columns or nested/list structures outside the currently supported shapes
+- When a table contains nested/list structures outside the currently supported shapes
 - When the Arrow C GLib library is not available at build time
 
 In practice, this means that workflows such as `read_csv() |> mutate(...) |> filter(...) |> summarize(...)` can now remain native for common primitive schemas and several richer Arrow-backed schemas, while more complex cases may still transition to the fallback path.
@@ -111,7 +111,7 @@ Performance scales approximately linearly with row count for columnar operations
 
 ## Known Performance Limitations
 
-1. **Unsupported structural rebuilds still fall back**: T now attempts to rebuild native Arrow tables after structural changes, but datetime/timestamp rebuilds and some nested schemas still cannot be reconstructed through the current Arrow builder path. When that happens, subsequent operations run on the pure OCaml fallback path.
+1. **Unsupported structural rebuilds still fall back**: T now attempts to rebuild native Arrow tables after structural changes, but some nested schemas still cannot be reconstructed through the current Arrow builder path. When that happens, subsequent operations run on the pure OCaml fallback path.
 
 2. **Single-threaded execution**: All operations run on a single thread. Arrow's multi-threaded capabilities (Rayon-based parallelism) are not yet exposed through the FFI layer.
 
@@ -128,7 +128,7 @@ Performance scales approximately linearly with row count for columnar operations
 The following optimizations are planned for future versions:
 
 ### Beta Performance Enhancements
-- Expand native rebuild coverage further for datetime/timestamp and more nested schemas so more structural transforms stay Arrow-backed
+- Expand native rebuild coverage further for more nested schemas so more structural transforms stay Arrow-backed
 - Add richer `explain()` / developer diagnostics so backend transitions are obvious during pipeline development
 - Multi-threaded Arrow operations using Rayon
 - Lazy evaluation with query optimization
