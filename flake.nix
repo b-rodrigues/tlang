@@ -212,6 +212,8 @@
             python-with-packages
             pkgs.actionlint
             pkgs.shellcheck
+            pkgs.luaformatter
+            pkgs.lua54Packages.luacheck
             pkgs.jpmml-statsmodels
             pkgs.jre
           ];
@@ -248,6 +250,8 @@
             echo "  dune clean           - Clean build artifacts"
             echo "  R                    - Launch R console"
             echo "  actionlint           - Lint GitHub Actions workflows"
+            echo "  lua-format           - Format Lua code"
+            echo "  luacheck             - Lint Lua code"
             echo ""
             echo "Golden tests:"
             echo "  Rscript tests/golden/generate_datasets.R       - Generate test data"

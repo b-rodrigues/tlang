@@ -45,14 +45,11 @@ jobs:
           fi
           echo "✅ Quarto extension version matches core T version: $CORE_VERSION"
 
-      - name: Install Lua linter
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lua5.4 luarocks
-          sudo luarocks --lua-version=5.4 install luacheck
+      - name: Check Quarto Lua filter formatting
+        run: nix develop --command lua-format --check editors/quarto/tlang/_extensions/tlang/tlang.lua
 
       - name: Lint Quarto Lua filter
-        run: luacheck --globals pandoc CodeBlock editors/quarto/tlang/_extensions/tlang/tlang.lua
+        run: nix develop --command luacheck --globals pandoc CodeBlock editors/quarto/tlang/_extensions/tlang/tlang.lua
 
       - name: Render Quarto Document with T Filter
         env:
