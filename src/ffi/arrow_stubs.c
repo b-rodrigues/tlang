@@ -12,7 +12,6 @@
 #include <caml/alloc.h>
 #include <caml/custom.h>
 #include <caml/fail.h>
-#include <caml/int64.h>
 #include <caml/bigarray.h>
 #include <math.h>
 #include <stdint.h>
