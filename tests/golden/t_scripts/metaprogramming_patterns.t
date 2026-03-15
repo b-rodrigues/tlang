@@ -42,3 +42,5 @@ write_csv(iris |> head(1) |> mutate(!!!multi_quos), path_join(output_dir, "metap
 new_name = "Sepal.Large"
 res_dyn = iris |> head(1) |> mutate(!!new_name := $`Sepal.Length` >= 5.1)
 write_csv(res_dyn, path_join(output_dir, "metaprog_dyn_name.csv"))
+
+print("✓ metaprogramming patterns complete")
