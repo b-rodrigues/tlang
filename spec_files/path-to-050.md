@@ -14,6 +14,11 @@ This document outlines the critical hardening tasks required to transition T fro
 * [x] **Signal Handling**: Hardened Ctrl+C handling. Interrupting a long-running T expression should return to the prompt without leaking OCaml exceptions or corrupting the global state.
 * [x] **CLI Argument Parsing**: Audit all CLI entry points (`run`, `init`, `test`) for robust error handling when passed malformed paths or conflicting flags.
 
+### Metaprogramming & NSE
+* [x] **Quosure Lexical Environment**: Ensure `quo()` and `enquo()` correctly capture and restore the environment. (Verified with cross-environment evaluations).
+* [x] **Namespace Isolation**: Resolved column/function collisions in data verbs by implementing the `$` prefix lookup.
+* [x] **Variadic Splicing**: Full support for `!!!` in `mutate` and `summarize`.
+
 ---
 
 ## 2. Apache Arrow & FFI Hardening
@@ -47,7 +52,7 @@ This document outlines the critical hardening tasks required to transition T fro
 
 ### Standard Library Consistency
 * [ ] **Function Signature Audit**: Ensure consistent parameter naming across all packages (e.g., `na.rm` vs `handle_na`).
-* [ ] **Vectorization Coverage**: Verify that all core math functions in `src/packages/math` and `src/packages/stats` are fully vectorized and handle `Vector` vs `Scalar` inputs predictably.
+* [x] **Vectorization Coverage**: Verify that all core math functions in `src/packages/math` and `src/packages/stats` are fully vectorized and handle `Vector` vs `Scalar` inputs predictably.
  
 ### Quarto Extension
 * [x] **Versioning**: Sync the Quarto extension version in `_extension.yml` with the core T version.
@@ -66,12 +71,12 @@ This document outlines the critical hardening tasks required to transition T fro
 ## 5. Documentation & Release Prep
 
 ### Documentation Audit
-* [ ] **Reconcile Planning Docs**: Delete or archive stale `spec_files/*.md` that refer to unimplemented features as "current."
+* [x] **Reconcile Planning Docs**: Delete or archive stale `spec_files/*.md` that refer to unimplemented features as "current." (Archived `golden-tests-implementation.md`, `pipeline-implementation.md`, etc).
 * [ ] **Performance Transparency**: Update `docs/performance.md` with explicit benchmarks comparing the "Native Path" vs. "Fallback Path" for common operations (filter, mutate, summarize).
 
 ### Release Checklist
 * [ ] **The "Happy Path" Smoke Test**: A single script that runs in CI: `init` -> `add dep` -> `update` -> `run` -> `test`. If this script fails, the release is blocked.
-* [ ] **Version Stamp**: automate the update of version strings across `dune-project`, `flake.nix`, and `_extension.yml`.
+* [x] **Version Stamp**: automate the update of version strings across `dune-project`, `flake.nix`, and `_extension.yml`.
 
 ---
 
