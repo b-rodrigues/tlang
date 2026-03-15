@@ -1824,7 +1824,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     ] 2 in
     (match Arrow_io.write_ipc list_ipc_tbl list_ipc_path with
      | Ok () ->
-          (match Arrow_io.read_ipc list_ipc_path with
+         (match Arrow_io.read_ipc list_ipc_path with
           | Ok list_tbl ->
               (match Arrow_table.get_column list_tbl "nested" with
                | Some (Arrow_table.ListColumn nested) ->
@@ -1842,10 +1842,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                    end
                | _ ->
                    incr fail_count; Printf.printf "  ✗ ListColumn IPC read-back returned wrong type\n")
-           | Error msg ->
-               incr fail_count; Printf.printf "  ✗ ListColumn IPC read failed: %s\n" msg)
+          | Error msg ->
+              incr fail_count; Printf.printf "  ✗ ListColumn IPC read failed: %s\n" msg)
      | Error msg ->
-          incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
+         incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
 
     let null_ipc_tbl = Arrow_table.create [
       ("missing", Arrow_table.NullColumn 3);
