@@ -132,12 +132,18 @@ let arrow_type_of_tag = function
   | 4 -> ArrowDictionary
   | 5 -> ArrowList ArrowNull
   | 7 -> ArrowDate
+  | 8 -> ArrowTimestamp None
   | _ -> ArrowNull
+
+let arrow_type_of_schema_tag tag tz =
+  match tag with
+  | 8 -> ArrowTimestamp tz
+  | _ -> arrow_type_of_tag tag
 
 (** Rebuild schema from a native table pointer *)
 let schema_from_native_ptr (ptr : nativeint) : arrow_schema =
   let pairs = Arrow_ffi.arrow_table_get_schema ptr in
-  List.map (fun (name, tag) -> (name, arrow_type_of_tag tag)) pairs
+  List.map (fun (name, tag, tz) -> (name, arrow_type_of_schema_tag tag tz)) pairs
 
 (* --- GC Finalizer --- *)
 
@@ -190,7 +196,7 @@ let column_names (t : t) : string list =
   match t.native_handle with
   | Some handle when not handle.freed ->
       let schema_pairs = Arrow_ffi.arrow_table_get_schema handle.ptr in
-      List.map fst schema_pairs
+      List.map (fun (name, _, _) -> name) schema_pairs
   | _ ->
       List.map fst t.columns
 
@@ -292,27 +298,23 @@ let get_column (t : t) (name : string) : column_data option =
                 | ArrowList _ -> Some (ListColumn [||])
                 | ArrowStruct _ -> Some (NullColumn 0))
              else None
-         | Some array_ptr ->
-           match col_type with
-           | ArrowInt64 ->
-               Some (IntColumn (Arrow_ffi.arrow_read_int64_column array_ptr))
-           | ArrowFloat64 ->
-               Some (FloatColumn (Arrow_ffi.arrow_read_float64_column array_ptr))
-           | ArrowBoolean ->
-               Some (BoolColumn (Arrow_ffi.arrow_read_boolean_column array_ptr))
-           | ArrowString ->
-               Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
-           | ArrowDate ->
-               Some (DateColumn (Arrow_ffi.arrow_read_date32_column array_ptr))
-           | ArrowTimestamp _ ->
-               (* Native Arrow timestamp extraction is not implemented in the
-                  current FFI layer yet, so timestamp columns stay in the pure
-                  OCaml fallback path until those readers are added. *)
-               Arrow_ffi.arrow_unref array_ptr;
-               List.assoc_opt name t.columns
-           | ArrowNull ->
-               Arrow_ffi.arrow_unref array_ptr;
-               Some (NullColumn t.nrows)
+          | Some array_ptr ->
+            match col_type with
+            | ArrowInt64 ->
+                Some (IntColumn (Arrow_ffi.arrow_read_int64_column array_ptr))
+            | ArrowFloat64 ->
+                Some (FloatColumn (Arrow_ffi.arrow_read_float64_column array_ptr))
+            | ArrowBoolean ->
+                Some (BoolColumn (Arrow_ffi.arrow_read_boolean_column array_ptr))
+            | ArrowString ->
+                Some (StringColumn (Arrow_ffi.arrow_read_string_column array_ptr))
+            | ArrowDate ->
+                Some (DateColumn (Arrow_ffi.arrow_read_date32_column array_ptr))
+            | ArrowTimestamp tz ->
+                Some (DatetimeColumn (Arrow_ffi.arrow_read_timestamp_column array_ptr, tz))
+            | ArrowNull ->
+                Arrow_ffi.arrow_unref array_ptr;
+                Some (NullColumn t.nrows)
            | ArrowDictionary ->
                let (indices, levels, ordered) =
                  Arrow_ffi.arrow_read_dictionary_column array_ptr in
@@ -385,8 +387,9 @@ let is_primitive_tag_supported = function
   | _ -> false
 
 (** Column builders currently supported by Arrow_ffi.arrow_table_new.
-    Primitive columns, null-only columns, dictionary columns, and
-    list-of-struct columns with all-primitive fields are supported. *)
+     Primitive columns, null-only columns, dictionary columns, datetime
+     columns, and list-of-struct columns with all-primitive fields
+     are supported. *)
 let is_arrow_table_new_supported = function
   | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DateColumn _ | NullColumn _ | DictionaryColumn _ -> true
   | ListColumn a ->
@@ -399,7 +402,7 @@ let is_arrow_table_new_supported = function
            first.schema <> [] &&
            List.for_all (fun t -> t.schema = first.schema) rest &&
            List.for_all (fun (_, ty) -> is_primitive_tag_supported ty) first.schema)
-  | DatetimeColumn _ -> false
+  | DatetimeColumn _ -> true
 
 (** Flatten a ListColumn into (offsets, present_flags, sub_column_specs) for FFI.
     offsets : int array of length nrows+1
@@ -485,7 +488,8 @@ let materialize (t : t) : t =
         let arrow_list_tag = 5 in
         let arrow_null_tag = 6 in
         let arrow_date_tag = 7 in
-        let arrow_unsupported_tag = 8 in
+        let arrow_timestamp_tag = 8 in
+        let arrow_unsupported_tag = 9 in
         let tag_of = function
           | ArrowInt64 -> arrow_int64_tag
           | ArrowFloat64 -> arrow_float64_tag
@@ -495,10 +499,16 @@ let materialize (t : t) : t =
           | ArrowList _ -> arrow_list_tag
           | ArrowNull -> arrow_null_tag
           | ArrowDate -> arrow_date_tag
-          | ArrowTimestamp _ | ArrowStruct _ -> arrow_unsupported_tag
+          | ArrowTimestamp _ -> arrow_timestamp_tag
+          | ArrowStruct _ -> arrow_unsupported_tag
         in
         let ffi_cols = List.map (fun (name, type_) ->
           let tag = tag_of type_ in
+          let timezone =
+            match type_ with
+            | ArrowTimestamp tz -> tz
+            | _ -> None
+          in
           let raw_data : Obj.t = match List.assoc_opt name t.columns with
             | Some (DictionaryColumn (indices, levels, ordered)) ->
                 (* Pack as tuple (int option array, string list, bool) for C FFI.
@@ -514,12 +524,11 @@ let materialize (t : t) : t =
             | Some (BoolColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (StringColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (DateColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
+            | Some (DatetimeColumn (a, _)) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (NullColumn n) -> Obj.repr (Array.make n None)
-            | Some (DatetimeColumn _) ->
-                Obj.repr (Array.make t.nrows None)
             | None -> Obj.repr (Array.make t.nrows None)
           in
-          (name, tag, (Obj.obj raw_data : Obj.t array))
+          (name, tag, timezone, (Obj.obj raw_data : Obj.t array))
         ) t.schema in
         match Arrow_ffi.arrow_table_new ffi_cols with
         | Some ptr -> create_from_native ptr t.schema t.nrows

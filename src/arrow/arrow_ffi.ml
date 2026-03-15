@@ -33,10 +33,11 @@ external arrow_table_num_columns : nativeint -> int
 (* Schema Extraction                                                     *)
 (* ===================================================================== *)
 
-(** Returns list of (column_name, type_tag) pairs.
+(** Returns list of (column_name, type_tag, timezone) triples.
     type_tag: 0=ArrowInt64, 1=ArrowFloat64, 2=ArrowBoolean, 3=ArrowString,
-              4=ArrowDictionary, 5=ArrowList, 6=ArrowNull, 7=ArrowDate *)
-external arrow_table_get_schema : nativeint -> (string * int) list
+              4=ArrowDictionary, 5=ArrowList, 6=ArrowNull, 7=ArrowDate,
+              8=ArrowTimestamp. timezone is only populated for timestamps. *)
+external arrow_table_get_schema : nativeint -> (string * int * string option) list
   = "caml_arrow_table_get_schema"
 
 (* ===================================================================== *)
@@ -60,6 +61,9 @@ external arrow_read_string_column : nativeint -> string option array
 
 external arrow_read_date32_column : nativeint -> int option array
   = "caml_arrow_read_date32_column"
+
+external arrow_read_timestamp_column : nativeint -> int64 option array
+  = "caml_arrow_read_timestamp_column"
 
 external arrow_read_dictionary_column : nativeint -> (int option array * string list * bool)
   = "caml_arrow_read_dictionary_column"
@@ -132,7 +136,7 @@ external arrow_table_take : nativeint -> int array -> nativeint option
 external arrow_table_sort : nativeint -> string -> bool -> nativeint option
   = "caml_arrow_table_sort"
 
-external arrow_table_new : (string * int * 'a array) list -> nativeint option
+external arrow_table_new : (string * int * string option * 'a array) list -> nativeint option
   = "caml_arrow_table_new"
 
 (* ===================================================================== *)

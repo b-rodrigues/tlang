@@ -136,6 +136,7 @@ Based on the code currently in the repository, the following are present:
 - dictionary/factor columns
 - list columns with nested DataFrame reconstruction
 - date columns
+- datetime/timestamp columns, including native materialization and IPC round-trips
 - null-only columns
 - zero-copy views for native numeric columns
 - Arrow-to-Owl bridge for numeric/statistical workflows
@@ -149,16 +150,17 @@ These features exist in the backend, but are not yet cleanly represented in user
 - Arrow IPC support is implemented, but under-documented.
 - Pipeline Arrow interop exists, but most of the narrative lives in `spec_files/` and tests rather than in `docs/`.
 - Native Arrow CSV reading exists in `src/arrow/arrow_io.ml`, and the public `read_csv()` builtin uses it for the default CSV path.
-- `docs/performance.md` still describes dictionary/factor, list, and date columns as unsupported for native rebuild even though the code now includes native dictionary, list, and date materialization paths.
+- `docs/performance.md` previously lagged behind the implementation; the rebuild/fallback language now reflects native dictionary, list, date, and datetime/timestamp materialization more accurately.
 
 ### Partially implemented or still limited
 
-The code also shows some areas that are either incomplete or intentionally constrained:
+The code also shows some areas that are either intentionally constrained or still not fully unified:
 
-- **Datetime native materialization**
-  - `Arrow_table.DatetimeColumn` exists and `Arrow_io.build_column` can parse timestamps,
-  - but `Arrow_table.is_arrow_table_new_supported` still rejects `DatetimeColumn`,
-  - and the Arrow type-tag mapping does not currently expose a dedicated timestamp tag in the same way it does for date/dictionary/list.
+- **Datetime/timestamp support**
+  - `Arrow_table.DatetimeColumn` can now be materialized into native Arrow tables,
+  - schema extraction preserves top-level timestamp timezone metadata,
+  - and the IPC regression suite now covers datetime/timestamp round-trips,
+  - but nested list-of-struct support is still constrained to primitive/date sub-fields rather than all possible nested timestamp shapes.
 - **List columns**
   - native support exists, but only for list-of-struct shapes whose sub-fields are primitive supported types and whose nested tables share a schema.
 - **CSV path consistency**
@@ -195,16 +197,13 @@ The main implementation gaps that stand out from the current code are:
    - The default `read_csv()` path now uses `Arrow_io.read_csv`, but option-rich parsing still uses the OCaml parser path.
    - This is now mostly a documentation and consistency question rather than a missing integration.
 
-2. **Native datetime round-trip/materialization**
-   - Date is present; datetime/timestamp support is only partial.
-
-3. **Broader native materialization coverage**
+2. **Broader native materialization coverage**
    - list-column support is constrained to compatible nested schemas.
 
-4. **Documentation/source alignment**
+3. **Documentation/source alignment**
    - some docs still describe features as missing even though they are implemented.
 
-5. **Historical spec cleanup**
+4. **Historical spec cleanup**
    - older planning docs still describe the backend as “not started” or “stubbed,” which is useful historically but confusing if read as current status.
 
 ## What the current tests cover
@@ -239,6 +238,7 @@ This file covers a lot of backend behavior already:
   - grouping and grouped aggregation
 - zero-copy view behavior
 - temporal parsing helpers for date/timestamp string parsing
+- native datetime materialization and datetime IPC round-trips with timezone preservation
 - dictionary/factor support, including ordered-factor round-trips
 - list-column support, including:
   - native materialization
@@ -296,16 +296,17 @@ The current tests are strong, but there are still some obvious gaps.
 
 1. **Broaden Arrow IPC round-trip coverage**
    - Dedicated tests already exist for:
-     - `Arrow_io.read_ipc`
-     - `Arrow_io.write_ipc`
-     - `read_arrow`
-     - `write_arrow`
+      - `Arrow_io.read_ipc`
+      - `Arrow_io.write_ipc`
+      - `read_arrow`
+      - `write_arrow`
    - Round-trips now cover:
      - primitive tables,
      - dictionary/factor tables,
      - list-column tables where supported,
-     - null-only columns.
-   - The remaining useful additions are edge cases such as empty structures and future datetime/timestamp coverage.
+     - null-only columns,
+     - datetime/timestamp columns.
+   - The remaining useful additions are edge cases such as empty structures and more exotic nested datetime/list shapes.
 
 2. **Public `read_csv()` path tests that distinguish implementation path**
    - The repository currently tests `read_csv()` behavior, but not the architectural distinction between:
@@ -314,11 +315,11 @@ The current tests are strong, but there are still some obvious gaps.
    - We should add tests that make this difference explicit so future refactors do not silently change backend behavior.
 
 3. **Datetime/timestamp support tests**
-   - The code currently tests timestamp parsing helpers, but not a full native round-trip story.
+   - The code now tests parsing helpers, native materialization, and IPC round-trips for top-level datetime columns.
    - Add tests for:
-     - datetime columns in DataFrames,
-     - expected fallback behavior where native rebuild is unsupported,
-     - eventual native round-trip once implemented.
+     - deeper nested datetime-bearing schemas,
+     - list-columns containing timestamp-bearing structs once supported more broadly,
+     - additional serializer/deserializer edge cases around timezones.
 
 4. **IPC/pipeline regression tests for Arrow serializer helpers**
    - There is already meaningful Arrow serializer/deserializer coverage through `tests/pipeline/test_arrow_interop.t` and other pipeline fixtures.
@@ -363,11 +364,14 @@ The current tests are strong, but there are still some obvious gaps.
 - **Null-only native rebuild/materialization**
   - `NullColumn` can now be materialized back into a native Arrow table, which means null-only DataFrames can remain on the native Arrow path and participate in Arrow IPC round-trips.
 
+- **Datetime/timestamp native rebuild/materialization**
+  - `DatetimeColumn` can now be materialized back into a native Arrow table, and top-level Arrow schema extraction/IPC round-trips preserve timestamp timezone metadata.
+
 ### Update
 
 1. **`docs/performance.md`**
-   - update rebuild/fallback examples so they match the current code.
-   - In particular, dictionary, list, and date support should be described more accurately.
+   - keep rebuild/fallback examples aligned with the current code as nested coverage expands further.
+   - In particular, any future list/timestamp caveats should be documented precisely.
 
 2. **`docs/architecture.md`**
    - add a clearer summary of Arrow IPC and pipeline interop, not just the table backend.
@@ -389,8 +393,9 @@ If the goal is to make Arrow status clear and reduce confusion, the best next st
    - either switch the public `read_csv()` builtin to `Arrow_io.read_csv`,
    - or document why the current split exists.
 
-2. **Add dedicated Arrow IPC round-trip tests**
-   - this is the clearest missing test area.
+2. **Expand Arrow IPC round-trip tests further**
+   - the core round-trip story is now covered for primitives, dictionary/list/null-only, and top-level datetime/timestamp columns.
+   - the clearest remaining gaps are empties and more exotic nested shapes.
 
 3. **Document the current support matrix**
    - especially for dictionary, list, date, datetime, and null-only columns.

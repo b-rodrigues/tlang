@@ -54,18 +54,18 @@ CAMLprim value caml_arrow_table_num_columns(value v_ptr) {
 /* Schema Extraction                                                     */
 /* ===================================================================== */
 
-/* Get schema as list of (name, type_tag) pairs.
+/* Get schema as list of (name, type_tag, timezone) tuples.
    type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String,
-             4=Dictionary, 5=List, 6=Null, 7=Date */
+             4=Dictionary, 5=List, 6=Null, 7=Date, 8=Timestamp */
 CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
   CAMLparam1(v_ptr);
-  CAMLlocal3(v_result, v_col, v_cons);
+  CAMLlocal4(v_result, v_col, v_cons, v_tz);
 
   GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
   GArrowSchema *schema = garrow_table_get_schema(table);
   guint ncols = garrow_schema_n_fields(schema);
 
-  /* Build OCaml list of (name, type_tag) pairs — build in reverse then reverse */
+  /* Build OCaml list of (name, type_tag, timezone) tuples — build in reverse then reverse */
   v_result = Val_emptylist;
   for (gint i = ncols - 1; i >= 0; i--) {
     GArrowField *field = garrow_schema_get_field(schema, i);
@@ -74,6 +74,7 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
 
     /* Map Arrow type to T arrow_type tag */
     int type_tag;
+    v_tz = Val_none;
     if (GARROW_IS_INT8_DATA_TYPE(dtype) || GARROW_IS_INT16_DATA_TYPE(dtype) ||
         GARROW_IS_INT32_DATA_TYPE(dtype) || GARROW_IS_INT64_DATA_TYPE(dtype) ||
         GARROW_IS_UINT8_DATA_TYPE(dtype) || GARROW_IS_UINT16_DATA_TYPE(dtype) ||
@@ -89,12 +90,50 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
     else if (GARROW_IS_LIST_DATA_TYPE(dtype))     type_tag = 5; /* ArrowList */
     else if (GARROW_IS_DATE32_DATA_TYPE(dtype) ||
              GARROW_IS_DATE64_DATA_TYPE(dtype))   type_tag = 7; /* ArrowDate */
+    else if (GARROW_IS_TIMESTAMP_DATA_TYPE(dtype)) { /* ArrowTimestamp */
+      type_tag = 8;
+      GTimeZone *time_zone = NULL;
+      g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
+      
+      const gchar *identifier = NULL;
+      if (time_zone != NULL) {
+        identifier = g_time_zone_get_identifier(time_zone);
+      }
+
+      /* Fallback: parse from string representation if identifier is NULL.
+         Arrow string format: timestamp[unit, tz=identifier] */
+      if (identifier == NULL) {
+        gchar *type_str = garrow_data_type_to_string(dtype);
+        if (type_str != NULL) {
+          const gchar *tz_prefix = "tz=";
+          gchar *start = g_strstr_len(type_str, -1, tz_prefix);
+          if (start != NULL) {
+            start += 3;
+            gchar *end = g_strrstr(start, "]");
+            if (end != NULL) {
+              *end = '\0';
+              v_tz = caml_alloc(1, 0);
+              Store_field(v_tz, 0, caml_copy_string(start));
+            }
+          }
+          g_free(type_str);
+        }
+      } else {
+        v_tz = caml_alloc(1, 0);
+        Store_field(v_tz, 0, caml_copy_string(identifier));
+      }
+
+      if (time_zone != NULL) {
+        g_time_zone_unref(time_zone);
+      }
+    }
     else                                          type_tag = 6; /* ArrowNull */
 
-    /* Create tuple (name, type_tag) */
-    v_col = caml_alloc(2, 0);
+    /* Create tuple (name, type_tag, timezone) */
+    v_col = caml_alloc(3, 0);
     Store_field(v_col, 0, caml_copy_string(name));
     Store_field(v_col, 1, Val_int(type_tag));
+    Store_field(v_col, 2, v_tz);
 
     /* Cons onto list */
     v_cons = caml_alloc(2, 0);
@@ -362,6 +401,65 @@ CAMLprim value caml_arrow_read_date32_column(value v_array_ptr) {
     }
   }
 
+  g_object_unref(array);
+  CAMLreturn(v_result);
+}
+
+/* Read a Timestamp column into an OCaml int64 option array.
+   T stores datetimes as microseconds since the UNIX epoch, so timestamp
+   arrays in second/milli/nano units are normalized to microseconds. */
+CAMLprim value caml_arrow_read_timestamp_column(value v_array_ptr) {
+  CAMLparam1(v_array_ptr);
+  CAMLlocal2(v_result, v_some);
+
+  GArrowArray *array = (GArrowArray *)Nativeint_val(v_array_ptr);
+  gint64 length = garrow_array_get_length(array);
+
+  v_result = caml_alloc(length, 0);
+
+  GArrowTimestampArray *timestamp_array =
+    GARROW_IS_TIMESTAMP_ARRAY(array) ? GARROW_TIMESTAMP_ARRAY(array) : NULL;
+  GArrowDataType *dtype = garrow_array_get_value_data_type(array);
+  GArrowTimeUnit unit = GARROW_TIME_UNIT_MICRO;
+  if (dtype != NULL && GARROW_IS_TIMESTAMP_DATA_TYPE(dtype)) {
+    unit = garrow_timestamp_data_type_get_unit(GARROW_TIMESTAMP_DATA_TYPE(dtype));
+  }
+
+  for (gint64 i = 0; i < length; i++) {
+    if (garrow_array_is_null(array, i) || timestamp_array == NULL) {
+      Store_field(v_result, i, Val_none);
+    } else {
+      gint64 raw = garrow_timestamp_array_get_value(timestamp_array, i);
+      gint64 micros = raw;
+      switch (unit) {
+        case GARROW_TIME_UNIT_SECOND:
+          micros = raw * 1000000LL;
+          break;
+        case GARROW_TIME_UNIT_MILLI:
+          micros = raw * 1000LL;
+          break;
+        case GARROW_TIME_UNIT_MICRO:
+          micros = raw;
+          break;
+        case GARROW_TIME_UNIT_NANO:
+          micros = raw / 1000LL;
+          if (raw < 0 && (raw % 1000LL) != 0) {
+            micros -= 1;
+          }
+          break;
+        default:
+          micros = raw;
+          break;
+      }
+      v_some = caml_alloc(1, 0); /* Some(...) */
+      Store_field(v_some, 0, caml_copy_int64(micros));
+      Store_field(v_result, i, v_some);
+    }
+  }
+
+  if (dtype != NULL) {
+    g_object_unref(dtype);
+  }
   g_object_unref(array);
   CAMLreturn(v_result);
 }
@@ -3581,8 +3679,10 @@ CAMLprim value caml_arrow_write_ipc(value v_ptr, value v_path) {
   if (!ok && error) g_error_free(error);
   CAMLreturn(Val_bool(ok));
 }
-/* Create a native Arrow table from a list of (name, type_tag, array) tuples.
-   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String, 7=Date.
+/* Create a native Arrow table from a list of (name, type_tag, timezone, array)
+   tuples.
+   type_tag: 0=Int64, 1=Float64, 2=Boolean, 3=String, 4=Dictionary,
+             5=List, 6=Null, 7=Date, 8=Timestamp.
    array is an OCaml option array (None = null, Some x = value). */
 CAMLprim value caml_arrow_table_new(value v_cols) {
   CAMLparam1(v_cols);
@@ -3597,7 +3697,8 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
     v_col = Field(v_iter, 0);
     const char *name = String_val(Field(v_col, 0));
     int type_tag = Int_val(Field(v_col, 1));
-    v_arr = Field(v_col, 2);
+    value v_time_zone = Field(v_col, 2);
+    v_arr = Field(v_col, 3);
     int n_rows = Wosize_val(v_arr);
     
     GArrowDataType *dtype = NULL;
@@ -4049,6 +4150,29 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
           if (error) break;
         }
         break;
+      case 8: { // Timestamp (microseconds since epoch)
+        GTimeZone *time_zone = Is_block(v_time_zone)
+          ? g_time_zone_new_identifier(String_val(Field(v_time_zone, 0)))
+          : NULL;
+        GArrowTimestampDataType *timestamp_dtype =
+          garrow_timestamp_data_type_new(GARROW_TIME_UNIT_MICRO, time_zone);
+        if (time_zone) g_time_zone_unref(time_zone);
+        dtype = (GArrowDataType *)timestamp_dtype;
+        builder = (GArrowArrayBuilder *)garrow_timestamp_array_builder_new(timestamp_dtype);
+        for (int i = 0; i < n_rows; i++) {
+          value v_opt = Field(v_arr, i);
+          if (Is_block(v_opt)) { // Some(micros)
+            garrow_timestamp_array_builder_append_value(
+              GARROW_TIMESTAMP_ARRAY_BUILDER(builder),
+              Int64_val(Field(v_opt, 0)),
+              &error);
+          } else {
+            garrow_array_builder_append_null(builder, &error);
+          }
+          if (error) break;
+        }
+        break;
+      }
       default:
         break;
     }

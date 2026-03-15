@@ -68,8 +68,7 @@ let sort_by_column (t : Arrow_table.t) (col_name : string) (ascending : bool) : 
 
 (** Rebuild schema from a native table pointer *)
 let schema_from_native_ptr (ptr : nativeint) : Arrow_table.arrow_schema =
-  let pairs = Arrow_ffi.arrow_table_get_schema ptr in
-  List.map (fun (name, tag) -> (name, Arrow_table.arrow_type_of_tag tag)) pairs
+  Arrow_table.schema_from_native_ptr ptr
 
 (** Add or replace a computed column while preserving the native path when
     possible. For native-backed destination tables, materialize only the new

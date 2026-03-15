@@ -80,6 +80,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      && Arrow_table.arrow_type_of_tag 1 = Arrow_table.ArrowFloat64
      && Arrow_table.arrow_type_of_tag 2 = Arrow_table.ArrowBoolean
      && Arrow_table.arrow_type_of_tag 3 = Arrow_table.ArrowString
+     && Arrow_table.arrow_type_of_tag 8 = Arrow_table.ArrowTimestamp None
      && Arrow_table.arrow_type_of_tag 99 = Arrow_table.ArrowNull then begin
     incr pass_count; Printf.printf "  ✓ arrow_type_of_tag works\n"
   end else begin
@@ -1184,27 +1185,28 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Some "UTC"
   ) in
   if Arrow_table.is_arrow_table_new_supported dt_col then begin
-    incr fail_count; Printf.printf "  ✗ DatetimeColumn should currently be unsupported for native rebuild\n"
+    incr pass_count; Printf.printf "  ✓ DatetimeColumn is supported for native rebuild\n"
   end else begin
-    incr pass_count; Printf.printf "  ✓ DatetimeColumn is currently unsupported for native rebuild\n"
+    incr fail_count; Printf.printf "  ✗ DatetimeColumn should be supported for native rebuild\n"
   end;
   let dt_tbl = Arrow_table.create [("ts", dt_col)] 3 in
   let dt_mat = Arrow_table.materialize dt_tbl in
   if Arrow_table.is_native_backed dt_mat then begin
-    incr fail_count; Printf.printf "  ✗ DatetimeColumn materialization should stay on pure fallback\n"
-  end else begin
     (match Arrow_table.get_column dt_mat "ts" with
      | Some (Arrow_table.DatetimeColumn (data, tz)) ->
          if data.(0) = Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0)
             && data.(1) = None
             && data.(2) = Some (Chrono.datetime_of_components 2024 1 16 14 45 30 500000)
             && tz = Some "UTC" then begin
-           incr pass_count; Printf.printf "  ✓ DatetimeColumn fallback materialization preserves values\n"
+           incr pass_count; Printf.printf "  ✓ DatetimeColumn native materialization preserves values\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ DatetimeColumn fallback materialization data mismatch\n"
+           incr fail_count; Printf.printf "  ✗ DatetimeColumn native materialization data mismatch\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ DatetimeColumn fallback materialization returned wrong type\n")
+         incr fail_count; Printf.printf "  ✗ DatetimeColumn native materialization returned wrong type\n")
+  end else begin
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "DatetimeColumn materialization did not retain a native Arrow handle"
   end;
 
   print_newline ();
@@ -1741,6 +1743,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let dict_ipc_path = "test_arrow_dict_roundtrip.arrow" in
   let list_ipc_path = "test_arrow_list_roundtrip.arrow" in
   let null_ipc_path = "test_arrow_null_roundtrip.arrow" in
+  let dt_ipc_path = "test_arrow_datetime_roundtrip.arrow" in
   let ipc_tbl_src = Arrow_table.create [
     ("id", Arrow_table.IntColumn [| Some 1; Some 2; Some 3 |]);
     ("name", Arrow_table.StringColumn [| Some "alpha"; Some "beta"; Some "gamma" |]);
@@ -1852,19 +1855,56 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     ] 3 in
     (match Arrow_io.write_ipc null_ipc_tbl null_ipc_path with
      | Ok () ->
-         (match Arrow_io.read_ipc null_ipc_path with
-          | Ok null_tbl ->
-              (match Arrow_table.get_column null_tbl "missing" with
+          (match Arrow_io.read_ipc null_ipc_path with
+           | Ok null_tbl ->
+               (match Arrow_table.get_column null_tbl "missing" with
                | Some (Arrow_table.NullColumn 3) ->
                    incr pass_count; Printf.printf "  ✓ NullColumn IPC round-trip preserves null-only columns\n"
                | Some _ ->
                    incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back returned wrong type or row count\n"
                | None ->
                    incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back lost the null-only column\n")
-          | Error msg ->
-              incr fail_count; Printf.printf "  ✗ NullColumn IPC read failed: %s\n" msg)
+           | Error msg ->
+               incr fail_count; Printf.printf "  ✗ NullColumn IPC read failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ NullColumn IPC write failed: %s\n" msg);
+          incr fail_count; Printf.printf "  ✗ NullColumn IPC write failed: %s\n" msg);
+
+    let dt_ipc_tbl = Arrow_table.create [
+      ("ts", Arrow_table.DatetimeColumn (
+        [| Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0);
+           None;
+           Some (Chrono.datetime_of_components 2024 1 16 14 45 30 500000) |],
+        Some "UTC"
+      ));
+    ] 3 in
+    (match Arrow_io.write_ipc dt_ipc_tbl dt_ipc_path with
+     | Ok () ->
+          (match Arrow_io.read_ipc dt_ipc_path with
+           | Ok dt_ipc_back ->
+               let schema_ok =
+                 match Arrow_table.get_schema dt_ipc_back with
+                 | [("ts", Arrow_table.ArrowTimestamp (Some "UTC"))] -> true
+                 | _ -> false
+               in
+               let data_ok =
+                 match Arrow_table.get_column dt_ipc_back "ts" with
+                 | Some (Arrow_table.DatetimeColumn (data, tz)) ->
+                     Array.length data = 3
+                     && data.(0) = Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0)
+                     && data.(1) = None
+                     && data.(2) = Some (Chrono.datetime_of_components 2024 1 16 14 45 30 500000)
+                     && tz = Some "UTC"
+                 | _ -> false
+               in
+               if schema_ok && data_ok then begin
+                 incr pass_count; Printf.printf "  ✓ DatetimeColumn IPC round-trip preserves timezone and values\n"
+               end else begin
+                 incr fail_count; Printf.printf "  ✗ DatetimeColumn IPC round-trip data mismatch\n"
+               end
+           | Error msg ->
+               incr fail_count; Printf.printf "  ✗ DatetimeColumn IPC read failed: %s\n" msg)
+     | Error msg ->
+         incr fail_count; Printf.printf "  ✗ DatetimeColumn IPC write failed: %s\n" msg);
 
     let env_ipc = Packages.init_env () in
     let (_, env_ipc) =
@@ -1899,12 +1939,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "NullColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
+      "DatetimeColumn IPC round-trip";
+    Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "write_arrow/read_arrow round-trip"
   end;
 
   if Sys.file_exists null_ipc_path then Sys.remove null_ipc_path;
   if Sys.file_exists list_ipc_path then Sys.remove list_ipc_path;
   if Sys.file_exists dict_ipc_path then Sys.remove dict_ipc_path;
+  if Sys.file_exists dt_ipc_path then Sys.remove dt_ipc_path;
   if Sys.file_exists ipc_path then Sys.remove ipc_path;
 
   print_newline ();

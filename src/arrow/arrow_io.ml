@@ -185,11 +185,8 @@ let read_csv_native (path : string) : (Arrow_table.t, string) result =
   match Arrow_ffi.arrow_read_csv path with
   | None -> Error ("Arrow CSV read failed: " ^ path)
   | Some ptr ->
-      let schema_pairs = Arrow_ffi.arrow_table_get_schema ptr in
       let nrows = Arrow_ffi.arrow_table_num_rows ptr in
-      let schema = List.map (fun (name, type_tag) ->
-        (name, Arrow_table.arrow_type_of_tag type_tag)
-      ) schema_pairs in
+      let schema = Arrow_table.schema_from_native_ptr ptr in
       Ok (Arrow_table.create_from_native ptr schema nrows)
 
 (* ===================================================================== *)
@@ -217,11 +214,8 @@ let download_url ?(suffix=".csv") (url : string) : (string, string) result =
 let read_ipc (path : string) : (Arrow_table.t, string) result =
   match Arrow_ffi.arrow_read_ipc path with
   | Some ptr ->
-      let schema_pairs = Arrow_ffi.arrow_table_get_schema ptr in
       let nrows = Arrow_ffi.arrow_table_num_rows ptr in
-      let schema = List.map (fun (name, type_tag) ->
-        (name, Arrow_table.arrow_type_of_tag type_tag)
-      ) schema_pairs in
+      let schema = Arrow_table.schema_from_native_ptr ptr in
       Ok (Arrow_table.create_from_native ptr schema nrows)
   | None -> Error ("Arrow IPC read failed: " ^ path)
 
@@ -229,11 +223,8 @@ let read_ipc (path : string) : (Arrow_table.t, string) result =
 let read_parquet_local (path : string) : (Arrow_table.t, string) result =
   match Arrow_ffi.arrow_read_parquet path with
   | Some ptr ->
-      let schema_pairs = Arrow_ffi.arrow_table_get_schema ptr in
       let nrows = Arrow_ffi.arrow_table_num_rows ptr in
-      let schema = List.map (fun (name, type_tag) ->
-        (name, Arrow_table.arrow_type_of_tag type_tag)
-      ) schema_pairs in
+      let schema = Arrow_table.schema_from_native_ptr ptr in
       Ok (Arrow_table.create_from_native ptr schema nrows)
   | None -> Error ("Parquet read failed: " ^ path)
 
