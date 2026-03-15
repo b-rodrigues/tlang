@@ -3,9 +3,6 @@
 (* Menhir grammar for the T language — Phase 0 Alpha *)
 open Ast
 
-(* Custom exception for mixed bracket forms - avoids circular dependency with Parser.Error *)
-exception Mixed_bracket_form
-
 (* Helper to build a parameter record from parsing *)
 type parsed_param = string * Ast.typ option
 type param_info = { params: parsed_param list; has_variadic: bool; return_type: Ast.typ option }
@@ -15,17 +12,20 @@ type bracket_item =
   | BrPair of string * Ast.expr
 
 let build_bracket_literal (items : bracket_item list) : Ast.expr_node =
-  let rec loop saw_expr saw_pair dict_rev list_rev = function
+  let rec loop dict_rev list_rev = function
     | [] ->
-      if saw_expr && saw_pair then raise Mixed_bracket_form
-      else if saw_pair then DictLit (List.rev dict_rev)
-      else ListLit (List.rev list_rev)
+      let has_pairs = dict_rev <> [] in
+      let has_plain_exprs = List.exists (fun (n, _) -> n = None) list_rev in
+      if has_pairs && not has_plain_exprs then
+        DictLit (List.rev_map (fun (n, v) -> (match n with Some s -> s | None -> "expr"), v) list_rev)
+      else
+        ListLit (List.rev list_rev)
     | BrExpr e :: rest ->
-      loop true saw_pair dict_rev ((None, e) :: list_rev) rest
+      loop dict_rev ((None, e) :: list_rev) rest
     | BrPair (k, v) :: rest ->
-      loop saw_expr true ((k, v) :: dict_rev) list_rev rest
+      loop ((k, v) :: dict_rev) ((Some k, v) :: list_rev) rest
   in
-  loop false false [] [] items
+  loop [] [] items
 ;;
 
 let loc_of_pos (pos : Lexing.position) : Ast.source_location =
@@ -272,6 +272,9 @@ arg:
   | name = any_ident EQUALS e = expr { (Some name, e) }
   | DOT name = IDENT EQUALS e = expr { (Some ("." ^ name), e) }
   | col = COLUMN_REF EQUALS e = expr { (Some col, e) }
+  | BANG_BANG name_expr = unary_expr COLON_EQ e = expr
+    { (None, with_loc (Call { fn = with_loc (Var "__dynamic_arg__") $startpos;
+                            args = [(None, name_expr); (None, e)] }) $startpos) }
   ;
 
 /* Primary (atomic) expressions */
@@ -285,6 +288,7 @@ primary_expr:
   | NA { with_loc (Value (VNA NAGeneric)) $startpos }
   | col = COLUMN_REF { with_loc (ColumnRef col) $startpos }
   | id = any_ident { with_loc (Var id) $startpos }
+  | DOTDOTDOT { with_loc (Var "...") $startpos }
   | LPAREN skip_sep e = expr skip_sep RPAREN { e }
   | LPAREN skip_sep fn = expr COMMA skip_sep args = call_args RPAREN
     { with_loc (Call { fn; args }) $startpos }
@@ -427,6 +431,9 @@ bracket_items:
 
 bracket_item:
   | key = any_ident COLON value = expr { BrPair (key, value) }
+  | BANG_BANG name_expr = unary_expr COLON_EQ value = expr
+    { BrPair ("__dynamic_arg__", with_loc (Call { fn = with_loc (Var "__dynamic_arg__") $startpos;
+                                              args = [(None, name_expr); (None, value)] }) $startpos) }
   | e = expr { BrExpr e }
   ;
 
@@ -449,6 +456,7 @@ typ:
     | "Dict" -> TDict (None, None)
     | "Tuple" -> TTuple []
     | "DataFrame" -> TDataFrame None
+    | "Expr" -> TExpr
     | other when String.length other = 1 && Char.uppercase_ascii other.[0] = other.[0] -> TVar other
     | other -> TCustom other
   }

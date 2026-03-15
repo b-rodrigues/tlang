@@ -188,6 +188,10 @@ and value =
   | VExpr of expr
   (* Shell escape result *)
   | VShellResult of shell_result
+  (* Metaprogramming intermediate values *)
+  | VUnquote of value
+  | VUnquoteSplice of value
+  | VDynamicArg of string * value
 
 
 
@@ -394,6 +398,9 @@ module Utils = struct
     | VNode _ -> "Node"
     | VExpr _ -> "Expression"
     | VShellResult _ -> "ShellResult"
+    | VUnquote _ -> "Unquote"
+    | VUnquoteSplice _ -> "UnquoteSplice"
+    | VDynamicArg _ -> "DynamicArg"
 
   let rec binop_to_string = function
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
@@ -588,6 +595,9 @@ module Utils = struct
     | VShellResult { sr_stdout; _ } ->
         (* Display as the raw stdout string so ?<{cmd}> behaves like a string *)
         "\"" ^ String.escaped sr_stdout ^ "\""
+    | VUnquote v -> "!!" ^ value_to_string v
+    | VUnquoteSplice v -> "!!!" ^ value_to_string v
+    | VDynamicArg (n, v) -> n ^ " := " ^ value_to_string v
 
   let value_to_raw_string = function
     | VString s -> s
@@ -680,6 +690,7 @@ let is_na_value = function VNA _ -> true | _ -> false
 let rec is_compatible (v : value) (t : typ) : bool =
   match v, t with
   | _, TVar _ -> true (* Generics match anything at runtime for now *)
+  | _, TCustom "Any" -> true
   | VInt _, TInt -> true
   | VFloat _, TFloat -> true
   | VBool _, TBool -> true
