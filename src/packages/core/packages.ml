@@ -298,9 +298,10 @@ let register env =
   let env = Env.add "casewhen" (make_builtin_named ~name:"casewhen" ~variadic:true 0 (T_boolean.casewhen Eval.eval_expr_immutable)) env in
 
 (*
---# Evaluate a quoted expression
+--# Evaluate a quoted expression or quosure
 --#
---# Evaluates Expr values in the current environment and returns plain values unchanged.
+--# Evaluates an Expression in the current environment, or a Quosure in its
+--# captured lexical environment. Returns plain values unchanged.
 --#
 --# @name eval
 --# @family core
@@ -311,6 +312,7 @@ let register env =
     (make_builtin ~name:"eval" 1 (fun args env ->
       match args with
       | [VExpr quoted] -> Eval.eval_expr_immutable env quoted
+      | [VQuo { q_expr; q_env }] -> Eval.eval_expr_immutable q_env q_expr
       | [v] -> v
       | _ -> Error.arity_error_named "eval" 1 (List.length args)
     ))
@@ -361,6 +363,84 @@ let register env =
     ))
     env
   in
+
+(*
+--# Capture an expression with its lexical environment (quosure)
+--#
+--# Captures the provided expression as a **Quosure**: a pair of the expression AST
+--# and the current lexical environment. When later evaluated with `eval()`, the
+--# expression is evaluated in the captured environment, not the caller's.
+--# This matches the semantics of `rlang::quo()` in R.
+--#
+--# @name quo
+--# @param x :: Any The expression to capture as a quosure.
+--# @return :: Quosure The captured expression with its environment.
+--# @example
+--#   x = 10
+--#   q = quo(1 + x)   -- captures x = 10
+--#   x = 99
+--#   eval(q)           -- returns 11, not 100
+--# @family core
+--# @export
+*)
+
+(*
+--# Capture multiple expressions with their lexical environment (quosures)
+--#
+--# Captures one or more expressions as a List of Quosure values, each paired with
+--# the current lexical environment. Supports named arguments.
+--# Matches the semantics of `rlang::quos()` in R.
+--#
+--# @name quos
+--# @param ... :: Any One or more expressions to capture as quosures.
+--# @return :: List[Quosure] A list of captured quosures.
+--# @example
+--#   x = 10
+--#   qs = quos(a = 1 + x, b = 2 * x)
+--#   eval(qs$a)   -- returns 11
+--# @family core
+--# @export
+*)
+
+(*
+--# Capture a function argument's expression (non-standard evaluation)
+--#
+--# Must be called inside a function body. Captures the unevaluated expression
+--# that the caller passed as the named parameter, returning it as an Expr.
+--# Accepts exactly one argument: a bare symbol naming one of the function's parameters.
+--#
+--# @name enquo
+--# @param param :: Symbol The name of the parameter whose expression to capture.
+--# @return :: Expr The captured expression object.
+--# @example
+--#   my_select = \(df: DataFrame, col: Any -> DataFrame) {
+--#     col_expr = enquo(col)
+--#     eval(expr(df |> select(!!col_expr)))
+--#   }
+--#   my_select(iris, $Sepal.Length)
+--# @family core
+--# @export
+*)
+
+(*
+--# Capture variadic argument expressions (non-standard evaluation)
+--#
+--# Must be called inside a function body. Captures the unevaluated expressions
+--# passed through the variadic `...` parameter as a named List of Expr values.
+--# Call with `...` or with no arguments.
+--#
+--# @name enquos
+--# @param ... :: Any The variadic parameter to capture.
+--# @return :: List[Expr] A list of captured expressions, preserving argument names.
+--# @example
+--#   my_summarize = \(df: DataFrame, ... -> DataFrame) {
+--#     cols = enquos(...)
+--#     eval(expr(df |> summarize(!!!cols)))
+--#   }
+--#   my_summarize(iris, mean_sep = mean($Sepal.Length))
+--# @family core
+--# @export
+*)
 
 (*
 --# Get function body

@@ -186,12 +186,16 @@ and value =
   | VComputedNode of computed_node
   | VNode of unbuilt_node
   | VExpr of expr
+  (* Quosure: expression captured with its lexical environment (like rlang::quo) *)
+  | VQuo of { q_expr: expr; q_env: environment }
   (* Shell escape result *)
   | VShellResult of shell_result
   (* Metaprogramming intermediate values *)
   | VUnquote of value
   | VUnquoteSplice of value
   | VDynamicArg of string * value
+  (* Internal: environment as a first-class value, used by __q_caller_env__ *)
+  | VEnv of environment
 
 
 
@@ -397,10 +401,12 @@ module Utils = struct
     | VComputedNode _ -> "ComputedNode"
     | VNode _ -> "Node"
     | VExpr _ -> "Expression"
+    | VQuo _ -> "Quosure"
     | VShellResult _ -> "ShellResult"
     | VUnquote _ -> "Unquote"
     | VUnquoteSplice _ -> "UnquoteSplice"
     | VDynamicArg _ -> "DynamicArg"
+    | VEnv _ -> "Environment"
 
   let rec binop_to_string = function
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
@@ -587,6 +593,8 @@ module Utils = struct
           (String.concat " + " predictors)
     | VExpr e ->
         Printf.sprintf "expr(%s)" (unparse_expr e)
+    | VQuo { q_expr; _ } ->
+        Printf.sprintf "quo(%s)" (unparse_expr q_expr)
     | VComputedNode cn ->
         Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s\npath: %s"
           cn.cn_runtime cn.cn_serializer cn.cn_class cn.cn_path
@@ -598,6 +606,7 @@ module Utils = struct
     | VUnquote v -> "!!" ^ value_to_string v
     | VUnquoteSplice v -> "!!!" ^ value_to_string v
     | VDynamicArg (n, v) -> n ^ " := " ^ value_to_string v
+    | VEnv _ -> "<environment>"
 
   let value_to_raw_string = function
     | VString s -> s
@@ -724,5 +733,6 @@ let rec is_compatible (v : value) (t : typ) : bool =
 
   | VComputedNode _, TComputedNode -> true
   | VExpr _, TExpr -> true
+  | VQuo _, TExpr -> true
 
   | _ -> false
