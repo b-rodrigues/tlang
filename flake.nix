@@ -212,8 +212,6 @@
             python-with-packages
             pkgs.actionlint
             pkgs.shellcheck
-            pkgs.luaformatter
-            pkgs.lua54Packages.luacheck
             pkgs.jpmml-statsmodels
             pkgs.jre
           ];

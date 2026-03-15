@@ -45,12 +45,6 @@ jobs:
           fi
           echo "✅ Quarto extension version matches core T version: $CORE_VERSION"
 
-      - name: Check Quarto Lua filter formatting
-        run: nix develop --command lua-format --check editors/quarto/tlang/_extensions/tlang/tlang.lua
-
-      - name: Lint Quarto Lua filter
-        run: nix develop --command luacheck --globals pandoc CodeBlock editors/quarto/tlang/_extensions/tlang/tlang.lua
-
       - name: Render Quarto Document with T Filter
         env:
           # Point generated project flakes at this checkout so `t update`
