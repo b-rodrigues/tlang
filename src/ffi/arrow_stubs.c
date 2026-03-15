@@ -90,8 +90,8 @@ CAMLprim value caml_arrow_table_get_schema(value v_ptr) {
     else if (GARROW_IS_LIST_DATA_TYPE(dtype))     type_tag = 5; /* ArrowList */
     else if (GARROW_IS_DATE32_DATA_TYPE(dtype) ||
              GARROW_IS_DATE64_DATA_TYPE(dtype))   type_tag = 7; /* ArrowDate */
-    else if (GARROW_IS_TIMESTAMP_DATA_TYPE(dtype)) {
-                                                  type_tag = 8; /* ArrowTimestamp */
+    else if (GARROW_IS_TIMESTAMP_DATA_TYPE(dtype)) { /* ArrowTimestamp */
+      type_tag = 8;
       GTimeZone *time_zone = NULL;
       g_object_get(G_OBJECT(dtype), "time-zone", &time_zone, NULL);
       if (time_zone != NULL) {
@@ -433,7 +433,9 @@ CAMLprim value caml_arrow_read_timestamp_column(value v_array_ptr) {
     }
   }
 
-  if (dtype != NULL) g_object_unref(dtype);
+  if (dtype != NULL) {
+    g_object_unref(dtype);
+  }
   g_object_unref(array);
   CAMLreturn(v_result);
 }
