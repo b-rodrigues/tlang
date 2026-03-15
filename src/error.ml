@@ -1,6 +1,6 @@
 (* src/error.ml *)
 (* Centralized error construction for T Language *)
-(* Validated against spec_files/error-messages.md *)
+(* Validated against spec_files/archive/error-messages.md *)
 
 open Ast
 

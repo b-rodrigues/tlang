@@ -377,5 +377,5 @@ While not blocking the alpha release, these optimizations are planned for future
 For detailed implementation specifications, see:
 - `spec_files/FINISH_ALPHA.md` — Complete 4% remaining work breakdown
 - `spec_files/arrow-backend-implementation.md` — Arrow FFI integration details
-- `spec_files/hardening-alpha.md` — Edge case testing specifications
-- `spec_files/alpha_implementation.md` — Original 8-phase implementation plan
+- `spec_files/archive/hardening-alpha.md` — Edge case testing specifications
+- `spec_files/archive/alpha_implementation.md` — Original 8-phase implementation plan

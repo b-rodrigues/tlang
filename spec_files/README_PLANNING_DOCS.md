@@ -8,7 +8,7 @@ This directory contains comprehensive planning documentation for the T Language 
 |----------|---------|------|----------|
 | **BETA.md** | Beta v0.2 roadmap | 35KB, 1,298 lines | Contributors, planners |
 | **FINISH_ALPHA.md** | Alpha completion plan | 21KB, 802 lines | Core developers |
-| **SUMMARY_OF_CHANGES.md** | Overview of planning docs | 7KB, 219 lines | Everyone |
+| **archive/SUMMARY_OF_CHANGES.md** | Overview of planning docs | 7KB, 219 lines | Everyone |
 
 ## 🎯 Start Here
 
@@ -31,7 +31,7 @@ This directory contains comprehensive planning documentation for the T Language 
 - LLM integration details
 
 **Get a quick overview**
-→ Read **SUMMARY_OF_CHANGES.md**
+→ Read **archive/SUMMARY_OF_CHANGES.md**
 - Summary of both documents
 - Key insights and priorities
 - Answers to common questions
@@ -219,7 +219,7 @@ Interested in contributing? Here's how:
 - `ROADMAP.md` - High-level vision
 - `ALPHA.md` - What alpha achieved
 - `spec.md` - Language specification
-- `hardening-alpha.md` - Technical details
+- `archive/hardening-alpha.md` - Technical details
 - `package-management.md` - Package system design
 
 ## 🔗 Document Relationships
@@ -230,7 +230,7 @@ ROADMAP.md (vision)
 ├── FINISH_ALPHA.md (how to complete) ← NEW
 └── BETA.md (what's next) ← NEW
 
-SUMMARY_OF_CHANGES.md (overview) ← NEW
+archive/SUMMARY_OF_CHANGES.md (overview) ← archived
 ```
 
 ---

@@ -115,9 +115,9 @@ The NSE auto-transformation is implemented in `eval_call` (src/eval.ml):
 
 ## 📝 Documentation
 
-- ✅ NSE_implementation.md - Complete design document
-- ✅ NSE_STATUS.md - Implementation status tracker
-- ✅ Dot vs Dollar explanation added to NSE_implementation.md
+- ✅ archive/NSE_implementation.md - Complete design document
+- ✅ archive/NSE_STATUS.md - Implementation status tracker
+- ✅ Dot vs Dollar explanation added to archive/NSE_implementation.md
 - ✅ Code examples in examples/test_nse.t
 
 ## ✅ Completed Steps
