@@ -47,6 +47,7 @@
     (modify-syntax-entry ?\' "\"" st)
     ;; Punctuation
     (modify-syntax-entry ?_ "w" st)
+    (modify-syntax-entry ?$ "w" st)
     (modify-syntax-entry ?\\ "." st)
     st)
   "Syntax table for `t-mode'.")

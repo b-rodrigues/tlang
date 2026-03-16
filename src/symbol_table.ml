@@ -16,20 +16,35 @@ type symbol = {
 
 module NameMap = Map.Make(String)
 
-type scope = symbol NameMap.t ref
+type scope = {
+  symbols : symbol NameMap.t ref;
+  observed_columns : string list ref;
+}
 
-let create_scope () = ref NameMap.empty
+let create_scope () = {
+  symbols = ref NameMap.empty;
+  observed_columns = ref [];
+}
 
-let copy_scope scope = ref !scope
+let copy_scope scope = {
+  symbols = ref !(scope.symbols);
+  observed_columns = ref !(scope.observed_columns);
+}
 
 let add scope symbol =
-  scope := NameMap.add symbol.name symbol !scope
+  scope.symbols := NameMap.add symbol.name symbol !(scope.symbols)
+
+let add_observed_column scope name =
+  if not (List.mem name !(scope.observed_columns)) then
+    scope.observed_columns := name :: !(scope.observed_columns)
+
+let get_observed_columns scope = !(scope.observed_columns)
 
 let lookup scope name =
-  NameMap.find_opt name !scope
+  NameMap.find_opt name !(scope.symbols)
 
 let all scope =
-  NameMap.bindings !scope |> List.map snd
+  NameMap.bindings !(scope.symbols) |> List.map snd
 
 let register_keywords scope =
   let keywords = [
