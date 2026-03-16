@@ -6,6 +6,12 @@ open Semantic_type
 
 type semantic_env = Symbol_table.scope
 
+module Definition_map = Map.Make (String)
+
+type analysis_result = {
+  definitions : Ast.source_location Definition_map.t;
+}
+
 let rec infer_type scope expr =
   match expr.node with
   | Value v -> 
@@ -32,11 +38,22 @@ let rec infer_type scope expr =
   | ListLit _ -> TUnknown (* Should be TList *)
   | _ -> TUnknown
 
-let analyze_stmt scope stmt =
+let add_definition definitions name = function
+  | Some loc ->
+      (* Keep the first binding location so go-to-definition resolves to the
+         original binding rather than later writes. *)
+      definitions :=
+        Definition_map.update name
+          (function None -> Some loc | Some existing -> Some existing)
+          !definitions
+  | _ -> ()
+
+let analyze_stmt scope definitions stmt =
   match stmt.node with
   | Assignment { name; expr; _ } ->
       let ty = infer_type scope expr in
-      Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None }
+      Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None };
+      add_definition definitions name stmt.loc
   | Reassignment { name; expr } ->
       let ty = infer_type scope expr in
       Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None }
@@ -44,4 +61,6 @@ let analyze_stmt scope stmt =
   | _ -> ()
 
 let analyze program scope =
-  List.iter (analyze_stmt scope) program
+  let definitions = ref Definition_map.empty in
+  List.iter (analyze_stmt scope definitions) program;
+  { definitions = !definitions }

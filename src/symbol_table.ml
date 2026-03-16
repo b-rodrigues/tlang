@@ -20,6 +20,8 @@ type scope = symbol NameMap.t ref
 
 let create_scope () = ref NameMap.empty
 
+let copy_scope scope = ref !scope
+
 let add scope symbol =
   scope := NameMap.add symbol.name symbol !scope
 
@@ -68,4 +70,3 @@ let populate_from_env scope env =
     in
     add scope { name; kind; typ = value_to_semantic_type value; doc = None }
   ) env
-

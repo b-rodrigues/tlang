@@ -64,8 +64,9 @@ The extension lives in `editors/quarto/tlang` and includes a ready-to-copy examp
 
 The T language server provides advanced features like:
 - **Autocompletion**: Suggests functions, variables, and columns.
-- **Diagnostics**: Real-time syntax and basic semantic error reporting.
+- **Diagnostics**: Real-time syntax, lexer, and basic semantic error reporting.
 - **Hover Information**: Shows types and documentation for variables and functions.
+- **Go to Definition**: Jump to the binding location of symbols defined in the current document.
 
 ### The LSP Binary
 When you install the `t-lang` package via Nix (or use `nix develop`), the `t-lsp` binary is automatically added to your path. This binary is pre-configured with all necessary dependencies.

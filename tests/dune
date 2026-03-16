@@ -28,6 +28,7 @@
    test_pipeline_ops
    test_shell
    test_import_file_from
+   test_lsp_support
    test_sh_node
  )
  (libraries t_lang menhirLib otoml unix str)
