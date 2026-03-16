@@ -51,8 +51,7 @@ let analyze_stmt scope definitions stmt =
       add_definition definitions name stmt.loc
   | Reassignment { name; expr } ->
       let ty = infer_type scope expr in
-      Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None };
-      add_definition definitions name stmt.loc
+      Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None }
 
   | _ -> ()
 
