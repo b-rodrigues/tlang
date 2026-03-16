@@ -138,9 +138,11 @@ jobs:
             exit 1
           fi
 
+          cp example.html "$REPO_ROOT/quarto-rendered-example.html"
+
       - name: Upload Rendered Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: quarto-rendered-example
-          path: ${{ github.workspace }}/../quarto-test-run/quarto_extension_test/example.html
+          path: ${{ github.workspace }}/quarto-rendered-example.html
