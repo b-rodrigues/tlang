@@ -446,7 +446,7 @@ result
 # Generated outputs (regenerated from source)
 outputs/
 
-# Auto-provisioned Quarto extension symlink (from nix develop when quarto is enabled)
+# Auto-provisioned Quarto extension copy (from nix develop when quarto is enabled)
 _extensions/tlang
 
 # Editor files

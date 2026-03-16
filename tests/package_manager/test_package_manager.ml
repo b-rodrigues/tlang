@@ -818,9 +818,11 @@ min_version = "0.5.0"
                 with Not_found -> false in
     has "mkdir -p _extensions"
     && has "_extensions/tlang"
-    && has "/share/tlang/quarto/tlang"
+    && has "quarto_ext_stamp=\"$quarto_ext_path/.tlang-store-path\""
+    && has "cp -R \"$expected_quarto_ext\"/. \"$quarto_ext_path\"/"
     && has "Provisioned T Quarto extension"
-    && has "Quarto is enabled via [additional-tools]");
+    && has "Quarto is enabled via [additional-tools]"
+    && not (has "ln -s \"$expected_quarto_ext\" \"_extensions/tlang\""));
 
   test_pm "generate project flake with latex_pkgs" (fun () ->
     let flake = Nix_generator.generate_project_flake
