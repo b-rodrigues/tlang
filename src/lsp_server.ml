@@ -49,17 +49,20 @@ module Server = struct
     text : string;
     mutable scope : Symbol_table.scope;
     mutable diagnostics : Diagnostic.t list;
+    mutable definitions : Ast.source_location Analyzer.Definition_map.t;
   }
 
   type t = {
     documents : (DocumentUri.t, doc_state) Hashtbl.t;
-    base_env : Ast.value Ast.Env.t;
+    base_scope : Symbol_table.scope;
   }
 
-  let create () = {
-    documents = Hashtbl.create 10;
-    base_env = Packages.init_env ();
-  }
+  let create () =
+    let base_env = Packages.init_env () in
+    let base_scope = Symbol_table.create_scope () in
+    Symbol_table.register_keywords base_scope;
+    Symbol_table.populate_from_env base_scope base_env;
+    { documents = Hashtbl.create 10; base_scope }
 
   let send_diagnostics uri diagnostics =
     let json =
@@ -79,48 +82,71 @@ module Server = struct
     in
     Transport.write_message json
 
-  let update_document server uri text =
-    let scope = Symbol_table.create_scope () in
-    Symbol_table.register_keywords scope;
-    Symbol_table.populate_from_env scope server.base_env;
+  let log_timing label started_at =
+    let elapsed_ms = (Unix.gettimeofday () -. started_at) *. 1000.0 in
+    Printf.eprintf "[lsp] %s in %.2fms\n%!" label elapsed_ms
+
+  let make_diagnostic ~line ~character ~message =
+    Diagnostic.create
+      ~range:
+        (Range.create
+           ~start:(Position.create ~line ~character)
+           ~end_:(Position.create ~line ~character))
+      ~message:(`String message)
+      ~severity:DiagnosticSeverity.Error
+      ()
+
+  let diagnostic_at_lexeme lexbuf message =
+    let pos = Lexing.lexeme_start_p lexbuf in
+    let line = max 0 (pos.Lexing.pos_lnum - 1) in
+    let character = max 0 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
+    make_diagnostic ~line ~character ~message
+
+  let extract_identifier_at line_text character =
+    let line_len = String.length line_text in
+    if line_len = 0 then None
+    else
+      let max_idx = line_len - 1 in
+      let clamped_character = max 0 (min character max_idx) in
+      let rec find_start idx =
+        if idx < 0 || not (Lexer.is_ident_char line_text.[idx]) then idx + 1
+        else find_start (idx - 1)
+      in
+      let start_idx = find_start clamped_character in
+      let rec find_end idx =
+        if idx >= line_len || not (Lexer.is_ident_char line_text.[idx]) then idx
+        else find_end (idx + 1)
+      in
+      let end_idx = find_end clamped_character in
+      if start_idx < end_idx then
+        Some (String.sub line_text start_idx (end_idx - start_idx))
+      else None
+
+  let update_document server uri text ~source ~started_at =
+    let scope = Symbol_table.copy_scope server.base_scope in
     let diagnostics = ref [] in
+    let definitions = ref Analyzer.Definition_map.empty in
     let lexbuf = Lexing.from_string text in
     (try
        let program = Parser.program Lexer.token lexbuf in
-       Analyzer.analyze program scope
-      with
-      | Parser.Error ->
-          let pos = Lexing.lexeme_start_p lexbuf in
-          let line = max 0 (pos.Lexing.pos_lnum - 1) in
-          let character = max 0 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
-          let d =
-            Diagnostic.create
-              ~range:(Range.create
-                        ~start:(Position.create ~line ~character)
-                        ~end_:(Position.create ~line ~character))
-              ~message:(`String "Syntax error")
-              ~severity:DiagnosticSeverity.Error
-              ()
-          in
-          diagnostics := [ d ]
-      | Lexer.SyntaxError msg ->
-          let pos = Lexing.lexeme_start_p lexbuf in
-          let line = max 0 (pos.Lexing.pos_lnum - 1) in
-          let character = max 0 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
-          let d =
-            Diagnostic.create
-              ~range:(Range.create
-                        ~start:(Position.create ~line ~character)
-                        ~end_:(Position.create ~line ~character))
-              ~message:(`String (Printf.sprintf "Lexer error: %s" msg))
-              ~severity:DiagnosticSeverity.Error
-              ()
-          in
-          diagnostics := [ d ]
-     | _ -> ());
-    let doc = { uri; text; scope; diagnostics = !diagnostics } in
+       let analysis = Analyzer.analyze program scope in
+       definitions := analysis.definitions
+       with
+       | Parser.Error ->
+          diagnostics := [ diagnostic_at_lexeme lexbuf "Syntax error" ]
+       | Lexer.SyntaxError msg ->
+          diagnostics :=
+            [ diagnostic_at_lexeme lexbuf (Printf.sprintf "Lexer error: %s" msg) ]
+      | exn ->
+          diagnostics :=
+            [ diagnostic_at_lexeme lexbuf
+                (Printf.sprintf "Analysis error: %s" (Printexc.to_string exn)) ]);
+    let doc =
+      { uri; text; scope; diagnostics = !diagnostics; definitions = !definitions }
+    in
     Hashtbl.replace server.documents uri doc;
-    send_diagnostics uri !diagnostics
+    send_diagnostics uri !diagnostics;
+    log_timing (Printf.sprintf "%s -> publishDiagnostics" source) started_at
 
   let handle_initialize _params =
     let capabilities = ServerCapabilities.create 
@@ -162,27 +188,10 @@ module Server = struct
         let lines = String.split_on_char '\n' doc.text in
         if line < List.length lines then
           let line_text = List.nth lines line in
-          let line_len = String.length line_text in
-          if line_len = 0 then None
-          else
-            let max_idx = line_len - 1 in
-            let clamped_character = max 0 (min character max_idx) in
-            (* Simple word extraction at character *)
-            let rec get_word start_idx =
-              if start_idx < 0 || not (Lexer.is_ident_char line_text.[start_idx]) then
-                let s = start_idx + 1 in
-                let rec find_end idx =
-                  if idx >= line_len || not (Lexer.is_ident_char line_text.[idx]) then idx
-                  else find_end (idx + 1)
-                in
-                let e = find_end clamped_character in
-                if s < e then Some (String.sub line_text s (e - s)) else None
-              else get_word (start_idx - 1)
-            in
-            match get_word clamped_character with
-          | Some name -> (
-              match Symbol_table.lookup doc.scope name with
-              | Some sym ->
+          match extract_identifier_at line_text character with
+           | Some name -> (
+               match Symbol_table.lookup doc.scope name with
+               | Some sym ->
                   let type_str =
                     match sym.typ with
                     | Some ty -> Semantic_type.to_string ty
@@ -205,38 +214,22 @@ module Server = struct
         let lines = String.split_on_char '\n' doc.text in
         if line < List.length lines then
           let line_text = List.nth lines line in
-          let line_len = String.length line_text in
-          if line_len = 0 then None
-          else
-            let max_idx = line_len - 1 in
-            let clamped_character = max 0 (min character max_idx) in
-            let rec get_word start_idx =
-              if start_idx < 0 || not (Lexer.is_ident_char line_text.[start_idx]) then
-                let s = start_idx + 1 in
-                let rec find_end idx =
-                  if idx >= line_len || not (Lexer.is_ident_char line_text.[idx]) then idx
-                  else find_end (idx + 1)
-                in
-                let e = find_end clamped_character in
-                if s < e then Some (String.sub line_text s (e - s)) else None
-              else get_word (start_idx - 1)
-            in
-            match get_word clamped_character with
-          | Some name -> (
-              (* Best effort: Find where 'name =' or 'name : type =' appears in the document *)
-              let assignment_re = Str.regexp (Printf.sprintf "^[ \t]*%s[ \t]*[:=]" (Str.quote name)) in
-              let rec find_in_lines idx = function
-                | [] -> None
-                | l :: rest ->
-                    if Str.string_match assignment_re l 0 then
-                      let range = Range.create 
-                        ~start:(Position.create ~line:idx ~character:0) 
-                        ~end_:(Position.create ~line:idx ~character:(String.length l)) in
-                      Some (`Location (Location.create ~uri ~range))
-                    else find_in_lines (idx + 1) rest
-              in
-              find_in_lines 0 lines)
-          | None -> None
+          match extract_identifier_at line_text character with
+           | Some name -> (
+              match Analyzer.Definition_map.find_opt name doc.definitions with
+              | Some loc ->
+                  let def_line = max 0 (loc.Ast.line - 1) in
+                  let def_character = max 0 (loc.Ast.column - 1) in
+                  let range =
+                    Range.create
+                      ~start:(Position.create ~line:def_line ~character:def_character)
+                      ~end_:
+                        (Position.create ~line:def_line
+                           ~character:(def_character + String.length name))
+                  in
+                  Some (`Location (Location.create ~uri ~range))
+              | None -> None)
+           | None -> None
         else None
 
   let dispatch server (packet : Jsonrpc.Packet.t) =
@@ -249,11 +242,16 @@ module Server = struct
         (match notif.method_ with
         | "textDocument/didOpen" ->
             let params = DidOpenTextDocumentParams.t_of_yojson (params_to_yojson notif.params) in
+            let started_at = Unix.gettimeofday () in
             update_document server params.textDocument.uri params.textDocument.text
+              ~source:"didOpen" ~started_at
         | "textDocument/didChange" ->
             let params = DidChangeTextDocumentParams.t_of_yojson (params_to_yojson notif.params) in
+            let started_at = Unix.gettimeofday () in
             (match params.contentChanges with
-            | [change] -> update_document server params.textDocument.uri change.text
+            | [change] ->
+                update_document server params.textDocument.uri change.text
+                  ~source:"didChange" ~started_at
             | _ -> ())
         | "textDocument/didClose" ->
             let params = DidCloseTextDocumentParams.t_of_yojson (params_to_yojson notif.params) in
@@ -267,10 +265,12 @@ module Server = struct
         | "shutdown" ->
             Transport.write_message (Jsonrpc.Response.ok req.id `Null |> Jsonrpc.Response.yojson_of_t)
         | "textDocument/completion" ->
+            let started_at = Unix.gettimeofday () in
             let params = CompletionParams.t_of_yojson (params_to_yojson req.params) in
             let items = handle_completion server params in
             let result = `List (List.map (fun i -> CompletionItem.yojson_of_t i) items) in
-            Transport.write_message (Jsonrpc.Response.ok req.id result |> Jsonrpc.Response.yojson_of_t)
+            Transport.write_message (Jsonrpc.Response.ok req.id result |> Jsonrpc.Response.yojson_of_t);
+            log_timing "completion request -> response" started_at
         | "textDocument/hover" ->
             let params = HoverParams.t_of_yojson (params_to_yojson req.params) in
             let result =

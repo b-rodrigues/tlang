@@ -3,11 +3,11 @@
 
 (executable
  (name test_runner)
- (modules
-   test_runner
-   test_arithmetic test_comparisons test_logical test_variables
-   test_functions test_strings test_pipe test_ifelse test_lists test_dicts test_builtins test_chrono
-   test_na test_errors test_converters
+  (modules
+    test_runner
+    test_arithmetic test_comparisons test_logical test_variables
+    test_functions test_strings test_pipe test_ifelse test_lists test_dicts test_builtins test_chrono
+    test_na test_errors test_converters
    test_dataframe test_pipeline test_colcraft test_window
    test_math test_stats test_broom_golden test_explain_tests
    test_cli
@@ -22,14 +22,15 @@
    test_large_datasets
    test_error_recovery
    test_package_manager
-   test_scalar_strictness
-   test_typing_mode
-   test_quotation
-   test_pipeline_ops
-   test_shell
-   test_import_file_from
-   test_sh_node
- )
+    test_scalar_strictness
+    test_typing_mode
+    test_quotation
+    test_pipeline_ops
+    test_shell
+    test_import_file_from
+    test_lsp_support
+    test_sh_node
+  )
  (libraries t_lang menhirLib otoml unix str)
 )
 
