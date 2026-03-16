@@ -60,8 +60,58 @@
   (setq-local comment-start "-- ")
   (setq-local comment-end ""))
 
+;;; REPL Support
+
+(require 'comint)
+
+(defcustom t-repl-executable "t"
+  "Path to the T REPL executable."
+  :type 'string
+  :group 't-mode)
+
+(defvar t-repl-buffer-name "*T REPL*")
+
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.t\\'" . t-mode))
+(defun run-t ()
+  "Run an inferior T REPL process."
+  (interactive)
+  (let ((buffer (get-buffer-create t-repl-buffer-name)))
+    (unless (comint-check-proc buffer)
+      (with-current-buffer buffer
+        (comint-mode)
+        (setq-local comint-prompt-regexp "^t> ")
+        (setq-local comint-use-prompt-regexp t)
+        (apply 'make-comint-in-buffer "T REPL" buffer t-repl-executable nil nil)))
+    (display-buffer buffer)
+    buffer))
+
+(defun t-send-region (start end)
+  "Send the current region to the T REPL."
+  (interactive "r")
+  (let ((proc (get-buffer-process (run-t))))
+    (comint-send-region proc start end)
+    (comint-send-string proc "\n")))
+
+(defun t-send-buffer ()
+  "Send the entire buffer to the T REPL."
+  (interactive)
+  (t-send-region (point-min) (point-max)))
+
+(defun t-switch-to-repl ()
+  "Switch to the T REPL buffer."
+  (interactive)
+  (pop-to-buffer (run-t)))
+
+;; Keybindings
+(define-key t-mode-map (kbd "C-c C-z") 't-switch-to-repl)
+(define-key t-mode-map (kbd "C-c C-c") 't-send-buffer)
+(define-key t-mode-map (kbd "C-c C-r") 't-send-region)
+(define-key t-mode-map (kbd "C-c C-l") 't-send-line)
+
+(defun t-send-line ()
+  "Send the current line to the T REPL."
+  (interactive)
+  (t-send-region (line-beginning-position) (line-end-position)))
 
 (provide 't-mode)
 

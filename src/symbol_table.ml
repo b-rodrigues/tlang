@@ -53,13 +53,35 @@ let value_to_semantic_type = function
   | Ast.VLambda { params; _ } ->
       let args = List.map (fun name -> (name, Semantic_type.TUnknown)) params in
       Some (Semantic_type.TFunction (args, Semantic_type.TUnknown))
-  | Ast.VBuiltin { b_name = _; b_arity; b_variadic; _ } ->
-      (* Builtins don't always have parameter names in the AST value, but we can try to guess or use ... *)
-      let args = 
-        if b_variadic then [("...", Semantic_type.TUnknown)]
-        else List.init b_arity (fun i -> ("arg" ^ string_of_int (i + 1), Semantic_type.TUnknown))
+  | Ast.VBuiltin { b_name; b_arity; b_variadic; _ } ->
+      let args, ret = 
+        match b_name with
+        | Some name -> (
+            match Tdoc_registry.lookup name with
+            | Some entry -> 
+                let args = List.map (fun (p : Tdoc_types.param_doc) -> 
+                  (p.name, p.type_info |> Option.map Semantic_type.from_string |> Option.value ~default:Semantic_type.TAny)
+                ) entry.params in
+                let ret = entry.Tdoc_types.return_value 
+                          |> Option.map (fun (r : Tdoc_types.return_doc) -> r.type_info |> Option.map Semantic_type.from_string |> Option.value ~default:Semantic_type.TAny)
+                          |> Option.value ~default:Semantic_type.TAny
+                in
+                args, ret
+            | None ->
+                let args = 
+                  if b_variadic then [("...", Semantic_type.TAny)]
+                  else List.init b_arity (fun i -> ("arg" ^ string_of_int (i + 1), Semantic_type.TAny))
+                in
+                args, Semantic_type.TAny
+          )
+        | None ->
+            let args = 
+              if b_variadic then [("...", Semantic_type.TAny)]
+              else List.init b_arity (fun i -> ("arg" ^ string_of_int (i + 1), Semantic_type.TAny))
+            in
+            args, Semantic_type.TAny
       in
-      Some (Semantic_type.TFunction (args, Semantic_type.TUnknown))
+      Some (Semantic_type.TFunction (args, ret))
   | _ -> Some Semantic_type.TUnknown
 
 let populate_from_env scope env =

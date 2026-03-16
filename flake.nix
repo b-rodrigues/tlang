@@ -214,6 +214,31 @@
             pkgs.shellcheck
             pkgs.jpmml-statsmodels
             pkgs.jre
+
+            # 6. Local Project Binaries (Wrappers for development)
+            (pkgs.writeShellScriptBin "t" ''
+              repo_root="''${TLANG_REPO_ROOT:-$PWD}"
+              if [[ -f "$repo_root/_build/default/src/repl.exe" ]]; then
+                exec "$repo_root/_build/default/src/repl.exe" "$@"
+              elif [[ -L "$repo_root/result" && -f "$repo_root/result/bin/t" ]]; then
+                exec "$repo_root/result/bin/t" "$@"
+              else
+                echo "Error: T is not built. Please run 'dune build' first." >&2
+                exit 1
+              fi
+            '')
+
+            (pkgs.writeShellScriptBin "t-lsp" ''
+              repo_root="''${TLANG_REPO_ROOT:-$PWD}"
+              if [[ -f "$repo_root/_build/default/src/lsp_server.exe" ]]; then
+                exec "$repo_root/_build/default/src/lsp_server.exe" "$@"
+              elif [[ -L "$repo_root/result" && -f "$repo_root/result/bin/t-lsp" ]]; then
+                exec "$repo_root/result/bin/t-lsp" "$@"
+              else
+                echo "Error: T LSP server is not built. Please run 'dune build src/lsp_server.exe' first." >&2
+                exit 1
+              fi
+            '')
           ];
 
           shellHook = ''
@@ -223,38 +248,16 @@
               export TLANG_REPO_ROOT="$PWD"
             fi
 
-            # Simple shell function to find and run the language binary without startup overhead
-            t() {
-              local repo_root="''${TLANG_REPO_ROOT:-$PWD}"
-              if [[ -f "$repo_root/_build/default/src/repl.exe" ]]; then
-                "$repo_root/_build/default/src/repl.exe" "$@"
-              elif [[ -L "$repo_root/result" && -f "$repo_root/result/bin/t" ]]; then
-                "$repo_root/result/bin/t" "$@"
-              else
-                echo "Error: T is not built. Please run 'dune build' (or 'nix build') first." >&2
-                return 1
-              fi
-            }
-            export -f t
-
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"
             echo "═══════════════════════════════════════════════"
             echo ""
             echo "Available commands:"
-            echo "  dune build           - Build the project"
+            echo "  dune build           - Build the project (REPL)"
+            echo "  dune build src/lsp_server.exe - Build the LSP server"
             echo "  t                    - Run the language (fast path)"
+            echo "  t-lsp                - Run the language server"
             echo "  dune test            - Run tests"
-            echo "  dune clean           - Clean build artifacts"
-            echo "  R                    - Launch R console"
-            echo "  actionlint           - Lint GitHub Actions workflows"
-            echo "  lua-format           - Format Lua code"
-            echo "  luacheck             - Lint Lua code"
-            echo ""
-            echo "Golden tests:"
-            echo "  Rscript tests/golden/generate_datasets.R       - Generate test data"
-            echo "  Rscript tests/golden/generate_expected.R       - Generate dplyr outputs"
-            echo "  Rscript tests/golden/generate_expected_stats.R - Generate stats outputs"
             echo ""
             echo "Quick start: dune build && t"
             echo ""

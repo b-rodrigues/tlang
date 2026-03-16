@@ -11,16 +11,56 @@
     "Programming Languages"
   ],
   "contributes": {
-    "languages": [{
-      "id": "t",
-      "aliases": ["T", "tlang"],
-      "extensions": [".t"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "t",
-      "scopeName": "source.t",
-      "path": "./syntaxes/t.tmLanguage.json"
-    }]
+    "languages": [
+      {
+        "id": "t",
+        "aliases": [
+          "T",
+          "tlang"
+        ],
+        "extensions": [
+          ".t"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "t",
+        "scopeName": "source.t",
+        "path": "./syntaxes/t.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "t-lang.runRepl",
+        "title": "T: Run REPL"
+      },
+      {
+        "command": "t-lang.sendBuffer",
+        "title": "T: Run Current File in REPL"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "t-lang.runRepl",
+        "key": "ctrl+alt+t",
+        "when": "editorLangId == t"
+      },
+      {
+        "command": "workbench.action.terminal.runSelectedText",
+        "key": "ctrl+enter",
+        "when": "editorLangId == t"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "t-lang.runRepl",
+          "group": "t-lang",
+          "when": "editorLangId == t"
+        }
+      ]
+    }
   }
 }

@@ -58,6 +58,7 @@ module Server = struct
   }
 
   let create () =
+    Packages.ensure_docs_loaded ();
     let base_env = Packages.init_env () in
     let base_scope = Symbol_table.create_scope () in
     Symbol_table.register_keywords base_scope;
@@ -110,19 +111,29 @@ module Server = struct
     let character = max 0 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
     make_diagnostic ~line ~character ~message
 
-  let extract_identifier_at line_text character =
+  let is_op_char = function
+    | '|' | '>' | '?' | '+' | '-' | '*' | '/' | '=' | '!' | '<' | '&' | '%' | '~' | '.' -> true
+    | _ -> false
+
+  let extract_word_at line_text character =
     let line_len = String.length line_text in
     if line_len = 0 then None
     else
       let max_idx = line_len - 1 in
       let clamped_character = max 0 (min character max_idx) in
+      let c = line_text.[clamped_character] in
+      let check = 
+        if Lexer.is_ident_char c then Lexer.is_ident_char
+        else if is_op_char c then is_op_char
+        else (fun _ -> false)
+      in
       let rec find_start idx =
-        if idx < 0 || not (Lexer.is_ident_char line_text.[idx]) then idx + 1
+        if idx < 0 || not (check line_text.[idx]) then idx + 1
         else find_start (idx - 1)
       in
       let start_idx = find_start clamped_character in
       let rec find_end idx =
-        if idx >= line_len || not (Lexer.is_ident_char line_text.[idx]) then idx
+        if idx >= line_len || not (check line_text.[idx]) then idx
         else find_end (idx + 1)
       in
       let end_idx = find_end clamped_character in
@@ -196,8 +207,8 @@ module Server = struct
         let lines = String.split_on_char '\n' doc.text in
         if line < List.length lines then
           let line_text = List.nth lines line in
-          match extract_identifier_at line_text character with
-           | Some name -> (
+          match extract_word_at line_text character with
+            | Some name -> (
                match Symbol_table.lookup doc.scope name with
                | Some sym ->
                   let type_str =
@@ -205,10 +216,40 @@ module Server = struct
                     | Some ty -> Semantic_type.to_string ty
                     | None -> "Unknown"
                   in
-                  let content = Printf.sprintf "**%s** : `%s`" sym.name type_str in
+                  let content =
+                    match Tdoc_registry.lookup name with
+                    | Some entry ->
+                        let signature =
+                          let args = List.map (fun (p : Tdoc_types.param_doc) ->
+                             p.name ^ ": " ^ (Option.value ~default:"any" p.type_info |> String.lowercase_ascii)
+                          ) entry.params in
+                          let ret = match entry.return_value with
+                            | Some r -> Option.value ~default:"any" r.type_info |> String.lowercase_ascii
+                            | None -> "any"
+                          in
+                          Printf.sprintf "Function(%s -> %s)" (String.concat ", " args) ret
+                        in
+                        Printf.sprintf "**%s**: `%s`\n\n%s" name signature entry.description_brief
+                    | None -> 
+                       let diag = if Tdoc_registry.get_all () = [] then "\n\n*(Documentation not loaded)*" else "" in
+                       Printf.sprintf "**%s**: `%s`%s" sym.name type_str diag
+                  in
+                  let content = content ^ "\n\n*(LSP v0.5.3)*" in
                   let markup = MarkupContent.create ~kind:MarkupKind.Markdown ~value:content in
                   Some (Hover.create ~contents:(`MarkupContent markup) ())
-              | None -> None)
+               | None -> (
+                  (* Special constructs not in symbol table *)
+                  match name with
+                  | "|>" ->
+                      let content = "**|>**: `x |> f(...) -> f(x, ...)`\n\nPipe operator. Passes the value on the left as the first argument to the function on the right.\n\n*(LSP v0.5.3)*" in
+                      let markup = MarkupContent.create ~kind:MarkupKind.Markdown ~value:content in
+                      Some (Hover.create ~contents:(`MarkupContent markup) ())
+                  | "?|>" ->
+                      let content = "**?|>**: `x ?|> f(...) -> f(x, ...)`\n\nSafe pipe operator. Only executes the function if `x` is not `null` or `NA`. Otherwise returns `null`/`NA`.\n\n*(LSP v0.5.3)*" in
+                      let markup = MarkupContent.create ~kind:MarkupKind.Markdown ~value:content in
+                      Some (Hover.create ~contents:(`MarkupContent markup) ())
+                  | _ -> None
+               ))
           | None -> None
         else None
 
@@ -222,7 +263,7 @@ module Server = struct
         let lines = String.split_on_char '\n' doc.text in
         if line < List.length lines then
           let line_text = List.nth lines line in
-          match extract_identifier_at line_text character with
+          match extract_word_at line_text character with
            | Some name -> (
               match Analyzer.Definition_map.find_opt name doc.definitions with
               | Some loc ->

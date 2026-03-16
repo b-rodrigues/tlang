@@ -13,25 +13,46 @@ type package_info = {
 
 let docs_loaded : unit Lazy.t =
   lazy (
-    let docs_paths = ["help/docs.json"; "docs.json"] in
-    let loaded_paths =
-      List.filter_map (fun path ->
-        if Sys.file_exists path then begin
-          try
-            Tdoc_registry.load_from_json path;
-            Some path
-          with _ ->
-            prerr_endline (Printf.sprintf "Documentation: failed to parse %s" path);
-            None
-        end else
-          None
-      ) docs_paths
+    let rec find_up dir =
+      let p1 = Filename.concat dir "help/docs.json" in
+      let p2 = Filename.concat dir "docs.json" in
+      if Sys.file_exists p1 then Some p1
+      else if Sys.file_exists p2 then Some p2
+      else
+        let parent = Filename.dirname dir in
+        if parent = dir then None (* Root reached *)
+        else find_up parent
     in
-    match loaded_paths with
-    | [] ->
-        prerr_endline "Documentation: no docs.json found in help/docs.json or docs.json; proceeding without documentation."
-    | _paths ->
-        ()
+    let repo_root = Sys.getenv_opt "TLANG_REPO_ROOT" in
+    let docs_paths = 
+      let base = 
+        match repo_root with
+        | Some root -> [
+            Filename.concat root "help/docs.json";
+            Filename.concat root "docs.json"
+          ]
+        | None -> []
+      in
+      base @ [
+        "help/docs.json";
+        "docs.json"
+      ]
+    in
+    let loaded_path = 
+      match List.find_opt Sys.file_exists docs_paths with
+      | Some p -> Some p
+      | None -> find_up (Sys.getcwd ())
+    in
+    match loaded_path with
+    | Some path -> (
+        try
+          Tdoc_registry.load_from_json path;
+          prerr_endline (Printf.sprintf "Documentation: loaded from %s" path)
+        with exn ->
+          prerr_endline (Printf.sprintf "Documentation: failed to parse %s: %s" path (Printexc.to_string exn))
+      )
+    | None ->
+        prerr_endline "Documentation: no docs.json found in any search path; proceeding without documentation."
   )
 
 let ensure_docs_loaded () =
