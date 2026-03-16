@@ -39,7 +39,7 @@ syn match tShellContent ".*" contained
 syn match tShellDelimiter "?<{" contained
 syn match tShellDelimiter "}>" contained
 
-" Operators
+syn match tOperator "\\"
 syn match tOperator "|>"
 syn match tOperator "?|>"
 syn match tOperator ":="
