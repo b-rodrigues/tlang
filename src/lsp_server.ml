@@ -86,6 +86,14 @@ module Server = struct
     let elapsed_ms = (Unix.gettimeofday () -. started_at) *. 1000.0 in
     Printf.eprintf "[lsp] %s in %.2fms\n%!" label elapsed_ms
 
+  let log_analysis_exception exn =
+    let backtrace = Printexc.get_backtrace () in
+    if backtrace = "" then
+      Printf.eprintf "[lsp] analysis error: %s\n%!" (Printexc.to_string exn)
+    else
+      Printf.eprintf "[lsp] analysis error: %s\n%s%!"
+        (Printexc.to_string exn) backtrace
+
   let make_diagnostic ~line ~character ~message =
     Diagnostic.create
       ~range:
@@ -134,13 +142,13 @@ module Server = struct
        with
        | Parser.Error ->
           diagnostics := [ diagnostic_at_lexeme lexbuf "Syntax error" ]
-       | Lexer.SyntaxError msg ->
+      | Lexer.SyntaxError msg ->
           diagnostics :=
             [ diagnostic_at_lexeme lexbuf (Printf.sprintf "Lexer error: %s" msg) ]
       | exn ->
+          log_analysis_exception exn;
           diagnostics :=
-            [ diagnostic_at_lexeme lexbuf
-                (Printf.sprintf "Analysis error: %s" (Printexc.to_string exn)) ]);
+            [ diagnostic_at_lexeme lexbuf "Internal analysis error" ]);
     let doc =
       { uri; text; scope; diagnostics = !diagnostics; definitions = !definitions }
     in
@@ -310,5 +318,6 @@ module Server = struct
 end
 
 let () =
+  Printexc.record_backtrace true;
   let server = Server.create () in
   Server.run server

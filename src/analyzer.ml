@@ -39,8 +39,11 @@ let rec infer_type scope expr =
   | _ -> TUnknown
 
 let add_definition definitions name = function
-  | Some loc when not (Definition_map.mem name !definitions) ->
-      definitions := Definition_map.add name loc !definitions
+  | Some loc ->
+      definitions :=
+        Definition_map.update name
+          (function None -> Some loc | Some existing -> Some existing)
+          !definitions
   | _ -> ()
 
 let analyze_stmt scope definitions stmt =
