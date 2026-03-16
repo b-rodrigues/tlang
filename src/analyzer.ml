@@ -40,6 +40,8 @@ let rec infer_type scope expr =
 
 let add_definition definitions name = function
   | Some loc ->
+      (* Keep the first binding location so go-to-definition resolves to the
+         original binding rather than later writes. *)
       definitions :=
         Definition_map.update name
           (function None -> Some loc | Some existing -> Some existing)

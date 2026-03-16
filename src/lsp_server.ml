@@ -88,7 +88,7 @@ module Server = struct
 
   let log_analysis_exception exn =
     let backtrace = Printexc.get_backtrace () in
-    if backtrace = "" then
+    if String.length backtrace = 0 then
       Printf.eprintf "[lsp] analysis error: %s\n%!" (Printexc.to_string exn)
     else
       Printf.eprintf "[lsp] analysis error: %s\n%s%!"
