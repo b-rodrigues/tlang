@@ -143,4 +143,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: quarto-rendered-example
-          path: ../quarto-test-run/quarto_extension_test/example.html
+          path: ${{ github.workspace }}/../quarto-test-run/quarto_extension_test/example.html
