@@ -822,7 +822,7 @@ min_version = "0.5.0"
     && has "cp -R \"$expected_quarto_ext\"/. \"$quarto_ext_path\"/"
     && has "Provisioned T Quarto extension"
     && has "Quarto is enabled via [additional-tools]"
-    && not (has "ln -s \"$expected_quarto_ext\" \"_extensions/tlang\"");
+    && not (has "ln -s \"$expected_quarto_ext\" \"_extensions/tlang\""));
 
   test_pm "generate project flake with latex_pkgs" (fun () ->
     let flake = Nix_generator.generate_project_flake
