@@ -126,23 +126,22 @@ matches for use by `completion-at-point'."
   "Query the T REPL process PROC for completions of INPUT.
 Sends `:complete INPUT' and parses the output lines."
   (let ((output-buf (get-buffer-create " *t-completions*"))
-        (proc-buf (process-buffer proc)))
-    (with-current-buffer output-buf (erase-buffer))
-    (with-current-buffer proc-buf
-      (setq comint-redirect-completed nil)
-      (comint-redirect-send-command-to-process
-       (concat ":complete " input)
-       output-buf proc nil t)
-      ;; Wait for the redirect to finish (up to 5 seconds)
-      (let ((i 0))
-        (while (and (not comint-redirect-completed) (< i 50))
-          (accept-process-output proc 0.1)
-          (setq i (1+ i)))))
-    ;; Parse completions from the output buffer
+        (completions nil))
     (with-current-buffer output-buf
-      (let ((text (string-trim (buffer-string))))
-        (when (> (length text) 0)
-          (split-string text "\n" t "[ \t\r]+"))))))
+      (erase-buffer)
+      ;; Use comint-redirect with our specific marker to stop
+      (let ((comint-redirect-finished-regexp ":END_COMPLETIONS:"))
+        (comint-redirect-send-command-to-process
+         (concat ":complete " input)
+         output-buf proc nil t))
+      
+      (goto-char (point-min))
+      (when (search-forward ":BEGIN_COMPLETIONS:" nil t)
+        (let ((begin (point)))
+          (when (search-forward ":END_COMPLETIONS:" nil t)
+            (let ((text (buffer-substring-no-properties begin (match-beginning 0))))
+              (setq completions (split-string (string-trim text) "\n" t)))))))
+    completions))
 
 (defun t-send-region (start end)
   "Send the current region to the T REPL."
