@@ -38,7 +38,7 @@ let extract_prefix buffer cursor =
 
 
 let complete scope ~buffer ~cursor =
-  if is_inside_comment_or_string buffer cursor then []
+  if is_inside_comment_or_string buffer cursor then (cursor, [])
   else begin
   (* 1. Check for member completion: ident.member_prefix *)
   let member_match =
@@ -86,31 +86,26 @@ let complete scope ~buffer ~cursor =
   in
  
   match member_match with
-  | Some (ident, member_prefix, member_start) ->
-      (match lookup scope ident with
+  | Some (_ident, member_prefix, member_start) ->
+      (match lookup scope _ident with
       | Some { typ = Some (Semantic_type.TDataFrame cols); _ }
       | Some { typ = Some (Semantic_type.TGroupedDataFrame (cols, _)); _ } ->
-          let buf_prefix = String.sub buffer 0 member_start in
           let df_cols = List.map (fun (c : Semantic_type.column) -> c.Semantic_type.name) cols in
           let observed = Symbol_table.get_observed_columns scope in
           let all_cols = List.sort_uniq String.compare (df_cols @ observed) in
-          List.filter_map (fun name ->
-            if String.starts_with ~prefix:member_prefix name then
-              Some (buf_prefix ^ name)
-            else None
-          ) all_cols
-      | _ -> [])
+          let matches = List.filter (fun name -> String.starts_with ~prefix:member_prefix name) all_cols in
+          (member_start, matches)
+      | _ -> (member_start, []))
   | None ->
     (match function_match with
     | Some ident ->
         (match lookup scope ident with
         | Some { typ = Some (Semantic_type.TFunction (args, _)); _ } ->
-            List.map (fun (name, _) -> buffer ^ name ^ " = ") args
-        | _ -> [])
+            (cursor, List.map (fun (name, _) -> name ^ " = ") args)
+        | _ -> (cursor, []))
     | None ->
         (match column_prefix_match with
         | Some (col_prefix, col_start) ->
-            let buf_prefix = String.sub buffer 0 col_start in
             let all_symbols = all scope in
             let df_cols = List.filter_map (fun s -> 
               match s.typ with
@@ -122,17 +117,18 @@ let complete scope ~buffer ~cursor =
             let observed = Symbol_table.get_observed_columns scope in
             let all_cols = List.sort_uniq String.compare (df_cols @ observed) in
 
-            all_cols
+            let matches = all_cols
             |> List.filter (fun name -> String.starts_with ~prefix:col_prefix name)
-            |> List.map (fun name -> buf_prefix ^ name)
-            |> List.sort_uniq String.compare
+            |> List.sort_uniq String.compare in
+            (col_start, matches)
         | None ->
             let prefix = extract_prefix buffer cursor in
-            if prefix = "" then []
+            if prefix = "" then (cursor, [])
             else
-              let buf_prefix = String.sub buffer 0 (cursor - String.length prefix) in
-              all scope
+              let start_pos = cursor - String.length prefix in
+              let matches = all scope
               |> List.filter (fun s -> String.starts_with ~prefix s.name)
-              |> List.map (fun s -> buf_prefix ^ s.name)
-              |> List.sort_uniq String.compare))
+              |> List.map (fun s -> s.name)
+              |> List.sort_uniq String.compare in
+              (start_pos, matches)))
   end

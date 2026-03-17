@@ -487,20 +487,21 @@ let cmd_repl mode env =
 
   LNoise.set_multiline true;
   LNoise.set_completion_callback (fun buffer completions ->
-    let matches = Completion.complete scope ~buffer ~cursor:(String.length buffer) in
-    List.iter (LNoise.add_completion completions) matches
+    let (start_pos, matches) = Completion.complete scope ~buffer ~cursor:(String.length buffer) in
+    let prefix = String.sub buffer 0 start_pos in
+    List.iter (fun m -> LNoise.add_completion completions (prefix ^ m)) matches
   );
 
   LNoise.set_hints_callback (fun buffer ->
     let cursor = String.length buffer in
     if cursor = 0 then None
     else
-      let matches = Completion.complete scope ~buffer ~cursor in
+      let (start_pos, matches) = Completion.complete scope ~buffer ~cursor in
       match matches with
       | m :: _ ->
-          let prefix = Completion.extract_prefix buffer cursor in
-          if String.length m > String.length prefix then
-             let hint = String.sub m (String.length prefix) (String.length m - String.length prefix) in
+          let overlap = cursor - start_pos in
+          if String.length m > overlap then
+             let hint = String.sub m overlap (String.length m - overlap) in
              Some (hint, LNoise.White, false)
           else None
       | [] -> None
