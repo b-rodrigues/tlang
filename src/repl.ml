@@ -583,10 +583,9 @@ let cmd_repl mode env =
             else if String.length trimmed > 10 && String.sub trimmed 0 10 = ":complete " then begin
               let arg = String.trim (String.sub trimmed 10 (String.length trimmed - 10)) in
               let cursor = String.length arg in
-              let (start_pos, matches) = Completion.complete scope ~buffer:arg ~cursor in
-              let prefix = String.sub arg 0 start_pos in
+              let (_start_pos, matches) = Completion.complete scope ~buffer:arg ~cursor in
               Printf.printf "\n:BEGIN_COMPLETIONS:\n";
-              List.iter (fun m -> Printf.printf "%s\n" (prefix ^ m)) matches;
+              List.iter (fun m -> Printf.printf "%s\n" m) matches;
               Printf.printf ":END_COMPLETIONS:\n";
               flush stdout;
               repl env false
