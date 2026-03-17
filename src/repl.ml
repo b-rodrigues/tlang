@@ -508,15 +508,24 @@ let cmd_repl mode env =
   );
 
   flush stdout;
-  let rec repl env =
-    let prompt = "T> " in
+  let is_tty = Unix.isatty Unix.stdin in
+  let read_input prompt =
+    if is_tty then LNoise.linenoise prompt
+    else begin
+      if prompt <> "" then Printf.printf "%s%!" prompt;
+      try Some (input_line stdin) with End_of_file -> None
+    end
+  in
+
+  let rec repl env show_prompt =
+    let prompt = if show_prompt then "T> " else "" in
     try
-      match LNoise.linenoise prompt with
+      match read_input prompt with
       | None ->
-          print_endline "\nGoodbye."
+          if is_tty then print_endline "\nGoodbye."
       | Some line ->
-          (* Handle TAB character in input (for dumb terminals / Emacs) *)
-          if String.contains line '\t' then begin
+          (* Handle TAB completion trigger for dumb terminals, but only if it's not part of valid code *)
+          if String.contains line '\t' && String.trim line = "" then begin
             let tab_pos = String.index line '\t' in
             let prefix = String.sub line 0 tab_pos in
             let cursor = String.length prefix in
@@ -526,11 +535,11 @@ let cmd_repl mode env =
             else
               List.iter (fun m -> Printf.printf "%s\n" m) matches;
             flush stdout;
-            repl env
+            repl env true
           end
           else
           let trimmed = String.trim line in
-          if trimmed = "" then repl env
+          if trimmed = "" then repl env true
           else begin
             if trimmed = ":quit" || trimmed = ":q" then
               print_endline "Exiting T REPL."
@@ -539,8 +548,7 @@ let cmd_repl mode env =
             Printf.printf "  :quit, :q     Exit the REPL\n";
             Printf.printf "  :help, :h     Show this help message\n";
             Printf.printf "  :version      Show T language and Nix versions\n";
-            Printf.printf "  :packages     List all currently loaded packages\n";
-            Printf.printf "  :complete <prefix>  Show completions for prefix (useful in Emacs/dumb terminals)\n\n";
+            Printf.printf "  :packages     List all currently loaded packages\n\n";
             
             Printf.printf "Magic Commands:\n";
             Printf.printf "  %%time <expr>  Time an expression\n";
@@ -549,20 +557,20 @@ let cmd_repl mode env =
             Printf.printf "  %%cd <dir>     Change directory\n";
             Printf.printf "  %%env          List environment variables\n";
             Printf.printf "  %%objects      List user-defined objects\n\n";
-
+ 
             Printf.printf "Resources:\n";
             Printf.printf "  Website:      https://tstats-project.org/\n";
             Printf.printf "  Bugs/Issues:  https://github.com/b-rodrigues/tlang/issues\n\n";
-
+ 
             Printf.printf "Multi-line input:\n";
             Printf.printf "  Expressions with unclosed (, [, { or trailing |> automatically continue on the next line.\n\n";
             flush stdout;
-            repl env
+            repl env true
             end
             else if trimmed = ":version" then begin
             Printf.printf "T language version %s\n" version;
             flush stdout;
-            repl env
+            repl env true
             end
             else if trimmed = ":packages" then begin
             List.iter (fun (pkg : Packages.package_info) ->
@@ -570,23 +578,27 @@ let cmd_repl mode env =
             ) Packages.all_packages;
             print_newline ();
             flush stdout;
-            repl env
+            repl env true
             end
             else if String.length trimmed > 10 && String.sub trimmed 0 10 = ":complete " then begin
-            let arg = String.trim (String.sub trimmed 10 (String.length trimmed - 10)) in
-            let cursor = String.length arg in
-            let (_, matches) = Completion.complete scope ~buffer:arg ~cursor in
-            List.iter (fun m -> Printf.printf "%s\n" m) matches;
-            flush stdout;
-            repl env
+              let arg = String.trim (String.sub trimmed 10 (String.length trimmed - 10)) in
+              let cursor = String.length arg in
+              let (_start_pos, matches) = Completion.complete scope ~buffer:arg ~cursor in
+              Printf.printf "\n:BEGIN_COMPLETIONS:\n";
+              List.iter (fun m -> Printf.printf "%s\n" m) matches;
+              Printf.printf ":END_COMPLETIONS:\n";
+              flush stdout;
+              repl env false
             end
             else if String.length trimmed > 0 && trimmed.[0] = '%' then begin
             let (new_env, handled) = handle_magic trimmed env mode base_keys in
             if handled then (
-              ignore (LNoise.history_add line);
-              ignore (LNoise.history_save ~filename:history_file);
-              repl new_env
-            ) else repl env
+              if is_tty then (
+                ignore (LNoise.history_add line);
+                ignore (LNoise.history_save ~filename:history_file)
+              );
+              repl new_env true
+            ) else repl env true
             end
             else begin
             (* Multi-line input: accumulate lines while expression is incomplete *)
@@ -594,7 +606,7 @@ let cmd_repl mode env =
               let combined = acc in
               if is_incomplete combined then begin
                 try
-                  match LNoise.linenoise ".. " with
+                  match read_input ".. " with
                   | None ->
                       combined  (* Return what we have *)
                   | Some next_line ->
@@ -617,20 +629,22 @@ let cmd_repl mode env =
                 combined
             in
             let full_input = read_multiline trimmed in
-            ignore (LNoise.history_add full_input);
-            ignore (LNoise.history_save ~filename:history_file);
+            if is_tty then (
+              ignore (LNoise.history_add full_input);
+              ignore (LNoise.history_save ~filename:history_file)
+            );
             let (result, new_env) = parse_and_eval mode env full_input in
             Symbol_table.populate_from_env scope new_env;
             repl_display_value result;
-            repl new_env
+            repl new_env true
             end
           end
     with
     | Sys.Break ->
         print_endline "Interrupted.";
-        repl env
+        repl env true
   in
-  repl env
+  repl env true
 
 (* --- Entry Point --- *)
 
