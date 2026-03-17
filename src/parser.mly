@@ -96,6 +96,7 @@ let with_stmt_loc node pos =
 
 %token LAMBDA (* \ character *)
 %token NEWLINE SEMICOLON
+%token DOLLAR
 %token EOF
 
 /* PRECEDENCE AND ASSOCIATIVITY (lowest to highest) */

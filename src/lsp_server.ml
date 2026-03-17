@@ -141,8 +141,26 @@ module Server = struct
         Some (String.sub line_text start_idx (end_idx - start_idx))
       else None
 
+  let extract_columns text =
+    let re = Str.regexp {|\$\([a-zA-Z_][a-zA-Z0-9_]*\|`[^`]*`\)|} in
+    let rec loop acc pos =
+      try
+        let _ = Str.search_forward re text pos in
+        let matched = Str.matched_group 1 text in
+        let name = if String.starts_with ~prefix:"`" matched then
+                     String.sub matched 1 (String.length matched - 2)
+                   else matched in
+        loop (name :: acc) (Str.match_end ())
+      with Not_found -> acc
+    in
+    loop [] 0
+
   let update_document server uri text ~source ~started_at =
     let scope = Symbol_table.copy_scope server.base_scope in
+    
+    (* Resiliency: Extract columns from the entire file regardless of syntax validity *)
+    List.iter (Symbol_table.add_observed_column scope) (extract_columns text);
+
     let diagnostics = ref [] in
     let definitions = ref Analyzer.Definition_map.empty in
     let lexbuf = Lexing.from_string text in
@@ -173,7 +191,7 @@ module Server = struct
         ~openClose:true 
         ~change:TextDocumentSyncKind.Full
         ()))
-      ~completionProvider:(CompletionOptions.create ~triggerCharacters:["."] ())
+      ~completionProvider:(CompletionOptions.create ~triggerCharacters:["$"; "."] ())
       ~hoverProvider:(`Bool true)
       ~definitionProvider:(`Bool true)
       ()

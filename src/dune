@@ -78,5 +78,5 @@
 (executable
  (name lsp_server)
  (modules lsp_server)
- (libraries t_lang lsp jsonrpc unix)
+ (libraries t_lang lsp jsonrpc unix str)
 )

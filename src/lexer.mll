@@ -102,6 +102,9 @@ rule token = parse
   (* Identifiers must be matched after keywords *)
   | identifier as lxm { IDENT lxm }
 
+  (* Placeholder for partial column refs during completion *)
+  | '$' { DOLLAR }
+
   (* End of file *)
   | eof { EOF }
   | _ as char { raise (SyntaxError ("Unexpected character: " ^ Char.escaped char)) }
