@@ -64,4 +64,76 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
      | Some { Symbol_table.typ = Some Semantic_type.TFloat; _ } -> true
      | _ -> false);
 
+  (* Analyzer inference: dataframe() returns TDataFrame type *)
+  let df_scope, _ = analyze {|df = dataframe([[a: 1, b: 2]])|} in
+  test_message "dataframe() infers TDataFrame type"
+    (match Symbol_table.lookup df_scope "df" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame _); _ } -> true
+     | _ -> false);
+
+  (* Analyzer inference: filter() propagates schema *)
+  let filter_scope = Symbol_table.create_scope () in
+  Symbol_table.add filter_scope {
+    Symbol_table.name = "my_df";
+    kind = Symbol_table.Variable;
+    typ = Some (Semantic_type.TDataFrame [
+      { Semantic_type.name = "x"; col_typ = Semantic_type.TUnknown };
+    ]);
+    doc = None;
+  };
+  let filter_lexbuf = Lexing.from_string "df2 = filter(my_df, x > 0)" in
+  let filter_program = Parser.program Lexer.token filter_lexbuf in
+  ignore (Analyzer.analyze filter_program filter_scope);
+  test_message "filter() propagates DataFrame schema"
+    (match Symbol_table.lookup filter_scope "df2" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame cols); _ } ->
+         List.exists (fun (c : Semantic_type.column) -> c.name = "x") cols
+     | _ -> false);
+
+  (* Analyzer inference: mutate() adds new columns *)
+  let mutate_scope = Symbol_table.create_scope () in
+  Symbol_table.add mutate_scope {
+    Symbol_table.name = "base_df";
+    kind = Symbol_table.Variable;
+    typ = Some (Semantic_type.TDataFrame [
+      { Semantic_type.name = "x"; col_typ = Semantic_type.TUnknown };
+    ]);
+    doc = None;
+  };
+  let mutate_lexbuf = Lexing.from_string "df2 = mutate(base_df, y: x + 1)" in
+  let mutate_program = Parser.program Lexer.token mutate_lexbuf in
+  ignore (Analyzer.analyze mutate_program mutate_scope);
+  test_message "mutate() adds new columns to DataFrame schema"
+    (match Symbol_table.lookup mutate_scope "df2" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame cols); _ } ->
+         List.exists (fun (c : Semantic_type.column) -> c.name = "y") cols &&
+         List.exists (fun (c : Semantic_type.column) -> c.name = "x") cols
+     | _ -> false);
+
+  (* read_parquet() infers empty TDataFrame (no CSV sniffing) *)
+  let parquet_scope, _ = analyze {|df = read_parquet("some_file.parquet")|} in
+  test_message "read_parquet() infers TDataFrame (empty schema)"
+    (match Symbol_table.lookup parquet_scope "df" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame _); _ } -> true
+     | _ -> false);
+
+  (* read_csv() with non-existent file infers empty TDataFrame gracefully *)
+  let csv_scope, _ = analyze {|df = read_csv("nonexistent_file_xyz.csv")|} in
+  test_message "read_csv() with missing file infers TDataFrame gracefully"
+    (match Symbol_table.lookup csv_scope "df" with
+     | Some { Symbol_table.typ = Some (Semantic_type.TDataFrame []); _ } -> true
+     | _ -> false);
+
+  (* ColumnRef observed columns: column refs are tracked *)
+  let col_scope, _ = analyze "x = $my_col" in
+  test_message "ColumnRef adds column name to observed_columns"
+    (List.mem "my_col" (Symbol_table.get_observed_columns col_scope));
+
+  (* add_observed_column ignores empty names *)
+  let empty_scope = Symbol_table.create_scope () in
+  Symbol_table.add_observed_column empty_scope "";
+  Symbol_table.add_observed_column empty_scope "  ";
+  test_message "add_observed_column ignores empty and whitespace-only names"
+    (Symbol_table.get_observed_columns empty_scope = []);
+
   print_newline ()
