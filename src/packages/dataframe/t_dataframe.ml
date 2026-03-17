@@ -179,10 +179,11 @@ let register env =
             let items = match v_cols with
               | VList l -> List.map snd l
               | VVector a -> Array.to_list a
+              | VString _ | VSymbol _ -> [v_cols]
               | _ -> []
             in
             if items = [] && v_cols <> VList [] && v_cols <> VVector [||] then
-               Error.type_error "to_array expects (DataFrame, [column_names])."
+               Error.type_error "to_array expects (DataFrame, [column_names] | column_name)."
             else
             let maybe_col_names = List.map Utils.extract_column_name items in
             if List.exists Option.is_none maybe_col_names then
