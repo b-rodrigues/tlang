@@ -86,8 +86,8 @@ let complete scope ~buffer ~cursor =
   in
  
   match member_match with
-  | Some (_ident, member_prefix, member_start) ->
-      (match lookup scope _ident with
+  | Some (ident, member_prefix, member_start) ->
+      (match lookup scope ident with
       | Some { typ = Some (Semantic_type.TDataFrame cols); _ }
       | Some { typ = Some (Semantic_type.TGroupedDataFrame (cols, _)); _ } ->
           let df_cols = List.map (fun (c : Semantic_type.column) -> c.Semantic_type.name) cols in

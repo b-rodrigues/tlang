@@ -97,7 +97,7 @@ If a T REPL is already running, just display its buffer."
   (interactive)
   (let ((buffer (get-buffer-create t-repl-buffer-name)))
     (unless (comint-check-proc buffer)
-      (apply 'make-comint-in-buffer "T REPL" buffer t-repl-executable nil '("repl"))
+      (make-comint-in-buffer "T REPL" buffer t-repl-executable nil "repl")
       (with-current-buffer buffer
         (t-inferior-mode)))
     (pop-to-buffer buffer)
