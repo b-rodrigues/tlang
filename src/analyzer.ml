@@ -12,6 +12,8 @@ type analysis_result = {
   definitions : Ast.source_location Definition_map.t;
 }
 
+let csv_cache = Hashtbl.create 10
+
 let rec infer_type scope expr =
   match expr.node with
   | Value v -> 
@@ -32,28 +34,35 @@ let rec infer_type scope expr =
   | Call { fn = { node = Var "read_csv"; _ }; args = (None, { node = Value (VString path); _ }) :: rest; _ } ->
       List.iter (fun (_, e) -> ignore (infer_type scope e)) rest;
       let cols =
-        try
-          let chan = open_in path in
-          Fun.protect
-            ~finally:(fun () -> close_in chan)
-            (fun () ->
-              let header = input_line chan in
-              let names =
-                if String.contains header ';'
-                then String.split_on_char ';' header
-                else String.split_on_char ',' header
-              in
-              List.map
-                (fun name ->
-                  let name = String.trim name in
-                  let name =
-                    if String.starts_with ~prefix:"\"" name
-                    then String.sub name 1 (String.length name - 2)
-                    else name
+        match Hashtbl.find_opt csv_cache path with
+        | Some cols -> cols
+        | None ->
+          let cols = 
+            try
+              let chan = open_in path in
+              Fun.protect
+                ~finally:(fun () -> close_in chan)
+                (fun () ->
+                  let header = input_line chan in
+                  let names =
+                    if String.contains header ';'
+                    then String.split_on_char ';' header
+                    else String.split_on_char ',' header
                   in
-                  { name; col_typ = TUnknown })
-                names)
-        with _ -> []
+                  List.map
+                    (fun name ->
+                      let name = String.trim name in
+                      let name =
+                        if String.starts_with ~prefix:"\"" name
+                        then String.sub name 1 (String.length name - 2)
+                        else name
+                      in
+                      { name; col_typ = TUnknown })
+                    names)
+            with _ -> []
+          in
+          Hashtbl.add csv_cache path cols;
+          cols
       in
       TDataFrame cols
   | Call { fn = { node = Var "read_parquet"; _ }; args; _ } ->

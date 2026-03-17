@@ -185,8 +185,9 @@ let repl_display_value v =
       end;
       flush stdout
   | Ast.VDataFrame _ | Ast.VPipeline _ ->
-      print_string (Pretty_print.pretty_print_value v);
-      flush stdout
+      print_endline (Pretty_print.pretty_print_value v);
+      flush stdout;
+      flush stderr
   | other ->
       (match maybe_package_info other with
       | Some (name, description, functions) ->
@@ -194,8 +195,9 @@ let repl_display_value v =
             color_bold name color_reset description color_blue (List.length functions) color_reset;
           List.iter (fun fn_name -> Printf.printf "    - %s\n" fn_name) functions;
           print_newline ()
-      | None -> print_string (Pretty_print.pretty_print_value other));
-      flush stdout
+      | None -> print_endline (Pretty_print.pretty_print_value other));
+      flush stdout;
+      flush stderr
 
 (* --- Magic Commands and Help --- *)
 
@@ -588,7 +590,7 @@ let cmd_repl mode env =
               List.iter (fun m -> Printf.printf "%s\n" m) matches;
               Printf.printf ":END_COMPLETIONS:\n";
               flush stdout;
-              repl env false
+              repl env true
             end
             else if String.length trimmed > 0 && trimmed.[0] = '%' then begin
             let (new_env, handled) = handle_magic trimmed env mode base_keys in

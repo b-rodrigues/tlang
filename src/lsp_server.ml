@@ -141,19 +141,20 @@ module Server = struct
         Some (String.sub line_text start_idx (end_idx - start_idx))
       else None
 
+  let col_regex = Str.regexp {|\$\([a-zA-Z_][a-zA-Z0-9_]*\|`[^`]*`\)|}
+
   let extract_columns text =
-    let re = Str.regexp {|\$\([a-zA-Z_][a-zA-Z0-9_]*\|`[^`]*`\)|} in
     let rec loop acc pos =
       try
-        let _ = Str.search_forward re text pos in
+        let _ = Str.search_forward col_regex text pos in
         let matched = Str.matched_group 1 text in
         let name = if String.starts_with ~prefix:"`" matched then
                      String.sub matched 1 (String.length matched - 2)
                    else matched in
-        loop (name :: acc) (Str.match_end ())
+        loop (Symbol_table.StringSet.add name acc) (Str.match_end ())
       with Not_found -> acc
     in
-    loop [] 0
+    loop Symbol_table.StringSet.empty 0 |> Symbol_table.StringSet.elements
 
   let update_document server uri text ~source ~started_at =
     let scope = Symbol_table.copy_scope server.base_scope in

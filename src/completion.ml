@@ -85,6 +85,12 @@ let complete scope ~buffer ~cursor =
     else None
   in
  
+  let symbol_prefix_match =
+    let prefix = extract_prefix buffer cursor in
+    if prefix = "" then None
+    else Some (prefix, cursor - String.length prefix)
+  in
+
   match member_match with
   | Some (_ident, member_prefix, member_start) ->
       (match lookup scope _ident with
@@ -106,29 +112,21 @@ let complete scope ~buffer ~cursor =
     | None ->
         (match column_prefix_match with
         | Some (col_prefix, col_start) ->
-            let all_symbols = all scope in
-            let df_cols = List.filter_map (fun s -> 
+            let observed = Symbol_table.get_observed_columns scope in
+            let df_cols = Symbol_table.get_dataframes scope |> List.filter_map (fun s -> 
               match s.typ with
               | Some (Semantic_type.TDataFrame cols) 
               | Some (Semantic_type.TGroupedDataFrame (cols, _)) -> Some (List.map (fun (c: Semantic_type.column) -> c.Semantic_type.name) cols)
               | _ -> None
-            ) all_symbols |> List.flatten in
-            
-            let observed = Symbol_table.get_observed_columns scope in
+            ) |> List.flatten in
             let all_cols = List.sort_uniq String.compare (df_cols @ observed) in
-
-            let matches = all_cols
-            |> List.filter (fun name -> String.starts_with ~prefix:col_prefix name)
-            |> List.sort_uniq String.compare in
+            let matches = List.filter (fun name -> String.starts_with ~prefix:col_prefix name) all_cols in
             (col_start, matches)
         | None ->
-            let prefix = extract_prefix buffer cursor in
-            if prefix = "" then (cursor, [])
-            else
-              let start_pos = cursor - String.length prefix in
-              let matches = all scope
-              |> List.filter (fun s -> String.starts_with ~prefix s.name)
-              |> List.map (fun s -> s.name)
-              |> List.sort_uniq String.compare in
-              (start_pos, matches)))
+            (match symbol_prefix_match with
+            | Some (prefix, start) ->
+                let matches = Symbol_table.filter_symbols scope prefix 
+                              |> List.map (fun s -> s.Symbol_table.name) in
+                (start, matches)
+            | None -> (cursor, []))))
   end
