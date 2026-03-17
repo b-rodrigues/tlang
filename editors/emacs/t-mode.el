@@ -128,13 +128,19 @@ Sends `:complete INPUT' and parses the output lines."
   (let ((output-buf (get-buffer-create " *t-completions*"))
         (completions nil))
     (with-current-buffer output-buf
-      (erase-buffer)
-      ;; Use comint-redirect with our specific marker to stop
-      (let ((comint-redirect-finished-regexp ":END_COMPLETIONS:"))
-        (comint-redirect-send-command-to-process
-         (concat ":complete " input)
-         output-buf proc nil t))
-      
+      (erase-buffer))
+    (let ((comint-redirect-finished-regexp ":END_COMPLETIONS:"))
+      (comint-redirect-send-command-to-process
+       (concat ":complete " input)
+       output-buf proc nil t))
+    ;; Wait for the redirect to complete before parsing (with a 2-second timeout)
+    (with-current-buffer (process-buffer proc)
+      (let ((timeout 2.0)
+            (start-time (float-time)))
+        (while (and (not comint-redirect-completed)
+                    (< (- (float-time) start-time) timeout))
+          (accept-process-output proc 0.1))))
+    (with-current-buffer output-buf
       (goto-char (point-min))
       (when (search-forward ":BEGIN_COMPLETIONS:" nil t)
         (let ((begin (point)))
