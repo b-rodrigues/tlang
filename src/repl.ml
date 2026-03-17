@@ -515,6 +515,20 @@ let cmd_repl mode env =
       | None ->
           print_endline "\nGoodbye."
       | Some line ->
+          (* Handle TAB character in input (for dumb terminals / Emacs) *)
+          if String.contains line '\t' then begin
+            let tab_pos = String.index line '\t' in
+            let prefix = String.sub line 0 tab_pos in
+            let cursor = String.length prefix in
+            let (_, matches) = Completion.complete scope ~buffer:prefix ~cursor in
+            if matches = [] then
+              Printf.printf "No completions.\n"
+            else
+              List.iter (fun m -> Printf.printf "%s\n" m) matches;
+            flush stdout;
+            repl env
+          end
+          else
           let trimmed = String.trim line in
           if trimmed = "" then repl env
           else begin
@@ -525,7 +539,8 @@ let cmd_repl mode env =
             Printf.printf "  :quit, :q     Exit the REPL\n";
             Printf.printf "  :help, :h     Show this help message\n";
             Printf.printf "  :version      Show T language and Nix versions\n";
-            Printf.printf "  :packages     List all currently loaded packages\n\n";
+            Printf.printf "  :packages     List all currently loaded packages\n";
+            Printf.printf "  :complete <prefix>  Show completions for prefix (useful in Emacs/dumb terminals)\n\n";
             
             Printf.printf "Magic Commands:\n";
             Printf.printf "  %%time <expr>  Time an expression\n";
@@ -554,6 +569,14 @@ let cmd_repl mode env =
               Printf.printf "  %-12s  %s\n" pkg.name pkg.description
             ) Packages.all_packages;
             print_newline ();
+            flush stdout;
+            repl env
+            end
+            else if String.length trimmed > 10 && String.sub trimmed 0 10 = ":complete " then begin
+            let arg = String.trim (String.sub trimmed 10 (String.length trimmed - 10)) in
+            let cursor = String.length arg in
+            let (_, matches) = Completion.complete scope ~buffer:arg ~cursor in
+            List.iter (fun m -> Printf.printf "%s\n" m) matches;
             flush stdout;
             repl env
             end
