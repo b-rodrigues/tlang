@@ -15,23 +15,22 @@ let find_named_arg name named_args =
 
 let string_list_of_value = function
   | VString s -> Ok [s]
+  | VSymbol s when String.starts_with ~prefix:"$" s -> Ok [String.sub s 1 (String.length s - 1)]
   | VVector arr ->
-      Array.fold_right (fun value acc ->
-        match value, acc with
-        | VString s, Ok values -> Ok (s :: values)
-        | VNA _, Ok _ -> Error (Error.type_error "Join keys must be strings, not NA.")
-        | _, Ok _ -> Error (Error.type_error "Join keys must be strings.")
-        | _, Error err -> Error err
-      ) arr (Ok [])
+      let items = Array.to_list arr in
+      let maybe_names = List.map Utils.extract_column_name items in
+      if List.exists Option.is_none maybe_names then
+        Error (Error.type_error "Join keys must be strings or symbols.")
+      else
+        Ok (List.filter_map Fun.id maybe_names)
   | VList items ->
-      List.fold_right (fun (_, value) acc ->
-        match value, acc with
-        | VString s, Ok values -> Ok (s :: values)
-        | VNA _, Ok _ -> Error (Error.type_error "Join keys must be strings, not NA.")
-        | _, Ok _ -> Error (Error.type_error "Join keys must be strings.")
-        | _, Error err -> Error err
-      ) items (Ok [])
-  | _ -> Error (Error.type_error "Join keys must be a string, List[String], or Vector[String].")
+      let items = List.map snd items in
+      let maybe_names = List.map Utils.extract_column_name items in
+      if List.exists Option.is_none maybe_names then
+        Error (Error.type_error "Join keys must be strings or symbols.")
+      else
+        Ok (List.filter_map Fun.id maybe_names)
+  | _ -> Error (Error.type_error "Join keys must be a string, symbol, List, or Vector.")
 
 let common_columns left right =
   let right_names = Arrow_table.column_names right in

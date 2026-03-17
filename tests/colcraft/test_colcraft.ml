@@ -582,28 +582,28 @@ df |> filter($age > 25)
   Printf.printf "Phase 4 — joins, binders, and extended selectors:\n";
 
   test "left_join keeps left rows"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = "id") |> nrow|}
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = $id) |> nrow|}
     "2";
   test "left_join fills unmatched with NA"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = "id").y|}
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); left_join(left, right, by = $id).y|}
     {|Vector[NA(String), "two"]|};
   test "inner_join keeps matches only"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); inner_join(left, right, by = "id") |> nrow|}
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); inner_join(left, right, by = $id) |> nrow|}
     "1";
   test "full_join includes unmatched right rows"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); full_join(left, right, by = "id").id|}
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); full_join(left, right, by = $id).id|}
     "Vector[1, 2, 3]";
   test "semi_join filters left rows by match"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = "id").x|}
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = $id).x|}
     {|Vector["b"]|};
   test "semi_join keeps only left columns"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = "id") |> ncol|}
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); semi_join(left, right, by = $id) |> ncol|}
     "2";
   test "anti_join filters left rows without match"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = "id").x|}
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = $id).x|}
     {|Vector["a"]|};
   test "anti_join keeps only left columns"
-    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = "id") |> ncol|}
+    {|left = dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = $id) |> ncol|}
     "2";
   test "bind_rows unions columns"
     {|bind_rows(dataframe([[id: 1, x: "a"]]), dataframe([[id: 2, y: "b"]])) |> ncol|}

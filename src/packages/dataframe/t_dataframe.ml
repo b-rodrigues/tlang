@@ -96,29 +96,32 @@ let register env =
   let env = Env.add "pull"
       (make_builtin ~name:"pull" 2 (fun args _env ->
         match args with
-        | [VDataFrame df; VString col_name] ->
-            (match Arrow_table.get_column df.arrow_table col_name with
-             | None -> Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." col_name)
-             | Some col ->
-                 match col with
-                 | Arrow_table.FloatColumn data ->
-                     VVector (Array.map (function Some f -> VFloat f | None -> VNA NAGeneric) data)
-                 | Arrow_table.IntColumn data ->
-                     VVector (Array.map (function Some i -> VInt i | None -> VNA NAGeneric) data)
-                 | Arrow_table.StringColumn data ->
-                     VVector (Array.map (function Some s -> VString s | None -> VNA NAGeneric) data)
-                  | Arrow_table.BoolColumn data ->
-                      VVector (Array.map (function Some b -> VBool b | None -> VNA NAGeneric) data)
-                  | Arrow_table.DateColumn data ->
-                      VVector (Array.map (function Some d -> VDate d | None -> VNA NADate) data)
-                  | Arrow_table.DatetimeColumn (data, tz) ->
-                      VVector (Array.map (function Some ts -> VDatetime (ts, tz) | None -> VNA NADate) data)
-                  | Arrow_table.NullColumn n ->
-                      VVector (Array.make n (VNA NAGeneric))
-                 | Arrow_table.DictionaryColumn (data, levels, ordered) ->
-                     VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data)
-                 | Arrow_table.ListColumn data ->
-                     VVector (Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> VNA NAGeneric) data))
+        | [VDataFrame df; v_col] ->
+            (match Utils.extract_column_name v_col with
+             | Some col_name ->
+                (match Arrow_table.get_column df.arrow_table col_name with
+                 | None -> Error.make_error KeyError (Printf.sprintf "Column `%s` not found in DataFrame." col_name)
+                 | Some col ->
+                     match col with
+                     | Arrow_table.FloatColumn data ->
+                         VVector (Array.map (function Some f -> VFloat f | None -> VNA NAGeneric) data)
+                     | Arrow_table.IntColumn data ->
+                         VVector (Array.map (function Some i -> VInt i | None -> VNA NAGeneric) data)
+                     | Arrow_table.StringColumn data ->
+                         VVector (Array.map (function Some s -> VString s | None -> VNA NAGeneric) data)
+                      | Arrow_table.BoolColumn data ->
+                          VVector (Array.map (function Some b -> VBool b | None -> VNA NAGeneric) data)
+                      | Arrow_table.DateColumn data ->
+                          VVector (Array.map (function Some d -> VDate d | None -> VNA NADate) data)
+                      | Arrow_table.DatetimeColumn (data, tz) ->
+                          VVector (Array.map (function Some ts -> VDatetime (ts, tz) | None -> VNA NADate) data)
+                      | Arrow_table.NullColumn n ->
+                          VVector (Array.make n (VNA NAGeneric))
+                     | Arrow_table.DictionaryColumn (data, levels, ordered) ->
+                         VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data)
+                     | Arrow_table.ListColumn data ->
+                         VVector (Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> VNA NAGeneric) data))
+             | None -> Error.type_error "pull: second argument must be a column name ($col or \"col\").")
         | _ -> Error.type_error "pull expects (DataFrame, column_name)."
       )) env in
   (*
@@ -128,10 +131,11 @@ let register env =
   --#
   --# @name to_array
   --# @param df :: DataFrame The input DataFrame.
-  --# @param cols :: List[String] (Optional) Columns to include. Defaults to all numeric.
+  --# @param cols :: List[Symbol|String] (Optional) Columns to include. Defaults to all numeric.
   --# @return :: NDArray A 2D array of the data.
   --# @example
   --#   mat = to_array(mtcars)
+  --#   mat = to_array(mtcars, [$mpg, $wt])
   --# @family dataframe
   --# @seealso dataframe
   --# @export
@@ -171,11 +175,21 @@ let register env =
                 | Ok () -> VNDArray { shape = [|nrows; ncols|]; data }
                 | Error e -> e)
 
-        | [VDataFrame df; VList cols] ->
-            let col_names = List.map (function 
-              | (_, VString s) -> s 
-              | _ -> raise (Invalid_argument "Column names must be strings")
-            ) cols in
+        | [VDataFrame df; v_cols] ->
+            let items = match v_cols with
+              | VList l -> List.map snd l
+              | VVector a -> Array.to_list a
+              | VString _ | VSymbol _ -> [v_cols]
+              | _ -> []
+            in
+            if items = [] && v_cols <> VList [] && v_cols <> VVector [||] then
+               Error.type_error "to_array expects (DataFrame, [column_names] | column_name)."
+            else
+            let maybe_col_names = List.map Utils.extract_column_name items in
+            if List.exists Option.is_none maybe_col_names then
+               Error.type_error "Column names must be strings or symbols."
+            else
+            let col_names = List.filter_map Fun.id maybe_col_names in
             let nrows = Arrow_table.num_rows df.arrow_table in
             let ncols = List.length col_names in
             let data = Array.make (nrows * ncols) 0.0 in

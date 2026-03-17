@@ -14,7 +14,8 @@ data = if (type(data_initial) == "Error") (read_csv(local_path, separator = ",")
 
     -- 2. Prepare Target Vector (y)
 print("Preparing y...")
-y_vec = pull(data, "mpg")
+y_vec := pull(data_initial, "mpg")
+select()
 n = length(y_vec)
 -- Convert to n x 1 matrix
 y = ndarray(y_vec, shape=[n, 1])

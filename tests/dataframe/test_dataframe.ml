@@ -768,6 +768,19 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end else begin
     incr fail_count; Printf.printf "  \xe2\x9c\x97 read_csv from URL with separator=\"|\" reads correct columns\n    Expected: 11\n    Got: %s\n" result
   end;
+  Printf.printf "Phase — to_array():\n";
+  test "to_array with list of symbols"
+    "df_arr = dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, [$a, $b]) |> type"
+    {|"NDArray"|};
+  
+  test "to_array with vector of symbols"
+    "df_arr = dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, [$a]) |> type"
+    {|"NDArray"|};
+    
+  test "to_array single column symbol"
+    "df_arr = dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, $a) |> type"
+    {|"NDArray"|};
+
   print_newline ();
 
   (* Clean up test CSV files *)

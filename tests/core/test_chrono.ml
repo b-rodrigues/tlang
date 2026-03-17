@@ -23,7 +23,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "am returns true for morning" {|am(ymd_hms("2024-01-15 09:30:00"))|} "true";
   test "pm returns true for afternoon" {|pm(ymd_hms("2024-01-15 13:30:00"))|} "true";
   test "vectorized year works on pulled dates"
-    {|df = dataframe([[s: "2024-01-01"], [s: "2025-02-03"]]); year(ymd(pull(df, "s")))|}
+    {|df = dataframe([[s: "2024-01-01"], [s: "2025-02-03"]]); year(ymd(pull(df, $s)))|}
     "Vector[2024, 2025]";
   test "today returns date type" {|type(today())|} {|"Date"|};
   test "now returns datetime type" {|type(now())|} {|"Datetime"|};

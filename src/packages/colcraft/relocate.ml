@@ -11,12 +11,7 @@ let relocate_impl (named_args : (string option * value) list) _env =
       let after = match List.assoc_opt (Some ".after") rest with Some v -> Utils.extract_column_name v | None -> None in
 
       (* 1. Identify which columns to move *)
-      let to_move = List.concat_map (fun v ->
-        match v with
-        | VSymbol s when String.starts_with ~prefix:"$" s -> [String.sub s 1 (String.length s - 1)]
-        | VString s -> [s]
-        | _ -> []
-      ) positional in
+      let to_move = List.filter_map Utils.extract_column_name positional in
       
       if to_move = [] then VDataFrame df
       else
