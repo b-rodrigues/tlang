@@ -209,9 +209,14 @@ module Server = struct
         if line < List.length lines then
           let line_text = List.nth lines line in
           let cursor = min character (String.length line_text) in
-          let matches = Completion.complete doc.scope ~buffer:line_text ~cursor in
+          let (start_pos, matches) = Completion.complete doc.scope ~buffer:line_text ~cursor in
           List.map (fun m -> 
-            CompletionItem.create ~label:m ()
+            let range = Range.create
+              ~start:(Position.create ~line ~character:start_pos)
+              ~end_:(Position.create ~line ~character:cursor)
+            in
+            let textEdit = `TextEdit (TextEdit.create ~range ~newText:m) in
+            CompletionItem.create ~label:m ~textEdit ()
           ) matches
         else []
 
