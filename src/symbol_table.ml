@@ -35,7 +35,8 @@ let add scope symbol =
   scope.symbols := NameMap.add symbol.name symbol !(scope.symbols)
 
 let add_observed_column scope name =
-  if not (List.mem name !(scope.observed_columns)) then
+  let name = String.trim name in
+  if name <> "" && not (List.mem name !(scope.observed_columns)) then
     scope.observed_columns := name :: !(scope.observed_columns)
 
 let get_observed_columns scope = !(scope.observed_columns)

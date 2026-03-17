@@ -40,14 +40,13 @@ let extract_prefix buffer cursor =
 let complete scope ~buffer ~cursor =
   if is_inside_comment_or_string buffer cursor then []
   else begin
-  (* 1. Check for member completion: ident[.|$][member_prefix] *)
+  (* 1. Check for member completion: ident.member_prefix *)
   let member_match =
     let mstart = ref (cursor - 1) in
     while !mstart >= 0 && is_ident_char buffer.[!mstart] do
       mstart := !mstart - 1
     done;
-    if !mstart >= 0 && (buffer.[!mstart] = '.' || buffer.[!mstart] = '$') then begin
-      let sep = buffer.[!mstart] in
+    if !mstart >= 0 && buffer.[!mstart] = '.' then begin
       let dot_pos = !mstart in
       let member_prefix = String.sub buffer (dot_pos + 1) (cursor - dot_pos - 1) in
       let istart = ref (dot_pos - 1) in
@@ -55,7 +54,7 @@ let complete scope ~buffer ~cursor =
         istart := !istart - 1
       done;
       let ident = String.sub buffer (!istart + 1) (dot_pos - !istart - 1) in
-      if ident <> "" then Some (ident, member_prefix, dot_pos + 1, sep)
+      if ident <> "" then Some (ident, member_prefix, dot_pos + 1)
       else None
     end else None
   in
@@ -87,7 +86,7 @@ let complete scope ~buffer ~cursor =
   in
  
   match member_match with
-  | Some (ident, member_prefix, member_start, _sep) ->
+  | Some (ident, member_prefix, member_start) ->
       (match lookup scope ident with
       | Some { typ = Some (Semantic_type.TDataFrame cols); _ }
       | Some { typ = Some (Semantic_type.TGroupedDataFrame (cols, _)); _ } ->

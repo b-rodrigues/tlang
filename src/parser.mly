@@ -297,7 +297,6 @@ primary_expr:
   | NULL { with_loc (Value VNull) $startpos }
   | NA { with_loc (Value (VNA NAGeneric)) $startpos }
   | col = COLUMN_REF { with_loc (ColumnRef col) $startpos }
-  | DOLLAR { with_loc (ColumnRef "") $startpos }
   | id = any_ident { with_loc (Var id) $startpos }
   | DOTDOTDOT { with_loc (Var "...") $startpos }
   | LPAREN skip_sep e = expr skip_sep RPAREN { e }

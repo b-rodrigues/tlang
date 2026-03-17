@@ -13,31 +13,6 @@ type analysis_result = {
 }
 
 let rec infer_type scope expr =
-  (* Pre-pass to collect observed columns and definitions in sub-blocks *)
-  (match expr.node with
-   | ColumnRef name -> Symbol_table.add_observed_column scope name
-   | Call { fn; args; _ } -> 
-       ignore (infer_type scope fn);
-       List.iter (fun (_, e) -> ignore (infer_type scope e)) args
-   | IfElse { cond; then_; else_ } ->
-       ignore (infer_type scope cond);
-       ignore (infer_type scope then_);
-       ignore (infer_type scope else_)
-   | ListLit items ->
-       List.iter (fun (_, e) -> ignore (infer_type scope e)) items
-   | BinOp { left; right; _ } | BroadcastOp { left; right; _ } ->
-       ignore (infer_type scope left);
-       ignore (infer_type scope right)
-   | UnOp { operand; _ } ->
-       ignore (infer_type scope operand)
-   | DotAccess { target; _ } ->
-       ignore (infer_type scope target)
-   | PipelineDef nodes | IntentDef nodes ->
-       List.iter (fun (_, e) -> ignore (infer_type scope e) ) nodes
-   | Block stmts -> List.iter (fun s -> analyze_stmt scope (ref Definition_map.empty) s) stmts
-   | Lambda { body; _ } -> ignore (infer_type scope body)
-   | _ -> ());
-
   match expr.node with
   | Value v -> 
       (match Symbol_table.value_to_semantic_type v with
@@ -47,21 +22,43 @@ let rec infer_type scope expr =
       (match Symbol_table.lookup scope name with
        | Some s -> (match s.typ with Some ty -> ty | None -> TUnknown)
        | None -> TUnknown)
+  | ColumnRef name ->
+      Symbol_table.add_observed_column scope name;
+      TUnknown
 
-  | Call { fn = { node = Var ("filter" | "select" | "arrange" | "group_by" | "ungroup"); _ }; args = (None, data_expr) :: _; _ } ->
+  | Call { fn = { node = Var ("filter" | "select" | "arrange" | "group_by" | "ungroup"); _ }; args = (None, data_expr) :: rest; _ } ->
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) rest;
       infer_type scope data_expr
-  | Call { fn = { node = Var ("read_csv" | "read_parquet"); _ }; args = (None, { node = Value (VString path); _ }) :: _; _ } ->
-      (* Resiliency: Try to peek at CSV header for column names *)
-      let cols = if String.ends_with ~suffix:".csv" path then
+  | Call { fn = { node = Var "read_csv"; _ }; args = (None, { node = Value (VString path); _ }) :: rest; _ } ->
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) rest;
+      let cols =
         try
           let chan = open_in path in
-          let header = input_line chan in
-          close_in chan;
-          let names = if String.contains header ';' then String.split_on_char ';' header else String.split_on_char ',' header in
-          List.map (fun name -> { name = String.trim name |> (fun s -> if String.starts_with ~prefix:"\"" s then String.sub s 1 (String.length s - 2) else s); col_typ = TUnknown }) names
+          Fun.protect
+            ~finally:(fun () -> close_in chan)
+            (fun () ->
+              let header = input_line chan in
+              let names =
+                if String.contains header ';'
+                then String.split_on_char ';' header
+                else String.split_on_char ',' header
+              in
+              List.map
+                (fun name ->
+                  let name = String.trim name in
+                  let name =
+                    if String.starts_with ~prefix:"\"" name
+                    then String.sub name 1 (String.length name - 2)
+                    else name
+                  in
+                  { name; col_typ = TUnknown })
+                names)
         with _ -> []
-      else [] in
+      in
       TDataFrame cols
+  | Call { fn = { node = Var "read_parquet"; _ }; args; _ } ->
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) args;
+      TDataFrame []
   | Call { fn = { node = Var "dataframe"; _ }; args; _ } ->
       let rec find_list = function
         | [] -> []
@@ -69,6 +66,7 @@ let rec infer_type scope expr =
         | _ :: rest -> find_list rest
       in
       let items = find_list args in
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) args;
       let cols = List.filter_map (function
         | (Some name, _) -> Some { name; col_typ = TUnknown }
         | _ -> None
@@ -77,6 +75,7 @@ let rec infer_type scope expr =
   | Call { fn = { node = Var "mutate"; _ }; args; _ } ->
       let base_ty = match args with (None, data_expr) :: _ -> infer_type scope data_expr | _ -> TUnknown in
       let mut_args = match args with _ :: rest -> rest | [] -> [] in
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) mut_args;
       let new_cols = List.filter_map (function
         | (None, { node = Value (VString col_name); _ }) -> Some { name = col_name; col_typ = TUnknown }
         | (Some col_name, _) -> Some { name = col_name; col_typ = TUnknown }
@@ -86,17 +85,41 @@ let rec infer_type scope expr =
        | TDataFrame cols -> TDataFrame (new_cols @ cols)
        | TGroupedDataFrame (cols, g) -> TGroupedDataFrame (new_cols @ cols, g)
        | _ -> base_ty)
-  | Call { fn; _ } ->
+  | Call { fn; args; _ } ->
       let fn_t = infer_type scope fn in
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) args;
       (match fn_t with
        | TFunction (_, ret) -> ret
        | _ -> TUnknown)
 
-  | Lambda { params; _ } ->
+  | Lambda { params; body; _ } ->
       let args = List.map (fun name -> (name, TUnknown)) params in
+      ignore (infer_type scope body);
       TFunction (args, TUnknown)
-  | ListLit _ -> TAny
-  | ColumnRef _ -> TUnknown
+  | ListLit items ->
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) items;
+      TAny
+  | IfElse { cond; then_; else_ } ->
+      ignore (infer_type scope cond);
+      ignore (infer_type scope then_);
+      ignore (infer_type scope else_);
+      TUnknown
+  | BinOp { left; right; _ } | BroadcastOp { left; right; _ } ->
+      ignore (infer_type scope left);
+      ignore (infer_type scope right);
+      TUnknown
+  | UnOp { operand; _ } ->
+      ignore (infer_type scope operand);
+      TUnknown
+  | DotAccess { target; _ } ->
+      ignore (infer_type scope target);
+      TUnknown
+  | PipelineDef nodes | IntentDef nodes ->
+      List.iter (fun (_, e) -> ignore (infer_type scope e)) nodes;
+      TUnknown
+  | Block stmts ->
+      List.iter (fun s -> analyze_stmt scope (ref Definition_map.empty) s) stmts;
+      TUnknown
   | _ -> TUnknown
 
 and add_definition definitions name = function
