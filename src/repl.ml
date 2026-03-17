@@ -194,7 +194,7 @@ let repl_display_value v =
             color_bold name color_reset description color_blue (List.length functions) color_reset;
           List.iter (fun fn_name -> Printf.printf "    - %s\n" fn_name) functions;
           print_newline ()
-      | None -> print_endline (Ast.Utils.value_to_string other));
+      | None -> print_string (Pretty_print.pretty_print_value other));
       flush stdout
 
 (* --- Magic Commands and Help --- *)

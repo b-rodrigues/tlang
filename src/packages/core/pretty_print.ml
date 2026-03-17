@@ -132,6 +132,43 @@ let pretty_print_summary pairs =
   | _ -> Buffer.add_string buf "No coefficient data available.\n");
   Buffer.contents buf
 
+
+(** Internal helper for recursive pretty formatting with indentation *)
+let rec pretty_format ?(max_depth=5) ?(indent="") v =
+  match v with
+  | VDict pairs ->
+      if max_depth <= 0 then Utils.value_to_string v
+      else if pairs = [] then "{}" else
+      let display_keys = List.fold_left (fun acc (k, v) ->
+        match k, v with
+        | "_display_keys", VList items ->
+            Some (List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items)
+        | _ -> acc
+      ) None pairs in
+      let visible_pairs = match display_keys with
+        | None -> pairs
+        | Some keys -> List.filter (fun (k, _) -> List.mem k keys) pairs
+      in
+      if visible_pairs = [] then "{}" else
+      let next_indent = indent ^ "  " in
+      let lines = List.map (fun (k, v) ->
+        Printf.sprintf "%s`%s`: %s" next_indent k (pretty_format ~max_depth:(max_depth - 1) ~indent:next_indent v)
+      ) visible_pairs in
+      "{\n" ^ String.concat ",\n" lines ^ "\n" ^ indent ^ "}"
+  | VList items ->
+      if max_depth <= 0 then Utils.value_to_string v
+      else if items = [] then "[]" else
+      let next_indent = indent ^ "  " in
+      let lines = List.map (fun (_, v) ->
+         pretty_format ~max_depth:(max_depth - 1) ~indent:next_indent v
+      ) items in
+      let all_simple = List.length items <= 5 && List.for_all (fun (_, v) ->
+        match v with VDict _ | VList _ | VVector _ | VDataFrame _ | VPipeline _ -> false | _ -> true
+      ) items in
+      if all_simple then Utils.value_to_string v
+      else "[\n" ^ indent ^ "  " ^ String.concat (",\n" ^ indent ^ "  ") lines ^ "\n" ^ indent ^ "]"
+  | other -> Utils.value_to_string other
+
 (** Pretty-print any value for REPL display *)
 let pretty_print_value v =
   match v with
@@ -139,9 +176,17 @@ let pretty_print_value v =
   | VError err -> pretty_print_error err
   | VPipeline p -> pretty_print_pipeline p
   | VDict pairs ->
-      (match List.assoc_opt "class" pairs with
-       | Some (VString "summary") -> pretty_print_summary pairs
-       | _ -> Utils.value_to_string v ^ "\n")
+      let is_summary = List.mem_assoc "class" pairs && List.assoc "class" pairs = VString "summary" in
+      let has_kind = List.mem_assoc "kind" pairs in
+      let is_large = List.length pairs > 5 in
+      let has_nested = List.exists (fun (_, v) -> match v with VDict _ | VList _ | VVector _ -> true | _ -> false) pairs in
+      if is_summary then
+        pretty_print_summary pairs
+      else if has_kind || is_large || has_nested then
+        pretty_format v ^ "\n"
+      else
+        Utils.value_to_string v ^ "\n"
+  | VList _ -> pretty_format v ^ "\n"
   | VNull -> ""
   | other -> Utils.value_to_string other ^ "\n"
 
