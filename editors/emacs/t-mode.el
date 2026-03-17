@@ -70,21 +70,79 @@
   :type 'string
   :group 't-mode)
 
-(defvar t-repl-buffer-name "*T REPL*")
+(defvar t-repl-buffer-name "*T REPL*"
+  "Name of the T REPL buffer.")
+
+(defvar t-inferior-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map comint-mode-map)
+    (define-key map (kbd "TAB") #'completion-at-point)
+    map)
+  "Keymap for `t-inferior-mode'.")
+
+(define-derived-mode t-inferior-mode comint-mode "T-REPL"
+  "Major mode for the T language REPL.
+Provides TAB completion by querying the running T process
+via its `:complete' command."
+  :group 't-mode
+  (setq-local comint-prompt-regexp "^T> \\|^\\.\\.  ")
+  (setq-local comint-use-prompt-regexp t)
+  (setq-local comint-process-echoes nil)
+  (add-hook 'completion-at-point-functions #'t-completion-at-point nil t))
 
 ;;;###autoload
 (defun run-t ()
-  "Run an inferior T REPL process."
+  "Run an inferior T REPL process.
+If a T REPL is already running, just display its buffer."
   (interactive)
   (let ((buffer (get-buffer-create t-repl-buffer-name)))
     (unless (comint-check-proc buffer)
+      (make-comint-in-buffer "T REPL" buffer t-repl-executable nil "repl")
       (with-current-buffer buffer
-        (comint-mode)
-        (setq-local comint-prompt-regexp "^t> ")
-        (setq-local comint-use-prompt-regexp t)
-        (apply 'make-comint-in-buffer "T REPL" buffer t-repl-executable nil nil)))
-    (display-buffer buffer)
+        (t-inferior-mode)))
+    (pop-to-buffer buffer)
     buffer))
+
+(defun t-completion-at-point ()
+  "Completion-at-point function for the T REPL.
+Sends `:complete <input>' to the T process and returns the
+matches for use by `completion-at-point'."
+  (let ((proc (get-buffer-process (current-buffer))))
+    (when (and proc (process-live-p proc))
+      (let* ((pmark (process-mark proc))
+             (input-start (marker-position pmark))
+             (end (point))
+             (input (buffer-substring-no-properties input-start end))
+             ;; Find the start of the identifier being completed
+             (start (save-excursion
+                      (skip-chars-backward "a-zA-Z0-9_")
+                      (max (point) input-start))))
+        (when (> (length input) 0)
+          (let ((completions (t--get-completions input proc)))
+            (when completions
+              (list start end completions))))))))
+
+(defun t--get-completions (input proc)
+  "Query the T REPL process PROC for completions of INPUT.
+Sends `:complete INPUT' and parses the output lines."
+  (let ((output-buf (get-buffer-create " *t-completions*"))
+        (proc-buf (process-buffer proc)))
+    (with-current-buffer output-buf (erase-buffer))
+    (with-current-buffer proc-buf
+      (setq comint-redirect-completed nil)
+      (comint-redirect-send-command-to-process
+       (concat ":complete " input)
+       output-buf proc nil t)
+      ;; Wait for the redirect to finish (up to 5 seconds)
+      (let ((i 0))
+        (while (and (not comint-redirect-completed) (< i 50))
+          (accept-process-output proc 0.1)
+          (setq i (1+ i)))))
+    ;; Parse completions from the output buffer
+    (with-current-buffer output-buf
+      (let ((text (string-trim (buffer-string))))
+        (when (> (length text) 0)
+          (split-string text "\n" t "[ \t\r]+"))))))
 
 (defun t-send-region (start end)
   "Send the current region to the T REPL."
@@ -98,21 +156,21 @@
   (interactive)
   (t-send-region (point-min) (point-max)))
 
+(defun t-send-line ()
+  "Send the current line to the T REPL."
+  (interactive)
+  (t-send-region (line-beginning-position) (line-end-position)))
+
 (defun t-switch-to-repl ()
   "Switch to the T REPL buffer."
   (interactive)
   (pop-to-buffer (run-t)))
 
-;; Keybindings
-(define-key t-mode-map (kbd "C-c C-z") 't-switch-to-repl)
-(define-key t-mode-map (kbd "C-c C-c") 't-send-buffer)
-(define-key t-mode-map (kbd "C-c C-r") 't-send-region)
-(define-key t-mode-map (kbd "C-c C-l") 't-send-line)
-
-(defun t-send-line ()
-  "Send the current line to the T REPL."
-  (interactive)
-  (t-send-region (line-beginning-position) (line-end-position)))
+;; Keybindings for t-mode (editing .t files)
+(define-key t-mode-map (kbd "C-c C-z") #'t-switch-to-repl)
+(define-key t-mode-map (kbd "C-c C-c") #'t-send-buffer)
+(define-key t-mode-map (kbd "C-c C-r") #'t-send-region)
+(define-key t-mode-map (kbd "C-c C-l") #'t-send-line)
 
 (provide 't-mode)
 
