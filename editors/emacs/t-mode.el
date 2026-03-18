@@ -64,6 +64,7 @@
 ;;; REPL Support
 
 (require 'comint)
+(require 'subr-x)
 
 (defcustom t-repl-executable "t"
   "Path to the T REPL executable."
@@ -157,10 +158,7 @@ Sends `:complete INPUT' and parses the output lines."
          (text (buffer-substring-no-properties start end)))
     (unless proc
       (error "T REPL process is not running"))
-    (with-current-buffer buffer
-      (goto-char (process-mark proc))
-      (insert text)
-      (comint-send-input))))
+    (comint-send-string proc (concat (string-trim-right text) "\n"))))
 
 (defun t-send-buffer ()
   "Send the entire buffer to the T REPL."
