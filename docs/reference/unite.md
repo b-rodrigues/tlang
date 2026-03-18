@@ -28,3 +28,4 @@ The united DataFrame.
 ```t
 unite(df, "full_name", $first_name, $last_name, sep = " ")
 ```
+

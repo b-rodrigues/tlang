@@ -37,19 +37,19 @@
 <h1 class="title">T Function Reference - mutate</h1>
 </header>
 <h1 id="mutate">mutate</h1>
-<p>Create or modify columns</p>
+<p>Mutate DataFrame</p>
 <p>Adds new columns or modifies existing ones.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>df</strong> (<code>DataFrame</code>): The input
-DataFrame.</li>
-<li><strong>…</strong> (<code>KeywordArgs</code>): New columns as name =
-expression pairs.</li>
+<li><p><strong>df</strong> (<code>DataFrame</code>): The input
+DataFrame.</p></li>
+<li><p><strong>…</strong> (<code>Expressions</code>): Key-value pairs of
+new columns.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: The modified DataFrame.</p>
+<h2 id="returns">Returns</h2>
+<p>The mutated DataFrame.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>mutate(mtcars, $hp_per_wt = $hp / $wt)</code></pre>
+<pre class="t"><code>mutate(mtcars, $ratio = $mpg / $hp)</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="select.html">select</a>, <a
 href="summarize.html">summarize</a></p>

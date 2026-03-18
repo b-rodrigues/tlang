@@ -1,8 +1,6 @@
 open Ast
 
-(*
---# @private
-*)
+
 
 (** Extract a single string argument from a named-args list. *)
 let get_path_arg fname args =

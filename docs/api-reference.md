@@ -2267,4 +2267,11 @@ Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
 
 ---
 
-**Need more examples?** Check the [Data Manipulation Examples](data_manipulation_examples.md) and [Pipeline Tutorial](pipeline_tutorial.md).
+## Next Steps
+
+Now that you've explored the API, learn how to build reproducible data pipelines:
+
+1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Master T's core execution model.
+2. **[Data Manipulation Examples](data_manipulation_examples.md)** — Practical examples of data wrangling.
+3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+4. **[Package Development](package_development.md)** — Create reusable T libraries.

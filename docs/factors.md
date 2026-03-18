@@ -228,6 +228,15 @@ Use:
 
 ---
 
-## Package Note
-
 These factor helpers are currently implemented alongside the data-manipulation verbs in T's `colcraft` package, but the naming convention is the same idea you would expect from a dedicated factor-toolkit family: factor creation helpers plus `fct_*` level-manipulation helpers.
+
+---
+
+## Next Steps
+
+Now that you can handle categorical data, explore vector operations and statistical modeling in T:
+
+1. **[Arrays and Matrices](arrays.md)** — Vector and matrix operations.
+2. **[Formulas and Models](formulas.md)** — Statistical modeling in T.
+3. **[Pipeline Tutorial](pipeline_tutorial.md)** — Build reproducible data pipelines.
+4. **[API Reference](api-reference.md)** — Complete function reference by package.

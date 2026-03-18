@@ -149,3 +149,14 @@ For per-function details, see the reference pages:
 - [`contains`](reference/contains.html)
 - [`starts_with`](reference/starts_with.html)
 - [`ends_with`](reference/ends_with.html)
+
+---
+
+## Next Steps
+
+Now that you can manipulate text, explore categorical data and vector operations in T:
+
+1. **[Factors & Categorical Data](factors.md)** — Learn how to work with categorical data.
+2. **[Arrays and Matrices](arrays.md)** — Vector and matrix operations.
+3. **[Formulas and Models](formulas.md)** — Statistical modeling in T.
+4. **[API Reference](api-reference.md)** — Complete function reference by package.

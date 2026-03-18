@@ -37,26 +37,9 @@
 <h1 class="title">T Function Reference - union</h1>
 </header>
 <h1 id="union">union</h1>
-<p>Union of Two Pipelines</p>
-<p>Merges two pipelines into one. All nodes from both pipelines are
-included. Errors immediately if any node name exists in both pipelines.
-Use <code>rename_node</code> to resolve collisions before calling
-<code>union</code>.</p>
-<h2 id="parameters">Parameters</h2>
-<ul>
-<li><strong>p1</strong> (<code>Pipeline</code>): The first
-pipeline.</li>
-<li><strong>p2</strong> (<code>Pipeline</code>): The second
-pipeline.</li>
-</ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A new pipeline containing all nodes from both.</p>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>p_etl |&gt; union(p_model)</code></pre>
-<h2 id="see-also">See Also</h2>
-<p><a href="rename_node.html">rename_node</a>, <a
-href="patch.html">patch</a>, <a href="intersect.html">intersect</a>, <a
-href="difference.html">difference</a></p>
+<p>Combine two pipelines</p>
+<p>Returns a pipeline containing nodes from both inputs and errors on
+name collisions.</p>
 <footer>
     <hr class="footer-hr">
     <center>

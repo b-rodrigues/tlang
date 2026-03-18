@@ -37,11 +37,14 @@
 <h1 class="title">T Programming Language - api-reference</h1>
 </header>
 <h1 id="api-reference">API Reference</h1>
-<p>Complete reference for all functions in T’s standard library.</p>
+<p>Package-oriented guide to T’s standard library.</p>
 <blockquote>
-<p><strong>Version</strong>: Alpha 0.1<br />
-<strong>Auto-loaded</strong>: All packages are automatically available
-in every T session</p>
+<p><strong>Coverage</strong>: Package overview and worked examples<br />
+<strong>Exhaustive per-function reference</strong>: <a
+href="reference/index.md"><code>docs/reference/index.md</code></a>,
+generated from source docstrings<br />
+<strong>Auto-loaded</strong>: All standard packages are automatically
+available in every T session</p>
 </blockquote>
 <hr />
 <h2 id="table-of-contents">Table of Contents</h2>
@@ -65,6 +68,10 @@ introspection</li>
 <li><a href="#explain-package">Explain Package</a> — Introspection and
 debugging tools</li>
 </ul>
+<hr />
+<p>For generated one-page documentation for every exported function,
+including newer Chrono, string, join, factor, and helper APIs, use the
+<a href="reference/index.md">Function Reference</a>.</p>
 <hr />
 <h2 id="core-syntax-lists-dictionaries-and-blocks">Core Syntax: Lists,
 Dictionaries, and Blocks</h2>
@@ -749,7 +756,9 @@ cor([1, NA, 3], [2, 4, NA], na_rm = true)  -- 1.0 (uses [1,3] and [2,4])</code><
 </ul>
 <p><strong>Returns:</strong></p>
 <p>Model object. Use <code>summary()</code> and <code>fit_stats()</code>
-to inspect.</p>
+to inspect. PMML imports accept T’s extended fields
+(e.g. <code>std_error</code>, <code>statistic</code>,
+<code>p_value</code>) and are not schema-validated.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>model = lm(data = df, formula = mpg ~ wt + hp)
 print(model)</code></pre>
@@ -814,6 +823,11 @@ id="add_diagnosticsmodel-data"><code>add_diagnostics(model, data)</code></h3>
 <h3
 id="read_csvpath-separator-skip_lines-0-skip_header-false-clean_colnames-false"><code>read_csv(path, separator = ",", skip_lines = 0, skip_header = false, clean_colnames = false)</code></h3>
 <p>Read a CSV file into a DataFrame.</p>
+<p><strong>Current implementation note:</strong></p>
+<p><code>read_csv()</code> currently parses CSV in OCaml and then
+constructs an Arrow-backed <code>DataFrame</code>. The repository also
+contains a lower-level native Arrow CSV reader, but that backend path is
+not yet the public default entry point.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>path</code> — File path (String)</li>
@@ -833,6 +847,30 @@ names (default: false)</li>
 df = read_csv(&quot;data.tsv&quot;, separator = &quot;\t&quot;)
 df = read_csv(&quot;data.csv&quot;, skip_lines = 2)
 df = read_csv(&quot;messy.csv&quot;, clean_colnames = true)</code></pre>
+<hr />
+<h3 id="read_arrowpath"><code>read_arrow(path)</code></h3>
+<p>Read an Arrow IPC file into a DataFrame.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Input file path (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>df = read_arrow(&quot;data.arrow&quot;)</code></pre>
+<hr />
+<h3
+id="write_arrowdataframe-path"><code>write_arrow(dataframe, path)</code></h3>
+<p>Write a DataFrame to an Arrow IPC file.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame to write</li>
+<li><code>path</code> — Output file path (String)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>null</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>write_arrow(df, &quot;snapshot.arrow&quot;)</code></pre>
 <hr />
 <h3
 id="write_csvdataframe-path-separator"><code>write_csv(dataframe, path, separator = ",")</code></h3>
@@ -1200,7 +1238,7 @@ cumsum([1, NA, 3])           -- Vector[1, NA, NA]</code></pre>
 <h2 id="pipeline-package">Pipeline Package</h2>
 <p>Pipeline introspection and management.</p>
 <h3
-id="nodecommand-runtime-t-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>node(command, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="nodecommand-script-null-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-null-shell_args-functions-include-noop-false"><code>node(command, script = null, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = null, shell_args = [], functions = [], include = [], noop = false)</code></h3>
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node.</p>
 <p><strong>Parameters:</strong></p>
@@ -1208,14 +1246,20 @@ serialized methods for a pipeline node.</p>
 <li><code>command</code> — The expression to evaluate (positional or
 named).</li>
 <li><code>runtime</code> (optional) — The runtime environment
-(<code>T</code>, <code>R</code>, <code>Python</code>). Default:
-<code>T</code>.</li>
+(<code>T</code>, <code>R</code>, <code>Python</code>, <code>sh</code>,
+<code>Quarto</code>). Default: <code>T</code>.</li>
 <li><code>serializer</code> (optional) — Write artifact overriding
 mechanism.</li>
 <li><code>deserializer</code> (optional) — Read artifact overriding
 mechanism.</li>
 <li><code>env_vars</code> (optional) — Dictionary of environment
 variables to pass into the Nix sandbox.</li>
+<li><code>args</code> (optional) — Runtime/tool arguments. Lists become
+positional CLI arguments for <code>runtime = sh</code>.</li>
+<li><code>shell</code> (optional) — Shell interpreter for
+<code>runtime = sh</code>. Default: <code>sh</code>.</li>
+<li><code>shell_args</code> (optional) — Additional arguments passed to
+the shell interpreter.</li>
 <li><code>functions</code> (optional) — Code files to source before
 execution.</li>
 <li><code>include</code> (optional) — Additional files to bring into the
@@ -1237,9 +1281,9 @@ include = &quot;config.yml&quot;
 }</code></pre>
 <hr />
 <h3
-id="pycommand-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>py(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="pycommand-script-null-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>py(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <h3
-id="pyncommand-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>pyn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="pyncommand-script-null-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>pyn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure a Python Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Python"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Python code.</p>
@@ -1264,7 +1308,7 @@ generate a stub. Default: <code>false</code>.</li>
 <p>The evaluated return value of the command.</p>
 <hr />
 <h3
-id="rncommand-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>rn(command, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="rncommand-script-null-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>rn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure an R Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "R"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute R code.</p>
@@ -1280,6 +1324,42 @@ Default: <code>default</code>.</li>
 variables to pass into the Nix sandbox.</li>
 <li><code>functions</code> (optional) — R scripts to source before
 execution.</li>
+<li><code>include</code> (optional) — Additional files for the
+sandbox.</li>
+<li><code>noop</code> (optional) — Whether to skip execution and
+generate a stub. Default: <code>false</code>.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The evaluated return value of the command.</p>
+<hr />
+<h3
+id="shncommand-script-null-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false"><code>shn(command, script = null, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)</code></h3>
+<p>Configure a shell pipeline node. A convenience wrapper around
+<code>node()</code> with <code>runtime = "sh"</code>. Use it for CLI
+tools, inline shell scripts, and <code>.sh</code> files inside
+<code>pipeline { ... }</code> blocks.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>command</code> — The shell command or raw shell script body to
+execute.</li>
+<li><code>script</code> (optional) — Path to an external
+<code>.sh</code> file. Mutually exclusive with
+<code>command</code>.</li>
+<li><code>serializer</code> (optional) — Custom serializer function.
+Default: <code>text</code>.</li>
+<li><code>deserializer</code> (optional) — Custom deserializer function.
+Default: <code>default</code>.</li>
+<li><code>env_vars</code> (optional) — Dictionary of environment
+variables to pass into the Nix sandbox.</li>
+<li><code>args</code> (optional) — Runtime arguments. Lists become
+positional CLI arguments for exec-style shell nodes.</li>
+<li><code>shell</code> (optional) — Shell interpreter. Default:
+<code>sh</code>; use <code>bash</code> when you need Bash-specific
+parsing.</li>
+<li><code>shell_args</code> (optional) — Additional arguments for the
+shell interpreter, such as <code>["-lc"]</code>.</li>
+<li><code>functions</code> (optional) — Additional files to include in
+the sandbox before execution.</li>
 <li><code>include</code> (optional) — Additional files for the
 sandbox.</li>
 <li><code>noop</code> (optional) — Whether to skip execution and
@@ -1778,9 +1858,20 @@ side is a list/vector. You do not need <code>.in</code>.</p>
 </tbody>
 </table>
 <hr />
-<p><strong>Need more examples?</strong> Check the <a
-href="data_manipulation_examples.md">Data Manipulation Examples</a> and
-<a href="pipeline_tutorial.md">Pipeline Tutorial</a>.</p>
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you’ve explored the API, learn how to build reproducible
+data pipelines:</p>
+<ol type="1">
+<li><strong><a href="pipeline_tutorial.md">Pipeline
+Tutorial</a></strong> — Master T’s core execution model.</li>
+<li><strong><a href="data_manipulation_examples.md">Data Manipulation
+Examples</a></strong> — Practical examples of data wrangling.</li>
+<li><strong><a href="project_development.md">Project
+Development</a></strong> — Master T’s project structure and dependency
+management.</li>
+<li><strong><a href="package_development.md">Package
+Development</a></strong> — Create reusable T libraries.</li>
+</ol>
 <footer>
     <hr class="footer-hr">
     <center>

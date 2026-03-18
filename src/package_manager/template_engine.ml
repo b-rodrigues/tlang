@@ -55,6 +55,6 @@ let context_of_options (opts : Package_types.scaffold_options) : context =
     ("author", opts.author);
     ("license", opts.license);
     ("date", today);
-    ("t_version", "0.5.0");
+    ("t_version", "0.51");
     ("nixpkgs_date", opts.nixpkgs_date);
   ]

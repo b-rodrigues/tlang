@@ -64,3 +64,13 @@ print(model.r_squared)
 - Intercept control: `y ~ x + 1` vs `y ~ x - 1`
 - Interactions: `y ~ x1 * x2`
 - Transformations: `y ~ log(x)`
+
+---
+
+## Next Steps
+
+Now that you've explored formulas, learn about statistical modeling and pipelines in T:
+
+1. **[Models and Prediction](models.md)** — Comprehensive guide to statistical models.
+2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Build reproducible data pipelines.
+3. **[API Reference](api-reference.md)** — Complete function reference by package.

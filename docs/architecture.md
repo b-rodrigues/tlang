@@ -722,4 +722,11 @@ Arrow Compute on CUDA:
 
 ---
 
-**Next**: [Contributing Guide](contributing.md) | [Development Guide](development.md)
+## Next Steps
+
+Now that you understand T's internal architecture, explore the full API or learn how to contribute to the project:
+
+1. **[API Reference](api-reference.md)** — Exhaustive guide to T's standard library.
+2. **[Contributing Guide](contributing.md)** — Learn how to contribute to T development.
+3. **[Development Guide](development.md)** — Technical details for setting up a local build.
+4. **[Reproducibility Guide](reproducibility.md)** — T's commitment to reproducible research.

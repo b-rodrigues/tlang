@@ -37,27 +37,9 @@
 <h1 class="title">T Function Reference - patch</h1>
 </header>
 <h1 id="patch">patch</h1>
-<p>Patch a Pipeline</p>
-<p>Updates nodes in <code>p1</code> with definitions from
-<code>p2</code>, but only for nodes that already exist in
-<code>p1</code>. New nodes from <code>p2</code> are not added. Useful
-for overriding node configurations without accidentally importing stray
-nodes.</p>
-<h2 id="parameters">Parameters</h2>
-<ul>
-<li><strong>p1</strong> (<code>Pipeline</code>): The base pipeline.</li>
-<li><strong>p2</strong> (<code>Pipeline</code>): The pipeline providing
-updated node definitions.</li>
-</ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A new pipeline with matching nodes updated from
-<code>p2</code>.</p>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>p_prod |&gt; patch(p_staging_overrides)</code></pre>
-<h2 id="see-also">See Also</h2>
-<p><a href="intersect.html">intersect</a>, <a
-href="difference.html">difference</a>, <a
-href="union.html">union</a></p>
+<p>Overlay one pipeline onto another</p>
+<p>Replaces matching nodes in one pipeline with definitions from another
+pipeline.</p>
 <footer>
     <hr class="footer-hr">
     <center>

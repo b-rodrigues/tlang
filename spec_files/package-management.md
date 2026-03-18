@@ -72,12 +72,12 @@ repository = "https://github.com/username/my-package"
 [dependencies]
 # T packages this package depends on
 # Format: package = { git = "repository-url", tag = "version" }
-stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
+stats = { git = "https://github.com/t-lang/stats", tag = "v0.51" }
 colcraft = { git = "https://github.com/t-lang/colcraft", tag = "v0.2.1" }
 
 [t]
 # Minimum T language version required
-min_version = "0.5.0"
+min_version = "0.51"
 ```
 
 ### Package flake.nix
@@ -91,9 +91,9 @@ Each package includes a `flake.nix` that provides both a package output and a de
   inputs = {
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
     flake-utils.url = "github:numtide/flake-utils";
-    t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
+    t-lang.url = "github:b-rodrigues/tlang/v0.51";
     # Package dependencies as flake inputs
-    stats.url = "github:t-lang/stats/v0.5.0";
+    stats.url = "github:t-lang/stats/v0.51";
     colcraft.url = "github:t-lang/colcraft/v0.2.1";
   };
 
@@ -307,10 +307,10 @@ When you add a package to `tproject.toml` and run `t install`, it automatically 
     # Pin to a specific date for reproducibility
     nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10";
     flake-utils.url = "github:numtide/flake-utils";
-    t-lang.url = "github:b-rodrigues/tlang/v0.5.0";
+    t-lang.url = "github:b-rodrigues/tlang/v0.51";
     
     # T packages - auto-added by 't install' command from tproject.toml
-    stats.url = "github:t-lang/stats/v0.5.0";
+    stats.url = "github:t-lang/stats/v0.51";
     colcraft.url = "github:t-lang/colcraft/v0.2.1";
     my-viz-package.url = "github:johndoe/t-viz/v1.2.0";
   };
@@ -355,7 +355,7 @@ When you add a package to `tproject.toml` and run `t install`, it automatically 
             echo "Nixpkgs date: 2026-02-10"
             echo ""
             echo "Loaded packages:"
-            echo "  - stats (v0.5.0)"
+            echo "  - stats (v0.51)"
             echo "  - colcraft (v0.2.1)"
             echo "  - my-viz-package (v1.2.0)"
             echo ""
@@ -394,7 +394,7 @@ authors = ["Data Team <data@example.com>"]
 [environment]
 # Date-pinned nixpkgs from rstats-on-nix
 nixpkgs = "github:rstats-on-nix/nixpkgs/2026-02-10"
-t_version = "0.5.0"
+t_version = "0.51"
 
 [dependencies]
 # T packages from decentralized repositories
@@ -402,7 +402,7 @@ t_version = "0.5.0"
 # Format: package-name = { git = "repository-url", tag = "version-tag" }
 # 
 # Simply add packages here - the flake will automatically fetch and include them!
-stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
+stats = { git = "https://github.com/t-lang/stats", tag = "v0.51" }
 colcraft = { git = "https://github.com/t-lang/colcraft", tag = "v0.2.1" }
 dataframe = { git = "https://github.com/t-lang/dataframe", tag = "v0.3.0" }
 
@@ -450,7 +450,7 @@ The `t install` command synchronizes `tproject.toml` with `flake.nix` automatica
 
 4. **rstats-on-nix date pins**: The nixpkgs input is pinned to a specific date branch (e.g., `2026-02-10`), which corresponds to a snapshot of all R packages at that date.
 
-5. **T package git tags**: T packages are referenced from their git repositories using release tags (e.g., `v0.5.0`), ensuring exact reproducibility.
+5. **T package git tags**: T packages are referenced from their git repositories using release tags (e.g., `v0.51`), ensuring exact reproducibility.
 
 6. **Transitive dependencies**: All dependencies of dependencies are also pinned through Nix's evaluation.
 
@@ -654,7 +654,7 @@ All published packages should:
 3. **Edit tproject.toml** to add dependencies:
    ```toml
    [dependencies]
-   stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
+   stats = { git = "https://github.com/t-lang/stats", tag = "v0.51" }
    colcraft = { git = "https://github.com/t-lang/colcraft", tag = "v0.2.1" }
    my-awesome-package = { git = "https://github.com/username/my-awesome-package", tag = "v0.2.0" }
    ```
@@ -1058,7 +1058,7 @@ This specification defines a **documentation generation system** for the T progr
 
 ### Current State
 
-T language (v0.5.0-alpha) has:
+T language (v0.51) has:
 - ✅ Package system with 8 standard packages
 - ✅ Function registry (`packages()`, `package_info()`)
 - ✅ Introspection system (`explain()`, `type()`)
@@ -1263,7 +1263,7 @@ Documentation configuration integrates seamlessly with T's existing package infr
 
 [package]
 name = "stats"
-version = "0.5.0"
+version = "0.51"
 description = "Statistical functions for T"
 authors = ["T Language Team"]
 license = "EUPL-1.2"
@@ -1377,7 +1377,7 @@ let load_config (package_file : string) : doc_config =
   },
   "source_location": "src/packages/stats/mean.ml:5-25",
   "exported": true,
-  "added_version": "0.5.0",
+  "added_version": "0.51",
   "tags": ["statistics", "aggregation"]
 }
 ```
@@ -1484,7 +1484,7 @@ statistics
 
 ---
 
-*Part of the `stats` package. Added in v0.5.0*
+*Part of the `stats` package. Added in v0.51*
 ```
 
 **Deliverables:**
@@ -1701,7 +1701,7 @@ version = "0.1.0"
 # Existing package metadata
 [package]
 name = "stats"
-version = "0.5.0"
+version = "0.51"
 description = "Statistical functions for T"
 authors = ["T Language Team"]
 license = "EUPL-1.2"
@@ -1901,7 +1901,7 @@ let register ~eval_call ~eval_expr ~uses_nse ~desugar_nse_expr env =
 --#   - Wickham, H. (2014). Tidy Data. JSS.
 --#   - Pedregosa et al. (2011). Scikit-learn. JMLR.
 --#
---# @version 0.5.0
+--# @version 0.51
 --# @license EUPL-1.2
 ```
 

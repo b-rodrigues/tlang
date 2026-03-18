@@ -146,18 +146,19 @@ serialization methods for when a pipeline is materialized by Nix:</p>
 }</code></pre>
 <p>Bare syntax (like <code>x = 10</code>) is automatically desugared to
 <code>x = node(command = 10, runtime = T, serializer = default, deserializer = default)</code>.
-You can also use <code>pyn()</code> and <code>rn()</code> as shortcuts
-for Python and R runtimes. T enforces cross-runtime safety: if a node
-with a non-<code>T</code> runtime depends on a <code>T</code> node, or
-vice versa, you should specify an explicit
+You can also use <code>pyn()</code>, <code>rn()</code>, and
+<code>shn()</code> as shortcuts for Python, R, and shell runtimes. T
+enforces cross-runtime safety: if a node with a non-<code>T</code>
+runtime depends on a <code>T</code> node, or vice versa, you should
+specify an explicit
 <code>serializer</code>/<code>deserializer</code>.</p>
 <h3 id="using-the-script-argument">Using the <code>script</code>
 Argument</h3>
 <p>Instead of inlining code with <code>command</code>, you can point a
 node to an external source file using the <code>script</code> argument.
-This works with <code>node()</code>, <code>pyn()</code>, and
-<code>rn()</code>. The <code>script</code> and <code>command</code>
-arguments are mutually exclusive.</p>
+This works with <code>node()</code>, <code>pyn()</code>,
+<code>rn()</code>, and <code>shn()</code>. The <code>script</code> and
+<code>command</code> arguments are mutually exclusive.</p>
 <pre class="t"><code>p = pipeline {
   -- Execute an external R script
   model = rn(script = &quot;train_model.R&quot;, serializer = &quot;pmml&quot;)
@@ -165,15 +166,58 @@ arguments are mutually exclusive.</p>
   -- Execute an external Python script
   predictions = pyn(script = &quot;predict.py&quot;, deserializer = &quot;pmml&quot;)
 
+  -- Execute an external shell script
+  report = shn(script = &quot;postprocess.sh&quot;)
+
   -- node() auto-detects the runtime from the file extension
   summary = node(script = &quot;summarise.R&quot;, serializer = &quot;json&quot;)
 }</code></pre>
 <p>When using <code>script</code>, the runtime is auto-detected from the
-file extension (<code>.R</code> → R, <code>.py</code> → Python) if not
-explicitly set via the <code>runtime</code> argument. T reads the script
-file to extract identifier references, allowing the pipeline dependency
-graph to be built correctly from variables referenced in the external
-file.</p>
+file extension (<code>.R</code> → R, <code>.py</code> → Python,
+<code>.sh</code> → sh) if not explicitly set via the
+<code>runtime</code> argument. T reads the script file to extract
+identifier references, allowing the pipeline dependency graph to be
+built correctly from variables referenced in the external file.</p>
+<h3 id="shell-bash-nodes-with-shn">Shell / Bash nodes with
+<code>shn()</code></h3>
+<p>Use <code>shn()</code> for pipeline steps that are easiest to express
+as shell or CLI commands. It is a convenience wrapper around
+<code>node(runtime = sh, ...)</code>, just like <code>rn()</code> and
+<code>pyn()</code> wrap <code>node()</code> for R and Python.</p>
+<pre class="t"><code>p = pipeline {
+  -- Exec-style shell node: command + positional argv
+  fields = shn(
+    command = &quot;printf&quot;,
+    args = [&quot;first line\\nsecond line\\n&quot;]
+  )
+
+  -- Script-style shell node: inline shell source executed with `sh`
+  report = shn(command = &lt;{
+#!/bin/sh
+set -eu
+
+# Dependencies for T&#39;s lexical pipeline analysis: summary_r summary_py
+printf &#39;R summary: %s\n&#39; &quot;$T_NODE_summary_r/artifact&quot;
+printf &#39;Python summary: %s\n&#39; &quot;$T_NODE_summary_py/artifact&quot;
+  }&gt;)
+}</code></pre>
+<p>There are two useful modes:</p>
+<ul>
+<li><strong>Exec mode</strong>: provide a string <code>command</code>
+plus <code>args = [...]</code> to run a program directly with positional
+arguments.</li>
+<li><strong>Shell mode</strong>: provide raw shell source with
+<code>&lt;{ ... }&gt;</code> or a <code>.sh</code> <code>script</code>,
+optionally overriding the interpreter with <code>shell = "bash"</code>
+and <code>shell_args = ["-lc"]</code> when you need Bash-specific
+syntax.</li>
+</ul>
+<p>Shell nodes default to <code>serializer = text</code>, which makes
+them a good fit for reports, command output, and glue code between other
+pipeline nodes. For a full end-to-end example that mixes T, R, Python,
+and <code>sh</code>, see
+<code>tests/pipeline/polyglot_shell_pipeline.t</code> and
+<code>.github/workflows/polyglot-shell-pipeline.yml</code>.</p>
 <hr />
 <h2 id="cross-language-integration">3. Cross-Language Integration</h2>
 <p>T is designed to orchestrate code across multiple languages. The
@@ -481,15 +525,15 @@ execution:</p>
 <code>populate_pipeline()</code> (or <code>build_pipeline()</code>).
 This ensures that non-interactive execution always produces reproducible
 Nix artifacts.</p>
-<div class="sourceCode" id="cb28"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — script defines and populates a pipeline</span></span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.</span></span>
-<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the REPL for interactive exploration, or pass --unsafe to override.</span></span></code></pre></div>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — script defines and populates a pipeline</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the REPL for interactive exploration, or pass --unsafe to override.</span></span></code></pre></div>
 <p>A valid pipeline script looks like:</p>
 <pre class="t"><code>-- my_pipeline.t
 p = pipeline {
@@ -501,14 +545,14 @@ populate_pipeline(p, build = true)</code></pre>
 <h3 id="interactive-repl">Interactive (REPL)</h3>
 <p>The REPL is <strong>unrestricted</strong> — you can run any T code
 line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb30"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
 <hr />
 <h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each
@@ -1227,6 +1271,22 @@ p = pipeline {
 p.team_size     -- number of active engineers
 p.avg_salary    -- mean salary
 p.ranked        -- DataFrame sorted by score</code></pre>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you’ve mastered pipelines, learn how to manage reproducible
+projects and develop T packages:</p>
+<ol type="1">
+<li><strong><a href="project_development.md">Project
+Development</a></strong> — Master T’s project structure and dependency
+management.</li>
+<li><strong><a href="package_development.md">Package
+Development</a></strong> — Create reusable T libraries.</li>
+<li><strong><a href="reproducibility.md">Reproducibility
+Guide</a></strong> — Deep dive into T’s commitment to reproducible
+research.</li>
+<li><strong><a href="api-reference.md">API Reference</a></strong> —
+Complete function reference by package.</li>
+</ol>
 <footer>
     <hr class="footer-hr">
     <center>

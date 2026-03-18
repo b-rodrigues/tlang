@@ -10,7 +10,7 @@ let ensure_parent_dir path =
   ensure dir
 
 let serialized_value_magic = "TLANG_SERIALIZED:"
-let serialized_value_format_version = "0.5.0"
+let serialized_value_format_version = "0.51"
 
 let serialized_value_header =
   serialized_value_magic ^ serialized_value_format_version ^ "\n"

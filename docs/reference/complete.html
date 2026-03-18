@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Function Reference - complete</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="../index.html">Home</a> |
+        <a href="../getting-started.html">Get Started</a> |
+        <a href="../language_overview.html">Overview</a> |
+        <a href="../api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Function Reference - complete</h1>
+</header>
+<h1 id="complete">complete</h1>
+<p>Complete a data frame</p>
+<p>Turns implicit missing values into explicit missing values. Supports
+nesting() to restrict combinations to those present in the data.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>df</strong> (<code>DataFrame</code>): The
+DataFrame.</p></li>
+<li><p><strong>…</strong> (<code>Symbol</code>): | Call Variable number
+of column names (use $col syntax) or nesting(…) calls.</p></li>
+<li><p><strong>fill</strong> (<code>Dict</code>): (Optional) A
+dictionary supplying a single value to use instead of NA for missing
+combinations.</p></li>
+<li><p><strong>explicit</strong> (<code>Bool</code>): (Optional) Should
+both implicit and explicit missing values be filled? (Default:
+true)</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>The completed DataFrame.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>complete(df, $group, $item_id, $item_name)
+complete(df, $group, nesting($item_id, $item_name))</code></pre>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

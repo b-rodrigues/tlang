@@ -403,7 +403,11 @@ intent {
 
 ---
 
-**See Also**:
-- [Installation Guide](installation.md) — Setting up Nix
-- [Pipeline Tutorial](pipeline_tutorial.md) — Building reproducible workflows
-- [LLM Collaboration](llm-collaboration.md) — Intent blocks for AI
+## Next Steps
+
+Now that you understand T's commitment to reproducibility, explore the language and its architecture:
+
+1. **[Architecture](architecture.md)** — Understand the internal design and execution model of T.
+2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Build reproducible data pipelines.
+3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+4. **[API Reference](api-reference.md)** — Complete function reference by package.

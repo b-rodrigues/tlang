@@ -38,8 +38,8 @@
 </header>
 <h1 id="changelog">Changelog</h1>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="version-0.1.0-alpha-current-release">Version 0.1.0 (Alpha) —
-Current Release</h2>
+<h2 id="version-0.51-first-public-release">Version 0.51 — First Public
+Release</h2>
 <p><strong>Status</strong>: Alpha — Syntax and semantics frozen<br />
 <strong>Release Date</strong>: February 2026</p>
 <h3 id="language-core">Language Core</h3>
@@ -132,8 +132,14 @@ prediction in T without runtime language dependencies</p>
 collaboration - Document assumptions, constraints, goals -
 Machine-readable format</p>
 <p>✅ <strong>Arrow Integration</strong>: - Zero-copy columnar storage -
-CSV reading via Arrow C GLib - Dual-path operations (native +
-fallback)</p>
+CSV reading via Arrow C GLib - Dual-path operations (native + fallback)
+- <code>explain(df)</code> now surfaces whether a DataFrame is still on
+the native Arrow path (<code>storage_backend</code>,
+<code>native_path_active</code>) - Supported structural rebuilds now try
+to stay Arrow-backed by rematerializing into a fresh native table -
+<strong>Current limitation</strong>: unsupported builder paths (for
+example null-only, factor, list, date, or datetime columns) still fall
+back to pure OCaml/T storage</p>
 <p>✅ <strong>Reproducibility</strong>: - Nix flakes for dependency
 management - Deterministic execution - Frozen syntax and semantics</p>
 <h3 id="repl">REPL</h3>
@@ -166,7 +172,7 @@ models. - <strong>Improved Data Inspection</strong>: Enhanced
 <code>glimpse()</code> documentation for quick DataFrame summaries.</p>
 <hr />
 <h2 id="roadmap">Roadmap</h2>
-<h3 id="version-0.2.0-beta-planned">Version 0.2.0 (Beta) — Planned</h3>
+<h3 id="version-0.6.0-beta-planned">Version 0.6.0 (Beta) — Planned</h3>
 <p><strong>Focus</strong>: Performance and expanded functionality</p>
 <h4 id="performance-improvements">Performance Improvements</h4>
 <ul class="task-list">

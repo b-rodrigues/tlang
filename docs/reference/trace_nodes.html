@@ -41,15 +41,15 @@
 <p>Prints a visual dependency tree of the pipeline nodes.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-inspect.</li>
-<li><strong>name</strong> (<code>String</code>): (Optional) A specific
-node’s name to trace.</li>
-<li><strong>transitive</strong> (<code>Bool</code>): (Optional) If true,
-mark transitive dependencies with ’*’.</li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
+inspect.</p></li>
+<li><p><strong>name</strong> (<code>String</code>): (Optional) A
+specific node’s name to trace.</p></li>
+<li><p><strong>transitive</strong> (<code>Bool</code>): (Optional) If
+true, mark transitive dependencies with ’*’.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: Returns invisibly. Prints to the console.</p>
+<h2 id="returns">Returns</h2>
+<p>Returns invisibly. Prints to the console.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p = pipeline { x = 1; y = x + 1 }
 trace_nodes(p)

@@ -1,7 +1,7 @@
 (* src/repl.ml *)
-(* CLI and interactive REPL for the T language — Phase 7 Alpha *)
+(* CLI and interactive REPL for the T language — 0.51 *)
 
-let version = "0.5.0-alpha"
+let version = "0.51"
 
 (* --- Readline / History --- *)
 

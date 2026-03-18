@@ -107,3 +107,14 @@ df = read_csv("sales.t") |>
   group_by($month) |>
   summarize($total = sum($sales))
 ```
+
+---
+
+## Next Steps
+
+Now that you can handle temporal data, explore text processing and categorical data in T:
+
+1. **[String Manipulation](string_manipulation.md)** — Explore powerful functions for text processing and regular expressions.
+2. **[Factors & Categorical Data](factors.md)** — Learn how to work with categorical data.
+3. **[Arrays and Matrices](arrays.md)** — Vector and matrix operations.
+4. **[API Reference](api-reference.md)** — Complete function reference by package.

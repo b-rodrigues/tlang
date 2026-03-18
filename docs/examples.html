@@ -408,6 +408,48 @@ write_csv(analysis.segments, &quot;customer_segments.csv&quot;)</code></pre>
 }
 
 write_csv(etl.report, &quot;sales_report.csv&quot;)</code></pre>
+<h3 id="polyglot-pipeline-with-a-shell-report">Polyglot pipeline with a
+shell report</h3>
+<pre class="t"><code>analysis = pipeline {
+  raw_data = node(
+    command = read_csv(&quot;tests/pipeline/data/mtcars.csv&quot;, separator = &quot;|&quot;),
+    runtime = T,
+    serializer = t_write_csv,
+    functions = &quot;tests/pipeline/iolib.t&quot;
+  )
+
+  summary_r = rn(
+    command = &lt;{ raw_data |&gt; dplyr::group_by(cyl) |&gt; dplyr::summarize(avg_mpg = mean(mpg)) }&gt;,
+    serializer = r_write_csv,
+    deserializer = r_read_csv,
+    functions = &quot;tests/pipeline/iolib.R&quot;
+  )
+
+  summary_py = pyn(
+    command = &lt;{ raw_data.groupby(&quot;cyl&quot;).agg({&quot;mpg&quot;: &quot;mean&quot;}).reset_index().rename(columns={&quot;mpg&quot;: &quot;avg_mpg&quot;}) }&gt;,
+    serializer = py_write_csv,
+    deserializer = py_read_csv,
+    functions = &quot;tests/pipeline/iolib.py&quot;
+  )
+
+  shell_report = shn(command = &lt;{
+#!/bin/sh
+set -eu
+
+# Dependencies for T&#39;s lexical pipeline analysis: raw_data summary_r summary_py
+printf &#39;Polyglot summary report\n&#39;
+printf &#39;raw_data artifact: %s\n&#39; &quot;$T_NODE_raw_data/artifact&quot;
+printf &#39;\nR summary\n&#39;
+cat &quot;$T_NODE_summary_r/artifact&quot;
+printf &#39;\nPython summary\n&#39;
+cat &quot;$T_NODE_summary_py/artifact&quot;
+  }&gt;)
+}
+
+build_pipeline(analysis)</code></pre>
+<p>This exact pattern is exercised end-to-end in
+<code>tests/pipeline/polyglot_shell_pipeline.t</code> and
+<code>.github/workflows/polyglot-shell-pipeline.yml</code>.</p>
 <hr />
 <h2 id="error-handling-patterns">Error Handling Patterns</h2>
 <h3 id="defensive-programming">Defensive Programming</h3>
@@ -602,11 +644,20 @@ write_csv(dashboard_prep.by_region, &quot;regional_breakdown.csv&quot;)
 print(&quot;Dashboard data prepared successfully&quot;)
 print(&quot;Total revenue: &quot; + str_string(dashboard_prep.summary.total_revenue))</code></pre>
 <hr />
-<p><strong>See Also</strong>: - <a href="api-reference.md">API
-Reference</a> — Function documentation - <a
-href="data_manipulation_examples.md">Data Manipulation</a> — More data
-verb examples - <a href="pipeline_tutorial.md">Pipeline Tutorial</a> —
-Detailed pipeline guide</p>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you’ve seen T in action across various scenarios, explore
+the detailed guides and reference:</p>
+<ol type="1">
+<li><strong><a href="api-reference.md">API Reference</a></strong> —
+Exhaustive guide to T’s standard library packages.</li>
+<li><strong><a href="data_manipulation_examples.md">Data Manipulation
+Examples</a></strong> — More worked examples of data wrangling.</li>
+<li><strong><a href="pipeline_tutorial.md">Pipeline
+Tutorial</a></strong> — Master T’s reproducible computation model.</li>
+<li><strong><a href="package_development.md">Package
+Development</a></strong> — Learn how to share your own T code.</li>
+</ol>
 <footer>
     <hr class="footer-hr">
     <center>

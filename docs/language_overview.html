@@ -553,11 +553,12 @@ same outputs - <strong>Cycle detection</strong>: Circular dependencies
 are caught and reported - <strong>Introspection</strong>:
 <code>pipeline_nodes()</code>, <code>pipeline_deps()</code>,
 <code>pipeline_node()</code> - <strong>Cross-language</strong>:
-<code>node()</code>, <code>py()</code>/<code>pyn()</code>, and
-<code>rn()</code> enable execution in T, Python, and R -
-<strong>Environment Variables</strong>: Pass custom variables into Nix
-build sandboxes via <code>env_vars</code> - <strong>Re-run</strong>:
-<code>pipeline_run()</code> re-executes the pipeline</p>
+<code>node()</code>, <code>py()</code>/<code>pyn()</code>,
+<code>rn()</code>, and <code>shn()</code> enable execution in T, Python,
+R, and shell runtimes - <strong>Environment Variables</strong>: Pass
+custom variables into Nix build sandboxes via <code>env_vars</code> -
+<strong>Re-run</strong>: <code>pipeline_run()</code> re-executes the
+pipeline</p>
 <hr />
 <h2 id="standard-library">Standard Library</h2>
 <p>All packages are loaded automatically at startup:</p>
@@ -712,6 +713,20 @@ type({x: 1})         -- &quot;Dict&quot;
 type(NA)             -- &quot;NA&quot;
 type(1 / 0)          -- &quot;Error&quot;
 type(null)           -- &quot;Null&quot;</code></pre>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you have a solid grasp of T’s syntax and core features,
+explore these topics next:</p>
+<ol type="1">
+<li><strong><a href="type-system.md">Type System</a></strong> —
+Understand T’s mode-aware type system and lambda signatures.</li>
+<li><strong><a href="pipeline_tutorial.md">Pipeline
+Tutorial</a></strong> — Learn how to build reproducible, DAG-based data
+analysis workflows.</li>
+<li><strong><a href="data_manipulation_examples.md">Data Manipulation
+Examples</a></strong> — See T’s data verbs in action with worked
+examples.</li>
+</ol>
 <footer>
     <hr class="footer-hr">
     <center>

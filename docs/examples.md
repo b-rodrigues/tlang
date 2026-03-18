@@ -722,7 +722,13 @@ print("Total revenue: " + str_string(dashboard_prep.summary.total_revenue))
 
 ---
 
-**See Also**:
-- [API Reference](api-reference.md) — Function documentation
-- [Data Manipulation](data_manipulation_examples.md) — More data verb examples
-- [Pipeline Tutorial](pipeline_tutorial.md) — Detailed pipeline guide
+---
+
+## Next Steps
+
+Now that you've seen T in action across various scenarios, explore the detailed guides and reference:
+
+1. **[API Reference](api-reference.md)** — Exhaustive guide to T's standard library packages.
+2. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.
+3. **[Pipeline Tutorial](pipeline_tutorial.md)** — Master T's reproducible computation model.
+4. **[Package Development](package_development.md)** — Learn how to share your own T code.

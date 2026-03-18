@@ -16,4 +16,5 @@ df |> group_by($species) |> summarize($rows = n())
 
 ## See Also
 
-[summarize](summarize.html), [count](count.html)
+[count](count.html), [summarize](summarize.html)
+

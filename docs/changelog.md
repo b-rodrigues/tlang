@@ -2,7 +2,7 @@
 
 Version history and roadmap for the T programming language.
 
-## Version 0.1.0 (Alpha) — Current Release
+## Version 0.51 — First Public Release
 
 **Status**: Alpha — Syntax and semantics frozen  
 **Release Date**: February 2026
@@ -187,7 +187,7 @@ Version history and roadmap for the T programming language.
 
 ## Roadmap
 
-### Version 0.2.0 (Beta) — Planned
+### Version 0.6.0 (Beta) — Planned
 
 **Focus**: Performance and expanded functionality
 

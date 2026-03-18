@@ -51,7 +51,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.5.0"
+min_version = "0.51"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -193,3 +193,12 @@ $ t run src/pipeline.t
 ```
 
 The same T version, same package versions, same R packages, and same system libraries are used every time.
+
+---
+
+## Next Steps
+
+With your project set up, explore the full T library or see more examples:
+
+1. **[API Reference](api-reference.md)** — Exhaustive guide to T's standard library packages.
+2. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.

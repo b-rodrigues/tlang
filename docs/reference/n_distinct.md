@@ -21,4 +21,5 @@ summarize(df, $unique_species = n_distinct($species))
 
 ## See Also
 
-[summarize](summarize.html), [distinct](distinct.html)
+[distinct](distinct.html), [summarize](summarize.html)
+

@@ -49,13 +49,13 @@ surfaces only at <code>build_pipeline</code> or
 <code>$command_type</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-filter.</li>
-<li><strong>predicate</strong> (<code>Function</code>): A predicate
-function returning Bool for each node.</li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
+filter.</p></li>
+<li><p><strong>predicate</strong> (<code>Function</code>): A predicate
+function returning Bool for each node.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A new pipeline with only the matching nodes.</p>
+<h2 id="returns">Returns</h2>
+<p>A new pipeline with only the matching nodes.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p |&gt; filter_node($runtime == &quot;python&quot;)
 p |&gt; filter_node($noop == false)

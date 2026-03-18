@@ -2,7 +2,7 @@
 
 Configure a Shell Pipeline Node
 
-A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside a `pipeline { ... }` block to run POSIX shell commands, inline shell scripts, or external `.sh` files.
+A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside a `pipeline { ... }` block to run POSIX shell commands or `.sh` scripts, and optionally set `shell = "bash"` when Bash parsing is required.
 
 ## Parameters
 
@@ -10,21 +10,22 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 - **script** (`String`): (Optional) Path to an external `.sh` file to execute as the node body. Mutually exclusive with `command`.
 
-- **serializer** (`Symbol`): (Optional) Custom serializer function. Default = `text`.
+- **serializer** (`Symbol`): (Optional) Custom serializer function. Default = text.
 
-- **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default = `default`.
+- **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default = default.
 
-- **args** (`Dict | List`): (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style shell nodes.
+- **args** (`Dict`): | List (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
 
-- **shell** (`String`): (Optional) Shell interpreter to invoke. Default = `sh`. Set `shell = "bash"` when you need Bash-specific parsing.
+- **shell** (`String`): (Optional) Shell interpreter to invoke for shell-string mode or script-backed nodes. Default = "sh".
 
-- **shell_args** (`List[String]`): (Optional) Extra arguments for the shell interpreter, such as `["-lc"]`.
+- **shell_args** (`List[String]`): (Optional) Additional arguments passed to the shell interpreter.
 
-- **functions** (`String | List[String]`): (Optional) Additional files to include in the sandbox before execution.
+- **functions** (`String`): | List[String] (Optional) Additional files to include in the sandbox before execution.
 
-- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
+- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
 
-- **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = `false`.
+- **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
+
 
 ## Returns
 
@@ -32,4 +33,5 @@ The evaluated return value of the command.
 
 ## See Also
 
-[node](node.html), [rn](rn.html), [pyn](pyn.html)
+[pyn](pyn.html), [rn](rn.html), [node](node.html)
+

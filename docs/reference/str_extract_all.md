@@ -3,3 +3,4 @@
 Extract all regex matches
 
 Returns every regular-expression match found in each string.
+

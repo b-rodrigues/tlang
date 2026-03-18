@@ -44,14 +44,15 @@ only changes the node’s command and metadata. Use <code>rewire</code> to
 change dependencies.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline.</li>
-<li><strong>name</strong> (<code>String</code>): The name of the node to
-replace.</li>
-<li><strong>new_node</strong> (<code>Node</code>): The new node
-implementation.</li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The
+pipeline.</p></li>
+<li><p><strong>name</strong> (<code>String</code>): The name of the node
+to replace.</p></li>
+<li><p><strong>new_node</strong> (<code>Node</code>): The new node
+implementation.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A new pipeline with the node replaced.</p>
+<h2 id="returns">Returns</h2>
+<p>A new pipeline with the node replaced.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p |&gt; swap(&quot;model_r&quot;, node(command = &lt;{ lm(y ~ x, data) }&gt;, runtime = R))</code></pre>
 <h2 id="see-also">See Also</h2>

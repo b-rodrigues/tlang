@@ -77,3 +77,13 @@ m2 = m |> reshape([3, 2]) -- Reshapes to 3 rows, 2 columns
 ## Best Practices
 - NDArrays cannot contain `NA` values. Handle missing data before converting to arrays.
 - Prefer NDArrays over lists for large numerical datasets to benefit from optimized performance and specialized linear algebra functions.
+
+---
+
+## Next Steps
+
+Now that you can work with numerical arrays, explore statistical modeling and reproducible pipelines in T:
+
+1. **[Formulas and Models](formulas.md)** — Statistical modeling in T.
+2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Build reproducible data pipelines.
+3. **[API Reference](api-reference.md)** — Complete function reference by package.

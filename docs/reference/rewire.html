@@ -43,14 +43,15 @@ argument is a named list (or Dict) mapping old dependency names to new
 ones. Only the named node’s dependency list is updated.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline.</li>
-<li><strong>name</strong> (<code>String</code>): The name of the node
-whose deps should change.</li>
-<li><strong>replace</strong> (<code>List[String]</code>): A named list
-mapping old dep names to new ones.</li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The
+pipeline.</p></li>
+<li><p><strong>name</strong> (<code>String</code>): The name of the node
+whose deps should change.</p></li>
+<li><p><strong>replace</strong> (<code>List[String]</code>): A named
+list mapping old dep names to new ones.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A new pipeline with updated dependency edges.</p>
+<h2 id="returns">Returns</h2>
+<p>A new pipeline with updated dependency edges.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p |&gt; rewire(&quot;model_py&quot;, replace = list(data = &quot;data_v2&quot;))</code></pre>
 <h2 id="see-also">See Also</h2>

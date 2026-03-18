@@ -8,7 +8,7 @@ Converts numeric columns of a DataFrame to a matrix (NDArray).
 
 - **df** (`DataFrame`): The input DataFrame.
 
-- **cols** (`List[String]`): (Optional) Columns to include. Defaults to all numeric.
+- **cols** (`List[Symbol|String]`): (Optional) Columns to include. Defaults to all numeric.
 
 
 ## Returns
@@ -19,6 +19,7 @@ A 2D array of the data.
 
 ```t
 mat = to_array(mtcars)
+mat = to_array(mtcars, [$mpg, $wt])
 ```
 
 ## See Also
