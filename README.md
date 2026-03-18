@@ -1,154 +1,68 @@
 # T Programming Language
 
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.5-orange.svg)](https://tstats-project.org)
+[![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.51-orange.svg)](https://tstats-project.org)
 
-**T** is an experimental, **reproducibility- and pipeline-first** programming language for declarative data manipulation and statistical analysis. Built on the foundation of **Nix**, T is designed from the ground up to ensure that every analysis is a strictly defined, reproducible workflow. 
+**T** is an experimental, **polyglot-first** language designed for **data orchestration and reproducible analysis**. 
 
-Inspired by R's tidyverse and OCaml's type discipline, T provides a small, focused core for data wrangling, but its true strength lies in its **mandatory pipeline architecture** and **seamless integration with R, Python, and shell/CLI tooling (and Julia in a future update)**.
+While many languages provide data manipulation libraries, T is uniquely built on the foundation of **Nix**. It doesn't just manage your code; it manages your entire environment—ensuring that your R, Python, and T code runs in the exact same pristine sandbox every time.
 
-### The Canonical T Script
+### The Polyglot Orchestrator
 
-A canonical T script orchestrates strictly defined nodes into a reproducible pipeline. It allows you to seamlessly mix T's native data manipulation with R's statistical ecosystem and Python's machine learning libraries:
+T's core strength is its **mandatory pipeline architecture**. It treats R scripts, Python models, and Shell commands as first-class nodes in a directed acyclic graph (DAG). T handles the "glue":
+- **Nix-Powered Sandboxing**: Each node runs in its own reproducible environment.
+- **Zero-Copy Data Transfer**: Move DataFrames between R, Python, and T using Apache Arrow.
+- **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML.
 
 ```t
--- A canonical, reproducible polyglot pipeline
+-- A reproducible polyglot pipeline
 p = pipeline {
-  # 1. Load and prepare data natively in T
+  # 1. Load data natively in T (Arrow backend)
   data = node(command = read_csv("data.csv") |> filter($age > 18))
-  test_data = node(command = read_csv("test_data.csv"))
   
-  # 2. Train a statistical model in R using the rn() wrapper
+  # 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
-    command = <{
-      lm(score ~ age + income, data = data)
-    }>,
+    command = <{ lm(score ~ age + income, data = data) }>,
     serializer = "pmml"
   )
   
-  # 3. Train a machine learning model in Python using the pyn() wrapper
-  model_py = pyn(
-    command = <{
-      from sklearn.ensemble import RandomForestRegressor
-      RandomForestRegressor().fit(X, y)
-    }>,
-    serializer = "pmml"
-  )
-  
-  # 4. Predict and evaluate natively in T
-  # T comes with built-in statistical functions for convenience, allowing 
-  # native evaluation of PMML models without booting up R or Python again!
-  eval_r = node(command = test_data 
-    |> mutate($pred = predict(model_r, test_data))
-    |> summarize($rmse = mean(($score - $pred) * ($score - $pred)) |> sqrt)
-  )
-  
-  eval_py = node(command = test_data 
-    |> mutate($pred = predict(model_py, test_data))
-    |> summarize($rmse = mean(($score - $pred) * ($score - $pred)) |> sqrt)
+  # 3. Predict natively in T (no R/Python runtime needed for evaluation!)
+  predictions = node(command = data 
+    |> mutate($pred = predict(model_r, data))
   )
 
-  # 5. Produce a plain-text shell report with the shn() wrapper
-  shell_report = shn(command = <{
-#!/bin/sh
-set -eu
-
-# Dependencies for T's lexical pipeline analysis: eval_r eval_py
-printf 'R evaluation artifact: %s\n' "$T_NODE_eval_r/artifact"
-printf 'Python evaluation artifact: %s\n' "$T_NODE_eval_py/artifact"
+  # 4. Generate a shell report
+  report = shn(command = <{
+    printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
   }>)
 }
 
-# Materialize the pipeline into reproducible Nix artifacts
+# Build the pipeline into reproducible Nix artifacts
 build_pipeline(p)
 ```
 
-Alternatively, `node()`, `rn()`, `pyn()`, and `shn()` all accept a `script` argument pointing to an external `.R`, `.py`, or `.sh` file instead of an inline `command`:
+## Why T?
+
+Data science projects often suffer from "dependency drift" and "works on my machine" syndrome. T eliminates these by making **Nix mandatory**. 
+
+- **Orchestration, Not Invention**: T doesn't aim to replace R or Python. It aims to coordinate them. Use R for its stats, Python for its ML, and T to ensure they always talk to each other correctly.
+- **Strictly Functional**: No loops, no mutable variables, and explicit `NA` handling. This reduces the "hallucination surface" for AI-assisted coding and makes logic easier to audit.
+- **Mandatory Pipelines**: To run a script in T, you *must* define it as a pipeline. This forces you to move away from spaghetti scripts and toward a documented, cacheable architecture.
+
+### Intent Blocks: A Thought Experiment
+
+T features **`intent` blocks**—structured metadata embedded in code that describes the "why" and "how" of an analysis. 
+
+> [!IMPORTANT]
+> **Experimental Status**: `intent` blocks are currently a **thought experiment**. We are exploring how structured metadata can help LLMs understand code intent and how it can improve reproducibility audits. Their syntax and behavior are highly likely to change as we discover what "collaboration-first" code really looks like.
 
 ```t
-p = pipeline {
-  model_r  = rn(script  = "train_model.R",  serializer = "pmml")
-  model_py = pyn(script = "train_model.py", serializer = "pmml")
-  report   = shn(script = "postprocess.sh")
+intent {
+  description: "Customer churn prediction",
+  assumptions: ["Age > 18", "NA imputed with median"],
+  requires: ["mtcars.csv"]
 }
-build_pipeline(p)
 ```
-
-The runtime is auto-detected from the file extension, so you can also use `node(script = "train_model.R")` or `node(script = "postprocess.sh")` without specifying `runtime` explicitly. `shn()` defaults to `runtime = sh`; use `shell = "bash"` with `shell_args = ["-lc"]` when you need full Bash parsing instead of plain POSIX `sh`.
-
-## Key Features
-
-- **🔒 Reproducibility-First**: Built on Nix flakes for bit-for-bit identical results across machines.
-- **🔄 Mandatory Pipelines**: DAG-based computation is the only way to run scripts, preventing spaghetti code.
-- **📦 Extensible Ecosystem**: User-contributed packages leverage Nix to provide isolated, zero-config development environments.
-- **🌍 Polyglot Roadmap**: Designed to orchestrate R, Python, and Julia nodes with seamless data transfer via Arrow and PMML.
-- **📊 DataFrame Core**: High-performance tabular data with Apache Arrow backend and NSE syntax.
-- **🔧 Functional Core**: Immutable values, closures, and explicit NA handling for predictable logic.
-- **✨ Metaprogramming**: First-class quotation (`expr`), unquoting (`!!`, `!!!`), and evaluation (`eval`) for DSLs and code generation.
-- **💾 Computed Nodes**: Evaluation results are persisted as immutable, content-addressed artifacts for maximum reproducibility.
-
-Check out [this repository](https://github.com/b-rodrigues/t_demos) for many examples!
-
----
-
-## Philosophy & Design
-
-The goal is not to create a clone of R’s tidyverse, but to design a new, strictly functional programming language with deliberate constraints that make reproducibility a core design principle and provide guarantees other languages do not.
-
-### A Modern Package Ecosystem built on Nix
-
-Rather than bolting on an integrated, imperative package manager, T is built from the ground up to be installed via Nix, and T packages are defined as Nix flakes. Any project that uses T therefore must use Nix from the outset, ensuring reproducibility by design and from day one.
-
-T is designed to be highly extensible. Users can easily create and share their own packages to add new functionality:
-- **Environment-as-Code**: Every T package includes its own Nix flake. This means that a developer can simply run `nix develop` within a package's directory to get a fully configured development environment with all necessary tools (compilers, libraries, and dependencies) pre-installed.
-- **Conflict-Free Dependency Management**: Since each package is isolated via Nix, you can use different versions of the same shared library in different packages without "dependency hell."
-
-### But why not just use R or Python with Nix?
-
-A valid question is: "Why not just use R or Python with Nix and a build automation tool?" The answer lies in human behavior and the limits of discipline.
-
-Existing languages like R and Python have "bolted-on" reproducibility solutions. While tools like `rix` (for R) or `poetry2nix` (for Python) are excellent, they remain optional, ad-hoc interventions. In practice, unless a team has extreme discipline and high technical overhead, these solutions are often used inconsistently, late in the development cycle, or not at all.
-
-T’s goal is to **force the usage of Nix from the very first line of code**. By providing a language where Nix isn't an option but the fundamental environment and distribution engine, we eliminate the need for ad-hoc discipline. A tool that leaves the user no choice but to be reproducible is the cleanest, most reliable way to ensure that "it works on my machine" actually means it will work on yours.
-
-### Pipelines are Mandatory
-
-In T, non-interactive execution requires a pipeline. This is a deliberate design choice to eliminate ad-hoc, "spaghetti" scripts that plague data science projects. While the REPL allows for messy, iterative exploration, any script intended for production or sharing must be declared as a `pipeline`. 
-
-This constraint ensures that your stabilization phase—moving from REPL to script—is an intentional act of documentation and architectural design.
-
-### The Power of Polyglot Pipelines
-
-T does not attempt to reinvent the wheel for every statistical model or machine learning algorithm. Instead, it acts as a **high-fidelity orchestration layer**. Because T uses Nix for build automation, it allows you to define nodes using different languages within the same pipeline:
-- **Seamless Polyglotism**: Define an R node for data cleaning, a Python node for deep learning, and a T node for final reporting—all in one file.
-- **PMML Model Interchange**: High-fidelity transfer of models from R/Python into T's native model evaluator.
-- **Zero-Config Object Transfer**: Transparently pass data frames via Apache Arrow IPC between languages.
-- **Nix-Powered Sandboxing**: Each node runs in a pristine, reproducible environment where dependencies are guaranteed to be present.
-
-By using Nix as the engine, T provides a level of orchestration and reproducibility that general-purpose languages simply cannot match.
-
-### Explicit Over Implicit
-
-T does not attempt to reinvent the wheel. It can be understood as a layer of syntactic and semantic sugar on top of Apache Arrow for data frames and tabular operations, Owl (the OCaml scientific computing library) for mathematics and statistics, and Nix for package management. Rather than replacing these foundations, T provides a coherent, opinionated interface over them.
-
-Other constraints reinforce this philosophy: there are no loops and no mutable variables, significantly reducing the surface area for bugs. R’s tidyverse is known for its strong user experience, and T deliberately adopts many of its design principles. As a result, it may feel like a clone at first glance: many tidyverse functions are intentionally reimplemented. However, this is a conscious UX choice, not an architectural one. Under the hood, T is grounded in a strictly functional core, reproducibility through Nix, and a different execution and packaging model altogether.
-
-### Human-LLM Collaboration
-Another distinctive feature is the concept of “intent” blocks—structured, comment-like constructs embedded in code that can be easily parsed by LLMs. The aim is to make collaboration with LLMs as transparent and deterministic as possible.
-
-Furthermore, this coherence and mandatory declarative structure makes things significantly easier for Large Language Models (LLMs). As AI writes more of our analysis code, having a language with a small, focused core and a strictly declarative pipeline model reduces the "hallucination surface" and ensures that LLM-generated analysis is as reproducible and robust as human-written code.
-
-### The Native Scope Challenge
-
-The biggest challenge in developing T is deciding exactly what should be included natively in the language core and what should be left to polyglot nodes. For now, a basic set of mathematical functions and `dplyr`-like data verbs are implemented. It is likely that the native core of T will remain focused, providing the essentials for data wrangling, descriptive statistics, and linear regression, while encouraging users to reach for the broader R, Python, and Julia ecosystems for more specialized tasks.
-
-### Trivia
-
-Why “T”? The name is a nod to lineage and a bit of humor. R is a GPL-licensed reimplementation of S, and since T draws heavy inspiration from R, I thought calling it "T" would be funny.
-
-Why the EUPL? Because I love Europe and I love the GPL.
-
-With all that said, this is a hobby project, 100% experimental, and made for fun. DO NOT USE IN PRODUCTION.
 
 ---
 
@@ -199,130 +113,9 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ---
 
-## Deep Dives
-
-### Example: Data Analysis
-
-```t
--- Intent block for LLM collaboration
-intent {
-  description: "Analyze customer churn by age group",
-  assumes: "Data excludes test accounts",
-  requires: "age > 0, churn_rate between 0 and 1"
-}
-
--- Load and clean data
-customers = read_csv("customers.csv", clean_colnames = true)
-
--- Analysis pipeline using NSE dollar-prefix syntax
-analysis = pipeline {
-  filtered = customers |> filter($age > 18)
-  
-  by_age = filtered
-    |> mutate($age_group = if ($age < 30) "young" else "mature")
-    |> group_by($age_group)
-    |> summarize($churn_rate = mean($churned))
-  
-  model = lm(data = filtered, formula = churned ~ age)
-}
-
--- Access results
-print(analysis.by_age)
-print(analysis.model.r_squared)
-```
-
-### Core Language Features
-
-#### Pipe Operators
-
-```t
--- Conditional pipe (|>) short-circuits on errors
-[1, 2, 3] |> map(\(x) x * x) |> sum  -- 14
-
--- Maybe-pipe (?|>) forwards errors for recovery
-error("fail") ?|> \(x) if (is_error(x)) 0 else x  -- 0
-
--- Pipes work naturally with NSE data verbs
-df |> filter($age > 30) |> select($name, $salary)
-```
-
-#### Explicit NA Handling
-
-```t
--- NA does not propagate automatically
-mean([1, NA, 3])              -- Error: NA encountered
-mean([1, NA, 3], na_rm = true) -- 2.0 (explicit handling)
-```
-
-#### Data Verbs
-T uses dollar-prefix (`$column`) syntax for concise column references (NSE):
-
-```t
-df |> select($name, $age)                              -- Select columns
-df |> filter($age > 25)                                -- Filter rows
-df |> mutate($bonus = $salary * 0.1)                   -- Add columns (named-arg)
-df |> arrange($age, "desc")                            -- Sort
-df |> group_by($dept) |> summarize($n = nrow($dept))   -- Aggregate (named-arg)
-```
-
-The `$col = expr` syntax uses NSE expressions that are auto-transformed into lambdas.
-
-#### Window Functions
-
-```t
-row_number([10, 30, 20])  -- Vector[1, 3, 2]
-lag([1, 2, 3, 4])         -- Vector[NA, 1, 2, 3]
-cumsum([1, 2, 3])         -- Vector[1, 3, 6]
-```
-
-### Metaprogramming (Quasiquotation)
-
-T supports Lisp-style quotation for capturing and manipulating code. This is identical to R's `rlang` mechanics.
-
-```t
--- Capture an expression
-e = expr(1 + 2)
-
--- Unquote values (!!)
-x = 10
-e2 = expr(1 + !!x) -- expr(1 + 10)
-
--- Splicing lists (!!!)
-vals = [1, 2, 3]
-e3 = expr(sum(!!!vals)) -- expr(sum(1, 2, 3))
-
--- Evaluate
-eval(e2) -- 11
-```
-
-### Type System (Alpha)
-
-T now includes an early type-system layer focused on function signatures and mode-dependent validation:
-
-- `--mode repl` keeps exploration flexible and does not enforce top-level annotations.
-- `--mode strict` enforces typed top-level function signatures.
-- `t run file.t` defaults to `strict` mode (unless `--mode repl` is explicitly passed).
-
-Current typed lambda syntax:
-
-```t
--- Untyped lambda (expression body)
-add = \(x, y) x + y
-
--- Typed lambda (return type in parentheses)
-add_int = \(x: Int, y: Int -> Int) (x + y)
-
--- Generic typed lambda (type variables must be declared)
-id = \<T>(x: T -> T) x
-```
-
-See [docs/type-system.md](docs/type-system.md) for details on what is implemented today and what is still planned.
-
----
-
 ## Status & Missing Features
 
-**Alpha 0.5** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with support for **polyglot nodes** (R and Python) and **metaprogramming**. Current development focuses on refining the inter-language FFI and expanding the standard library.
+**Alpha 0.51** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with support for **polyglot nodes** (R and Python) and **metaprogramming**. Current development focuses on refining the inter-language FFI and expanding the standard library.
 
 What is currently missing:
 * **Graphics and Plotting**: There is no native plotting library yet. Plots can be generated by R (ggplot2), Python (matplotlib), or Julia nodes.
