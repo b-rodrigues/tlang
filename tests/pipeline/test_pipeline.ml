@@ -126,27 +126,31 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   print_newline ();
 
   Printf.printf "Serialization Builtins:\n";
+  let write_marshaled_value path version value =
+    let oc = open_out_bin path in
+    output_string oc (Serialization.serialized_value_magic ^ version ^ "\n");
+    Marshal.to_channel oc value [];
+    close_out oc
+  in
   test "serialize and deserialize roundtrip"
     {|serialize([1, 2, 3], "test_roundtrip.tobj"); deserialize("test_roundtrip.tobj")|}
     "[1, 2, 3]";
   let prior_patchless_version =
-    match String.split_on_char '.' Serialization.serialized_value_format_version with
-    | [major; minor; "0"] -> major ^ "." ^ minor
-    | _ -> Serialization.serialized_value_format_version
+    match Serialization.serialized_value_patchless_compatibility_version with
+    | Some version -> version
+    | None ->
+        failwith
+          (Printf.sprintf
+             "expected patchless serialization compatibility for x.y.0 release %s (patch version 0) but serialized_value_patchless_compatibility_version was None"
+             Serialization.serialized_value_format_version)
   in
-  let prior_patchless_cache_path = "test_roundtrip_051_legacy.tobj" in
-  let oc_prior_patchless = open_out_bin prior_patchless_cache_path in
-  output_string oc_prior_patchless (Serialization.serialized_value_magic ^ prior_patchless_version ^ "\n");
-  Marshal.to_channel oc_prior_patchless (Ast.VInt 4) [];
-  close_out oc_prior_patchless;
+  let prior_patchless_cache_path = "test_roundtrip_patchless_legacy.tobj" in
+  write_marshaled_value prior_patchless_cache_path prior_patchless_version (Ast.VInt 4);
   test "deserialize accepts previous patchless serialized value version"
-    {|deserialize("test_roundtrip_051_legacy.tobj")|}
+    {|deserialize("test_roundtrip_patchless_legacy.tobj")|}
     "4";
   let legacy_cache_path = "test_roundtrip_legacy.tobj" in
-  let oc_legacy = open_out_bin legacy_cache_path in
-  output_string oc_legacy (Serialization.serialized_value_magic ^ "0.4.0\n");
-  Marshal.to_channel oc_legacy (Ast.VInt 3) [];
-  close_out oc_legacy;
+  write_marshaled_value legacy_cache_path "0.4.0" (Ast.VInt 3);
   let legacy_deserialize_error =
     Printf.sprintf
       {|Error(FileError: "deserialize failed: Serialized value format version `0.4.0` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer.")|}
@@ -203,10 +207,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   close_out oc_mock;
 
   let legacy_node_path = "test_legacy_node.tobj" in
-  let oc_legacy_node = open_out_bin legacy_node_path in
-  output_string oc_legacy_node (Serialization.serialized_value_magic ^ "0.4.0\n");
-  Marshal.to_channel oc_legacy_node (Ast.VInt 7) [];
-  close_out oc_legacy_node;
+  write_marshaled_value legacy_node_path "0.4.0" (Ast.VInt 7);
   let legacy_log = Printf.sprintf {|{
     "timestamp": "20240101-000001",
     "hash": "legacy",

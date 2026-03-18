@@ -12,11 +12,22 @@ let ensure_parent_dir path =
 let serialized_value_magic = "TLANG_SERIALIZED:"
 let serialized_value_format_version = "0.51.0"
 
-let serialized_value_compatible_versions =
+(* Derive the prior patchless header (for example, "0.51" from "0.51.0")
+   so deserialization can continue to accept artifacts written before patch
+   versions were embedded in the serialized value header. Non-zero patch
+   releases intentionally return None so patchless-header compatibility stays
+   limited to x.y.0 releases. Malformed or otherwise unexpected version
+   strings also return None rather than guessing a compatibility header.
+   Returns Some(major.minor) for x.y.0 versions, None otherwise. *)
+let serialized_value_patchless_compatibility_version =
   match String.split_on_char '.' serialized_value_format_version with
-  | [major; minor; "0"] ->
-      [serialized_value_format_version; major ^ "." ^ minor]
-  | _ -> [serialized_value_format_version]
+  | [major; minor; "0"] -> Some (major ^ "." ^ minor)
+  | _ -> None
+
+let serialized_value_compatible_versions =
+  match serialized_value_patchless_compatibility_version with
+  | Some legacy -> [serialized_value_format_version; legacy]
+  | None -> [serialized_value_format_version]
 
 let serialized_value_header =
   serialized_value_magic ^ serialized_value_format_version ^ "\n"
