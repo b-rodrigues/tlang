@@ -10,7 +10,13 @@ let ensure_parent_dir path =
   ensure dir
 
 let serialized_value_magic = "TLANG_SERIALIZED:"
-let serialized_value_format_version = "0.51"
+let serialized_value_format_version = "0.51.0"
+
+let serialized_value_compatible_versions =
+  match String.split_on_char '.' serialized_value_format_version with
+  | [major; minor; "0"] ->
+      [serialized_value_format_version; major ^ "." ^ minor]
+  | _ -> [serialized_value_format_version]
 
 let serialized_value_header =
   serialized_value_magic ^ serialized_value_format_version ^ "\n"
@@ -25,7 +31,7 @@ let read_serialized_value_header ic =
            serialized_value_format_version)
     else
       let version = input_line ic in
-      if version = serialized_value_format_version then
+      if List.mem version serialized_value_compatible_versions then
         Ok ()
       else
         Error

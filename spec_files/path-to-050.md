@@ -1,6 +1,6 @@
-# Path to T 0.51: Hardening Roadmap
+# Path to T 0.51.0: Hardening Roadmap
 
-This document outlines the critical hardening tasks required to transition T from its current state to a stable **0.51** release. The goal is to move from "feature validation" to "production-grade robustness."
+This document outlines the critical hardening tasks required to transition T from its current state to a stable **0.51.0** release. The goal is to move from "feature validation" to "production-grade robustness."
 
 ---
 
@@ -37,7 +37,7 @@ This document outlines the critical hardening tasks required to transition T fro
 
 ### DAG Integrity
 * [x] **Cycle Detection**: Implement explicit cycle detection in the pipeline builder to provide a clean "Circular Dependency" error instead of a stack overflow.
-* [x] **Serialization Versioning**: Add a version header to serialized pipeline nodes (`.tcache` or similar). Version 0.51 should gracefully reject (or migrate) nodes from older versions.
+* [x] **Serialization Versioning**: Add a version header to serialized pipeline nodes (`.tcache` or similar). Version 0.51.0 should gracefully reject (or migrate) nodes from older versions.
 
 ### Polyglot Shell Nodes
 * [x] **Escape Handling**: Harden the command generation for `shn` (shell nodes). Ensure that passing complex strings (with quotes, backticks, or newlines) between T, R, and Python nodes does not lead to shell injection or broken scripts.

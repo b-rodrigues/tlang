@@ -129,6 +129,19 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "serialize and deserialize roundtrip"
     {|serialize([1, 2, 3], "test_roundtrip.tobj"); deserialize("test_roundtrip.tobj")|}
     "[1, 2, 3]";
+  let prior_patchless_version =
+    match String.split_on_char '.' Serialization.serialized_value_format_version with
+    | [major; minor; "0"] -> major ^ "." ^ minor
+    | _ -> Serialization.serialized_value_format_version
+  in
+  let prior_patchless_cache_path = "test_roundtrip_051_legacy.tobj" in
+  let oc_prior_patchless = open_out_bin prior_patchless_cache_path in
+  output_string oc_prior_patchless (Serialization.serialized_value_magic ^ prior_patchless_version ^ "\n");
+  Marshal.to_channel oc_prior_patchless (Ast.VInt 4) [];
+  close_out oc_prior_patchless;
+  test "deserialize accepts previous patchless serialized value version"
+    {|deserialize("test_roundtrip_051_legacy.tobj")|}
+    "4";
   let legacy_cache_path = "test_roundtrip_legacy.tobj" in
   let oc_legacy = open_out_bin legacy_cache_path in
   output_string oc_legacy (Serialization.serialized_value_magic ^ "0.4.0\n");

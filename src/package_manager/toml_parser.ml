@@ -43,7 +43,7 @@ let parse_description_toml (content : string) : (package_config, string) result 
         homepage = get_string_opt toml ["package"; "homepage"] ~default:"";
         repository = get_string_opt toml ["package"; "repository"] ~default:"";
         dependencies = parse_dependencies toml;
-        min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.51";
+        min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.51.0";
         additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
         latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
       }
@@ -65,7 +65,7 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
         proj_py_dependencies = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[];
         proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python314";
-        proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.51";
+        proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.51.0";
         proj_additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
         proj_latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
       }
