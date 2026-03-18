@@ -155,6 +155,8 @@ Sends `:complete INPUT' and parses the output lines."
   (let* ((buffer (run-t))
          (proc (get-buffer-process buffer))
          (text (buffer-substring-no-properties start end)))
+    (unless proc
+      (error "T REPL process is not running"))
     (with-current-buffer buffer
       (goto-char (process-mark proc))
       (insert text)
