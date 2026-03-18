@@ -1,115 +1,167 @@
-    :root {
-      --bg-color: #f5f5dc;
-      --text-color: #000000;
-      --link-color: #0000ee;
-      --vlink-color: #551a8b;
-      --code-bg: #ffffff;
-      --hr-color: #000000;
-    }
+:root {
+  --bg-color: #0d1117;
+  --surface-color: #161b22;
+  --text-color: #c9d1d9;
+  --text-muted: #8b949e;
+  --accent-color: #58a6ff;
+  --accent-glow: rgba(88, 166, 255, 0.15);
+  --code-bg: #010409;
+  --border-color: #30363d;
+  --link-color: #58a6ff;
+  --vlink-color: #a371f7;
+  --success-color: #3fb950;
+  --header-bg: rgba(22, 27, 34, 0.8);
+}
 
-    body {
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      font-family: "Courier New", Courier, monospace;
-      font-size: 16px;
-      line-height: 1.5;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-    }
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
-    .container {
-      max-width: 800px;
-      width: 100%;
-      padding: 20px;
-      box-sizing: border-box;
-    }
+.container {
+  max-width: 900px;
+  width: 95%;
+  margin: 2rem auto;
+  padding: 40px;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
 
-    a {
-      color: var(--link-color);
-    }
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: var(--header-bg);
+  backdrop-filter: blur(8px);
+  width: 100%;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
 
-    a:visited {
-      color: var(--vlink-color);
-    }
+nav a {
+  margin: 0 1rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
 
-    h1 {
-      text-align: center;
-      font-size: 1.8rem;
-      margin-bottom: 1rem;
-    }
+nav a:hover {
+  color: var(--accent-color);
+}
 
-    h2 {
-      font-size: 1.5rem;
-      margin-top: 2rem;
-    }
+a {
+  color: var(--link-color);
+  text-decoration: none;
+}
 
-    h3 {
-      font-size: 1.2rem;
-      margin-top: 1.5rem;
-    }
+a:hover {
+  text-decoration: underline;
+}
 
-    p,
-    li {
-      margin-bottom: 1rem;
-    }
+h1, h2, h3, h4 {
+  color: #f0f6fc;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
 
-    pre {
-      background-color: var(--code-bg);
-      padding: 15px;
-      border: 1px solid #ccc;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      font-size: 0.9rem;
-      line-height: 1.4;
-    }
+h1 {
+  font-size: 2.25rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
 
-    code {
-      background-color: rgba(0, 0, 0, 0.05);
-      padding: 2px 4px;
-      border-radius: 3px;
-    }
+h2 {
+  font-size: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.3rem;
+}
 
-    hr {
-      border: 0;
-      border-top: 1px solid var(--hr-color);
-      margin: 2rem auto;
-    }
+p, li {
+  margin-bottom: 1.2rem;
+}
 
-    .header-hr {
-      width: 80%;
-    }
+blockquote {
+  margin: 2rem 0;
+  padding: 0 1.5rem;
+  color: var(--text-muted);
+  border-left: 0.25rem solid var(--border-color);
+}
 
-    .footer-hr {
-      width: 60%;
-    }
+pre {
+  background-color: var(--code-bg);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 1.5rem 0;
+}
 
-    center {
-      display: block;
-      text-align: center;
-    }
+code {
+  background-color: rgba(110, 118, 129, 0.4);
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+  font-size: 85%;
+}
 
-    @media (max-width: 600px) {
-      body {
-        font-size: 15px;
-      }
+pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 100%;
+}
 
-      h1 {
-        font-size: 1.4rem;
-      }
+hr {
+  border: 0;
+  border-top: 1px solid var(--border-color);
+  margin: 3rem 0;
+}
 
-      h2 {
-        font-size: 1.3rem;
-      }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+}
 
-      .container {
-        padding: 15px;
-      }
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
 
-      pre {
-        padding: 10px;
-        font-size: 0.85rem;
-      }
-    }
+th {
+  background-color: rgba(110, 118, 129, 0.1);
+}
+
+footer {
+  margin-top: 4rem;
+  padding-bottom: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 20px;
+    margin: 1rem auto;
+  }
+  
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.25rem; }
+}

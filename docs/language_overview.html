@@ -25,14 +25,14 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="index.html">Home</a> |
-        <a href="getting-started.html">Get Started</a> |
-        <a href="language_overview.html">Overview</a> |
-        <a href="api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Programming Language - language_overview</h1>
 </header>
@@ -698,7 +698,7 @@ generation and DSL building.</p>
 captured = expr(1 + !!x)
 print(captured)  -- expr(1 + 10)
 eval(captured)     -- 11</code></pre>
-<p>See the <a href="quotation.md">Quotation Guide</a> for more
+<p>See the <a href="quotation.html">Quotation Guide</a> for more
 details.</p>
 <hr />
 <h2 id="type-introspection">Type Introspection</h2>
@@ -718,22 +718,19 @@ type(null)           -- &quot;Null&quot;</code></pre>
 <p>Now that you have a solid grasp of T’s syntax and core features,
 explore these topics next:</p>
 <ol type="1">
-<li><strong><a href="type-system.md">Type System</a></strong> —
+<li><strong><a href="type-system.html">Type System</a></strong> —
 Understand T’s mode-aware type system and lambda signatures.</li>
-<li><strong><a href="pipeline_tutorial.md">Pipeline
+<li><strong><a href="pipeline_tutorial.html">Pipeline
 Tutorial</a></strong> — Learn how to build reproducible, DAG-based data
 analysis workflows.</li>
-<li><strong><a href="data_manipulation_examples.md">Data Manipulation
+<li><strong><a href="data_manipulation_examples.html">Data Manipulation
 Examples</a></strong> — See T’s data verbs in action with worked
 examples.</li>
 </ol>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
 </body>
 </html>

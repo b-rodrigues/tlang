@@ -1,11 +1,57 @@
 # Literate Programming with Quarto
 
-T supports **Quarto** in two complementary ways:
+## 🚀 Quick Setup with Quarto
 
-1. as a **pipeline runtime** for rendering `.qmd` reports inside T pipelines
-2. via the **Quarto editor extension** in `editors/quarto/tlang`, which lets you write executable `{t}` chunks directly in Quarto documents
+T provides a specialized Quarto filter (`tlang`) that allows you to execute T code chunks directly in your `.qmd` documents. 
 
-The runtime integration is documented below. For inline `t` chunks, add `quarto` to `[additional-tools]` in `tproject.toml`, run `t update`, and enter the project with `nix develop`. T will provision `_extensions/tlang` automatically from the Nix store; then enable the `tlang` filter and render as usual with Quarto.
+### Installing the T Plugin
+
+The T plugin is managed automatically within a T project. You don't need to download it manually; T's dependency management handles it.
+
+1.  **Add Quarto to your project**: In your `tproject.toml`, ensure `quarto` is in the `additional-tools`:
+    ```toml
+    [additional-tools]
+    packages = ["quarto"]
+    ```
+2.  **Provision the extension**: Run `t update` in your terminal.
+3.  **Enter the environment**: Run `nix develop`.
+    
+Upon entering the environment, T will symlink the `tlang` extension from the Nix store into your project's `_extensions/` directory.
+
+### Enabling the Filter
+
+Add the `tlang` filter to your document's YAML front matter:
+
+```yaml
+---
+title: "My T Analysis"
+format: html
+filters:
+  - tlang
+---
+```
+
+## 📝 Writing Quarto Blocks
+
+You can now use `{t}` code chunks in your document. These chunks are executed by the T interpreter during rendering.
+
+````markdown
+```{t}
+#| label: load-data
+df = read_csv("mtcars.csv")
+df |> glimpse
+```
+````
+
+### Block Options
+
+- `eval`: Set to `false` to show the code without executing (default: `true`).
+- `echo`: Set to `false` to hide the code and only show the output (default: `true`).
+- `results`: Set to `hide` to suppress any printed output.
+- `fig-cap`: Add a caption if the chunk generates a plot (via an R/Python sub-node).
+
+---
+
 
 ## Defining a Quarto Node
 

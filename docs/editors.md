@@ -63,13 +63,14 @@ The extension lives in `editors/quarto/tlang` and includes a ready-to-copy examp
 ## ⚡ Language Server Protocol (LSP)
 
 The T language server provides advanced features like:
-- **Autocompletion**: Suggests functions, variables, and columns.
-- **Diagnostics**: Real-time syntax, lexer, and basic semantic error reporting.
-- **Hover Information**: Shows types and documentation for variables and functions.
-- **Go to Definition**: Jump to the binding location of symbols defined in the current document.
+- **Autocompletion**: Context-aware suggestions for functions, variables, and data-frame columns (even inside pipes!).
+- **Diagnostics**: Real-time syntax and semantic checks. Missing columns or invalid types are flagged immediately.
+- **Hover Information**: High-fidelity tooltips showing function signatures and rich documentation (rendered from OCaml docstrings).
+- **Go to Definition**: Navigate directly to where a symbol is defined, including library functions.
+- **Symbol Renaming**: Safe, project-wide renaming of variables and functions.
 
 ### The LSP Binary
-When you install the `t-lang` package via Nix (or use `nix develop`), the `t-lsp` binary is automatically added to your path. This binary is pre-configured with all necessary dependencies.
+The `t-lsp` server is implemented in OCaml using the `linol` framework. When you enter a T project via `nix develop`, the correctly versioned binary is put in your `PATH`.
 
 ### Configuring your Editor
 

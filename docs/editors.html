@@ -90,14 +90,14 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="index.html">Home</a> |
-        <a href="getting-started.html">Get Started</a> |
-        <a href="language_overview.html">Overview</a> |
-        <a href="api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Programming Language - editors</h1>
 </header>
@@ -166,17 +166,21 @@ a ready-to-copy example document.</p>
 <h2 id="language-server-protocol-lsp">⚡ Language Server Protocol
 (LSP)</h2>
 <p>The T language server provides advanced features like: -
-<strong>Autocompletion</strong>: Suggests functions, variables, and
-columns. - <strong>Diagnostics</strong>: Real-time syntax, lexer, and
-basic semantic error reporting. - <strong>Hover Information</strong>:
-Shows types and documentation for variables and functions. - <strong>Go
-to Definition</strong>: Jump to the binding location of symbols defined
-in the current document.</p>
+<strong>Autocompletion</strong>: Context-aware suggestions for
+functions, variables, and data-frame columns (even inside pipes!). -
+<strong>Diagnostics</strong>: Real-time syntax and semantic checks.
+Missing columns or invalid types are flagged immediately. -
+<strong>Hover Information</strong>: High-fidelity tooltips showing
+function signatures and rich documentation (rendered from OCaml
+docstrings). - <strong>Go to Definition</strong>: Navigate directly to
+where a symbol is defined, including library functions. - <strong>Symbol
+Renaming</strong>: Safe, project-wide renaming of variables and
+functions.</p>
 <h3 id="the-lsp-binary">The LSP Binary</h3>
-<p>When you install the <code>t-lang</code> package via Nix (or use
-<code>nix develop</code>), the <code>t-lsp</code> binary is
-automatically added to your path. This binary is pre-configured with all
-necessary dependencies.</p>
+<p>The <code>t-lsp</code> server is implemented in OCaml using the
+<code>linol</code> framework. When you enter a T project via
+<code>nix develop</code>, the correctly versioned binary is put in your
+<code>PATH</code>.</p>
 <h3 id="configuring-your-editor">Configuring your Editor</h3>
 <h4 id="neovim-nvim-lspconfig"><strong>Neovim
 (<code>nvim-lspconfig</code>)</strong></h4>
@@ -222,13 +226,10 @@ with:</p>
 <div class="sourceCode" id="cb9"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> build .#default</span></code></pre></div>
 <p>The binary will be located at <code>result/bin/t-lsp</code>.</p>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
 </body>
 </html>

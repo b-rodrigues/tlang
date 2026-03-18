@@ -90,36 +90,73 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="index.html">Home</a> |
-        <a href="getting-started.html">Get Started</a> |
-        <a href="language_overview.html">Overview</a> |
-        <a href="api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Programming Language -
 literate-programming-quarto</h1>
 </header>
 <h1 id="literate-programming-with-quarto">Literate Programming with
 Quarto</h1>
-<p>T supports <strong>Quarto</strong> in two complementary ways:</p>
+<h2 id="quick-setup-with-quarto">🚀 Quick Setup with Quarto</h2>
+<p>T provides a specialized Quarto filter (<code>tlang</code>) that
+allows you to execute T code chunks directly in your <code>.qmd</code>
+documents.</p>
+<h3 id="installing-the-t-plugin">Installing the T Plugin</h3>
+<p>The T plugin is managed automatically within a T project. You don’t
+need to download it manually; T’s dependency management handles it.</p>
 <ol type="1">
-<li>as a <strong>pipeline runtime</strong> for rendering
-<code>.qmd</code> reports inside T pipelines</li>
-<li>via the <strong>Quarto editor extension</strong> in
-<code>editors/quarto/tlang</code>, which lets you write executable
-<code>{t}</code> chunks directly in Quarto documents</li>
+<li><p><strong>Add Quarto to your project</strong>: In your
+<code>tproject.toml</code>, ensure <code>quarto</code> is in the
+<code>additional-tools</code>:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;quarto&quot;</span><span class="op">]</span></span></code></pre></div></li>
+<li><p><strong>Provision the extension</strong>: Run
+<code>t update</code> in your terminal.</p></li>
+<li><p><strong>Enter the environment</strong>: Run
+<code>nix develop</code>.</p></li>
 </ol>
-<p>The runtime integration is documented below. For inline
-<code>t</code> chunks, add <code>quarto</code> to
-<code>[additional-tools]</code> in <code>tproject.toml</code>, run
-<code>t update</code>, and enter the project with
-<code>nix develop</code>. T will provision
-<code>_extensions/tlang</code> automatically from the Nix store; then
-enable the <code>tlang</code> filter and render as usual with
-Quarto.</p>
+<p>Upon entering the environment, T will symlink the <code>tlang</code>
+extension from the Nix store into your project’s
+<code>_extensions/</code> directory.</p>
+<h3 id="enabling-the-filter">Enabling the Filter</h3>
+<p>Add the <code>tlang</code> filter to your document’s YAML front
+matter:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;My T Analysis&quot;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">format</span><span class="kw">:</span><span class="at"> html</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">filters</span><span class="kw">:</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> tlang</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span></code></pre></div>
+<h2 id="writing-quarto-blocks">📝 Writing Quarto Blocks</h2>
+<p>You can now use <code>{t}</code> code chunks in your document. These
+chunks are executed by the T interpreter during rendering.</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="in">```{t}</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="in">#| label: load-data</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="in">df = read_csv(&quot;mtcars.csv&quot;)</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="in">df |&gt; glimpse</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<h3 id="block-options">Block Options</h3>
+<ul>
+<li><code>eval</code>: Set to <code>false</code> to show the code
+without executing (default: <code>true</code>).</li>
+<li><code>echo</code>: Set to <code>false</code> to hide the code and
+only show the output (default: <code>true</code>).</li>
+<li><code>results</code>: Set to <code>hide</code> to suppress any
+printed output.</li>
+<li><code>fig-cap</code>: Add a caption if the chunk generates a plot
+(via an R/Python sub-node).</li>
+</ul>
+<hr />
 <h2 id="defining-a-quarto-node">Defining a Quarto Node</h2>
 <p>A Quarto node in a pipeline takes a <code>.qmd</code> file as input
 and renders it to a target format (default is HTML).</p>
@@ -176,12 +213,12 @@ pipeline_copy()</code></pre>
 <p>If your Quarto document uses R or Python chunks, you must ensure the
 necessary packages are available in the project’s
 <code>tproject.toml</code>.</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;jsonlite&quot;</span><span class="op">,</span> <span class="st">&quot;ggplot2&quot;</span><span class="op">]</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;quarto&quot;</span><span class="op">,</span> <span class="st">&quot;which&quot;</span><span class="op">]</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;jsonlite&quot;</span><span class="op">,</span> <span class="st">&quot;ggplot2&quot;</span><span class="op">]</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;quarto&quot;</span><span class="op">,</span> <span class="st">&quot;which&quot;</span><span class="op">]</span></span></code></pre></div>
 <blockquote>
 <p>[!NOTE] Always include <code>quarto</code> and <code>which</code> in
 <code>additional-tools</code> if you are using Quarto nodes.</p>
@@ -193,13 +230,10 @@ Since T orchestrates the data flow, you can: 1. Process raw data in
 <strong>R</strong>. 3. Render a comprehensive reporting doc in
 <strong>Quarto</strong> that consumes both the processed data and the
 model parameters.</p>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
 </body>
 </html>
