@@ -2,7 +2,7 @@
 
 This guide describes how to set up syntax highlighting and language server (LSP) features for the T programming language in various editors.
 
-## 🌈 Syntax Highlighting
+## Syntax Highlighting
 
 Syntax highlighting provides basic color coding for keywords, operators, strings, and T-specific features like NSE variables (`$column`) and foreign code blocks (`<{ r_code }>`).
 
@@ -60,7 +60,7 @@ The extension lives in `editors/quarto/tlang` and includes a ready-to-copy examp
 
 ---
 
-## ⚡ Language Server Protocol (LSP)
+## Language Server Protocol (LSP)
 
 The T language server provides advanced features like:
 - **Autocompletion**: Context-aware suggestions for functions, variables, and data-frame columns (even inside pipes!).
@@ -118,7 +118,7 @@ Add the following to your `init.el`:
 (add-hook 't-mode-hook 'eglot-ensure)
 ```
 
-### 🏗️ Building from Source
+### Building from Source
 If you are developing T itself, you can rebuild the LSP server with:
 ```bash
 nix build .#default

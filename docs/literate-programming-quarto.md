@@ -1,6 +1,6 @@
 # Literate Programming with Quarto
 
-## 🚀 Quick Setup with Quarto
+## Quick Setup with Quarto
 
 T provides a specialized Quarto filter (`tlang`) that allows you to execute T code chunks directly in your `.qmd` documents. 
 
@@ -31,7 +31,7 @@ filters:
 ---
 ```
 
-## 📝 Writing Quarto Blocks
+## Writing Quarto Blocks
 
 You can now use `{t}` code chunks in your document. These chunks are executed by the T interpreter during rendering.
 

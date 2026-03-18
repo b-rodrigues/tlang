@@ -1,10 +1,10 @@
-# T — A Language for Tabular Data and Human–LLM Collaboration
+# T - A Language for Tabular Data and Human-LLM Collaboration
 
 **T** is an experimental programming language for declarative, functional manipulation of tabular data. Inspired by R’s tidyverse and OCaml’s semantic rigor, T is designed to make data analysis **explicit, inspectable, and pipeline-oriented**.
 
 Unlike traditional scripting languages, T is built from the ground up to support **human–LLM collaborative programming**, where humans specify intent and constraints, and language tools (including LLMs) generate localized, mechanical code.
 
-**Status:** Alpha 0.51. Core syntax and functional semantics are stable.
+**Status:** Alpha 0.51.
 
 ---
 
