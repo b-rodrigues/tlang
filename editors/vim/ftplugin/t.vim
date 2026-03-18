@@ -24,13 +24,13 @@ nnoremap <buffer> <leader>b :call <SID>SendToT(join(getline(1, '$'), "\n"))<CR>
 " Omni-completion via the T REPL's :complete command.
 " Uses the first running T terminal buffer to query completions.
 " Adjust g:t_completion_timeout_ms for slower/faster machines (default: 200).
-setlocal omnifunc=TComplete
+setlocal omnifunc=<SID>TComplete
 
 if !exists('g:t_completion_timeout_ms')
   let g:t_completion_timeout_ms = 200
 endif
 
-function! TComplete(findstart, base)
+function! s:TComplete(findstart, base)
   if a:findstart
     " Locate the start of the word being completed
     let line = getline('.')
@@ -49,11 +49,19 @@ function! TComplete(findstart, base)
   let term = term_bufs[0]
 
   " Build prefix: everything on the current line up to the cursor
+  if col('.') <= 1
+    return []
+  endif
   let line = getline('.')
   let prefix = line[0 : col('.') - 2]
   if prefix ==# ''
     return []
   endif
+
+  " Record terminal scrollback length before sending the query so we only
+  " scan newly appended output, avoiding stale matches and O(scrollback) rescans.
+  let baseline = term_getline(term, '.', '$')
+  let baseline_len = len(baseline)
 
   " Send :complete query and poll for the response markers
   call term_sendkeys(term, ":complete " . prefix . "\n")
@@ -64,11 +72,13 @@ function! TComplete(findstart, base)
   while elapsed < g:t_completion_timeout_ms
     exe 'sleep ' . step . 'm'
     let elapsed += step
-    let output = term_getline(term, 1, '$')
+    " Only read lines appended after the baseline
+    let all_lines = term_getline(term, '.', '$')
+    let new_lines = all_lines[baseline_len :]
     let found_end = 0
     let collecting = 0
     let completions = []
-    for l in output
+    for l in new_lines
       if l =~# ':BEGIN_COMPLETIONS:'
         let collecting = 1
         continue

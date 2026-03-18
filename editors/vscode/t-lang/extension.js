@@ -52,8 +52,10 @@ function activate(context) {
         vscode.window.createTerminal("T REPL");
       terminal.show();
       // Send the file contents via the run sub-command so no REPL
-      // start-up race is possible.
-      terminal.sendText(`t run ${editor.document.fileName}`);
+      // start-up race is possible.  Shell-quote the path so spaces
+      // and special characters are handled safely.
+      const quoted = editor.document.fileName.replace(/'/g, "'\\''");
+      terminal.sendText(`t run '${quoted}'`);
     }
   );
 
