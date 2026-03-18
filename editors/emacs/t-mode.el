@@ -64,6 +64,7 @@
 ;;; REPL Support
 
 (require 'comint)
+(require 'subr-x)
 
 (defcustom t-repl-executable "t"
   "Path to the T REPL executable."
@@ -160,9 +161,12 @@ The wait is bounded by `t-completion-timeout'."
 (defun t-send-region (start end)
   "Send the current region to the T REPL."
   (interactive "r")
-  (let ((proc (get-buffer-process (run-t))))
-    (comint-send-region proc start end)
-    (comint-send-string proc "\n")))
+  (let ((text (buffer-substring-no-properties start end)))
+    (let* ((buffer (run-t))
+           (proc (get-buffer-process buffer)))
+      (unless proc
+        (error "T REPL process is not running"))
+      (comint-send-string proc (concat (string-trim-right text) "\n")))))
 
 (defun t-send-buffer ()
   "Send the entire buffer to the T REPL."
