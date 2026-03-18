@@ -152,9 +152,10 @@ Sends `:complete INPUT' and parses the output lines."
 (defun t-send-region (start end)
   "Send the current region to the T REPL."
   (interactive "r")
-  (let ((proc (get-buffer-process (run-t))))
-    (comint-send-region proc start end)
-    (comint-send-string proc "\n")))
+  (let ((proc (get-buffer-process (run-t)))
+        (text (buffer-substring-no-properties start end)))
+    (process-send-string proc text)
+    (process-send-string proc "\n")))
 
 (defun t-send-buffer ()
   "Send the entire buffer to the T REPL."
