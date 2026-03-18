@@ -51,11 +51,9 @@ function activate(context) {
         vscode.window.terminals.find((t) => t.name === "T REPL") ||
         vscode.window.createTerminal("T REPL");
       terminal.show();
-      terminal.sendText("t repl");
-      // Small delay to let the REPL start, then send the file
-      setTimeout(() => {
-        terminal.sendText(`:load ${editor.document.fileName}`);
-      }, 500);
+      // Send the file contents via the run sub-command so no REPL
+      // start-up race is possible.
+      terminal.sendText(`t run ${editor.document.fileName}`);
     }
   );
 

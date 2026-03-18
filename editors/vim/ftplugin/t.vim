@@ -23,7 +23,12 @@ nnoremap <buffer> <leader>b :call <SID>SendToT(join(getline(1, '$'), "\n"))<CR>
 
 " Omni-completion via the T REPL's :complete command.
 " Uses the first running T terminal buffer to query completions.
+" Adjust g:t_completion_timeout_ms for slower/faster machines (default: 200).
 setlocal omnifunc=TComplete
+
+if !exists('g:t_completion_timeout_ms')
+  let g:t_completion_timeout_ms = 200
+endif
 
 function! TComplete(findstart, base)
   if a:findstart
@@ -50,26 +55,36 @@ function! TComplete(findstart, base)
     return []
   endif
 
-  " Send :complete query and capture the result
+  " Send :complete query and poll for the response markers
   call term_sendkeys(term, ":complete " . prefix . "\n")
-  " Give the REPL time to respond
-  sleep 100m
 
-  let output = term_getline(term, 1, '$')
-  let collecting = 0
+  let elapsed = 0
+  let step = 50
   let completions = []
-  for l in output
-    if l =~# ':BEGIN_COMPLETIONS:'
-      let collecting = 1
-      continue
-    endif
-    if l =~# ':END_COMPLETIONS:'
+  while elapsed < g:t_completion_timeout_ms
+    exe 'sleep ' . step . 'm'
+    let elapsed += step
+    let output = term_getline(term, 1, '$')
+    let found_end = 0
+    let collecting = 0
+    let completions = []
+    for l in output
+      if l =~# ':BEGIN_COMPLETIONS:'
+        let collecting = 1
+        continue
+      endif
+      if l =~# ':END_COMPLETIONS:'
+        let found_end = 1
+        break
+      endif
+      if collecting && l !=# ''
+        call add(completions, l)
+      endif
+    endfor
+    if found_end
       break
     endif
-    if collecting && l !=# ''
-      call add(completions, l)
-    endif
-  endfor
+  endwhile
 
   " Filter to matches starting with the base prefix
   return filter(completions, 'v:val =~# "^" . a:base')
