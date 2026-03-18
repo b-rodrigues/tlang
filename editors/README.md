@@ -6,7 +6,16 @@ This directory contains syntax highlighting and language support for the T progr
 
 1. Copy `vim/ftdetect/t.vim` to `~/.vim/ftdetect/t.vim`.
 2. Copy `vim/syntax/t.vim` to `~/.vim/syntax/t.vim`.
-3. (Optional) If you use a plugin manager like Vim-Plug, you can add this repository to your `.vimrc`.
+3. Copy `vim/ftplugin/t.vim` to `~/.vim/ftplugin/t.vim`.
+4. (Optional) If you use a plugin manager like Vim-Plug, you can add this repository to your `.vimrc`.
+
+### Tab Completion in Vim
+
+**Via LSP (recommended):** See the LSP section below for `nvim-lspconfig` or `coc.nvim` setup.
+
+**Via omni-completion (terminal REPL):** The ftplugin sets `omnifunc=TComplete`.
+Open a T REPL with `:TRepl`, then press `<C-x><C-o>` in insert mode to trigger
+completions against the running REPL session.
 
 ## Emacs
 
@@ -17,13 +26,30 @@ This directory contains syntax highlighting and language support for the T progr
    ```
 2. Any `.t` file will now automatically open in `t-mode`.
 
+### Tab Completion in Emacs
+
+**Via LSP (recommended):** See the LSP section below for `eglot` setup.
+
+**Via REPL (`t-inferior-mode`):** Start a REPL with `M-x run-t`, then press
+`TAB` in the REPL buffer. The mode queries the running process via its
+`:complete` command. The timeout is controlled by `t-completion-timeout`
+(default 0.5 s); customise it with `M-x customize-variable RET t-completion-timeout`.
+
 ## VS Code
 
 1. Copy the `vscode/t-lang` folder to your VS Code extensions directory:
    - Windows: `%USERPROFILE%\.vscode\extensions`
    - macOS/Linux: `~/.vscode/extensions`
-2. Restart VS Code.
-3. Alternatively, you can open the `vscode/t-lang` folder in VS Code and press `F5` to test it in a "Development Host" window.
+2. Run `npm install` inside the extension folder to install the LSP client dependency.
+3. Restart VS Code.
+4. Alternatively, you can open the `vscode/t-lang` folder in VS Code and press `F5` to test it in a "Development Host" window.
+
+### Tab Completion in VS Code
+
+The extension automatically starts the `t-lsp` language server when a `.t` file
+is opened, providing real-time completions (triggered by typing, `$`, or `.`),
+hover documentation, go-to-definition, and diagnostics. Make sure `t-lsp` is
+on your `PATH` (it is automatically available inside `nix develop`).
 
 ## Quarto
 
@@ -37,9 +63,19 @@ The T language server is implemented in `src/lsp_server.ml`. When you build the 
 
 If you use `nix develop`, `t-lsp` will be in your `PATH` automatically.
 
+### Performance Notes
+
+The LSP server caches document line arrays on every edit so that completion,
+hover, and go-to-definition requests resolve in O(1) per line lookup instead
+of re-splitting the document text. Completion context detection uses
+short-circuit evaluation — only the matching context (member, function
+argument, column reference, or symbol) is computed.
+
 ### 🧩 VS Code
 
-The T VS Code extension is in `editors/vscode/t-lang`. You can install it by copying the folder to your `.vscode/extensions` directory.
+The T VS Code extension is in `editors/vscode/t-lang`. Install it by copying
+the folder to your `.vscode/extensions` directory and running `npm install`
+inside it. The extension starts `t-lsp` automatically.
 
 ### 🧩 Vim / Neovim
 
