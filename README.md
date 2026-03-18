@@ -121,6 +121,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 - **lubridate**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc.).
 - **stringr**: Modern string manipulation (`str_replace`, `str_detect`, `str_split`, etc.).
 - **forcats**: Categorical data management with `fct_*` helpers.
+- **Native Arrow I/O**: High-performance reading and writing of `CSV`, `Parquet`, and `Arrow` (IPC/Feather) formats.
 - **Polyglot & Metaprogramming**: First-class support for R, Python, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`).
 
 Current development focuses on refining the inter-language FFI and expanding Native Arrow kernels.
