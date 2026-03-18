@@ -17,6 +17,8 @@ Package-oriented guide to T's standard library.
 - [Stats Package](#stats-package) — Statistical functions
 - [DataFrame Package](#dataframe-package) — CSV I/O and DataFrame operations
 - [Colcraft Package](#colcraft-package) — Data manipulation verbs and window functions
+- [Chrono Package](#chrono-package) — High-performance date and time manipulation
+- [Strcraft Package](#strcraft-package) — Modern string manipulation
 - [Pipeline Package](#pipeline-package) — Pipeline introspection
 - [Explain Package](#explain-package) — Introspection and debugging tools
 
@@ -1791,6 +1793,135 @@ Cumulative OR (any true so far?).
 **Examples:**
 ```t
 cumany([false, true, false]) -- Vector[false, true, true]
+```
+
+---
+
+## Chrono Package
+
+High-performance date and time manipulation, inspired by R's `lubridate`.
+
+### `as_date(value)` / `as_datetime(value)`
+
+Convert values to Date or Datetime types.
+
+**Parameters:**
+
+- `value` — String, Number, or Collection of values
+
+**Returns:**
+
+`Date` / `Datetime` / `Collection`
+
+**Examples:**
+```t
+as_date("2023-05-15")  -- 2023-05-15
+as_datetime("2023-05-15 14:00:00")
+```
+
+---
+
+### `ymd(string)` / `dmy(string)`
+
+Parse strings into dates using common formats.
+
+**Parameters:**
+
+- `string` — Date string
+
+**Returns:**
+
+`Date`
+
+**Examples:**
+```t
+ymd("2023-05-15")
+dmy("15/05/2023")
+```
+
+---
+
+### `floor_date(datetime, unit)`
+
+Round a date/datetime down to the nearest unit (year, month, day, hour, etc.).
+
+**Parameters:**
+
+- `datetime` — Date or Datetime
+- `unit` — Unit as string ("month", "day", etc.)
+
+**Returns:**
+
+Same as input type
+
+**Examples:**
+```t
+floor_date(as_date("2023-05-15"), "month")  -- 2023-05-01
+```
+
+---
+
+## Strcraft Package
+
+Modern string manipulation utilities, inspired by R's `stringr`.
+
+### `str_replace(string, pattern, replacement)`
+
+Replace the first occurrence of a pattern with a replacement string. Use `str_replace_all` for all occurrences.
+
+**Parameters:**
+
+- `string` — Input string
+- `pattern` — Regex pattern
+- `replacement` — Replacement string
+
+**Returns:**
+
+`String`
+
+**Examples:**
+```t
+str_replace("hello world", "world", "T")  -- "hello T"
+```
+
+---
+
+### `str_detect(string, pattern)`
+
+Check if a pattern exists in a string.
+
+**Parameters:**
+
+- `string` — Input string
+- `pattern` — Regex pattern
+
+**Returns:**
+
+`Bool`
+
+**Examples:**
+```t
+str_detect("apple", "p")  -- true
+```
+
+---
+
+### `str_glue(...)`
+
+Interpolate variables and expressions into strings. Similar to Python f-strings.
+
+**Parameters:**
+
+- `...` — String with `{expression}` placeholders
+
+**Returns:**
+
+`String`
+
+**Examples:**
+```t
+name = "Alice"
+str_glue("Hello {name}")  -- "Hello Alice"
 ```
 
 ---
