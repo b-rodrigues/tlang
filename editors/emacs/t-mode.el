@@ -70,6 +70,13 @@
   :type 'string
   :group 't-mode)
 
+(defcustom t-completion-timeout 0.5
+  "Maximum time in seconds to wait for completion results from the T REPL.
+Lower values make the editor feel more responsive; raise this if
+completions are being truncated on slow machines."
+  :type 'number
+  :group 't-mode)
+
 (defvar t-repl-buffer-name "*T REPL*"
   "Name of the T REPL buffer.")
 
@@ -124,7 +131,8 @@ matches for use by `completion-at-point'."
 
 (defun t--get-completions (input proc)
   "Query the T REPL process PROC for completions of INPUT.
-Sends `:complete INPUT' and parses the output lines."
+Sends `:complete INPUT' and parses the output lines.
+The wait is bounded by `t-completion-timeout'."
   (let ((output-buf (get-buffer-create " *t-completions*"))
         (completions nil))
     (with-current-buffer output-buf
@@ -133,13 +141,13 @@ Sends `:complete INPUT' and parses the output lines."
       (comint-redirect-send-command-to-process
        (concat ":complete " input)
        output-buf proc nil t))
-    ;; Wait for the redirect to complete before parsing (with a 2-second timeout)
+    ;; Wait for the redirect to complete (respects t-completion-timeout)
     (with-current-buffer (process-buffer proc)
-      (let ((timeout 2.0)
+      (let ((timeout (or t-completion-timeout 0.5))
             (start-time (float-time)))
         (while (and (not comint-redirect-completed)
                     (< (- (float-time) start-time) timeout))
-          (accept-process-output proc 0.1))))
+          (accept-process-output proc 0.05))))
     (with-current-buffer output-buf
       (goto-char (point-min))
       (when (search-forward ":BEGIN_COMPLETIONS:" nil t)

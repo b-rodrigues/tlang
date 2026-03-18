@@ -47,6 +47,7 @@ module Server = struct
   type doc_state = {
     uri : DocumentUri.t;
     text : string;
+    lines : string array;
     mutable scope : Symbol_table.scope;
     mutable diagnostics : Diagnostic.t list;
     mutable definitions : Ast.source_location Analyzer.Definition_map.t;
@@ -180,7 +181,8 @@ module Server = struct
           diagnostics :=
             [ diagnostic_at_lexeme lexbuf "Internal analysis error" ]);
     let doc =
-      { uri; text; scope; diagnostics = !diagnostics; definitions = !definitions }
+      let lines = Array.of_list (String.split_on_char '\n' text) in
+      { uri; text; lines; scope; diagnostics = !diagnostics; definitions = !definitions }
     in
     Hashtbl.replace server.documents uri doc;
     send_diagnostics uri !diagnostics;
@@ -199,6 +201,12 @@ module Server = struct
     in
     InitializeResult.create ~capabilities ()
 
+  let get_line_at doc line =
+    if line >= 0 && line < Array.length doc.lines then
+      Some doc.lines.(line)
+    else
+      None
+
   let handle_completion server (params : CompletionParams.t) =
     let uri = params.textDocument.uri in
     match Hashtbl.find_opt server.documents uri with
@@ -206,9 +214,9 @@ module Server = struct
     | Some doc ->
         let line = params.position.line in
         let character = params.position.character in
-        let lines = String.split_on_char '\n' doc.text in
-        if line < List.length lines then
-          let line_text = List.nth lines line in
+        match get_line_at doc line with
+        | None -> []
+        | Some line_text ->
           let cursor = min character (String.length line_text) in
           let (start_pos, matches) = Completion.complete doc.scope ~buffer:line_text ~cursor in
           List.map (fun m -> 
@@ -219,7 +227,6 @@ module Server = struct
             let textEdit = `TextEdit (TextEdit.create ~range ~newText:m) in
             CompletionItem.create ~label:m ~textEdit ()
           ) matches
-        else []
 
   let handle_hover server (params : HoverParams.t) =
     let uri = params.textDocument.uri in
@@ -228,9 +235,9 @@ module Server = struct
     | Some doc ->
         let line = params.position.line in
         let character = params.position.character in
-        let lines = String.split_on_char '\n' doc.text in
-        if line < List.length lines then
-          let line_text = List.nth lines line in
+        match get_line_at doc line with
+        | None -> None
+        | Some line_text ->
           match extract_word_at line_text character with
             | Some name -> (
                match Symbol_table.lookup doc.scope name with
@@ -275,7 +282,6 @@ module Server = struct
                   | _ -> None
                ))
           | None -> None
-        else None
 
   let handle_definition server (params : DefinitionParams.t) =
     let uri = params.textDocument.uri in
@@ -284,9 +290,9 @@ module Server = struct
     | Some doc ->
         let line = params.position.line in
         let character = params.position.character in
-        let lines = String.split_on_char '\n' doc.text in
-        if line < List.length lines then
-          let line_text = List.nth lines line in
+        match get_line_at doc line with
+        | None -> None
+        | Some line_text ->
           match extract_word_at line_text character with
            | Some name -> (
               match Analyzer.Definition_map.find_opt name doc.definitions with
@@ -303,7 +309,6 @@ module Server = struct
                   Some (`Location (Location.create ~uri ~range))
               | None -> None)
            | None -> None
-        else None
 
   let dispatch server (packet : Jsonrpc.Packet.t) =
     let params_to_yojson = function
