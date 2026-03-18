@@ -37,6 +37,25 @@ let extract_prefix buffer cursor =
   )
 
 
+let find_surrounding_function buffer cursor =
+  let rec loop depth i =
+    if i < 0 then None
+    else match buffer.[i] with
+    | ')' -> loop (depth + 1) (i - 1)
+    | '(' ->
+        if depth > 0 then loop (depth - 1) (i - 1)
+        else
+          (* Found the opening paren of the current call *)
+          let fstart = ref (i - 1) in
+          while !fstart >= 0 && is_ident_char buffer.[!fstart] do
+            fstart := !fstart - 1
+          done;
+          let ident = String.sub buffer (!fstart + 1) (i - !fstart - 1) in
+          if ident <> "" then Some (ident, i) else None
+    | _ -> loop depth (i - 1)
+  in
+  loop 0 (cursor - 1)
+
 let collect_all_columns scope cols =
   let df_cols = List.map (fun (c : Semantic_type.column) -> c.Semantic_type.name) cols in
   let observed = Symbol_table.get_observed_columns scope in
@@ -71,43 +90,72 @@ let complete scope ~buffer ~cursor =
       | _ -> (dot_pos + 1, [])
     else (dot_pos + 1, [])
 
-  (* 2. Function argument completion: func( — only when cursor is right after '(' *)
-  end else if cursor > 0 && buffer.[cursor-1] = '(' then begin
-    let paren_pos = cursor - 1 in
-    let fstart = ref (paren_pos - 1) in
-    while !fstart >= 0 && is_ident_char buffer.[!fstart] do
-      fstart := !fstart - 1
-    done;
-    let ident = String.sub buffer (!fstart + 1) (paren_pos - !fstart - 1) in
-    if ident <> "" then
-      match lookup scope ident with
-      | Some { typ = Some (Semantic_type.TFunction (args, _)); _ } ->
-          (cursor, List.map (fun (name, _) -> name ^ " = ") args)
-      | _ -> (cursor, [])
-    else (cursor, [])
+  (* 2. Function argument completion: inside func(...) *)
+  end else match find_surrounding_function buffer cursor with
+  | Some (func_name, _paren_pos) ->
+      (* Check if we are at a position where an argument name is expected *)
+      let rec skip_whitespace j =
+        if j >= 0 && (buffer.[j] = ' ' || buffer.[j] = '\t' || buffer.[j] = '\n' || buffer.[j] = '\r') then skip_whitespace (j - 1)
+        else j
+      in
+      let pos_before = skip_whitespace id_boundary in
+      
+      (* We offer argument names if we are right after '(' or ',' *)
+      if pos_before >= 0 && (buffer.[pos_before] = '(' || buffer.[pos_before] = ',') then
+        match lookup scope func_name with
+        | Some { typ = Some (Semantic_type.TFunction (args, _)); _ } ->
+            let prefix = String.sub buffer (id_boundary + 1) (cursor - id_boundary - 1) in
+            let matches = List.filter (fun (name, _) -> String.starts_with ~prefix name) args
+                         |> List.map (fun (name, _) -> name ^ " = ") in
+            (id_boundary + 1, matches)
+        | _ -> (cursor, [])
+      else
+        (* Not in an argument name position, or function not found. 
+           Check for other completions like columns or symbols. *)
+        if id_boundary >= 0 && buffer.[id_boundary] = '$' then
+           let col_prefix = String.sub buffer (id_boundary + 1) (cursor - id_boundary - 1) in
+           let observed = Symbol_table.get_observed_columns scope in
+           let df_cols = Symbol_table.get_dataframes scope |> List.filter_map (fun s ->
+             match s.typ with
+             | Some (Semantic_type.TDataFrame cols)
+             | Some (Semantic_type.TGroupedDataFrame (cols, _)) -> Some (List.map (fun (c: Semantic_type.column) -> c.Semantic_type.name) cols)
+             | _ -> None
+           ) |> List.flatten in
+           let all_cols = List.sort_uniq String.compare (df_cols @ observed) in
+           let matches = List.filter (fun name -> String.starts_with ~prefix:col_prefix name) all_cols in
+           (id_boundary + 1, matches)
+        else
+          let prefix = String.sub buffer (id_boundary + 1) (cursor - id_boundary - 1) in
+          if prefix = "" then (cursor, [])
+          else
+            let start = cursor - String.length prefix in
+            let matches = Symbol_table.filter_symbols scope prefix
+                          |> List.map (fun s -> s.Symbol_table.name) in
+            (start, matches)
 
-  (* 3. Column reference completion: $col_prefix *)
-  end else if id_boundary >= 0 && buffer.[id_boundary] = '$' then begin
-    let col_prefix = String.sub buffer (id_boundary + 1) (cursor - id_boundary - 1) in
-    let observed = Symbol_table.get_observed_columns scope in
-    let df_cols = Symbol_table.get_dataframes scope |> List.filter_map (fun s ->
-      match s.typ with
-      | Some (Semantic_type.TDataFrame cols)
-      | Some (Semantic_type.TGroupedDataFrame (cols, _)) -> Some (List.map (fun (c: Semantic_type.column) -> c.Semantic_type.name) cols)
-      | _ -> None
-    ) |> List.flatten in
-    let all_cols = List.sort_uniq String.compare (df_cols @ observed) in
-    let matches = List.filter (fun name -> String.starts_with ~prefix:col_prefix name) all_cols in
-    (id_boundary + 1, matches)
+  (* 3. Column reference completion outside function call (already covered above if nested, but for top-level) *)
+  (* Actually find_surrounding_function returns None if not in a call, so we handle it here. *)
+  | None ->
+    if id_boundary >= 0 && buffer.[id_boundary] = '$' then begin
+      let col_prefix = String.sub buffer (id_boundary + 1) (cursor - id_boundary - 1) in
+      let observed = Symbol_table.get_observed_columns scope in
+      let df_cols = Symbol_table.get_dataframes scope |> List.filter_map (fun s ->
+        match s.typ with
+        | Some (Semantic_type.TDataFrame cols)
+        | Some (Semantic_type.TGroupedDataFrame (cols, _)) -> Some (List.map (fun (c: Semantic_type.column) -> c.Semantic_type.name) cols)
+        | _ -> None
+      ) |> List.flatten in
+      let all_cols = List.sort_uniq String.compare (df_cols @ observed) in
+      let matches = List.filter (fun name -> String.starts_with ~prefix:col_prefix name) all_cols in
+      (id_boundary + 1, matches)
+    end else begin
+      let prefix = String.sub buffer (id_boundary + 1) (cursor - id_boundary - 1) in
+      if prefix = "" then (cursor, [])
+      else
+        let start = cursor - String.length prefix in
+        let matches = Symbol_table.filter_symbols scope prefix
+                      |> List.map (fun s -> s.Symbol_table.name) in
+        (start, matches)
+    end
+  end
 
-  (* 4. Symbol/identifier completion *)
-  end else begin
-    let prefix = String.sub buffer (id_boundary + 1) (cursor - id_boundary - 1) in
-    if prefix = "" then (cursor, [])
-    else
-      let start = cursor - String.length prefix in
-      let matches = Symbol_table.filter_symbols scope prefix
-                    |> List.map (fun s -> s.Symbol_table.name) in
-      (start, matches)
-  end
-  end
