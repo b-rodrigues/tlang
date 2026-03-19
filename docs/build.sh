@@ -4,6 +4,12 @@ cd "$(dirname "$0")"
 
 echo "Building HTML from Markdown via pandoc..."
 
+# Determine if we're on macOS (Darwin) for sed -i compatibility
+SED_INPLACE_EXT=""
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  SED_INPLACE_EXT="''"
+fi
+
 for file in *.md; do
   if [ "$file" != "README.md" ]; then
     filename="${file%.*}"
@@ -16,8 +22,13 @@ for file in *.md; do
       --metadata title="T Programming Language - $filename"
     
     # Post-process: convert .md links to .html
-    sed -i 's/\.md"/.html"/g' "$filename.html"
-    sed -i 's/\.md)/.html)/g' "$filename.html"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sed -i '' 's/\.md"/.html"/g' "$filename.html"
+      sed -i '' 's/\.md)/.html)/g' "$filename.html"
+    else
+      sed -i 's/\.md"/.html"/g' "$filename.html"
+      sed -i 's/\.md)/.html)/g' "$filename.html"
+    fi
   fi
 done
 
@@ -34,8 +45,13 @@ if [ -d "reference" ]; then
         --metadata title="T Function Reference - $(basename "$filename")"
       
       # Post-process: convert .md links to .html
-      sed -i 's/\.md"/.html"/g' "$filename.html"
-      sed -i 's/\.md)/.html)/g' "$filename.html"
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/\.md"/.html"/g' "$filename.html"
+        sed -i '' 's/\.md)/.html)/g' "$filename.html"
+      else
+        sed -i 's/\.md"/.html"/g' "$filename.html"
+        sed -i 's/\.md)/.html)/g' "$filename.html"
+      fi
     fi
   done
 fi

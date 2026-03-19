@@ -121,8 +121,8 @@ Nix:</p>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> shell github:b-rodrigues/tlang</span></code></pre></div>
 <p>This command will download the T executable, fetch all required
-dependencies, and drop you into a shell where the <code>t</code> command
-is available.</p>
+dependencies, and drop you into a temporary shell where the
+<code>t</code> command is available.</p>
 <h2 id="starting-a-new-workspace">Starting a New Workspace</h2>
 <p>T provides a built-in scaffolding tool to initialize your workspaces.
 There are two types of workspaces in T: - <strong>Projects</strong>:
@@ -159,18 +159,42 @@ testing:</p>
 └── tests/
     └── test_main.t     # Unit tests for your package</code></pre>
 <h2 id="running-your-code">Running Your Code</h2>
+<p>Now that you’ve bootstrapped your project or package, you can leave
+the temporary Nix shell using <code>exit</code>. Move into the project’s
+directory, and use <code>nix develop</code> to drop into the development
+environment of the project. You may be prompted to make the
+<code>flake.nix</code> discoverable, you can copy and paste the
+suggested command or simply run <code>git add .</code> to stage the
+whole project. Try <code>nix develop</code> again to drop into the
+development environment. You should see the following:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">==================================================</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span> Project: start_t</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">==================================================</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Available</span> commands:</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> repl              <span class="at">-</span> Start T REPL</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> run <span class="op">&lt;</span>file<span class="op">&gt;</span>        - Run a T file</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> test              <span class="at">-</span> Run tests</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="ex">To</span> add dependencies:</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">*</span> Add them to tproject.toml</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="ex">*</span> Run <span class="st">&#39;t update&#39;</span> to sync flake.nix</span></code></pre></div>
 <p>Inside your project or package directory, you can start the
 interactive REPL to explore your data:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> repl</span></code></pre></div>
-<p>To execute a script from end-to-end, use:</p>
 <div class="sourceCode" id="cb7"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run scripts/main.t</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> repl</span></code></pre></div>
+<p>(or simply <code>t</code>).</p>
+<p>To execute a script from end-to-end, use:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run scripts/main.t</span></code></pre></div>
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you have your first project set up and understand the folder
 structure, you are ready to explore the language features and build
 reproducible data pipelines!</p>
 <ol type="1">
+<li><strong><a href="editors.html">Configure Editors</a></strong> —
+Configure your editor to play well with T.</li>
 <li><strong><a href="language_overview.html">Language
 Overview</a></strong> — Explore T’s syntax, types, and standard library
 functions.</li>

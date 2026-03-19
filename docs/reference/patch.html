@@ -37,40 +37,9 @@
 <h1 class="title">T Function Reference - patch</h1>
 </header>
 <h1 id="patch">patch</h1>
-<<<<<<< HEAD
-<p>Patch a Pipeline</p>
-<p>Updates nodes in <code>p1</code> with definitions from
-<code>p2</code>, but only for nodes that already exist in
-<code>p1</code>. New nodes from <code>p2</code> are not added. Useful
-for overriding node configurations without accidentally importing stray
-nodes.</p>
-<h2 id="parameters">Parameters</h2>
-<ul>
-<li><p><strong>p1</strong> (<code>Pipeline</code>): The base
-pipeline.</p></li>
-<li><p><strong>p2</strong> (<code>Pipeline</code>): The pipeline
-providing updated node definitions.</p></li>
-</ul>
-<h2 id="returns">Returns</h2>
-<p>A new pipeline with matching nodes updated from <code>p2</code>.</p>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>p_prod |&gt; patch(p_staging_overrides)</code></pre>
-<h2 id="see-also">See Also</h2>
-<p><a href="intersect.html">intersect</a>, <a
-href="difference.html">difference</a>, <a
-href="union.html">union</a></p>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
-=======
 <p>Overlay one pipeline onto another</p>
 <p>Replaces matching nodes in one pipeline with definitions from another
 pipeline.</p>
->>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

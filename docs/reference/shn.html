@@ -25,16 +25,6 @@
   <link rel="stylesheet" href="../style.css" />
 </head>
 <body>
-<<<<<<< HEAD
-<div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="../index.html">Home</a> |
-        <a href="../getting-started.html">Get Started</a> |
-        <a href="../language_overview.html">Overview</a> |
-        <a href="../api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
-=======
 <nav>
     <a href="../index.html">Home</a>
     <a href="../getting-started.html">Get Started</a>
@@ -43,7 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
->>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 <header id="title-block-header">
 <h1 class="title">T Function Reference - shn</h1>
 </header>
@@ -51,14 +40,9 @@
 <p>Configure a Shell Pipeline Node</p>
 <p>A convenience wrapper around <code>node()</code> with
 <code>runtime = "sh"</code>. Use <code>shn()</code> inside a
-<<<<<<< HEAD
-<code>pipeline { ... }</code> block to run POSIX shell commands, inline
-shell scripts, or external <code>.sh</code> files.</p>
-=======
 <code>pipeline { ... }</code> block to run POSIX shell commands or
 <code>.sh</code> scripts, and optionally set <code>shell = "bash"</code>
 when Bash parsing is required.</p>
->>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>command</strong> (<code>Any</code>): (Optional) The shell
@@ -68,29 +52,6 @@ command or raw shell script body to execute. Mutually exclusive with
 an external <code>.sh</code> file to execute as the node body. Mutually
 exclusive with <code>command</code>.</p></li>
 <li><p><strong>serializer</strong> (<code>Symbol</code>): (Optional)
-<<<<<<< HEAD
-Custom serializer function. Default = <code>text</code>.</p></li>
-<li><p><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
-Custom deserializer function. Default = <code>default</code>.</p></li>
-<li><p><strong>args</strong> (<code>Dict | List</code>): (Optional)
-Runtime arguments. Lists become positional CLI arguments for exec-style
-shell nodes.</p></li>
-<li><p><strong>shell</strong> (<code>String</code>): (Optional) Shell
-interpreter to invoke. Default = <code>sh</code>. Set
-<code>shell = "bash"</code> when you need Bash-specific
-parsing.</p></li>
-<li><p><strong>shell_args</strong> (<code>List[String]</code>):
-(Optional) Extra arguments for the shell interpreter, such as
-<code>["-lc"]</code>.</p></li>
-<li><p><strong>functions</strong> (<code>String | List[String]</code>):
-(Optional) Additional files to include in the sandbox before
-execution.</p></li>
-<li><p><strong>include</strong> (<code>String | List[String]</code>):
-(Optional) Additional files for the sandbox.</p></li>
-<li><p><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
-skip execution and generate a stub. Default =
-<code>false</code>.</p></li>
-=======
 Custom serializer function. Default = text.</p></li>
 <li><p><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
 Custom deserializer function. Default = default.</p></li>
@@ -110,23 +71,10 @@ execution.</p></li>
 (Optional) Additional files for the sandbox.</p></li>
 <li><p><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
 skip execution and generate a stub. Default = false.</p></li>
->>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 </ul>
 <h2 id="returns">Returns</h2>
 <p>The evaluated return value of the command.</p>
 <h2 id="see-also">See Also</h2>
-<<<<<<< HEAD
-<p><a href="node.html">node</a>, <a href="rn.html">rn</a>, <a
-href="pyn.html">pyn</a></p>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
-</div>
-=======
 <p><a href="pyn.html">pyn</a>, <a href="rn.html">rn</a>, <a
 href="node.html">node</a></p>
 </div>
@@ -165,6 +113,5 @@ href="node.html">node</a></p>
         }
     });
 </script>
->>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 </body>
 </html>

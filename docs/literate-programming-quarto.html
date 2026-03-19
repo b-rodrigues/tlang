@@ -104,24 +104,6 @@ literate-programming-quarto</h1>
 </header>
 <h1 id="literate-programming-with-quarto">Literate Programming with
 Quarto</h1>
-<<<<<<< HEAD
-<p>T supports <strong>Quarto</strong> in two complementary ways:</p>
-<ol type="1">
-<li>as a <strong>pipeline runtime</strong> for rendering
-<code>.qmd</code> reports inside T pipelines</li>
-<li>via the <strong>Quarto editor extension</strong> in
-<code>editors/quarto/tlang</code>, which lets you write executable
-<code>{t}</code> chunks directly in Quarto documents</li>
-</ol>
-<p>The runtime integration is documented below. For inline
-<code>t</code> chunks, add <code>quarto</code> to
-<code>[additional-tools]</code> in <code>tproject.toml</code>, run
-<code>t update</code>, and enter the project with
-<code>nix develop</code>. T will provision
-<code>_extensions/tlang</code> automatically from the Nix store; then
-enable the <code>tlang</code> filter and render as usual with
-Quarto.</p>
-=======
 <h2 id="quick-setup-with-quarto">Quick Setup with Quarto</h2>
 <p>T provides a specialized Quarto filter (<code>tlang</code>) that
 allows you to execute T code chunks directly in your <code>.qmd</code>
@@ -175,7 +157,6 @@ printed output.</li>
 (via an R/Python sub-node).</li>
 </ul>
 <hr />
->>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 <h2 id="defining-a-quarto-node">Defining a Quarto Node</h2>
 <p>A Quarto node in a pipeline takes a <code>.qmd</code> file as input
 and renders it to a target format (default is HTML).</p>
