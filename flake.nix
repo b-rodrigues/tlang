@@ -264,6 +264,10 @@
                 exit 1
               fi
             '')
+
+            # 7. Editor Extension Development
+            # ------------------------------------
+            pkgs.nodejs
           ];
 
           shellHook = ''
