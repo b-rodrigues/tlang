@@ -35,14 +35,33 @@ completions against the running REPL session.
 `:complete` command. The timeout is controlled by `t-completion-timeout`
 (default 0.5 s); customise it with `M-x customize-variable RET t-completion-timeout`.
 
-## VS Code
+## VS Code / Positron
 
-1. Copy the `vscode/t-lang` folder to your VS Code extensions directory:
-   - Windows: `%USERPROFILE%\.vscode\extensions`
-   - macOS/Linux: `~/.vscode/extensions`
-2. Run `npm install` inside the extension folder to install the LSP client dependency.
-3. Restart VS Code.
-4. Alternatively, you can open the `vscode/t-lang` folder in VS Code and press `F5` to test it in a "Development Host" window.
+**Quick install** (pre-built):
+```bash
+code --install-extension vscode/t-lang-0.2.0.vsix
+```
+
+**Building from source** (requires Node.js):
+
+1. Install dependencies:
+   ```bash
+   # If you don't have node/npm, use a temporary Nix shell:
+   # nix shell nixpkgs#nodejs
+
+   cd vscode/extensions/t-lang
+   npm install
+   ```
+2. Package the extension:
+   ```bash
+   npx -y @vscode/vsce package --allow-missing-repository
+   ```
+3. Install the generated `.vsix`:
+   ```bash
+   code --install-extension t-lang-0.2.0.vsix
+   ```
+4. Restart your editor.
+5. Alternatively, open `vscode/extensions/t-lang` in VS Code and press `F5` to test in a Development Host window.
 
 ### Tab Completion in VS Code
 
@@ -71,11 +90,11 @@ of re-splitting the document text. Completion context detection uses
 short-circuit evaluation — only the matching context (member, function
 argument, column reference, or symbol) is computed.
 
-### 🧩 VS Code
+### 🧩 VS Code / Positron
 
-The T VS Code extension is in `editors/vscode/t-lang`. Install it by copying
-the folder to your `.vscode/extensions` directory and running `npm install`
-inside it. The extension starts `t-lsp` automatically.
+The T VS Code extension is in `editors/vscode/extensions/t-lang`. Install it by
+running `npm install`, packaging with `npx @vscode/vsce package`, and then
+`code --install-extension t-lang-0.2.0.vsix`. The extension starts `t-lsp` automatically.
 
 ### 🧩 Vim / Neovim
 

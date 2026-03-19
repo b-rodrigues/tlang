@@ -41,15 +41,15 @@
 <p>Generates a basis of polynomial terms for a numeric vector.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>x</strong> (<code>Vector[Number]</code>): | List[Number] The
-vector to expand.</li>
-<li><strong>degree</strong> (<code>Int</code>): The degree of the
-polynomial.</li>
-<li><strong>raw</strong> (<code>Bool</code>): = false If true, return
-raw powers instead of orthogonal polynomials.</li>
+<li><p><strong>x</strong> (<code>Vector[Number]</code>): | List[Number]
+The vector to expand.</p></li>
+<li><p><strong>degree</strong> (<code>Int</code>): The degree of the
+polynomial.</p></li>
+<li><p><strong>raw</strong> (<code>Bool</code>): = false If true, return
+raw powers instead of orthogonal polynomials.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A named list of polynomial terms.</p>
+<h2 id="returns">Returns</h2>
+<p>A named list of polynomial terms.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>mutate(df, !!!poly($age, 3, raw = true))</code></pre>
 <footer>

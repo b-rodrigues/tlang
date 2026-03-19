@@ -104,10 +104,22 @@ literate-programming-quarto</h1>
 </header>
 <h1 id="literate-programming-with-quarto">Literate Programming with
 Quarto</h1>
-<p>T supports <strong>Quarto</strong> as a first-class runtime for
-literate programming within pipelines. This allows you to combine T
-code, R, Python, and markdown to generate beautiful, reproducible
-reports, websites, and books.</p>
+<p>T supports <strong>Quarto</strong> in two complementary ways:</p>
+<ol type="1">
+<li>as a <strong>pipeline runtime</strong> for rendering
+<code>.qmd</code> reports inside T pipelines</li>
+<li>via the <strong>Quarto editor extension</strong> in
+<code>editors/quarto/tlang</code>, which lets you write executable
+<code>{t}</code> chunks directly in Quarto documents</li>
+</ol>
+<p>The runtime integration is documented below. For inline
+<code>t</code> chunks, add <code>quarto</code> to
+<code>[additional-tools]</code> in <code>tproject.toml</code>, run
+<code>t update</code>, and enter the project with
+<code>nix develop</code>. T will provision
+<code>_extensions/tlang</code> automatically from the Nix store; then
+enable the <code>tlang</code> filter and render as usual with
+Quarto.</p>
 <h2 id="defining-a-quarto-node">Defining a Quarto Node</h2>
 <p>A Quarto node in a pipeline takes a <code>.qmd</code> file as input
 and renders it to a target format (default is HTML).</p>
@@ -128,32 +140,32 @@ the specified node (<code>data</code> in the example above).</p>
 other nodes in the same pipeline using the <code>read_node()</code>
 function.</p>
 <h3 id="in-r-chunks">In R Chunks</h3>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="sc">---</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>title<span class="sc">:</span> <span class="st">&quot;Pipeline Analysis&quot;</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>format<span class="sc">:</span> html</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="sc">---</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Analysis</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="st">```</span><span class="at">{r}</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="at"># read_node is substituted by T during the build</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="at">df &lt;- read_node(&quot;data&quot;)</span></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="at">summary(df)</span></span></code></pre></div>
-<pre><code>
-### How it Works
+<pre class="qmd"><code>---
+title: &quot;Pipeline Analysis&quot;
+format: html
+---
 
-When the pipeline is built via Nix:
-1. T detects `read_node(&quot;node_name&quot;)` calls in the `.qmd` source.
-2. It generates a Nix derivation where the absolute path to the node&#39;s artifact (in the Nix store) is provided via environment variables.
-3. During the Nix build, a `sed` substitution replaces `read_node(&quot;node_name&quot;)` with the actual path to the artifact.
-4. Quarto renders the document using these absolute paths.
+# Analysis
 
-## Exporting Results
-
-Because T pipelines are built in the Nix store (which is read-only), rendered reports remain in `/nix/store/...`. To inspect or publish them, use the `pipeline_copy()` function to bring them into your local workspace.
-
-```t
--- Build the pipeline
+```{r}
+# read_node is substituted by T during the build
+df &lt;- read_node(&quot;data&quot;)
+summary(df)
+```</code></pre>
+<h3 id="how-it-works">How it Works</h3>
+<p>When the pipeline is built via Nix: 1. T detects
+<code>read_node("node_name")</code> calls in the <code>.qmd</code>
+source. 2. It generates a Nix derivation where the absolute path to the
+node’s artifact (in the Nix store) is provided via environment
+variables. 3. During the Nix build, a <code>sed</code> substitution
+replaces <code>read_node("node_name")</code> with the actual path to the
+artifact. 4. Quarto renders the document using these absolute paths.</p>
+<h2 id="exporting-results">Exporting Results</h2>
+<p>Because T pipelines are built in the Nix store (which is read-only),
+rendered reports remain in <code>/nix/store/...</code>. To inspect or
+publish them, use the <code>pipeline_copy()</code> function to bring
+them into your local workspace.</p>
+<pre class="t"><code>-- Build the pipeline
 populate_pipeline(p, build = true)
 
 -- Copy all artifacts to ./pipeline-output/

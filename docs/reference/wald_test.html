@@ -42,14 +42,15 @@
 equal to zero.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>model</strong> (<code>Model</code>): The model object.</li>
-<li><strong>terms</strong> (<code>List[String]</code>): The coefficient
-names to test.</li>
-<li><strong>value</strong> (<code>Float</code>): (Optional) The null
-value to test against. Defaults to 0.0.</li>
+<li><p><strong>model</strong> (<code>Model</code>): The model
+object.</p></li>
+<li><p><strong>terms</strong> (<code>List[String]</code>): The
+coefficient names to test.</p></li>
+<li><p><strong>value</strong> (<code>Float</code>): (Optional) The null
+value to test against. Defaults to 0.0.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A one-row DataFrame with the test statistic and p-value.</p>
+<h2 id="returns">Returns</h2>
+<p>A one-row DataFrame with the test statistic and p-value.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>wald_test(model, terms = [&quot;wt&quot;, &quot;hp&quot;])</code></pre>
 <footer>

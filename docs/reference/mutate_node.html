@@ -47,15 +47,15 @@ fields: <code>noop</code> (Bool), <code>serializer</code> (String),
 <code>filter_node</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-modify.</li>
-<li><strong>…</strong> (<code>KeywordArgs</code>): Metadata assignments
-as <code>$field = value</code> pairs.</li>
-<li><strong>where</strong> (<code>Function</code>): (Optional) Predicate
-scoping which nodes are updated.</li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
+modify.</p></li>
+<li><p><strong>…</strong> (<code>KeywordArgs</code>): Metadata
+assignments as <code>$field = value</code> pairs.</p></li>
+<li><p><strong>where</strong> (<code>Function</code>): (Optional)
+Predicate scoping which nodes are updated.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A new pipeline with updated node metadata.</p>
+<h2 id="returns">Returns</h2>
+<p>A new pipeline with updated node metadata.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p |&gt; mutate_node($noop = true)
 p |&gt; mutate_node($serializer = &quot;pmml&quot;, where = $runtime == &quot;R&quot;)</code></pre>

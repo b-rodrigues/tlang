@@ -482,6 +482,14 @@ format.</li>
 layer into the R/Python scripts to handle reading dependencies and
 writing the node result using the specified serializer.</li>
 </ol>
+<p>For direct user-facing Arrow file workflows outside pipelines, T also
+exposes:</p>
+<ul>
+<li><code>read_arrow(path)</code> for Arrow IPC input</li>
+<li><code>write_arrow(dataframe, path)</code> for Arrow IPC output</li>
+</ul>
+<p>That means Arrow is used both as an internal storage backend and as
+an interchange format at the language boundary.</p>
 <hr />
 <h2 id="arrow-backend">Arrow Backend</h2>
 <p>T uses <strong>Apache Arrow</strong> for high-performance columnar
@@ -518,9 +526,15 @@ data.</p>
 <p>Located in <code>src/arrow/</code>: - <strong>arrow_ffi.ml</strong>:
 OCaml wrappers for C functions - <strong>C stubs</strong>: Interface to
 Arrow C GLib</p>
-<p><strong>Example</strong> (reading CSV):</p>
+<p><strong>Examples</strong>:</p>
 <div class="sourceCode" id="cb16"><pre
-class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">external</span> read_csv_native : <span class="dt">string</span> -&gt; arrow_table = <span class="st">&quot;caml_arrow_read_csv&quot;</span></span></code></pre></div>
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">external</span> read_csv_native : <span class="dt">string</span> -&gt; arrow_table = <span class="st">&quot;caml_arrow_read_csv&quot;</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">external</span> read_ipc_native : <span class="dt">string</span> -&gt; arrow_table = <span class="st">&quot;caml_arrow_read_ipc&quot;</span></span></code></pre></div>
+<p>The repository currently exposes both a backend-native CSV reader and
+Arrow IPC read/write support. The public <code>read_csv()</code> builtin
+still layers OCaml CSV parsing on top of Arrow-backed table
+construction, while <code>read_arrow</code> / <code>write_arrow</code>
+expose Arrow IPC directly.</p>
 <h3 id="dual-path-operations">Dual-Path Operations</h3>
 <p>Every DataFrame operation has two paths:</p>
 <ol type="1">
@@ -530,12 +544,15 @@ is available):
 <li>Use Arrow Compute kernels via FFI</li>
 <li>Zero-copy operations</li>
 <li>Vectorized SIMD execution</li>
+<li>Arrow IPC round-trips preserve the native storage model well</li>
 </ul></li>
 <li><strong>Fallback Path</strong> (when no native handle):
 <ul>
 <li>Pure OCaml implementation</li>
 <li>Works on converted list-of-records</li>
 <li>Slower but always available</li>
+<li>Still produces correct user-visible behavior when a schema cannot
+stay native</li>
 </ul></li>
 </ol>
 <p><strong>Example</strong> (<code>filter</code> operation):</p>

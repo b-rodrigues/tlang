@@ -97,6 +97,7 @@
             # and glib-2.0, and the compiler can find their headers.
             pkgs.glib
             pkgs.glib.dev
+            pkgs.gettext
             # Owl — OCaml numerical library for linear algebra and statistics
             # Used by Arrow-Owl bridge for matrix operations in lm(), cor()
             # ocamlVersion.owl
@@ -104,7 +105,9 @@
           ];
 
           buildPhase = ''
-            export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export T_ARROW_CFLAGS="-I${pkgs.arrow-cpp}/include -I${pkgs.arrow-glib}/include -I${pkgs.glib.dev}/include -I${pkgs.glib.dev}/include/glib-2.0 -I${pkgs.glib.out}/lib/glib-2.0/include"
+            export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0"
             dune build src/repl.exe src/lsp_server.exe
           '';
 
@@ -143,6 +146,27 @@
 
         # This defines the development shell that `nix develop` will activate.
         devShells.default = pkgs.mkShell {
+
+          # Pre-computed Arrow C flags — these become env vars automatically.
+          # Unlike shellHook or pkg-config, mkShell attributes are always set,
+          # even with `nix develop --command`. This avoids issues where a
+          # system pkg-config (e.g. Homebrew) shadows the Nix one.
+          T_ARROW_CFLAGS = builtins.concatStringsSep " " [
+            "-I${pkgs.arrow-cpp}/include"
+            "-I${pkgs.arrow-glib}/include"
+            "-I${pkgs.glib.dev}/include"
+            "-I${pkgs.glib.dev}/include/glib-2.0"
+            "-I${pkgs.glib.out}/lib/glib-2.0/include"
+          ];
+          T_ARROW_LIBS = builtins.concatStringsSep " " [
+            "-L${pkgs.arrow-cpp}/lib"
+            "-L${pkgs.arrow-glib}/lib"
+            "-L${pkgs.glib.out}/lib"
+            "-larrow" "-larrow-glib"
+            "-lparquet" "-lparquet-glib"
+            "-lglib-2.0" "-lgobject-2.0" "-lgio-2.0"
+          ];
+
 
           # These are the packages that will be available in your shell.
           buildInputs = [
@@ -197,6 +221,7 @@
             # GLib/GObject — arrow-glib.h includes <glib-object.h> from GLib.
             pkgs.glib
             pkgs.glib.dev
+            pkgs.gettext
             pkgs.pkg-config
 
             # 4. Owl — OCaml numerical library (OPTIONAL)
@@ -239,9 +264,15 @@
                 exit 1
               fi
             '')
+
+            # 7. Editor Extension Development
+            # ------------------------------------
+            pkgs.nodejs
           ];
 
           shellHook = ''
+            export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig''${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+
             if repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
               export TLANG_REPO_ROOT="$repo_root"
             elif [[ -f "$PWD/dune-project" ]]; then

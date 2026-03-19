@@ -41,19 +41,19 @@
 <p>Reads a CSV file into a DataFrame.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>path</strong> (<code>String</code>): Path or URL to the CSV
-file.</li>
-<li><strong>separator</strong> (<code>String</code>): (Optional) Field
-separator (default “,”).</li>
-<li><strong>skip_header</strong> (<code>Bool</code>): (Optional) Skip
-proper header parsing? (default false).</li>
-<li><strong>skip_lines</strong> (<code>Int</code>): (Optional) Number of
-lines to skip at start.</li>
-<li><strong>clean_colnames</strong> (<code>Bool</code>): (Optional)
-Clean column names? (default false).</li>
+<li><p><strong>path</strong> (<code>String</code>): Path or URL to the
+CSV file.</p></li>
+<li><p><strong>separator</strong> (<code>String</code>): (Optional)
+Field separator (default “,”).</p></li>
+<li><p><strong>skip_header</strong> (<code>Bool</code>): (Optional) Skip
+proper header parsing? (default false).</p></li>
+<li><p><strong>skip_lines</strong> (<code>Int</code>): (Optional) Number
+of lines to skip at start.</p></li>
+<li><p><strong>clean_colnames</strong> (<code>Bool</code>): (Optional)
+Clean column names? (default false).</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: The loaded data.</p>
+<h2 id="returns">Returns</h2>
+<p>The loaded data.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>df = read_csv(&quot;data.csv&quot;)
 df = read_csv(&quot;data.csv&quot;, separator = &quot;;&quot;)</code></pre>

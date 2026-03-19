@@ -43,19 +43,19 @@ or <code>false_val</code> depending on the condition. Supports missing
 value handling via the <code>missing</code> argument.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>condition</strong> (<code>Vector[Bool]</code>): The logical
-condition to evaluate.</li>
-<li><strong>true_val</strong> (<code>Any</code>): Expected return value
-when condition is true.</li>
-<li><strong>false_val</strong> (<code>Any</code>): Expected return value
-when condition is false.</li>
-<li><strong>missing</strong> (<code>Any</code>): (Optional) Value to
-return when condition is NA.</li>
-<li><strong>out_type</strong> (<code>String</code>): (Optional) Explicit
-output type casting.</li>
+<li><p><strong>condition</strong> (<code>Vector[Bool]</code>): The
+logical condition to evaluate.</p></li>
+<li><p><strong>true_val</strong> (<code>Any</code>): Expected return
+value when condition is true.</p></li>
+<li><p><strong>false_val</strong> (<code>Any</code>): Expected return
+value when condition is false.</p></li>
+<li><p><strong>missing</strong> (<code>Any</code>): (Optional) Value to
+return when condition is NA.</p></li>
+<li><p><strong>out_type</strong> (<code>String</code>): (Optional)
+Explicit output type casting.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A vector of the resulting values.</p>
+<h2 id="returns">Returns</h2>
+<p>A vector of the resulting values.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>ifelse([true, false, NA], &quot;Yes&quot;, &quot;No&quot;, missing = &quot;Unknown&quot;)</code></pre>
 <footer>

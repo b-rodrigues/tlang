@@ -132,8 +132,14 @@ prediction in T without runtime language dependencies</p>
 collaboration - Document assumptions, constraints, goals -
 Machine-readable format</p>
 <p>✅ <strong>Arrow Integration</strong>: - Zero-copy columnar storage -
-CSV reading via Arrow C GLib - Dual-path operations (native +
-fallback)</p>
+CSV reading via Arrow C GLib - Dual-path operations (native + fallback)
+- <code>explain(df)</code> now surfaces whether a DataFrame is still on
+the native Arrow path (<code>storage_backend</code>,
+<code>native_path_active</code>) - Supported structural rebuilds now try
+to stay Arrow-backed by rematerializing into a fresh native table -
+<strong>Current limitation</strong>: unsupported builder paths (for
+example null-only, factor, list, date, or datetime columns) still fall
+back to pure OCaml/T storage</p>
 <p>✅ <strong>Reproducibility</strong>: - Nix flakes for dependency
 management - Deterministic execution - Frozen syntax and semantics</p>
 <h3 id="repl">REPL</h3>

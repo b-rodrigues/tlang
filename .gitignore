@@ -28,3 +28,6 @@ benchmarks/nyc_taxi/data/
 benchmarks/nyc_taxi/results/*.csv
 benchmarks/nyc_taxi/results/*.log
 !benchmarks/nyc_taxi/results/.gitkeep
+*.vsix
+!editors/vscode/t-lang-*.vsix
+node_modules/
