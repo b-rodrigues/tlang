@@ -2,7 +2,7 @@
   "name": "t-lang",
   "displayName": "T Language Support",
   "description": "Syntax highlighting and LSP integration for the T programming language.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "t-lang",
   "engines": {
     "vscode": "^1.75.0"
@@ -11,9 +11,6 @@
     "Programming Languages"
   ],
   "main": "./extension.js",
-  "activationEvents": [
-    "onLanguage:t"
-  ],
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
@@ -46,6 +43,10 @@
       {
         "command": "t-lang.sendBuffer",
         "title": "T: Run Current File in REPL"
+      },
+      {
+        "command": "t-lang.sendLine",
+        "title": "T: Send Line / Selection to REPL"
       }
     ],
     "keybindings": [
@@ -55,9 +56,10 @@
         "when": "editorLangId == t"
       },
       {
-        "command": "workbench.action.terminal.runSelectedText",
+        "command": "t-lang.sendLine",
         "key": "ctrl+enter",
-        "when": "editorLangId == t"
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == t"
       }
     ],
     "menus": {
