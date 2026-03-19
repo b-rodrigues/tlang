@@ -4,7 +4,7 @@
 
 Unlike traditional scripting languages, T is built from the ground up to support **human–LLM collaborative programming**, where humans specify intent and constraints, and language tools (including LLMs) generate localized, mechanical code.
 
-**Status:** Alpha 0.51.0.
+**Status:** Version 0.51.0 "Sangoku", first public release.
 
 ---
 

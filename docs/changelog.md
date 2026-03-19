@@ -10,6 +10,7 @@ Version history and roadmap for the T programming language.
 ### Language Core
 
 ✅ **Implemented**:
+
 - Lexer and parser (Menhir)
 - Tree-walking interpreter
 - Expression-oriented evaluation
@@ -22,6 +23,7 @@ Version history and roadmap for the T programming language.
 ### NSE (Non-Standard Evaluation)
 
 ✅ **Implemented**:
+
 - Dollar-prefix syntax: `$column_name` for column references
 - Auto-transformation: `$age > 30` → `\(row) row.age > 30`
 - Named-arg syntax: `summarize($total = sum($amount))`, `mutate($bonus = $salary * 0.1)`
@@ -30,6 +32,7 @@ Version history and roadmap for the T programming language.
 ### Data Types
 
 ✅ **Implemented**:
+
 - Scalars: Int, Float, Bool, String
 - Collections: List, Dict
 - DataFrames (Arrow-backed)
@@ -44,6 +47,7 @@ Version history and roadmap for the T programming language.
 ### Operators
 
 ✅ **Implemented**:
+
 - Arithmetic: `+`, `-`, `*`, `/`, `%`
 - Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - Logical: `and`, `or`, `not`
@@ -54,30 +58,36 @@ Version history and roadmap for the T programming language.
 ### Standard Library
 
 ✅ **Core Package**:
+
 - `print`, `pretty_print`, `type`, `length`, `head`, `tail`
 - `map`, `filter`, `sum`, `seq`
 - `is_error`
 
 ✅ **Base Package**:
+
 - `error`, `error_code`, `error_message`, `error_context`
 - `assert`
 - `NA`, `na_int`, `na_float`, `na_bool`, `na_string`, `is_na`
 
 ✅ **Math Package**:
+
 - `sqrt`, `abs`, `log`, `exp`, `pow`
 - `min`, `max`
 
 ✅ **Stats Package**:
+
 - `mean`, `sd`, `quantile`, `cor` (with `na_rm` parameter)
 - `lm` (linear regression: `y ~ x`)
 
 ✅ **DataFrame Package**:
+
 - `read_csv` (with `separator`, `skip_lines`, `skip_header`, `clean_colnames`)
 - `write_csv`
 - `nrow`, `ncol`, `colnames`
 - `clean_colnames` (symbol expansion, diacritics, snake_case, collision resolution)
 
 ✅ **Colcraft Package** (Data Verbs):
+
 - `select`, `filter`, `mutate`, `arrange`
 - `group_by`, `summarize`, `ungroup`
 - **Window functions**:
@@ -86,26 +96,31 @@ Version history and roadmap for the T programming language.
   - Cumulative: `cumsum`, `cummin`, `cummax`, `cummean`, `cumall`, `cumany`
 
 ✅ **Pipeline Package**:
+
 - `pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run`
 
 ✅ **Explain Package**:
+
 - `explain`, `explain_json`
 - `intent_fields`, `intent_get`
 
 ### Features
 
 ✅ **Error Handling**:
+
 - Errors as values (not exceptions)
 - Railway-oriented programming with `|>` and `?|>`
 - Actionable error messages with suggestions
 
 ✅ **NA Handling**:
+
 - Explicit NA (typed: `na_int()`, etc.)
 - No automatic propagation
 - `na_rm` parameter for aggregations
 - Window functions handle NA gracefully
 
 ✅ **Pipelines**:
+
 - DAG-based execution
 - Automatic dependency resolution
 - Deterministic order
@@ -113,25 +128,30 @@ Version history and roadmap for the T programming language.
 - Introspection
 
 ✅ **Cross-Language Model Interchange (PMML)**:
+
 - Native PMML parser and evaluator in OCaml
 - Seamless import of models from R (`lm`) and Python (`scikit-learn`)
 - `broom`-style tidy summaries (`summary()`, `fit_stats()`) for imported models
 - Native high-performance prediction in T without runtime language dependencies
 
 ✅ **Intent Blocks**:
+
 - Structured metadata for LLM collaboration
 - Document assumptions, constraints, goals
 - Machine-readable format
 
-✅ **Arrow Integration**:
+✅ **Arrow Integration & Data Formats**:
+
 - Zero-copy columnar storage
 - CSV reading via Arrow C GLib
+- **Parquet & Feather Support**: Full native read/write for Arrow-backed files
 - Dual-path operations (native + fallback)
-- `explain(df)` now surfaces whether a DataFrame is still on the native Arrow path (`storage_backend`, `native_path_active`)
+- `explain(df)` surfaces whether a DataFrame is still on the native Arrow path (`storage_backend`, `native_path_active`)
 - Supported structural rebuilds now try to stay Arrow-backed by rematerializing into a fresh native table
 - **Current limitation**: unsupported builder paths (for example null-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
 
 ✅ **Reproducibility**:
+
 - Nix flakes for dependency management
 - Deterministic execution
 - Frozen syntax and semantics
@@ -139,6 +159,7 @@ Version history and roadmap for the T programming language.
 ### REPL
 
 ✅ **Implemented**:
+
 - Interactive read-eval-print loop
 - Multiline input support
 - Persistent environment
@@ -147,6 +168,7 @@ Version history and roadmap for the T programming language.
 ### Testing
 
 ✅ **Implemented**:
+
 - Unit tests (OCaml)
 - Golden tests (T vs R comparison)
 - Example-based tests
@@ -154,6 +176,7 @@ Version history and roadmap for the T programming language.
 ### Package Management & Flakes (Bug fixes)
 
 ✅ **Implemented**:
+
 - `T_PACKAGE_PATH` flake configurations export the exact built derivations rather than raw source maps
 - Packages dynamically bundle the local `src/` and `help/` directories instead of silently failing context
 - `t-lang` compiler successfully stripped out of packages' default recursive `buildInputs` dependencies
@@ -162,6 +185,7 @@ Version history and roadmap for the T programming language.
 ### Documentation
 
 ✅ **Implemented** (this release):
+
 - README with quick start
 - Getting Started guide
 - Installation guide
@@ -189,116 +213,71 @@ Version history and roadmap for the T programming language.
 
 ### Version 0.6.0 (Beta) — Planned
 
-**Focus**: Performance and expanded functionality
+**Focus**: Polyglot expansion and statistical modeling
 
-#### Performance Improvements
-- [ ] Bytecode compilation (replace tree-walking)
-- [ ] Stack-based VM
-- [ ] Lazy evaluation for pipelines
-- [ ] More Arrow compute kernels
-
-#### New Features
-- [ ] DataFrame joins (`join`, `left_join`, `inner_join`)
-- [ ] More statistical functions (`t_test`, `anova`, `chisq_test`)
-- [ ] Multiple regression (`lm(y ~ x1 + x2 + x3)`)
-- [ ] Parquet support
-- [ ] Basic plotting (via Arrow/matplotlib integration)
-
-#### Language Enhancements
-- [ ] Pattern matching on values
-- [ ] Recursive functions optimization (tail-call)
-- [ ] Anonymous pipeline blocks
-- [ ] Destructuring assignment
-
-#### Standard Library
-- [ ] String manipulation package (`split`, `join`, `regex`)
-- [ ] Date/time package (`parse_date`, `diff_days`)
-- [ ] File I/O package (`read_lines`, `write_lines`)
-
-### Version 0.3.0 (Beta) — Planned
-
-**Focus**: Ecosystem and tooling
-
-#### Tooling
-- [ ] Language Server Protocol (LSP) for IDE support
-- [ ] Formatter (`t-fmt`)
-- [ ] Linter (`t-lint`)
-- [ ] Package manager (`t-pkg`)
-
-#### Ecosystem
-- [ ] User-contributed packages
-- [ ] Package registry
-- [ ] Binary distribution (no source build)
-
-#### Language Features
-- [ ] Optional static typing (gradual typing)
-- [ ] Type annotations and inference
-- [ ] Modules and namespaces
+- [ ] **Julia Support**: Native integration with Julia through a new `jn()` node type and shared Arrow memory buffers.
+- [ ] **Expanded Model Interoperability**: Support for complex models from:
+  - **R**: GLM, Random Forest (`randomForest`), mixed-effects models (`lme4`/`nlme`).
+  - **Python**: Specialized `scikit-learn` estimators, `statsmodels` (logit/probit), and `XGBoost`.
+  - **Enhanced Evaluator**: Native OCaml evaluation logic for more PMML features and model types.
 
 ### Version 1.0.0 (Stable) — Future
 
-**Focus**: Production-ready, stable API
+**Focus**: Stability and performance
 
-#### Stability
-- [ ] API freeze (no breaking changes)
-- [ ] Comprehensive benchmarks
-- [ ] Performance parity with Pandas/dplyr
-- [ ] 95%+ test coverage
-
-#### Features
-- [ ] Distributed execution (multi-node pipelines)
-- [ ] GPU acceleration (Arrow Compute on CUDA)
-- [ ] Database integration (SQL, DuckDB)
-- [ ] Streaming data support
-
-#### Documentation
-- [ ] Books and tutorials
-- [ ] Video courses
-- [ ] Case studies
-- [ ] Certification program
+- [ ] **API Freeze**: Ensuring backward compatibility for all core verbs and engine operations.
+- [ ] **Extended Test Suite**: Full coverage for all edge cases in the polyglot engine and Arrow-backed compute paths.
 
 ---
 
 ## Historical Development (Pre-Alpha)
 
 ### Phase 8: Documentation & Stabilization
+
 - Comprehensive documentation suite
 - Website updates
 - Alpha freeze
 
 ### Phase 7: CLI & REPL
+
 - Interactive REPL
 - Error recovery
 - Standard library auto-loading
 
 ### Phase 6: LLM Tooling & Introspection
+
 - Intent blocks
 - `explain()` functions
 - Pipeline introspection
 
 ### Phase 5: Math & Statistics
+
 - Math functions
 - Statistical functions with NA handling
 - Linear regression
 
 ### Phase 4: Data Verbs & Window Functions
+
 - Six core verbs (select, filter, mutate, arrange, group_by, summarize)
 - All window functions (rank, offset, cumulative)
 - Grouped operations
 
 ### Phase 3: Pipelines
+
 - Pipeline syntax
 - DAG execution
 - Dependency resolution
 - Cycle detection
 
 ### Phase 2: Tabular Data & Arrow
+
 - Arrow C GLib integration
 - DataFrame type
 - CSV I/O
 - Column name cleaning
 
 ### Phase 1: Language Core
+
 - Lexer and parser
 - AST and evaluator
 - Basic types and operators
