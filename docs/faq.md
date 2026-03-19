@@ -1,427 +1,128 @@
 # Frequently Asked Questions (FAQ)
 
-Common questions about T programming language.
+Welcome to the **T Programming Language** FAQ. This guide covers the philosophy, technical architecture, and practical usage of T.
+
+---
 
 ## General Questions
 
-### What is T?
+### What makes T different?
+T isn't just another data analysis language; it's a **reproducibility-first** engine. While R and Python rely on external tools for environment management, T integrates **Nix** at its core. Every workflow is a statically defined directed acyclic graph (DAG) called a **Pipeline**, ensuring that your analysis is as stable as the hardware it runs on.
 
-T is an experimental programming language for data analysis designed with three core principles:
-1. **Reproducibility-first**: Nix-managed dependencies ensure identical results across time and environments
-2. **Explicit semantics**: No silent failures or hidden behavior
-3. **LLM-native**: Intent blocks enable structured AI collaboration
-
-### Who is T for?
-
-- **Data analysts** who prioritize reproducibility
-- **Researchers** who need auditable analyses
-- **Teams** using LLMs for data work
-- **Anyone** frustrated by R/Python dependency management
-
-### How is T different from R?
-
-| Aspect | R | T |
-|--------|---|---|
-| Dependency management | CRAN (version drift) | Nix (frozen) |
-| NA propagation | Automatic (silent) | Explicit (`na_rm`) |
-| Error handling | Exceptions | Errors as values |
-| Reproducibility | Best-effort | Guaranteed |
-| LLM integration | None | Intent blocks |
-| Performance | Mature, optimized | Alpha, improving |
-
-### How is T different from Python/Pandas?
-
-| Aspect | Python/Pandas | T |
-|--------|---------------|---|
-| Type system | Dynamic | Dynamic |
-| Syntax | Imperative | Functional |
-| Pipelines | Method chaining | Pipe operators |
-| Data backend | NumPy | Apache Arrow |
-| Reproducibility | venv/conda | Nix flakes |
+### Who should use T?
+- **Scientific Researchers**: Who need ironclad, auditable proof of how results were derived.
+- **Data Engineering Teams**: Looking for a polyglot orchestration layer that passes data between R and Python without serialization overhead.
+- **LLM-First Developers**: T's functional, immutable, and pipeline-centric design is optimized for high-fidelity code generation by AI.
 
 ### Is T production-ready?
-
-**No.** T is in **alpha (v0.1)**. It's suitable for:
-- Exploratory analysis
-- Research projects
-- Learning functional data analysis
-- Reproducibility experiments
-
-**Not yet suitable for**:
-- Production data pipelines
-- High-performance computing
-- Mission-critical applications
+T is currently in **Beta (v0.51.0)**. While it is an experimental project, it is already fully capable of performing end-to-end data processing. You can use T's native **data manipulation verbs** and **Quarto integration** to build reports without ever leaving the language. For more complex statistical modeling or advanced visualization, you can easily pull in R or Python nodes.
 
 ---
 
-## Installation & Setup
+## The Technical Core
 
-### Do I need to learn Nix?
+### How does the Polyglot Architecture work?
+T uses **Apache Arrow** as its core data exchange format. When you pass a DataFrame between a T node and an **R (`rn()`)**, **Python (`pyn()`)**, or **Shell (`shn()`)** node, T handles the interchange using highly efficient Arrow files. 
+- **Hermeticity**: Because T runs every node in a hermetic Nix sandbox, data cannot be shared directly in memory.
+- **Serialization**: Dataframes are serialized to Arrow IPC files on disk. This is still significantly faster and more robust than traditional CSV/JSON interchange.
+- **Fidelity**: All level metadata for factors and nested list-columns is preserved through the serialization process.
+- **Model Interchange**: Machine learning models are passed between languages using **PMML**.
 
-**Basic usage**: No. Just run `nix develop` and you're done.
+### What is NSE and why the `$` prefix?
+T uses **Non-Standard Evaluation (NSE)** to make data manipulation concise. The `$` prefix (e.g., `filter($age > 30)`) identifies column names or variables in the data context, similar to `rlang` in R but built directly into the language syntax for clarity.
 
-**Advanced usage**: Understanding Nix helps with:
-- Custom dependency management
-- Performance tuning
-- Troubleshooting build issues
+### How are missing values (NA) handled?
+T takes a strict approach to safety. Unlike other languages where `NA` might propagate silently, T requires explicit handling. 
+- Aggregation functions will **throw an error** if they encounter an `NA` unless you pass `na_rm = true`.
+- Native types like `na_int()`, `na_float()`, and `na_string()` ensure type-safe missingness.
 
-### Can I use T without Nix?
-
-**Technically yes**, but you lose reproducibility guarantees. You'd need to:
-- Manually install OCaml, Dune, Menhir, Arrow
-- Manage version compatibility yourself
-- Accept platform-specific differences
-
-**We strongly recommend using Nix.**
-
-### Does T work on Windows?
-
-**Yes**, via **WSL2** (Windows Subsystem for Linux):
-1. Install WSL2
-2. Install Nix inside WSL2
-3. Follow standard installation steps
-
-**Native Windows support** is not planned for alpha.
-
-### How much disk space does T require?
-
-- **Nix store**: ~2-3 GB (one-time download)
-- **T repository**: ~50 MB
-- **Build artifacts**: ~100 MB
-
-Total: ~2.5 GB for first install (cached for future use).
+### Does T have loops or mutable state?
+**No.** T is a pure functional language. 
+- Instead of `for` or `while` loops, use `map()`, `filter()`, or **recursion**.
+- Variables are immutable. This prevents the "spaghetti state" common in long data scripts.
 
 ---
 
-## Language Features
+## Pipelines & Reproducibility
 
-### Does T have static types?
+### Why are Pipelines mandatory?
+For non-interactive work, T enforces a `pipeline` block. This ensures that every step of your analysis is declared as a node in a graph. This architecture:
+1. Prevents order-of-execution bugs (scripts that only work if run in a specific sequence).
+2. Enables **automatic parallelization** of independent nodes.
+3. Allows for advanced graph operations like `swap()`, `rewire()`, and `upstream_of()`.
 
-**No.** T is dynamically typed (runtime type checking).
+### Do I need to know Nix?
+Not for basic work. Running `nix develop` sets up your entire environment. However, T's power comes from Nix—it handles your OCaml, R, Python, and system dependencies in a single, pinned `flake.lock`.
 
-**Rationale**: For alpha, dynamic typing matches exploratory REPL workflow. Static typing may come in future versions.
+### What operating systems are supported?
+- **Linux**: Full **native support** on all modern distributions.
+- **macOS**: Full **native support** via the Nix installer (Intel and Apple Silicon).
+- **Windows**: Fully supported via **WSL2** (Windows Subsystem for Linux).
+- **Docker**: T can build its own Docker images using Nix, making deployment to the cloud seamless.
 
-### Can I write loops?
+---
 
-**No explicit loops.** Use functional patterns:
+## Data Manipulation & Features
 
+### What libraries are included?
+The T standard library includes:
+- **`colcraft`**: A powerful suite of verbs (`mutate`, `summarize`, `pivot_longer`) following `tidyverse` semantics.
+- **`chrono`**: Precise date and time manipulation with calendar-aware rounding.
+- **`factors`**: Native Arrow-backed categorical data handling.
+
+### How do I program with column names?
+If you're building a reusable function that takes a column name as an argument, T provides first-class support for **Metaprogramming**:
+- Use `enquo(col)` to capture the argument.
+- Use `!!` (unquote) to inject it into a verb.
+- Use `!!name := value` for dynamic column naming.
+
+Example:
 ```t
--- Instead of for loop, use map
-numbers = [1, 2, 3, 4, 5]
-squared = map(numbers, \(x) x * x)
-
--- Instead of while loop, use recursion
-factorial = \(n)
-  if (n <= 1) 1 else n * factorial(n - 1)
+my_avg = \(df, col, name)
+  df |> summarize(!!name := mean(!!col))
 ```
 
-### Can I define custom types?
-
-**Not in alpha.** You can use:
-- Lists and dictionaries for structured data
-- Functions for behavior
-- DataFrames for tabular data
-
-**Future**: User-defined types and pattern matching.
-
-### Does T support object-oriented programming?
-
-**No.** T is functional. Use:
-- Functions for behavior
-- Dictionaries for data encapsulation
-- Closures for state
-
-### Can I import external libraries?
-
-**Not yet.** Alpha has a fixed standard library. 
-
-**Future**: Package system for user-contributed libraries.
-
----
-
-## Data Analysis
-
-### Can T replace R for my workflow?
-
-**It depends.**
-
-**T is good for**:
-- Descriptive statistics
-- Data cleaning and transformation
-- Simple linear regression
-- Reproducible pipelines
-
-**T is not (yet) good for**:
-- Advanced statistical models
-- Machine learning
-- Complex visualizations
-- Domain-specific packages (bioinformatics, finance)
-
-**Strategy**: Use T for data preparation, export to CSV, use R/Python for specialized analysis.
-
-### How do I visualize data in T?
-
-**Alpha has no visualization.**
-
-**Workaround**: Export to CSV, visualize in R/Python:
-
-```t
--- In T
-result = df |> group_by("category") |> summarize("count", nrow)
-write_csv(result, "plot_data.csv")
-
-# In R
-library(ggplot2)
-data <- read.csv("plot_data.csv")
-ggplot(data, aes(x = category, y = count)) + geom_bar(stat = "identity")
-```
-
-**Future**: Native plotting via Arrow integration.
-
-### Can I read Parquet/Excel/databases?
-
-**Alpha**: Only CSV via `read_csv()`
-
-**Future** (planned):
-- Parquet (via Arrow)
-- Excel (via external library)
-- Databases (SQL integration)
-
-**Workaround**: Convert to CSV first:
-```python
-# In Python
-import pandas as pd
-df = pd.read_parquet("data.parquet")
-df.to_csv("data.csv", index=False)
-
-# In T
-df = read_csv("data.csv")
-```
-
-### How do I join DataFrames?
-
-**Alpha has no built-in join.**
-
-**Workaround**: Manual matching with filters and maps (inefficient) or use R/Python:
-
-```python
-# In Python/Pandas
-import pandas as pd
-a = pd.read_csv("a.csv")
-b = pd.read_csv("b.csv")
-merged = a.merge(b, on="id")
-merged.to_csv("merged.csv", index=False)
-
-# In T
-result = read_csv("merged.csv")
-```
-
-**Future**: `str_join()` function with multiple strategies.
-
----
-
-## Performance
-
-### Is T slow?
-
-**For alpha, yes.** T uses a tree-walking interpreter (slow but simple).
-
-**Benchmarks** (preliminary):
-- 10k row filter: ~10ms
-- 10k row group-by-summarize: ~50ms
-- Linear regression (1k points): ~20ms
-
-**Future optimizations**:
-- Bytecode compilation
-- JIT for hot paths
-- More Arrow compute kernels
+### How do I visualize data?
+For simple reports, you can use T's built-in **`colcraft`** verbs to summarize data and output it via **Quarto**. While T does not currently have its own native plotting library, its high-fidelity interop with R and Python makes it trivial to define a specialized node for more complex charts using `ggplot2`, `matplotlib`, or `seaborn`.
 
 ### Can T handle large datasets?
-
-**It depends.**
-
-**Comfortable**: Up to ~1 million rows
-**Possible**: Up to ~10 million rows (slow)
-**Not recommended**: >10 million rows
-
-**For large data**: Use Pandas/Polars for ETL, T for final analysis.
-
-### Will T get faster?
-
-**Yes.** Roadmap includes:
-- Bytecode VM
-- Lazy evaluation for pipelines
-- GPU support (via Arrow Compute)
+**Yes.** T's native Arrow backend allows it to perform `select`, `filter`, and `sort` operations directly on Arrow tables in memory. 
+- **Optimized Compute**: T's built-in compute engine handles millions of rows by interacting directly with Arrow memory buffers.
+- **Orchestration**: For massive datasets, you can leverage T to orchestrate R's `dtplyr` or Python's `polars` nodes. The results are passed back via Arrow serialization, maintaining high fidelity.
 
 ---
 
-## Reproducibility
+## Developer Experience
 
-### How does Nix ensure reproducibility?
+### Is there an LSP or VS Code support?
+Yes! The T Language Server (`t-lsp`) provides:
+- **Autocompletion**: For functions, variables, and even **DataFrame column names**.
+- **Hover Docs**: View docstrings directly in your editor.
+- **Diagnostics**: Real-time syntax and type error reporting.
 
-Nix uses **content-addressed storage**: Every dependency is identified by a cryptographic hash of its build inputs. Same hash → identical binary, guaranteed.
+### What about the REPL?
+The T REPL is designed for productivity:
+- **Ghost Hints**: Inline suggestions based on your command history.
+- **Signal Safety**: Hit `Ctrl+C` to cancel a long-running calculation without crashing the session.
+- **Multi-line Detection**: Automatic detection of nested blocks for easy copy-pasting.
 
-**flake.lock** pins exact hashes, so the same code always uses the same dependencies.
-
-### Can I reproduce analyses from years ago?
-
-**Yes**, if you have:
-1. Source code
-2. `flake.lock` file
-3. Nix installed
-
-Even if packages have been updated or removed from repositories, Nix can rebuild from source using pinned versions.
-
-### Do I need to commit data files?
-
-**Ideally, yes** (or use data versioning like DVC).
-
-**Alternatives**:
-- Store data in external archive (Zenodo, OSF)
-- Include download script in project
-- Document exact data source and version
+### Can I write Literate Programming reports?
+Absolutely. T integrates with **Quarto** through a native extension. You can write `.qmd` files where code chunks are written in **pure T**, allowing you to summarize data and generate professional reports without ever needing R or Python. For advanced charting or low-level file processing, you can mix T chunks with R, Python, or **Shell** (using the `shn()` function) in the same document.
 
 ---
 
-## LLM Collaboration
+## Community & Contributing
 
-### Can I use T without LLMs?
+### How can I help?
+T is an open-source project. You can contribute by:
+- Porting R/Python utility functions to native T.
+- Improving the `t-lsp` implementation.
+- Reporting bugs or suggesting features on [GitHub](https://github.com/b-rodrigues/tlang/issues).
 
-**Yes!** Intent blocks are optional. They're useful for:
-- Documentation
-- Team communication
-- Future regeneration
-
-You can write pure T code without any intent blocks.
-
-### What LLMs work with T?
-
-T's design is **LLM-agnostic**. Any LLM can:
-- Parse intent blocks
-- Generate T code
-- Follow pipeline structure
-
-**Tested with**: GPT-4, Claude, open-source models.
-
-### Do I need an LLM to learn T?
-
-**No.** T is a normal programming language. Intent blocks are just structured comments.
+### What's next on the roadmap?
+The developer (Bruno Rodrigues) works on T based on community interest and experimental whims. High-priority items include **Julia integration** and expanding the native Arrow compute engine.
 
 ---
 
-## Troubleshooting
-
-### Build fails with "command not found: nix"
-
-**Solution**: Install Nix first (see [Installation Guide](installation.md)).
-
-### Tests fail on macOS vs Linux
-
-**Possible causes**:
-- Floating-point precision differences (acceptable if small)
-- Platform-specific Arrow behavior
-
-**Solution**: Check if differences are significant. Small numerical differences (<1e-6) are acceptable.
-
-### REPL crashes on large datasets
-
-**Workaround**: 
-- Process data in chunks
-- Use filters to reduce size early
-- Export intermediate results
-
-**Future**: Lazy evaluation will help.
-
----
-
-## Contributing
-
-### How can I contribute?
-
-See [Contributing Guide](contributing.md) for:
-- Bug reports
-- Feature requests
-- Code contributions
-- Documentation improvements
-
-### I found a bug. What should I do?
-
-1. Check if it's already reported in [GitHub Issues](https://github.com/b-rodrigues/tlang/issues)
-2. If not, create a new issue with:
-   - Clear title
-   - Steps to reproduce
-   - Expected vs actual behavior
-   - Environment details
-
-### Can I add a new standard library function?
-
-**Yes!** See [Development Guide](development.md) for:
-- Adding functions to packages
-- Writing tests
-- Updating documentation
-
----
-
-## Future Plans
-
-### What's the roadmap?
-
-**Alpha (current)**: Core language, basic data analysis
-**Beta**: Performance improvements, more functions
-**1.0**: Production-ready, stable API
-
-See [Changelog](changelog.md) for details.
-
-### Will T support [feature X]?
-
-Check [GitHub Issues](https://github.com/b-rodrigues/tlang/issues) or ask in Discussions.
-
-### When will T be production-ready?
-
-**No specific date.** T prioritizes correctness and design over speed.
-
-**Estimate**: Beta in 6-12 months, 1.0 in 1-2 years.
-
----
-
-## Philosophy
-
-### Why create a new language instead of improving R/Python?
-
-T explores **language-level reproducibility** and **LLM-native design** — concepts hard to retrofit into existing languages.
-
-**Goal**: Learn what works, potentially influence mainstream languages.
-
-### Why functional instead of imperative?
-
-**Functional style**:
-- Easier to reason about (no hidden state)
-- Composable (pipelines)
-- Easier for LLMs to generate (pure functions)
-
-### Is T research or practical?
-
-**Both.** T is:
-- **Research**: Exploring reproducibility and LLM collaboration
-- **Practical**: Usable for real data analysis (with caveats)
-
----
-
-## Getting Help
-
-### Where can I ask questions?
-
-- **GitHub Issues**: Bug reports
-- **GitHub Discussions**: General questions, ideas
-- **Documentation**: Comprehensive guides
-
-### I'm stuck. Who can help?
-
-1. Check [Troubleshooting Guide](troubleshooting.md)
-2. Search [GitHub Issues](https://github.com/b-rodrigues/tlang/issues)
-3. Ask in GitHub Discussions
-4. Read [Getting Started](getting-started.md)
-
----
-
-**More Questions?** Open a [GitHub Discussion](https://github.com/b-rodrigues/tlang/discussions)!
+> [!TIP]
+> **Need help?** Check out the [Getting Started](getting-started.md) guide or join the [GitHub Discussions](https://github.com/b-rodrigues/tlang/discussions).
