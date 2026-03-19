@@ -41,31 +41,57 @@
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node. This function is typically used
 directly within a <code>pipeline { ... }</code> block to wrap
-expressions and enable cross-runtime evaluation.</p>
+expressions, enable cross-runtime evaluation, run shell/CLI steps, and
+optionally render a <code>.qmd</code> document via
+<code>runtime = Quarto</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>command</strong> (<code>Any</code>): (Optional) The
+<li><p><strong>command</strong> (<code>Any</code>): (Optional) The
 expression to evaluate inside the node. Mutually exclusive with
-<code>script</code>.</li>
-<li><strong>script</strong> (<code>String</code>): (Optional) Path to an
-external <code>.R</code> or <code>.py</code> file to execute as the node
-body. Mutually exclusive with <code>command</code>. The runtime is
-auto-detected from the file extension when not explicitly provided.</li>
-<li><strong>runtime</strong> (<code>Symbol</code>): (Optional) The
-runtime environment (T, R, Python). Default = T.</li>
-<li><strong>serializer</strong> (<code>Symbol</code>): (Optional) Custom
-serializer function. Default = default.</li>
-<li><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
-Custom deserializer function. Default = default.</li>
-<li><strong>functions</strong> (<code>String</code>): | List[String]
-(Optional) Files to source before execution.</li>
-<li><strong>include</strong> (<code>String</code>): | List[String]
-(Optional) Additional files for the sandbox.</li>
-<li><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
-skip execution and generate a stub. Default = false.</li>
+<code>script</code>.</p></li>
+<li><p><strong>script</strong> (<code>String</code>): (Optional) Path to
+an external <code>.R</code>, <code>.py</code>, <code>.sh</code>, or
+<code>.qmd</code> file to execute as the node body. Mutually exclusive
+with <code>command</code>. The runtime is auto-detected from the file
+extension when not explicitly provided.</p></li>
+<li><p><strong>runtime</strong> (<code>Symbol</code>): (Optional) The
+runtime environment (<code>T</code>, <code>R</code>,
+<code>Python</code>, <code>sh</code>, or <code>Quarto</code>). Default =
+<code>T</code>.</p></li>
+<li><p><strong>serializer</strong> (<code>Symbol</code>): (Optional)
+Custom serializer function. Default = default.</p></li>
+<li><p><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
+Custom deserializer function. Default = default.</p></li>
+<li><p><strong>args</strong> (<code>Dict | List</code>): (Optional)
+Runtime/tool arguments. For <code>runtime = sh</code>, a list becomes
+positional CLI arguments and a dict becomes named runtime metadata. For
+Quarto, use this to pass CLI arguments such as <code>subcommand</code>,
+<code>path</code>, and additional options. <code>output_dir</code> is
+reserved and managed automatically so the rendered result is stored as
+the node artifact.</p></li>
+<li><p><strong>shell</strong> (<code>String</code>): (Optional) Shell
+interpreter for <code>runtime = sh</code>. Defaults to <code>sh</code>,
+but you can set <code>shell = "bash"</code> when you need Bash
+parsing.</p></li>
+<li><p><strong>shell_args</strong> (<code>List[String]</code>):
+(Optional) Extra arguments passed to the shell interpreter, such as
+<code>["-lc"]</code>.</p></li>
+<li><p><strong>functions</strong> (<code>String</code>): | List[String]
+(Optional) Files to source before execution.</p></li>
+<li><p><strong>include</strong> (<code>String</code>): | List[String]
+(Optional) Additional files for the sandbox.</p></li>
+<li><p><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
+skip execution and generate a stub. Default = false.</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: The evaluated return value of the command.</p>
+<h2 id="returns">Returns</h2>
+<p>The evaluated return value of the command.</p>
+<h2 id="notes">Notes</h2>
+<ul>
+<li><code>shn(...)</code> is a convenience wrapper for
+<code>node(runtime = sh, ...)</code>.</li>
+<li>Shell nodes default to <code>serializer = text</code>, making them a
+good fit for reports and CLI output.</li>
+</ul>
 <footer>
     <hr class="footer-hr">
     <center>

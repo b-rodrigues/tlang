@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - arrow</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="container">
+    <nav style="text-align: center; margin-bottom: 2rem;">
+        <a href="index.html">Home</a> |
+        <a href="getting-started.html">Get Started</a> |
+        <a href="language_overview.html">Overview</a> |
+        <a href="api-reference.html">API Docs</a> |
+        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+    </nav>
+<header id="title-block-header">
+<h1 class="title">T Programming Language - arrow</h1>
+</header>
+<h1 id="arrow-ingestion-strategy">Arrow Ingestion Strategy</h1>
+<p>T prioritizes high-performance data ingestion by leveraging native
+Apache Arrow and Parquet readers. This document outlines how T handles
+different formats and its “Native-First” philosophy.</p>
+<h2 id="native-first-csv-ingestion">Native-First CSV Ingestion</h2>
+<p>T uses a fast, native path for reading CSV files when they follow
+standard conventions. This path utilize the <code>GArrowCSVReader</code>
+from the Arrow C GLib library, which is significantly faster and more
+memory-efficient than pure OCaml parsers for large datasets.</p>
+<h3 id="native-path-activation">Native Path Activation</h3>
+<p>The native Arrow CSV reader is used automatically when calling
+<code>read_csv()</code> with its default parameters: - Comma separator
+(<code>,</code>) - No skipping of header or lines - No automatic column
+name cleaning</p>
+<p>If any non-default options are provided (e.g.,
+<code>separator = ";"</code>, <code>skip_lines = 5</code>), T falls back
+to a pure OCaml CSV parser. This ensure full compatibility with complex
+CSV formats while providing maximum speed for standard ones.</p>
+<h3 id="null-value-handling-na">NULL Value Handling (NA)</h3>
+<p>The native reader is configured to recognize the following strings as
+<code>NA</code> (null values): - <code>NA</code> - <code>na</code> -
+<code>N/A</code> - Empty fields</p>
+<p>This ensures consistency between the native reader and the OCaml
+fallback parser.</p>
+<h2 id="parquet-support">Parquet Support</h2>
+<p>T provides first-class support for Parquet files via
+<code>read_parquet()</code>. Parquet is the recommended format for
+large-scale data in T because: - It is a binary, columnar format with
+built-in compression. - Type information is preserved, avoiding the
+overhead of type inference. - Native ingestion via
+<code>parquet-glib</code> is faster than CSV reading. - It supports
+zero-copy loading of large datasets into memory.</p>
+<h2 id="technical-fallbacks">Technical Fallbacks</h2>
+<p>If the native Arrow reader fails for any reason (e.g., malformed
+file, unsupported encoding), T provides a robust fallback mechanism:</p>
+<ol type="1">
+<li><strong>Native Attempt</strong>: Try reading using
+<code>GArrowCSVReader</code>.</li>
+<li><strong>Warning</strong>: If native reading fails, a warning is
+printed to stderr.</li>
+<li><strong>OCaml Fallback</strong>: The file is re-read using a pure
+OCaml parser. Note that this fallback is more memory-intensive and may
+encounter <code>Out_of_memory</code> errors for files larger than a few
+gigabytes on systems with limited RAM.</li>
+</ol>
+<h2 id="recommendations-for-large-data">Recommendations for Large
+Data</h2>
+<p>For datasets exceeding 2-3 GB: 1. <strong>Prefer Parquet</strong>:
+Convert your CSVs to Parquet using R (<code>arrow::write_parquet</code>)
+or Python (<code>pandas.to_parquet</code>) before reading them into T.
+2. <strong>Use Standard CSVs</strong>: If you must use CSV, ensure it
+uses the default comma separator and has no leading comment lines to
+stay on the high-performance native path. 3. <strong>Memory
+Limits</strong>: The pure OCaml fallback path is limited by OCaml’s heap
+and string size limits (on 64-bit systems this is large, but still less
+efficient than Arrow’s memory mapping).</p>
+<footer>
+    <hr class="footer-hr">
+    <center>
+        Best viewed with a sense of curiosity.<br>
+        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+    </center>
+</footer>
+</div>
+</body>
+</html>

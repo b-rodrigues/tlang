@@ -29,12 +29,20 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
    ```
 2. Any `.t` file will now automatically open in `t-mode`.
 
-### VS Code
+### VS Code / Positron
 
-1. Copy the `editors/vscode/t-lang` folder to your VS Code extensions directory:
-   - **Linux/macOS**: `~/.vscode/extensions/`
-   - **Windows**: `%USERPROFILE%\.vscode\extensions\`
-2. Restart VS Code.
+1. Download `editors/vscode/t-lang-0.2.0.vsix` from the repository (or clone the repo).
+
+2. Install the extension:
+   ```bash
+   code --install-extension editors/vscode/t-lang-0.2.0.vsix
+   ```
+
+3. Restart VS Code or Positron.
+
+> **Building from source**: If you prefer to build the extension yourself,
+> see [editors/README.md](../editors/README.md) for instructions.
+
 
 ### Quarto
 

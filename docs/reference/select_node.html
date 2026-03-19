@@ -46,13 +46,14 @@ does not return a Pipeline. Available fields: <code>$name</code>,
 <code>$depth</code>, <code>$command_type</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-inspect.</li>
-<li><strong>…</strong> (<code>Symbol</code>): One or more metadata field
-references (e.g. <code>$name</code>, <code>$runtime</code>).</li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
+inspect.</p></li>
+<li><p><strong>…</strong> (<code>Symbol</code>): One or more metadata
+field references (e.g. <code>$name</code>,
+<code>$runtime</code>).</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A DataFrame with the requested metadata columns.</p>
+<h2 id="returns">Returns</h2>
+<p>A DataFrame with the requested metadata columns.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p |&gt; select_node($name, $runtime, $deps)
 p |&gt; select_node($name, $depth, $noop)</code></pre>

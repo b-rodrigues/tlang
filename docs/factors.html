@@ -7,7 +7,20 @@
   <title>T Programming Language - factors</title>
   <style>
     code{white-space: pre-wrap;}
-    div.sourceCode{overflow: auto;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
   </style>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -23,15 +36,21 @@
 <header id="title-block-header">
 <h1 class="title">T Programming Language - factors</h1>
 </header>
-<h1 id="factors-and-fct_-helpers-in-t">Factors and <code>fct_*</code> Helpers in T</h1>
-<p>This guide explains how factors work in T, when to use <code>factor()</code> versus <code>fct()</code>, and how the <code>fct_*</code> family helps you reorder, relabel, and combine categorical data.</p>
+<h1 id="factors-and-fct_-helpers-in-t">Factors and <code>fct_*</code>
+Helpers in T</h1>
+<p>This guide explains how factors work in T, when to use
+<code>factor()</code> versus <code>fct()</code>, and how the
+<code>fct_*</code> family helps you reorder, relabel, and combine
+categorical data.</p>
 <hr />
 <h2 id="the-basic-idea">The Basic Idea</h2>
 <p>A factor is categorical data with an explicit list of levels.</p>
-<p>That level list matters because operations such as <code>arrange()</code> use the level order instead of alphabetical order.</p>
-<pre><code>sizes = factor(["medium", "small", "large"], levels = ["small", "medium", "large"])
+<p>That level list matters because operations such as
+<code>arrange()</code> use the level order instead of alphabetical
+order.</p>
+<pre class="t"><code>sizes = factor([&quot;medium&quot;, &quot;small&quot;, &quot;large&quot;], levels = [&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;])
 levels(sizes)
--- ["small", "medium", "large"]</code></pre>
+-- [&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;]</code></pre>
 <p>This makes factors useful for ordered categories such as:</p>
 <ul>
 <li>shirt sizes,</li>
@@ -41,93 +60,119 @@ levels(sizes)
 </ul>
 <hr />
 <h2 id="creating-factors">Creating Factors</h2>
-<h3 id="factor-—-explicit-categorical-levels"><code>factor()</code> — explicit categorical levels</h3>
-<p>Use <code>factor()</code> when you want to control the level order yourself.</p>
-<pre><code>priority = factor(
-  ["medium", "low", "high", "medium"],
-  levels = ["low", "medium", "high"]
+<h3 id="factor-explicit-categorical-levels"><code>factor()</code> —
+explicit categorical levels</h3>
+<p>Use <code>factor()</code> when you want to control the level order
+yourself.</p>
+<pre class="t"><code>priority = factor(
+  [&quot;medium&quot;, &quot;low&quot;, &quot;high&quot;, &quot;medium&quot;],
+  levels = [&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;]
 )</code></pre>
-<p>If you do not provide <code>levels</code>, <code>factor()</code> derives them from the data.</p>
-<h3 id="fct-—-levels-follow-first-appearance"><code>fct()</code> — levels follow first appearance</h3>
-<p>Use <code>fct()</code> when you want levels to keep the order in which values first appear.</p>
-<pre><code>status = fct(["new", "in_progress", "done", "new"])
+<p>If you do not provide <code>levels</code>, <code>factor()</code>
+derives them from the data.</p>
+<h3 id="fct-levels-follow-first-appearance"><code>fct()</code> — levels
+follow first appearance</h3>
+<p>Use <code>fct()</code> when you want levels to keep the order in
+which values first appear.</p>
+<pre class="t"><code>status = fct([&quot;new&quot;, &quot;in_progress&quot;, &quot;done&quot;, &quot;new&quot;])
 levels(status)
--- ["new", "in_progress", "done"]</code></pre>
-<h3 id="as_factor-—-coerce-existing-values"><code>as_factor()</code> — coerce existing values</h3>
-<p><code>as_factor()</code> is the convenient coercion form for turning an existing vector or column into factor data.</p>
-<pre><code>df |&gt; mutate($segment = as_factor($segment))</code></pre>
-<h3 id="ordered-—-ordered-factors"><code>ordered()</code> — ordered factors</h3>
-<p>Use <code>ordered()</code> when the order is meaningful and should be preserved as an ordered factor.</p>
-<pre><code>ratings = ordered(
-  ["bad", "ok", "great"],
-  levels = ["bad", "ok", "great"]
+-- [&quot;new&quot;, &quot;in_progress&quot;, &quot;done&quot;]</code></pre>
+<h3 id="as_factor-coerce-existing-values"><code>as_factor()</code> —
+coerce existing values</h3>
+<p><code>as_factor()</code> is the convenient coercion form for turning
+an existing vector or column into factor data.</p>
+<pre class="t"><code>df |&gt; mutate($segment = as_factor($segment))</code></pre>
+<h3 id="ordered-ordered-factors"><code>ordered()</code> — ordered
+factors</h3>
+<p>Use <code>ordered()</code> when the order is meaningful and should be
+preserved as an ordered factor.</p>
+<pre class="t"><code>ratings = ordered(
+  [&quot;bad&quot;, &quot;ok&quot;, &quot;great&quot;],
+  levels = [&quot;bad&quot;, &quot;ok&quot;, &quot;great&quot;]
 )</code></pre>
 <hr />
-<h2 id="why-the-fct_-prefix-exists">Why the <code>fct_*</code> Prefix Exists</h2>
-<p>The <code>fct_*</code> prefix is used for helpers that manipulate factor levels after creation.</p>
-<p>These helpers are analogous to the factor tools popularized by <code>forcats</code> in R:</p>
+<h2 id="why-the-fct_-prefix-exists">Why the <code>fct_*</code> Prefix
+Exists</h2>
+<p>The <code>fct_*</code> prefix is used for helpers that manipulate
+factor levels after creation.</p>
+<p>These helpers are analogous to the factor tools popularized by
+<code>forcats</code> in R:</p>
 <ul>
 <li>they keep the input as factor data,</li>
 <li>they operate on levels or factor ordering,</li>
 <li>and they make factor-specific intent obvious in a pipeline.</li>
 </ul>
 <p>Examples:</p>
-<pre><code>fct_infreq(x)
+<pre class="t"><code>fct_infreq(x)
 fct_rev(x)
-fct_recode(x, LARGE = "large")
+fct_recode(x, LARGE = &quot;large&quot;)
 fct_reorder(x, scores)
 fct_lump_n(x, n = 3)</code></pre>
 <hr />
 <h2 id="core-factor-workflow">Core Factor Workflow</h2>
 <h3 id="inspect-levels">Inspect levels</h3>
-<pre><code>levels(priority)</code></pre>
+<pre class="t"><code>levels(priority)</code></pre>
 <h3 id="reorder-levels-by-frequency">Reorder levels by frequency</h3>
-<pre><code>df |&gt; mutate($segment = fct_infreq($segment))</code></pre>
+<pre class="t"><code>df |&gt; mutate($segment = fct_infreq($segment))</code></pre>
 <h3 id="reverse-the-current-order">Reverse the current order</h3>
-<pre><code>df |&gt; mutate($segment = fct_rev($segment))</code></pre>
+<pre class="t"><code>df |&gt; mutate($segment = fct_rev($segment))</code></pre>
 <h3 id="recode-level-names">Recode level names</h3>
-<pre><code>df |&gt; mutate($segment = fct_recode($segment, ENTERPRISE = "enterprise", SMB = "small_business"))</code></pre>
-<h3 id="reorder-levels-using-another-variable">Reorder levels using another variable</h3>
-<pre><code>df |&gt; mutate($segment = fct_reorder($segment, $revenue))</code></pre>
-<h3 id="move-selected-levels-to-the-front-or-after-a-position">Move selected levels to the front or after a position</h3>
-<pre><code>df |&gt; mutate($segment = fct_relevel($segment, "enterprise", "midmarket"))</code></pre>
-<h3 id="collapse-several-levels-into-broader-groups">Collapse several levels into broader groups</h3>
-<pre><code>df |&gt; mutate($segment = fct_collapse($segment, commercial = ["enterprise", "midmarket"], self_serve = "small_business"))</code></pre>
+<pre class="t"><code>df |&gt; mutate($segment = fct_recode($segment, ENTERPRISE = &quot;enterprise&quot;, SMB = &quot;small_business&quot;))</code></pre>
+<h3 id="reorder-levels-using-another-variable">Reorder levels using
+another variable</h3>
+<pre class="t"><code>df |&gt; mutate($segment = fct_reorder($segment, $revenue))</code></pre>
+<h3 id="move-selected-levels-to-the-front-or-after-a-position">Move
+selected levels to the front or after a position</h3>
+<pre class="t"><code>df |&gt; mutate($segment = fct_relevel($segment, &quot;enterprise&quot;, &quot;midmarket&quot;))</code></pre>
+<h3 id="collapse-several-levels-into-broader-groups">Collapse several
+levels into broader groups</h3>
+<pre class="t"><code>df |&gt; mutate($segment = fct_collapse($segment, commercial = [&quot;enterprise&quot;, &quot;midmarket&quot;], self_serve = &quot;small_business&quot;))</code></pre>
 <hr />
-<h2 id="lumping-and-other">Lumping and "Other"</h2>
-<p>The <code>fct_lump_*</code> helpers keep the most important levels and group the rest into an <code>Other</code> bucket by default.</p>
+<h2 id="lumping-and-other">Lumping and “Other”</h2>
+<p>The <code>fct_lump_*</code> helpers keep the most important levels
+and group the rest into an <code>Other</code> bucket by default.</p>
 <h3 id="keep-the-top-n-levels">Keep the top <code>n</code> levels</h3>
-<pre><code>fct_lump_n($species, n = 2)</code></pre>
-<h3 id="keep-levels-with-at-least-a-minimum-count">Keep levels with at least a minimum count</h3>
-<pre><code>fct_lump_min(fct(["a", "a", "b", "c"]), 2)
-levels(fct_lump_min(fct(["a", "a", "b", "c"]), 2))
--- ["a", "Other"]</code></pre>
-<h3 id="keep-levels-above-a-minimum-proportion">Keep levels above a minimum proportion</h3>
-<pre><code>fct_lump_prop($segment, 0.10)</code></pre>
-<p>You can also set a custom replacement label with <code>other_level = "Misc"</code>.</p>
+<pre class="t"><code>fct_lump_n($species, n = 2)</code></pre>
+<h3 id="keep-levels-with-at-least-a-minimum-count">Keep levels with at
+least a minimum count</h3>
+<pre class="t"><code>fct_lump_min(fct([&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), 2)
+levels(fct_lump_min(fct([&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), 2))
+-- [&quot;a&quot;, &quot;Other&quot;]</code></pre>
+<h3 id="keep-levels-above-a-minimum-proportion">Keep levels above a
+minimum proportion</h3>
+<pre class="t"><code>fct_lump_prop($segment, 0.10)</code></pre>
+<p>You can also set a custom replacement label with
+<code>other_level = "Misc"</code>.</p>
 <hr />
 <h2 id="other-useful-helpers">Other Useful Helpers</h2>
-<h3 id="keep-or-drop-selected-levels-with-fct_other">Keep or drop selected levels with <code>fct_other()</code></h3>
-<pre><code>levels(fct_other(fct(["a", "b", "c"]), keep = ["a"]))
--- ["a", "Other"]</code></pre>
-<h3 id="remove-unused-levels-with-fct_drop">Remove unused levels with <code>fct_drop()</code></h3>
-<pre><code>levels(fct_drop(factor(["a", "b"], levels = ["a", "b", "c"])))
--- ["a", "b"]</code></pre>
-<h3 id="add-levels-without-changing-existing-values-with-fct_expand">Add levels without changing existing values with <code>fct_expand()</code></h3>
-<pre><code>levels(fct_expand(fct(["a"]), "b", "c"))
--- ["a", "b", "c"]</code></pre>
-<h3 id="combine-factors-with-unified-levels-using-fct_c">Combine factors with unified levels using <code>fct_c()</code></h3>
-<pre><code>levels(fct_c(fct(["a"], levels = ["a", "b"]), fct(["c"])))
--- ["a", "b", "c"]</code></pre>
+<h3 id="keep-or-drop-selected-levels-with-fct_other">Keep or drop
+selected levels with <code>fct_other()</code></h3>
+<pre class="t"><code>levels(fct_other(fct([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]), keep = [&quot;a&quot;]))
+-- [&quot;a&quot;, &quot;Other&quot;]</code></pre>
+<h3 id="remove-unused-levels-with-fct_drop">Remove unused levels with
+<code>fct_drop()</code></h3>
+<pre class="t"><code>levels(fct_drop(factor([&quot;a&quot;, &quot;b&quot;], levels = [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;])))
+-- [&quot;a&quot;, &quot;b&quot;]</code></pre>
+<h3 id="add-levels-without-changing-existing-values-with-fct_expand">Add
+levels without changing existing values with
+<code>fct_expand()</code></h3>
+<pre class="t"><code>levels(fct_expand(fct([&quot;a&quot;]), &quot;b&quot;, &quot;c&quot;))
+-- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
+<h3 id="combine-factors-with-unified-levels-using-fct_c">Combine factors
+with unified levels using <code>fct_c()</code></h3>
+<pre class="t"><code>levels(fct_c(fct([&quot;a&quot;], levels = [&quot;a&quot;, &quot;b&quot;]), fct([&quot;c&quot;])))
+-- [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre>
 <hr />
 <h2 id="sorting-with-factors">Sorting with Factors</h2>
 <p>A factor keeps its declared level order during sorting.</p>
-<pre><code>df = crossing(size = ["medium", "small", "large"], id = [1, 2])
+<pre class="t"><code>df = crossing(size = [&quot;medium&quot;, &quot;small&quot;, &quot;large&quot;], id = [1, 2])
 
 df
-  |&gt; mutate($size_fct = factor($size, levels = ["small", "medium", "large"]))
+  |&gt; mutate($size_fct = factor($size, levels = [&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;]))
   |&gt; arrange($size_fct)</code></pre>
-<p>This sorts rows by <code>small</code>, then <code>medium</code>, then <code>large</code>, even though alphabetical order would be different.</p>
+<p>This sorts rows by <code>small</code>, then <code>medium</code>, then
+<code>large</code>, even though alphabetical order would be
+different.</p>
 <hr />
 <h2 id="choosing-the-right-helper">Choosing the Right Helper</h2>
 <p>Use:</p>
@@ -135,13 +180,19 @@ df
 <li><code>factor()</code> when you want explicit levels,</li>
 <li><code>fct()</code> when you want first-appearance order,</li>
 <li><code>as_factor()</code> when coercing an existing column,</li>
-<li><code>ordered()</code> when the factor should be marked as ordered,</li>
+<li><code>ordered()</code> when the factor should be marked as
+ordered,</li>
 <li><code>fct_*</code> helpers when changing levels after creation,</li>
-<li><code>levels()</code> when you need to inspect the current level set.</li>
+<li><code>levels()</code> when you need to inspect the current level
+set.</li>
 </ul>
 <hr />
 <h2 id="package-note">Package Note</h2>
-<p>These factor helpers are currently implemented alongside the data-manipulation verbs in T's <code>colcraft</code> package, but the naming convention is the same idea you would expect from a dedicated factor-toolkit family: factor creation helpers plus <code>fct_*</code> level-manipulation helpers.</p>
+<p>These factor helpers are currently implemented alongside the
+data-manipulation verbs in T’s <code>colcraft</code> package, but the
+naming convention is the same idea you would expect from a dedicated
+factor-toolkit family: factor creation helpers plus <code>fct_*</code>
+level-manipulation helpers.</p>
 <footer>
     <hr class="footer-hr">
     <center>

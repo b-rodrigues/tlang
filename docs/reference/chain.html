@@ -45,13 +45,13 @@ the intentional inter-pipeline wiring) or if no shared names exist
 between the two pipelines.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p1</strong> (<code>Pipeline</code>): The upstream pipeline
-(provides outputs).</li>
-<li><strong>p2</strong> (<code>Pipeline</code>): The downstream pipeline
-(consumes inputs).</li>
+<li><p><strong>p1</strong> (<code>Pipeline</code>): The upstream
+pipeline (provides outputs).</p></li>
+<li><p><strong>p2</strong> (<code>Pipeline</code>): The downstream
+pipeline (consumes inputs).</p></li>
 </ul>
-<h2 id="returns">Returns:</h2>
-<p>Returns: A merged pipeline with p2’s nodes wired to p1’s outputs.</p>
+<h2 id="returns">Returns</h2>
+<p>A merged pipeline with p2’s nodes wired to p1’s outputs.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p_etl |&gt; chain(p_model)</code></pre>
 <h2 id="see-also">See Also</h2>
