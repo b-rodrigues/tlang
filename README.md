@@ -1,7 +1,7 @@
 # T Programming Language
 
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.51.0-orange.svg)](https://tstats-project.org)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.5.1%20%22Sangoku%22-blue.svg)](https://tstats-project.org)
 
 **T** is an experimental, **polyglot-first** language designed for **data orchestration and reproducible analysis**. 
 
