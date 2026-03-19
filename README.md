@@ -1,7 +1,13 @@
 # T Programming Language
 
+# T Programming Language
+
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta%200.5.1%20%22Sangoku%22-blue.svg)](https://tstats-project.org)
+[![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
+[![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
+[![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
+[![OCaml](https://img.shields.io/badge/OCaml-5.x-EC6813.svg?logo=ocaml&logoColor=white)](https://ocaml.org)
 
 **T** is an experimental, **polyglot-first** language designed for **data orchestration and reproducible analysis**. 
 
