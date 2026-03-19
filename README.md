@@ -1,7 +1,7 @@
 # T Programming Language
 
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.51-orange.svg)](https://tstats-project.org)
+[![Status: Alpha](https://img.shields.io/badge/Status-Alpha%200.51.0-orange.svg)](https://tstats-project.org)
 
 **T** is an experimental, **polyglot-first** language designed for **data orchestration and reproducible analysis**. 
 
@@ -115,7 +115,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ## Status & Missing Features
 
-**Alpha 0.51** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
+**Alpha 0.51.0** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
 
 - **dplyr / tidyr**: `filter`, `select`, `mutate`, `summarize`, `pivot_longer`, `pivot_wider`, and more.
 - **lubridate**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc.).

@@ -71,7 +71,7 @@ let default_package_config name = {
   homepage = "";
   repository = "";
   dependencies = [];
-  min_t_version = "0.51";
+  min_t_version = "0.51.0";
   additional_tools = [];
   latex_packages = [];
 }
@@ -84,7 +84,7 @@ let default_project_config name = {
   proj_r_dependencies = [];
   proj_py_dependencies = [];
   proj_py_version = "python314";
-  proj_min_t_version = "0.51";
+  proj_min_t_version = "0.51.0";
   proj_additional_tools = [];
   proj_latex_packages = [];
 }

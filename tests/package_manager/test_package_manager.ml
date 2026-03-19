@@ -79,13 +79,13 @@ license = "MIT"
 [dependencies]
 
 [t]
-min_version = "0.51"
+min_version = "0.51.0"
 |} in
 
   test_pm "parse valid DESCRIPTION.toml" (fun () ->
     match Toml_parser.parse_description_toml basic_toml with
     | Ok cfg -> cfg.name = "test-pkg" && cfg.version = "1.0.0"
-                && cfg.license = "MIT" && cfg.min_t_version = "0.51"
+                && cfg.license = "MIT" && cfg.min_t_version = "0.51.0"
     | Error _ -> false);
 
   test_pm "parse authors list" (fun () ->
@@ -108,10 +108,10 @@ name = "with-deps"
 version = "0.2.0"
 
 [dependencies]
-stats = { git = "https://github.com/t-lang/stats", tag = "v0.51" }
+stats = { git = "https://github.com/t-lang/stats", tag = "v0.51.0" }
 
 [t]
-min_version = "0.51"
+min_version = "0.51.0"
 |} in
 
   test_pm "parse dependencies" (fun () ->
@@ -120,7 +120,7 @@ min_version = "0.51"
       (match cfg.dependencies with
        | [dep] -> dep.dep_name = "stats"
                   && dep.git_url = "https://github.com/t-lang/stats"
-                  && dep.tag = "v0.51"
+                  && dep.tag = "v0.51.0"
        | _ -> false)
     | Error _ -> false);
 
@@ -139,7 +139,7 @@ version = "python310"
 packages = ["pandas"]
 
 [t]
-min_version = "0.51"
+min_version = "0.51.0"
 |} in
 
   test_pm "parse valid tproject.toml" (fun () ->
@@ -311,7 +311,7 @@ description = "Test project"
 stats = { git = "%s", tag = "v0.1.0" }
 
 [t]
-min_version = "0.51"
+min_version = "0.51.0"
 |}
                      repo_dir);
                 let old_cwd = Sys.getcwd () in
@@ -746,8 +746,8 @@ min_version = "0.51"
 
   test_pm "github URL to flake input" (fun () ->
     match Nix_generator.git_url_to_flake_input
-      (make_dep "stats" "https://github.com/t-lang/stats" "v0.51") with
-    | Ok s -> s = "github:t-lang/stats/v0.51"
+      (make_dep "stats" "https://github.com/t-lang/stats" "v0.51.0") with
+    | Ok s -> s = "github:t-lang/stats/v0.51.0"
     | Error _ -> false);
 
   test_pm "gitlab URL to flake input" (fun () ->
@@ -771,12 +771,12 @@ min_version = "0.51"
   test_pm "generate project flake with deps" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51"
-      ~deps:[make_dep "stats" "https://github.com/t-lang/stats" "v0.51"] () in
+      ~t_version:"0.51.0"
+      ~deps:[make_dep "stats" "https://github.com/t-lang/stats" "v0.51.0"] () in
     (* Check key parts are present *)
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
-    has "stats.url = \"github:t-lang/stats/v0.51\";"
+    has "stats.url = \"github:t-lang/stats/v0.51.0\";"
     && has "tPackages"
     && has "stats.packages"
     && has "t-lang.url"
@@ -785,7 +785,7 @@ min_version = "0.51"
   test_pm "generate project flake no deps" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"empty" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51" ~deps:[] () in
+      ~t_version:"0.51.0" ~deps:[] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
     has "t-lang.url" && not (has "tPackages"));
@@ -793,7 +793,7 @@ min_version = "0.51"
   test_pm "generate package flake" (fun () ->
     let flake = Nix_generator.generate_package_flake
       ~package_name:"my-pkg" ~package_version:"0.2.0"
-      ~nixpkgs_date:"2026-02-10" ~t_version:"0.51" ~deps:[] () in
+      ~nixpkgs_date:"2026-02-10" ~t_version:"0.51.0" ~deps:[] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
     has "packages.default" && has "pname = \"t-my-pkg\""
@@ -802,7 +802,7 @@ min_version = "0.51"
   test_pm "generate project flake with additional_tools" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51" ~deps:[]
+      ~t_version:"0.51.0" ~deps:[]
       ~additional_tools:["pandoc"; "jq"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -812,7 +812,7 @@ min_version = "0.51"
   test_pm "generate project flake auto-provisions quarto extension" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51" ~deps:[]
+      ~t_version:"0.51.0" ~deps:[]
       ~additional_tools:["quarto"; "jq"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -827,7 +827,7 @@ min_version = "0.51"
   test_pm "generate project flake with latex_pkgs" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51" ~deps:[]
+      ~t_version:"0.51.0" ~deps:[]
       ~latex_pkgs:["amsmath"; "hyperref"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -837,7 +837,7 @@ min_version = "0.51"
   test_pm "generate package flake with additional_tools and latex_pkgs" (fun () ->
     let flake = Nix_generator.generate_package_flake
       ~package_name:"my-pkg" ~package_version:"0.2.0"
-      ~nixpkgs_date:"2026-02-10" ~t_version:"0.51" ~deps:[]
+      ~nixpkgs_date:"2026-02-10" ~t_version:"0.51.0" ~deps:[]
       ~additional_tools:["pandoc"] ~latex_pkgs:["amsmath"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
@@ -851,7 +851,7 @@ min_version = "0.51"
   test_pm "invalid nix identifiers are rejected from additional_tools" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"test-proj" ~nixpkgs_date:"2026-02-10"
-      ~t_version:"0.51" ~deps:[]
+      ~t_version:"0.51.0" ~deps:[]
       ~warn_invalid_pkg_names:false
       ~additional_tools:["valid-pkg"; "$(evil)"; "valid_pkg2"; "bad pkg"] () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true

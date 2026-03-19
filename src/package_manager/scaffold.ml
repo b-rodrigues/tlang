@@ -27,7 +27,7 @@ let git_init dir =
   if code <> 0 then
     Printf.eprintf "Warning: git init failed (exit code %d)\n" code
 
-let default_tlang_tag = "v0.51"
+let default_tlang_tag = "v0.51.0"
 
 (* Strip the "v" prefix from a tag to get a plain version number. *)
 let strip_v_prefix tag =
@@ -359,7 +359,7 @@ description = "A T data analysis project"
 # T packages this project depends on
 # Format: package = { git = "repository-url", tag = "version" }
 # Example:
-# stats = { git = "https://github.com/t-lang/stats", tag = "v0.51" }
+# stats = { git = "https://github.com/t-lang/stats", tag = "v0.51.0" }
 
 [r-dependencies]
 # R packages this project depends on
