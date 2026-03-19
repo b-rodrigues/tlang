@@ -463,9 +463,9 @@ let cmd_repl mode env =
   | Some nix_version ->
       Printf.printf "T, a reproducibility-first programming language for declarative\n";
       Printf.printf "data manipulation and statistical analysis.\n";
-      Printf.printf "Version %s using Nix %s\n" version nix_version;
+      Printf.printf "Version %s \"%s\" using Nix %s\n" version "Sangoku" nix_version;
       Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
-      Printf.printf "This software is in alpha and is entirely LLM-generated — caveat emptor.\n";
+      Printf.printf "This software is in beta and is entirely LLM-generated — caveat emptor.\n";
       Printf.printf "Website: https://tstats-project.org\n";
       Printf.printf "Contributions are welcome!\n";
       Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
