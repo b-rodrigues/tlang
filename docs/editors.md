@@ -8,6 +8,8 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
 
 ### Vim / Neovim
 
+You’ll find the required files [here](https://github.com/b-rodrigues/tlang/tree/main/editors/vim):
+
 1. Copy the ftdetect file:
    ```bash
    mkdir -p ~/.vim/ftdetect
@@ -22,7 +24,7 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
 
 ### Emacs
 
-1. Add the `emacs/` directory to your `load-path` in `init.el`:
+1. Add the `emacs/` [directory found here](https://github.com/b-rodrigues/tlang/tree/main/editors/emacs) to your `load-path` in `init.el`:
    ```elisp
    (add-to-list 'load-path "/path/to/tlang/editors/emacs")
    (require 't-mode)
@@ -31,7 +33,7 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
 
 ### VS Code
 
-1. Copy the `editors/vscode/t-lang` folder to your VS Code extensions directory:
+1. Copy the `editors/vscode/t-lang` [folder found here](https://github.com/b-rodrigues/tlang/tree/main/editors/vscode/t-lang) to your VS Code extensions directory:
    - **Linux/macOS**: `~/.vscode/extensions/`
    - **Windows**: `%USERPROFILE%\.vscode\extensions\`
 2. Restart VS Code.
