@@ -108,20 +108,18 @@ project, and understand the basic layout of a T workspace.</p>
 <p>T requires the <strong>Nix package manager</strong> with flakes
 enabled. Nix ensures that your T environment is perfectly reproducible
 across Linux and macOS.</p>
-<p>If you don’t have Nix installed:</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install Nix with flakes enabled</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sh</span> <span class="op">&lt;(</span><span class="ex">curl</span> <span class="at">-L</span> https://nixos.org/nix/install<span class="op">)</span> <span class="at">--daemon</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable flakes (add to ~/.config/nix/nix.conf)</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.config/nix</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;experimental-features = nix-command flakes&quot;</span> <span class="op">&gt;&gt;</span> ~/.config/nix/nix.conf</span></code></pre></div>
+<p>We strongly recommend installing Nix using the <a
+href="https://install.determinate.systems/nix">Determinate Systems Nix
+Installer</a>. For detailed, platform-specific steps, please see
+our:</p>
+<p>👉 <strong><a href="nix-installation.html">Nix Installation
+Guide</a></strong></p>
 <h2 id="running-t">Running T</h2>
 <p>As a user, you don’t need to clone the repository or build the
 compiler from source! You can run the T shell directly from GitHub using
 Nix:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> shell github:b-rodrigues/tlang</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> shell github:b-rodrigues/tlang</span></code></pre></div>
 <p>This command will download the T executable, fetch all required
 dependencies, and drop you into a shell where the <code>t</code> command
 is available.</p>
@@ -134,8 +132,8 @@ libraries to share with others.</p>
 <h3 id="creating-a-project">Creating a Project</h3>
 <p>To start a new data analysis project, navigate to your desired folder
 and run:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init project</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init project</span></code></pre></div>
 <p>The interactive wizard will ask for a project name (e.g.,
 <code>my_analysis</code>) and generate a reproducible workspace. The
 resulting tree layout will look like this:</p>
@@ -149,8 +147,8 @@ resulting tree layout will look like this:</p>
 <h3 id="creating-a-package">Creating a Package</h3>
 <p>If you want to create a reusable library of T functions, initialize a
 package instead:</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init package</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init package</span></code></pre></div>
 <p>The tree layout for a package is structured for development and
 testing:</p>
 <pre class="text"><code>my_package/
@@ -163,11 +161,11 @@ testing:</p>
 <h2 id="running-your-code">Running Your Code</h2>
 <p>Inside your project or package directory, you can start the
 interactive REPL to explore your data:</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> repl</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> repl</span></code></pre></div>
 <p>To execute a script from end-to-end, use:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run scripts/main.t</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run scripts/main.t</span></code></pre></div>
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you have your first project set up and understand the folder
 structure, you are ready to explore the language features and build
@@ -188,5 +186,36 @@ Development</a></strong> — Dive deeper into managing your
     <p>Best viewed with a sense of curiosity.</p>
     <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
 </footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
 </body>
 </html>

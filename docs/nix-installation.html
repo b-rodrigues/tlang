@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - nix-installation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language - nix-installation</h1>
+</header>
+<h1 id="installing-nix-for-t">Installing Nix for T</h1>
+<p>T is a <strong>reproducibility-first</strong> language, and it
+achieves this by making the <strong>Nix package manager</strong>
+mandatory. Nix ensures that your T environment—including the compiler,
+libraries, and even your R or Python dependencies—remains consistent
+across machines and over time.</p>
+<p>This guide explains how to install Nix on your system using the
+<strong>Determinate Systems</strong> installer, which we recommend for
+its ease of use and robust uninstallation capabilities.</p>
+<h2 id="introduction">Introduction</h2>
+<p>Nix is a powerful package manager for Linux and macOS. While it might
+seem complex at first, its integration with T means you don’t have to
+manage environments manually. T handles the “magic,” but you need the
+“engine” (Nix) installed first.</p>
+<h2 id="recommended-installer-determinate-systems">Recommended
+Installer: Determinate Systems</h2>
+<p>We recommend the <a
+href="https://determinate.systems/posts/determinate-nix-installer">Determinate
+Systems Nix Installer</a> for all supported operating systems. It is
+modern, handles multi-user setups cleanly, and is easy to uninstall if
+needed.</p>
+<h3 id="installation-command">Installation Command</h3>
+<p>Open your terminal and run:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--proto</span> <span class="st">&#39;=https&#39;</span> <span class="at">--tlsv1.2</span> <span class="at">-sSf</span> <span class="dt">\</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-L</span> https://install.determinate.systems/nix <span class="kw">|</span> <span class="dt">\</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>     <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install</span></code></pre></div>
+<hr />
+<h2 id="operating-system-specific-notes">Operating System Specific
+Notes</h2>
+<h3 id="linux">Linux</h3>
+<p>The command above works on most modern Linux distributions (Ubuntu,
+Fedora, Debian, Arch, etc.).</p>
+<blockquote>
+<p>[!TIP] <strong>Disk Space</strong>: Nix stores everything in
+<code>/nix</code>. If your root partition is small, you might want to
+mount <code>/nix</code> on a larger partition.</p>
+</blockquote>
+<h3 id="macos">macOS</h3>
+<p>Nix on macOS is highly efficient but has some platform-specific
+nuances:</p>
+<ul>
+<li><strong>SDK Drift</strong>: On macOS, Nix builds might occasionally
+depend on the macOS SDK from Xcode. While Nix handles this well, system
+updates sometimes cause “drift.” If an older project stops building
+after a macOS update, try updating your T version or the project’s
+nixpkgs pins.</li>
+<li><strong>Shared Libraries</strong>: If you experience crashes related
+to “shared libraries,” it might be due to your local R/Python user
+libraries interfering. T’s <code>t init</code> command sets up guards to
+prevent this.</li>
+</ul>
+<h3 id="windows-wsl2">Windows (WSL2)</h3>
+<p>Nix cannot run directly on Windows; it requires the <strong>Windows
+Subsystem for Linux 2 (WSL2)</strong>.</p>
+<ol type="1">
+<li><p><strong>Install WSL2</strong>: Open PowerShell as Administrator
+and run:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>wsl <span class="op">--</span>install</span></code></pre></div></li>
+<li><p><strong>Enable systemd (Recommended)</strong>: To support
+multi-user Nix in WSL2, we recommend enabling <code>systemd</code> in
+your Ubuntu/WSL2 shell:</p>
+<ul>
+<li><p>Run <code>sudo nano /etc/wsl.conf</code></p></li>
+<li><p>Add the following:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode ini"><code class="sourceCode ini"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[boot]</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="dt">systemd</span><span class="ot">=</span><span class="kw">true</span></span></code></pre></div></li>
+<li><p>Save (Ctrl+O) and Exit (Ctrl+X).</p></li>
+<li><p>In PowerShell, run <code>wsl --shutdown</code>, then relaunch
+your WSL2 terminal.</p></li>
+</ul></li>
+<li><p><strong>Install Nix</strong>: Run the Determinate Systems
+installation command inside your WSL2 terminal.</p></li>
+</ol>
+<hr />
+<h2 id="post-installation-enabling-flakes">Post-Installation: Enabling
+Flakes</h2>
+<p>T requires <strong>Nix Flakes</strong> to be enabled. The Determinate
+Systems installer usually enables these by default. You can verify by
+checking <code>~/.config/nix/nix.conf</code> or
+<code>/etc/nix/nix.conf</code>. It should contain:</p>
+<pre class="text"><code>experimental-features = nix-command flakes</code></pre>
+<p>If it’s missing, add it with:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.config/nix</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;experimental-features = nix-command flakes&quot;</span> <span class="op">&gt;&gt;</span> ~/.config/nix/nix.conf</span></code></pre></div>
+<hr />
+<h2 id="binary-caches-cachix">Binary Caches (Cachix)</h2>
+<p>To avoid building everything from source, we recommend configuring
+binary caches.</p>
+<h3 id="automatic-support-in-t-projects">Automatic Support in T
+Projects</h3>
+<p>When you initialize a T project (using <code>t init</code>), the
+generated <code>flake.nix</code> automatically includes the
+<code>rstats-on-nix</code> binary cache. This means that for
+project-specific operations, Nix will automatically attempt to fetch
+pre-built binaries.</p>
+<h3 id="global-configuration-recommended">Global Configuration
+(Recommended)</h3>
+<p>To benefit from the binary cache even outside of T projects (e.g.,
+when running <code>nix shell github:b-rodrigues/tlang</code>), you can
+configure the cache globally in your system’s <code>nix.conf</code>:</p>
+<pre class="text"><code>substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=</code></pre>
+<blockquote>
+<p>[!NOTE] If you used the Determinate Systems installer, you should add
+these to <code>/etc/nix/nix.conf</code>. You may need <code>sudo</code>
+to edit this file.</p>
+</blockquote>
+<hr />
+<h2 id="nix-and-docker">Nix and Docker</h2>
+<p>Nix and Docker are often seen as alternatives, but they work
+exceptionally well together. While Docker manages container isolation,
+Nix handles the environment reproducibility <em>inside</em> or
+<em>for</em> those containers.</p>
+<h3 id="using-nix-inside-docker">1. Using Nix Inside Docker</h3>
+<p>You might want to install Nix inside a Docker container for CI/CD
+pipelines (like GitHub Actions) or to serve applications with a strictly
+defined environment.</p>
+<p>To install Nix inside a <code>Dockerfile</code> (e.g., using
+<code>ubuntu:latest</code> as a base), use the Determinate Systems
+installer with specific flags for container environments:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> ubuntu:latest</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">apt</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt</span> install <span class="at">-y</span> curl</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Install Nix inside the container</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">curl</span> <span class="at">--proto</span> <span class="st">&#39;=https&#39;</span> <span class="at">--tlsv1.2</span> <span class="at">-sSf</span> <span class="at">-L</span> https://install.determinate.systems/nix <span class="kw">|</span> <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install linux <span class="dt">\</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">--extra-conf</span> <span class="st">&quot;sandbox = false&quot;</span> <span class="dt">\</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--init</span> none <span class="dt">\</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">--no-confirm</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Add Nix to the PATH</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">&quot;${PATH}:/nix/var/nix/profiles/default/bin&quot;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> user=root</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Optional: Configure the T binary cache</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="fu">mkdir</span> <span class="at">-p</span> /root/.config/nix <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org&quot;</span> <span class="op">&gt;</span> /root/.config/nix/nix.conf <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span> <span class="op">&gt;&gt;</span> /root/.config/nix/nix.conf</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">&quot;nix-shell&quot;</span>]</span></code></pre></div>
+<h3 id="building-docker-images-with-nix">2. Building Docker Images with
+Nix</h3>
+<p>Instead of writing a <code>Dockerfile</code>, you can use Nix to
+<strong>build</strong> a Docker image. This is the ultimate way to
+achieve reproducibility, as Nix builds the entire image layer by layer
+from its own store, resulting in extremely lightweight and predictable
+images.</p>
+<p>A simple Nix expression to build a T application image might look
+like this:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="op">{</span> <span class="va">pkgs</span> <span class="op">?</span> <span class="bu">import</span> &lt;nixpkgs&gt; <span class="op">{}</span> <span class="op">}</span>:</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>pkgs<span class="op">.</span>dockerTools<span class="op">.</span>buildImage <span class="op">{</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">name</span> <span class="op">=</span> <span class="st">&quot;t-analysis-app&quot;</span><span class="op">;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="va">tag</span> <span class="op">=</span> <span class="st">&quot;latest&quot;</span><span class="op">;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Include T and any other required tools</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="va">contents</span> <span class="op">=</span> <span class="op">[</span> pkgs<span class="op">.</span>tlang pkgs<span class="op">.</span>bashInteractive <span class="op">];</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="va">config</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="va">Cmd</span> <span class="op">=</span> <span class="op">[</span> <span class="st">&quot;t&quot;</span> <span class="st">&quot;run&quot;</span> <span class="st">&quot;scripts/pipeline.t&quot;</span> <span class="op">];</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="va">WorkingDir</span> <span class="op">=</span> <span class="st">&quot;/my-project&quot;</span><span class="op">;</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>You can build this image by running <code>nix-build docker.nix</code>
+and then load it into Docker with
+<code>docker load &lt; result</code>.</p>
+<hr />
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="command-not-found-nix">“command not found: nix”</h3>
+<p>The installer usually updates your shell profile. Try restarting your
+terminal or running:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh</span></code></pre></div>
+<h3 id="permission-denied">Permission Denied</h3>
+<p>If you encounter permission issues when using Nix, ensure your user
+is in the <code>trusted-users</code> list in
+<code>/etc/nix/nix.conf</code>:</p>
+<pre class="text"><code>trusted-users = root @wheel your_username</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that Nix is installed, you are ready to <a
+href="getting-started.html">Get Started with T</a>!</p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

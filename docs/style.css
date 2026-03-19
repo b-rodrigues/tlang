@@ -59,6 +59,32 @@ pre {
   overflow-x: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+  position: relative; /* Base for absolute positioning of copy button */
+}
+
+pre:hover .copy-btn {
+  opacity: 1;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  padding: 4px 8px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  text-transform: uppercase;
+}
+
+.copy-btn:hover {
+  background-color: var(--border-color);
+  color: var(--bg-color);
 }
 
 code {
