@@ -1,8 +1,8 @@
-# T - A Language for Tabular Data and Human-LLM Collaboration
+# T — The Orchestration Engine for Polyglot Data Science
 
-**T** is an experimental programming language for declarative, functional manipulation of tabular data. Inspired by R’s tidyverse and OCaml’s semantic rigor, T is designed to make data analysis **explicit, inspectable, and pipeline-oriented**.
+**T** is an experimental orchestration engine designed for declarative, reproducible pipelines. It provides a functional Domain-Specific Language (DSL) that coordinates R, Python, Julia, and Shell nodes within a Nix-managed infrastructure.
 
-Unlike traditional scripting languages, T is built from the ground up to support **human–LLM collaborative programming**, where humans specify intent and constraints, and language tools (including LLMs) generate localized, mechanical code.
+Unlike traditional scripting languages, T is built to be a **specifications-ready engine**, making data analysis **explicit, inspectable, and pipeline-oriented**. This unique architecture ensures that humans and LLMs can collaborate on defining high-level intent while T handles the low-level orchestration and environmental consistency.
 
 **Status:** Version 0.51.0 "Sangoku", first public release.
 

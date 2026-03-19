@@ -292,10 +292,9 @@ Version history and roadmap for the T programming language.
 - **Memory usage**: No streaming, entire datasets in RAM
 
 ### Limitations
-- **No joins**: Must pre-join data externally
-- **No visualization**: Export to CSV for plotting
-- **Limited file formats**: CSV only
-- **No user packages**: Fixed standard library
+- **No native visualization**: Plots must be generated via Quarto nodes using R (ggplot2), Python (matplotlib), or Shell.
+- **No user packages**: High-level functionality is restricted to the built-in standard library for now.
+- **Memory-bound**: Entire datasets must fit in RAM (no streaming support yet).
 
 ### Bugs
 - **Arrow FFI edge cases**: Some Arrow operations may crash on corner cases

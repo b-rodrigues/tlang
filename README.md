@@ -1,6 +1,4 @@
-# T Programming Language
-
-# T Programming Language
+# T Orchestration Engine
 
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta%200.5.1%20%22Sangoku%22-blue.svg)](https://tstats-project.org)
@@ -9,9 +7,9 @@
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
 [![OCaml](https://img.shields.io/badge/OCaml-5.x-EC6813.svg?logo=ocaml&logoColor=white)](https://ocaml.org)
 
-**T** is an experimental, **polyglot-first** language designed for **data orchestration and reproducible analysis**. 
+**T** is an experimental **orchestration engine** designed for **reproducible, polyglot data science**. 
 
-While many languages provide data manipulation libraries, T is uniquely built on the foundation of **Nix**. It doesn't just manage your code; it manages your entire environment—ensuring that your R, Python, and T code runs in the exact same pristine sandbox every time.
+Instead of replacing your existing R, Python, and Julia workflows, T coordinates them. It provides a functional, immutable Domain-Specific Language (DSL) to define **Pipelines** as first-class objects, ensuring your total environment is managed by **Nix** for ironclad reproducibility.
 
 ### The Polyglot Orchestrator
 

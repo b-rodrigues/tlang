@@ -461,8 +461,8 @@ let cmd_repl mode env =
       Printf.eprintf "Nix not found! Install Nix to use T!\n";
       exit 1
   | Some nix_version ->
-      Printf.printf "T, a reproducibility-first programming language for declarative\n";
-      Printf.printf "data manipulation and statistical analysis.\n";
+      Printf.printf "T, a reproducibility-first orchestration engine for polyglot\n";
+      Printf.printf "data science and statistical analysis.\n";
       Printf.printf "Version %s \"%s\" using Nix %s\n" version "Sangoku" nix_version;
       Printf.printf "Licensed under the EUPL v1.2. No warranties.\n";
       Printf.printf "This software is in beta and is entirely LLM-generated — caveat emptor.\n";
