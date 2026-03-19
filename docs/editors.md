@@ -45,6 +45,13 @@ You’ll find the required files [here](https://github.com/b-rodrigues/tlang/tre
 > **Building from source**: If you prefer to build the extension yourself,
 > see [editors/README.md](../editors/README.md) for instructions.
 
+Start VS Code or Positron from the same nix shell where you run `t`:
+
+```bash
+nix develop
+code .
+```
+
 ### Quarto
 
 For literate programming with executable `{t}` chunks, add Quarto to your T project tools:
