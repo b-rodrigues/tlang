@@ -396,6 +396,15 @@ For direct user-facing Arrow file workflows outside pipelines, T also exposes:
 
 That means Arrow is used both as an internal storage backend and as an interchange format at the language boundary.
 
+### Handling Foreign Objects & Robustness
+
+T puts significant effort into providing high-fidelity representations of Python, R, and Julia objects. 
+
+- **Fail-Safe Loading**: The `read_node()` function is designed to never crash the primary T environment, even if the node's artifacts are missing or corrupted. 
+- **Representation Wrappers**: T provides specialized "host object" representations for common foreign types (Lists, Dicts, DataFrames, Models). If a node produces an object that T doesn't natively understand, it is safely wrapped as a generic `HostObject` that can still be passed as a reference to other nodes of the same language (e.g., from one R node to another) without T needing to understand its internal structure.
+- **Native Fallback**: If T's representation is insufficient for a particular task, users can always access the raw object by reading the node's artifact directly from within a native script (e.g., using `read_node()` inside a `.qmd` or `.py` component). This ensures full interop with the entire ecosystem of libraries in those languages.
+
+
 ---
 
 ## Arrow Backend

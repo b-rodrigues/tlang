@@ -106,6 +106,13 @@ The T REPL is designed for productivity:
 - **Signal Safety**: Hit `Ctrl+C` to cancel a long-running calculation without crashing the session.
 - **Multi-line Detection**: Automatic detection of nested blocks for easy copy-pasting.
 
+### What happens if a node fails or produces a complex object?
+T is built with **robustness** in mind. If a node fails (e.g., an R script crashes), T captures the error and presents it as a first-class `VError` value, preventing the whole pipeline engine from crashing.
+- **Fail-Safe Loading**: The `read_node()` function will never crash your session. Even if an artifact is missing or corrupted, you get a clean error value you can handle with `?|>`.
+- **High-Fidelity Representation**: T works hard to provide native representations of list, dict, and DataFrame objects from other languages.
+- **Generic Fallbacks**: If a node produces a complex object that T doesn't natively understand (like a custom private class in Python), it is safely wrapped as a `HostObject`. You can still pass this object as a reference to other nodes of the same language, keeping your polyglot workflow intact.
+- **Native Escape Hatch**: If you need to manipulate a complex object that cannot be serialized, you can always read the node's artifact directly using the native interpreter's own libraries (e.g., by calling `read_node()` inside a Python or R script).
+
 ### Can I write Literate Programming reports?
 Absolutely. T integrates with **Quarto** through a native extension. You can write `.qmd` files where code chunks are written in **pure T**, allowing you to summarize data and generate professional reports without ever needing R or Python. For advanced charting or low-level file processing, you can mix T chunks with R, Python, or **Shell** (using the `shn()` function) in the same document.
 
