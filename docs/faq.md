@@ -1,6 +1,6 @@
 # Frequently Asked Questions (FAQ)
 
-Welcome to the **T Programming Language** FAQ. This guide covers the philosophy, technical architecture, and practical usage of T.
+Welcome to the **T Orchestration Engine** FAQ. This guide covers the philosophy, technical architecture, and practical usage of T.
 
 ---
 
