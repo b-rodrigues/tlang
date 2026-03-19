@@ -6,16 +6,9 @@ Welcome to T! This guide will help you install T, create your first project, and
 
 T requires the **Nix package manager** with flakes enabled. Nix ensures that your T environment is perfectly reproducible across Linux and macOS.
 
-If you don't have Nix installed:
+We strongly recommend installing Nix using the [Determinate Systems Nix Installer](https://install.determinate.systems/nix). For detailed, platform-specific steps, please see our:
 
-```bash
-# Install Nix with flakes enabled
-sh <(curl -L https://nixos.org/nix/install) --daemon
-
-# Enable flakes (add to ~/.config/nix/nix.conf)
-mkdir -p ~/.config/nix
-echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-```
+👉 **[Nix Installation Guide](nix-installation.md)**
 
 ## Running T
 

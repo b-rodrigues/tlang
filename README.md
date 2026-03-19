@@ -74,7 +74,9 @@ intent {
 
 ## Quick Start & Installation
 
-T requires [Nix](https://nixos.org/) with flakes enabled. T is distributed exclusively via Nix. Because Nix is mandatory for T's reproducibility and pipeline architecture, it is the only supported installation method and will remain so.
+T requires [Nix](docs/nix-installation.md) with flakes enabled. T is distributed exclusively via Nix. Because Nix is mandatory for T's reproducibility and pipeline architecture, it is the only supported installation method and will remain so.
+
+We recommend using the [Determinate Systems Nix Installer](https://install.determinate.systems/nix) for the best experience. See the [Nix Installation Guide](docs/nix-installation.md) for detailed platform-specific steps.
 
 Start by launching a temporary shell that provides the `t` executable:
 
