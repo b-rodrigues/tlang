@@ -33,11 +33,11 @@ You’ll find the required files [here](https://github.com/b-rodrigues/tlang/tre
 
 ### VS Code / Positron
 
-1. Download `editors/vscode/t-lang-0.52.0.vsix` from the repository (or clone the repo).
+1. Download `editors/vscode/t-lang-0.51.0.vsix` from the repository (or clone the repo).
 
 2. Install the extension:
    ```bash
-   code --install-extension editors/vscode/t-lang-0.52.0.vsix
+   code --install-extension editors/vscode/t-lang-0.51.0.vsix
    ```
 
 3. Restart VS Code or Positron.

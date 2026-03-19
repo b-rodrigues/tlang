@@ -2,7 +2,7 @@
   "name": "t-lang",
   "displayName": "T Language Support",
   "description": "Syntax highlighting and LSP integration for the T programming language.",
-  "version": "0.52.0",
+  "version": "0.51.0",
   "publisher": "t-lang",
   "engines": {
     "vscode": "^1.75.0"

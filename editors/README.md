@@ -39,7 +39,7 @@ completions against the running REPL session.
 
 **Quick install** (pre-built):
 ```bash
-code --install-extension vscode/t-lang-0.52.0.vsix
+code --install-extension vscode/t-lang-0.51.0.vsix
 ```
 
 **Building from source** (requires Node.js):
@@ -58,7 +58,7 @@ code --install-extension vscode/t-lang-0.52.0.vsix
    ```
 3. Install the generated `.vsix`:
    ```bash
-   code --install-extension t-lang-0.52.0.vsix
+   code --install-extension t-lang-0.51.0.vsix
    ```
 4. Restart your editor.
 5. Alternatively, open `vscode/extensions/t-lang` in VS Code and press `F5` to test in a Development Host window.
@@ -94,7 +94,7 @@ argument, column reference, or symbol) is computed.
 
 The T VS Code extension is in `editors/vscode/extensions/t-lang`. Install it by
 running `npm install`, packaging with `npx @vscode/vsce package`, and then
-`code --install-extension t-lang-0.52.0.vsix`. The extension starts `t-lsp` automatically.
+`code --install-extension t-lang-0.51.0.vsix`. The extension starts `t-lsp` automatically.
 
 ### 🧩 Vim / Neovim
 
