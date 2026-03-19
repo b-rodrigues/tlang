@@ -90,7 +90,7 @@ Every T project is a **Nix flake**:
 ```bash
 # 2026: Same exact environment as 2024
 nix develop github:myuser/my-analysis?rev=abc123
-dune exec src/repl.exe < analysis.t
+t run src/pipeline.t
 
 # Identical output, guaranteed
 ```
@@ -195,8 +195,8 @@ my-analysis/
 ├── flake.lock          # Locked dependencies
 ├── data/
 │   └── sales.csv       # Input data (or fetch script)
-├── scripts/
-│   └── analysis.t      # T analysis script
+├── src/
+│   └── pipeline.t      # T analysis script
 ├── outputs/
 │   └── report.csv      # Generated results
 └── README.md           # Documentation
@@ -222,7 +222,7 @@ my-analysis/
 
 ### Step 2: Write Analysis with Intent
 
-**`scripts/analysis.t`**:
+**`src/pipeline.t`**:
 ```t
 intent {
   description: "Q4 2023 revenue analysis by region",
@@ -255,7 +255,7 @@ write_csv(analysis.by_region, "outputs/report.csv")
 nix develop
 
 # Run analysis
-dune exec src/repl.exe < scripts/analysis.t
+t run src/pipeline.t
 
 # Output: outputs/report.csv
 ```
@@ -264,7 +264,7 @@ dune exec src/repl.exe < scripts/analysis.t
 
 ```bash
 git init
-git add flake.nix flake.lock scripts/ data/ README.md
+git add flake.nix flake.lock src/ data/ README.md
 git commit -m "Initial Q4 2023 analysis"
 git tag v1.0.0
 git push
@@ -282,7 +282,7 @@ cd q4-analysis
 nix develop
 
 # Run analysis
-dune exec src/repl.exe < scripts/analysis.t
+t run src/pipeline.t
 
 # Verify identical output
 diff outputs/report.csv expected_report.csv
@@ -334,7 +334,7 @@ COPY . .
 
 RUN nix develop --command dune build
 
-CMD ["nix", "develop", "--command", "dune", "exec", "src/repl.exe", "<", "analysis.t"]
+CMD ["nix", "develop", "--command", "t", "run", "src/pipeline.t"]
 ```
 
 ### Continuous Integration
@@ -353,7 +353,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: cachix/install-nix-action@v15
-      - run: nix develop --command dune exec src/repl.exe < analysis.t
+      - run: nix develop --command t run src/pipeline.t
       - run: diff outputs/result.csv expected_result.csv
 ```
 

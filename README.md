@@ -51,7 +51,7 @@ Data science projects often suffer from "dependency drift" and "works on my mach
 
 - **Orchestration, Not Invention**: T doesn't aim to replace R or Python. It aims to coordinate them. Use R for its stats, Python for its ML, and T to ensure they always talk to each other correctly.
 - **Strictly Functional**: No loops, no mutable variables, and explicit `NA` handling. This reduces the "hallucination surface" for AI-assisted coding and makes logic easier to audit.
-- **Mandatory Pipelines**: To run a script in T, you *must* define it as a pipeline. This forces you to move away from spaghetti scripts and toward a documented, cacheable architecture.
+- **Mandatory Pipelines**: To run a script in T, you *must* define it as a pipeline. This forces you to move away from spaghetti scripts and toward a documented, cacheable architecture. Interactive line-by-line exploration is always possible in the **REPL**, however.
 
 ### Intent Blocks: A Thought Experiment
 
@@ -67,6 +67,19 @@ intent {
   requires: ["mtcars.csv"]
 }
 ```
+
+## Key Features
+
+### Functional Safety & Errors
+T is built on a "no-surprises" philosophy. **Errors are first-class values**, not exceptions. Functions return explicit `Error` types when something goes wrong (e.g., missing files, type mismatches), allowing you to handle them as data. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Overwriting `a` with `a = 2` will not work as T is immutable. Use `:=` to reassign a variable.
+
+### Semantic Piping
+T provides two types of pipes to manage complex data flows and error states:
+- **Standard Pipe (`|>`)**: Designed for linear transformations. If the input is an **Error** value, `|>` **short-circuits** and skips the function call, automatically propagating the error forward. This prevents crashing and ensures that your functions only process valid data.
+- **Maybe-Pipe (`?|>`)**: Designed for **error recovery**. Unlike the standard pipe, `?|>` **always forwards** the value—including Errors—to the next function. This allows you to write custom handlers that can inspect Errors and potentially recover from them.
+
+### Introspection with `explain()`
+T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
 
 ---
 
@@ -98,21 +111,39 @@ exit
 This creates a new directory (e.g. `my_t_project/`) containing the necessary project files.  
 The most important file is `tproject.toml`. This file declares your project's dependencies. Dependencies must be explicitly listed here, as they are used by the project-specific flake to provide a fully reproducible environment.
 
-You can now start working on your project by editing `src/analysis.t`. You are free to rename this file or add additional source files as needed:
+You can now start working on your project by editing `src/pipeline.t`. 
+
+> [!IMPORTANT]
+> **Pipelines are Mandatory**: To execute a script (e.g., via `t run src/pipeline.t`), your code **must** be wrapped in a `pipeline { ... }` block and built using `build_pipeline(p)`. This ensures reproducibility and allows T to optimize execution.
+
+If you have a sequence of commands you've tested in the REPL, you can easily wrap them in a pipeline (or even ask an LLM to do it for you!). 
+
+### Recommended Workflow: Iterative Development
+T encourages a "node-at-a-time" development cycle:
+1. **Add Node-by-Node**: Add a new `node()` definition to your pipeline in `src/pipeline.t`.
+2. **Execute**: Run your script (e.g., via `t run src/pipeline.t`) to build the derivations.
+3. **Load & Inspect**: Load the node's output to inspect it via `read_node("node_name")` in the REPL to verify results.
+4. **Run**: Once verified, run the entire pipeline and proceed to the next step.
 
 ```t
--- Load data
-df = read_csv("data.csv", clean_colnames = true)
+-- A basic pipeline in src/pipeline.t
+p = pipeline {
+  -- Load data (wrapped in a node for reproducibility)
+  data = node(command = read_csv("data.csv", clean_colnames = true))
 
--- Data manipulation pipeline using NSE (dollar-prefix) syntax
-result = df
-  |> filter($age > 30)
-  |> select($name, $age, $salary)
-  |> arrange($age, "desc")
+  -- Data manipulation using NSE (dollar-prefix) syntax
+  result = node(command = data
+    |> filter($age > 30)
+    |> select($name, $age, $salary)
+    |> arrange($age, "desc")
+  )
   
--- Statistics
-mean(df.salary, na_rm = true)
-model = lm(data = df, formula = salary ~ age)
+  -- Analysis
+  model = node(command = lm(data = data, formula = salary ~ age))
+}
+
+-- Execute and build the pipeline into reproducible Nix artifacts
+build_pipeline(p)
 ```
 
 See the [Installation Guide](docs/installation.md) for detailed setup instructions if you wish to build from source.
@@ -123,10 +154,9 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 **Alpha 0.51.0** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
 
-- **dplyr / tidyr**: `filter`, `select`, `mutate`, `summarize`, `pivot_longer`, `pivot_wider`, and more.
-- **lubridate**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc.).
-- **stringr**: Modern string manipulation (`str_replace`, `str_detect`, `str_split`, etc.).
-- **forcats**: Categorical data management with `fct_*` helpers.
+- **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
+- **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
+- **strcraft**: Modern string manipulation (`str_replace`, `str_detect`, `str_split`, etc. — inspired by `stringr`).
 - **Native Arrow I/O**: High-performance reading and writing of `CSV`, `Parquet`, and `Arrow` (IPC/Feather) formats.
 - **Polyglot & Metaprogramming**: First-class support for R, Python, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`).
 
@@ -159,7 +189,9 @@ tlang/
 │       ├── math/       # Mathematical functions
 │       ├── stats/      # Statistical functions
 │       ├── dataframe/  # CSV I/O, DataFrame ops
-│       ├── colcraft/   # Data verbs, window functions
+│       ├── colcraft/   # Data verbs, window functions, factors
+│       ├── chrono/     # Date and time handling
+│       ├── strcraft/   # String manipulation
 │       ├── pipeline/   # Pipeline introspection
 │       └── explain/    # Introspection tools
 ├── docs/               # Documentation

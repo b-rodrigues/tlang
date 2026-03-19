@@ -275,12 +275,12 @@ my-project/
 ├── README.md            # Project documentation
 ├── .gitignore           # Git ignore patterns
 ├── src/                 # Project source code
-│   └── analysis.t
+│   └── pipeline.t
 ├── data/                # Data files
 │   └── dataset.csv
 ├── outputs/             # Generated outputs
 └── tests/               # Project tests
-    └── test-analysis.t
+    └── test-pipeline.t
 ```
 
 ### Project flake.nix
@@ -361,7 +361,7 @@ When you add a package to `tproject.toml` and run `t install`, it automatically 
             echo ""
             echo "Available commands:"
             echo "  t repl              - Start T REPL"
-            echo "  t run src/analysis.t - Run analysis"
+            echo "  t run src/pipeline.t - Run analysis"
             echo "  t document .        - Generate documentation"
             echo "  t install <pkg-url> - Add a new package"
             echo ""
@@ -678,14 +678,14 @@ All published packages should:
 
 7. **Write your analysis** in `src/`:
    ```bash
-   # src/analysis.t
+   # src/pipeline.t
    data = read_csv("data/customers.csv")
    result = data |> cool_function()
    ```
 
 8. **Run your analysis**:
    ```bash
-   t run src/analysis.t
+   t run src/pipeline.t
    ```
 
 ### Sharing Your Project

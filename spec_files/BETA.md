@@ -136,8 +136,8 @@ sales-analysis/
 ├── tproject.toml       # T project config
 ├── README.md           # Project docs
 ├── .gitignore          # Git ignore patterns
-├── src/                # Analysis scripts
-│   └── analysis.t
+├── src/                # Pipeline scripts
+│   └── pipeline.t
 ├── data/               # Data directory
 ├── outputs/            # Results directory
 └── tests/              # Project tests
@@ -380,13 +380,13 @@ Re-run only changed nodes:
 
 ```bash
 # First run: executes all nodes
-t run analysis.t
+t run pipeline.t
 
 # Modify one function
 vim src/helpers.t
 
 # Second run: only re-executes affected nodes
-t run analysis.t --incremental
+t run pipeline.t --incremental
 ```
 
 **Features**:
@@ -406,7 +406,7 @@ t run analysis.t --incremental
 Real-time execution monitoring:
 
 ```bash
-t run analysis.t --verbose
+t run pipeline.t --verbose
 ```
 
 Output:
@@ -582,13 +582,13 @@ Tooling for AI-assisted development:
 
 ```bash
 # Generate code from intent
-t generate --from-intent analysis.t.intent
+t generate --from-intent pipeline.t.intent
 
 # Explain code in natural language
-t explain analysis.t --natural-language
+t explain pipeline.t --natural-language
 
 # Generate tests from intent
-t generate --tests analysis.t
+t generate --tests pipeline.t
 ```
 
 **Features**:
@@ -633,16 +633,16 @@ Tooling for human-AI pair programming:
 
 ```bash
 # AI proposes implementation
-t ai propose analysis.t.intent > analysis.t.proposed
+t ai propose pipeline.t.intent > pipeline.t.proposed
 
 # Human reviews and refines
-vim analysis.t.proposed
+vim pipeline.t.proposed
 
 # Validate against intent
-t validate analysis.t.proposed
+t validate pipeline.t.proposed
 
 # Merge into main
-mv analysis.t.proposed analysis.t
+mv pipeline.t.proposed pipeline.t
 ```
 
 **Workflow**:
@@ -1006,10 +1006,10 @@ Consistent code style:
 
 ```bash
 # Format file in-place
-t fmt analysis.t
+t fmt pipeline.t
 
 # Check formatting (CI)
-t fmt --check analysis.t
+t fmt --check pipeline.t
 
 # Format all files
 t fmt src/**/*.t

@@ -505,7 +505,7 @@ T> p.a
 When a pipeline is built with `build_pipeline()`, each node runs inside a **Nix sandbox** — an isolated build environment. Import statements from your script are **automatically propagated** into each sandbox, so imported packages and functions are available to all nodes.
 
 ```t
--- my_analysis.t
+-- pipeline.t
 import my_stats
 import data_utils[read_clean, normalize]
 

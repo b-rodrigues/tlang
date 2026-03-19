@@ -445,7 +445,7 @@ abc123 Update: Exclude test accounts from churn analysis
 def456 Add validation: minimum transaction amount $1
 789ghi Initial: Customer churn analysis
 
-git show abc123:analysis.t
+git show abc123:src/pipeline.t
 # Shows exactly what assumptions changed and why
 ```
 
