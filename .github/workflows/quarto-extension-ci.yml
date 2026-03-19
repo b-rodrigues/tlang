@@ -35,15 +35,23 @@ jobs:
         run: |
           CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' flake.nix | head -n 1 | xargs)
           EXT_VERSION=$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' editors/quarto/tlang/_extensions/tlang/_extension.yml | head -n 1 | xargs)
+          case "$CORE_VERSION" in
+            *.*.*) CORE_VERSION_SEMVER="$CORE_VERSION" ;;
+            *.*) CORE_VERSION_SEMVER="${CORE_VERSION}.0" ;;
+            *)
+              echo "❌ Error: Core T version ($CORE_VERSION) is not a valid major.minor or major.minor.patch version."
+              exit 1
+              ;;
+          esac
           if [ -z "$CORE_VERSION" ] || [ -z "$EXT_VERSION" ]; then
             echo "❌ Error: Failed to extract core or extension version."
             exit 1
           fi
-          if [ "$CORE_VERSION" != "$EXT_VERSION" ]; then
-            echo "❌ Error: Quarto extension version ($EXT_VERSION) does not match core T version ($CORE_VERSION)."
+          if [ "$CORE_VERSION_SEMVER" != "$EXT_VERSION" ]; then
+            echo "❌ Error: Quarto extension version ($EXT_VERSION) does not match core T version ($CORE_VERSION_SEMVER)."
             exit 1
           fi
-          echo "✅ Quarto extension version matches core T version: $CORE_VERSION"
+          echo "✅ Quarto extension version matches core T version: $CORE_VERSION_SEMVER"
 
       - name: Render Quarto Document with T Filter
         env:

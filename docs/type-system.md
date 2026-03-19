@@ -109,3 +109,12 @@ In other words, this is a **signature validation layer**, not yet a full static 
 
 - Typing spec: `spec_files/typing_system.md`
 - Initial implementation context: PR #83 and PR #84
+
+---
+
+## Next Steps
+
+Now that you understand T's type system, head over to learn about the core execution model:
+
+1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows.
+2. **[Data Manipulation Examples](data_manipulation_examples.md)** — Practical examples of data wrangling with T's core verbs.

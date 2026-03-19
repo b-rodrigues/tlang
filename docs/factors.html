@@ -25,14 +25,14 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="index.html">Home</a> |
-        <a href="getting-started.html">Get Started</a> |
-        <a href="language_overview.html">Overview</a> |
-        <a href="api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Programming Language - factors</h1>
 </header>
@@ -187,12 +187,16 @@ ordered,</li>
 set.</li>
 </ul>
 <hr />
+<<<<<<< HEAD
 <h2 id="package-note">Package Note</h2>
+=======
+>>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 <p>These factor helpers are currently implemented alongside the
 data-manipulation verbs in T’s <code>colcraft</code> package, but the
 naming convention is the same idea you would expect from a dedicated
 factor-toolkit family: factor creation helpers plus <code>fct_*</code>
 level-manipulation helpers.</p>
+<<<<<<< HEAD
 <footer>
     <hr class="footer-hr">
     <center>
@@ -200,6 +204,57 @@ level-manipulation helpers.</p>
         <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
     </center>
 </footer>
+=======
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you can handle categorical data, explore vector operations
+and statistical modeling in T:</p>
+<ol type="1">
+<li><strong><a href="arrays.html">Arrays and Matrices</a></strong> —
+Vector and matrix operations.</li>
+<li><strong><a href="formulas.html">Formulas and Models</a></strong> —
+Statistical modeling in T.</li>
+<li><strong><a href="pipeline_tutorial.html">Pipeline
+Tutorial</a></strong> — Build reproducible data pipelines.</li>
+<li><strong><a href="api-reference.html">API Reference</a></strong> —
+Complete function reference by package.</li>
+</ol>
+>>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
 </body>
 </html>

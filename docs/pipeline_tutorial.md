@@ -1223,3 +1223,14 @@ p.team_size     -- number of active engineers
 p.avg_salary    -- mean salary
 p.ranked        -- DataFrame sorted by score
 ```
+
+---
+
+## Next Steps
+
+Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:
+
+1. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+2. **[Package Development](package_development.md)** — Create reusable T libraries.
+3. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+4. **[API Reference](api-reference.md)** — Complete function reference by package.

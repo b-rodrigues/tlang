@@ -14,6 +14,10 @@ for file in *.md; do
       --include-before-body=header.html \
       --include-after-body=footer.html \
       --metadata title="T Programming Language - $filename"
+    
+    # Post-process: convert .md links to .html
+    sed -i 's/\.md"/.html"/g' "$filename.html"
+    sed -i 's/\.md)/.html)/g' "$filename.html"
   fi
 done
 
@@ -28,6 +32,10 @@ if [ -d "reference" ]; then
         --include-before-body=header_ref.html \
         --include-after-body=footer.html \
         --metadata title="T Function Reference - $(basename "$filename")"
+      
+      # Post-process: convert .md links to .html
+      sed -i 's/\.md"/.html"/g' "$filename.html"
+      sed -i 's/\.md)/.html)/g' "$filename.html"
     fi
   done
 fi

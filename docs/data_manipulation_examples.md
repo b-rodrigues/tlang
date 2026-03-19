@@ -646,3 +646,14 @@ min_rank([3, NA, 1, 3])    -- Vector[2, NA, 1, 2]
 cumsum([1, NA, 3])           -- Vector[1, NA, NA]
 cummax([1, NA, 5])           -- Vector[1, NA, NA]
 ```
+
+---
+
+## Next Steps
+
+Now that you've mastered the core data manipulation verbs, explore specialized data types and advanced modeling in T:
+
+1. **[Handling Dates](handling_dates.md)** — Learn how to parse, manipulate, and format temporal data.
+2. **[String Manipulation](string_manipulation.md)** — Explore powerful functions for text processing and regular expressions.
+3. **[Factors](factors.md)** — Understand categorical variables and level management.
+4. **[API Reference](api-reference.md)** — Explore the full set of functions available in T's standard library.

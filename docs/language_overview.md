@@ -675,3 +675,13 @@ type(NA)             -- "NA"
 type(1 / 0)          -- "Error"
 type(null)           -- "Null"
 ```
+
+---
+
+## Next Steps
+
+Now that you have a solid grasp of T's syntax and core features, explore these topics next:
+
+1. **[Type System](type-system.md)** — Understand T's mode-aware type system and lambda signatures.
+2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows.
+3. **[Data Manipulation Examples](data_manipulation_examples.md)** — See T's data verbs in action with worked examples.

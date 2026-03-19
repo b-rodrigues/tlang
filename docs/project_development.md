@@ -51,7 +51,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.5.0"
+min_version = "0.51.0"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -193,3 +193,29 @@ $ t run src/pipeline.t
 ```
 
 The same T version, same package versions, same R packages, and same system libraries are used every time.
+
+## 8. IDE Support & Autocompletion
+
+T projects are designed to work seamlessly with modern editors via the **Language Server Protocol (LSP)**.
+
+### Using the LSP
+
+The `t-lsp` binary is provided automatically by your project's `nix develop` shell. 
+
+1.  Configure your editor (Vim, Emacs, or VS Code) once following the [Editor Support Guide](editors.md).
+2.  Launch your editor *inside* the project directory after running `nix develop`.
+3.  Alternatively, use **direnv** to automatically load the environment when you enter the project folder.
+
+Once active, you will get real-time autocompletion for:
+-   **Package functions**: Suggestions for all imported functions.
+-   **Local variables**: Defined earlier in your script.
+-   **DataFrame columns**: Column names from your data sources (accessible via the `$` prefix).
+
+---
+
+## Next Steps
+
+1. **[Language Overview](language_overview.md)** — Learn about types, syntax, and logic.
+2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to structure your analysis as a DAG.
+3. **[API Reference](api-reference.md)** — Explore the standard library.
+4. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.

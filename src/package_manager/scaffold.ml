@@ -27,7 +27,7 @@ let git_init dir =
   if code <> 0 then
     Printf.eprintf "Warning: git init failed (exit code %d)\n" code
 
-let default_tlang_tag = "v0.5.0"
+let default_tlang_tag = "v0.51.0"
 
 (* Strip the "v" prefix from a tag to get a plain version number. *)
 let strip_v_prefix tag =
@@ -248,6 +248,15 @@ A T package.
 
 A brief description of what {{name}} does.
 
+## Editor Support
+
+This project includes support for the **T Language Server (LSP)**.
+
+1. Configure your editor following the [Editor Support Guide](https://tstats-project.org/editors.html).
+2. Always launch your editor from within the `nix develop` environment (or use `direnv`).
+
+Once active, you'll get autocompletion for T functions, variables, and DataFrame columns (via `$`).
+
 ## Installation
 
 Add the following to the `[dependencies]` section of your `tproject.toml`:
@@ -350,7 +359,7 @@ description = "A T data analysis project"
 # T packages this project depends on
 # Format: package = { git = "repository-url", tag = "version" }
 # Example:
-# stats = { git = "https://github.com/t-lang/stats", tag = "v0.5.0" }
+# stats = { git = "https://github.com/t-lang/stats", tag = "v0.51.0" }
 
 [r-dependencies]
 # R packages this project depends on
@@ -432,6 +441,15 @@ To add a new dependency:
 3. Commit `tproject.toml`
 
 No imperative install commands — `flake.nix` reads `tproject.toml` directly.
+
+## Editor Support
+
+This project includes support for the **T Language Server (LSP)**.
+
+1. Configure your editor following the [Editor Support Guide](https://tstats-project.org/editors.html).
+2. Always launch your editor from within the `nix develop` environment (or use `direnv`).
+
+Once active, you'll get autocompletion for T functions, variables, and DataFrame columns (via `$`).
 
 ## License
 
@@ -671,6 +689,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       Printf.printf "  nix develop           # Enter reproducible environment\n";
       Printf.printf "  t repl                # Start the REPL\n";
       Printf.printf "  t run src/pipeline.t  # Run the pipeline\n";
+      Printf.printf "\nEditor Setup:\n";
+      Printf.printf "  See https://tstats-project.org/editors.html for LSP configuration.\n";
       Ok ()
     end
 

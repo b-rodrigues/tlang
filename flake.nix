@@ -62,7 +62,7 @@
         # Build the T language executable
         t-lang = pkgs.stdenv.mkDerivation {
           pname = "t-lang";
-          version = "0.5.0-alpha";
+          version = "0.51.0";
 
           src = ./.;
 

@@ -180,3 +180,14 @@ $T$'s statistical evaluator is verified against R's reference implementation. Re
 | `stats::vcov(fit)` | `vcov(model)` |
 | `stats::anova(m1, m2)` | `anova(m1, m2)` |
 | `survey::regTermTest` | `wald_test(model, terms)` |
+
+---
+
+## Next Steps
+
+Now that you can fit and inspect statistical models, explore how to build reproducible data pipelines and manage projects in T:
+
+1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows.
+2. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+3. **[Package Development](package_development.md)** — Create reusable T libraries.
+4. **[API Reference](api-reference.md)** — Complete function reference by package.

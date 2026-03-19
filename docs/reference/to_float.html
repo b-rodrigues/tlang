@@ -25,14 +25,14 @@
   <link rel="stylesheet" href="../style.css" />
 </head>
 <body>
+<nav>
+    <a href="../index.html">Home</a>
+    <a href="../getting-started.html">Get Started</a>
+    <a href="../language_overview.html">Overview</a>
+    <a href="../api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="../index.html">Home</a> |
-        <a href="../getting-started.html">Get Started</a> |
-        <a href="../language_overview.html">Overview</a> |
-        <a href="../api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Function Reference - to_float</h1>
 </header>
@@ -50,13 +50,41 @@ percentages, commas, and recognizes ‘TRUE’/‘FALSE’.</p>
 <pre class="t"><code>to_float(&quot;3,14&quot;)
 to_float(&quot;15%&quot;)
 to_float(42)</code></pre>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
 </body>
 </html>

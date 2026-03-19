@@ -25,14 +25,14 @@
   <link rel="stylesheet" href="../style.css" />
 </head>
 <body>
+<nav>
+    <a href="../index.html">Home</a>
+    <a href="../getting-started.html">Get Started</a>
+    <a href="../language_overview.html">Overview</a>
+    <a href="../api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="../index.html">Home</a> |
-        <a href="../getting-started.html">Get Started</a> |
-        <a href="../language_overview.html">Overview</a> |
-        <a href="../api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Function Reference - node</h1>
 </header>
@@ -41,15 +41,21 @@
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node. This function is typically used
 directly within a <code>pipeline { ... }</code> block to wrap
+<<<<<<< HEAD
 expressions, enable cross-runtime evaluation, run shell/CLI steps, and
 optionally render a <code>.qmd</code> document via
 <code>runtime = Quarto</code>.</p>
+=======
+expressions, enable cross-runtime evaluation, and optionally render a
+<code>.qmd</code> document via <code>runtime = Quarto</code>.</p>
+>>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>command</strong> (<code>Any</code>): (Optional) The
 expression to evaluate inside the node. Mutually exclusive with
 <code>script</code>.</p></li>
 <li><p><strong>script</strong> (<code>String</code>): (Optional) Path to
+<<<<<<< HEAD
 an external <code>.R</code>, <code>.py</code>, <code>.sh</code>, or
 <code>.qmd</code> file to execute as the node body. Mutually exclusive
 with <code>command</code>. The runtime is auto-detected from the file
@@ -58,10 +64,19 @@ extension when not explicitly provided.</p></li>
 runtime environment (<code>T</code>, <code>R</code>,
 <code>Python</code>, <code>sh</code>, or <code>Quarto</code>). Default =
 <code>T</code>.</p></li>
+=======
+an external <code>.R</code>, <code>.py</code>, or <code>.qmd</code> file
+to execute as the node body. Mutually exclusive with
+<code>command</code>. The runtime is auto-detected from the file
+extension when not explicitly provided.</p></li>
+<li><p><strong>runtime</strong> (<code>Symbol</code>): (Optional) The
+runtime environment (T, R, Python, Quarto). Default = T.</p></li>
+>>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 <li><p><strong>serializer</strong> (<code>Symbol</code>): (Optional)
 Custom serializer function. Default = default.</p></li>
 <li><p><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
 Custom deserializer function. Default = default.</p></li>
+<<<<<<< HEAD
 <li><p><strong>args</strong> (<code>Dict | List</code>): (Optional)
 Runtime/tool arguments. For <code>runtime = sh</code>, a list becomes
 positional CLI arguments and a dict becomes named runtime metadata. For
@@ -76,12 +91,20 @@ parsing.</p></li>
 <li><p><strong>shell_args</strong> (<code>List[String]</code>):
 (Optional) Extra arguments passed to the shell interpreter, such as
 <code>["-lc"]</code>.</p></li>
+=======
+<li><p><strong>args</strong> (<code>Dict</code>): (Optional)
+Runtime/tool arguments. For Quarto, use this to pass CLI arguments such
+as <code>subcommand</code>, <code>path</code>, and additional options.
+<code>output_dir</code> is reserved and managed automatically so the
+rendered result is stored as the node artifact.</p></li>
+>>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 <li><p><strong>functions</strong> (<code>String</code>): | List[String]
 (Optional) Files to source before execution.</p></li>
 <li><p><strong>include</strong> (<code>String</code>): | List[String]
 (Optional) Additional files for the sandbox.</p></li>
 <li><p><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
 skip execution and generate a stub. Default = false.</p></li>
+<<<<<<< HEAD
 </ul>
 <h2 id="returns">Returns</h2>
 <p>The evaluated return value of the command.</p>
@@ -99,6 +122,46 @@ good fit for reports and CLI output.</li>
         <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
     </center>
 </footer>
+=======
+</ul>
+<h2 id="returns">Returns</h2>
+<p>The evaluated return value of the command.</p>
+>>>>>>> 6eb4c6438e1a5f9d893d1de6fb5eb92ba61ea7ce
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
 </body>
 </html>

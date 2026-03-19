@@ -90,14 +90,14 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="index.html">Home</a> |
-        <a href="getting-started.html">Get Started</a> |
-        <a href="language_overview.html">Overview</a> |
-        <a href="api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Programming Language - project_development</h1>
 </header>
@@ -152,7 +152,7 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="dt">data_utils</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/data-utils&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.2.0&quot;</span><span class="op"> }</span></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">[t]</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.5.0&quot;</span></span></code></pre></div>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.51.0&quot;</span></span></code></pre></div>
 <h3 id="system-dependencies-and-latex">3.1 System Dependencies and
 LaTeX</h3>
 <p>Beyond T packages, you can declare system-level tools and LaTeX
@@ -261,13 +261,74 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href=
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
+<h2 id="ide-support-autocompletion">8. IDE Support &amp;
+Autocompletion</h2>
+<p>T projects are designed to work seamlessly with modern editors via
+the <strong>Language Server Protocol (LSP)</strong>.</p>
+<h3 id="using-the-lsp">Using the LSP</h3>
+<p>The <code>t-lsp</code> binary is provided automatically by your
+project’s <code>nix develop</code> shell.</p>
+<ol type="1">
+<li>Configure your editor (Vim, Emacs, or VS Code) once following the <a
+href="editors.html">Editor Support Guide</a>.</li>
+<li>Launch your editor <em>inside</em> the project directory after
+running <code>nix develop</code>.</li>
+<li>Alternatively, use <strong>direnv</strong> to automatically load the
+environment when you enter the project folder.</li>
+</ol>
+<p>Once active, you will get real-time autocompletion for: -
+<strong>Package functions</strong>: Suggestions for all imported
+functions. - <strong>Local variables</strong>: Defined earlier in your
+script. - <strong>DataFrame columns</strong>: Column names from your
+data sources (accessible via the <code>$</code> prefix).</p>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<ol type="1">
+<li><strong><a href="language_overview.html">Language
+Overview</a></strong> — Learn about types, syntax, and logic.</li>
+<li><strong><a href="pipeline_tutorial.html">Pipeline
+Tutorial</a></strong> — Learn how to structure your analysis as a
+DAG.</li>
+<li><strong><a href="api-reference.html">API Reference</a></strong> —
+Explore the standard library.</li>
+<li><strong><a href="data_manipulation_examples.html">Data Manipulation
+Examples</a></strong> — More worked examples of data wrangling.</li>
+</ol>
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
 </body>
 </html>

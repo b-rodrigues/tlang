@@ -25,14 +25,14 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="index.html">Home</a> |
-        <a href="getting-started.html">Get Started</a> |
-        <a href="language_overview.html">Overview</a> |
-        <a href="api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Programming Language - handling_dates</h1>
 </header>
@@ -113,13 +113,56 @@ to clarify or correct a timezone label.</li>
   filter(year($date) == 2024) |&gt;
   group_by($month) |&gt;
   summarize($total = sum($sales))</code></pre>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you can handle temporal data, explore text processing and
+categorical data in T:</p>
+<ol type="1">
+<li><strong><a href="string_manipulation.html">String
+Manipulation</a></strong> — Explore powerful functions for text
+processing and regular expressions.</li>
+<li><strong><a href="factors.html">Factors &amp; Categorical
+Data</a></strong> — Learn how to work with categorical data.</li>
+<li><strong><a href="arrays.html">Arrays and Matrices</a></strong> —
+Vector and matrix operations.</li>
+<li><strong><a href="api-reference.html">API Reference</a></strong> —
+Complete function reference by package.</li>
+</ol>
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
 </body>
 </html>

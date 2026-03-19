@@ -90,14 +90,14 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="index.html">Home</a> |
-        <a href="getting-started.html">Get Started</a> |
-        <a href="language_overview.html">Overview</a> |
-        <a href="api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Programming Language - faq</h1>
 </header>
@@ -379,7 +379,7 @@ blocks are just structured comments.</p>
 <h3 id="build-fails-with-command-not-found-nix">Build fails with
 “command not found: nix”</h3>
 <p><strong>Solution</strong>: Install Nix first (see <a
-href="installation.md">Installation Guide</a>).</p>
+href="installation.html">Installation Guide</a>).</p>
 <h3 id="tests-fail-on-macos-vs-linux">Tests fail on macOS vs Linux</h3>
 <p><strong>Possible causes</strong>: - Floating-point precision
 differences (acceptable if small) - Platform-specific Arrow behavior</p>
@@ -393,7 +393,7 @@ to reduce size early - Export intermediate results</p>
 <hr />
 <h2 id="contributing">Contributing</h2>
 <h3 id="how-can-i-contribute">How can I contribute?</h3>
-<p>See <a href="contributing.md">Contributing Guide</a> for: - Bug
+<p>See <a href="contributing.html">Contributing Guide</a> for: - Bug
 reports - Feature requests - Code contributions - Documentation
 improvements</p>
 <h3 id="i-found-a-bug.-what-should-i-do">I found a bug. What should I
@@ -412,7 +412,7 @@ Issues</a></li>
 </ol>
 <h3 id="can-i-add-a-new-standard-library-function">Can I add a new
 standard library function?</h3>
-<p><strong>Yes!</strong> See <a href="development.md">Development
+<p><strong>Yes!</strong> See <a href="development.html">Development
 Guide</a> for: - Adding functions to packages - Writing tests - Updating
 documentation</p>
 <hr />
@@ -421,7 +421,7 @@ documentation</p>
 <p><strong>Alpha (current)</strong>: Core language, basic data analysis
 <strong>Beta</strong>: Performance improvements, more functions
 <strong>1.0</strong>: Production-ready, stable API</p>
-<p>See <a href="changelog.md">Changelog</a> for details.</p>
+<p>See <a href="changelog.html">Changelog</a> for details.</p>
 <h3 id="will-t-support-feature-x">Will T support [feature X]?</h3>
 <p>Check <a href="https://github.com/b-rodrigues/tlang/issues">GitHub
 Issues</a> or ask in Discussions.</p>
@@ -458,23 +458,51 @@ Usable for real data analysis (with caveats)</p>
 </ul>
 <h3 id="im-stuck.-who-can-help">I’m stuck. Who can help?</h3>
 <ol type="1">
-<li>Check <a href="troubleshooting.md">Troubleshooting Guide</a></li>
+<li>Check <a href="troubleshooting.html">Troubleshooting Guide</a></li>
 <li>Search <a href="https://github.com/b-rodrigues/tlang/issues">GitHub
 Issues</a></li>
 <li>Ask in GitHub Discussions</li>
-<li>Read <a href="getting-started.md">Getting Started</a></li>
+<li>Read <a href="getting-started.html">Getting Started</a></li>
 </ol>
 <hr />
 <p><strong>More Questions?</strong> Open a <a
 href="https://github.com/b-rodrigues/tlang/discussions">GitHub
 Discussion</a>!</p>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
 </body>
 </html>

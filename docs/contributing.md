@@ -88,13 +88,16 @@ Documentation contributions are highly valued:
 See the [Development Guide](development.md) for detailed setup instructions.
 
 **Quick Start**:
-```bash
-git clone https://github.com/b-rodrigues/tlang.git
-cd tlang
-nix develop
-dune build
-dune runtest
-```
+
+1. **Install Nix**: Follow the [Nix Installation Guide](nix-installation.md).
+2. **Clone and Build**:
+   ```bash
+   git clone https://github.com/b-rodrigues/tlang.git
+   cd tlang
+   nix develop
+   dune build
+   dune runtest
+   ```
 
 ---
 

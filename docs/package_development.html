@@ -90,14 +90,14 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
 <div class="container">
-    <nav style="text-align: center; margin-bottom: 2rem;">
-        <a href="index.html">Home</a> |
-        <a href="getting-started.html">Get Started</a> |
-        <a href="language_overview.html">Overview</a> |
-        <a href="api-reference.html">API Docs</a> |
-        <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
-    </nav>
 <header id="title-block-header">
 <h1 class="title">T Programming Language - package_development</h1>
 </header>
@@ -297,13 +297,57 @@ import advanced_stats[weighted_mean]
 import advanced_stats[wmean=weighted_mean]</code></pre>
 <p>Functions marked with <code>@private</code> in your package are not
 visible to importers.</p>
-<footer>
-    <hr class="footer-hr">
-    <center>
-        Best viewed with a sense of curiosity.<br>
-        <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
-    </center>
-</footer>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you know how to build packages, explore how to ensure your
+work is reproducible and understand T’s underlying architecture:</p>
+<ol type="1">
+<li><strong><a href="reproducibility.html">Reproducibility
+Guide</a></strong> — Deep dive into T’s commitment to reproducible
+research.</li>
+<li><strong><a href="architecture.html">Architecture</a></strong> —
+Understand the internal design and execution model of T.</li>
+<li><strong><a href="project_development.html">Project
+Development</a></strong> — Master T’s project structure and dependency
+management.</li>
+<li><strong><a href="api-reference.html">API Reference</a></strong> —
+Complete function reference by package.</li>
+</ol>
 </div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
 </body>
 </html>

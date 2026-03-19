@@ -6,16 +6,9 @@ Welcome to T! This guide will help you install T, create your first project, and
 
 T requires the **Nix package manager** with flakes enabled. Nix ensures that your T environment is perfectly reproducible across Linux and macOS.
 
-If you don't have Nix installed:
+We strongly recommend installing Nix using the [Determinate Systems Nix Installer](https://install.determinate.systems/nix). For detailed, platform-specific steps, please see our:
 
-```bash
-# Install Nix with flakes enabled
-sh <(curl -L https://nixos.org/nix/install) --daemon
-
-# Enable flakes (add to ~/.config/nix/nix.conf)
-mkdir -p ~/.config/nix
-echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-```
+👉 **[Nix Installation Guide](nix-installation.md)**
 
 ## Running T
 
@@ -25,7 +18,7 @@ As a user, you don't need to clone the repository or build the compiler from sou
 nix shell github:b-rodrigues/tlang
 ```
 
-This command will download the T executable, fetch all required dependencies, and drop you into a shell where the `t` command is available.
+This command will download the T executable, fetch all required dependencies, and drop you into a temporary shell where the `t` command is available.
 
 ## Starting a New Workspace
 
@@ -75,11 +68,35 @@ my_package/
 
 ## Running Your Code
 
+Now that you’ve bootstrapped your project or package, you can leave the temporary Nix shell using `exit`.
+Move into the project’s directory, and use `nix develop` to drop into the development environment of the project.
+You may be prompted to make the `flake.nix` discoverable, you can copy and paste the suggested command or
+simply run `git add .` to stage the whole project. Try `nix develop` again to drop into the development
+environment. You should see the following:
+
+```bash
+==================================================
+T Project: start_t
+==================================================
+
+Available commands:
+  t repl              - Start T REPL
+  t run <file>        - Run a T file
+  t test              - Run tests
+
+To add dependencies:
+  * Add them to tproject.toml
+  * Run 't update' to sync flake.nix
+
+```
+
 Inside your project or package directory, you can start the interactive REPL to explore your data:
 
 ```bash
 t repl
 ```
+
+(or simply `t`).
 
 To execute a script from end-to-end, use:
 
@@ -89,8 +106,9 @@ t run scripts/main.t
 
 ## Next Steps
 
-Now that you have your first project set up and understand the folder structure, the best place to learn how to do actual data analysis in T is the Pipeline Tutorial!
+Now that you have your first project set up and understand the folder structure, you are ready to explore the language features and build reproducible data pipelines!
 
-1. **[Pipeline Tutorial](pipeline_tutorial.html)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
-2. **[Project Development](project_development.html)** — Dive deeper into managing your `tproject.toml` and Nix environments.
-3. **[Language Overview](language_overview.html)** — Explore T's syntax, types, and standard library functions.
+1. **[Configure Editors](editors.md)** — Configure your editor to play well with T.
+2. **[Language Overview](language_overview.md)** — Explore T's syntax, types, and standard library functions.
+3. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows (the core feature of T).
+4. **[Project Development](project_development.md)** — Dive deeper into managing your `tproject.toml` and Nix environments.

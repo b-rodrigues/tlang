@@ -17,59 +17,15 @@ Complete guide for installing and setting up the T programming language.
 
 ## Step 1: Install Nix
 
-### Linux & macOS
+T requires the **Nix package manager** with flakes enabled. We strongly recommend using the **Determinate Systems Nix Installer** for its robustness and ease of use.
 
-The recommended way to install Nix is with the official installer:
+### Platform-Specific Nix Installation
 
-```bash
-# Multi-user installation (recommended)
-sh <(curl -L https://nixos.org/nix/install) --daemon
+For detailed instructions on installing Nix on **Linux**, **macOS**, and **Windows (WSL2)**, please see our dedicated:
 
-# Single-user installation (alternative)
-sh <(curl -L https://nixos.org/nix/install) --no-daemon
-```
+👉 **[Nix Installation Guide](nix-installation.md)**
 
-**Note**: Multi-user installation requires sudo privileges and is more robust for development.
-
-### Windows (WSL2)
-
-First, ensure WSL2 is installed:
-
-```powershell
-# In PowerShell (Administrator)
-wsl --install
-```
-
-Then inside WSL2 Ubuntu:
-
-```bash
-sh <(curl -L https://nixos.org/nix/install) --daemon
-```
-
-### Verify Installation
-
-```bash
-nix --version
-# Should output: nix (Nix) 2.x.x
-```
-
-## Step 2: Enable Flakes
-
-T uses Nix flakes for reproducible builds. Enable them by adding to your Nix configuration:
-
-```bash
-# Create config directory if it doesn't exist
-mkdir -p ~/.config/nix
-
-# Enable flakes
-echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-```
-
-For NixOS users, add to `/etc/nixos/configuration.nix`:
-
-```nix
-nix.settings.experimental-features = [ "nix-command" "flakes" ];
-```
+Once Nix is installed and flakes are enabled, you can proceed to Step 2.
 
 ## Step 3: Clone T Repository
 

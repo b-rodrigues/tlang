@@ -1,6 +1,6 @@
 # mutate
 
-Create or modify columns
+Mutate DataFrame
 
 Adds new columns or modifies existing ones.
 
@@ -8,17 +8,17 @@ Adds new columns or modifies existing ones.
 
 - **df** (`DataFrame`): The input DataFrame.
 
-- **...** (`KeywordArgs`): New columns as name = expression pairs.
+- **...** (`Expressions`): Key-value pairs of new columns.
 
 
 ## Returns
 
-The modified DataFrame.
+The mutated DataFrame.
 
 ## Examples
 
 ```t
-mutate(mtcars, $hp_per_wt = $hp / $wt)
+mutate(mtcars, $ratio = $mpg / $hp)
 ```
 
 ## See Also

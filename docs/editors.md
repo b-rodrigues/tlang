@@ -2,11 +2,13 @@
 
 This guide describes how to set up syntax highlighting and language server (LSP) features for the T programming language in various editors.
 
-## 🌈 Syntax Highlighting
+## Syntax Highlighting
 
 Syntax highlighting provides basic color coding for keywords, operators, strings, and T-specific features like NSE variables (`$column`) and foreign code blocks (`<{ r_code }>`).
 
 ### Vim / Neovim
+
+You’ll find the required files [here](https://github.com/b-rodrigues/tlang/tree/main/editors/vim):
 
 1. Copy the ftdetect file:
    ```bash
@@ -22,7 +24,7 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
 
 ### Emacs
 
-1. Add the `emacs/` directory to your `load-path` in `init.el`:
+1. Add the `emacs/` [directory found here](https://github.com/b-rodrigues/tlang/tree/main/editors/emacs) to your `load-path` in `init.el`:
    ```elisp
    (add-to-list 'load-path "/path/to/tlang/editors/emacs")
    (require 't-mode)
@@ -31,18 +33,17 @@ Syntax highlighting provides basic color coding for keywords, operators, strings
 
 ### VS Code / Positron
 
-1. Download `editors/vscode/t-lang-0.2.0.vsix` from the repository (or clone the repo).
+1. Download `editors/vscode/t-lang-0.52.0.vsix` from the repository (or clone the repo).
 
 2. Install the extension:
    ```bash
-   code --install-extension editors/vscode/t-lang-0.2.0.vsix
+   code --install-extension editors/vscode/t-lang-0.52.0.vsix
    ```
 
 3. Restart VS Code or Positron.
 
 > **Building from source**: If you prefer to build the extension yourself,
 > see [editors/README.md](../editors/README.md) for instructions.
-
 
 ### Quarto
 
@@ -68,16 +69,22 @@ The extension lives in `editors/quarto/tlang` and includes a ready-to-copy examp
 
 ---
 
-## ⚡ Language Server Protocol (LSP)
+## Language Server Protocol (LSP)
 
 The T language server provides advanced features like:
-- **Autocompletion**: Suggests functions, variables, and columns.
-- **Diagnostics**: Real-time syntax, lexer, and basic semantic error reporting.
-- **Hover Information**: Shows types and documentation for variables and functions.
-- **Go to Definition**: Jump to the binding location of symbols defined in the current document.
+- **Autocompletion**: Context-aware suggestions for functions, variables, and data-frame columns (even inside pipes!).
+- **Diagnostics**: Real-time syntax and semantic checks. Missing columns or invalid types are flagged immediately.
+- **Hover Information**: High-fidelity tooltips showing function signatures and rich documentation (rendered from OCaml docstrings).
+- **Go to Definition**: Navigate directly to where a symbol is defined, including library functions.
+- **Symbol Renaming**: Safe, project-wide renaming of variables and functions.
 
 ### The LSP Binary
-When you install the `t-lang` package via Nix (or use `nix develop`), the `t-lsp` binary is automatically added to your path. This binary is pre-configured with all necessary dependencies.
+The `t-lsp` server is implemented in OCaml using the `linol` framework. When you enter a T project via `nix develop`, the correctly versioned binary is put in your `PATH`.
+
+> [!IMPORTANT]
+> **Launching the LSP**: For your editor to find the `t-lsp` binary, you must either:
+> 1. Launch your editor from **within** a `nix develop` shell.
+> 2. Use a tool like **[direnv](https://direnv.net/)** with `use flake` to automatically load the environment when you enter the project directory.
 
 ### Configuring your Editor
 
@@ -125,7 +132,7 @@ Add the following to your `init.el`:
 (add-hook 't-mode-hook 'eglot-ensure)
 ```
 
-### 🏗️ Building from Source
+### Building from Source
 If you are developing T itself, you can rebuild the LSP server with:
 ```bash
 nix build .#default

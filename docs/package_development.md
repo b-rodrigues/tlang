@@ -235,3 +235,14 @@ import advanced_stats[wmean=weighted_mean]
 ```
 
 Functions marked with `@private` in your package are not visible to importers.
+
+---
+
+## Next Steps
+
+Now that you know how to build packages, explore how to ensure your work is reproducible and understand T's underlying architecture:
+
+1. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+2. **[Architecture](architecture.md)** — Understand the internal design and execution model of T.
+3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+4. **[API Reference](api-reference.md)** — Complete function reference by package.
