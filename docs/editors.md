@@ -2,101 +2,70 @@
 
 This guide describes how to set up syntax highlighting and language server (LSP) features for the T programming language in various editors.
 
-## Syntax Highlighting
+---
 
-Syntax highlighting provides basic color coding for keywords, operators, strings, and T-specific features like NSE variables (`$column`) and foreign code blocks (`<{ r_code }>`).
+## Language Server Protocol (LSP)
 
-### Vim / Neovim
+The T language server provides advanced features like **Autocompletion** (context-aware suggestions), **Diagnostics** (real-time error checking), **Hover Information** (tooltips showing signatures/docs), and **Go to Definition**.
 
-You’ll find the required files [here](https://github.com/b-rodrigues/tlang/tree/main/editors/vim):
+The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix develop`, the correctly versioned binary is put in your `PATH`.
 
-1. Copy the ftdetect file:
-   ```bash
-   mkdir -p ~/.vim/ftdetect
-   cp editors/vim/ftdetect/t.vim ~/.vim/ftdetect/t.vim
-   ```
-2. Copy the syntax file:
-   ```bash
-   mkdir -p ~/.vim/syntax
-   cp editors/vim/syntax/t.vim ~/.vim/syntax/t.vim
-   ```
-3. Restart Vim. Files ending in `.t` will now have syntax highlighting.
+> [!IMPORTANT]
+> **Launching the LSP**: For your editor to find the `t-lsp` binary, you must either launch your editor from **within** a `nix develop` shell, or use a tool like **[direnv](https://direnv.net/)** with `use flake` to automatically load the environment.
 
-### Emacs
+---
 
-1. Add the `emacs/` [directory found here](https://github.com/b-rodrigues/tlang/tree/main/editors/emacs) to your `load-path` in `init.el`:
-   ```elisp
-   (add-to-list 'load-path "/path/to/tlang/editors/emacs")
-   (require 't-mode)
-   ```
-2. Any `.t` file will now automatically open in `t-mode`.
+## Editor Configuration
 
 ### VS Code / Positron
 
-1. Download `editors/vscode/t-lang-0.51.0.vsix` from the repository (or clone the repo).
+1. Download [`editors/vscode/t-lang-0.51.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix) from the repository (or clone the repo).
 
 2. Install the extension:
    ```bash
    code --install-extension editors/vscode/t-lang-0.51.0.vsix
    ```
 
-3. Restart VS Code or Positron.
+3. Start VS Code or Positron from the same nix shell where you run `t`:
+   ```bash
+   nix develop
+   code .
+   ```
 
-> **Building from source**: If you prefer to build the extension yourself,
-> see [editors/README.md](../editors/README.md) for instructions.
+> **Tip**: You can use **Cmd+Enter** (macOS) or **Ctrl+Enter** (Linux/Windows) to send the current line or selection to the T REPL, exactly like in RStudio.
 
-Start VS Code or Positron from the same nix shell where you run `t`:
+---
 
+### Vim / Neovim
+
+#### 1. Syntax Highlighting
+Copy the support files into your `.vim` directory:
 ```bash
-nix develop
-code .
+# Detect .t files
+mkdir -p ~/.vim/ftdetect
+cp editors/vim/ftdetect/t.vim ~/.vim/ftdetect/t.vim
+
+# Syntax rules
+mkdir -p ~/.vim/syntax
+cp editors/vim/syntax/t.vim ~/.vim/syntax/t.vim
 ```
 
-### Quarto
+#### 2. LSP (via coc.nvim or nvim-lspconfig)
 
-For literate programming with executable `{t}` chunks, add Quarto to your T project tools:
-
-```toml
-[additional-tools]
-packages = ["quarto"]
+**For Vim (`coc.nvim`)**, add this to your `:CocConfig`:
+```json
+{
+  "languageserver": {
+    "tlang": {
+      "command": "t-lsp",
+      "filetypes": ["t"],
+      "rootPatterns": ["tproject.toml", ".git"]
+    }
+  }
+}
 ```
 
-Then run `t update` and enter the project with `nix develop`. T will provision `_extensions/tlang` automatically from the Nix store.
-
-After that, enable the `tlang` filter in your document front matter:
-
-```yaml
----
-filters:
-  - tlang
----
-```
-
-The extension lives in `editors/quarto/tlang` and includes a ready-to-copy example document.
-
----
-
-## Language Server Protocol (LSP)
-
-The T language server provides advanced features like:
-- **Autocompletion**: Context-aware suggestions for functions, variables, and data-frame columns (even inside pipes!).
-- **Diagnostics**: Real-time syntax and semantic checks. Missing columns or invalid types are flagged immediately.
-- **Hover Information**: High-fidelity tooltips showing function signatures and rich documentation (rendered from OCaml docstrings).
-- **Go to Definition**: Navigate directly to where a symbol is defined, including library functions.
-- **Symbol Renaming**: Safe, project-wide renaming of variables and functions.
-
-### The LSP Binary
-The `t-lsp` server is implemented in OCaml using the `linol` framework. When you enter a T project via `nix develop`, the correctly versioned binary is put in your `PATH`.
-
-> [!IMPORTANT]
-> **Launching the LSP**: For your editor to find the `t-lsp` binary, you must either:
-> 1. Launch your editor from **within** a `nix develop` shell.
-> 2. Use a tool like **[direnv](https://direnv.net/)** with `use flake` to automatically load the environment when you enter the project directory.
-
-### Configuring your Editor
-
-#### **Neovim (`nvim-lspconfig`)**
-Add this to your `init.lua`:
+**For Neovim (`nvim-lspconfig`)**, add this to your `init.lua`:
 ```lua
 local lspconfig = require('lspconfig')
 local configs = require('lspconfig.configs')
@@ -114,21 +83,18 @@ end
 lspconfig.tlang.setup{}
 ```
 
-#### **Vim (`coc.nvim`)**
-Add this to your `:CocConfig`:
-```json
-{
-  "languageserver": {
-    "tlang": {
-      "command": "t-lsp",
-      "filetypes": ["t"],
-      "rootPatterns": ["tproject.toml", ".git"]
-    }
-  }
-}
+---
+
+### Emacs
+
+#### 1. Syntax Highlighting
+Add the `editors/emacs/` directory to your `load-path` in `init.el`:
+```elisp
+(add-to-list 'load-path "/path/to/tlang/editors/emacs")
+(require 't-mode)
 ```
 
-#### **Emacs (`eglot`)**
+#### 2. LSP (via eglot)
 Add the following to your `init.el`:
 ```elisp
 (with-eval-after-load 'eglot
@@ -139,7 +105,30 @@ Add the following to your `init.el`:
 (add-hook 't-mode-hook 'eglot-ensure)
 ```
 
-### Building from Source
+---
+
+### Quarto
+
+For literate programming with executable `{t}` chunks, add Quarto to your T project tools in `tproject.toml`:
+
+```toml
+[additional-tools]
+packages = ["quarto"]
+```
+
+Then run `t update` and enter the project with `nix develop`. T will provision `_extensions/tlang` automatically. Enable the `tlang` filter in your document front matter:
+
+```yaml
+---
+filters:
+  - tlang
+---
+```
+
+---
+
+## Building from Source
+
 If you are developing T itself, you can rebuild the LSP server with:
 ```bash
 nix build .#default

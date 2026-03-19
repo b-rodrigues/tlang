@@ -105,129 +105,96 @@
 <p>This guide describes how to set up syntax highlighting and language
 server (LSP) features for the T programming language in various
 editors.</p>
-<h2 id="syntax-highlighting">Syntax Highlighting</h2>
-<p>Syntax highlighting provides basic color coding for keywords,
-operators, strings, and T-specific features like NSE variables
-(<code>$column</code>) and foreign code blocks
-(<code>&lt;{ r_code }&gt;</code>).</p>
-<h3 id="vim-neovim">Vim / Neovim</h3>
-<p>You’ll find the required files <a
-href="https://github.com/b-rodrigues/tlang/tree/main/editors/vim">here</a>:</p>
-<ol type="1">
-<li><p>Copy the ftdetect file:</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/ftdetect</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/ftdetect/t.vim ~/.vim/ftdetect/t.vim</span></code></pre></div></li>
-<li><p>Copy the syntax file:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/syntax</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/syntax/t.vim ~/.vim/syntax/t.vim</span></code></pre></div></li>
-<li><p>Restart Vim. Files ending in <code>.t</code> will now have syntax
-highlighting.</p></li>
-</ol>
-<h3 id="emacs">Emacs</h3>
-<ol type="1">
-<li><p>Add the <code>emacs/</code> <a
-href="https://github.com/b-rodrigues/tlang/tree/main/editors/emacs">directory
-found here</a> to your <code>load-path</code> in
-<code>init.el</code>:</p>
-<pre class="elisp"><code>(add-to-list &#39;load-path &quot;/path/to/tlang/editors/emacs&quot;)
-(require &#39;t-mode)</code></pre></li>
-<li><p>Any <code>.t</code> file will now automatically open in
-<code>t-mode</code>.</p></li>
-</ol>
-<h3 id="vs-code-positron">VS Code / Positron</h3>
-<ol type="1">
-<li><p>Download <code>editors/vscode/t-lang-0.51.0.vsix</code> from the
-repository (or clone the repo).</p></li>
-<li><p>Install the extension:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> editors/vscode/t-lang-0.51.0.vsix</span></code></pre></div></li>
-<li><p>Restart VS Code or Positron.</p></li>
-</ol>
-<blockquote>
-<p><strong>Building from source</strong>: If you prefer to build the
-extension yourself, see <a
-href="../editors/README.html">editors/README.md</a> for instructions.</p>
-</blockquote>
-<h3 id="quarto">Quarto</h3>
-<p>For literate programming with executable <code>{t}</code> chunks, add
-Quarto to your T project tools:</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;quarto&quot;</span><span class="op">]</span></span></code></pre></div>
-<p>Then run <code>t update</code> and enter the project with
-<code>nix develop</code>. T will provision
-<code>_extensions/tlang</code> automatically from the Nix store.</p>
-<p>After that, enable the <code>tlang</code> filter in your document
-front matter:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">filters</span><span class="kw">:</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> tlang</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span></code></pre></div>
-<p>The extension lives in <code>editors/quarto/tlang</code> and includes
-a ready-to-copy example document.</p>
 <hr />
 <h2 id="language-server-protocol-lsp">Language Server Protocol
 (LSP)</h2>
-<p>The T language server provides advanced features like: -
-<strong>Autocompletion</strong>: Context-aware suggestions for
-functions, variables, and data-frame columns (even inside pipes!). -
-<strong>Diagnostics</strong>: Real-time syntax and semantic checks.
-Missing columns or invalid types are flagged immediately. -
-<strong>Hover Information</strong>: High-fidelity tooltips showing
-function signatures and rich documentation (rendered from OCaml
-docstrings). - <strong>Go to Definition</strong>: Navigate directly to
-where a symbol is defined, including library functions. - <strong>Symbol
-Renaming</strong>: Safe, project-wide renaming of variables and
-functions.</p>
-<h3 id="the-lsp-binary">The LSP Binary</h3>
-<p>The <code>t-lsp</code> server is implemented in OCaml using the
-<code>linol</code> framework. When you enter a T project via
-<code>nix develop</code>, the correctly versioned binary is put in your
-<code>PATH</code>.</p>
+<p>The T language server provides advanced features like
+<strong>Autocompletion</strong> (context-aware suggestions),
+<strong>Diagnostics</strong> (real-time error checking), <strong>Hover
+Information</strong> (tooltips showing signatures/docs), and <strong>Go
+to Definition</strong>.</p>
+<p>The <code>t-lsp</code> server is implemented in OCaml. When you enter
+a T project via <code>nix develop</code>, the correctly versioned binary
+is put in your <code>PATH</code>.</p>
 <blockquote>
 <p>[!IMPORTANT] <strong>Launching the LSP</strong>: For your editor to
-find the <code>t-lsp</code> binary, you must either: 1. Launch your
-editor from <strong>within</strong> a <code>nix develop</code> shell. 2.
-Use a tool like <strong><a
-href="https://direnv.net/">direnv</a></strong> with
-<code>use flake</code> to automatically load the environment when you
-enter the project directory.</p>
+find the <code>t-lsp</code> binary, you must either launch your editor
+from <strong>within</strong> a <code>nix develop</code> shell, or use a
+tool like <strong><a href="https://direnv.net/">direnv</a></strong> with
+<code>use flake</code> to automatically load the environment.</p>
 </blockquote>
-<h3 id="configuring-your-editor">Configuring your Editor</h3>
-<h4 id="neovim-nvim-lspconfig"><strong>Neovim
-(<code>nvim-lspconfig</code>)</strong></h4>
-<p>Add this to your <code>init.lua</code>:</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode lua"><code class="sourceCode lua"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">lspconfig</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;lspconfig&#39;</span><span class="op">)</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">configs</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;lspconfig.configs&#39;</span><span class="op">)</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> <span class="va">configs</span><span class="op">.</span><span class="va">tlang</span> <span class="cf">then</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="va">configs</span><span class="op">.</span><span class="va">tlang</span> <span class="op">=</span> <span class="op">{</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">default_config</span> <span class="op">=</span> <span class="op">{</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>      <span class="va">cmd</span> <span class="op">=</span> <span class="op">{</span> <span class="st">&quot;t-lsp&quot;</span> <span class="op">},</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>      <span class="va">filetypes</span> <span class="op">=</span> <span class="op">{</span><span class="st">&#39;t&#39;</span><span class="op">},</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>      <span class="va">root_dir</span> <span class="op">=</span> <span class="va">lspconfig</span><span class="op">.</span><span class="va">util</span><span class="op">.</span>root_pattern<span class="op">(</span><span class="st">&#39;tproject.toml&#39;</span><span class="op">,</span> <span class="st">&#39;.git&#39;</span><span class="op">),</span></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>      <span class="va">settings</span> <span class="op">=</span> <span class="op">{},</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="va">lspconfig</span><span class="op">.</span><span class="va">tlang</span><span class="op">.</span>setup<span class="op">{}</span></span></code></pre></div>
-<h4 id="vim-coc.nvim"><strong>Vim (<code>coc.nvim</code>)</strong></h4>
-<p>Add this to your <code>:CocConfig</code>:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;languageserver&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;tlang&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;command&quot;</span><span class="fu">:</span> <span class="st">&quot;t-lsp&quot;</span><span class="fu">,</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;filetypes&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;t&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;rootPatterns&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;tproject.toml&quot;</span><span class="ot">,</span> <span class="st">&quot;.git&quot;</span><span class="ot">]</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<h4 id="emacs-eglot"><strong>Emacs (<code>eglot</code>)</strong></h4>
+<hr />
+<h2 id="editor-configuration">Editor Configuration</h2>
+<h3 id="vs-code-positron">VS Code / Positron</h3>
+<ol type="1">
+<li><p>Download <a
+href="https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix"><code>editors/vscode/t-lang-0.51.0.vsix</code></a>
+from the repository (or clone the repo).</p></li>
+<li><p>Install the extension:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> editors/vscode/t-lang-0.51.0.vsix</span></code></pre></div></li>
+<li><p>Start VS Code or Positron from the same nix shell where you run
+<code>t</code>:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> .</span></code></pre></div></li>
+</ol>
+<blockquote>
+<p><strong>Tip</strong>: You can use <strong>Cmd+Enter</strong> (macOS)
+or <strong>Ctrl+Enter</strong> (Linux/Windows) to send the current line
+or selection to the T REPL, exactly like in RStudio.</p>
+</blockquote>
+<hr />
+<h3 id="vim-neovim">Vim / Neovim</h3>
+<h4 id="syntax-highlighting">1. Syntax Highlighting</h4>
+<p>Copy the support files into your <code>.vim</code> directory:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Detect .t files</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/ftdetect</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/ftdetect/t.vim ~/.vim/ftdetect/t.vim</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Syntax rules</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.vim/syntax</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> editors/vim/syntax/t.vim ~/.vim/syntax/t.vim</span></code></pre></div>
+<h4 id="lsp-via-coc.nvim-or-nvim-lspconfig">2. LSP (via coc.nvim or
+nvim-lspconfig)</h4>
+<p><strong>For Vim (<code>coc.nvim</code>)</strong>, add this to your
+<code>:CocConfig</code>:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;languageserver&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;tlang&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;command&quot;</span><span class="fu">:</span> <span class="st">&quot;t-lsp&quot;</span><span class="fu">,</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;filetypes&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;t&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;rootPatterns&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;tproject.toml&quot;</span><span class="ot">,</span> <span class="st">&quot;.git&quot;</span><span class="ot">]</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>For Neovim (<code>nvim-lspconfig</code>)</strong>, add this
+to your <code>init.lua</code>:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode lua"><code class="sourceCode lua"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">lspconfig</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;lspconfig&#39;</span><span class="op">)</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">local</span> <span class="va">configs</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&#39;lspconfig.configs&#39;</span><span class="op">)</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> <span class="va">configs</span><span class="op">.</span><span class="va">tlang</span> <span class="cf">then</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="va">configs</span><span class="op">.</span><span class="va">tlang</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">default_config</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>      <span class="va">cmd</span> <span class="op">=</span> <span class="op">{</span> <span class="st">&quot;t-lsp&quot;</span> <span class="op">},</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>      <span class="va">filetypes</span> <span class="op">=</span> <span class="op">{</span><span class="st">&#39;t&#39;</span><span class="op">},</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>      <span class="va">root_dir</span> <span class="op">=</span> <span class="va">lspconfig</span><span class="op">.</span><span class="va">util</span><span class="op">.</span>root_pattern<span class="op">(</span><span class="st">&#39;tproject.toml&#39;</span><span class="op">,</span> <span class="st">&#39;.git&#39;</span><span class="op">),</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>      <span class="va">settings</span> <span class="op">=</span> <span class="op">{},</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="va">lspconfig</span><span class="op">.</span><span class="va">tlang</span><span class="op">.</span>setup<span class="op">{}</span></span></code></pre></div>
+<hr />
+<h3 id="emacs">Emacs</h3>
+<h4 id="syntax-highlighting-1">1. Syntax Highlighting</h4>
+<p>Add the <code>editors/emacs/</code> directory to your
+<code>load-path</code> in <code>init.el</code>:</p>
+<pre class="elisp"><code>(add-to-list &#39;load-path &quot;/path/to/tlang/editors/emacs&quot;)
+(require &#39;t-mode)</code></pre>
+<h4 id="lsp-via-eglot">2. LSP (via eglot)</h4>
 <p>Add the following to your <code>init.el</code>:</p>
 <pre class="elisp"><code>(with-eval-after-load &#39;eglot
   (add-to-list &#39;eglot-server-programs
@@ -235,7 +202,24 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb8-1"><a href="
 
 ;; Automatically start eglot when opening a .t file
 (add-hook &#39;t-mode-hook &#39;eglot-ensure)</code></pre>
-<h3 id="building-from-source">Building from Source</h3>
+<hr />
+<h3 id="quarto">Quarto</h3>
+<p>For literate programming with executable <code>{t}</code> chunks, add
+Quarto to your T project tools in <code>tproject.toml</code>:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;quarto&quot;</span><span class="op">]</span></span></code></pre></div>
+<p>Then run <code>t update</code> and enter the project with
+<code>nix develop</code>. T will provision
+<code>_extensions/tlang</code> automatically. Enable the
+<code>tlang</code> filter in your document front matter:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">filters</span><span class="kw">:</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> tlang</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span></code></pre></div>
+<hr />
+<h2 id="building-from-source">Building from Source</h2>
 <p>If you are developing T itself, you can rebuild the LSP server
 with:</p>
 <div class="sourceCode" id="cb10"><pre
