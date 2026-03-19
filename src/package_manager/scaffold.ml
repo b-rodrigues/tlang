@@ -248,6 +248,15 @@ A T package.
 
 A brief description of what {{name}} does.
 
+## Editor Support
+
+This project includes support for the **T Language Server (LSP)**.
+
+1. Configure your editor following the [Editor Support Guide](https://tstats-project.org/editors.html).
+2. Always launch your editor from within the `nix develop` environment (or use `direnv`).
+
+Once active, you'll get autocompletion for T functions, variables, and DataFrame columns (via `$`).
+
 ## Installation
 
 Add the following to the `[dependencies]` section of your `tproject.toml`:
@@ -432,6 +441,15 @@ To add a new dependency:
 3. Commit `tproject.toml`
 
 No imperative install commands — `flake.nix` reads `tproject.toml` directly.
+
+## Editor Support
+
+This project includes support for the **T Language Server (LSP)**.
+
+1. Configure your editor following the [Editor Support Guide](https://tstats-project.org/editors.html).
+2. Always launch your editor from within the `nix develop` environment (or use `direnv`).
+
+Once active, you'll get autocompletion for T functions, variables, and DataFrame columns (via `$`).
 
 ## License
 
@@ -671,6 +689,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       Printf.printf "  nix develop           # Enter reproducible environment\n";
       Printf.printf "  t repl                # Start the REPL\n";
       Printf.printf "  t run src/pipeline.t  # Run the pipeline\n";
+      Printf.printf "\nEditor Setup:\n";
+      Printf.printf "  See https://tstats-project.org/editors.html for LSP configuration.\n";
       Ok ()
     end
 
