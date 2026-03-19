@@ -63,6 +63,10 @@ functions</li>
 DataFrame operations</li>
 <li><a href="#colcraft-package">Colcraft Package</a> — Data manipulation
 verbs and window functions</li>
+<li><a href="#chrono-package">Chrono Package</a> — High-performance date
+and time manipulation</li>
+<li><a href="#strcraft-package">Strcraft Package</a> — Modern string
+manipulation</li>
 <li><a href="#pipeline-package">Pipeline Package</a> — Pipeline
 introspection</li>
 <li><a href="#explain-package">Explain Package</a> — Introspection and
@@ -1234,6 +1238,95 @@ cumsum([1, NA, 3])           -- Vector[1, NA, NA]</code></pre>
 <p>Cumulative OR (any true so far?).</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>cumany([false, true, false]) -- Vector[false, true, true]</code></pre>
+<hr />
+<h2 id="chrono-package">Chrono Package</h2>
+<p>High-performance date and time manipulation, inspired by R’s
+<code>lubridate</code>.</p>
+<h3 id="as_datevalue-as_datetimevalue"><code>as_date(value)</code> /
+<code>as_datetime(value)</code></h3>
+<p>Convert values to Date or Datetime types.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — String, Number, or Collection of values</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Date</code> / <code>Datetime</code> /
+<code>Collection</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>as_date(&quot;2023-05-15&quot;)  -- 2023-05-15
+as_datetime(&quot;2023-05-15 14:00:00&quot;)</code></pre>
+<hr />
+<h3 id="ymdstring-dmystring"><code>ymd(string)</code> /
+<code>dmy(string)</code></h3>
+<p>Parse strings into dates using common formats.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>string</code> — Date string</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Date</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>ymd(&quot;2023-05-15&quot;)
+dmy(&quot;15/05/2023&quot;)</code></pre>
+<hr />
+<h3
+id="floor_datedatetime-unit"><code>floor_date(datetime, unit)</code></h3>
+<p>Round a date/datetime down to the nearest unit (year, month, day,
+hour, etc.).</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>datetime</code> — Date or Datetime</li>
+<li><code>unit</code> — Unit as string (“month”, “day”, etc.)</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>Same as input type</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>floor_date(as_date(&quot;2023-05-15&quot;), &quot;month&quot;)  -- 2023-05-01</code></pre>
+<hr />
+<h2 id="strcraft-package">Strcraft Package</h2>
+<p>Modern string manipulation utilities, inspired by R’s
+<code>stringr</code>.</p>
+<h3
+id="str_replacestring-pattern-replacement"><code>str_replace(string, pattern, replacement)</code></h3>
+<p>Replace the first occurrence of a pattern with a replacement string.
+Use <code>str_replace_all</code> for all occurrences.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>string</code> — Input string</li>
+<li><code>pattern</code> — Regex pattern</li>
+<li><code>replacement</code> — Replacement string</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>str_replace(&quot;hello world&quot;, &quot;world&quot;, &quot;T&quot;)  -- &quot;hello T&quot;</code></pre>
+<hr />
+<h3
+id="str_detectstring-pattern"><code>str_detect(string, pattern)</code></h3>
+<p>Check if a pattern exists in a string.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>string</code> — Input string</li>
+<li><code>pattern</code> — Regex pattern</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Bool</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>str_detect(&quot;apple&quot;, &quot;p&quot;)  -- true</code></pre>
+<hr />
+<h3 id="str_glue..."><code>str_glue(...)</code></h3>
+<p>Interpolate variables and expressions into strings. Similar to Python
+f-strings.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>...</code> — String with <code>{expression}</code>
+placeholders</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>name = &quot;Alice&quot;
+str_glue(&quot;Hello {name}&quot;)  -- &quot;Hello Alice&quot;</code></pre>
 <hr />
 <h2 id="pipeline-package">Pipeline Package</h2>
 <p>Pipeline introspection and management.</p>

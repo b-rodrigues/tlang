@@ -181,6 +181,15 @@ functions.</p>
 <code>linol</code> framework. When you enter a T project via
 <code>nix develop</code>, the correctly versioned binary is put in your
 <code>PATH</code>.</p>
+<blockquote>
+<p>[!IMPORTANT] <strong>Launching the LSP</strong>: For your editor to
+find the <code>t-lsp</code> binary, you must either: 1. Launch your
+editor from <strong>within</strong> a <code>nix develop</code> shell. 2.
+Use a tool like <strong><a
+href="https://direnv.net/">direnv</a></strong> with
+<code>use flake</code> to automatically load the environment when you
+enter the project directory.</p>
+</blockquote>
 <h3 id="configuring-your-editor">Configuring your Editor</h3>
 <h4 id="neovim-nvim-lspconfig"><strong>Neovim
 (<code>nvim-lspconfig</code>)</strong></h4>

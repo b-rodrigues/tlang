@@ -261,13 +261,36 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href=
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
+<h2 id="ide-support-autocompletion">8. IDE Support &amp;
+Autocompletion</h2>
+<p>T projects are designed to work seamlessly with modern editors via
+the <strong>Language Server Protocol (LSP)</strong>.</p>
+<h3 id="using-the-lsp">Using the LSP</h3>
+<p>The <code>t-lsp</code> binary is provided automatically by your
+project’s <code>nix develop</code> shell.</p>
+<ol type="1">
+<li>Configure your editor (Vim, Emacs, or VS Code) once following the <a
+href="editors.html">Editor Support Guide</a>.</li>
+<li>Launch your editor <em>inside</em> the project directory after
+running <code>nix develop</code>.</li>
+<li>Alternatively, use <strong>direnv</strong> to automatically load the
+environment when you enter the project folder.</li>
+</ol>
+<p>Once active, you will get real-time autocompletion for: -
+<strong>Package functions</strong>: Suggestions for all imported
+functions. - <strong>Local variables</strong>: Defined earlier in your
+script. - <strong>DataFrame columns</strong>: Column names from your
+data sources (accessible via the <code>$</code> prefix).</p>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
-<p>With your project set up, explore the full T library or see more
-examples:</p>
 <ol type="1">
+<li><strong><a href="language_overview.html">Language
+Overview</a></strong> — Learn about types, syntax, and logic.</li>
+<li><strong><a href="pipeline_tutorial.html">Pipeline
+Tutorial</a></strong> — Learn how to structure your analysis as a
+DAG.</li>
 <li><strong><a href="api-reference.html">API Reference</a></strong> —
-Exhaustive guide to T’s standard library packages.</li>
+Explore the standard library.</li>
 <li><strong><a href="data_manipulation_examples.html">Data Manipulation
 Examples</a></strong> — More worked examples of data wrangling.</li>
 </ol>

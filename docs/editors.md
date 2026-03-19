@@ -72,6 +72,11 @@ The T language server provides advanced features like:
 ### The LSP Binary
 The `t-lsp` server is implemented in OCaml using the `linol` framework. When you enter a T project via `nix develop`, the correctly versioned binary is put in your `PATH`.
 
+> [!IMPORTANT]
+> **Launching the LSP**: For your editor to find the `t-lsp` binary, you must either:
+> 1. Launch your editor from **within** a `nix develop` shell.
+> 2. Use a tool like **[direnv](https://direnv.net/)** with `use flake` to automatically load the environment when you enter the project directory.
+
 ### Configuring your Editor
 
 #### **Neovim (`nvim-lspconfig`)**
