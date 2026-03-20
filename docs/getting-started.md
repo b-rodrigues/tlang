@@ -18,7 +18,7 @@ As a user, you don't need to clone the repository or build the compiler from sou
 nix shell github:b-rodrigues/tlang
 ```
 
-This command will download the T executable, fetch all required dependencies, and drop you into a temporary shell where the `t` command is available.
+This command will download the T executable, fetch all required dependencies, and drop you into a temporary shell where the `t` command is available, for as long as you stay in that shell.
 
 ## Starting a New Workspace
 
@@ -28,7 +28,7 @@ T provides a built-in scaffolding tool to initialize your workspaces. There are 
 
 ### Creating a Project
 
-To start a new data analysis project, navigate to your desired folder and run:
+To start a new data analysis project, navigate to your desired folder and run (while in the temporary shell you dropped in before):
 
 ```bash
 t init project
@@ -69,7 +69,7 @@ my_package/
 ## Running Your Code
 
 Now that you’ve bootstrapped your project or package, you can leave the temporary Nix shell using `exit`.
-Move into the project’s directory, and use `nix develop` to drop into the development environment of the project.
+Move into the project’s directory (if not there already), and type `nix develop` to drop into the development environment of the project.
 You may be prompted to make the `flake.nix` discoverable, you can copy and paste the suggested command or
 simply run `git add .` to stage the whole project. Try `nix develop` again to drop into the development
 environment. You should see the following:
