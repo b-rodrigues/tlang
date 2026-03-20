@@ -19,7 +19,7 @@ for file in *.md; do
       --css=style.css \
       --include-before-body=header.html \
       --include-after-body=footer.html \
-      --metadata title="T Programming Language - $filename"
+      --metadata pagetitle="T Programming Language - $filename"
     
     # Post-process: convert .md links to .html
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -42,7 +42,7 @@ if [ -d "reference" ]; then
         --css=../style.css \
         --include-before-body=header_ref.html \
         --include-after-body=footer.html \
-        --metadata title="T Function Reference - $(basename "$filename")"
+        --metadata pagetitle="T Function Reference - $(basename "$filename")"
       
       # Post-process: convert .md links to .html
       if [[ "$OSTYPE" == "darwin"* ]]; then
