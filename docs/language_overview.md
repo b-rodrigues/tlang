@@ -7,6 +7,38 @@ T is a functional programming language designed for declarative, tabular data ma
 
 ---
 
+## Quick Syntax Tour
+
+```t
+-- Variable assignment
+x = 10
+name = "Alice"
+
+-- Function definition (lambda style preferred)
+add = \(a, b) a + b
+
+-- Conditionals
+result = if (x > 5) "high" else "low"
+
+-- Pipe operators
+-- |> passes left-hand to right-hand, short-circuits on Error
+-- ?|> forwards left-hand to right-hand even if it is an Error for recovery
+[1, 2, 3] |> map(\(v) v * v) |> sum
+
+-- Import a whole package
+import mypackage
+
+-- Import specific names from a package or another .t file
+import mypackage [fn1, fn2]
+import "helpers.t" [clean_data, normalize]
+
+-- Sequence generation
+seq(5)                -- [1, 2, 3, 4, 5]
+seq(1, 10, by = 2)    -- [1, 3, 5, 7, 9]
+```
+
+---
+
 ## Core Concepts
 
 ### Values and Types
@@ -73,6 +105,29 @@ true and false  -- false
 false or true   -- true
 not true        -- false
 ```
+
+---
+
+## Tooling
+
+### REPL
+
+The T REPL (`dune exec src/repl.exe`) supports:
+
+- **Readline editing** with arrow keys and history navigation
+- **Persistent history** in `~/.t_history`
+- **Multi-line input** for open brackets, parentheses, and braces
+- **Magic commands** such as `:help`, `:quit`, and `:clear`
+- **Signal-safe interrupts** so `Ctrl+C` returns you to the prompt cleanly
+
+### Language Server Protocol (LSP)
+
+T ships a native LSP server (`t-lsp`) for editor integrations such as VS Code:
+
+- **Completion** for symbols, functions, and DataFrame columns
+- **Go to definition** for bindings
+- **Hover documentation** sourced from `--#` docstrings
+- **Diagnostics** for parse and type errors
 
 ---
 
@@ -513,18 +568,33 @@ is_error(result)  -- true
 
 ## Pipelines
 
-Pipelines define named computation nodes with automatic dependency resolution:
+Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows:
 
 ```t
 p = pipeline {
-  data = read_csv("sales.csv")
-  filtered = filter(data, $amount > 100)
-  total = filtered |> select($amount) |> \(d) sum(d.amount)
+  -- Native T node
+  data = node(command = read_csv("sales.csv") |> filter($amount > 100))
+
+  -- R node
+  model_r = rn(
+    command = <{
+      lm(amount ~ category, data = data)
+    }>,
+    serializer = "pmml"
+  )
+
+  -- Python node
+  scored = pyn(
+    script = "score.py",
+    deserializer = "pmml"
+  )
 }
 
 p.data       -- access node result
-p.total      -- access computed value
+p.scored     -- access computed value
 ```
+
+Instead of inlining code with `command`, nodes can point to an external file using `script`. `command` and `script` are mutually exclusive, and the runtime can be inferred from file extensions such as `.R` or `.py`.
 
 Pipeline features:
 - **Automatic dependency resolution**: Nodes can be declared in any order
@@ -534,6 +604,21 @@ Pipeline features:
 - **Cross-language**: `node()`, `py()`/`pyn()`, `rn()`, and `shn()` enable execution in T, Python, R, and shell runtimes
 - **Environment Variables**: Pass custom variables into Nix build sandboxes via `env_vars`
 - **Re-run**: `pipeline_run()` re-executes the pipeline
+
+You can also inspect and transform pipelines without rebuilding them from scratch:
+
+```t
+p_full = p_etl |> union(p_model)
+p_trimmed = p_full |> difference(p_debug)
+p_updated = p_prod |> patch(p_overrides)
+
+pipeline_nodes(p_full)
+pipeline_deps(p_full)
+pipeline_to_frame(p_full)
+pipeline_dot(p_full)
+
+pipeline_validate(p_full)
+```
 
 ---
 
@@ -546,11 +631,79 @@ All packages are loaded automatically at startup:
 | `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq`, `getwd`, `file_exists`, `dir_exists`, `read_file`, `list_files`, `env`, `path_join`, `path_basename`, `path_dirname`, `path_ext`, `path_stem`, `path_abs` |
 | `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
-| `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`                   |
+| `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`, `predict`        |
 | `dataframe` | `read_csv`, `write_csv`, `colnames`, `nrow`, `ncol`, `clean_colnames` |
-| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `row_number`, `min_rank`, `dense_rank`, `cume_dist`, `percent_rank`, `ntile`, `lag`, `lead`, `cumsum`, `cummin`, `cummax`, `cummean`, `cumall`, `cumany` |
-| `pipeline`  | `pipeline_nodes`, `pipeline_deps`, `pipeline_node`, `pipeline_run` |
+| `colcraft`  | `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`, `rename`, `relocate`, `distinct`, `count`, `slice`, `pivot_longer`, `pivot_wider`, joins, missing-value helpers, factor helpers, and window functions |
+| `pipeline`  | node constructors, inspection helpers, validation helpers, DAG transformations, and composition tools |
 | `explain`   | `explain`, `intent_fields`, `intent_get`                |
+
+### Selected Signatures
+
+These signatures provide a compact map of the most commonly used functions:
+
+#### Core, Base, and Math
+
+- `print(value :: Any) :: Null`
+- `type(value :: Any) :: String`
+- `length(list :: List) :: Int`
+- `head(x :: DataFrame | List | Vector, n = 6) :: DataFrame | List | Vector`
+- `tail(x :: DataFrame | List | Vector, n = 6) :: DataFrame | List | Vector`
+- `map(list :: List, fn :: Function) :: List`
+- `filter(list :: List, fn :: Function) :: List`
+- `sum(list :: List, na_rm = false) :: Number`
+- `seq(start = 1, end :: Int, by = 1) :: List[Int]`
+- `is_na(value :: Any) :: Bool`
+- `is_error(value :: Any) :: Bool`
+- `error(message :: String) :: Error`
+- `pow(base :: Number, exp :: Number) :: Float`
+- `sqrt(value :: Number) :: Float`
+- `abs(value :: Number) :: Number`
+
+#### Stats and DataFrames
+
+- `mean(vector :: Vector, na_rm = false) :: Float`
+- `sd(vector :: Vector, na_rm = false) :: Float`
+- `quantile(vector :: Vector, prob :: Float, na_rm = false) :: Float`
+- `cor(v1 :: Vector, v2 :: Vector, na_rm = false) :: Float`
+- `lm(data :: DataFrame, formula :: Formula) :: Model`
+- `predict(model :: Model, data :: DataFrame) :: Vector`
+- `read_csv(path :: String, clean_colnames = false) :: DataFrame`
+- `write_csv(df :: DataFrame, path :: String) :: Null`
+- `nrow(df :: DataFrame) :: Int`
+- `ncol(df :: DataFrame) :: Int`
+- `colnames(df :: DataFrame) :: List[String]`
+
+#### Data Manipulation
+
+- `select(df :: DataFrame, ...) :: DataFrame`
+- `filter(df :: DataFrame, predicate :: NSE) :: DataFrame`
+- `mutate(df :: DataFrame, ...) :: DataFrame`
+- `arrange(df :: DataFrame, $col, direction = "asc") :: DataFrame`
+- `group_by(df :: DataFrame, ...) :: DataFrame`
+- `summarize(df :: DataFrame, ...) :: DataFrame`
+- `rename(df :: DataFrame, $new = $old, ...) :: DataFrame`
+- `pivot_longer(df :: DataFrame, ..., names_to = "name", values_to = "value") :: DataFrame`
+- `pivot_wider(df :: DataFrame, names_from :: Symbol, values_from :: Symbol) :: DataFrame`
+- `left_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame`
+- `drop_na(df :: DataFrame, ...) :: DataFrame`
+- `replace_na(df :: DataFrame, replace :: Dict) :: DataFrame`
+- `factor(x :: Vector | List, levels = [], ordered = false) :: Vector`
+- `row_number(x :: Vector) :: Vector`
+- `lag(x :: Vector, n = 1) :: Vector`
+
+#### Pipelines
+
+- `node(command :: Any, script :: String, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
+- `pyn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
+- `rn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
+- `build_pipeline(pipeline :: Pipeline) :: Null`
+- `pipeline_run(pipeline :: Pipeline) :: Pipeline`
+- `pipeline_nodes(p :: Pipeline) :: List[String]`
+- `pipeline_deps(p :: Pipeline) :: Dict`
+- `pipeline_to_frame(p :: Pipeline) :: DataFrame`
+- `pipeline_validate(p :: Pipeline) :: List[String]`
+- `union(p1 :: Pipeline, p2 :: Pipeline) :: Pipeline`
+- `difference(p1 :: Pipeline, p2 :: Pipeline) :: Pipeline`
 
 ### Math Functions
 
