@@ -15,3 +15,4 @@ jobs:
             -H "Authorization: token ${{ secrets.TRIGGER_DEMOS }}" \
             https://api.github.com/repos/b-rodrigues/t_demos/dispatches \
             -d '{"event_type": "trigger-demo", "client_payload": {"ref": "${GITHUB_REF}"}}'
+
