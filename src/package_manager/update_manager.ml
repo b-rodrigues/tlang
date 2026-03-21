@@ -579,7 +579,7 @@ let update_flake_lock () =
                               ~kind:Package
                               ~name:cfg.name
                               ~version:cfg.version
-                              ~nixpkgs_date:(if cfg.min_t_version <> "" then nixpkgs_date else nixpkgs_date) (* placeholder for now *)
+                              ~nixpkgs_date:nixpkgs_date
                               ~t_version:cfg.min_t_version
                               ~deps:cfg.dependencies
                               ~additional_tools:cfg.additional_tools
