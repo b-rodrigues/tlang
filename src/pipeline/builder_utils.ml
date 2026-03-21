@@ -27,14 +27,16 @@ let command_exists cmd =
 
 let run_command_stream cmd callback =
   try
-    let (ch_in, ch_out, ch_err) = Unix.open_process_full cmd (Unix.environment ()) in
-    Unix.close (Unix.descr_of_out_channel ch_out);
+    let (ch_in, ch_out, ch_err as proc) = Unix.open_process_full cmd (Unix.environment ()) in
     let fd_in = Unix.descr_of_in_channel ch_in in
     let fd_err = Unix.descr_of_in_channel ch_err in
     let buf = Bytes.create 1024 in
-    let line_buf = Buffer.create 256 in
-    
-    let process_bytes n =
+    (* Separate line-assembly buffers per FD to avoid merging partial lines
+       from different streams. *)
+    let line_buf_in = Buffer.create 256 in
+    let line_buf_err = Buffer.create 256 in
+
+    let process_bytes_to line_buf n =
       for i = 0 to n - 1 do
         let c = Bytes.get buf i in
         if c = '\n' || c = '\r' then (
@@ -48,33 +50,51 @@ let run_command_stream cmd callback =
     let rec drain in_open err_open =
       if not in_open && not err_open then ()
       else
-        let read_fds = 
+        let read_fds =
           [] |> (fun acc -> if in_open then fd_in :: acc else acc)
              |> (fun acc -> if err_open then fd_err :: acc else acc)
         in
         let ready, _, _ = Unix.select read_fds [] [] (-1.) in
-        
+
         let in_open =
           if in_open && List.mem fd_in ready then (
             let n = try Unix.read fd_in buf 0 1024 with _ -> 0 in
-            if n = 0 then false else (process_bytes n; true)
+            if n = 0 then false else (process_bytes_to line_buf_in n; true)
           ) else in_open
         in
-        
+
         let err_open =
           if err_open && List.mem fd_err ready then (
             let n = try Unix.read fd_err buf 0 1024 with _ -> 0 in
-            if n = 0 then false else (process_bytes n; true)
+            if n = 0 then false else (process_bytes_to line_buf_err n; true)
           ) else err_open
         in
-        
+
         drain in_open err_open
     in
-    
-    drain true true;
-    let final_line = Buffer.contents line_buf in
-    if final_line <> "" then callback final_line;
-    Ok (Unix.close_process_full (ch_in, ch_out, ch_err))
+
+    (* Use a flag to avoid double-closing if close_process_full succeeds
+       normally but Fun.protect's finally would close again. *)
+    let cleanup_done = ref false in
+    let status =
+      Fun.protect
+        ~finally:(fun () ->
+          if not !cleanup_done then
+            (try ignore (Unix.close_process_full proc) with _ -> ()))
+        (fun () ->
+          drain true true;
+          (* Flush any unterminated final lines from each stream. *)
+          let flush_buf b =
+            let line = Buffer.contents b in
+            if line <> "" then callback line
+          in
+          flush_buf line_buf_in;
+          flush_buf line_buf_err;
+          let s = Unix.close_process_full proc in
+          cleanup_done := true;
+          s)
+    in
+    Ok status
   with exn ->
     Error (Printexc.to_string exn)
 

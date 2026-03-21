@@ -743,43 +743,69 @@ let () =
       b_func = (fun named_args env_ref ->
         let filename = ref "src/pipeline.t" in
         let nix_args = ref [] in
+        let arg_error = ref None in
         let _ = List.fold_left (fun idx (k_opt, v) ->
           (match k_opt, v with
           | Some "filename", Ast.VString s -> filename := s
-          | Some "max_jobs", Ast.VInt i -> nix_args := "--max-jobs" :: string_of_int i :: !nix_args
-          | Some "max_cores", Ast.VInt i -> nix_args := "--cores" :: string_of_int i :: !nix_args
+          | Some "filename", _ ->
+              arg_error := Some "t_make: 'filename' must be a String"
+          | Some "max_jobs", Ast.VInt i ->
+              nix_args := "--max-jobs" :: string_of_int i :: !nix_args
+          | Some "max_jobs", _ ->
+              arg_error := Some "t_make: 'max_jobs' must be an Int"
+          | Some "max_cores", Ast.VInt i ->
+              nix_args := "--cores" :: string_of_int i :: !nix_args
+          | Some "max_cores", _ ->
+              arg_error := Some "t_make: 'max_cores' must be an Int"
           | None, Ast.VString s when idx = 0 -> filename := s
-          | None, Ast.VInt i when idx = 1 -> nix_args := "--max-jobs" :: string_of_int i :: !nix_args
-          | None, Ast.VInt i when idx = 2 -> nix_args := "--cores" :: string_of_int i :: !nix_args
-          | _ -> ());
+          | None, Ast.VInt i when idx = 1 ->
+              nix_args := "--max-jobs" :: string_of_int i :: !nix_args
+          | None, Ast.VInt i when idx = 2 ->
+              nix_args := "--cores" :: string_of_int i :: !nix_args
+          | Some k, _ ->
+              arg_error := Some (Printf.sprintf "t_make: unknown argument '%s'" k)
+          | None, _ ->
+              arg_error := Some (Printf.sprintf "t_make: unexpected argument at position %d" idx));
           idx + 1
         ) 0 named_args in
-        Builder_internal.nix_build_args := List.rev !nix_args;
-        (try
-          let ch = open_in !filename in
-          let content = really_input_string ch (in_channel_length ch) in
-          close_in ch;
-          let lexbuf = Lexing.from_string content in
-           (try
-            let program = Parser.program Lexer.token lexbuf in
-            let (v, new_env) = Eval.eval_program program !env_ref in
-            (match v with
-             | Ast.VError _ -> v
-             | _ -> 
-                 env_ref := new_env;
-                 Printf.printf "Pipeline %s evaluated successfully.\n" !filename; flush stdout; Ast.VNull)
-           with
-           | Lexer.SyntaxError msg ->
-               let pos = Lexing.lexeme_start_p lexbuf in
-               make_located_error ~file:!filename Ast.SyntaxError ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
-           | Parser.Error ->
-               let pos = Lexing.lexeme_start_p lexbuf in
-               make_located_error ~file:!filename Ast.SyntaxError (Printf.sprintf "Parse error in '%s'" !filename) pos
-           | Sys.Break ->
-               interrupt_error ())
-         with
-         | Sys_error msg ->
-             Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_make failed: %s" msg; context = []; location = None })
+        match !arg_error with
+        | Some msg ->
+            Ast.VError { code = Ast.TypeError; message = msg; context = []; location = None }
+        | None ->
+        let prev_nix_build_args = !Builder_internal.nix_build_args in
+        Fun.protect
+          ~finally:(fun () ->
+            Builder_internal.nix_build_args := prev_nix_build_args)
+          (fun () ->
+            Builder_internal.nix_build_args := List.rev !nix_args;
+            (try
+              let content =
+                let ch = open_in !filename in
+                Fun.protect
+                  ~finally:(fun () -> close_in_noerr ch)
+                  (fun () -> really_input_string ch (in_channel_length ch))
+              in
+              let lexbuf = Lexing.from_string content in
+               (try
+                let program = Parser.program Lexer.token lexbuf in
+                let (v, new_env) = Eval.eval_program program !env_ref in
+                (match v with
+                 | Ast.VError _ -> v
+                 | _ ->
+                     env_ref := new_env;
+                     Printf.printf "Pipeline %s evaluated successfully.\n" !filename; flush stdout; Ast.VNull)
+               with
+               | Lexer.SyntaxError msg ->
+                   let pos = Lexing.lexeme_start_p lexbuf in
+                   make_located_error ~file:!filename Ast.SyntaxError ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
+               | Parser.Error ->
+                   let pos = Lexing.lexeme_start_p lexbuf in
+                   make_located_error ~file:!filename Ast.SyntaxError (Printf.sprintf "Parse error in '%s'" !filename) pos
+               | Sys.Break ->
+                   interrupt_error ())
+             with
+             | Sys_error msg ->
+                 Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_make failed: %s" msg; context = []; location = None }))
       )
     })
     env
