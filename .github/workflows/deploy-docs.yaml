@@ -32,10 +32,20 @@ jobs:
           path: t_demos
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
 
-      - name: Setup Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v13
+        with:
+          name: rstats-on-nix
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
 
       - name: Install pandoc
         run: sudo apt-get update && sudo apt-get install -y pandoc
