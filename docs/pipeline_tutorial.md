@@ -983,7 +983,7 @@ To avoid polluting your build environment with R/Python functions as Nix depende
 **This means `chain()` will fail to automatically wire R/Python nodes to nodes in other pipelines.**
 
 #### The Solution: The T-Stub Workaround
-If you need an R or Python node to depend on a node from a separate pipeline via `chain()`, you must "bring" that dependency into the pipeline block using a T-expression stub.
+If you need an R or Python node to depend on a node from a separate pipeline via `chain()`, you must "bring" that dependency into the pipeline block using a T-expression stub with an **aliased name**.
 
 **❌ Broken: R node cannot "see" `raw_data` for chaining**
 ```t
@@ -999,24 +999,34 @@ p_model = pipeline {
 p_full = p_data |> chain(p_model)
 ```
 
-**✅ Fixed: Use a T-stub to make the dependency explicit**
+**❌ Also broken: self-referential stub**
+```t
+p_model = pipeline {
+  raw_data = raw_data  -- Error: "Self-referential node detected"
+  model = rn(<{ lm(mpg ~ hp, data = raw_data) }>)
+}
+```
+
+**✅ Fixed: Use a T-stub with an aliased name**
 ```t
 p_data = pipeline { raw_data = read_csv("data.csv") }
 
 p_model = pipeline {
-  -- The T-stub: makes `raw_data` an explicit sibling of `model`
-  raw_data = raw_data  
+  -- Aliased T-stub: different name on the left, raw_data on the right.
+  -- T can parse the RHS and see `raw_data` as an external dependency.
+  data_input = raw_data
   
   model = rn(<{ 
-    lm(mpg ~ hp, data = raw_data) 
-  }>)
+    lm(mpg ~ hp, data = data_input)  -- use the alias name in R
+  }>,
+  deserializer = "arrow")
 }
 
--- Success! T sees `raw_data` as a T-expression dependency of the stub.
+-- Success! T sees `raw_data` as a dependency of `data_input`, wiring the pipelines.
 p_full = p_data |> chain(p_model)
 ```
 
-By defining `raw_data = raw_data` (or any name that matches the upstream output), you create a T-expression node. T *can* analyze the right-hand side of that assignment, detect the cross-pipeline dependency, and allow `chain()` to wire the pipelines together.
+By giving the stub a different name (`data_input = raw_data`), you avoid a self-reference while still creating a T-expression that references `raw_data`. T can parse the right-hand side, detect the cross-pipeline dependency, and allow `chain()` to wire the pipelines together. Note that R/Python code inside the chained node should use the **alias name** (`data_input`) as the variable, not the original (`raw_data`).
 
 ---
 
