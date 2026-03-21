@@ -27,6 +27,19 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     
     Printf.printf "\nStarting pipeline build...\n%!";
     
+    let contains_substring line pattern =
+      try
+        let len_p = String.length pattern in
+        let len_l = String.length line in
+        let rec loop i =
+          if i + len_p > len_l then false
+          else if String.sub line i len_p = pattern then true
+          else loop (i + 1)
+        in
+        loop 0
+      with _ -> false
+    in
+    
     let callback line =
       Buffer.add_string captured_output line;
       Buffer.add_char captured_output '\n';
@@ -34,7 +47,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       let line = String.trim line in
       (* Building: "building '/nix/store/...-node_name.drv'..." *)
       if String.starts_with ~prefix:"building '/nix/store/" line then (
-        match List.find_opt (fun name -> String.contains line ("-" ^ name ^ ".drv")) node_names with
+        match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name -> 
             if Hashtbl.find statuses name = "Pending" then (
               Hashtbl.replace statuses name "Building";
@@ -44,21 +57,9 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       )
       (* Completed: result path printed or [completed] *)
       else if String.starts_with ~prefix:"/nix/store/" line && not (String.ends_with ~suffix:".drv" line) then (
-        let contains_pattern line pattern =
-          try
-            let len_p = String.length pattern in
-            let len_l = String.length line in
-            let rec loop i =
-              if i + len_p > len_l then false
-              else if String.sub line i len_p = pattern then true
-              else loop (i + 1)
-            in
-            loop 0
-          with _ -> false
-        in
         match List.find_opt (fun name -> 
           let pattern = "-" ^ name in
-          contains_pattern line pattern
+          contains_substring line pattern
         ) node_names with
         | Some name ->
             if Hashtbl.find statuses name <> "Completed" then (
@@ -68,8 +69,8 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
         | None -> ()
       )
       (* Error: "error: builder for '/nix/store/...-node_name.drv' failed" *)
-      else if String.contains line "error:" && String.contains line "failed" then (
-        match List.find_opt (fun name -> String.contains line ("-" ^ name ^ ".drv")) node_names with
+      else if contains_substring line "error:" && contains_substring line "failed" then (
+        match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name ->
             if Hashtbl.find statuses name <> "Errored" then (
               Hashtbl.replace statuses name "Errored";
