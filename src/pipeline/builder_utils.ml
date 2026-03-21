@@ -26,20 +26,22 @@ let command_exists cmd =
   Sys.command (Printf.sprintf "command -v %s >/dev/null 2>&1" cmd) = 0
 
 let run_command_stream cmd callback =
+  (* All callers redirect stderr to stdout via 2>&1, so open_process_in suffices
+     and avoids a dangling unread stderr pipe that could block the child process. *)
+  let ch = Unix.open_process_in cmd in
   try
-    let (ch_in, ch_out, ch_err) = Unix.open_process_full cmd (Unix.environment ()) in
-    close_out ch_out;
     let rec loop () =
-      match input_line ch_in with
+      match input_line ch with
       | line ->
           callback line;
           loop ()
-      | exception End_of_file ->
-          let status = Unix.close_process_full (ch_in, ch_out, ch_err) in
-          status
+      | exception End_of_file -> ()
     in
-    Ok (loop ())
+    loop ();
+    Ok (Unix.close_process_in ch)
   with exn ->
+    (* Ensure the process is reaped even when callback or I/O raises. *)
+    (try ignore (Unix.close_process_in ch) with _ -> ());
     Error (Printexc.to_string exn)
 
 let run_command_capture cmd =
