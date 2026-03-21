@@ -811,9 +811,9 @@ def py_read_pmml(path):
         deps
       |> List.map (fun d ->
           let double_quoted_read_node = Printf.sprintf {|read_node(\"%s\")|} d in
-          let double_quoted_store_path = Printf.sprintf {|[path: '%s/artifact', name: '%s']|} ("$" ^ dep_env_var_name d) d in
+          let double_quoted_store_path = Printf.sprintf "'%s/artifact'" ("$" ^ dep_env_var_name d) in
           let single_quoted_read_node = Printf.sprintf {|read_node('%s')|} d in
-          let single_quoted_store_path = Printf.sprintf {|[path: '%s/artifact', name: '%s']|} ("$" ^ dep_env_var_name d) d in
+          let single_quoted_store_path = Printf.sprintf "'%s/artifact'" ("$" ^ dep_env_var_name d) in
           Printf.sprintf
             {|      sed -i -e "s|%s|%s|g" -e "s|%s|%s|g" %s|}
             double_quoted_read_node
