@@ -43,7 +43,7 @@ let parse_description_toml (content : string) : (package_config, string) result 
         homepage = get_string_opt toml ["package"; "homepage"] ~default:"";
         repository = get_string_opt toml ["package"; "repository"] ~default:"";
         dependencies = parse_dependencies toml;
-        min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.52.0";
+        min_t_version = get_string_opt toml ["t"; "min_version"] ~default:Version.version;
         additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
         latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
       }
@@ -65,7 +65,8 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
         proj_py_dependencies = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[];
         proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python314";
-        proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:"0.52.0";
+        proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:Version.version;
+        proj_nixpkgs_date = get_string_opt toml ["nixpkgs"; "date"] ~default:"";
         proj_additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
         proj_latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
       }
@@ -129,5 +130,6 @@ let serialize_tproject_toml (cfg : project_config) : string =
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_latex_packages));
   Buffer.add_string buf "[t]\n";
-  Printf.bprintf buf "min_version = %S\n" cfg.proj_min_t_version;
+  Printf.bprintf buf "min_version = %S\n\n" cfg.proj_min_t_version;
+  Printf.bprintf buf "[nixpkgs]\ndate = %S\n" cfg.proj_nixpkgs_date;
   Buffer.contents buf

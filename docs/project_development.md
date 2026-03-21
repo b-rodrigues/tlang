@@ -92,6 +92,20 @@ This regenerates `flake.nix` so new dependencies and tools appear as proper flak
 $ nix develop
 ```
 
+### 3.2 Upgrading T and Nixpkgs
+
+To upgrade your project to the latest version of T and the latest `rstats-on-nix` nixpkgs date:
+
+```bash
+$ t upgrade
+Checking for new T releases...
+Upgrading project to T 0.52.0 and nixpkgs date 2026-03-21...
+Regenerating flake.nix and updating dependencies...
+Running nix flake update...
+```
+
+This updates your `tproject.toml` and then runs `t update` automatically.
+
 ## 4. Importing Packages
 
 Once inside `nix develop`, you can use the `import` statement in your T scripts to load package functions.

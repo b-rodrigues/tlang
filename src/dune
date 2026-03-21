@@ -15,6 +15,12 @@
  (action (with-stdout-to %{targets}
   (bash "if [ -n \"${T_ARROW_LIBS:-}\" ]; then raw=\"$T_ARROW_LIBS\"; else raw=''; for p in arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --libs $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
 
+(rule
+ (target version.ml)
+ (deps ../VERSION)
+ (action (with-stdout-to %{target}
+          (bash "v=$(cat ../VERSION | tr -d '\\n'); echo \"let version = \\\"$v\\\"\""))))
+
 (library
  (name t_lang)
  (wrapped false)
@@ -57,7 +63,7 @@
    ; packages/explain
    intent_fields intent_get t_explain explain_json
    ; package_manager
-   package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager package_loader
+   version package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager package_loader
    ; tdoc
    tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )

@@ -1,7 +1,7 @@
 (* src/repl.ml *)
 (* CLI and interactive REPL for the T language — 0.52.0 *)
 
-let version = "0.52.0"
+let version = Version.version
 
 (* --- Readline / History --- *)
 
@@ -263,6 +263,8 @@ let print_help () =
   Printf.printf "  init package      Create a new T package\n";
   Printf.printf "  init project      Create a new T project\n";
   Printf.printf "  test              Run tests in the current directory\n";
+  Printf.printf "  update            Update dependencies and nixpkgs date from tproject.toml\n";
+  Printf.printf "  upgrade           Upgrade T version and nixpkgs date to latest\n";
   Printf.printf "  doctor            Check package health\n";
   Printf.printf "  docs              Open documentation\n";
   Printf.printf "  --help, -h        Show this help message\n";
@@ -435,6 +437,11 @@ let cmd_doc args =
 let cmd_update () =
   match Update_manager.update_flake_lock () with
   | Ok () -> Printf.printf "Updated.\n"
+  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+
+let cmd_upgrade () =
+  match Update_manager.cmd_upgrade () with
+  | Ok () -> Printf.printf "Upgrade successful.\n"
   | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
 let get_nix_version () =
@@ -841,6 +848,7 @@ let () =
   | _ :: "docs" :: _ -> cmd_docs ()
   | _ :: "doc" :: rest -> cmd_doc rest
   | _ :: "update" :: _ -> cmd_update ()
+  | _ :: "upgrade" :: _ -> cmd_upgrade ()
   | _ :: "publish" :: _ -> cmd_publish ()
 
   | _ :: "init" :: _ ->

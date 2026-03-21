@@ -550,7 +550,7 @@ let update_flake_lock () =
                               ~kind:Project
                               ~name:cfg.proj_name
                               ~version:"0.0.0"
-                              ~nixpkgs_date
+                              ~nixpkgs_date:(if cfg.proj_nixpkgs_date <> "" then cfg.proj_nixpkgs_date else nixpkgs_date)
                               ~t_version:cfg.proj_min_t_version
                               ~deps:cfg.proj_dependencies
                               ~r_deps:cfg.proj_r_dependencies
@@ -579,7 +579,7 @@ let update_flake_lock () =
                               ~kind:Package
                               ~name:cfg.name
                               ~version:cfg.version
-                              ~nixpkgs_date
+                              ~nixpkgs_date:(if cfg.min_t_version <> "" then nixpkgs_date else nixpkgs_date) (* placeholder for now *)
                               ~t_version:cfg.min_t_version
                               ~deps:cfg.dependencies
                               ~additional_tools:cfg.additional_tools
@@ -612,3 +612,42 @@ let update_flake_lock () =
                   report_flake_lock_changes flake_lock_before flake_lock_after;
                   Ok ()
               | Error msg -> Error ("Failed to update dependencies: " ^ msg)
+
+(** Upgrade the current project to the latest T version and today's nixpkgs date *)
+let cmd_upgrade () =
+  let dir = Sys.getcwd () in
+  let tproject_path = Filename.concat dir "tproject.toml" in
+  if not (Sys.file_exists tproject_path) then
+    Error "tproject.toml not found. Upgrade is only supported for projects."
+  else
+    match read_file tproject_path with
+    | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)
+    | Ok content ->
+        match Toml_parser.parse_tproject_toml content with
+        | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
+        | Ok cfg ->
+            Printf.printf "Checking for new T releases...\n";
+            flush stdout;
+            let latest_tag = Scaffold.latest_tlang_tag () in
+            let latest_version = Scaffold.strip_v_prefix latest_tag in
+            
+            let t = Unix.gmtime (Unix.gettimeofday ()) in
+            let today = Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday in
+            
+            if cfg.proj_min_t_version = latest_version && cfg.proj_nixpkgs_date = today then (
+              Printf.printf "Project is already up to date (T %s, nixpkgs %s).\n" latest_version today;
+              Ok ()
+            ) else (
+              Printf.printf "Upgrading project to T %s and nixpkgs date %s...\n" latest_version today;
+              flush stdout;
+              let new_cfg = { cfg with proj_min_t_version = latest_version; proj_nixpkgs_date = today } in
+              let new_content = Toml_parser.serialize_tproject_toml new_cfg in
+              (try
+                 let oc = open_out tproject_path in
+                 output_string oc new_content;
+                 close_out oc;
+                 Printf.printf "Regenerating flake.nix and updating dependencies...\n";
+                 flush stdout;
+                 update_flake_lock ()
+               with e -> Error (Printf.sprintf "Failed to update tproject.toml: %s" (Printexc.to_string e)))
+            )
