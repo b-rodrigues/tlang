@@ -2,9 +2,25 @@
 
 Version history and roadmap for the T programming language.
 
-## Version 0.52.0 — Current Stable Release
+## Version 0.52.1 — Current Stable Release
 
 **Status**: Alpha — Hardening and stabilization  
+**Release Date**: March 2026
+
+### Features & CLI
+
+- **New Command**: Introduced `t upgrade` to automatically update projects to the latest T version and refresh the `rstats-on-nix` nixpkgs date.
+- **Centralized Versioning**: Version is now managed in a single `VERSION` file and propagated across the project.
+
+### Bug Fixes & Improvements
+
+- **Package Management**: Fixed issues in `t update` and related flake generation logic.
+- **Quarto Integration**: Fixed `read_node` substitution in Quarto reports to prevent syntax errors in R/Python chunks.
+- **Testing**: Resolved failures in Quarto pipeline tests and improved CI reliability.
+
+## Version 0.52.0 — Legacy Release
+
+**Status**: Alpha — Pre-centralized versioning  
 **Release Date**: March 2026
 
 ### Package Manager (`t update`)
