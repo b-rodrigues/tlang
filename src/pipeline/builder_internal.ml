@@ -14,6 +14,8 @@ open Builder_utils
 --# @family pipeline
 --# @export
 *)
+let nix_build_args = ref []
+
 let build_pipeline_internal (p : Ast.pipeline_result) =
   if not (command_exists "nix-build") then
     Error "build_pipeline requires `nix-build` to be available."
@@ -23,7 +25,8 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     List.iter (fun n -> Hashtbl.add statuses n "Pending") node_names;
     
     let captured_output = Buffer.create 1024 in
-    let cmd = Printf.sprintf "nix-build --impure %s -A pipeline_output --no-out-link" (Filename.quote pipeline_nix_path) in
+    let extra_args = String.concat " " !nix_build_args in
+    let cmd = Printf.sprintf "nix-build --impure %s -A pipeline_output --no-out-link %s" (Filename.quote pipeline_nix_path) extra_args in
     
     Printf.printf "\nStarting pipeline build...\n%!";
     

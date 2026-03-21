@@ -722,6 +722,67 @@ let () =
     env
   in
 (*
+--# Build Pipeline Internally
+--#
+--# Builds a pipeline, defaulting to `src/pipeline.t`. This command can also
+--# pass arguments to the underlying Nix build, such as `--max-jobs`.
+--#
+--# @name t_make
+--# @param filename :: String The path to the pipeline file (defaults to "src/pipeline.t").
+--# @param max_jobs :: Int The maximum number of jobs for Nix to run in parallel.
+--# @param max_cores :: Int The maximum number of cores per job for Nix to use.
+--# @return :: Null
+--# @example
+--#   t_make()
+--#   t_make(filename="src/pipeline2.t", max_jobs=2)
+--# @family repl
+--# @export
+*)
+  let env = Ast.Env.add "t_make"
+    (Ast.VBuiltin { b_name = Some "t_make"; b_arity = 0; b_variadic = true;
+      b_func = (fun named_args env_ref ->
+        let filename = ref "src/pipeline.t" in
+        let nix_args = ref [] in
+        List.iter (fun (k_opt, v) ->
+          match k_opt, v with
+          | (None | Some "filename"), Ast.VString s -> filename := s
+          | (None | Some "max_jobs"), Ast.VInt i -> nix_args := "--max-jobs" :: string_of_int i :: !nix_args
+          | (None | Some "max_cores"), Ast.VInt i -> nix_args := "--cores" :: string_of_int i :: !nix_args
+          | Some "max_jobs", Ast.VInt i -> nix_args := "--max-jobs" :: string_of_int i :: !nix_args
+          | Some "max_cores", Ast.VInt i -> nix_args := "--cores" :: string_of_int i :: !nix_args
+          | _, _ -> ()
+        ) named_args;
+        Builder_internal.nix_build_args := List.rev !nix_args;
+        (try
+          let ch = open_in !filename in
+          let content = really_input_string ch (in_channel_length ch) in
+          close_in ch;
+          let lexbuf = Lexing.from_string content in
+           (try
+            let program = Parser.program Lexer.token lexbuf in
+            let (v, new_env) = Eval.eval_program program !env_ref in
+            (match v with
+             | Ast.VError _ -> v
+             | _ -> 
+                 env_ref := new_env;
+                 Printf.printf "Pipeline %s evaluated successfully.\n" !filename; flush stdout; Ast.VNull)
+           with
+           | Lexer.SyntaxError msg ->
+               let pos = Lexing.lexeme_start_p lexbuf in
+               make_located_error ~file:!filename Ast.SyntaxError ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
+           | Parser.Error ->
+               let pos = Lexing.lexeme_start_p lexbuf in
+               make_located_error ~file:!filename Ast.SyntaxError (Printf.sprintf "Parse error in '%s'" !filename) pos
+           | Sys.Break ->
+               interrupt_error ())
+         with
+         | Sys_error msg ->
+             Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_make failed: %s" msg; context = []; location = None })
+      )
+    })
+    env
+  in
+(*
 --# Run tests
 --#
 --# Runs the test suite for the current package.
