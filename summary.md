@@ -384,7 +384,7 @@ When generating T code, default to this shape:
 
 T uses a single source of truth for its version. To release a new version:
 
-1.  **Bump the Version**: Update the version string in the root [VERSION](file:///home/brodrigues/Documents/repos/tlang/VERSION) file (e.g., `0.52.0`).
+1.  **Bump the Version**: Update the version string in the root [VERSION](file:///home/brodrigues/Documents/repos/tlang/VERSION) file (e.g., `0.51.1`).
 2.  **Sync Documentation**: Run the synchronization script to propagate the version to READMEs and documentation:
     ```bash
     ./scripts/sync_version.sh

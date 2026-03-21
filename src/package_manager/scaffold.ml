@@ -509,17 +509,13 @@ let resolve_tlang_tag () =
   match !resolved_tlang_tag_cache with
   | Some tag -> tag
   | None ->
-      let tag =
-        try latest_tlang_tag () with
-        | exn ->
-            prerr_endline
-              ("Warning: Failed to resolve latest tlang tag, using default: "
-               ^ Printexc.to_string exn);
-            default_tlang_tag
-      in
-      let sanitized_tag = sanitize_tag tag in
-      resolved_tlang_tag_cache := Some sanitized_tag;
-      sanitized_tag
+      (* Prefer the version of the current T binary for scaffolding new projects.
+         This ensures the generated environment matches the tool used to create it.
+         Upgrades are handled separately via `t upgrade` which specifically
+         fetches the latest release from GitHub. *)
+      let tag = sanitize_tag default_tlang_tag in
+      resolved_tlang_tag_cache := Some tag;
+      tag
 
 (*
 --# Scaffold a new T package

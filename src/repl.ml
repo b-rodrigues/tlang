@@ -1,5 +1,5 @@
 (* src/repl.ml *)
-(* CLI and interactive REPL for the T language — 0.52.0 *)
+(* CLI and interactive REPL for the T language — 0.51.1 *)
 
 let version = Version.version
 
