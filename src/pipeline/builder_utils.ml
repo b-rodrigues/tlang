@@ -25,20 +25,28 @@ let read_file_first_line path =
 let command_exists cmd =
   Sys.command (Printf.sprintf "command -v %s >/dev/null 2>&1" cmd) = 0
 
-let run_command_capture cmd =
+let run_command_stream cmd callback =
   try
-    let ic = Unix.open_process_in cmd in
-    let b = Buffer.create 256 in
-    (try
-       while true do
-         Buffer.add_string b (input_line ic);
-         Buffer.add_char b '\n'
-       done
-     with End_of_file -> ());
-    let status = Unix.close_process_in ic in
-    Ok (status, String.trim (Buffer.contents b))
+    let (ch_in, ch_out, ch_err) = Unix.open_process_full cmd (Unix.environment ()) in
+    close_out ch_out;
+    let rec loop () =
+      match input_line ch_in with
+      | line ->
+          callback line;
+          loop ()
+      | exception End_of_file ->
+          let status = Unix.close_process_full (ch_in, ch_out, ch_err) in
+          status
+    in
+    Ok (loop ())
   with exn ->
     Error (Printexc.to_string exn)
+
+let run_command_capture cmd =
+  let b = Buffer.create 256 in
+  match run_command_stream cmd (fun line -> Buffer.add_string b line; Buffer.add_char b '\n') with
+  | Ok status -> Ok (status, String.trim (Buffer.contents b))
+  | Error msg -> Error msg
 
 let ensure_pipeline_dir () =
   if not (Sys.file_exists pipeline_dir) then
