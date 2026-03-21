@@ -28,7 +28,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     let extra_args = String.concat " " !nix_build_args in
     let cmd = Printf.sprintf "nix-build --impure %s -A pipeline_output --no-out-link %s" (Filename.quote pipeline_nix_path) extra_args in
     
-    Printf.printf "\nStarting pipeline build...\n%!";
+    Printf.printf "\nStarting pipeline build...\n";
     
     let contains_substring line pattern =
       try
@@ -42,8 +42,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
         loop 0
       with _ -> false
     in
-    
-    let env_building_shown = ref false in
+
     let callback line =
       Buffer.add_string captured_output line;
       Buffer.add_char captured_output '\n';
@@ -51,21 +50,8 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       let line = String.trim line in
       let is_node_line = List.exists (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names in
       
-      (* Environment phase detection *)
-      if not is_node_line && (String.starts_with ~prefix:"building " line || 
-                             String.starts_with ~prefix:"copying path " line || 
-                             String.starts_with ~prefix:"fetching " line ||
-                             String.starts_with ~prefix:"evaluating " line ||
-                             String.starts_with ~prefix:"these " line) then (
-        if not !env_building_shown then (
-          Printf.printf "  Hold on, environment building (first run is slow, but cached for speed for subsequent runs)...\n%!";
-          env_building_shown := true
-        );
-        (* Hide dependency build noise *)
-        ()
-      )
       (* Building: "building '/nix/store/...-node_name.drv'..." *)
-      else if String.starts_with ~prefix:"building '/nix/store/" line then (
+      if is_node_line && String.starts_with ~prefix:"building '/nix/store/" line then (
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name -> 
             if Hashtbl.find statuses name = "Pending" then (
@@ -75,7 +61,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
         | None -> ()
       )
       (* Completed: result path printed or [completed] *)
-      else if String.starts_with ~prefix:"/nix/store/" line && not (String.ends_with ~suffix:".drv" line) then (
+      else if is_node_line && String.starts_with ~prefix:"/nix/store/" line && not (String.ends_with ~suffix:".drv" line) then (
         match List.find_opt (fun name -> 
           let pattern = "-" ^ name in
           contains_substring line pattern
@@ -88,17 +74,22 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
         | None -> ()
       )
       (* Error: "error: builder for '/nix/store/...-node_name.drv' failed" *)
-      else if contains_substring line "error:" && contains_substring line "failed" then (
+      else if is_node_line && contains_substring line "error:" && contains_substring line "failed" then (
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name ->
             if Hashtbl.find statuses name <> "Errored" then (
               Hashtbl.replace statuses name "Errored";
-              Printf.eprintf "  ✖ %s failed\n%!" name
+              let drv_path = 
+                try
+                  let parts = String.split_on_char '\'' line in
+                  if List.length parts >= 3 then List.nth parts 1 else "<path>"
+                with _ -> "<path>"
+              in
+              Printf.eprintf "  ✖ Node %s failed! For full logs, run: nix log %s\n%!" name drv_path
             )
         | None -> ()
       )
-      else if !env_building_shown then () (* Ignore other noise if env is building *)
-      else ()
+      else () (* Ignore other noise from environment building *)
     in
     
     match run_command_stream cmd callback with
