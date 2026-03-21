@@ -40,13 +40,27 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       with _ -> false
     in
     
+    let env_building_shown = ref false in
     let callback line =
       Buffer.add_string captured_output line;
       Buffer.add_char captured_output '\n';
       
       let line = String.trim line in
+      let is_node_line = List.exists (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names in
+      
+      (* Environment phase detection *)
+      if not is_node_line && (String.starts_with ~prefix:"building " line || 
+                             String.starts_with ~prefix:"copying path " line || 
+                             String.starts_with ~prefix:"fetching " line) then (
+        if not !env_building_shown then (
+          Printf.printf "  Hold on, environment building (first run is slow, but cached for speed for subsequent runs)...\n%!";
+          env_building_shown := true
+        );
+        (* Hide dependency build noise *)
+        ()
+      )
       (* Building: "building '/nix/store/...-node_name.drv'..." *)
-      if String.starts_with ~prefix:"building '/nix/store/" line then (
+      else if String.starts_with ~prefix:"building '/nix/store/" line then (
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name -> 
             if Hashtbl.find statuses name = "Pending" then (
@@ -78,6 +92,8 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             )
         | None -> ()
       )
+      else if !env_building_shown then () (* Ignore other noise if env is building *)
+      else ()
     in
     
     match run_command_stream cmd callback with
@@ -93,6 +109,17 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             | [] -> Error "nix-build succeeded but did not return a store path."
             | _ ->
                 let out_path = List.nth store_paths (List.length store_paths - 1) in
+                
+                (* Reconcile statuses: if nix-build succeeded, check which nodes were built (cached or otherwise) *)
+                List.iter (fun name ->
+                  if Hashtbl.find statuses name <> "Completed" && 
+                     Hashtbl.find statuses name <> "Errored" then (
+                    let node_path = Filename.concat out_path name in
+                    if Sys.file_exists node_path then
+                      Hashtbl.replace statuses name "Completed"
+                  )
+                ) node_names;
+
                 let timestamp = get_timestamp () in
                 let hash = try
                   let parts = String.split_on_char '-' (Filename.basename out_path) in
