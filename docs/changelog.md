@@ -4,8 +4,8 @@ Version history and roadmap for the T programming language.
 
 ## Version 0.52.1 — Current Stable Release
 
-**Status**: Alpha — Hardening and stabilization  
-**Release Date**: March 2026
+**Status**: Beta
+**Release Date**: 21st of March 2026
 
 ### Features & CLI
 
