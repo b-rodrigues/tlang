@@ -128,6 +128,10 @@ df
 
 For T code generation, assume `$col` syntax is the correct style for column references in data verbs.
 
+### Datetime caveat
+
+Treat `chrono::with_tz()` and `chrono::force_tz()` as **label-oriented in the current implementation**. Do not assume full timezone offset conversion unless the surrounding code or docs explicitly account for that limitation.
+
 ### Errors and NA
 
 - Construct errors with `error("message")` or `error("Code", "message")`.
@@ -198,7 +202,7 @@ p = pipeline {
 
 ### Quarto specifics
 
-- Add Quarto to `[additional-tools]` and run `t update`.
+- Add Quarto to `[additional-tools]` in the project/package config (for example `tproject.toml`) and run `t update`.
 - T provisions the `tlang` Quarto extension into the project.
 - In `.qmd` documents, use `read_node("name")` to consume pipeline artifacts.
 - Use `pipeline_copy()` to bring rendered artifacts out of the Nix store and into the local workspace.
@@ -295,7 +299,7 @@ Purpose: parsing, constructing, formatting, extracting, and reasoning about date
 - Predicates and interval logic: `is_date(x)`, `is_datetime(x)`, `is_period(x)`, `is_duration(x)`, `is_interval(x)`, `interval(start, end)`, `%within%(x, interval)`, `is_leap_year(x)`, `days_in_month(year_or_date, month = null)`
 - Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
 
-Current implementation note: timezone retagging is currently label-oriented rather than full offset-conversion logic.
+Current implementation note: timezone relabeling should be treated as a **current implementation limitation**; `with_tz()` and `force_tz()` are presently label-oriented rather than full offset-conversion logic.
 
 ### `math`
 
@@ -319,7 +323,7 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 
 Purpose: node construction, pipeline execution, graph inspection, graph rewriting, validation, artifact access, and composition.
 
-- Node constructors: `node(command = ..., script = null, runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `shn(...)`
+- Node constructors: `node(command = ..., script = null, runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `shn(command = ..., script = null, serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
 - Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name, which_log = null)`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
 - Node-level transforms: `filter_node(p, predicate)`, `mutate_node(p, ..., where = null)`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`, `arrange_node(p, field, direction = "asc")`
@@ -347,6 +351,11 @@ Note the overloaded names:
 - `contains`, `starts_with`, and `ends_with` also exist as `colcraft` selection helpers.
 - `slice` is both a `colcraft` row helper and a `strcraft` substring helper.
 - `length` works on strings and collections in `core`, while `str_nchar` is the dedicated string-character-count helper.
+
+Disambiguation rule of thumb for LLMs:
+- inside `select(...)`/selection-helper contexts, prefer the `colcraft` helper meaning;
+- with a `DataFrame` first argument, `slice(df, ...)` means row slicing;
+- with `String` arguments, `contains(...)`, `starts_with(...)`, `ends_with(...)`, and `slice(...)` mean the `strcraft` string operations.
 
 ## Other Important Builtins Referenced in the Docs
 
