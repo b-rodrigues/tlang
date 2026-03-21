@@ -96,7 +96,7 @@ dune exec src/repl.exe
 You should see:
 
 ```
-T Language REPL (Alpha 0.1)
+T Language REPL (Alpha 0.52.0)
 Type 'exit' to quit
 > 
 ```

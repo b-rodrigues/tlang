@@ -4,7 +4,7 @@
 
 Unlike traditional scripting languages, T is built to be a **specifications-ready engine**, making data analysis **explicit, inspectable, and pipeline-oriented**. This unique architecture ensures that humans and LLMs can collaborate on defining high-level intent while T handles the low-level orchestration and environmental consistency.
 
-**Status:** Version 0.51.0 "Sangoku", first public release.
+**Status:** Version 0.52.0 "Sangoku", latest stabilization release.
 
 ---
 
