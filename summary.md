@@ -377,3 +377,37 @@ When generating T code, default to this shape:
 6. Assume Nix is responsible for installation, dependency resolution, build automation, and runtime isolation.
 7. For projects, start with `t init project`; for reusable libraries, start with `t init package`.
 8. For function-level details, consult `docs/reference/index.md` and the generated per-function reference pages.
+
+## Release and Upgrade Workflows
+
+### Releasing a new version of T (Contributors)
+
+T uses a single source of truth for its version. To release a new version:
+
+1.  **Bump the Version**: Update the version string in the root [VERSION](file:///home/brodrigues/Documents/repos/tlang/VERSION) file (e.g., `0.52.0`).
+2.  **Sync Documentation**: Run the synchronization script to propagate the version to READMEs and documentation:
+    ```bash
+    ./scripts/sync_version.sh
+    ```
+3.  **Update Changelog**: Add the release notes and date to [docs/changelog.md](file:///home/brodrigues/Documents/repos/tlang/docs/changelog.md).
+4.  **Commit and Push**:
+    ```bash
+    git add .
+    git commit -m "chore: release 0.5x.x"
+    git push origin main
+    ```
+    *The GitHub Action in `.github/workflows/release.yaml` will automatically create the Git tag and GitHub Release.*
+
+### Upgrading a T project (Users)
+
+To keep a T project updated with the latest language version and a fresh `nixpkgs` date:
+
+```bash
+t upgrade
+```
+
+This command automatically:
+1.  Fetches the latest T version from GitHub.
+2.  Retrieves today's date for the `rstats-on-nix` nixpkgs fork.
+3.  Updates `tproject.toml` with the new values.
+4.  Regenerates `flake.nix` and runs `nix flake update`.
