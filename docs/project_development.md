@@ -51,7 +51,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.51.0"
+min_version = "0.52.0"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -91,6 +91,20 @@ This regenerates `flake.nix` so new dependencies and tools appear as proper flak
 ```bash
 $ nix develop
 ```
+
+### 3.2 Upgrading T and Nixpkgs
+
+To upgrade your project to the latest version of T and set the project's nixpkgs date to today's UTC date:
+
+```bash
+$ t upgrade
+Checking for new T releases...
+Upgrading project to T 0.52.0 and nixpkgs date 2026-03-21 (today's UTC date)...
+Regenerating flake.nix and updating dependencies...
+Running nix flake update...
+```
+
+This updates your `tproject.toml` and then runs `t update` automatically.
 
 ## 4. Importing Packages
 

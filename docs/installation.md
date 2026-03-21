@@ -96,9 +96,16 @@ dune exec src/repl.exe
 You should see:
 
 ```
-T Language REPL (Alpha 0.1)
-Type 'exit' to quit
-> 
+T, a reproducibility-first orchestration engine for polyglot
+data science and statistical analysis.
+Version 0.52.0 "Sangoku" using Nix <nix-version>
+Licensed under the EUPL v1.2. No warranties.
+This software is in beta and is entirely LLM-generated — caveat emptor.
+Website: https://tstats-project.org
+Contributions are welcome!
+Type :quit or :q to exit, :help for commands.
+
+T> 
 ```
 
 ### Test Basic Operations

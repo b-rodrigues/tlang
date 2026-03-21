@@ -2,6 +2,16 @@
 
 Version history and roadmap for the T programming language.
 
+## Version 0.52.0 — Current Stable Release
+
+**Status**: Alpha — Hardening and stabilization  
+**Release Date**: March 2026
+
+### Package Manager (`t update`)
+
+- **Versioning sync**: `t update` now generates a `flake.nix` that points to this version by default.
+- **Improved defaults**: Projects without an explicit `min_version` now use 0.52.0.
+
 ## Version 0.51.0 — First Public Release
 
 **Status**: Alpha — Syntax and semantics frozen  
