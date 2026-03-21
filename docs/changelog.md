@@ -2,7 +2,7 @@
 
 Version history and roadmap for the T programming language.
 
-## Version 0.52.1 — Current Stable Release
+## Version 0.51.1 — Current Stable Release
 
 **Status**: Beta
 **Release Date**: 21st of March 2026
@@ -18,20 +18,15 @@ Version history and roadmap for the T programming language.
 - **Quarto Integration**: Fixed `read_node` substitution in Quarto reports to prevent syntax errors in R/Python chunks.
 - **Testing**: Resolved failures in Quarto pipeline tests and improved CI reliability.
 
-## Version 0.52.0 — Legacy Release
-
-**Status**: Alpha — Pre-centralized versioning  
-**Release Date**: March 2026
-
-### Package Manager (`t update`)
-
-- **Versioning sync**: `t update` now generates a `flake.nix` that points to this version by default.
-- **Improved defaults**: Projects without an explicit `min_version` now use 0.52.0.
-
 ## Version 0.51.0 — First Public Release
 
 **Status**: Alpha — Syntax and semantics frozen  
 **Release Date**: February 2026
+
+### Package Manager (`t update`)
+
+- **Versioning sync**: `t update` now generates a `flake.nix` that points to this version by default.
+- **Improved defaults**: Projects without an explicit `min_version` now use 0.51.0.
 
 ### Language Core
 
