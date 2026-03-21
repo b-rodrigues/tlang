@@ -599,6 +599,10 @@ let update_flake_lock () =
           | Ok () ->
               Printf.printf "Running nix flake update...\n";
               flush stdout;
+              (* On CI, any generated flake.nix must be added to Git (intent-to-add)
+                 otherwise nix flake update will fail with "not tracked by Git" error. *)
+              let in_ci = (match Sys.getenv_opt "CI" with Some s when String.trim s <> "" -> true | _ -> false) in
+              (if in_ci then ignore (run_command "git add -N flake.nix 2>/dev/null || true"));
               match run_command "nix flake update --accept-flake-config" with
               | Ok _ ->
                   let flake_lock_after =

@@ -2,6 +2,14 @@
 
 Version history and roadmap for the T programming language.
 
+## [0.51.2] — Upcoming Release
+
+### Bug Fixes & Improvements
+
+- **Scaffolding**: `t init` now defaults to the version of the T binary being used, ensuring consistent project creation and preventing issues when incorrect tags exist on remote.
+- **CI Reliability**: `t update` now automatically handles untracked `flake.nix` inside Git repositories when running in a CI environment (detected via `CI=true`). This resolves errors about "path not tracked by Git" during environment setup.
+- **Global Consistency**: Performed a repository-wide sweep to remove legacy version strings and hardcoded formatting in installation and project guides.
+
 ## Version 0.51.1 — Current Stable Release
 
 **Status**: Beta
