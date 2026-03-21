@@ -26,22 +26,56 @@ let command_exists cmd =
   Sys.command (Printf.sprintf "command -v %s >/dev/null 2>&1" cmd) = 0
 
 let run_command_stream cmd callback =
-  (* All callers redirect stderr to stdout via 2>&1, so open_process_in suffices
-     and avoids a dangling unread stderr pipe that could block the child process. *)
-  let ch = Unix.open_process_in cmd in
   try
-    let rec loop () =
-      match input_line ch with
-      | line ->
-          callback line;
-          loop ()
-      | exception End_of_file -> ()
+    let (ch_in, ch_out, ch_err) = Unix.open_process_full cmd (Unix.environment ()) in
+    Unix.close (Unix.descr_of_out_channel ch_out);
+    let fd_in = Unix.descr_of_in_channel ch_in in
+    let fd_err = Unix.descr_of_in_channel ch_err in
+    let buf = Bytes.create 1024 in
+    let line_buf = Buffer.create 256 in
+    
+    let process_bytes n =
+      for i = 0 to n - 1 do
+        let c = Bytes.get buf i in
+        if c = '\n' || c = '\r' then (
+          let line = Buffer.contents line_buf in
+          if line <> "" then callback line;
+          Buffer.clear line_buf
+        ) else Buffer.add_char line_buf c
+      done
     in
-    loop ();
-    Ok (Unix.close_process_in ch)
+
+    let rec drain in_open err_open =
+      if not in_open && not err_open then ()
+      else
+        let read_fds = 
+          [] |> (fun acc -> if in_open then fd_in :: acc else acc)
+             |> (fun acc -> if err_open then fd_err :: acc else acc)
+        in
+        let ready, _, _ = Unix.select read_fds [] [] (-1.) in
+        
+        let in_open =
+          if in_open && List.mem fd_in ready then (
+            let n = try Unix.read fd_in buf 0 1024 with _ -> 0 in
+            if n = 0 then false else (process_bytes n; true)
+          ) else in_open
+        in
+        
+        let err_open =
+          if err_open && List.mem fd_err ready then (
+            let n = try Unix.read fd_err buf 0 1024 with _ -> 0 in
+            if n = 0 then false else (process_bytes n; true)
+          ) else err_open
+        in
+        
+        drain in_open err_open
+    in
+    
+    drain true true;
+    let final_line = Buffer.contents line_buf in
+    if final_line <> "" then callback final_line;
+    Ok (Unix.close_process_full (ch_in, ch_out, ch_err))
   with exn ->
-    (* Ensure the process is reaped even when callback or I/O raises. *)
-    (try ignore (Unix.close_process_in ch) with _ -> ());
     Error (Printexc.to_string exn)
 
 let run_command_capture cmd =

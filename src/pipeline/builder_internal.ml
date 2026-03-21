@@ -23,7 +23,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     List.iter (fun n -> Hashtbl.add statuses n "Pending") node_names;
     
     let captured_output = Buffer.create 1024 in
-    let cmd = Printf.sprintf "nix-build --impure %s -A pipeline_output --no-out-link 2>&1" (Filename.quote pipeline_nix_path) in
+    let cmd = Printf.sprintf "nix-build --impure %s -A pipeline_output --no-out-link" (Filename.quote pipeline_nix_path) in
     
     Printf.printf "\nStarting pipeline build...\n%!";
     
@@ -51,7 +51,9 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       (* Environment phase detection *)
       if not is_node_line && (String.starts_with ~prefix:"building " line || 
                              String.starts_with ~prefix:"copying path " line || 
-                             String.starts_with ~prefix:"fetching " line) then (
+                             String.starts_with ~prefix:"fetching " line ||
+                             String.starts_with ~prefix:"evaluating " line ||
+                             String.starts_with ~prefix:"these " line) then (
         if not !env_building_shown then (
           Printf.printf "  Hold on, environment building (first run is slow, but cached for speed for subsequent runs)...\n%!";
           env_building_shown := true
