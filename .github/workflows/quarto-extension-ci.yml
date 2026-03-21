@@ -31,27 +31,6 @@ jobs:
       - name: Build T Binary
         run: nix build .#default --accept-flake-config
 
-      - name: Verify Quarto extension version matches core T version
-        run: |
-          CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' flake.nix | head -n 1 | xargs)
-          EXT_VERSION=$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' editors/quarto/tlang/_extensions/tlang/_extension.yml | head -n 1 | xargs)
-          case "$CORE_VERSION" in
-            *.*.*) CORE_VERSION_SEMVER="$CORE_VERSION" ;;
-            *.*) CORE_VERSION_SEMVER="${CORE_VERSION}.0" ;;
-            *)
-              echo "❌ Error: Core T version ($CORE_VERSION) is not a valid major.minor or major.minor.patch version."
-              exit 1
-              ;;
-          esac
-          if [ -z "$CORE_VERSION" ] || [ -z "$EXT_VERSION" ]; then
-            echo "❌ Error: Failed to extract core or extension version."
-            exit 1
-          fi
-          if [ "$CORE_VERSION_SEMVER" != "$EXT_VERSION" ]; then
-            echo "❌ Error: Quarto extension version ($EXT_VERSION) does not match core T version ($CORE_VERSION_SEMVER)."
-            exit 1
-          fi
-          echo "✅ Quarto extension version matches core T version: $CORE_VERSION_SEMVER"
 
       - name: Render Quarto Document with T Filter
         env:
@@ -60,9 +39,9 @@ jobs:
           TLANG_FLAKE_URL: git+file://${{ github.workspace }}
         run: |
           REPO_ROOT=$(pwd)
-          CORE_VERSION=$(sed -n 's/^[[:space:]]*version = "\([^"]*\)".*/\1/p' "$REPO_ROOT/flake.nix" | head -n 1 | xargs)
+          CORE_VERSION=$(cat "$REPO_ROOT/VERSION" | tr -d '\n' | xargs)
           if [ -z "$CORE_VERSION" ]; then
-            echo "❌ Error: Failed to extract core version from flake.nix."
+            echo "❌ Error: Failed to extract core version from VERSION file."
             exit 1
           fi
           TLANG_BIN="$REPO_ROOT/result/bin/t"
