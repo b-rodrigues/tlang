@@ -264,7 +264,7 @@ let print_help () =
   Printf.printf "  init project      Create a new T project\n";
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  update            Update dependencies and nixpkgs date from tproject.toml\n";
-  Printf.printf "  upgrade           Upgrade T version and nixpkgs date to latest\n";
+  Printf.printf "  upgrade           Upgrade T version and nixpkgs date to today's date\n";
   Printf.printf "  doctor            Check package health\n";
   Printf.printf "  docs              Open documentation\n";
   Printf.printf "  --help, -h        Show this help message\n";

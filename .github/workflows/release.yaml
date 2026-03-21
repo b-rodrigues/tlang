@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - missing052 # Adding your current branch for testing
     paths:
       - 'VERSION'
 
