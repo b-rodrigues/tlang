@@ -743,15 +743,17 @@ let () =
       b_func = (fun named_args env_ref ->
         let filename = ref "src/pipeline.t" in
         let nix_args = ref [] in
-        List.iter (fun (k_opt, v) ->
-          match k_opt, v with
-          | (None | Some "filename"), Ast.VString s -> filename := s
-          | (None | Some "max_jobs"), Ast.VInt i -> nix_args := "--max-jobs" :: string_of_int i :: !nix_args
-          | (None | Some "max_cores"), Ast.VInt i -> nix_args := "--cores" :: string_of_int i :: !nix_args
+        let _ = List.fold_left (fun idx (k_opt, v) ->
+          (match k_opt, v with
+          | Some "filename", Ast.VString s -> filename := s
           | Some "max_jobs", Ast.VInt i -> nix_args := "--max-jobs" :: string_of_int i :: !nix_args
           | Some "max_cores", Ast.VInt i -> nix_args := "--cores" :: string_of_int i :: !nix_args
-          | _, _ -> ()
-        ) named_args;
+          | None, Ast.VString s when idx = 0 -> filename := s
+          | None, Ast.VInt i when idx = 1 -> nix_args := "--max-jobs" :: string_of_int i :: !nix_args
+          | None, Ast.VInt i when idx = 2 -> nix_args := "--cores" :: string_of_int i :: !nix_args
+          | _ -> ());
+          idx + 1
+        ) 0 named_args in
         Builder_internal.nix_build_args := List.rev !nix_args;
         (try
           let ch = open_in !filename in
