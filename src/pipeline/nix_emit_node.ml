@@ -81,7 +81,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
         let inputs = if is_pmml_ser || is_pmml_des then "py-env pkgs.jre" else "py-env" in
         "py", inputs
     | "Quarto" ->
-        "sh", "pkgs.quarto pkgs.which"
+        "sh", "pkgs.quarto pkgs.which r-env py-env"
     | "sh" ->
         "sh", "pkgs.bash"
     | _ -> "t", ""
@@ -811,9 +811,9 @@ def py_read_pmml(path):
         deps
       |> List.map (fun d ->
           let double_quoted_read_node = Printf.sprintf {|read_node(\"%s\")|} d in
-          let double_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$" ^ dep_env_var_name d) in
+          let double_quoted_store_path = Printf.sprintf {|[path: '%s/artifact', name: '%s']|} ("$" ^ dep_env_var_name d) d in
           let single_quoted_read_node = Printf.sprintf {|read_node('%s')|} d in
-          let single_quoted_store_path = Printf.sprintf {|'%s/artifact'|} ("$" ^ dep_env_var_name d) in
+          let single_quoted_store_path = Printf.sprintf {|[path: '%s/artifact', name: '%s']|} ("$" ^ dep_env_var_name d) d in
           Printf.sprintf
             {|      sed -i -e "s|%s|%s|g" -e "s|%s|%s|g" %s|}
             double_quoted_read_node
@@ -1112,6 +1112,8 @@ EOF
         Printf.sprintf {|
       rm -rf .quarto-output
       export HOME=$TMPDIR
+      export QUARTO_R=${r-env}/bin/R
+      export QUARTO_PYTHON=${py-env}/bin/python
       cli_args=()
 %s      quarto "''${cli_args[@]}"
       if [ -d .quarto-output ]; then

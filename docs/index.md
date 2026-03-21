@@ -29,6 +29,7 @@ Unlike traditional scripting languages, T is built to be a **specifications-read
 - [Handling Dates](handling_dates.html) — parsing, extraction, and date arithmetic
 - [Error Handling Guide](error-handling.html) — error patterns and recovery strategies
 - [Comprehensive Examples](examples.html) — real-world analysis patterns
+- [T Pipeline Demos](demos.html) — interactive reports for T demo projects
 
 ### Advanced Topics
 - [Reproducibility Guide](reproducibility.html) — Nix integration and reproducible workflows
