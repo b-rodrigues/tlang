@@ -27,7 +27,8 @@ let command_exists cmd =
 
 let run_command_stream cmd callback =
   try
-    let (ch_in, ch_out, ch_err as proc) = Unix.open_process_full cmd (Unix.environment ()) in
+    let (ch_in, _ch_out, ch_err as proc) = Unix.open_process_full cmd (Unix.environment ()) in
+    close_out _ch_out;
     let fd_in = Unix.descr_of_in_channel ch_in in
     let fd_err = Unix.descr_of_in_channel ch_err in
     let buf = Bytes.create 1024 in

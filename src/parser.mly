@@ -102,7 +102,6 @@ let with_stmt_loc node pos =
 %nonassoc IF_WITHOUT_ELSE
 %nonassoc ELSE
 %left TILDE
-%left PIPE MAYBE_PIPE
 %left OR
 %left AND
 %left BITOR
