@@ -59,14 +59,24 @@ let run_command_stream cmd callback =
 
         let in_open =
           if in_open && List.mem fd_in ready then (
-            let n = try Unix.read fd_in buf 0 1024 with _ -> 0 in
+            let rec do_read () =
+              try Unix.read fd_in buf 0 1024
+              with Unix.Unix_error (Unix.EINTR, _, _) -> do_read ()
+                 | _ -> 0
+            in
+            let n = do_read () in
             if n = 0 then false else (process_bytes_to line_buf_in n; true)
           ) else in_open
         in
 
         let err_open =
           if err_open && List.mem fd_err ready then (
-            let n = try Unix.read fd_err buf 0 1024 with _ -> 0 in
+            let rec do_read () =
+              try Unix.read fd_err buf 0 1024
+              with Unix.Unix_error (Unix.EINTR, _, _) -> do_read ()
+                 | _ -> 0
+            in
+            let n = do_read () in
             if n = 0 then false else (process_bytes_to line_buf_err n; true)
           ) else err_open
         in
