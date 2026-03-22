@@ -750,18 +750,18 @@ let () =
           | Some "filename", _ ->
               arg_error := Some "t_make: 'filename' must be a String"
           | Some "max_jobs", Ast.VInt i ->
-              nix_args := "--max-jobs" :: string_of_int i :: !nix_args
+              nix_args := string_of_int i :: "--max-jobs" :: !nix_args
           | Some "max_jobs", _ ->
               arg_error := Some "t_make: 'max_jobs' must be an Int"
           | Some "max_cores", Ast.VInt i ->
-              nix_args := "--cores" :: string_of_int i :: !nix_args
+              nix_args := string_of_int i :: "--cores" :: !nix_args
           | Some "max_cores", _ ->
               arg_error := Some "t_make: 'max_cores' must be an Int"
           | None, Ast.VString s when idx = 0 -> filename := s
           | None, Ast.VInt i when idx = 1 ->
-              nix_args := "--max-jobs" :: string_of_int i :: !nix_args
+              nix_args := string_of_int i :: "--max-jobs" :: !nix_args
           | None, Ast.VInt i when idx = 2 ->
-              nix_args := "--cores" :: string_of_int i :: !nix_args
+              nix_args := string_of_int i :: "--cores" :: !nix_args
           | Some k, _ ->
               arg_error := Some (Printf.sprintf "t_make: unknown argument '%s'" k)
           | None, _ ->

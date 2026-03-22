@@ -25,7 +25,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     List.iter (fun n -> Hashtbl.add statuses n "Pending") node_names;
     
     let captured_output = Buffer.create 1024 in
-    let extra_args = String.concat " " !nix_build_args in
+    let extra_args = String.concat " " (List.map Filename.quote !nix_build_args) in
     let cmd = Printf.sprintf "nix-build --impure %s -A pipeline_output --no-out-link %s" (Filename.quote pipeline_nix_path) extra_args in
     
     Printf.printf "\nStarting pipeline build...\n";
@@ -48,10 +48,18 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       Buffer.add_char captured_output '\n';
       
       let line = String.trim line in
-      let is_node_line = List.exists (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names in
+      (* Separate predicates for .drv lines (build/error tracking) and output
+         store paths (completion tracking). A .drv line contains "-<name>.drv";
+         an output path contains "-<name>" without a trailing ".drv". *)
+      let is_node_drv_line = List.exists (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names in
+      let is_node_output_line =
+        String.starts_with ~prefix:"/nix/store/" line
+        && not (String.ends_with ~suffix:".drv" line)
+        && List.exists (fun name -> contains_substring line ("-" ^ name)) node_names
+      in
       
       (* Building: "building '/nix/store/...-node_name.drv'..." *)
-      if is_node_line && String.starts_with ~prefix:"building '/nix/store/" line then (
+      if is_node_drv_line && String.starts_with ~prefix:"building '/nix/store/" line then (
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name -> 
             if Hashtbl.find statuses name = "Pending" then (
@@ -60,11 +68,11 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             )
         | None -> ()
       )
-      (* Completed: result path printed or [completed] *)
-      else if is_node_line && String.starts_with ~prefix:"/nix/store/" line && not (String.ends_with ~suffix:".drv" line) then (
-        match List.find_opt (fun name -> 
-          let pattern = "-" ^ name in
-          contains_substring line pattern
+      (* Completed: nix-build prints the output store path, which does not end
+         with ".drv". We match "-<name>" (not ".drv") to identify the node. *)
+      else if is_node_output_line then (
+        match List.find_opt (fun name ->
+          contains_substring line ("-" ^ name)
         ) node_names with
         | Some name ->
             if Hashtbl.find statuses name <> "Completed" then (
@@ -74,7 +82,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
         | None -> ()
       )
       (* Error: "error: builder for '/nix/store/...-node_name.drv' failed" *)
-      else if is_node_line && contains_substring line "error:" && contains_substring line "failed" then (
+      else if is_node_drv_line && contains_substring line "error:" && contains_substring line "failed" then (
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name ->
             if Hashtbl.find statuses name <> "Errored" then (
