@@ -4,10 +4,21 @@ Version history and roadmap for the T programming language.
 
 ## [0.51.2] — Upcoming Release
 
+### Features & UX
+
+- **Terminal UX**: Implemented a new asynchronous, streaming build progress reporter in the terminal. Pipeline builds now show real-time "building" and "built" alerts for each node, with high-noise Nix logs filtered by default.
+- **Error Visibility**: When a pipeline fails, the summary now correctly reports the count of errored nodes (e.g., "[1 node errored]").
+- **REPL Interface**: Added a new `t_make()` builtin to the REPL. It defaults to building `src/pipeline.t` and supports optional named arguments (e.g., `max_jobs`, `max_cores`) that pass through to the underlying Nix build.
+- **Variable Removal**: Introduced the `rm()` built-in function to remove variables from the current environment by name.
+- **REPL Responsiveness**: Added explicit `flush stderr` after variable reassignment (`:=`) warnings to ensure they appear promptly in the REPL.
+
 ### Bug Fixes & Improvements
 
 - **Scaffolding**: `t init` now defaults to the version of the T binary being used, ensuring consistent project creation and preventing issues when incorrect tags exist on remote.
-- **CI Reliability**: `t update` now automatically handles untracked `flake.nix` inside Git repositories when running in a CI environment (detected via `CI=true`). This resolves errors about "path not tracked by Git" during environment setup in CI environments.
+- **CLI Interface**: Renamed `t init package` and `t init project` subcommands to `t init --package` and `t init --project` flags for better clarity.
+- **CI Reliability**: `t update` now automatically handles untracked `flake.nix` inside Git repositories when running in a CI environment (detected via `CI=true`).
+- **Nix Support**: Added help for experimental flags and trusted user configuration in `docs/installation.md`.
+- **VS Code**: Clarified installation paths for both regular users and developers and updated workspace entry-point guidance.
 - **Global Consistency**: Performed a repository-wide sweep to remove legacy version strings and hardcoded formatting in installation and project guides.
 
 ## Version 0.51.1 — Current Stable Release
