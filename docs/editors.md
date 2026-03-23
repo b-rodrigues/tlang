@@ -22,17 +22,17 @@ The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix 
 You can install the T language extension in two ways:
 
 #### Option A: Download the `.vsix` file (Recommended)
-1. Download the latest release: [`t-lang-0.51.1.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.1.vsix) (or download from the repository assets).
+1. Download the latest release: [`t-lang-0.51.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix) (or download from the repository assets).
 2. Install the extension using the command line:
    ```bash
-   code --install-extension /path/to/downloaded/t-lang-0.51.1.vsix
+   code --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
    ```
    *Alternatively, in VS Code, go to the Extensions view, click the `...` menu, and select **Install from VSIX...***
 
 #### Option B: From a cloned T repository
 If you have already cloned the T repository locally:
 ```bash
-code --install-extension editors/vscode/t-lang-0.51.1.vsix
+code --install-extension editors/vscode/t-lang-0.51.0.vsix
 ```
 
 #### Launching the Editor
