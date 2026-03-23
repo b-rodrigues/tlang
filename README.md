@@ -99,7 +99,7 @@ This drops you into an ephemeral environment with `t` available on your `PATH`.
 You can now bootstrap a new project:
 
 ```bash
-t init my_t_project
+t init --project my_t_project
 ```
 
 You will be prompted to enter basic project information. When finished, leave the temporary shell:

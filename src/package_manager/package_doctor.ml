@@ -143,7 +143,7 @@ let run_doctor () =
       [{
         level = Error;
         message = "Not a T package or project directory";
-        suggestion = Some "Run `t init package` or `t init project`";
+        suggestion = Some "Run `t init --package` or `t init --project`";
       }]
     end
   in

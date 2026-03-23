@@ -91,7 +91,7 @@ T Language stands out through:
 1. Executive Summary
 2. Alpha to Beta Transition
 3. **Package Management Tooling** (TOP PRIORITY)
-   - `t init package/project`
+   - `t init --package/project`
    - `t install` dependency sync
    - `t document` auto-documentation
    - `t publish` release helper
@@ -163,7 +163,7 @@ See **BETA.md** - Implementation Roadmap section
 ### How to enable user-contributed packages?
 See **BETA.md** - Section 3.1 (Package Management Tooling)
 - Decentralized Nix-based system
-- `t init package` - scaffolding
+- `t init --package` - scaffolding
 - `t install` - dependency management
 - `t document` - auto-documentation
 - Complete specification with examples

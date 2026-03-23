@@ -82,19 +82,19 @@ T's package management philosophy is **radically different** from npm, PyPI, or 
 #### Current State
 - ✅ Package structure designed (`DESCRIPTION.toml`, `flake.nix`, `src/`, `tests/`)
 - ✅ Decentralized distribution model specified
-- ❌ **`t init package`** command not implemented
-- ❌ **`t init project`** command not implemented
+- ❌ **`t init --package`** command not implemented
+- ❌ **`t init --project`** command not implemented
 - ❌ **`t document`** documentation generator not implemented
 - ❌ **`t publish`** release helper not implemented
 
 #### Beta Deliverables
 
-##### a) Package Scaffolding: `t init package <name>`
+##### a) Package Scaffolding: `t init --package <name>`
 
 Generate complete package structure:
 
 ```bash
-t init package my-analysis-tools
+t init --package my-analysis-tools
 ```
 
 Creates:
@@ -120,12 +120,12 @@ my-analysis-tools/
 - Automatic git initialization
 - Creates initial release tag structure
 
-##### b) Project Scaffolding: `t init project <name>`
+##### b) Project Scaffolding: `t init --project <name>`
 
 Generate reproducible project structure:
 
 ```bash
-t init project sales-analysis
+t init --project sales-analysis
 ```
 
 Creates:
@@ -263,8 +263,8 @@ t search --tag statistics       # Filter by tag
 
 #### Testing Requirements
 
-- [ ] `t init package` generates valid package structure
-- [ ] `t init project` generates valid project structure
+- [ ] `t init --package` generates valid package structure
+- [ ] `t init --project` generates valid project structure
 - [ ] Generated packages build with `nix develop`
 - [ ] `t document` parses docstrings correctly
 - [ ] `t publish` creates valid git tags
@@ -1086,8 +1086,8 @@ summary = large_data |> select(col1, col2) |> head(10)  -- Loads only 10 rows
 
 **Goal**: Enable community package contributions
 
-- [ ] Implement `t init package`
-- [ ] Implement `t init project`
+- [ ] Implement `t init --package`
+- [ ] Implement `t init --project`
 - [ ] Implement `t install` (tproject.toml → flake.nix sync)
 - [ ] Implement `t document` (docstring → markdown)
 - [ ] Create package template repository

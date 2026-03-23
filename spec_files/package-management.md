@@ -20,12 +20,12 @@ This approach provides:
 
 ---
 
-## Package Structure: `t init package`
+## Package Structure: `t init --package`
 
 ### Command
 
 ```bash
-t init package <package-name>
+t init --package <package-name>
 ```
 
 This command creates a folder structure for a new T package, inspired by R package conventions:
@@ -255,12 +255,12 @@ summarize_numeric = \(df) -> {
 
 ---
 
-## Project Structure: `t init project`
+## Project Structure: `t init --project`
 
 ### Command
 
 ```bash
-t init project <project-name>
+t init --project <project-name>
 ```
 
 This command creates a reproducible T project with Nix flake configuration:
@@ -489,7 +489,7 @@ The `rstats-on-nix/nixpkgs` repository maintains branches for each date:
 - `https://github.com/rstats-on-nix/nixpkgs/tree/2026-02-09`
 - `https://github.com/rstats-on-nix/nixpkgs/tree/2026-01-19`
 
-When initializing a project, `t init project` automatically:
+When initializing a project, `t init --project` automatically:
 
 1. Gets the current date (e.g., `2026-02-10`)
 2. Sets `nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-02-10"`
@@ -559,7 +559,7 @@ my-internal-package = { git = "https://gitlab.company.com/data/t-utils", tag = "
 
 1. **Initialize package structure**:
    ```bash
-   t init package my-awesome-package
+   t init --package my-awesome-package
    cd my-awesome-package
    ```
 
@@ -642,7 +642,7 @@ All published packages should:
 
 1. **Initialize project**:
    ```bash
-   t init project customer-segmentation
+   t init --project customer-segmentation
    cd customer-segmentation
    ```
 
@@ -913,7 +913,7 @@ Packages remain decentralized in individual git repositories; the index only pro
 
 ```bash
 # Create package
-t init package simple-stats
+t init --package simple-stats
 
 # Edit src/descriptives.t
 cat > src/descriptives.t <<EOF
@@ -945,7 +945,7 @@ t repl
 
 ```bash
 # Create project
-t init project sales-analysis
+t init --project sales-analysis
 
 # Enter environment
 nix develop
@@ -974,7 +974,7 @@ t run src/analyze.t
 Researcher A sets up a project:
 
 ```bash
-t init project climate-analysis
+t init --project climate-analysis
 cd climate-analysis
 
 # Edit tproject.toml to add dependencies
@@ -1005,8 +1005,8 @@ T's package management system leverages Nix flakes to provide:
 4. **Long-term stability** through immutable package snapshots
 
 The workflow is simple:
-- **Package authors**: `t init package` → develop → publish to git with tagged releases
-- **Project authors**: `t init project` → add dependencies to tproject.toml → `nix develop`
+- **Package authors**: `t init --package` → develop → publish to git with tagged releases
+- **Project authors**: `t init --project` → add dependencies to tproject.toml → `nix develop`
 
 Key principles:
 - **Decentralized**: No central authority controls package distribution
@@ -2778,7 +2778,7 @@ $ git commit -m "Phase 0: Initialize T documentation system"
 **Next Review:** After Phase 1 Completion
 
 
-You're absolutely right! The implementation plan only covers the **documentation system** but completely ignores implementing the **package management system itself** (the `t init package`, `t init project`, `t install` commands, etc.). 
+You're absolutely right! The implementation plan only covers the **documentation system** but completely ignores implementing the **package management system itself** (the `t init --package`, `t init --project`, `t install` commands, etc.). 
 
 Let me add that missing implementation plan:
 
@@ -2801,7 +2801,7 @@ This plan covers implementing T's **package management features** (separate from
 
 ### Phase A: Project/Package Scaffolding (Week 1-2 — 7 days)
 
-**Goal:** Implement `t init package` and `t init project` commands
+**Goal:** Implement `t init --package` and `t init --project` commands
 
 **Tasks:**
 
@@ -2812,7 +2812,7 @@ This plan covers implementing T's **package management features** (separate from
 - [ ] Implement TOML generation utilities
 - [ ] Implement Nix flake generation utilities
 
-#### `t init package` Command
+#### `t init --package` Command
 - [ ] Add `init` command handler to `src/repl.ml`
 - [ ] Implement package name validation (lowercase, hyphens)
 - [ ] Create directory structure generator
@@ -2826,7 +2826,7 @@ This plan covers implementing T's **package management features** (separate from
 - [ ] Initialize git repository (optional flag)
 - [ ] Add welcome message with next steps
 
-#### `t init project` Command
+#### `t init --project` Command
 - [ ] Implement project name validation
 - [ ] Create project directory structure
 - [ ] Generate `tproject.toml` from template
@@ -2861,8 +2861,8 @@ This plan covers implementing T's **package management features** (separate from
 - [ ] Implement interactive mode (prompt for options)
 
 #### Testing
-- [ ] Test `t init package my-pkg` creates correct structure
-- [ ] Test `t init project my-project` creates correct structure
+- [ ] Test `t init --package my-pkg` creates correct structure
+- [ ] Test `t init --project my-project` creates correct structure
 - [ ] Test template substitution works correctly
 - [ ] Test git initialization
 - [ ] Test error handling for existing directories
@@ -2871,8 +2871,8 @@ This plan covers implementing T's **package management features** (separate from
 - [ ] Integration test: init → nix develop succeeds
 
 **Success Criteria:**
-- ✅ `t init package foo` creates valid package structure
-- ✅ `t init project bar` creates valid project structure
+- ✅ `t init --package foo` creates valid package structure
+- ✅ `t init --project bar` creates valid project structure
 - ✅ Generated flake.nix can be evaluated by Nix
 - ✅ Generated DESCRIPTION.toml/tproject.toml are valid
 - ✅ `nix develop` works in initialized packages/projects
@@ -3133,7 +3133,7 @@ This plan covers implementing T's **package management features** (separate from
 - [ ] Show preview before creating files
 
 #### Documentation Generation Integration
-- [ ] Ensure `t init package` sets up docs/ structure
+- [ ] Ensure `t init --package` sets up docs/ structure
 - [ ] Update package templates to include doc examples
 - [ ] Add `t document` to post-init instructions
 - [ ] Integrate documentation coverage with `t doctor`
@@ -3223,8 +3223,8 @@ Here's how both systems can be developed in parallel:
 ### Package Management System ⬜
 
 **Phase A: Scaffolding** ✅
-- [x] `t init package` command
-- [x] `t init project` command
+- [x] `t init --package` command
+- [x] `t init --project` command
 - [x] Template system
 - [x] CLI options
 - [x] Testing
