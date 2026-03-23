@@ -59,18 +59,11 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       Buffer.add_char captured_output '\n';
       
       let line = String.trim line in
-      (* Separate predicates for .drv lines (build/error tracking) and output
-         store paths (completion tracking). A .drv line contains "-<name>.drv";
-         an output path contains "-<name>" without a trailing ".drv". *)
-      let is_node_drv_line = List.exists (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names in
-      let is_node_output_line =
-        String.starts_with ~prefix:"/nix/store/" line
-        && not (String.ends_with ~suffix:".drv" line)
-        && List.exists (fun name -> contains_substring line ("-" ^ name)) node_names
-      in
-      
-      (* Building: "building '/nix/store/...-node_name.drv'..." *)
-      if is_node_drv_line && String.starts_with ~prefix:"building '/nix/store/" line then (
+      (* Each branch performs a single List.find_opt scan to both detect and
+         identify the matching node, avoiding a separate exists + find_opt double
+         scan that the previous version performed per line. *)
+      if String.starts_with ~prefix:"building '/nix/store/" line then (
+        (* Building a derivation *)
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name -> 
             if Hashtbl.find statuses name = "Pending" then (
@@ -79,12 +72,10 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             )
         | None -> ()
       )
-      (* Completed: nix-build prints the output store path, which does not end
-         with ".drv". We match "-<name>" (not ".drv") to identify the node. *)
-      else if is_node_output_line then (
-        match List.find_opt (fun name ->
-          contains_substring line ("-" ^ name)
-        ) node_names with
+      else if String.starts_with ~prefix:"/nix/store/" line
+           && not (String.ends_with ~suffix:".drv" line) then (
+        (* Completed: nix-build prints the output store path without ".drv" *)
+        match List.find_opt (fun name -> contains_substring line ("-" ^ name)) node_names with
         | Some name ->
             if Hashtbl.find statuses name <> "Completed" then (
               Hashtbl.replace statuses name "Completed";
@@ -92,31 +83,33 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             )
         | None -> ()
       )
-      (* Error detection for node failures *)
-      else if is_node_drv_line && (contains_substring line "error:" || 
-                                  contains_substring line "failed") then (
-        match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
-        | Some name ->
-            if Hashtbl.find statuses name <> "Errored" then (
-              Hashtbl.replace statuses name "Errored";
-              let drv_path = 
-                try
-                  (* Regex-like extraction: find something that looks like a /nix/store/...drv path *)
-                  let start_idx = try contains_substring_idx line "/nix/store/" with _ -> -1 in
-                  if start_idx >= 0 then
-                    let sub = String.sub line start_idx (String.length line - start_idx) in
-                    let end_idx = try String.index sub '\'' with _ -> 
-                                  try String.index sub ' ' with _ -> 
-                                  try String.index sub '.' with _ -> String.length sub in
-                    String.sub sub 0 end_idx
-                  else "<path>"
-                with _ -> "<path>"
-              in
-              Printf.eprintf "  ✖ Node %s failed! For full logs, run: nix log %s\n%!" name drv_path
-            )
-        | None -> ()
+      else (
+        (* Error detection: only scan for a matching node when error keywords
+           are present, to avoid a find_opt scan on every non-build/output line. *)
+        if contains_substring line "error:" || contains_substring line "failed" then (
+          match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
+          | Some name ->
+              if Hashtbl.find statuses name <> "Errored" then (
+                Hashtbl.replace statuses name "Errored";
+                let drv_path = 
+                  try
+                    let start_idx = contains_substring_idx line "/nix/store/" in
+                    if start_idx >= 0 then
+                      let sub = String.sub line start_idx (String.length line - start_idx) in
+                      (* Stop at closing quote or whitespace; do NOT stop at '.' so that
+                         the full ".drv" suffix is preserved in the extracted path. *)
+                      let end_idx = try String.index sub '\'' with _ ->
+                                    try String.index sub ' ' with _ ->
+                                    String.length sub in
+                      String.sub sub 0 end_idx
+                    else "<path>"
+                  with _ -> "<path>"
+                in
+                Printf.eprintf "  ✖ Node %s failed! For full logs, run: nix log %s\n%!" name drv_path
+              )
+          | None -> ()
+        )
       )
-      else () (* Ignore other noise from environment building *)
     in
     
     match run_command_stream cmd callback with
@@ -197,7 +190,19 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
               else "General Nix build failure (check dependencies or environment)."
             in
             Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary;
-            Error (Printf.sprintf "nix-build failed. See details above."))
+            let raw_output = String.trim (Buffer.contents captured_output) in
+            let max_len = 4000 in
+            let output_len = String.length raw_output in
+            let displayed_output =
+              if output_len > max_len then
+                String.sub raw_output (output_len - max_len) max_len
+              else
+                raw_output
+            in
+            Error (Printf.sprintf "nix-build failed: %s\n\nCaptured output (last %d characters):\n%s"
+              error_summary
+              (String.length displayed_output)
+              displayed_output))
     | Error msg ->
         Error (Printf.sprintf "Failed to run nix-build: %s" msg)
   end
