@@ -999,15 +999,15 @@ def py_read_pmml(path):
             (shell_single_quote ("exec " ^ shell_quote_words script_tokens))
         else if runtime = "R" then
           let r_source = shell_single_quote (Printf.sprintf {|source("%s")|} script_path) in
-          let r_ser = shell_single_quote (Printf.sprintf {|%s(%s, "$out/artifact")|} ser_call name) in
-          let r_class = shell_single_quote (Printf.sprintf {|writeLines(as.character(class(%s)[1]), "$out/class")|} name) in
+          let r_ser = shell_single_quote (Printf.sprintf {|%s(%s, file.path(Sys.getenv("out"), "artifact"))|} ser_call name) in
+          let r_class = shell_single_quote (Printf.sprintf {|writeLines(as.character(class(%s)[1]), file.path(Sys.getenv("out"), "class"))|} name) in
           Printf.sprintf {|      echo %s >> node_script.R
       echo %s >> node_script.R
       echo %s >> node_script.R|} r_source r_ser r_class
         else if runtime = "Python" then
           let py_exec = shell_single_quote (Printf.sprintf {|exec(open("%s").read(), globals())|} script_path) in
-          let py_ser = shell_single_quote (Printf.sprintf {|%s(%s, "$out/artifact")|} ser_call name) in
-          let py_class = shell_single_quote (Printf.sprintf {|with open("$out/class", "w") as f: f.write(type(%s).__name__)|} name) in
+          let py_ser = shell_single_quote (Printf.sprintf {|%s(%s, os.path.join(os.environ["out"], "artifact"))|} ser_call name) in
+          let py_class = shell_single_quote (Printf.sprintf {|with open(os.path.join(os.environ["out"], "class"), "w") as f: f.write(type(%s).__name__)|} name) in
           Printf.sprintf {|      echo %s >> node_script.py
       echo %s >> node_script.py
       echo %s >> node_script.py|} py_exec py_ser py_class

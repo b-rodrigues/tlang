@@ -600,14 +600,19 @@ is_error(result)  -- true
 
 ## Pipelines
 
-Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows:
+Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file.
 
 ```t
 p = pipeline {
-  -- Native T node
-  data = node(command = read_csv("sales.csv") |> filter($amount > 100))
+  -- Native T node: filter data before passing it to other runtimes
+  -- This example uses files provided in the examples/ directory of the repository
+  data = node(
+    command = read_csv("examples/sales.csv") |> filter($amount > 100),
+    serializer = "csv"
+  )
 
-  -- R node
+  -- R node: train a model
+  -- PMML sterilization ensures reproducibility without R during scoring
   model_r = rn(
     command = <{
       lm(amount ~ category, data = data)
@@ -615,9 +620,9 @@ p = pipeline {
     serializer = "pmml"
   )
 
-  -- Python node
+  -- Python node: execute an external script for final analysis
   scored = pyn(
-    script = "score.py",
+    script = "examples/score.py",
     deserializer = "pmml"
   )
 }

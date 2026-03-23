@@ -22,17 +22,22 @@ T's core strength is its **mandatory pipeline architecture**. It treats R script
 -- A reproducible polyglot pipeline
 p = pipeline {
   # 1. Load data natively in T (Arrow backend)
-  data = node(command = read_csv("data.csv") |> filter($age > 18))
+  data = node(
+    command = read_csv("examples/sample_data.csv") |> filter($age > 25),
+    serializer = "csv"
+  )
   
   # 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
-    command = <{ lm(score ~ age + income, data = data) }>,
-    serializer = "pmml"
+    command = <{ lm(score ~ age, data = data) }>,
+    serializer = "pmml",
+    deserializer = "csv"
   )
   
   # 3. Predict natively in T (no R/Python runtime needed for evaluation!)
-  predictions = node(command = data 
-    |> mutate($pred = predict(model_r, data))
+  predictions = node(
+    command = data |> mutate($pred = predict(model_r, data)),
+    deserializer = "pmml"
   )
 
   # 4. Generate a shell report
