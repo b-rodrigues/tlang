@@ -43,6 +43,17 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       with _ -> false
     in
 
+    let contains_substring_idx line pattern =
+      let len_p = String.length pattern in
+      let len_l = String.length line in
+      let rec loop i =
+        if i + len_p > len_l then -1
+        else if String.sub line i len_p = pattern then i
+        else loop (i + 1)
+      in
+      loop 0
+    in
+
     let callback line =
       Buffer.add_string captured_output line;
       Buffer.add_char captured_output '\n';
@@ -81,16 +92,24 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             )
         | None -> ()
       )
-      (* Error: "error: builder for '/nix/store/...-node_name.drv' failed" *)
-      else if is_node_drv_line && contains_substring line "error:" && contains_substring line "failed" then (
+      (* Error detection for node failures *)
+      else if is_node_drv_line && (contains_substring line "error:" || 
+                                  contains_substring line "failed") then (
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name ->
             if Hashtbl.find statuses name <> "Errored" then (
               Hashtbl.replace statuses name "Errored";
               let drv_path = 
                 try
-                  let parts = String.split_on_char '\'' line in
-                  if List.length parts >= 3 then List.nth parts 1 else "<path>"
+                  (* Regex-like extraction: find something that looks like a /nix/store/...drv path *)
+                  let start_idx = try contains_substring_idx line "/nix/store/" with _ -> -1 in
+                  if start_idx >= 0 then
+                    let sub = String.sub line start_idx (String.length line - start_idx) in
+                    let end_idx = try String.index sub '\'' with _ -> 
+                                  try String.index sub ' ' with _ -> 
+                                  try String.index sub '.' with _ -> String.length sub in
+                    String.sub sub 0 end_idx
+                  else "<path>"
                 with _ -> "<path>"
               in
               Printf.eprintf "  ✖ Node %s failed! For full logs, run: nix log %s\n%!" name drv_path
@@ -172,10 +191,13 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
             Error "nix-build succeeded but did not return an output path."
          | _ ->
             let errored = List.filter (fun n -> Hashtbl.find statuses n = "Errored") node_names in
-            Printf.eprintf "\n✖ Pipeline build failed [%d nodes errored]\n%!" (List.length errored);
-            if List.length errored > 0 then
-              Printf.eprintf "Failed nodes: %s\n%!" (String.concat ", " errored);
-            Error (Printf.sprintf "nix-build failed:\n%s" output))
+            let error_summary = 
+              if List.length errored > 0 then
+                Printf.sprintf "%d nodes errored: %s" (List.length errored) (String.concat ", " errored)
+              else "General Nix build failure (check dependencies or environment)."
+            in
+            Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary;
+            Error (Printf.sprintf "nix-build failed. See details above."))
     | Error msg ->
         Error (Printf.sprintf "Failed to run nix-build: %s" msg)
   end
