@@ -58,6 +58,9 @@ T supports the following value types:
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
+| `Function`  | `\(x) x + 1`            | First-class functions               |
+| `NA`        | `NA`                     | Explicit missing value              |
+| `Error`     | `error("msg")`           | Structured error value              |
 | `Null`      | `null`                   | Absence of value                    |
 | `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
 | `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
