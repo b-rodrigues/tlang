@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.51.1 
+> **Version**: 0.51.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -58,10 +58,8 @@ T supports the following value types:
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
-| `Function`  | `\(x) x + 1`            | First-class functions               |
-| `NA`        | `NA`                     | Explicit missing value              |
-| `Error`     | `error("msg")`           | Structured error value              |
 | `Null`      | `null`                   | Absence of value                    |
+| `Symbol`    | `$mpg` or `$default`     | Name reference (NSE, strategies)    |
 | `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
@@ -284,6 +282,18 @@ person.age   -- 30
 config = {host: "localhost", port: 8080}
 config.host  -- "localhost"
 config.port  -- 8080
+```
+
+### Symbols (`$`)
+
+Symbols are name references that are not immediately evaluated. They are primarily used in two contexts:
+1. **DataFrame Columns**: Referencing columns in verbs like `select($mpg)` or `filter($cyl > 4)`.
+2. **Strategy Names**: Configuring pipeline nodes, e.g., `node(serializer = $arrow)`.
+
+Symbols are created by prefixing an identifier with `$`:
+```t
+s = $my_symbol
+type(s)  -- "Symbol"
 ```
 
 ---

@@ -9,8 +9,8 @@
 --# @name pyn
 --# @param command :: Any (Optional) The expression to evaluate inside the Python node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
 --# @param script :: String (Optional) Path to an external `.py` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Python` automatically.
---# @param serializer :: Symbol (Optional) Custom serializer function. Default = default.
---# @param deserializer :: Symbol (Optional) Custom deserializer function. Default = default.
+--# @param serializer :: String | Symbol | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string, a symbol (e.g. $arrow), or a built-in function name. Custom functions can also be used. Default = "default".
+--# @param deserializer :: String | Symbol | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string, a symbol (e.g. $arrow), or a built-in function name. Custom functions can also be used. Default = "default".
 --# @param functions :: String | List[String] (Optional) Python files to source before execution.
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.
