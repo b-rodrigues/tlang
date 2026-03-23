@@ -19,18 +19,32 @@ The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix 
 
 ### VS Code / Positron
 
-1. Download [`editors/vscode/t-lang-0.51.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix) from the repository (or clone the repo).
+You can install the T language extension in two ways:
 
-2. Install the extension:
+#### Option A: Download the `.vsix` file (Recommended)
+1. Download the latest release: [`t-lang-0.51.1.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.1.vsix) (or download from the repository assets).
+2. Install the extension using the command line:
    ```bash
-   code --install-extension editors/vscode/t-lang-0.51.0.vsix
+   code --install-extension /path/to/downloaded/t-lang-0.51.1.vsix
    ```
+   *Alternatively, in VS Code, go to the Extensions view, click the `...` menu, and select **Install from VSIX...***
 
-3. Start VS Code or Positron from the same nix shell where you run `t`:
-   ```bash
-   nix develop
-   code .
-   ```
+#### Option B: From a cloned T repository
+If you have already cloned the T repository locally:
+```bash
+code --install-extension editors/vscode/t-lang-0.51.1.vsix
+```
+
+#### Launching the Editor
+Start VS Code or Positron from the same nix shell where you run `t`:
+```bash
+nix develop
+code .
+```
+
+Once VS Code opens, we recommend opening the main entry point for your workspace:
+- For **projects**: Open `src/pipeline.t`
+- For **packages**: Open `src/main.t`
 
 > **Tip**: You can use **Cmd+Enter** (macOS) or **Ctrl+Enter** (Linux/Windows) to send the current line or selection to the T REPL, exactly like in RStudio.
 
