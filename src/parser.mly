@@ -96,12 +96,12 @@ let with_stmt_loc node pos =
 
 %token LAMBDA (* \ character *)
 %token NEWLINE SEMICOLON
-%token DOLLAR
 %token EOF
 
 /* PRECEDENCE AND ASSOCIATIVITY (lowest to highest) */
+%nonassoc IF_WITHOUT_ELSE
+%nonassoc ELSE
 %left TILDE
-
 %left OR
 %left AND
 %left BITOR
@@ -389,7 +389,7 @@ param:
   ;
 
 if_expr:
-  | IF LPAREN cond = expr RPAREN then_ = primary_expr
+  | IF LPAREN cond = expr RPAREN then_ = primary_expr %prec IF_WITHOUT_ELSE
     { with_loc (IfElse { cond; then_; else_ = with_loc (Value VNull) $startpos }) $startpos }
   | IF LPAREN cond = expr RPAREN then_ = primary_expr ELSE else_ = primary_expr
     { with_loc (IfElse { cond; then_; else_ }) $startpos }

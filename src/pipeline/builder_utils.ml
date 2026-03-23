@@ -25,20 +25,99 @@ let read_file_first_line path =
 let command_exists cmd =
   Sys.command (Printf.sprintf "command -v %s >/dev/null 2>&1" cmd) = 0
 
-let run_command_capture cmd =
+let run_command_stream cmd callback =
   try
-    let ic = Unix.open_process_in cmd in
-    let b = Buffer.create 256 in
-    (try
-       while true do
-         Buffer.add_string b (input_line ic);
-         Buffer.add_char b '\n'
-       done
-     with End_of_file -> ());
-    let status = Unix.close_process_in ic in
-    Ok (status, String.trim (Buffer.contents b))
+    let (ch_in, _ch_out, ch_err as proc) = Unix.open_process_full cmd (Unix.environment ()) in
+    close_out _ch_out;
+    let fd_in = Unix.descr_of_in_channel ch_in in
+    let fd_err = Unix.descr_of_in_channel ch_err in
+    let buf = Bytes.create 1024 in
+    (* Separate line-assembly buffers per FD to avoid merging partial lines
+       from different streams. *)
+    let line_buf_in = Buffer.create 256 in
+    let line_buf_err = Buffer.create 256 in
+
+    let process_bytes_to line_buf n =
+      for i = 0 to n - 1 do
+        let c = Bytes.get buf i in
+        if c = '\n' || c = '\r' then (
+          let line = Buffer.contents line_buf in
+          if line <> "" then callback line;
+          Buffer.clear line_buf
+        ) else Buffer.add_char line_buf c
+      done
+    in
+
+    let rec drain in_open err_open =
+      if not in_open && not err_open then ()
+      else
+        let read_fds =
+          [] |> (fun acc -> if in_open then fd_in :: acc else acc)
+             |> (fun acc -> if err_open then fd_err :: acc else acc)
+        in
+        let rec do_select () =
+          try Unix.select read_fds [] [] (-1.)
+          with Unix.Unix_error (Unix.EINTR, _, _) -> do_select ()
+        in
+        let ready, _, _ = do_select () in
+
+        let in_open =
+          if in_open && List.mem fd_in ready then (
+            let rec do_read () =
+              try Unix.read fd_in buf 0 1024
+              with Unix.Unix_error (Unix.EINTR, _, _) -> do_read ()
+                 | Unix.Unix_error _ as exn -> raise exn
+            in
+            let n = do_read () in
+            if n = 0 then false else (process_bytes_to line_buf_in n; true)
+          ) else in_open
+        in
+
+        let err_open =
+          if err_open && List.mem fd_err ready then (
+            let rec do_read () =
+              try Unix.read fd_err buf 0 1024
+              with Unix.Unix_error (Unix.EINTR, _, _) -> do_read ()
+                 | Unix.Unix_error _ as exn -> raise exn
+            in
+            let n = do_read () in
+            if n = 0 then false else (process_bytes_to line_buf_err n; true)
+          ) else err_open
+        in
+
+        drain in_open err_open
+    in
+
+    (* Use a flag to avoid double-closing if close_process_full succeeds
+       normally but Fun.protect's finally would close again. *)
+    let cleanup_done = ref false in
+    let status =
+      Fun.protect
+        ~finally:(fun () ->
+          if not !cleanup_done then
+            (try ignore (Unix.close_process_full proc) with _ -> ()))
+        (fun () ->
+          drain true true;
+          (* Flush any unterminated final lines from each stream. *)
+          let flush_buf b =
+            let line = Buffer.contents b in
+            if line <> "" then callback line
+          in
+          flush_buf line_buf_in;
+          flush_buf line_buf_err;
+          let s = Unix.close_process_full proc in
+          cleanup_done := true;
+          s)
+    in
+    Ok status
   with exn ->
     Error (Printexc.to_string exn)
+
+let run_command_capture cmd =
+  let b = Buffer.create 256 in
+  match run_command_stream cmd (fun line -> Buffer.add_string b line; Buffer.add_char b '\n') with
+  | Ok status -> Ok (status, String.trim (Buffer.contents b))
+  | Error msg -> Error msg
 
 let ensure_pipeline_dir () =
   if not (Sys.file_exists pipeline_dir) then
