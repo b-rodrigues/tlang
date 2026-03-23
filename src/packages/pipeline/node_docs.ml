@@ -11,8 +11,8 @@
 --# @param command :: Any (Optional) The expression to evaluate inside the node. Mutually exclusive with `script`.
 --# @param script :: String (Optional) Path to an external `.R`, `.py`, or `.qmd` file to execute as the node body. Mutually exclusive with `command`. The runtime is auto-detected from the file extension when not explicitly provided.
 --# @param runtime :: Symbol (Optional) The runtime environment (T, R, Python, Quarto). Default = T.
---# @param serializer :: String | Symbol | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string, a symbol (e.g. $arrow), or a built-in function name. Custom functions can also be used. Default = "default".
---# @param deserializer :: String | Symbol | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string, a symbol (e.g. $arrow), or a built-in function name. Custom functions can also be used. Default = "default".
+--# @param serializer :: String | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name (a variable, e.g., default). Custom functions can also be used. Default = "default".
+--# @param deserializer :: String | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name (a variable, e.g., default). Custom functions can also be used. Default = "default".
 --# @param args :: Dict (Optional) Runtime/tool arguments. For Quarto, use this to pass CLI arguments such as `subcommand`, `path`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 --# @param functions :: String | List[String] (Optional) Files to source before execution.
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.

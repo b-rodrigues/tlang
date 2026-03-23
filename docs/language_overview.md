@@ -59,7 +59,7 @@ T supports the following value types:
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
 | `Null`      | `null`                   | Absence of value                    |
-| `Symbol`    | `$mpg` or `$default`     | Name reference (NSE, strategies)    |
+| `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
 | `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
@@ -286,9 +286,7 @@ config.port  -- 8080
 
 ### Symbols (`$`)
 
-Symbols are name references that are not immediately evaluated. They are primarily used in two contexts:
-1. **DataFrame Columns**: Referencing columns in verbs like `select($mpg)` or `filter($cyl > 4)`.
-2. **Strategy Names**: Configuring pipeline nodes, e.g., `node(serializer = $arrow)`.
+Symbols are name references that are not immediately evaluated. They are primarily used to reference DataFrame columns in verbs like `select($mpg)` or `filter($cyl > 4)`.
 
 Symbols are created by prefixing an identifier with `$`:
 ```t
