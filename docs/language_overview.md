@@ -607,36 +607,36 @@ Pipelines define named computation nodes with automatic dependency resolution an
 
 ```t
 p = pipeline {
-  -- 1. Native T node: filter data (Arrow backend)
-  -- We specify 'serializer = "arrow"' for high-performance cross-language transfer.
+  -- 1. Load data natively in T (CSV backend)
   data = node(
-    command = read_csv("examples/sales.csv") |> filter($amount > 100),
-    serializer = "arrow"
+    command = read_csv("examples/sample_data.csv") |> filter($age > 25),
+    serializer = "csv"
   )
-
-  -- 2. R node: train a model
-  -- PMML serialization ensures reproducibility without R during scoring.
+  
+  -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
-    command = <{
-      lm(amount ~ category, data = data)
-    }>,
+    command = <{ lm(score ~ age, data = data) }>,
     serializer = "pmml",
-    deserializer = "arrow"
+    deserializer = "csv"
+  )
+  
+  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
+  predictions = node(
+    command = data |> mutate($pred = predict(data, model_r)),
+    deserializer = "pmml"
   )
 
-  -- 3. Python node: execute an external script
-  scored = pyn(
-    script = "examples/score.py",
-    deserializer = "pmml",
-    serializer = "json"
-  )
+  -- 4. Generate a shell report
+  report = shn(command = <{
+    printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
+  }>)
 }
 
 build_pipeline(p)
 
 -- Access pipeline results
-p.data       -- Native T object
-p.scored     -- JSON result from Python
+p.data           -- Native T object
+p.predictions    -- Results with predictions column
 ```
 
 #### Debugging and Logs
@@ -649,6 +649,12 @@ help(read_log)
 
 -- Read the full Nix build log for a specific node
 read_log("model_r")
+```
+
+The `read_log()` function requires a node name to identify which build output to retrieve. It returns the raw build output as a string, which can be printed with `cat()` to preserve formatting:
+
+```t
+cat(read_log("scored"))
 ```
 
 For more comprehensive examples and templates, visit the [T Demos repository](https://github.com/b-rodrigues/t_demos).
@@ -898,3 +904,5 @@ Now that you have a solid grasp of T's syntax and core features, explore these t
 1. **[Type System](type-system.md)** — Understand T's mode-aware type system and lambda signatures.
 2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows.
 3. **[Data Manipulation Examples](data_manipulation_examples.md)** — See T's data verbs in action with worked examples.
+
+For more hands-on examples and complete project templates, visit the [**T Demos Repository**](https://github.com/b-rodrigues/t_demos).

@@ -5,34 +5,36 @@
 print("=== T Polyglot Pipeline Demo ===")
 
 p = pipeline {
-  -- 1. Native T node: filter data
-  -- Uses the sales.csv file in the examples directory
+  -- 1. Load data natively in T (CSV backend)
   data = node(
     command = read_csv("examples/sales.csv") |> filter($amount > 100),
-    serializer = "arrow"
+    serializer = "csv"
   )
 
-  -- 2. R node: train a model
+  -- 2. Train a statistical model in R (using the rn() wrapper)
   -- PMML is used for cross-language model serialization
   model_r = rn(
     command = <{
       lm(amount ~ category, data = data)
     }>,
     serializer = "pmml",
-    deserializer = "arrow"
+    deserializer = "csv"
   )
 
-  -- 3. Python node: execute an external script
-  -- Uses the score.py script in the examples directory
-  scored = pyn(
-    script = "examples/score.py",
-    deserializer = "pmml",
-    serializer = "json"
+  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
+  predictions = node(
+    command = data |> mutate($pred = predict(data, model_r)),
+    deserializer = "pmml"
   )
+
+  -- 4. Generate a shell report
+  report = shn(command = <{
+    printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
+  }>)
 }
 
 -- In a real workflow, you would build the pipeline to run it in the Nix sandbox:
-build_pipeline(p)
+-- build_pipeline(p)
 
 -- For this demo, we can inspect the pipeline structure:
 print("Nodes in pipeline:")
