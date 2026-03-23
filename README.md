@@ -21,27 +21,32 @@ T's core strength is its **mandatory pipeline architecture**. It treats R script
 ```t
 -- A reproducible polyglot pipeline
 p = pipeline {
-  # 1. Load data natively in T (Arrow backend)
-  data = node(command = read_csv("data.csv") |> filter($age > 18))
-  
-  # 2. Train a statistical model in R (using the rn() wrapper)
-  model_r = rn(
-    command = <{ lm(score ~ age + income, data = data) }>,
-    serializer = "pmml"
+  -- 1. Load data natively in T (CSV backend)
+  data = node(
+    command = read_csv("examples/sample_data.csv") |> filter($age > 25),
+    serializer = "csv"
   )
   
-  # 3. Predict natively in T (no R/Python runtime needed for evaluation!)
-  predictions = node(command = data 
-    |> mutate($pred = predict(model_r, data))
+  -- 2. Train a statistical model in R (using the rn() wrapper)
+  model_r = rn(
+    command = <{ lm(score ~ age, data = data) }>,
+    serializer = "pmml",
+    deserializer = "csv"
+  )
+  
+  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
+  predictions = node(
+    command = data |> mutate($pred = predict(data, model_r)),
+    deserializer = "pmml"
   )
 
-  # 4. Generate a shell report
+  -- 4. Generate a shell report
   report = shn(command = <{
     printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
   }>)
 }
 
-# Build the pipeline into reproducible Nix artifacts
+-- Build the pipeline into reproducible Nix artifacts
 build_pipeline(p)
 ```
 
@@ -71,7 +76,7 @@ intent {
 ## Key Features
 
 ### Functional Safety & Errors
-T is built on a "no-surprises" philosophy. **Errors are first-class values**, not exceptions. Functions return explicit `Error` types when something goes wrong (e.g., missing files, type mismatches), allowing you to handle them as data. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Overwriting `a` with `a = 2` will not work as T is immutable. Use `:=` to reassign a variable.
+T is built on a "no-surprises" philosophy. **Errors are first-class values**, not exceptions. Functions return explicit `Error` types when something goes wrong (e.g., missing files, type mismatches), allowing you to handle them as data. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Overwriting `a` with `a = 2` will not work as T is immutable. Use `:=` to reassign a variable, or `rm(a)` to remove it from the environment entirely.
 
 ### Semantic Piping
 T provides two types of pipes to manage complex data flows and error states:
@@ -99,7 +104,7 @@ This drops you into an ephemeral environment with `t` available on your `PATH`.
 You can now bootstrap a new project:
 
 ```bash
-t init my_t_project
+t init --project my_t_project
 ```
 
 You will be prompted to enter basic project information. When finished, leave the temporary shell:

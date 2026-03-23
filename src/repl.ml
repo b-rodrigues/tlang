@@ -260,8 +260,8 @@ let print_help () =
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
-  Printf.printf "  init package      Create a new T package\n";
-  Printf.printf "  init project      Create a new T project\n";
+  Printf.printf "  init --package <n>  Create a new T package\n";
+  Printf.printf "  init --project <n>  Create a new T project\n";
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  update            Update dependencies and nixpkgs date from tproject.toml\n";
   Printf.printf "  upgrade           Upgrade T version and nixpkgs date to today's date\n";
@@ -940,8 +940,8 @@ let () =
       exit 1
   | _ :: "repl" :: _ -> cmd_repl mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain mode_parse.mode rest env
-  | _ :: "init" :: "package" :: rest -> cmd_init_package rest
-  | _ :: "init" :: "project" :: rest -> cmd_init_project rest
+  | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
+  | _ :: "init" :: "--project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
   | _ :: "doctor" :: _ -> cmd_doctor ()
   | _ :: "docs" :: _ -> cmd_docs ()
@@ -951,8 +951,8 @@ let () =
   | _ :: "publish" :: _ -> cmd_publish ()
 
   | _ :: "init" :: _ ->
-      Printf.eprintf "Usage: t init package|project <name> [options]\n";
-      Printf.eprintf "Run 't init package --help' for more information.\n";
+      Printf.eprintf "Usage: t init --package <name> | t init --project <name> [options]\n";
+      Printf.eprintf "Run 't init --package --help' for more information.\n";
       exit 1
   | _ :: "--help" :: _ | _ :: "-h" :: _ -> print_help ()
   | _ :: "--version" :: _ | _ :: "-v" :: _ -> print_version ()

@@ -48,7 +48,7 @@ jobs:
         cd multi_des_workspace
         
         # 3. Initialize a new project
-        "$TLANG_BIN" init project multi_des_project --no-git
+        "$TLANG_BIN" init --project multi_des_project --no-git
         cd multi_des_project
         
         # 4. Configure Project dependencies

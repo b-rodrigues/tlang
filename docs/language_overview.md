@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.51.1 
+> **Version**: 0.51.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -12,6 +12,9 @@ T is a functional programming language designed for declarative, tabular data ma
 -- Variable assignment
 x = 10
 name = "Alice"
+
+-- Variable re-assignment (Shadowing)
+x := 20
 
 -- Function definition (lambda style preferred)
 add = \(a, b) a + b
@@ -59,6 +62,7 @@ T supports the following value types:
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
 | `Null`      | `null`                   | Absence of value                    |
+| `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
 | `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
@@ -70,7 +74,23 @@ name = "Alice"
 active = true
 ```
 
-Variables are bound with `=`. All values are immutable.
+Variables are bound with `=`. All values are immutable by default. To overwrite an existing binding (shadowing), use the `:=` operator:
+
+```t
+x = 10
+x := 20    -- Overwrites x with 20
+```
+
+To remove a variable from the environment entirely, use the `rm()` function. It supports bare symbols, strings, and the `list` parameter:
+
+```t
+rm(x)             -- Removes x from the environment
+rm("name")        -- Removes name by string
+rm(a, b, c)       -- Removes multiple variables
+
+vars = ["x", "y"]
+rm(list = vars)   -- Removes variables 'x' and 'y'
+```
 
 ### Arithmetic and Operators
 
@@ -80,7 +100,10 @@ Variables are bound with `=`. All values are immutable.
 4 * 5       -- 20
 15 / 3      -- 5
 1 + 2.5     -- 3.5 (mixed int/float is promoted)
-"hi" + " T" -- "hi T" (string concatenation)
+
+-- String concatenation is NOT supported with +
+-- Use str_join() or paste() instead:
+str_join(["hi", " T"], sep = "") -- "hi T"
 ```
 
 Operator precedence follows standard mathematical conventions. Parentheses override precedence.
@@ -268,6 +291,16 @@ config.host  -- "localhost"
 config.port  -- 8080
 ```
 
+### Symbols (`$`)
+
+Symbols are name references that are not immediately evaluated. They are primarily used to reference DataFrame columns in verbs like `select($mpg)` or `filter($cyl > 4)`.
+
+Symbols are created by prefixing an identifier with `$`:
+```t
+s = $my_symbol
+type(s)  -- "Symbol"
+```
+
 ---
 
 ## Missing Values (NA)
@@ -424,10 +457,13 @@ df |> select($name, $age)
 df |> filter($age > 25)
 df |> mutate($age_plus_10 = $age + 10)         -- named-arg style
 df |> arrange($age, "desc")
-df |> group_by($dept)
-   |> summarize($count = nrow($dept))           -- named-arg style
-df |> group_by($dept)
-   |> mutate($dept_size, \(g) nrow(g))
+df |> 
+  group_by($dept) |> 
+  summarize($count = nrow($dept))           
+-- named-arg style
+df |> 
+  group_by($dept) |> 
+  mutate($dept_size, \(g) nrow(g))
 ```
 
 #### Named-Arg Syntax (`$col = expr`)
@@ -567,31 +603,61 @@ is_error(result)  -- true
 
 ## Pipelines
 
-Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows:
+Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file.
 
 ```t
 p = pipeline {
-  -- Native T node
-  data = node(command = read_csv("sales.csv") |> filter($amount > 100))
-
-  -- R node
-  model_r = rn(
-    command = <{
-      lm(amount ~ category, data = data)
-    }>,
-    serializer = "pmml"
+  -- 1. Load data natively in T (CSV backend)
+  data = node(
+    command = read_csv("examples/sample_data.csv") |> filter($age > 25),
+    serializer = "csv"
   )
-
-  -- Python node
-  scored = pyn(
-    script = "score.py",
+  
+  -- 2. Train a statistical model in R (using the rn() wrapper)
+  model_r = rn(
+    command = <{ lm(score ~ age, data = data) }>,
+    serializer = "pmml",
+    deserializer = "csv"
+  )
+  
+  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
+  predictions = node(
+    command = data |> mutate($pred = predict(data, model_r)),
     deserializer = "pmml"
   )
+
+  -- 4. Generate a shell report
+  report = shn(command = <{
+    printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
+  }>)
 }
 
-p.data       -- access node result
-p.scored     -- access computed value
+build_pipeline(p)
+
+-- Access pipeline results
+p.data           -- Native T object
+p.predictions    -- Results with predictions column
 ```
+
+#### Debugging and Logs
+
+When building a pipeline, T tracks the build status and logs for every node. If a node fails, you can inspect its logs directly from the T interpreter:
+
+```t
+-- Get help on log inspection
+help(read_log)
+
+-- Read the full Nix build log for a specific node
+read_log("model_r")
+```
+
+The `read_log()` function requires a node name to identify which build output to retrieve. It returns the raw build output as a string, which can be printed with `cat()` to preserve formatting:
+
+```t
+cat(read_log("scored"))
+```
+
+For more comprehensive examples and templates, visit the [T Demos repository](https://github.com/b-rodrigues/t_demos).
 
 Instead of inlining code with `command`, nodes can point to an external file using `script`. `command` and `script` are mutually exclusive, and the runtime can be inferred from file extensions such as `.R` or `.py`.
 
@@ -627,7 +693,7 @@ All packages are loaded automatically at startup:
 
 | Package     | Functions                                               |
 |-------------|----------------------------------------------------------|
-| `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq`, `getwd`, `file_exists`, `dir_exists`, `read_file`, `list_files`, `env`, `path_join`, `path_basename`, `path_dirname`, `path_ext`, `path_stem`, `path_abs` |
+| `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq`, `getwd`, `file_exists`, `dir_exists`, `read_file`, `list_files`, `env`, `path_join`, `path_basename`, `path_dirname`, `path_ext`, `path_stem`, `path_abs`, `rm` |
 | `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`, `predict`        |
@@ -657,6 +723,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `pow(base :: Number, exp :: Number) :: Float`
 - `sqrt(value :: Number) :: Float`
 - `abs(value :: Number) :: Number`
+- `rm(...) :: Null`
 
 #### Stats and DataFrames
 
@@ -837,3 +904,5 @@ Now that you have a solid grasp of T's syntax and core features, explore these t
 1. **[Type System](type-system.md)** — Understand T's mode-aware type system and lambda signatures.
 2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows.
 3. **[Data Manipulation Examples](data_manipulation_examples.md)** — See T's data verbs in action with worked examples.
+
+For more hands-on examples and complete project templates, visit the [**T Demos Repository**](https://github.com/b-rodrigues/t_demos).

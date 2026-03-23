@@ -26,10 +26,17 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   (* Variable immutability *)
   test "variable immutability" "x = 1; x = 2; x"
-    {|Error(NameError: "Cannot reassign immutable variable 'x'. Use ':=' to overwrite.")|};
+    {|Error(NameError: "[L1:C8] Cannot reassign immutable variable 'x'. Use ':=' to overwrite or rm() to delete the variable.")|};
   test "variable overwrite with :=" "x = 1; x := 2; x" "2";
   test "variable in expression" "a = 3; b = 4; a * b + 1" "13";
   test "variable chain" "x = 1; y = x + 1; z = y + 1; z" "3";
+
+  (* rm() — variable removal *)
+  test "rm then rebind symbol" "x = 1; rm(x); x = 2; x" "2";
+  test "rm string arg" {|z = 30; rm("z"); z = 99; z|} "99";
+  test "rm list arg" {|a = 1; b = 2; vars = ["a", "b"]; rm(list = vars); a = 10; b = 20; a + b|} "30";
+  test "rm removed variable is unbound" "x = 1; rm(x); x"
+    "Error(NameError: \"[L1:C15] Name `x` is not defined.\nDid you mean `n`?\")";
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: Function edge cases:\n";

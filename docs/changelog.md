@@ -1,14 +1,36 @@
 # Changelog
 
+## [0.51.2] - 2026-03-24 (Upcoming)
+
+### Features & UX
+
+- **`rm()` Function**: New core language feature for removing variables from the environment. Supports symbols, strings, and list-based removal (e.g., `rm(x, y)`, `rm("z")`, `rm(list = vars)`).
+- **Asynchronous Build Progress**: Implemented a new streaming build progress reporter in the terminal. Pipeline builds now show real-time "building" and "built" alerts for each node, with high-noise Nix logs filtered by default.
+- **Error Visibility**: When a pipeline fails, the summary now correctly reports the count of errored nodes (e.g., "[1 node errored]").
+- **REPL Interface**: Added a new `t_make()` builtin to the REPL. It defaults to building `src/pipeline.t` and supports optional named arguments (e.g., `max_jobs`, `max_cores`) that pass through to the underlying Nix build.
+- **Improved Name Errors**: Added fuzzy matching to `NameError` reporting with "Did you mean ...?" suggestions when an unbound variable is accessed.
+- **REPL Responsiveness**: Added explicit `flush stderr` after variable reassignment (`:=`) warnings to ensure they appear promptly in the REPL.
+
+### Improved
+
+- **Build Log Inspection**: `read_log()` now returns the Nix build log as a `VString` instead of printing directly. This allows the log to be captured as a variable or formatted with `cat()`.
+- **String Printing**: `print()` and `cat()` now correctly handle literal newlines and escape sequences in strings and shell results, ensuring `?<{ls -l}>` and logs display correctly.
+- **Project Initialization**: Better `t init` interactive prompts and project scaffolding templates. The `t init` command now defaults to the version of the T binary being used.
+- **CLI Interface**: Renamed `t init package` and `t init project` subcommands to `t init --package` and `t init --project` flags for better clarity.
+- **Python Node FFI**: Improved dependency handling in `pyn()`. Pipeline nodes are now correctly provided as global variables in the Python runtime.
+- **Nix Sandbox Robustness**: Added missing `import os` to Python serialization snippets, ensuring standard library access in the Nix sandbox.
+- **CI Reliability**: `t update` now automatically handles untracked `flake.nix` in Git repositories when running in a CI environment (`CI=true`).
+- **Nix Support**: Added help for experimental flags and trusted user configuration in `docs/installation.md`.
+
+### Fixed
+
+- **Design Consistency**: Standardized all documentation and examples to reinforce the "**Data Frame First**" principle for function arguments, ensuring compatibility with T's functional piping (`|>`) patterns.
+- **Typos**: Fixed documentation typos (e.g., "sterilization" -> "serialization").
+- **Example Revisions**: Synchronized `examples/polyglot_pipeline.t` with the latest project standards.
+- **Error Message Clarity**: Improved error messages for immutable variable reassignment with actionable suggestions (`Use ':=' to overwrite or rm() to delete the variable`).
+- **Global Guide Alignment**: Performed a repository-wide sweep to remove legacy version strings and hardcoded formatting in installation and project guides.
+
 Version history and roadmap for the T programming language.
-
-## [0.51.2] — Upcoming Release
-
-### Bug Fixes & Improvements
-
-- **Scaffolding**: `t init` now defaults to the version of the T binary being used, ensuring consistent project creation and preventing issues when incorrect tags exist on remote.
-- **CI Reliability**: `t update` now automatically handles untracked `flake.nix` inside Git repositories when running in a CI environment (detected via `CI=true`). This resolves errors about "path not tracked by Git" during environment setup in CI environments.
-- **Global Consistency**: Performed a repository-wide sweep to remove legacy version strings and hardcoded formatting in installation and project guides.
 
 ## Version 0.51.1 — Current Stable Release
 

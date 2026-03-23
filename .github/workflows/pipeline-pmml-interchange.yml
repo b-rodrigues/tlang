@@ -48,7 +48,7 @@ jobs:
         cd pmml_test_workspace
         
         # 3. Initialize a new project
-        "$TLANG_BIN" init project pmml_project --no-git
+        "$TLANG_BIN" init --project pmml_project --no-git
         cd pmml_project
         
         # 4. Configure Project dependencies

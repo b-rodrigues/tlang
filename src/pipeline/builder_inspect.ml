@@ -42,3 +42,22 @@ let inspect_pipeline ?which_log () =
           ] in
           let arrow_table = Arrow_table.create columns nrows in
           Ast.VDataFrame { arrow_table; group_keys = [] }
+
+let read_node_log node_name =
+  let drv_path_file = Filename.concat pipeline_dir "last_build_drvs.json" in
+  if not (Sys.file_exists drv_path_file) then
+    Error.make_error FileError "No derivation paths found. Run `build_pipeline` first."
+  else
+    try
+      let json = Yojson.Safe.from_file drv_path_file in
+      let open Yojson.Safe.Util in
+      match json |> member node_name |> to_string_option with
+      | None ->
+          Error.make_error ValueError (Printf.sprintf "Node `%s` not found in the last build attempt." node_name)
+      | Some drv ->
+          let cmd = Printf.sprintf "nix log %s" (Filename.quote drv) in
+          (match run_command_capture cmd with
+           | Ok (_status, output) -> VString output
+           | Error msg -> Error.make_error ShellError (Printf.sprintf "Failed to fetch nix log: %s" msg))
+    with exn ->
+      Error.make_error FileError (Printf.sprintf "Failed to parse `%s`: %s" drv_path_file (Printexc.to_string exn))

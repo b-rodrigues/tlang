@@ -51,7 +51,7 @@ jobs:
           cd ..
           mkdir quarto-test-run
           cd quarto-test-run
-          "$TLANG_BIN" init project quarto_extension_test --no-git
+          "$TLANG_BIN" init --project quarto_extension_test --no-git
           cd quarto_extension_test
 
           cat > tproject.toml <<EOF

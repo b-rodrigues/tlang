@@ -443,7 +443,15 @@ let eval_shell_expr _env_ref cmd =
     suggestion only when we need to build the error value.
     This avoids materializing Env.bindings on every unbound-variable access. *)
 let name_error_with_lazy_suggestion name env_ref =
-  let names = List.map fst (Env.bindings !env_ref) in
+  let names = 
+    Env.bindings !env_ref 
+    |> List.filter (fun (name, v) -> 
+        match v with 
+        | VSymbol _ -> false 
+        | _ -> not (String.starts_with ~prefix:"__" name)
+    )
+    |> List.map fst 
+  in
   match Ast.suggest_name name names with
   | Some suggestion -> Error.name_error_with_suggestion name suggestion
   | None -> Error.name_error name
@@ -1692,7 +1700,39 @@ and eval_call env_ref fn_val raw_args =
     ) args
   in
   let raw_args = transform_nse_args raw_args in
-  
+
+  (* Special case: rm() needs to capture symbols before evaluation to remove variables by name.
+     Without this, rm(x) evaluates x to its value and then tries to remove a variable 
+     named with that VALUE (e.g. if x="val", it removes variable "val", not "x").
+     This also handles the R-style rm(list = ...) named argument. *)
+  if current_builtin_name = Some "rm" then (
+    List.iter (fun (arg_name, e) ->
+      match arg_name with
+      | Some "list" ->
+          let v = eval_expr env_ref e in
+          (match v with
+           | VList items ->
+               List.iter (fun (_, item) ->
+                 match extract_name_opt item with
+                 | Some s -> env_ref := Env.remove s !env_ref
+                 | None -> ()) items
+           | _ ->
+               (match extract_name_opt v with
+                | Some s -> env_ref := Env.remove s !env_ref
+                | None -> ()))
+      | _ ->
+          match e.node with
+          | Var s -> env_ref := Env.remove s !env_ref
+          | ColumnRef s -> env_ref := Env.remove ("$" ^ s) !env_ref
+          | _ ->
+              let v = eval_expr env_ref e in
+              (match extract_name_opt v with
+               | Some s -> env_ref := Env.remove s !env_ref
+               | None -> ())
+    ) raw_args;
+    VNull
+  ) else begin
+
   let rec process_args_spliced acc = function
     | [] -> acc
     | (name, e) :: rest ->
@@ -1847,7 +1887,15 @@ and eval_call env_ref fn_val raw_args =
                                body = Ast.mk_expr (DotAccess { target = Ast.mk_expr (Var "row"); field }); env = Some !env_ref } in
              eval_call env_ref fn raw_args
            else
-             let names = List.map fst (Env.bindings !env_ref) in
+             let names = 
+               Env.bindings !env_ref 
+               |> List.filter (fun (name, v) -> 
+                   match v with 
+                   | VSymbol _ -> false 
+                   | _ -> not (String.starts_with ~prefix:"__" name)
+               )
+               |> List.map fst 
+             in
              match Ast.suggest_name s names with
                | Some suggestion -> Error.name_error_with_suggestion s suggestion
                | None -> Error.name_error s)
@@ -1885,6 +1933,7 @@ and eval_call env_ref fn_val raw_args =
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
+  end
 
 and eval_binop env_ref op left right =
   (* Pipe is special: x |> f(y) becomes f(x, y), x |> f becomes f(x) *)
@@ -2030,7 +2079,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
          | _ -> (v, !env_ref))
     | Assignment { name; expr; _ } ->
         if Env.mem name env then
-          let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite." name in
+          let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite or rm() to delete the variable." name in
           (make_error NameError msg, env)
         else
           let env_ref = ref env in
@@ -2046,8 +2095,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         else
           let env_ref = ref env in
           let v = eval_expr env_ref expr in
-          if !show_warnings then
+          if !show_warnings then begin
             Printf.eprintf "Warning: overwriting variable '%s'\n" name;
+            flush stderr
+          end;
           let new_env = Env.add name v !env_ref in
           (match v with
            | VError _ -> (v, new_env)

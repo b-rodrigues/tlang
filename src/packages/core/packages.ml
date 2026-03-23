@@ -89,7 +89,7 @@ let package_functions pkg =
 let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
-  functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get";
+  functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get"; "rm";
                "ifelse"; "case_when"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
@@ -611,6 +611,42 @@ let register env =
       | [] -> Error.make_error ArityError "run() requires a command argument"
       | _  -> Error.make_error ArityError "run() takes exactly one argument"
     ))
+    env
+  in
+
+(*
+--# Remove objects from the environment
+--#
+--# Removes one or more variables from the current environment by name. 
+--# Supports bare symbols (R-style selective removal), strings, and lists 
+--# of names via the `list` parameter.
+--#
+--# @name rm
+--# @param ... :: Symbol | String One or more variables to remove.
+--# @param list :: List[String] (Optional) A list of variable names to remove.
+--# @return :: Null
+--# @example
+--#   x = 10; y = 20
+--#   rm(x, y)          -- Removes x and y
+--#   
+--#   z = 30
+--#   rm("z")           -- Removes z
+--#
+--#   vars = ["a", "b"]
+--#   rm(list = vars)   -- Removes variables 'a' and 'b'
+--#
+--# @family core
+--# @export
+*)
+  let env = Env.add "rm"
+    (VBuiltin { b_name = Some "rm"; b_arity = 0; b_variadic = true;
+                b_func = (fun _args _env_ref ->
+                  (* rm() is handled as a special case in eval_call, which intercepts unevaluated
+                     argument names before evaluation and removes them from the environment.
+                     If this body is reached, the evaluator's special-case logic was bypassed —
+                     return an internal error to make such bugs visible. *)
+                  Error.make_error RuntimeError "rm() builtin body reached unexpectedly; this is a bug in the evaluator"
+                )})
     env
   in
 

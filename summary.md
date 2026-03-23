@@ -33,8 +33,8 @@ That is the preferred way to get the `t` executable as a user. Do **not** sugges
 ### Start a new reproducible workspace
 
 ```bash
-t init project   # data-analysis project / pipeline workspace
-t init package   # reusable T package / library
+t init --project   # data-analysis project / pipeline workspace
+t init --package   # reusable T package / library
 ```
 
 Use **projects** for analyses and pipelines. Use **packages** for reusable exported functions.
@@ -375,7 +375,7 @@ When generating T code, default to this shape:
 4. Use `$col` in `colcraft` verbs.
 5. Handle `Error` and `NA` explicitly.
 6. Assume Nix is responsible for installation, dependency resolution, build automation, and runtime isolation.
-7. For projects, start with `t init project`; for reusable libraries, start with `t init package`.
+7. For projects, start with `t init --project`; for reusable libraries, start with `t init --package`.
 8. For function-level details, consult `docs/reference/index.md` and the generated per-function reference pages.
 
 ## Release and Upgrade Workflows

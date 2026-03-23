@@ -43,7 +43,7 @@ jobs:
         mkdir polyglot_shell_workspace
         cd polyglot_shell_workspace
 
-        $TLANG_BIN init project polyglot_shell_project --no-git
+        $TLANG_BIN init --project polyglot_shell_project --no-git
         cd polyglot_shell_project
 
         printf '%s\n' \

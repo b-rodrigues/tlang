@@ -42,7 +42,7 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
       let is_custom_ser = requires_functions ser in
       let is_custom_des = requires_functions des in
       if (is_custom_ser || is_custom_des) && funcs = [] then
-        Printf.eprintf "Warning: Node `%s` uses custom serializer/deserializer but has no functions specified. Ensure it's available in the runtime environment.\n%!" name
+        Printf.eprintf "Warning: Node `%s` uses a custom or unknown strategy (not 'default', 'arrow', 'pmml', etc.) but has no supporting `functions` specified.\nIf this is a built-in strategy, check the spelling (strings should be quoted, e.g., \"arrow\").\nIf it is a custom function, ensure it is available in the runtime environment.\n%!" name
     ) p.p_exprs
   in
   ensure_pipeline_dir ();

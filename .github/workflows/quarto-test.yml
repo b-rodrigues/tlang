@@ -48,7 +48,7 @@ jobs:
         cd quarto_test_workspace
         
         # 3. Initialize a new project
-        $TLANG_BIN init project my_quarto_project --no-git
+        $TLANG_BIN init --project my_quarto_project --no-git
         cd my_quarto_project
         
         # 4. Configure Project

@@ -48,7 +48,7 @@ jobs:
         cd pipeline_test_workspace
         
         # 3. Initialize a new project
-        $TLANG_BIN init project my_t_project --no-git
+        $TLANG_BIN init --project my_t_project --no-git
         cd my_t_project
         
         # 4. Configure Project dependencies

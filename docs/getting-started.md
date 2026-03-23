@@ -31,19 +31,21 @@ T provides a built-in scaffolding tool to initialize your workspaces. There are 
 To start a new data analysis project, navigate to your desired folder and run (while in the temporary shell you dropped in before):
 
 ```bash
-t init project
+t init --project my_analysis
 ```
 
-The interactive wizard will ask for a project name (e.g., `my_analysis`) and generate a reproducible workspace. The resulting tree layout will look like this:
+The scaffolding tool will generate a reproducible workspace with the following layout:
 
 ```text
 my_analysis/
 ├── tproject.toml       # Project configuration and dependencies
 ├── flake.nix           # Reproducible environment definition
-├── _pipeline/          # Output directory for pipeline node results
+├── README.md           # Project overview
+├── src/
+│   └── pipeline.t      # Your main analysis script
 ├── data/               # Place your raw data files here
-└── scripts/
-    └── main.t          # Your main analysis script
+├── outputs/            # Output directory for results
+└── tests/              # Unit tests for your analysis
 ```
 
 ### Creating a Package
@@ -51,19 +53,22 @@ my_analysis/
 If you want to create a reusable library of T functions, initialize a package instead:
 
 ```bash
-t init package
+t init --package my_package
 ```
 
 The tree layout for a package is structured for development and testing:
 
 ```text
 my_package/
-├── tproject.toml       # Package metadata (name, version, exports)
+├── DESCRIPTION.toml    # Package metadata (name, version, exports)
 ├── flake.nix           # Reproducible environment definition
+├── README.md           # Package overview
 ├── src/
 │   └── main.t          # Package source code
-└── tests/
-    └── test_main.t     # Unit tests for your package
+├── tests/
+│   └── test-my_package.t  # Unit tests for your package
+├── examples/           # Usage examples
+└── docs/               # Documentation
 ```
 
 ## Running Your Code

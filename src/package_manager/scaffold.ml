@@ -1,5 +1,5 @@
 (* src/package_manager/scaffold.ml *)
-(* Directory/file creation for `t init package` and `t init project` *)
+(* Directory/file creation for `t init --package` and `t init --project` *)
 
 open Package_types
 
@@ -724,7 +724,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   in
   parse args;
   if !show_help then
-    Error "Usage: t init package|project <name> [options]\n\n\
+    Error "Usage: t init --package|--project <name> [options]\n\n\
            Options:\n\
            \  --author <name>    Author name and email (default: \"Your Name <email@example.com>\")\n\
            \  --license <id>     License identifier (default: EUPL-1.2)\n\
@@ -759,4 +759,4 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
             interactive = true;
           }
         else
-          Error "Missing package/project name. Usage: t init package|project <name>"
+          Error "Missing name. Usage: t init --package|--project <name>"
