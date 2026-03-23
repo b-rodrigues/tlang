@@ -260,8 +260,8 @@ let print_help () =
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
-  Printf.printf "  init package      Create a new T package\n";
-  Printf.printf "  init project      Create a new T project\n";
+  Printf.printf "  init --package <n>  Create a new T package\n";
+  Printf.printf "  init --project <n>  Create a new T project\n";
   Printf.printf "  test              Run tests in the current directory\n";
   Printf.printf "  update            Update dependencies and nixpkgs date from tproject.toml\n";
   Printf.printf "  upgrade           Upgrade T version and nixpkgs date to today's date\n";

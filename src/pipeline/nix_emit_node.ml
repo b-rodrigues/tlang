@@ -353,6 +353,7 @@ def py_read_json(path):
 |} in
 
   let t_pickle_py_code = {|
+import os
 import pickle
 def serialize(obj, path):
     with open(path, "wb") as f:
