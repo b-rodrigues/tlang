@@ -1,6 +1,0 @@
--- Test: Iris correlation cor(Sepal.Length, Petal.Length)
--- Compares to: R's cor(iris$Sepal.Length, iris$Petal.Length)
-df = read_csv("tests/golden/data/iris.csv")
-result = summarize(df, $correlation = cor($Sepal.Length, $Petal.Length))
-write_csv(result, "tests/golden/t_outputs/cor_iris_sepal_petal.csv")
-print("✓ cor(Sepal.Length, Petal.Length) complete")

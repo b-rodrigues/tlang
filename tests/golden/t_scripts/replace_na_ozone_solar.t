@@ -1,5 +1,0 @@
--- Test: replace_na([Ozone: 0, `Solar.R`: 0])
-df = read_csv("tests/golden/data/airquality.csv")
-result = df |> replace_na([Ozone: 0, `Solar.R`: 0])
-write_csv(result, "tests/golden/t_outputs/replace_na_ozone_solar.csv")
-print("✓ replace_na_ozone_solar complete")

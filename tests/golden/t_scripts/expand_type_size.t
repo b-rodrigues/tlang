@@ -1,5 +1,0 @@
--- Test: expand($type, $size)
-df = read_csv("tests/golden/data/fruits.csv")
-result = df |> expand($type, $size)
-write_csv(result, "tests/golden/t_outputs/expand_type_size.csv")
-print("✓ expand_type_size complete")

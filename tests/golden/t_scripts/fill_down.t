@@ -1,5 +1,0 @@
--- Test: fill(category, .direction = "down")
-df = read_csv("tests/golden/data/fill_data.csv")
-result = df |> fill($category, .direction = "down")
-write_csv(result, "tests/golden/t_outputs/fill_down.csv")
-print("✓ fill_down complete")

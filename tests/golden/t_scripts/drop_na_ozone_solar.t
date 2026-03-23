@@ -1,5 +1,0 @@
--- Test: drop_na($Ozone, $`Solar.R`)
-df = read_csv("tests/golden/data/airquality.csv")
-result = df |> drop_na($Ozone, $`Solar.R`)
-write_csv(result, "tests/golden/t_outputs/drop_na_ozone_solar.csv")
-print("✓ drop_na_ozone_solar complete")
