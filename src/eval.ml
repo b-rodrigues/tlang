@@ -443,7 +443,15 @@ let eval_shell_expr _env_ref cmd =
     suggestion only when we need to build the error value.
     This avoids materializing Env.bindings on every unbound-variable access. *)
 let name_error_with_lazy_suggestion name env_ref =
-  let names = List.map fst (Env.bindings !env_ref) in
+  let names = 
+    Env.bindings !env_ref 
+    |> List.filter (fun (name, v) -> 
+        match v with 
+        | VSymbol _ -> false 
+        | _ -> not (String.starts_with ~prefix:"__" name)
+    )
+    |> List.map fst 
+  in
   match Ast.suggest_name name names with
   | Some suggestion -> Error.name_error_with_suggestion name suggestion
   | None -> Error.name_error name
@@ -1879,7 +1887,15 @@ and eval_call env_ref fn_val raw_args =
                                body = Ast.mk_expr (DotAccess { target = Ast.mk_expr (Var "row"); field }); env = Some !env_ref } in
              eval_call env_ref fn raw_args
            else
-             let names = List.map fst (Env.bindings !env_ref) in
+             let names = 
+               Env.bindings !env_ref 
+               |> List.filter (fun (name, v) -> 
+                   match v with 
+                   | VSymbol _ -> false 
+                   | _ -> not (String.starts_with ~prefix:"__" name)
+               )
+               |> List.map fst 
+             in
              match Ast.suggest_name s names with
                | Some suggestion -> Error.name_error_with_suggestion s suggestion
                | None -> Error.name_error s)

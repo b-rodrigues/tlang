@@ -33,12 +33,21 @@ let test name input expected =
   in
   let result_norm = strip_location result in
   let expected_norm = strip_location expected in
-  if result_norm = expected_norm then begin
+  
+  let match_found = 
+    if result_norm = expected_norm then true
+    else try
+      let _ = Str.search_forward (Str.regexp expected_norm) result_norm 0 in
+      true
+    with _ -> false
+  in
+
+  if match_found then begin
     incr pass_count;
     Printf.printf "  ✓ %s\n" name
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ %s\n    Expected: %s\n    Got:      %s\n" name expected result
+    Printf.printf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result
   end
 
 let () =

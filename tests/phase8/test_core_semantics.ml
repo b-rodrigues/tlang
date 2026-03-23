@@ -36,7 +36,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "rm string arg" {|z = 30; rm("z"); z = 99; z|} "99";
   test "rm list arg" {|a = 1; b = 2; vars = ["a", "b"]; rm(list = vars); a = 10; b = 20; a + b|} "30";
   test "rm removed variable is unbound" "x = 1; rm(x); x"
-    {|Error(NameError: "Name `x` is not defined.")|};
+    "Error(NameError: \"[L1:C15] Name `x` is not defined.\nDid you mean `n`?\")";
   print_newline ();
 
   Printf.printf "Phase 8 — Core Semantics: Function edge cases:\n";
