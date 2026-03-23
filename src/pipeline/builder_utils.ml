@@ -55,14 +55,18 @@ let run_command_stream cmd callback =
           [] |> (fun acc -> if in_open then fd_in :: acc else acc)
              |> (fun acc -> if err_open then fd_err :: acc else acc)
         in
-        let ready, _, _ = Unix.select read_fds [] [] (-1.) in
+        let rec do_select () =
+          try Unix.select read_fds [] [] (-1.)
+          with Unix.Unix_error (Unix.EINTR, _, _) -> do_select ()
+        in
+        let ready, _, _ = do_select () in
 
         let in_open =
           if in_open && List.mem fd_in ready then (
             let rec do_read () =
               try Unix.read fd_in buf 0 1024
               with Unix.Unix_error (Unix.EINTR, _, _) -> do_read ()
-                 | _ -> 0
+                 | Unix.Unix_error _ as exn -> raise exn
             in
             let n = do_read () in
             if n = 0 then false else (process_bytes_to line_buf_in n; true)
@@ -74,7 +78,7 @@ let run_command_stream cmd callback =
             let rec do_read () =
               try Unix.read fd_err buf 0 1024
               with Unix.Unix_error (Unix.EINTR, _, _) -> do_read ()
-                 | _ -> 0
+                 | Unix.Unix_error _ as exn -> raise exn
             in
             let n = do_read () in
             if n = 0 then false else (process_bytes_to line_buf_err n; true)

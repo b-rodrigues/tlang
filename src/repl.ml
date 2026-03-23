@@ -744,30 +744,40 @@ let () =
         let filename = ref "src/pipeline.t" in
         let nix_args = ref [] in
         let arg_error = ref None in
-        let _ = List.fold_left (fun idx (k_opt, v) ->
-          (match k_opt, v with
-          | Some "filename", Ast.VString s -> filename := s
-          | Some "filename", _ ->
-              arg_error := Some "t_make: 'filename' must be a String"
-          | Some "max_jobs", Ast.VInt i ->
+        (* Separate named and positional arguments so that positional indices are
+           computed only within the positional-only list, regardless of how many
+           named arguments appear before them. *)
+        let named_only, positional_only =
+          List.partition (fun (k_opt, _) -> k_opt <> None) named_args
+        in
+        List.iter
+          (function
+            | (Some "filename", Ast.VString s) -> filename := s
+            | (Some "filename", _) ->
+                arg_error := Some "t_make: 'filename' must be a String"
+            | (Some "max_jobs", Ast.VInt i) ->
+                nix_args := string_of_int i :: "--max-jobs" :: !nix_args
+            | (Some "max_jobs", _) ->
+                arg_error := Some "t_make: 'max_jobs' must be an Int"
+            | (Some "max_cores", Ast.VInt i) ->
+                nix_args := string_of_int i :: "--cores" :: !nix_args
+            | (Some "max_cores", _) ->
+                arg_error := Some "t_make: 'max_cores' must be an Int"
+            | (Some k, _) ->
+                arg_error := Some (Printf.sprintf "t_make: unknown argument '%s'" k)
+            | (None, _) -> ())
+          named_only;
+        let _ = List.fold_left (fun idx (_, v) ->
+          (match idx, v with
+          | 0, Ast.VString s -> filename := s
+          | 1, Ast.VInt i ->
               nix_args := string_of_int i :: "--max-jobs" :: !nix_args
-          | Some "max_jobs", _ ->
-              arg_error := Some "t_make: 'max_jobs' must be an Int"
-          | Some "max_cores", Ast.VInt i ->
+          | 2, Ast.VInt i ->
               nix_args := string_of_int i :: "--cores" :: !nix_args
-          | Some "max_cores", _ ->
-              arg_error := Some "t_make: 'max_cores' must be an Int"
-          | None, Ast.VString s when idx = 0 -> filename := s
-          | None, Ast.VInt i when idx = 1 ->
-              nix_args := string_of_int i :: "--max-jobs" :: !nix_args
-          | None, Ast.VInt i when idx = 2 ->
-              nix_args := string_of_int i :: "--cores" :: !nix_args
-          | Some k, _ ->
-              arg_error := Some (Printf.sprintf "t_make: unknown argument '%s'" k)
-          | None, _ ->
-              arg_error := Some (Printf.sprintf "t_make: unexpected argument at position %d" idx));
+          | n, _ ->
+              arg_error := Some (Printf.sprintf "t_make: unexpected argument at position %d" n));
           idx + 1
-        ) 0 named_args in
+        ) 0 positional_only in
         match !arg_error with
         | Some msg ->
             Ast.VError { code = Ast.TypeError; message = msg; context = []; location = None }
