@@ -2046,8 +2046,10 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         else
           let env_ref = ref env in
           let v = eval_expr env_ref expr in
-          if !show_warnings then
+          if !show_warnings then begin
             Printf.eprintf "Warning: overwriting variable '%s'\n" name;
+            flush stderr
+          end;
           let new_env = Env.add name v !env_ref in
           (match v with
            | VError _ -> (v, new_env)
