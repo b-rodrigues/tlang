@@ -419,27 +419,27 @@ for query in "${QUERY_LIST[@]}"; do
       t_parquet="$CORE_100K_PARQUET"
       ;;
     q17)
-      python_script="$SCRIPT_DIR/python/q14_core_select.py"
-      r_script="$SCRIPT_DIR/r/q14_core_select.R"
-      t_script="$SCRIPT_DIR/queries/q14_core_select.t"
+      python_script="$SCRIPT_DIR/python/q17_core_select.py"
+      r_script="$SCRIPT_DIR/r/q17_core_select.R"
+      t_script="$SCRIPT_DIR/queries/q17_core_select.t"
       python_args=(--input-parquet "$CORE_1M_PARQUET")
       r_args=("$CORE_1M_PARQUET")
       t_csv="$CORE_1M_CSV"
       t_parquet="$CORE_1M_PARQUET"
       ;;
     q18)
-      python_script="$SCRIPT_DIR/python/q15_core_filter.py"
-      r_script="$SCRIPT_DIR/r/q15_core_filter.R"
-      t_script="$SCRIPT_DIR/queries/q15_core_filter.t"
+      python_script="$SCRIPT_DIR/python/q18_core_filter.py"
+      r_script="$SCRIPT_DIR/r/q18_core_filter.R"
+      t_script="$SCRIPT_DIR/queries/q18_core_filter.t"
       python_args=(--input-parquet "$CORE_1M_PARQUET")
       r_args=("$CORE_1M_PARQUET")
       t_csv="$CORE_1M_CSV"
       t_parquet="$CORE_1M_PARQUET"
       ;;
     q19)
-      python_script="$SCRIPT_DIR/python/q16_core_mutate.py"
-      r_script="$SCRIPT_DIR/r/q16_core_mutate.R"
-      t_script="$SCRIPT_DIR/queries/q16_core_mutate.t"
+      python_script="$SCRIPT_DIR/python/q19_core_mutate.py"
+      r_script="$SCRIPT_DIR/r/q19_core_mutate.R"
+      t_script="$SCRIPT_DIR/queries/q19_core_mutate.t"
       python_args=(--input-parquet "$CORE_1M_PARQUET")
       r_args=("$CORE_1M_PARQUET")
       t_csv="$CORE_1M_CSV"
