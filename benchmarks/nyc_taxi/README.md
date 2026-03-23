@@ -63,8 +63,14 @@ The benchmark runner supports these query ids:
 - `q11` — heavy grouped summarize with multiple aggregates
 - `q12` — filter + mutate + grouped rollup + sort
 - `q13` — high-cardinality grouped rollup with multiple aggregates
+- `q14` — core `select()` baseline on 100k rows
+- `q15` — core `filter()` baseline on 100k rows
+- `q16` — core `mutate()` baseline on 100k rows
+- `q17` — core `select()` baseline on 1M rows
+- `q18` — core `filter()` baseline on 1M rows
+- `q19` — core `mutate()` baseline on 1M rows
 
-By default, `run_benchmark.sh` runs the full `q1`-`q13` suite. Use `--queries`
+By default, `run_benchmark.sh` runs the full `q1`-`q19` suite. Use `--queries`
 to run a subset when you only want a faster smoke benchmark.
 
 ## Prepare the dataset
@@ -122,6 +128,12 @@ The runner writes results to:
 ```text
 benchmarks/nyc_taxi/results/results.csv
 ```
+
+The `q14`-`q19` scenarios are the fixed-size large-dataset baselines referenced in
+`spec_files/path-to-0.52.0.md` for `v0.51.1 — Alpha Hardening & Performance`.
+When any of those queries are selected, the runner automatically materializes
+100k-row and 1M-row CSV/Parquet subsets from the benchmark dataset before timing
+the core verbs.
 
 ## Recorded metrics
 

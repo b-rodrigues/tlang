@@ -62,6 +62,11 @@ with `--csv-path`.
 builds the Parquet dataset when it is missing, and if only the materialized CSV
 is missing it regenerates that CSV from the existing Parquet dataset.
 
+When the core-verb benchmark queries (`q14`-`q19`) are selected, the runner also
+derives fixed-size 100k-row and 1M-row materialized CSV/Parquet files from the
+full materialized Parquet input so the roadmap baseline measurements run against
+exact row counts.
+
 If you rerun preparation into the same Parquet directory, pass `--clean` first.
 Without it, `prepare_dataset.sh` stops instead of appending duplicate data files to
 existing partitions.
