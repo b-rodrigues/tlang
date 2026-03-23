@@ -66,9 +66,9 @@ The benchmark runner supports these query ids:
 - `q14` — core `select()` baseline on 100k rows
 - `q15` — core `filter()` baseline on 100k rows
 - `q16` — core `mutate()` baseline on 100k rows
-- `q17` — core `select()` baseline on 1M rows
-- `q18` — core `filter()` baseline on 1M rows
-- `q19` — core `mutate()` baseline on 1M rows
+- `q17` — core `select()` baseline on 1M rows (reuses `q14` scripts)
+- `q18` — core `filter()` baseline on 1M rows (reuses `q15` scripts)
+- `q19` — core `mutate()` baseline on 1M rows (reuses `q16` scripts)
 
 By default, `run_benchmark.sh` runs the full `q1`-`q19` suite. Use `--queries`
 to run a subset when you only want a faster smoke benchmark.
