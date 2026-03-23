@@ -57,9 +57,7 @@ let read_node_log node_name =
       | Some drv ->
           let cmd = Printf.sprintf "nix log %s" (Filename.quote drv) in
           (match run_command_capture cmd with
-           | Ok (_status, output) -> 
-               print_endline output;
-               VNull
+           | Ok (_status, output) -> VString output
            | Error msg -> Error.make_error ShellError (Printf.sprintf "Failed to fetch nix log: %s" msg))
     with exn ->
       Error.make_error FileError (Printf.sprintf "Failed to parse `%s`: %s" drv_path_file (Printexc.to_string exn))

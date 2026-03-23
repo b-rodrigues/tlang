@@ -615,7 +615,7 @@ p = pipeline {
   )
 
   -- 2. R node: train a model
-  -- PMML sterilization ensures reproducibility without R during scoring.
+  -- PMML serialization ensures reproducibility without R during scoring.
   model_r = rn(
     command = <{
       lm(amount ~ category, data = data)

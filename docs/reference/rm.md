@@ -6,7 +6,7 @@ Removes one or more variables from the current environment by name. Supports bar
 
 ## Parameters
 
-- **...** (`Symbol`): | String One or more variables to remove.
+- **...** (`Symbol | String`): One or more variables to remove.
 
 - **list** (`List[String]`): (Optional) A list of variable names to remove.
 

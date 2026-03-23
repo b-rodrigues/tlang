@@ -640,24 +640,12 @@ let register env =
 *)
   let env = Env.add "rm"
     (VBuiltin { b_name = Some "rm"; b_arity = 0; b_variadic = true;
-                b_func = (fun args env_ref ->
-                  let extract_name = function
-                    | VString s | VSymbol s -> Some s
-                    | _ -> None
-                  in
-                  List.iter (fun (_, v) ->
-                    match extract_name v with
-                    | Some name -> env_ref := Env.remove name !env_ref
-                    | None ->
-                        (match v with
-                         | VList items ->
-                             List.iter (fun (_, item) ->
-                               match extract_name item with
-                               | Some name -> env_ref := Env.remove name !env_ref
-                               | None -> ()) items
-                         | _ -> ())
-                  ) args;
-                  VNull
+                b_func = (fun _args _env_ref ->
+                  (* rm() is handled as a special case in eval_call, which intercepts unevaluated
+                     argument names before evaluation and removes them from the environment.
+                     If this body is reached, the evaluator's special-case logic was bypassed —
+                     return an internal error to make such bugs visible. *)
+                  Error.make_error RuntimeError "rm() builtin body reached unexpectedly; this is a bug in the evaluator"
                 )})
     env
   in

@@ -10,19 +10,19 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 - **script** (`String`): (Optional) Path to an external `.sh` file to execute as the node body. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`String | Function`): (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`String | Function`): (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **args** (`Dict`): | List (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
+- **args** (`Dict | List`): (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
 
 - **shell** (`String`): (Optional) Shell interpreter to invoke for shell-string mode or script-backed nodes. Default = "sh".
 
 - **shell_args** (`List[String]`): (Optional) Additional arguments passed to the shell interpreter.
 
-- **functions** (`String`): | List[String] (Optional) Additional files to include in the sandbox before execution.
+- **functions** (`String | List[String]`): (Optional) Additional files to include in the sandbox before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 

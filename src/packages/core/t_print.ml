@@ -17,7 +17,7 @@ open Ast
 *)
 (* Convert a value to a printable string (without quotes for strings) *)
 let value_to_print_string = function
-  | VString s -> Serialization.json_unescape s  (* Unescape characters for clean output *)
+  | VString s -> s  (* Print string as-is *)
   | VShellResult { sr_stdout; _ } -> sr_stdout  (* Print shell stdout as-is *)
   | other -> Utils.value_to_string other
 
