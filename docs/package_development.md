@@ -4,12 +4,11 @@ This guide walks you through creating, developing, and publishing a package for 
 
 ## 1. Creating a Package
 
-You can create a new package interactively using the `t init package` command.
+You can create a new package interactively using the `t init --package` command.
 
 ```bash
-$ t init package
-Initializing new T package/project...
-Name [my_package]: advanced-stats
+$ t init --package advanced-stats
+Initializing new T package...
 Author [User]: Alice
 License [EUPL-1.2]: EUPL-1.2
 
@@ -20,8 +19,12 @@ This creates a standard directory structure:
 
 - **DESCRIPTION.toml**: Package metadata and dependencies.
 - **flake.nix**: Reproducible development environment definition.
+- **README.md**: Package overview.
+- **CHANGELOG.md**: History of changes.
+- **LICENSE**: License text.
 - **src/**: Source code (e.g., `main.t`).
 - **tests/**: Test files (e.g., `test-advanced-stats.t`).
+- **examples/**: Usage examples.
 - **docs/**: Documentation (e.g., `index.md`).
 
 ## 2. Managing Dependencies

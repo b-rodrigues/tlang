@@ -940,8 +940,8 @@ let () =
       exit 1
   | _ :: "repl" :: _ -> cmd_repl mode_parse.mode env
   | _ :: "explain" :: rest -> cmd_explain mode_parse.mode rest env
-  | _ :: "init" :: "package" :: rest -> cmd_init_package rest
-  | _ :: "init" :: "project" :: rest -> cmd_init_project rest
+  | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
+  | _ :: "init" :: "--project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
   | _ :: "doctor" :: _ -> cmd_doctor ()
   | _ :: "docs" :: _ -> cmd_docs ()
@@ -951,8 +951,8 @@ let () =
   | _ :: "publish" :: _ -> cmd_publish ()
 
   | _ :: "init" :: _ ->
-      Printf.eprintf "Usage: t init package|project <name> [options]\n";
-      Printf.eprintf "Run 't init package --help' for more information.\n";
+      Printf.eprintf "Usage: t init --package <name> | t init --project <name> [options]\n";
+      Printf.eprintf "Run 't init --package --help' for more information.\n";
       exit 1
   | _ :: "--help" :: _ | _ :: "-h" :: _ -> print_help ()
   | _ :: "--version" :: _ | _ :: "-v" :: _ -> print_version ()

@@ -9,9 +9,8 @@ This guide walks you through creating and developing a **T project** — a data 
 Create a new project interactively:
 
 ```bash
-$ t init project
-Initializing new T package/project...
-Name [my_project]: housing-analysis
+$ t init --project housing-analysis
+Initializing new T project...
 Author [User]: Alice
 License [EUPL-1.2]: EUPL-1.2
 Nixpkgs date [2026-02-19]: 2026-02-19
@@ -22,10 +21,13 @@ Nixpkgs date [2026-02-19]: 2026-02-19
 This creates the following structure:
 
 - **tproject.toml**: Project metadata and dependencies.
-- **flake.nix**: Reproducible environment definition (managed automatically).
+- **flake.nix**: Reproducible environment definition.
+- **README.md**: Project documentation.
+- **.gitignore**: Git exclusion list.
 - **src/**: Your analysis scripts (e.g., `pipeline.t`).
 - **data/**: Data files.
-- **README.md**: Project documentation.
+- **outputs/**: Output directory for results.
+- **tests/**: Project-specific tests.
 
 ## 2. Entering the Development Environment
 
