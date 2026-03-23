@@ -77,7 +77,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
         (* Completed: nix-build prints the output store path without ".drv" *)
         match List.find_opt (fun name -> contains_substring line ("-" ^ name)) node_names with
         | Some name ->
-            if Hashtbl.find statuses name <> "Completed" then (
+            if Hashtbl.find statuses name <> "Completed" && Hashtbl.find statuses name <> "Errored" then (
               Hashtbl.replace statuses name "Completed";
               Printf.printf "  ✓ %s built\n%!" name
             )
@@ -190,19 +190,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
               else "General Nix build failure (check dependencies or environment)."
             in
             Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary;
-            let raw_output = String.trim (Buffer.contents captured_output) in
-            let max_len = 4000 in
-            let output_len = String.length raw_output in
-            let displayed_output =
-              if output_len > max_len then
-                String.sub raw_output (output_len - max_len) max_len
-              else
-                raw_output
-            in
-            Error (Printf.sprintf "nix-build failed: %s\n\nCaptured output (last %d characters):\n%s"
-              error_summary
-              (String.length displayed_output)
-              displayed_output))
+            Error (Printf.sprintf "nix-build failed. See details above."))
     | Error msg ->
         Error (Printf.sprintf "Failed to run nix-build: %s" msg)
   end
