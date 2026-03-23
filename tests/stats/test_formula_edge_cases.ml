@@ -1,5 +1,15 @@
 let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* === Formula Edge Cases === *)
+  let starts_with s prefix =
+    String.length s >= String.length prefix &&
+    String.sub s 0 (String.length prefix) = prefix
+  in
+  let contains haystack needle =
+    try
+      let _ = Str.search_forward (Str.regexp_string needle) haystack 0 in
+      true
+    with Not_found -> false
+  in
 
   Printf.printf "Formula Edge Cases — Multi-variable formulas:\n";
 
@@ -9,6 +19,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|"Formula"|};
   test "two-predictor formula type"
     "type(mpg ~ hp + wt)"
+    {|"Formula"|};
+  test "interaction formula type"
+    "type(y ~ x1 * x2)"
     {|"Formula"|};
 
   (* lm() with multi-variable formula rejects (currently single-var only) *)
@@ -23,10 +36,6 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|lm(data = df, formula = y ~ x1 + x2)|} env_mv in
   let result = Ast.Utils.value_to_string v in
   (* lm now supports multi-variable formulas *)
-  let starts_with s prefix =
-    String.length s >= String.length prefix &&
-    String.sub s 0 (String.length prefix) = prefix
-  in
   if not (starts_with result "Error(") then begin
     incr pass_count; Printf.printf "  ✓ lm() accepts multi-variable formula\n"
   end else begin
@@ -34,6 +43,55 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (try Sys.remove csv_mv with _ -> ());
+  print_newline ();
+
+  Printf.printf "Formula Edge Cases — Interaction terms:\n";
+
+  let csv_inter = "test_formula_edge_interactions.csv" in
+  let oc_inter = open_out csv_inter in
+  output_string oc_inter "y,x1,x2\n10,1,1\n17,1,2\n15,2,1\n24,2,2\n22,3,1\n";
+  close_out oc_inter;
+
+  let env_inter = Packages.init_env () in
+  let (_, env_inter) = eval_string_env (Printf.sprintf {|df_inter = read_csv("%s")|} csv_inter) env_inter in
+  let (_, env_inter) = eval_string_env {|model_inter = lm(data = df_inter, formula = y ~ x1 * x2)|} env_inter in
+  let (v_inter_terms, _) = eval_string_env {|model_inter._tidy_df.term|} env_inter in
+  let inter_terms = Ast.Utils.value_to_string v_inter_terms in
+  if contains inter_terms "x1:x2" then begin
+    incr pass_count; Printf.printf "  ✓ lm() includes interaction term in tidy output\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ lm() includes interaction term in tidy output\n    Got: %s\n" inter_terms
+  end;
+
+  let (v_inter_coef, _) = eval_string_env {|model_inter.coefficients|} env_inter in
+  let inter_coef = Ast.Utils.value_to_string v_inter_coef in
+  if contains inter_coef "x1:x2" then begin
+    incr pass_count; Printf.printf "  ✓ lm() exposes interaction coefficient\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ lm() exposes interaction coefficient\n    Got: %s\n" inter_coef
+  end;
+
+  (try Sys.remove csv_inter with _ -> ());
+  print_newline ();
+
+  Printf.printf "Formula Edge Cases — Collinearity detection:\n";
+
+  let csv_collinear = "test_formula_edge_collinear.csv" in
+  let oc_collinear = open_out csv_collinear in
+  output_string oc_collinear "y,x1,x2\n1,1,1\n2,2,2\n3,3,3\n4,4,4\n";
+  close_out oc_collinear;
+
+  let env_collinear = Packages.init_env () in
+  let (_, env_collinear) = eval_string_env (Printf.sprintf {|df_collinear = read_csv("%s")|} csv_collinear) env_collinear in
+  let (v_collinear, _) = eval_string_env {|lm(data = df_collinear, formula = y ~ x1 + x2)|} env_collinear in
+  let collinear_result = Ast.Utils.value_to_string v_collinear in
+  if contains collinear_result "detected collinearity" then begin
+    incr pass_count; Printf.printf "  ✓ lm() reports collinearity explicitly\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ lm() reports collinearity explicitly\n    Got: %s\n" collinear_result
+  end;
+
+  (try Sys.remove csv_collinear with _ -> ());
   print_newline ();
 
   Printf.printf "Formula Edge Cases — NA in predictor columns:\n";

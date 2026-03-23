@@ -14,11 +14,11 @@ This document outlines the step-by-step evolution of the T language from the cur
 - [ ] **Large Dataset Benchmarks**:
     - [ ] Achieve <1s baseline for core verbs (select/filter/mutate) on 100k rows.
     - [ ] Achieve <10s baseline for core verbs on 1M rows.
-- [ ] **Edge Case Hardening**:
-    - [ ] Exhaustive tests for empty groups, all-NA groups, and single-row groups.
-    - [ ] Handle window overflows and tie-breaking in rank functions.
-- [ ] **Formula Engine**:
-    - [ ] Support for interaction terms and collinearity detection in `lm()`.
+- [x] **Edge Case Hardening**:
+    - [x] Exhaustive tests for empty groups, all-NA groups, and single-row groups.
+    - [x] Handle window overflows and tie-breaking in rank functions.
+- [x] **Formula Engine**:
+    - [x] Support for interaction terms and collinearity detection in `lm()`.
 
 ---
 
@@ -37,14 +37,14 @@ This document outlines the step-by-step evolution of the T language from the cur
         NA             => "Missing"
       }
       ```
-- [x] **List Comprehensions**:
-    - [x] Enable `FOR` and `IF` clauses for compact list generation.
+- [ ] **List Comprehensions**:
+    - [ ] Enable `FOR` and `IF` clauses for compact list generation.
     - **Expected Syntax**:
       ```t
       evens = [x * 10 for x in seq(1, 10) if x % 2 == 0]
       ```
-- [x] **String Interpolation**:
-    - [x] Use the existing `str_format()` / `str_sprintf()` helpers for interpolation-style formatting instead of adding a second string-template syntax.
+- [ ] **String Interpolation**:
+    - [ ] Native `"{expr}"` embedding in double-quoted strings, but check if `sprintf` is enough.
 - [ ] **Immutable Update Lenses**:
     - [ ] Implement `set()`, `over()`, and `modify()` for deep dict/list updates (e.g. `df |> set(col.Petal.Length, 1.0)`).
 
@@ -98,7 +98,7 @@ This document outlines the step-by-step evolution of the T language from the cur
 **Objective**: Finalize the **v0.52.0 "Kaméhaméha"** release with full Julia integration and final ecosystem polish.
 
 - [ ] **Julia First-Class Support**:
-    - [x] **Julia Node (`jn()`)**: Specialized pipeline node for Julia scripts.
+    - [ ] **Julia Node (`jn()`)**: Specialized pipeline node for Julia scripts.
     - [ ] **Zero-Copy Arrow Interchange**: Shared memory data transfer between Julia and T.
 
 - [ ] **Language Interop Guide**: Expansion with final polyglot examples and deployment strategies.

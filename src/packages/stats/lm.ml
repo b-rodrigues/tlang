@@ -142,6 +142,39 @@ let register env =
       | (Some data_v, Some formula_v) ->
         match (data_v, formula_v) with
         | (VDataFrame df, VFormula { response; predictors; _ }) ->
+          (* Interaction terms are encoded as colon-joined predictor names,
+             e.g. `x1:x2` becomes ["x1"; "x2"] for column lookup/product expansion. *)
+          let term_columns term =
+            if String.contains term ':'
+            then String.split_on_char ':' term
+            else [ term ]
+          in
+          let predictor_array arrow_table term =
+            let cols = term_columns term in
+            let rec load_columns acc = function
+              | [] -> Ok (List.rev acc)
+              | col :: rest ->
+                  (match Arrow_owl_bridge.numeric_column_to_owl arrow_table col with
+                   | None ->
+                        Error
+                          (Error.type_error
+                            (Printf.sprintf
+                               "Function `lm` column `%s` must be numeric without NA values."
+                               col))
+                   | Some view -> load_columns (view.arr :: acc) rest)
+            in
+            match load_columns [] cols with
+            | Error _ as err -> err
+            | Ok [] -> Error (Error.internal_error "lm() produced an empty predictor term.")
+            | Ok (arr :: rest) ->
+                let combined =
+                  List.fold_left
+                    (fun acc next ->
+                      Array.init (Array.length acc) (fun i -> acc.(i) *. next.(i)))
+                    (Array.copy arr) rest
+                in
+                Ok (term, combined)
+          in
           (* Extract response variable name *)
           (match response with
            | [y_col] ->
@@ -154,14 +187,17 @@ let register env =
                 | None ->
                     Error.make_error KeyError
                       (Printf.sprintf "Column `%s` not found in DataFrame." y_col)
-                | Some _ ->
-                  (* Verify all predictor columns exist *)
-                  let missing = List.find_opt (fun col ->
-                    not (Arrow_table.has_column df.arrow_table col)
-                  ) predictors in
+                 | Some _ ->
+                  (* Verify all base columns exist, including those referenced by interaction terms. *)
+                  let missing =
+                    predictors
+                    |> List.find_map (fun term ->
+                         term_columns term
+                         |> List.find_opt (fun col -> not (Arrow_table.has_column df.arrow_table col)))
+                  in
                   (match missing with
                    | Some col ->
-                       Error.make_error KeyError
+                        Error.make_error KeyError
                          (Printf.sprintf "Column `%s` not found in DataFrame." col)
                    | None ->
                      let nrows = Arrow_table.num_rows df.arrow_table in
@@ -174,27 +210,33 @@ let register env =
                           Error.type_error
                             "Function `lm` requires numeric columns without NA values."
                         | Some y_view ->
-                          let xs_result = List.fold_left (fun acc col ->
+                          let xs_result = List.fold_left (fun acc term ->
                             match acc with
                             | Error e -> Error e
-                            | Ok xs_views ->
-                              match Arrow_owl_bridge.numeric_column_to_owl df.arrow_table col with
-                              | None -> Error (Error.type_error
-                                  (Printf.sprintf "Function `lm` column `%s` must be numeric without NA values." col))
-                              | Some x_view -> Ok (xs_views @ [x_view])
+                            | Ok xs_terms ->
+                                (match predictor_array df.arrow_table term with
+                                 | Error e -> Error e
+                                 | Ok predictor_term -> Ok (xs_terms @ [ predictor_term ]))
                           ) (Ok []) predictors in
                           (match xs_result with
                            | Error e -> e
-                           | Ok xs_views ->
-                             let xs_arrays = List.map (fun (v : Arrow_owl_bridge.owl_view) -> v.arr) xs_views in
-                             let ys = y_view.arr in
-                             (match Arrow_owl_bridge.linreg_multi xs_arrays ys predictors with
-                              | None ->
-                                Error.value_error
-                                  "Function `lm` cannot fit model: design matrix is singular."
-                              | Some result ->
-                                build_model_value result formula_v data_v)))))
-             end
+                           | Ok xs_terms ->
+                               (match Arrow_owl_bridge.detect_collinearity xs_terms with
+                                | Some detail ->
+                                    Error.value_error
+                                      (Printf.sprintf
+                                         "Function `lm` detected collinearity: %s."
+                                         detail)
+                                | None ->
+                                    let xs_arrays = List.map snd xs_terms in
+                                    let ys = y_view.arr in
+                                    (match Arrow_owl_bridge.linreg_multi xs_arrays ys predictors with
+                                     | None ->
+                                         Error.value_error
+                                           "Function `lm` detected collinearity: design matrix is singular."
+                                     | Some result ->
+                                         build_model_value result formula_v data_v))))))
+              end
            | [] ->
                Error.value_error "Function `lm` left side of formula is empty."
            | _ ->

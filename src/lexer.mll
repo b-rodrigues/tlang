@@ -35,7 +35,6 @@ rule token = parse
   | "import"    { IMPORT }
 
   | "function"  { FUNCTION }
-  | "for"       { FOR }
   | "pipeline"  { PIPELINE }
   | "intent"    { INTENT }
   | "true"      { TRUE }

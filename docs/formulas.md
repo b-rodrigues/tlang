@@ -16,8 +16,11 @@ The `~` operator creates a Formula object that can be passed to modeling functio
 -- Simple linear regression
 model = lm(data = df, formula = y ~ x)
 
--- Future: Multiple regression
+-- Multiple regression
 model = lm(data = df, formula = y ~ x1 + x2 + x3)
+
+-- Interaction terms
+model = lm(data = df, formula = y ~ x1 * x2)
 ```
 
 ## Supported Functions
@@ -59,10 +62,9 @@ model = lm(data = data, formula = mpg ~ hp)
 print(model.r_squared)
 ```
 
-## Future Extensions
+## Current Limitations
 
 - Intercept control: `y ~ x + 1` vs `y ~ x - 1`
-- Interactions: `y ~ x1 * x2`
 - Transformations: `y ~ log(x)`
 
 ---

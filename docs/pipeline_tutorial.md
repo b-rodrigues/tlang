@@ -54,11 +54,11 @@ p = pipeline {
 }
 ```
 
-Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, `jn()`, and `shn()` as shortcuts for Python, R, Julia, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
+Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, and `shn()` as shortcuts for Python, R, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
 ### Using the `script` Argument
 
-Instead of inlining code with `command`, you can point a node to an external source file using the `script` argument. This works with `node()`, `pyn()`, `rn()`, `jn()`, and `shn()`. The `script` and `command` arguments are mutually exclusive.
+Instead of inlining code with `command`, you can point a node to an external source file using the `script` argument. This works with `node()`, `pyn()`, `rn()`, and `shn()`. The `script` and `command` arguments are mutually exclusive.
 
 ```t
 p = pipeline {
@@ -68,18 +68,15 @@ p = pipeline {
   -- Execute an external Python script
   predictions = pyn(script = "predict.py", deserializer = "pmml")
 
-  -- Execute an external Julia script
-  summary = jn(script = "summarise.jl", serializer = "arrow")
-
   -- Execute an external shell script
   report = shn(script = "postprocess.sh")
 
   -- node() auto-detects the runtime from the file extension
-  fallback = node(script = "summarise.R", serializer = "json")
+  summary = node(script = "summarise.R", serializer = "json")
 }
 ```
 
-When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.jl` → Julia, `.sh` → sh) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
+When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.sh` → sh) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
 
 ### Shell / Bash nodes with `shn()`
 

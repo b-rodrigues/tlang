@@ -30,15 +30,6 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
       })
   | ListLit items ->
       Ast.mk_expr ?loc (ListLit (List.map (fun (n, e) -> (n, desugar_nse_expr e)) items))
-  | ListComp { expr; clauses } ->
-      let desugar_clause = function
-        | CFor { var; iter } -> CFor { var; iter = desugar_nse_expr iter }
-        | CFilter filter_expr -> CFilter (desugar_nse_expr filter_expr)
-      in
-      Ast.mk_expr ?loc (ListComp {
-        expr = desugar_nse_expr expr;
-        clauses = List.map desugar_clause clauses;
-      })
   | DictLit entries ->
       Ast.mk_expr ?loc (DictLit (List.map (fun (k, v) -> (k, desugar_nse_expr v)) entries))
   | DotAccess { target; field } ->
@@ -105,12 +96,6 @@ let rec uses_nse (expr : Ast.expr) : bool =
   | IfElse { cond; then_; else_ } ->
       uses_nse cond || uses_nse then_ || uses_nse else_
   | ListLit items -> List.exists (fun (_, e) -> uses_nse e) items
-  | ListComp { expr; clauses } ->
-      uses_nse expr
-      || List.exists (function
-           | CFor { iter; _ } -> uses_nse iter
-           | CFilter filter_expr -> uses_nse filter_expr
-         ) clauses
   | DictLit pairs -> List.exists (fun (_, e) -> uses_nse e) pairs
   | DotAccess { target; _ } -> uses_nse target
   | RawCode _ -> false
@@ -396,14 +381,60 @@ let rec broadcast2 op v1 v2 =
   | s1, s2 ->
       eval_scalar_binop op s1 s2
 
+let uniq_preserve (items : string list) : string list =
+  let seen = Hashtbl.create (List.length items) in
+  List.filter
+    (fun item ->
+      if Hashtbl.mem seen item then false
+      else begin
+        Hashtbl.add seen item ();
+        true
+      end)
+    items
+
+let rec combinations_of_size size = function
+  | [] -> if size = 0 then [ [] ] else []
+  | x :: xs ->
+      if size = 0 then [ [] ]
+      else
+        List.map (fun rest -> x :: rest) (combinations_of_size (size - 1) xs)
+        @ combinations_of_size size xs
+
+let expand_formula_interaction (factors : string list) : string list =
+  let factors = uniq_preserve factors in
+  let n = List.length factors in
+  let rec loop size acc =
+    if size > n then acc
+    else
+      let terms =
+        combinations_of_size size factors
+        |> List.map (String.concat ":")
+      in
+      loop (size + 1) (acc @ terms)
+  in
+  loop 1 []
+
+let rec extract_formula_product_factors (expr : Ast.expr) : string list option =
+  match expr.node with
+  | Var s -> Some [ s ]
+  | BinOp { op = Mul; left; right } ->
+      (match extract_formula_product_factors left, extract_formula_product_factors right with
+       | Some lhs, Some rhs -> Some (lhs @ rhs)
+       | _ -> None)
+  | _ -> None
+
 (** Extract variable names from a formula expression.
-    Supports: x, x + y, x + y + z
-    Returns list of variable names *)
+    Supports additive terms and interaction expansion via `*`.
+    Returns predictor/response names in model-matrix order. *)
 let rec extract_formula_vars (expr : Ast.expr) : string list =
   match expr.node with
-  | Var s -> [s]
+  | Var s -> [ s ]
   | BinOp { op = Plus; left; right } ->
-      extract_formula_vars left @ extract_formula_vars right
+      uniq_preserve (extract_formula_vars left @ extract_formula_vars right)
+  | BinOp { op = Mul; _ } ->
+      (match extract_formula_product_factors expr with
+       | Some factors -> expand_formula_interaction factors
+       | None -> [])
   | Value (VInt 1) -> []  (* Intercept term: y ~ x + 1 *)
   | _ -> []  (* Unsupported formula syntax *)
 
@@ -575,7 +606,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | _ -> Error.make_error ArityError "enquos() expects no arguments or `...`")
 
     | Call { fn = { node = Var name; _ }; args }
-      when List.mem name ["node"; "py"; "pyn"; "rn"; "shn"; "jn"] ->
+      when List.mem name ["node"; "py"; "pyn"; "rn"; "shn"] ->
         let fn_name = name in
         let lookup_arg name default =
           match List.assoc_opt (Some name) args with
@@ -712,7 +743,6 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
              let default_runtime = match name with
                | "py" | "pyn" -> "Python"
                | "rn" -> "R"
-               | "jn" -> "Julia"
                | "shn" -> "sh"
                | _ -> "T"
              in
@@ -721,9 +751,9 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               let explicit = eval_string "runtime" "" in
               if explicit <> "" then explicit
               else match explicit_script_path_opt with
-                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | ".jl" -> "Julia" | _ -> default_runtime)
+                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | _ -> default_runtime)
                 | None -> (match arg_path_opt with
-                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | ".jl" -> "Julia" | _ -> default_runtime)
+                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | _ -> default_runtime)
                     | _ -> default_runtime)
             in
             if has_command && runtime = "Quarto" then
@@ -794,7 +824,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_noop = eval_bool "noop" false;
                     }
                 | _ ->
-                    let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, .jl, .sh, or .qmd file." runtime in
+                    let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, .sh, or .qmd file." runtime in
                     Error.make_error TypeError msg
               else
                 VNode {
@@ -822,7 +852,7 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | DotAccess { target; field } -> eval_dot_access env_ref target field
     | RawCode _ ->
         make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated directly in T. Use them only in `node(command = ..., runtime = R|Python|Julia)`-style foreign-runtime nodes. Quarto nodes work differently: they require a `.qmd` script and do not support raw code blocks."
-    | ListComp { expr = body; clauses } -> eval_list_comp env_ref body clauses
+    | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
     | Block stmts -> eval_block env_ref stmts
     | PipelineDef nodes -> eval_pipeline env_ref nodes
     | IntentDef pairs -> eval_intent env_ref pairs
@@ -876,18 +906,7 @@ and free_vars (expr : Ast.expr) : string list =
     | { node = IfElse { cond; then_; else_ }; _ } ->
         collect cond @ collect then_ @ collect else_
     | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect e) items
-    | { node = ListComp { expr = body; clauses }; _ } ->
-        let rec collect_clauses bound = function
-          | [] ->
-              List.filter (fun v -> not (List.mem v bound)) (collect body)
-          | CFor { var; iter } :: rest ->
-              List.filter (fun v -> not (List.mem v bound)) (collect iter)
-              @ collect_clauses (var :: bound) rest
-          | CFilter filter_expr :: rest ->
-              List.filter (fun v -> not (List.mem v bound)) (collect filter_expr)
-              @ collect_clauses bound rest
-        in
-        collect_clauses [] clauses
+    | { node = ListComp _; _ } -> []
     | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect e) pairs
     | { node = BinOp { left; right; _ }; _ } -> collect left @ collect right
     | { node = UnOp { operand; _ }; _ } -> collect operand
@@ -971,7 +990,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
      sorting can resolve it as an internal dependency. *)
   let desugar_node (name, node_expr) : (string * Ast.unbuilt_node, value) result =
     let is_node_call = match node_expr.node with
-      | Call { fn = { node = Var ("node" | "py" | "pyn" | "rn" | "shn" | "jn"); _ }; _ }
+      | Call { fn = { node = Var ("node" | "py" | "pyn" | "rn" | "shn"); _ }; _ }
       | Var _ | ColumnRef _ | DotAccess _ | Value (VNode _) | Value (VComputedNode _) -> true
       | _ -> false
     in
@@ -1517,62 +1536,6 @@ and eval_list_lit env_ref items =
         | _ -> process_items ((name, v) :: acc) rest
   in
   process_items [] items
-
-and eval_list_comp env_ref body clauses =
-  let iterable_items = function
-    | VList items -> Ok (List.map snd items)
-    | VVector values -> Ok (Array.to_list values)
-    | value ->
-        Error
-          (Error.type_error
-             (Printf.sprintf
-                "List comprehension `for` clauses expect a List or Vector, got %s."
-                (Utils.type_name value)))
-  in
-  let rec eval_clauses current_env = function
-    | [] ->
-        let value = eval_expr (ref current_env) body in
-        (match value with
-         | VError _ as err -> Error err
-         | _ -> Ok [ (None, value) ])
-    | CFilter filter_expr :: rest ->
-        let predicate = eval_expr (ref current_env) filter_expr in
-        (match predicate with
-         | VError _ as err -> Error err
-         | VNA _ ->
-             Error
-               (Error.type_error
-                  "List comprehension filter cannot use NA as a condition.")
-         | VBool true -> eval_clauses current_env rest
-         | VBool false -> Ok []
-         | other ->
-             Error
-               (Error.type_error
-                  (Printf.sprintf
-                     "List comprehension filter must evaluate to Bool, got %s."
-                     (Utils.type_name other))))
-    | CFor { var; iter } :: rest ->
-        let iter_value = eval_expr (ref current_env) iter in
-        (match iter_value with
-         | VError _ as err -> Error err
-         | iterable_value ->
-             (match iterable_items iterable_value with
-              | Error err -> Error err
-              | Ok items ->
-                  let rec expand acc = function
-                    | [] -> Ok (List.rev acc)
-                    | value :: remaining ->
-                        let scoped_env = Env.add var value current_env in
-                        (match eval_clauses scoped_env rest with
-                         | Error err -> Error err
-                         | Ok produced ->
-                             expand (List.rev_append produced acc) remaining)
-                  in
-                  expand [] items))
-  in
-  match eval_clauses !env_ref clauses with
-  | Ok items -> VList items
-  | Error err -> err
 
 and eval_dict_lit env_ref items =
   let rec process_pairs acc = function

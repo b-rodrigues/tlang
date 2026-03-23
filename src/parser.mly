@@ -56,7 +56,7 @@ let with_stmt_loc node pos =
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE IMPORT FUNCTION FOR PIPELINE INTENT TRUE FALSE NULL NA
+%token IF ELSE IMPORT FUNCTION PIPELINE INTENT TRUE FALSE NULL NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -427,20 +427,10 @@ intent_field:
   ;
 
 bracket_lit:
-  | LBRACK skip_sep body = expr skip_sep FOR skip_sep var = any_ident skip_sep IN skip_sep iter = expr skip_sep clauses = list_comp_tail RBRACK
-    { with_loc (ListComp { expr = body; clauses = CFor { var; iter } :: clauses }) $startpos }
   | LBRACK skip_sep items = bracket_items RBRACK
     { with_loc (build_bracket_literal items) $startpos }
   | LBRACK skip_sep COLON skip_sep RBRACK
     { with_loc (DictLit []) $startpos }
-  ;
-
-list_comp_tail:
-  | { [] }
-  | IF skip_sep cond = expr skip_sep tail = list_comp_tail
-    { CFilter cond :: tail }
-  | FOR skip_sep var = any_ident skip_sep IN skip_sep iter = expr skip_sep tail = list_comp_tail
-    { CFor { var; iter } :: tail }
   ;
 
 bracket_items:
