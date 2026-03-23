@@ -13,6 +13,9 @@ T is a functional programming language designed for declarative, tabular data ma
 x = 10
 name = "Alice"
 
+-- Variable re-assignment (Shadowing)
+x := 20
+
 -- Function definition (lambda style preferred)
 add = \(a, b) a + b
 
@@ -70,7 +73,19 @@ name = "Alice"
 active = true
 ```
 
-Variables are bound with `=`. All values are immutable.
+Variables are bound with `=`. All values are immutable by default. To overwrite an existing binding (shadowing), use the `:=` operator:
+
+```t
+x = 10
+x := 20    -- Overwrites x with 20
+```
+
+To remove a variable from the environment entirely, use the `rm()` function:
+
+```t
+rm(x)      -- Removes x from the environment
+rm("name") -- Removes name by string
+```
 
 ### Arithmetic and Operators
 
@@ -80,7 +95,10 @@ Variables are bound with `=`. All values are immutable.
 4 * 5       -- 20
 15 / 3      -- 5
 1 + 2.5     -- 3.5 (mixed int/float is promoted)
-"hi" + " T" -- "hi T" (string concatenation)
+
+-- String concatenation is NOT supported with +
+-- Use str_join() or paste() instead:
+str_join(["hi", " T"], sep = "") -- "hi T"
 ```
 
 Operator precedence follows standard mathematical conventions. Parentheses override precedence.
@@ -627,7 +645,7 @@ All packages are loaded automatically at startup:
 
 | Package     | Functions                                               |
 |-------------|----------------------------------------------------------|
-| `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq`, `getwd`, `file_exists`, `dir_exists`, `read_file`, `list_files`, `env`, `path_join`, `path_basename`, `path_dirname`, `path_ext`, `path_stem`, `path_abs` |
+| `core`      | `print`, `type`, `length`, `head`, `tail`, `map`, `filter`, `sum`, `seq`, `getwd`, `file_exists`, `dir_exists`, `read_file`, `list_files`, `env`, `path_join`, `path_basename`, `path_dirname`, `path_ext`, `path_stem`, `path_abs`, `rm` |
 | `base`      | `assert`, `is_na`, `na`, `na_int`, `na_float`, `na_bool`, `na_string`, `error`, `is_error`, `error_code`, `error_message`, `error_context` |
 | `math`      | `sqrt`, `abs`, `log`, `exp`, `pow`                      |
 | `stats`     | `mean`, `sd`, `quantile`, `cor`, `lm`, `predict`        |
@@ -657,6 +675,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `pow(base :: Number, exp :: Number) :: Float`
 - `sqrt(value :: Number) :: Float`
 - `abs(value :: Number) :: Number`
+- `rm(...) :: Null`
 
 #### Stats and DataFrames
 
