@@ -54,6 +54,7 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
       loop 0
     in
 
+    let drv_paths = Hashtbl.create (List.length node_names) in
     let callback line =
       Buffer.add_string captured_output line;
       Buffer.add_char captured_output '\n';
@@ -66,6 +67,20 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
         (* Building a derivation *)
         match List.find_opt (fun name -> contains_substring line ("-" ^ name ^ ".drv")) node_names with
         | Some name -> 
+            let drv_path = 
+              try
+                let start_idx = contains_substring_idx line "/nix/store/" in
+                if start_idx >= 0 then
+                  let sub = String.sub line start_idx (String.length line - start_idx) in
+                  let end_idx = try String.index sub '\'' with _ ->
+                                try String.index sub ' ' with _ ->
+                                String.length sub in
+                  String.sub sub 0 end_idx
+                else ""
+              with _ -> ""
+            in
+            if drv_path <> "" then Hashtbl.replace drv_paths name drv_path;
+
             if Hashtbl.find statuses name = "Pending" then (
               Hashtbl.replace statuses name "Building";
               Printf.printf "  + %s building\n%!" name
@@ -92,20 +107,24 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
               if Hashtbl.find statuses name <> "Errored" then (
                 Hashtbl.replace statuses name "Errored";
                 let drv_path = 
-                  try
-                    let start_idx = contains_substring_idx line "/nix/store/" in
-                    if start_idx >= 0 then
-                      let sub = String.sub line start_idx (String.length line - start_idx) in
-                      (* Stop at closing quote or whitespace; do NOT stop at '.' so that
-                         the full ".drv" suffix is preserved in the extracted path. *)
-                      let end_idx = try String.index sub '\'' with _ ->
-                                    try String.index sub ' ' with _ ->
-                                    String.length sub in
-                      String.sub sub 0 end_idx
-                    else "<path>"
-                  with _ -> "<path>"
+                  match Hashtbl.find_opt drv_paths name with
+                  | Some p -> p
+                  | None ->
+                    try
+                      let start_idx = contains_substring_idx line "/nix/store/" in
+                      if start_idx >= 0 then
+                        let sub = String.sub line start_idx (String.length line - start_idx) in
+                        (* Stop at closing quote or whitespace; do NOT stop at '.' so that
+                           the full ".drv" suffix is preserved in the extracted path. *)
+                        let end_idx = try String.index sub '\'' with _ ->
+                                      try String.index sub ' ' with _ ->
+                                      String.length sub in
+                        String.sub sub 0 end_idx
+                      else "<path>"
+                    with _ -> "<path>"
                 in
-                Printf.eprintf "  ✖ Node %s failed! For full logs, run: nix log %s\n%!" name drv_path
+                if drv_path <> "" && drv_path <> "<path>" then Hashtbl.replace drv_paths name drv_path;
+                Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" name name
               )
           | None -> ()
         )
@@ -114,6 +133,14 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     
     match run_command_stream cmd callback with
     | Ok status ->
+        (* Save drv_paths for later tool use (e.g. read_log) *)
+        let drv_entries = Hashtbl.fold (fun k v acc -> 
+            (Printf.sprintf "\"%s\": \"%s\"" (Serialization.json_escape k) (Serialization.json_escape v)) :: acc
+          ) drv_paths [] in
+        
+        let drv_json = "{\n  " ^ (String.concat ",\n  " drv_entries) ^ "\n}" in
+        ignore (write_file (Filename.concat pipeline_dir "last_build_drvs.json") drv_json);
+
         let output = String.trim (Buffer.contents captured_output) in
         (match status with
          | Unix.WEXITED 0 when output <> "" ->

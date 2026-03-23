@@ -42,4 +42,21 @@ let register env =
   --# @export
   *)
   let env = Env.add "list_logs" (make_builtin ~name:"list_logs" 0 (fun _args _env -> Builder.list_logs ())) env in
+  
+  (*
+  --# Read Node Build Log
+  --#
+  --# Fetches the Nix build log for a specific node from the last build attempt.
+  --#
+  --# @name read_log
+  --# @param node_name :: String The name of the node to inspect.
+  --# @return :: String The build log content.
+  --# @family pipeline
+  --# @export
+  *)
+  let env = Env.add "read_log" (make_builtin ~name:"read_log" 1 (fun args _env -> 
+    match args with
+    | [VString s] | [VSymbol s] -> Builder.read_node_log s
+    | _ -> Error.type_error "read_log: expected a String or Symbol node name"
+  )) env in
   env

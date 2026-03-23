@@ -604,32 +604,51 @@ Pipelines define named computation nodes with automatic dependency resolution an
 
 ```t
 p = pipeline {
-  -- Native T node: filter data before passing it to other runtimes
-  -- This example uses files provided in the examples/ directory of the repository
+  -- 1. Native T node: filter data (Arrow backend)
+  -- We specify 'serializer = "arrow"' for high-performance cross-language transfer.
   data = node(
     command = read_csv("examples/sales.csv") |> filter($amount > 100),
-    serializer = "csv"
+    serializer = "arrow"
   )
 
-  -- R node: train a model
-  -- PMML sterilization ensures reproducibility without R during scoring
+  -- 2. R node: train a model
+  -- PMML sterilization ensures reproducibility without R during scoring.
   model_r = rn(
     command = <{
       lm(amount ~ category, data = data)
     }>,
-    serializer = "pmml"
+    serializer = "pmml",
+    deserializer = "arrow"
   )
 
-  -- Python node: execute an external script for final analysis
+  -- 3. Python node: execute an external script
   scored = pyn(
     script = "examples/score.py",
-    deserializer = "pmml"
+    deserializer = "pmml",
+    serializer = "json"
   )
 }
 
-p.data       -- access node result
-p.scored     -- access computed value
+build_pipeline(p)
+
+-- Access pipeline results
+p.data       -- Native T object
+p.scored     -- JSON result from Python
 ```
+
+#### Debugging and Logs
+
+When building a pipeline, T tracks the build status and logs for every node. If a node fails, you can inspect its logs directly from the T interpreter:
+
+```t
+-- Get help on log inspection
+help(read_log)
+
+-- Read the full Nix build log for a specific node
+read_log("model_r")
+```
+
+For more comprehensive examples and templates, visit the [T Demos repository](https://github.com/b-rodrigues/t_demos).
 
 Instead of inlining code with `command`, nodes can point to an external file using `script`. `command` and `script` are mutually exclusive, and the runtime can be inferred from file extensions such as `.R` or `.py`.
 
