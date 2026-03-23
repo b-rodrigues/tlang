@@ -2063,7 +2063,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
          | _ -> (v, !env_ref))
     | Assignment { name; expr; _ } ->
         if Env.mem name env then
-          let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite." name in
+          let msg = Printf.sprintf "Cannot reassign immutable variable '%s'. Use ':=' to overwrite or rm() to delete the variable." name in
           (make_error NameError msg, env)
         else
           let env_ref = ref env in
