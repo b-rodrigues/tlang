@@ -1,0 +1,60 @@
+name: NYC Taxi Benchmarks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+      - name: Setup Cachix (for R packages)
+        uses: cachix/cachix-action@v13
+        with:
+          name: rstats-on-nix
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+      - name: Build T
+        run: nix develop --accept-flake-config --command dune build
+
+      - name: Run NYC taxi benchmarks
+        run: nix develop --accept-flake-config --command ./benchmarks/nyc_taxi/run_benchmark.sh --months 2023-01 --iterations 1
+
+      - name: Print benchmark results
+        if: always()
+        run: |
+          if [ -f benchmarks/nyc_taxi/results/results.csv ]; then
+            nix develop --accept-flake-config --command \
+              Rscript -e 'print(read.csv("benchmarks/nyc_taxi/results/results.csv"))'
+          else
+            echo "No benchmark results found at benchmarks/nyc_taxi/results/results.csv"
+          fi
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nyc-taxi-benchmark-results
+          path: benchmarks/nyc_taxi/results/results.csv
+          if-no-files-found: ignore
+          retention-days: 7

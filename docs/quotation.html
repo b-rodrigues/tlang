@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - quotation</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language - quotation</h1>
+</header>
+<h1 id="metaprogramming-quotation-and-quasiquotation">Metaprogramming:
+Quotation and Quasiquotation</h1>
+<p>T provides powerful metaprogramming capabilities inspired by Lisp and
+R’s <code>rlang</code> package. These features allow you to capture code
+as data, manipulate it, and evaluate it dynamically.</p>
+<h2 id="core-concepts">Core Concepts</h2>
+<ul>
+<li><strong>Quotation</strong>: Capturing an expression without
+evaluating it immediately.</li>
+<li><strong>Quosure</strong>: A quoted expression paired with its
+lexical environment (like R’s <code>rlang::quo</code>).</li>
+<li><strong>Unquoting</strong>: Selectively evaluating parts of a quoted
+expression.</li>
+<li><strong>Splicing</strong>: Expanding a list or collection into
+multiple arguments or elements within a quoted expression.</li>
+<li><strong>Symbols</strong>: Representing names (identifiers) as
+data.</li>
+</ul>
+<h2 id="capturing-code-expr-vs-quo">Capturing Code: <code>expr</code> vs
+<code>quo</code></h2>
+<p>T has two families of quotation functions, matching R’s
+<code>rlang</code>:</p>
+<table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 19%" />
+<col style="width: 30%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Result</th>
+<th>Environment</th>
+<th>Use when…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expr(x)</code></td>
+<td><code>Expression</code></td>
+<td>None</td>
+<td>You only need the AST</td>
+</tr>
+<tr>
+<td><code>quo(x)</code></td>
+<td><code>Quosure</code></td>
+<td>Captured at call site</td>
+<td>You need the AST + its lexical context</td>
+</tr>
+<tr>
+<td><code>exprs(...)</code></td>
+<td><code>List[Expression]</code></td>
+<td>None</td>
+<td>Multiple naked expressions</td>
+</tr>
+<tr>
+<td><code>quos(...)</code></td>
+<td><code>List[Quosure]</code></td>
+<td>Captured at call site</td>
+<td>Multiple expressions with lexical context</td>
+</tr>
+</tbody>
+</table>
+<h3 id="exprexpression"><code>expr(expression)</code></h3>
+<p>The <code>expr()</code> function captures the code as a naked
+<strong>Expression</strong> object. The current environment is
+<em>not</em> stored.</p>
+<pre class="t"><code>e = expr(1 + 2)
+print(e)
+-- Output: expr(1 + 2)</code></pre>
+<h3 id="quoexpression"><code>quo(expression)</code></h3>
+<p>The <code>quo()</code> function captures the code as a
+<strong>Quosure</strong> — a pair of the expression and its lexical
+environment. When later evaluated with <code>eval()</code>, the
+expression runs in the captured environment, not the caller’s.</p>
+<pre class="t"><code>x = 10
+q = quo(1 + x)   -- captures x = 10 in the environment
+x = 99
+eval(q)           -- returns 11, not 100</code></pre>
+<h3 id="exprs..."><code>exprs(...)</code></h3>
+<p><code>exprs()</code> captures multiple expressions and returns them
+as a list of naked Expression objects. It supports named arguments.</p>
+<pre class="t"><code>ee = exprs(x = 1 + 1, y = 2 + 2)
+-- Result: [x: expr(1 + 1), y: expr(2 + 2)]</code></pre>
+<h3 id="quos..."><code>quos(...)</code></h3>
+<p><code>quos()</code> captures multiple expressions as a list of
+Quosures, each paired with the current lexical environment.</p>
+<pre class="t"><code>x = 10
+qs = quos(a = 1 + x, b = 2 * x)
+-- Result: [a: quo(1 + x), b: quo(2 * x)]
+-- Both quosures capture x = 10 in their environment.</code></pre>
+<h3 id="symbols-and-bare-words">Symbols and Bare Words</h3>
+<p>In T, if you use a word that isn’t defined as a variable, it is
+automatically treated as a <strong>Symbol</strong> when inside a quoting
+context. This is useful for building Domain Specific Languages
+(DSLs).</p>
+<pre class="t"><code>e = expr(select(df, age, height))
+-- &#39;select&#39;, &#39;age&#39;, and &#39;height&#39; are captured as symbols.</code></pre>
+<h2 id="evaluating-code">Evaluating Code</h2>
+<h3 id="evalexpr_or_quosure"><code>eval(expr_or_quosure)</code></h3>
+<p>The <code>eval()</code> function evaluates an Expression or Quosure:
+- <strong>Expression</strong>: evaluated in the <em>current</em>
+environment. - <strong>Quosure</strong>: evaluated in its
+<em>captured</em> environment.</p>
+<pre class="t"><code>e = expr(10 + 20)
+eval(e)          -- evaluates in current env → 30
+
+x = 5
+q = quo(x + 1)   -- captures x = 5
+x = 100
+eval(q)          -- evaluates in captured env (x = 5) → 6</code></pre>
+<h2 id="quasiquotation">Quasiquotation</h2>
+<p>Quasiquotation allows you to “fill in the blanks” in a captured
+expression.</p>
+<h3 id="unquote"><code>!!</code> (Unquote)</h3>
+<p>The <code>!!</code> (pronounced “bang-bang”) operator evaluates its
+operand immediately and injects the result into the surrounding quoted
+expression. When the operand is a Quosure, only the expression part is
+injected (the environment is stripped).</p>
+<pre class="t"><code>x = 10
+e = expr(1 + !!x)
+print(e) 
+-- Output: expr(1 + 10)</code></pre>
+<pre class="t"><code>inner = quo(1.5 + 2.5)
+outer = expr(2 * !!inner)   -- !! strips env from quosure
+print(outer)
+-- Output: expr(2 * (1.5 + 2.5))</code></pre>
+<h3 id="unquote-splice"><code>!!!</code> (Unquote-Splice)</h3>
+<p>The <code>!!!</code> (pronounced “triple-bang”) operator evaluates
+its operand and <strong>splices</strong> the elements into the
+surrounding call or list. The operand must evaluate to a
+<code>List</code>, <code>Vector</code>, or <code>Dict</code>. Quosures
+in the spliced list have their environments stripped.</p>
+<h4 id="splicing-into-arguments">Splicing into Arguments</h4>
+<pre class="t"><code>vals = [1, 2, 3]
+e = expr(sum(!!!vals))
+print(e)
+-- Output: expr(sum(1, 2, 3))</code></pre>
+<h4 id="splicing-with-names">Splicing with Names</h4>
+<p>If you splice a named List, the names are used as argument names in
+the resulting call.</p>
+<pre class="t"><code>my_args = [x: 10, y: 20]
+e = expr(f(!!!my_args, z: 30))
+print(e)
+-- Output: expr(f(x = 10, y = 20, z = 30))</code></pre>
+<h3 id="name-value-dynamic-naming"><code>!!name := value</code> (Dynamic
+Naming)</h3>
+<p>The <code>!!name := value</code> syntax allows you to use a
+dynamically computed string or symbol as the name of an argument or list
+element inside a quoting context. The left-hand side (<code>name</code>)
+must evaluate to a <code>String</code> or <code>Symbol</code>.</p>
+<pre class="t"><code>col = &quot;age&quot;
+e = expr(mutate(df, !!col := 42))
+print(e)
+-- Output: expr(mutate(df, age = 42))</code></pre>
+<p>If <code>!!name</code> does not evaluate to a <code>String</code> or
+<code>Symbol</code>, a <code>TypeError</code> is raised.</p>
+<h2 id="non-standard-evaluation-nse">Non-Standard Evaluation (NSE)</h2>
+<p>For writing functions that accept unevaluated expressions from the
+caller — similar to <code>dplyr</code> verbs in R — T provides
+<code>enquo()</code> and <code>enquos()</code>.</p>
+<h3 id="enquoparam"><code>enquo(param)</code></h3>
+<p><code>enquo()</code> must be called inside a function body. It
+captures the <strong>expression AND the caller’s environment</strong>
+for the named argument <code>param</code>, returning a Quosure. This is
+the quosure equivalent of <code>enquo()</code> in R’s rlang.</p>
+<pre class="t"><code>my_select = \(df: DataFrame, col: Any -&gt; DataFrame) {
+  col_expr = enquo(col)           -- captures expr + caller&#39;s env
+  eval(expr(df |&gt; select(!!col_expr)))
+}
+
+my_select(iris, $Sepal.Length)
+-- Equivalent to: iris |&gt; select($Sepal.Length)</code></pre>
+<p><code>enquo()</code> accepts exactly one argument, which must be a
+bare symbol (the name of one of the function’s parameters).</p>
+<h3 id="enquos..."><code>enquos(...)</code></h3>
+<p><code>enquos()</code> is the variadic counterpart to
+<code>enquo()</code>. It captures all expressions passed through the
+variadic <code>...</code> parameter as a named list of Quosures, each
+paired with the caller’s environment.</p>
+<pre class="t"><code>my_summarize = \(df: DataFrame, ... -&gt; DataFrame) {
+  cols = enquos(...)              -- list of quosures from the caller
+  eval(expr(df |&gt; summarize(!!!cols)))
+}
+
+my_summarize(iris,
+  mean_sepal = mean($`Sepal.Length`),
+  mean_petal = mean($`Petal.Length`))
+-- Evaluates to: iris |&gt; summarize(mean_sepal = ..., mean_petal = ...)</code></pre>
+<p><code>enquos()</code> is called with <code>...</code> or with no
+arguments; both capture the variadic expressions from the enclosing
+call.</p>
+<h2 id="advanced-examples">Advanced Examples</h2>
+<h3 id="dynamic-pipeline-generation">Dynamic Pipeline Generation</h3>
+<p>You can use quasiquotation to dynamically build pipeline nodes or
+intents:</p>
+<pre class="t"><code>var_name = &quot;mpg&quot;
+my_intent = expr(intent {
+  target = !!var_name
+  method = &quot;lm&quot;
+})
+
+print(my_intent)
+-- Output: expr(intent { target = &quot;mpg&quot;; method = &quot;lm&quot; })</code></pre>
+<h3 id="prefix-call-syntax">Prefix-Call Syntax</h3>
+<p>T also supports a Lisp-style prefix call syntax which integrates
+seamlessly with quotation:</p>
+<pre class="t"><code>e = expr((add, 1, 2))
+-- Equivalent to expr(add(1, 2))</code></pre>
+<h2 id="summary-of-operators">Summary of Operators</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Operator/Function</th>
+<th style="text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>expr(x)</code></td>
+<td style="text-align: left;">Capture <code>x</code> as a naked
+Expression (no environment).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>exprs(...)</code></td>
+<td style="text-align: left;">Capture multiple expressions as a List of
+naked Expressions.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>quo(x)</code></td>
+<td style="text-align: left;">Capture <code>x</code> as a Quosure
+(expression + lexical environment).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>quos(...)</code></td>
+<td style="text-align: left;">Capture multiple expressions as a List of
+Quosures.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>eval(e)</code></td>
+<td style="text-align: left;">Evaluate Expression <code>e</code> in the
+current env, or Quosure <code>e</code> in its captured env.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>!!x</code></td>
+<td style="text-align: left;">Evaluate <code>x</code> and inject into
+<code>expr()</code>/<code>quo()</code>; strips env from quosures.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>!!!x</code></td>
+<td style="text-align: left;">Evaluate <code>x</code> and splice
+elements into <code>expr()</code>/<code>quo()</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>!!name := value</code></td>
+<td style="text-align: left;">Use a dynamic String/Symbol as an argument
+name inside <code>expr()</code>/<code>quo()</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>enquo(param)</code></td>
+<td style="text-align: left;">Inside a function: capture caller’s
+expression for <code>param</code> as a Quosure.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>enquos(...)</code></td>
+<td style="text-align: left;">Inside a function: capture all variadic
+expressions as a List of Quosures.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="data-masking-column-resolution">Data Masking &amp; Column
+Resolution</h2>
+<p>When an Expression or Quosure is evaluated inside a data verb (like
+<code>mutate</code>, <code>filter</code>, or <code>summarize</code>), it
+uses a <strong>Data Mask</strong>.</p>
+<p>T handles column resolution using a specific prefixing logic to avoid
+collisions with global functions:</p>
+<ol type="1">
+<li><strong>Prefix <code>$</code>: </strong> Expressions like
+<code>$score</code> are parsed as <code>ColumnRef</code>.</li>
+<li><strong>Resolution Priority:</strong>
+<ul>
+<li>The evaluator first checks the environment for a key named
+<code>$score</code>.</li>
+<li>Data verbs automatically populate the environment with both the
+plain name (<code>score</code>) and the prefixed name
+(<code>$score</code>) for every column in the current DataFrame.</li>
+<li>If a plain variable <code>score</code> is defined in the global
+environment (e.g., as a function), it does <strong>not</strong>
+interfere with <code>$score</code>.</li>
+</ul></li>
+</ol>
+<h3 id="example-avoiding-collisions">Example: Avoiding Collisions</h3>
+<pre class="t"><code>-- Global &#39;score&#39; function
+score = \(x, y) x + y
+
+df = [score: 1, 2, 3]
+
+-- This works correctly because &#39;$score&#39; looks for &#39;$score&#39; in the mask,
+-- ignoring the global &#39;score&#39; function.
+df |&gt; mutate(new = $score * 2)</code></pre>
+<h2 id="best-practices">Best Practices</h2>
+<ol type="1">
+<li><strong>Use <code>quo</code> by default</strong>: When in doubt, use
+<code>quo</code> instead of <code>expr</code>. It ensures the code
+“remembers” its environment, preventing <code>NameError</code> when
+evaluated in different contexts.</li>
+<li><strong>Quotation in Functions</strong>: Always use
+<code>enquo</code> to capture arguments intended for data verbs. This
+allows callers to pass unquoted column names or complex expressions
+naturally.</li>
+<li><strong>Dynamic Naming</strong>: Use <code>!!name := !!value</code>
+for maximum flexibility when writing generic data processing
+functions.</li>
+</ol>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

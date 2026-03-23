@@ -1,0 +1,112 @@
+(* src/package_manager/package_types.ml *)
+(* Types for T package and project metadata *)
+
+(** A dependency on another T package *)
+type dependency = {
+  dep_name : string;
+  git_url : string;
+  tag : string;
+}
+
+(** Package metadata parsed from DESCRIPTION.toml *)
+type package_config = {
+  name : string;
+  version : string;
+  description : string;
+  authors : string list;
+  license : string;
+  homepage : string;
+  repository : string;
+  dependencies : dependency list;
+  min_t_version : string;
+  additional_tools : string list;
+  latex_packages : string list;
+}
+
+(** Project metadata parsed from tproject.toml *)
+type project_config = {
+  proj_name : string;
+  proj_description : string;
+  proj_dependencies : dependency list;
+  proj_r_dependencies : string list;
+  proj_py_dependencies : string list;
+  proj_py_version : string;
+  proj_min_t_version : string;
+  proj_nixpkgs_date : string;
+  proj_additional_tools : string list;
+  proj_latex_packages : string list;
+}
+
+(** CLI options for scaffolding commands *)
+type scaffold_options = {
+  target_name : string;
+  author : string;
+  license : string;
+  nixpkgs_date : string;
+  no_git : bool;
+  force : bool;
+  interactive : bool;
+}
+
+(** Default scaffold options *)
+let default_options name =
+  let t = Unix.gmtime (Unix.gettimeofday ()) in
+  let today = Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday in
+  {
+    target_name = name;
+    author = "Your Name <email@example.com>";
+    license = "EUPL-1.2";
+    nixpkgs_date = today;
+    no_git = false;
+    force = false;
+    interactive = false;
+  }
+
+(** Default package config *)
+let default_package_config name = {
+  name;
+  version = "0.1.0";
+  description = "A T package";
+  authors = ["Your Name <email@example.com>"];
+  license = "EUPL-1.2";
+  homepage = "";
+  repository = "";
+  dependencies = [];
+  min_t_version = Version.version;
+  additional_tools = [];
+  latex_packages = [];
+}
+
+(** Default project config *)
+let default_project_config name = {
+  proj_name = name;
+  proj_description = "A T data analysis project";
+  proj_dependencies = [];
+  proj_r_dependencies = [];
+  proj_py_dependencies = [];
+  proj_py_version = "python314";
+  proj_min_t_version = Version.version;
+  proj_nixpkgs_date = (let t = Unix.gmtime (Unix.gettimeofday ()) in 
+    Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday);
+  proj_additional_tools = [];
+  proj_latex_packages = [];
+}
+
+(** Validate a package/project name: lowercase, alphanumeric, hyphens only *)
+let validate_name name =
+  let len = String.length name in
+  if len = 0 then Error "Name cannot be empty"
+  else if len > 64 then Error "Name cannot exceed 64 characters"
+  else
+    let valid = ref true in
+    for i = 0 to len - 1 do
+      let c = name.[i] in
+      if not (c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c = '-' || c = '_') then
+        valid := false
+    done;
+    if name.[0] = '-' || name.[0] = '_' then
+      Error "Name must start with a letter or digit"
+    else if not !valid then
+      Error "Name must contain only lowercase letters, digits, hyphens, or underscores"
+    else
+      Ok name

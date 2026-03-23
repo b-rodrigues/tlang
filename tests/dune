@@ -1,0 +1,58 @@
+(include_subdirs unqualified)
+(cram (enabled_if false))
+
+(executable
+ (name test_runner)
+ (modules
+   test_runner
+   test_arithmetic test_comparisons test_logical test_variables
+   test_functions test_strings test_pipe test_ifelse test_lists test_dicts test_builtins test_chrono
+   test_na test_errors test_converters
+   test_dataframe test_pipeline test_colcraft test_window
+   test_math test_stats test_broom_golden test_explain_tests
+   test_cli
+   test_golden test_boolean_golden test_core_semantics test_in test_operators test_bitwise_error
+   test_arrow_helpers
+   test_arrow_integration
+   test_owl_bridge
+   test_arrow_performance
+   test_colcraft_edge_cases
+   test_window_edge_cases
+   test_formula_edge_cases
+   test_large_datasets
+   test_error_recovery
+   test_package_manager
+   test_scalar_strictness
+   test_typing_mode
+   test_quotation
+   test_pipeline_ops
+   test_shell
+   test_import_file_from
+   test_lsp_support
+   test_sh_node
+ )
+ (libraries t_lang menhirLib otoml unix str)
+)
+
+(executable
+ (name test_arrow_native_runner)
+ (modules
+   test_arrow_helpers
+   test_arrow_native_runner
+   test_arrow_integration
+   test_arrow_performance
+ )
+ (libraries t_lang menhirLib otoml unix str)
+)
+
+(rule
+ (target docs.json)
+ (deps ../help/docs.json)
+ (action (copy %{deps} %{target}))
+)
+
+(rule
+ (alias runtest)
+ (deps docs.json)
+ (action (run ./test_runner.exe))
+)

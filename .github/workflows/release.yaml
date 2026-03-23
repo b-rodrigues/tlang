@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'VERSION'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract current version
+        id: get_version
+        run: |
+          VERSION=$(cat VERSION | tr -d '\n')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "refs/tags/${{ steps.get_version.outputs.TAG }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Tag and Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.TAG }}
+          name: Release ${{ steps.get_version.outputs.TAG }}
+          body: |
+            Automated release for version ${{ steps.get_version.outputs.VERSION }}.
+            See [CHANGELOG.md](https://github.com/b-rodrigues/tlang/blob/main/docs/changelog.md) for details.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

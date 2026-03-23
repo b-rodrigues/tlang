@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - package_development</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language - package_development</h1>
+</header>
+<h1 id="t-package-development-guide">T Package Development Guide</h1>
+<p>This guide walks you through creating, developing, and publishing a
+package for the T language.</p>
+<h2 id="creating-a-package">1. Creating a Package</h2>
+<p>You can create a new package interactively using the
+<code>t init package</code> command.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t init package</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Initializing</span> new T package/project...</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Name</span> <span class="pp">[</span><span class="ss">my_package</span><span class="pp">]</span>: advanced-stats</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">Author</span> <span class="pp">[</span><span class="ss">User</span><span class="pp">]</span>: Alice</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">License</span> <span class="pp">[</span><span class="ss">EUPL</span><span class="pp">-</span><span class="ss">1.2</span><span class="pp">]</span>: EUPL-1.2</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Package <span class="st">&#39;advanced-stats&#39;</span> created successfully!</span></code></pre></div>
+<p>This creates a standard directory structure:</p>
+<ul>
+<li><strong>DESCRIPTION.toml</strong>: Package metadata and
+dependencies.</li>
+<li><strong>flake.nix</strong>: Reproducible development environment
+definition.</li>
+<li><strong>src/</strong>: Source code (e.g., <code>main.t</code>).</li>
+<li><strong>tests/</strong>: Test files (e.g.,
+<code>test-advanced-stats.t</code>).</li>
+<li><strong>docs/</strong>: Documentation (e.g.,
+<code>index.md</code>).</li>
+</ul>
+<h2 id="managing-dependencies">2. Managing Dependencies</h2>
+<p>Dependencies are declared in <code>DESCRIPTION.toml</code>. To add a
+dependency on another T package (e.g., <code>math</code> or a git
+repository):</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[dependencies]</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Example: depend on a git repository</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="dt">my-lib</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/my-lib&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v1.0.0&quot;</span><span class="op"> }</span></span></code></pre></div>
+<h3 id="system-tools-and-latex">2.1 System Tools and LaTeX</h3>
+<p>You can also declare system-level tools and LaTeX packages required
+for your package development or documentation.</p>
+<h4 id="additional-development-tools">Additional Development Tools</h4>
+<p>Under <code>[additional-tools]</code>, you can add any package from
+Nixpkgs. These tools will be available in your <code>nix develop</code>
+shell:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[additional-tools]</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Tools for building, documenting, or testing your package</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;git&quot;</span><span class="op">,</span> <span class="st">&quot;jq&quot;</span><span class="op">,</span> <span class="st">&quot;gawk&quot;</span><span class="op">,</span> <span class="st">&quot;pandoc&quot;</span><span class="op">]</span></span></code></pre></div>
+<h4 id="latex-for-documentation">LaTeX for Documentation</h4>
+<p>If your documentation requires LaTeX (e.g., for formulas), use the
+<code>[latex]</code> section. T provides <code>texlive</code> based on
+<code>scheme-small</code>. You only need to list additional
+packages:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[latex]</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># LaTeX packages for math formulas or advanced formatting</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;amsmath&quot;</span><span class="op">,</span> <span class="st">&quot;blindtext&quot;</span><span class="op">,</span> <span class="st">&quot;physics&quot;</span><span class="op">]</span></span></code></pre></div>
+<p>After modifying dependencies or updating the
+<code>[additional-tools]</code> or <code>[latex]</code> sections, run
+<code>t update</code> to sync your <code>flake.nix</code> and lock
+file:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t update</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Syncing</span> 1 dependency<span class="er">(</span><span class="ex">ies</span><span class="kw">)</span> <span class="ex">from</span> DESCRIPTION.toml → flake.nix...</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> nix flake update...</span></code></pre></div>
+<p>This regenerates <code>flake.nix</code> so new dependencies appear as
+proper flake inputs, then locks them. After updating, re-enter the
+development shell:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span></code></pre></div>
+<h2 id="writing-code">3. Writing Code</h2>
+<p>Write your T code in <code>src/</code>. For example,
+<code>src/stats_helpers.t</code>:</p>
+<pre class="t"><code>-- src/stats_helpers.t
+
+-- Public by default — importers can use this
+weighted_mean = \(x, w) sum(x .* w) / sum(w)
+
+--# Internal helper, not for public use.
+--# @private
+_validate_weights = \(w) {
+  assert(length(w) &gt; 0)
+}</code></pre>
+<p>All top-level bindings in your package are <strong>public by
+default</strong>. To hide an internal helper, add <code>@private</code>
+to its T-Doc block.</p>
+<p>You can test your code interactively in the REPL:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> import <span class="st">&quot;src/stats_helpers.t&quot;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> weighted_mean<span class="er">(</span><span class="ex">[1,</span> 2, 3], [0.5, 0.3, 0.2]<span class="kw">)</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ex">1.7</span></span></code></pre></div>
+<h2 id="testing">4. Testing</h2>
+<p>T has a built-in test runner. Tests are <code>.t</code> files in the
+<code>tests/</code> directory.</p>
+<p>Example <code>tests/test-mean.t</code>:</p>
+<pre class="t"><code>import &quot;src/stats.t&quot;
+
+assert(stats.mean([1, 2, 3]) == 2.0)
+assert(stats.mean([-1, -1]) == -1.0)</code></pre>
+<p>Run all tests with:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<h2 id="documentation">5. Documentation</h2>
+<p>T packages use <strong>T-Doc</strong>, a comment-based documentation
+system. Documentation lives in source files close to the code and is
+generated into Markdown.</p>
+<h3 id="writing-documentation">Writing Documentation</h3>
+<p>Use <code>--#</code> comments above your functions to document
+them.</p>
+<pre class="t"><code>--# Calculate the square of a number.
+--#
+--# @param x :: Integer
+--#   The input number.
+--#
+--# @return :: Integer
+--#   The squared result.
+--#
+--# @example
+--#   square(4)
+--#   -- 16
+--#
+--# @export
+fn square(x) {
+  x * x
+}</code></pre>
+<p><strong>Supported Tags:</strong> -
+<code>@param &lt;name&gt; :: &lt;type&gt; &lt;description&gt;</code>:
+Document a parameter. -
+<code>@return :: &lt;type&gt; &lt;description&gt;</code>: Document the
+return value. - <code>@example</code>: Start a code example block. -
+<code>@seealso &lt;func1&gt;, &lt;func2&gt;</code>: Link to related
+functions. - <code>@family &lt;name&gt;</code>: Group related functions
+together. - <code>@private</code>: Mark the function as private — it
+will not be visible to importers. - <code>@export</code>: Explicitly
+mark as public (this is the default, so usually not needed).</p>
+<h3 id="generating-documentation">Generating Documentation</h3>
+<p>To generate the documentation files in
+<code>docs/reference/</code>:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doc <span class="at">--parse</span> <span class="at">--generate</span></span></code></pre></div>
+<p>This will: 1. Scan your <code>src/</code> directory for
+<code>--#</code> blocks. 2. Generate Markdown files for each function in
+<code>docs/reference/</code>. 3. Generate a
+<code>docs/reference/index.md</code> listing all exported functions.</p>
+<h3 id="viewing-documentation">Viewing Documentation</h3>
+<p>You can view your documentation locally using:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t docs</span></code></pre></div>
+<p>This opens <code>docs/index.md</code> (or <code>README.md</code>) in
+your system viewer. You can link to your reference documentation from
+there.</p>
+<h2 id="quality-control">6. Quality Control</h2>
+<p>Before publishing, run <code>t doctor</code> to check your package
+for common issues:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doctor</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Everything looks good!</span></code></pre></div>
+<p>It checks for: - Required files (<code>DESCRIPTION.toml</code>,
+<code>flake.nix</code>). - Valid directory structure. - Documentation
+existence. - Nix installation.</p>
+<h2 id="publishing">7. Publishing</h2>
+<p>When you are ready to release a version:</p>
+<ol type="1">
+<li>Ensure <code>DESCRIPTION.toml</code> has the correct
+<code>version</code>.</li>
+<li>Update <code>CHANGELOG.md</code> with release notes for that
+version.</li>
+<li>Commit all changes to git.</li>
+<li>Run <code>t publish</code>.</li>
+</ol>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t publish</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Preparing</span> to publish version 0.1.0...</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Validation complete.</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Proceed</span> to tag and push v0.1.0<span class="pp">?</span> <span class="pp">[</span><span class="ss">y/N</span><span class="pp">]</span> y</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Tag v0.1.0 pushed to remote.</span></code></pre></div>
+<p>This will run your tests, verify the changelog, and push a git tag to
+your repository.</p>
+<h2 id="how-others-import-your-package">8. How Others Import Your
+Package</h2>
+<p>Once published, other packages or projects can depend on yours by
+adding it to their <code>DESCRIPTION.toml</code> or
+<code>tproject.toml</code>:</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[dependencies]</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="dt">advanced-stats</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/advanced-stats&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.1.0&quot;</span><span class="op"> }</span></span></code></pre></div>
+<p>Then in their T code, they can import your package:</p>
+<pre class="t"><code>-- Import everything (all public functions)
+import advanced_stats
+
+-- Import only specific functions
+import advanced_stats[weighted_mean]
+
+-- Import with aliases
+import advanced_stats[wmean=weighted_mean]</code></pre>
+<p>Functions marked with <code>@private</code> in your package are not
+visible to importers.</p>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you know how to build packages, explore how to ensure your
+work is reproducible and understand T’s underlying architecture:</p>
+<ol type="1">
+<li><strong><a href="reproducibility.html">Reproducibility
+Guide</a></strong> — Deep dive into T’s commitment to reproducible
+research.</li>
+<li><strong><a href="architecture.html">Architecture</a></strong> —
+Understand the internal design and execution model of T.</li>
+<li><strong><a href="project_development.html">Project
+Development</a></strong> — Master T’s project structure and dependency
+management.</li>
+<li><strong><a href="api-reference.html">API Reference</a></strong> —
+Complete function reference by package.</li>
+</ol>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

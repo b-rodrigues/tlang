@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - arrow-current-status-next-steps</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language -
+arrow-current-status-next-steps</h1>
+</header>
+<h1 id="arrow-current-status-and-next-steps">Arrow: current status and
+next steps</h1>
+<p>This document summarizes the current Apache Arrow-related state of
+the repository across <code>docs/</code>, <code>src/</code>,
+<code>tests/</code>, and <code>spec_files/</code>.</p>
+<p>It is meant to answer four questions:</p>
+<ol type="1">
+<li>What Arrow-related code and documentation already exist?</li>
+<li>What is currently implemented vs. still missing?</li>
+<li>What do the current tests cover?</li>
+<li>What tests and documentation should be added next?</li>
+</ol>
+<h2 id="executive-summary">Executive summary</h2>
+<p>The repository already has a substantial Arrow backend:</p>
+<ul>
+<li>a dedicated Arrow implementation under <code>src/arrow/</code>,</li>
+<li>a large C FFI layer in <code>src/ffi/arrow_stubs.c</code>,</li>
+<li>Arrow IPC read/write builtins (<code>read_arrow</code>,
+<code>write_arrow</code>),</li>
+<li>pipeline-level Arrow serialization/deserialization support,</li>
+<li>dedicated Arrow integration and performance tests,</li>
+<li>and multiple planning/hardening documents in
+<code>spec_files/</code>.</li>
+</ul>
+<p>The most important caveat is that the repository currently mixes
+<strong>current-state docs</strong> and <strong>historical planning
+docs</strong>:</p>
+<ul>
+<li>some newer files reflect the real backend well,</li>
+<li>while some older planning/spec documents still describe Arrow as
+mostly unimplemented or stubbed.</li>
+</ul>
+<p>There is also still an important CSV-path distinction to document
+clearly:</p>
+<ul>
+<li><code>src/arrow/arrow_io.ml</code> contains a native Arrow CSV
+reader,</li>
+<li>and the public <code>read_csv</code> builtin in
+<code>src/packages/dataframe/t_read_csv.ml</code> now delegates to
+<code>Arrow_io.read_csv</code> when callers use the default CSV
+options.</li>
+<li>non-default parsing behaviors such as custom separators, header
+skipping, line skipping, and column-name cleaning still use the OCaml
+parser path.</li>
+<li>this is now a documented split between the fast native default path
+and the richer compatibility path, rather than an entirely missing
+integration.</li>
+</ul>
+<p>So Arrow support is real and broad, but not yet fully unified or
+fully documented from a user point of view.</p>
+<h2 id="what-exists-today">What exists today</h2>
+<h3 id="documentation-in-docs">Documentation in <code>docs/</code></h3>
+<p>The existing documentation mentions Arrow in several places, and
+<code>docs/arrow-current-status-next-steps.md</code> now serves as the
+dedicated Arrow overview/status page.</p>
+<p>Relevant files:</p>
+<ul>
+<li><code>docs/architecture.md</code>
+<ul>
+<li>describes Arrow as the DataFrame backend and mentions zero-copy
+access and vectorized compute.</li>
+</ul></li>
+<li><code>docs/installation.md</code>
+<ul>
+<li>explains that the Nix environment builds Apache Arrow and related
+dependencies.</li>
+</ul></li>
+<li><code>docs/troubleshooting.md</code>
+<ul>
+<li>includes Arrow-specific setup and debugging notes such as
+<code>arrow-glib</code> availability and native-code crash
+guidance.</li>
+</ul></li>
+<li><code>docs/performance.md</code>
+<ul>
+<li>is currently the closest thing to an Arrow backend overview.</li>
+<li>explains native vs fallback execution paths, zero-copy numeric
+views, grouping, and performance expectations.</li>
+</ul></li>
+</ul>
+<p>Current documentation strengths:</p>
+<ul>
+<li>readers can tell that Arrow exists and is important,</li>
+<li>installation and troubleshooting mention Arrow dependencies,</li>
+<li>performance docs explain the native/fallback split.</li>
+</ul>
+<p>Current documentation gaps:</p>
+<ul>
+<li>the generated reference docs for <code>read_arrow</code> /
+<code>write_arrow</code> exist, but there is still no broader
+user-facing Arrow I/O guide,</li>
+<li>there is still no concise support matrix explaining which Arrow
+types are fully supported, partially supported, or still
+fallback-only,</li>
+<li>the status page exists, but the rest of the docs do not yet surface
+it as the central Arrow landing page,</li>
+<li>there is still no short docs-facing summary of what the Arrow tests
+cover.</li>
+</ul>
+<h3 id="source-code-in-src">Source code in <code>src/</code></h3>
+<h4 id="core-backend">Core backend</h4>
+<p>The dedicated Arrow implementation lives in:</p>
+<ul>
+<li><code>src/arrow/arrow_table.ml</code></li>
+<li><code>src/arrow/arrow_compute.ml</code></li>
+<li><code>src/arrow/arrow_io.ml</code></li>
+<li><code>src/arrow/arrow_ffi.ml</code></li>
+<li><code>src/arrow/arrow_bridge.ml</code></li>
+<li><code>src/arrow/arrow_column.ml</code></li>
+<li><code>src/arrow/arrow_owl_bridge.ml</code></li>
+<li><code>src/ffi/arrow_stubs.c</code></li>
+</ul>
+<p>Taken together, these files provide:</p>
+<ul>
+<li>Arrow-backed table representation with optional native handle,</li>
+<li>pure-OCaml fallback tables,</li>
+<li>schema/type mapping,</li>
+<li>native materialization when supported,</li>
+<li>Arrow compute wrappers for projection, filtering, sorting, scalar
+arithmetic, math, aggregation, comparisons, and grouping,</li>
+<li>Arrow IPC read/write,</li>
+<li>native list-column and dictionary-column support,</li>
+<li>date support,</li>
+<li>null-only native materialization support,</li>
+<li>zero-copy numeric column views via Bigarray,</li>
+<li>conversion between Arrow storage and T runtime values,</li>
+<li>bridge utilities for statistical work via
+<code>Arrow_owl_bridge</code>.</li>
+</ul>
+<h4 id="user-facing-and-integration-entry-points">User-facing and
+integration entry points</h4>
+<p>Arrow also shows up outside <code>src/arrow/</code>:</p>
+<ul>
+<li><code>src/packages/dataframe/t_read_arrow.ml</code>
+<ul>
+<li>exposes Arrow IPC reading to T as <code>read_arrow</code>.</li>
+</ul></li>
+<li><code>src/packages/dataframe/t_write_arrow.ml</code>
+<ul>
+<li>exposes Arrow IPC writing to T as <code>write_arrow</code>.</li>
+</ul></li>
+<li><code>src/packages/dataframe/t_dataframe.ml</code>
+<ul>
+<li><code>dataframe</code>, <code>pull</code>, and <code>to_array</code>
+all interact with Arrow-backed tables and Arrow-derived column
+types.</li>
+</ul></li>
+<li><code>src/packages/dataframe/t_read_csv.ml</code>
+<ul>
+<li>creates Arrow-backed DataFrames and uses
+<code>Arrow_io.read_csv</code> for the default public CSV path, while
+routing non-default parsing options through the OCaml parser plus
+<code>Arrow_bridge</code>.</li>
+</ul></li>
+<li><code>src/pipeline/builder_read_node.ml</code> and
+<code>src/packages/pipeline/read_node.ml</code>
+<ul>
+<li>use Arrow IPC reading in pipeline flows.</li>
+</ul></li>
+<li><code>src/pipeline/nix_emit_node.ml</code>
+<ul>
+<li>emits Arrow helpers for R/Python pipeline nodes and wires Arrow
+serializer/deserializer behavior into generated node code.</li>
+</ul></li>
+<li><code>src/dune</code>
+<ul>
+<li>builds and links the Arrow C stubs through
+<code>arrow-glib</code>.</li>
+</ul></li>
+</ul>
+<h2 id="what-is-currently-implemented">What is currently
+implemented</h2>
+<h3 id="clearly-implemented-today">Clearly implemented today</h3>
+<p>Based on the code currently in the repository, the following are
+present:</p>
+<ul>
+<li>Arrow-backed tables with GC-managed native handles</li>
+<li>native/fallback dual-path execution</li>
+<li>schema extraction and column access</li>
+<li>project/select</li>
+<li>filter</li>
+<li>sort/arrange</li>
+<li>add/replace column behavior</li>
+<li>scalar arithmetic (<code>add</code>, <code>subtract</code>,
+<code>multiply</code>, <code>divide</code>)</li>
+<li>unary math (<code>sqrt</code>, <code>abs</code>, <code>log</code>,
+<code>exp</code>, <code>pow</code>)</li>
+<li>column aggregations (<code>sum</code>, <code>mean</code>,
+<code>min</code>, <code>max</code>)</li>
+<li>scalar comparisons</li>
+<li>group-by plus group aggregations (<code>sum</code>,
+<code>mean</code>, <code>count</code>)</li>
+<li>Arrow IPC read/write</li>
+<li>dictionary/factor columns</li>
+<li>list columns with nested DataFrame reconstruction</li>
+<li>date columns</li>
+<li>null-only columns</li>
+<li>zero-copy views for native numeric columns</li>
+<li>Arrow-to-Owl bridge for numeric/statistical workflows</li>
+<li>serialization hardening for native-backed DataFrames crossing
+process boundaries</li>
+<li>runtime disable switch via <code>TLANG_DISABLE_ARROW</code></li>
+</ul>
+<h3 id="implemented-but-not-consistently-surfaced">Implemented, but not
+consistently surfaced</h3>
+<p>These features exist in the backend, but are not yet cleanly
+represented in user-facing docs or entry points:</p>
+<ul>
+<li>Arrow IPC support is implemented, but under-documented.</li>
+<li>Pipeline Arrow interop exists, but most of the narrative lives in
+<code>spec_files/</code> and tests rather than in
+<code>docs/</code>.</li>
+<li>Native Arrow CSV reading exists in
+<code>src/arrow/arrow_io.ml</code>, and the public
+<code>read_csv()</code> builtin uses it for the default CSV path.</li>
+<li><code>docs/performance.md</code> still describes dictionary/factor,
+list, and date columns as unsupported for native rebuild even though the
+code now includes native dictionary, list, and date materialization
+paths.</li>
+</ul>
+<h3 id="partially-implemented-or-still-limited">Partially implemented or
+still limited</h3>
+<p>The code also shows some areas that are either incomplete or
+intentionally constrained:</p>
+<ul>
+<li><strong>Datetime native materialization</strong>
+<ul>
+<li><code>Arrow_table.DatetimeColumn</code> exists and
+<code>Arrow_io.build_column</code> can parse timestamps,</li>
+<li>but <code>Arrow_table.is_arrow_table_new_supported</code> still
+rejects <code>DatetimeColumn</code>,</li>
+<li>and the Arrow type-tag mapping does not currently expose a dedicated
+timestamp tag in the same way it does for date/dictionary/list.</li>
+</ul></li>
+<li><strong>List columns</strong>
+<ul>
+<li>native support exists, but only for list-of-struct shapes whose
+sub-fields are primitive supported types and whose nested tables share a
+schema.</li>
+</ul></li>
+<li><strong>CSV path consistency</strong>
+<ul>
+<li>there are effectively two Arrow-related CSV stories:
+<ul>
+<li>backend-native <code>Arrow_io.read_csv</code>,</li>
+<li>user-facing <code>read_csv</code> in
+<code>t_read_csv.ml</code>.</li>
+</ul></li>
+<li>These should eventually converge.</li>
+</ul></li>
+</ul>
+<h2 id="what-appears-to-be-missing">What appears to be missing</h2>
+<h3 id="missing-or-underdeveloped-user-facing-documentation">Missing or
+underdeveloped user-facing documentation</h3>
+<ul>
+<li>A single Arrow overview/status page in <code>docs/</code></li>
+<li>User docs for <code>read_arrow</code> and
+<code>write_arrow</code></li>
+<li>Documentation for Arrow-backed pipeline interchange as a supported
+workflow</li>
+<li>Clear support matrix for:
+<ul>
+<li>primitive columns,</li>
+<li>date/datetime,</li>
+<li>dictionary/factor,</li>
+<li>list/nested columns,</li>
+<li>null-only columns,</li>
+<li>zero-copy views,</li>
+<li>IPC read/write</li>
+</ul></li>
+<li>Explicit documentation of the difference between:
+<ul>
+<li>Arrow backend capabilities,</li>
+<li>public language entry points,</li>
+<li>fallback behavior</li>
+</ul></li>
+</ul>
+<h3 id="missing-or-incomplete-implementation-items">Missing or
+incomplete implementation items</h3>
+<p>The main implementation gaps that stand out from the current code
+are:</p>
+<ol type="1">
+<li><strong>Public CSV path still has a split implementation</strong>
+<ul>
+<li>The default <code>read_csv()</code> path now uses
+<code>Arrow_io.read_csv</code>, but option-rich parsing still uses the
+OCaml parser path.</li>
+<li>This is now mostly a documentation and consistency question rather
+than a missing integration.</li>
+</ul></li>
+<li><strong>Native datetime round-trip/materialization</strong>
+<ul>
+<li>Date is present; datetime/timestamp support is only partial.</li>
+</ul></li>
+<li><strong>Broader native materialization coverage</strong>
+<ul>
+<li>list-column support is constrained to compatible nested
+schemas.</li>
+</ul></li>
+<li><strong>Documentation/source alignment</strong>
+<ul>
+<li>some docs still describe features as missing even though they are
+implemented.</li>
+</ul></li>
+<li><strong>Historical spec cleanup</strong>
+<ul>
+<li>older planning docs still describe the backend as “not started” or
+“stubbed,” which is useful historically but confusing if read as current
+status.</li>
+</ul></li>
+</ol>
+<h2 id="what-the-current-tests-cover">What the current tests cover</h2>
+<h3 id="dedicated-arrow-tests">Dedicated Arrow tests</h3>
+<p>The main dedicated Arrow coverage is in:</p>
+<ul>
+<li><code>tests/arrow/test_arrow_integration.ml</code></li>
+<li><code>tests/arrow/test_arrow_performance.ml</code></li>
+<li><code>tests/arrow/test_owl_bridge.ml</code></li>
+<li><code>tests/test_arrow_native_runner.ml</code></li>
+<li><code>tests/test_arrow_helpers.ml</code></li>
+</ul>
+<p><code>tests/dune</code> wires the Arrow tests into both the regular
+test runner and a dedicated Arrow-native runner.</p>
+<h4
+id="testsarrowtest_arrow_integration.ml"><code>tests/arrow/test_arrow_integration.ml</code></h4>
+<p>This file covers a lot of backend behavior already:</p>
+<ul>
+<li>FFI availability flag</li>
+<li>pure-OCaml table creation and schema access</li>
+<li>column lookup and basic table operations</li>
+<li>bridge conversions (<code>column_to_values</code>,
+<code>values_to_column</code>, <code>row_to_dict</code>)</li>
+<li>T-level CSV-driven DataFrame operations (<code>read_csv</code>,
+<code>select</code>, <code>filter</code>, <code>mutate</code>,
+<code>arrange</code>, pipelines)</li>
+<li>native-path visibility through
+<code>explain(...).native_path_active</code></li>
+<li>compute module coverage for:
+<ul>
+<li>project</li>
+<li>filter</li>
+<li>sort</li>
+<li>scalar arithmetic</li>
+<li>grouping and grouped aggregation</li>
+</ul></li>
+<li>zero-copy view behavior</li>
+<li>temporal parsing helpers for date/timestamp string parsing</li>
+<li>dictionary/factor support, including ordered-factor round-trips</li>
+<li>list-column support, including:
+<ul>
+<li>native materialization</li>
+<li>null entries</li>
+<li>empty/all-null fallback behavior</li>
+<li>sparse null-heavy cases</li>
+<li>repeated lifecycle queries</li>
+<li>GC stress loops</li>
+<li>T-level <code>nest</code>, <code>unnest</code>, and
+<code>slice</code> regressions</li>
+</ul></li>
+</ul>
+<p>This is already a strong regression suite for the Arrow backend
+internals.</p>
+<h4
+id="testsarrowtest_arrow_performance.ml"><code>tests/arrow/test_arrow_performance.ml</code></h4>
+<p>This file is less about benchmarking precision and more about
+smoke-testing broader behavior at realistic sizes:</p>
+<ul>
+<li>native CSV read smoke path via <code>Arrow_io.read_csv</code></li>
+<li>zero-copy numeric views on native-backed tables</li>
+<li>column-view helpers</li>
+<li>vectorized math functions</li>
+<li>column aggregations</li>
+<li>comparison operations</li>
+<li>larger-table operations at 10k / 100k / 1M rows</li>
+<li>group-by and grouped aggregation on larger data</li>
+<li>large-data math/comparison smoke tests</li>
+</ul>
+<p>So this file already covers scale-oriented sanity checks, not just
+micro-features.</p>
+<h4
+id="testsarrowtest_owl_bridge.ml"><code>tests/arrow/test_owl_bridge.ml</code></h4>
+<p>This file covers Arrow-to-statistics integration:</p>
+<ul>
+<li>numeric extraction through the bridge</li>
+<li><code>lm()</code> behavior through the bridge</li>
+<li><code>cor()</code> behavior through the bridge</li>
+<li>error handling for missing columns, bad input types, and NA
+cases</li>
+</ul>
+<h3 id="pipeline-level-arrow-coverage">Pipeline-level Arrow
+coverage</h3>
+<p>Arrow also appears in pipeline tests such as:</p>
+<ul>
+<li><code>tests/pipeline/test_arrow_interop.t</code></li>
+<li><code>tests/pipeline/test_factor_roundtrip.t</code></li>
+<li>several GLM / lab / PMML pipeline tests that use
+<code>serializer = "arrow"</code> and/or
+<code>deserializer = "arrow"</code></li>
+</ul>
+<p>These tests show that Arrow is not just a local DataFrame backend. It
+is also being used as the interchange format between T, R, and Python
+pipeline nodes.</p>
+<p>That is important coverage, even though it is spread across the
+pipeline suite rather than grouped under <code>tests/arrow/</code>.</p>
+<h2 id="what-tests-should-be-added-next">What tests should be added
+next</h2>
+<p>The current tests are strong, but there are still some obvious
+gaps.</p>
+<h3 id="highest-priority-tests-to-add">Highest-priority tests to
+add</h3>
+<ol type="1">
+<li><strong>Broaden Arrow IPC round-trip coverage</strong>
+<ul>
+<li>Dedicated tests already exist for:
+<ul>
+<li><code>Arrow_io.read_ipc</code></li>
+<li><code>Arrow_io.write_ipc</code></li>
+<li><code>read_arrow</code></li>
+<li><code>write_arrow</code></li>
+</ul></li>
+<li>Round-trips now cover:
+<ul>
+<li>primitive tables,</li>
+<li>dictionary/factor tables,</li>
+<li>list-column tables where supported,</li>
+<li>null-only columns.</li>
+</ul></li>
+<li>The remaining useful additions are edge cases such as empty
+structures and future datetime/timestamp coverage.</li>
+</ul></li>
+<li><strong>Public <code>read_csv()</code> path tests that distinguish
+implementation path</strong>
+<ul>
+<li>The repository currently tests <code>read_csv()</code> behavior, but
+not the architectural distinction between:
+<ul>
+<li>builtin <code>read_csv</code>,</li>
+<li>backend-native <code>Arrow_io.read_csv</code>.</li>
+</ul></li>
+<li>We should add tests that make this difference explicit so future
+refactors do not silently change backend behavior.</li>
+</ul></li>
+<li><strong>Datetime/timestamp support tests</strong>
+<ul>
+<li>The code currently tests timestamp parsing helpers, but not a full
+native round-trip story.</li>
+<li>Add tests for:
+<ul>
+<li>datetime columns in DataFrames,</li>
+<li>expected fallback behavior where native rebuild is unsupported,</li>
+<li>eventual native round-trip once implemented.</li>
+</ul></li>
+</ul></li>
+<li><strong>IPC/pipeline regression tests for Arrow serializer
+helpers</strong>
+<ul>
+<li>There is already meaningful Arrow serializer/deserializer coverage
+through <code>tests/pipeline/test_arrow_interop.t</code> and other
+pipeline fixtures.</li>
+<li>A smaller focused <code>read_node</code>/serializer boundary test
+would still be useful so this behavior is not covered only through
+broader end-to-end scenarios.</li>
+</ul></li>
+</ol>
+<h3 id="good-next-regression-additions">Good next regression
+additions</h3>
+<ol start="5" type="1">
+<li><strong>Deeply nested list-column tests</strong>
+<ul>
+<li>The regression spec already calls out deeper list nesting as a
+useful target.</li>
+</ul></li>
+<li><strong>List-column containing dictionary/factor sub-fields</strong>
+<ul>
+<li>This is called out in
+<code>spec_files/arrow-regression-testing.md</code> and would exercise a
+high-risk interaction.</li>
+</ul></li>
+<li><strong>Multi-chunk Arrow array tests</strong>
+<ul>
+<li>The FFI explicitly combines chunked arrays, but there is no obvious
+dedicated regression test for multi-chunk column recombination.</li>
+</ul></li>
+<li><strong>Null-only and empty-structure IPC tests</strong>
+<ul>
+<li>Current tests cover some fallback behavior, but dedicated IPC
+round-trip checks would be valuable.</li>
+</ul></li>
+<li><strong>Tests that assert docs-visible behavior</strong>
+<ul>
+<li>For example, tests or snapshots around
+<code>explain(df).storage_backend</code> and
+<code>native_path_active</code> for representative schemas.</li>
+</ul></li>
+</ol>
+<h2 id="what-documentation-should-be-added-or-updated-next">What
+documentation should be added or updated next</h2>
+<h3 id="add">Add</h3>
+<ol type="1">
+<li><strong>A dedicated user-facing Arrow I/O page</strong>
+<ul>
+<li><code>docs/reference/read_arrow.md</code> and
+<code>docs/reference/write_arrow.md</code> already exist.</li>
+<li>The remaining gap is a broader narrative page that explains Arrow
+IPC workflows and where they are used.</li>
+</ul></li>
+<li><strong>A support matrix page or section</strong>
+<ul>
+<li>per type / operation:
+<ul>
+<li>supported natively,</li>
+<li>supported with fallback,</li>
+<li>not yet implemented.</li>
+</ul></li>
+</ul></li>
+<li><strong>Better docs surfacing for the current status page</strong>
+<ul>
+<li>link this page from the main Arrow-related docs so readers can find
+the implementation-status overview without searching
+<code>spec_files/</code> or <code>docs/</code>.</li>
+</ul></li>
+</ol>
+<h3 id="recently-closed-gap">Recently closed gap</h3>
+<ul>
+<li><strong>Null-only native rebuild/materialization</strong>
+<ul>
+<li><code>NullColumn</code> can now be materialized back into a native
+Arrow table, which means null-only DataFrames can remain on the native
+Arrow path and participate in Arrow IPC round-trips.</li>
+</ul></li>
+</ul>
+<h3 id="update">Update</h3>
+<ol type="1">
+<li><strong><code>docs/performance.md</code></strong>
+<ul>
+<li>update rebuild/fallback examples so they match the current
+code.</li>
+<li>In particular, dictionary, list, and date support should be
+described more accurately.</li>
+</ul></li>
+<li><strong><code>docs/architecture.md</code></strong>
+<ul>
+<li>add a clearer summary of Arrow IPC and pipeline interop, not just
+the table backend.</li>
+</ul></li>
+<li><strong>Docs for <code>read_csv()</code></strong>
+<ul>
+<li>document the current reality:
+<ul>
+<li>what the user-facing builtin does today,</li>
+<li>how it relates to <code>Arrow_io.read_csv</code>,</li>
+<li>whether the native CSV reader is backend-only or intended to become
+the default path.</li>
+</ul></li>
+</ul></li>
+<li><strong>Potentially annotate older spec files as historical</strong>
+<ul>
+<li>especially files that still say Arrow is “not started” or
+“stubbed.”</li>
+</ul></li>
+</ol>
+<h2 id="recommended-next-steps">Recommended next steps</h2>
+<p>If the goal is to make Arrow status clear and reduce confusion, the
+best next steps are:</p>
+<ol type="1">
+<li><strong>Unify or explicitly document the CSV story</strong>
+<ul>
+<li>either switch the public <code>read_csv()</code> builtin to
+<code>Arrow_io.read_csv</code>,</li>
+<li>or document why the current split exists.</li>
+</ul></li>
+<li><strong>Add dedicated Arrow IPC round-trip tests</strong>
+<ul>
+<li>this is the clearest missing test area.</li>
+</ul></li>
+<li><strong>Document the current support matrix</strong>
+<ul>
+<li>especially for dictionary, list, date, datetime, and null-only
+columns.</li>
+</ul></li>
+<li><strong>Refresh stale docs/spec language</strong>
+<ul>
+<li>so readers can distinguish:
+<ul>
+<li>historical plans,</li>
+<li>current implementation,</li>
+<li>future work.</li>
+</ul></li>
+</ul></li>
+<li><strong>Add focused pipeline Arrow IPC regression tests</strong>
+<ul>
+<li>especially around <code>read_node</code> and serializer/deserializer
+boundaries.</li>
+</ul></li>
+</ol>
+<h2 id="bottom-line">Bottom line</h2>
+<p>Arrow in this repository is no longer a speculative or early-stub
+feature. It is a real backend with:</p>
+<ul>
+<li>native tables,</li>
+<li>native compute hooks,</li>
+<li>Arrow IPC,</li>
+<li>pipeline interchange,</li>
+<li>zero-copy numeric access,</li>
+<li>factor/list/date support,</li>
+<li>and meaningful regression coverage.</li>
+</ul>
+<p>What is missing is not “Arrow support” in general. What is missing
+is:</p>
+<ul>
+<li>clearer status documentation,</li>
+<li>a more unified public entry-point story,</li>
+<li>fuller IPC-focused tests,</li>
+<li>and cleanup of outdated planning language that no longer reflects
+the current codebase.</li>
+</ul>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

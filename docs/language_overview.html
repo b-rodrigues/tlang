@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - language_overview</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language - language_overview</h1>
+</header>
+<h1 id="t-language-overview">T Language Overview</h1>
+<blockquote>
+<p><strong>Version</strong>: Alpha 0.1<br />
+<strong>Status</strong>: Syntax and semantics frozen for alpha</p>
+</blockquote>
+<p>T is a functional programming language designed for declarative,
+tabular data manipulation. It combines the pipeline-driven style of R’s
+tidyverse with OCaml’s type discipline, producing a small, focused
+language for data wrangling and basic statistics.</p>
+<hr />
+<h2 id="core-concepts">Core Concepts</h2>
+<h3 id="values-and-types">Values and Types</h3>
+<p>T supports the following value types:</p>
+<table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 34%" />
+<col style="width: 48%" />
+</colgroup>
+<thead>
+<tr>
+<th>Type</th>
+<th>Example</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Int</code></td>
+<td><code>42</code></td>
+<td>Integer numbers</td>
+</tr>
+<tr>
+<td><code>Float</code></td>
+<td><code>3.14</code></td>
+<td>Floating-point numbers</td>
+</tr>
+<tr>
+<td><code>Bool</code></td>
+<td><code>true</code>, <code>false</code></td>
+<td>Boolean values</td>
+</tr>
+<tr>
+<td><code>String</code></td>
+<td><code>"hello"</code></td>
+<td>Text strings</td>
+</tr>
+<tr>
+<td><code>List</code></td>
+<td><code>[1, 2, 3]</code></td>
+<td>Ordered, heterogeneous collections</td>
+</tr>
+<tr>
+<td><code>Dict</code></td>
+<td><code>{x: 1, y: 2}</code></td>
+<td>Key-value maps with string keys</td>
+</tr>
+<tr>
+<td><code>Vector</code></td>
+<td>Column data</td>
+<td>Typed arrays (from DataFrames)</td>
+</tr>
+<tr>
+<td><code>DataFrame</code></td>
+<td><code>read_csv("data.csv")</code></td>
+<td>Tabular data (rows × columns)</td>
+</tr>
+<tr>
+<td><code>Pipeline</code></td>
+<td><code>pipeline { ... }</code></td>
+<td>DAG-based execution graph</td>
+</tr>
+<tr>
+<td><code>Function</code></td>
+<td><code>\(x) x + 1</code></td>
+<td>First-class functions</td>
+</tr>
+<tr>
+<td><code>NA</code></td>
+<td><code>NA</code></td>
+<td>Explicit missing value</td>
+</tr>
+<tr>
+<td><code>Error</code></td>
+<td><code>error("msg")</code></td>
+<td>Structured error value</td>
+</tr>
+<tr>
+<td><code>Null</code></td>
+<td><code>null</code></td>
+<td>Absence of value</td>
+</tr>
+<tr>
+<td><code>Expression</code></td>
+<td><code>expr(1 + 2)</code></td>
+<td>Captured code (for metaprogramming)</td>
+</tr>
+<tr>
+<td><code>Intent</code></td>
+<td><code>intent { ... }</code></td>
+<td>LLM-friendly metadata block</td>
+</tr>
+</tbody>
+</table>
+<h3 id="variables-and-assignment">Variables and Assignment</h3>
+<pre class="t"><code>x = 42
+name = &quot;Alice&quot;
+active = true</code></pre>
+<p>Variables are bound with <code>=</code>. All values are
+immutable.</p>
+<h3 id="arithmetic-and-operators">Arithmetic and Operators</h3>
+<pre class="t"><code>2 + 3       -- 5
+10 - 3      -- 7
+4 * 5       -- 20
+15 / 3      -- 5
+1 + 2.5     -- 3.5 (mixed int/float is promoted)
+&quot;hi&quot; + &quot; T&quot; -- &quot;hi T&quot; (string concatenation)</code></pre>
+<p>Operator precedence follows standard mathematical conventions.
+Parentheses override precedence.</p>
+<h3 id="comparisons">Comparisons</h3>
+<pre class="t"><code>5 == 5    -- true
+5 != 3    -- true
+3 &lt; 5     -- true
+5 &gt; 3     -- true
+5 &gt;= 5    -- true
+2 &lt;= 2    -- true</code></pre>
+<h3 id="boolean-logic">Boolean Logic</h3>
+<pre class="t"><code>true and true   -- true
+true and false  -- false
+false or true   -- true
+not true        -- false</code></pre>
+<hr />
+<h2 id="functions">Functions</h2>
+<h3 id="lambda-syntax">Lambda Syntax</h3>
+<p>T supports two equivalent function definition syntaxes:</p>
+<pre class="t"><code>-- R-style lambda (preferred)
+square = \(x) x * x
+
+-- function keyword
+square = function(x) x * x</code></pre>
+<h3 id="multi-argument-functions">Multi-Argument Functions</h3>
+<pre class="t"><code>add = \(a, b) a + b
+add(3, 7)  -- 10</code></pre>
+<h3 id="closures">Closures</h3>
+<p>Functions capture their enclosing environment:</p>
+<pre class="t"><code>make_adder = \(n) \(x) x + n
+add5 = make_adder(5)
+add5(10)  -- 15</code></pre>
+<h3 id="higher-order-functions">Higher-Order Functions</h3>
+<pre class="t"><code>numbers = [1, 2, 3, 4, 5]
+map(numbers, \(x) x * x)     -- [1, 4, 9, 16, 25]
+filter(numbers, \(x) x &gt; 3)  -- [4, 5]</code></pre>
+<hr />
+<h2 id="pipe-operators">Pipe Operators</h2>
+<p>T provides two pipe operators with different error-handling
+semantics.</p>
+<h3 id="conditional-pipe">Conditional Pipe (<code>|&gt;</code>)</h3>
+<p>The standard pipe <code>|&gt;</code> passes the left-hand value as
+the first argument to the right-hand function. If the left-hand value is
+an error, the pipeline <strong>short-circuits</strong> and the error is
+returned immediately without calling the function:</p>
+<pre class="t"><code>5 |&gt; \(x) x * 2           -- 10
+5 |&gt; add(3)                -- 8 (equivalent to add(5, 3))
+[1, 2, 3] |&gt; map(\(x) x * x) |&gt; sum  -- 14
+
+-- Short-circuits on error:
+error(&quot;boom&quot;) |&gt; double    -- Error(GenericError: &quot;boom&quot;)</code></pre>
+<p>Pipes work across lines for readability:</p>
+<pre class="t"><code>[1, 2, 3, 4, 5]
+  |&gt; map(\(x) x * x)
+  |&gt; sum                   -- 55</code></pre>
+<h3 id="maybe-pipe">Maybe-Pipe (<code>?|&gt;</code>)</h3>
+<p>The maybe-pipe <code>?|&gt;</code> <strong>always</strong> forwards
+the left-hand value to the right-hand function, even if it is an error.
+This enables explicit error recovery patterns:</p>
+<pre class="t"><code>-- Forward normal values (same as |&gt;):
+5 ?|&gt; double               -- 10
+
+-- Forward errors to recovery functions:
+handle = \(x) if (is_error(x)) &quot;recovered&quot; else x
+error(&quot;boom&quot;) ?|&gt; handle   -- &quot;recovered&quot;
+
+-- Chain recovery with normal processing:
+recovery = \(x) if (is_error(x)) 0 else x
+increment = \(x) x + 1
+error(&quot;fail&quot;) ?|&gt; recovery |&gt; increment  -- 1</code></pre>
+<p>The maybe-pipe also works across lines:</p>
+<pre class="t"><code>error(&quot;fail&quot;)
+  ?|&gt; recovery
+  |&gt; increment             -- 1</code></pre>
+<h3 id="when-to-use-each-pipe">When to Use Each Pipe</h3>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>On Error</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>\|&gt;</code></td>
+<td>Short-circuits</td>
+<td>Normal data pipelines</td>
+</tr>
+<tr>
+<td><code>?\|&gt;</code></td>
+<td>Forwards to function</td>
+<td>Error recovery, fallback values</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="conditionals">Conditionals</h2>
+<pre class="t"><code>result = if (5 &gt; 3) &quot;yes&quot; else &quot;no&quot;   -- &quot;yes&quot;</code></pre>
+<p>Conditionals are expressions — they return values.</p>
+<hr />
+<h2 id="collections">Collections</h2>
+<h3 id="lists">Lists</h3>
+<pre class="t"><code>numbers = [1, 2, 3]
+length(numbers)  -- 3
+head(numbers)    -- 1
+tail(numbers)    -- [2, 3]</code></pre>
+<h3 id="named-lists">Named Lists</h3>
+<pre class="t"><code>person = [name: &quot;Alice&quot;, age: 30]
+person.name  -- &quot;Alice&quot;
+person.age   -- 30</code></pre>
+<h3 id="dictionaries">Dictionaries</h3>
+<pre class="t"><code>config = {host: &quot;localhost&quot;, port: 8080}
+config.host  -- &quot;localhost&quot;
+config.port  -- 8080</code></pre>
+<hr />
+<h2 id="missing-values-na">Missing Values (NA)</h2>
+<p>T uses explicit <code>NA</code> values with type tags. NA does
+<strong>not</strong> propagate implicitly — operations on NA produce
+errors:</p>
+<pre class="t"><code>NA             -- untyped NA
+na_int()       -- typed NA (Int)
+na_float()     -- typed NA (Float)
+na_bool()      -- typed NA (Bool)
+na_string()    -- typed NA (String)
+
+is_na(NA)      -- true
+is_na(42)      -- false
+
+-- NA does not propagate
+NA + 1         -- Error(TypeError: &quot;Operation on NA...&quot;)</code></pre>
+<h3 id="na-handling-in-aggregation-functions">NA Handling in Aggregation
+Functions</h3>
+<p>By default, aggregation functions <strong>error</strong> when they
+encounter NA values. This forces you to handle missingness explicitly
+rather than silently ignoring it:</p>
+<pre class="t"><code>mean([1, 2, NA, 4])           -- Error: NA encountered
+sum([1, NA, 3])               -- Error: NA encountered
+sd([1, NA, 3])                -- Error: NA encountered
+quantile([1, NA, 3], 0.5)     -- Error: NA encountered
+cor([1, NA, 3], [4, 5, 6])    -- Error: NA encountered</code></pre>
+<p>To compute statistics while skipping NA values, use
+<code>na_rm = true</code>:</p>
+<pre class="t"><code>mean([1, 2, NA, 4], na_rm = true)           -- 2.33333333333
+sum([1, NA, 3], na_rm = true)               -- 4
+sd([2, 4, NA, 9], na_rm = true)             -- 3.60555127546
+quantile([1, NA, 3, NA, 5], 0.5, na_rm = true) -- 3.
+cor([1, NA, 3, 4], [2, 4, NA, 8], na_rm = true) -- 1. (pairwise deletion)</code></pre>
+<p>When all values are NA and <code>na_rm = true</code>, functions
+return <code>NA(Float)</code>:</p>
+<pre class="t"><code>mean([NA, NA, NA], na_rm = true)    -- NA(Float)
+sum([NA, NA, NA], na_rm = true)     -- 0
+sd([NA, NA, NA], na_rm = true)      -- NA(Float)</code></pre>
+<hr />
+<h2 id="error-handling">Error Handling</h2>
+<p>Errors are values, not exceptions. Failed operations return
+structured <code>Error</code> values:</p>
+<pre class="t"><code>result = 1 / 0
+is_error(result)     -- true
+error_code(result)   -- &quot;DivisionByZero&quot;
+error_message(result) -- &quot;Division by zero&quot;
+
+-- Custom errors
+err = error(&quot;something broke&quot;)
+err = error(&quot;ValueError&quot;, &quot;invalid input&quot;)</code></pre>
+<h3 id="actionable-error-messages">Actionable Error Messages</h3>
+<p>T provides helpful error messages with suggestions:</p>
+<pre class="t"><code>-- Name suggestions for typos (Levenshtein distance):
+prnt(42)           -- Error(NameError: &quot;&#39;prnt&#39; is not defined. Did you mean &#39;print&#39;?&quot;)
+slect(df, &quot;name&quot;)  -- Error(NameError: &quot;&#39;slect&#39; is not defined. Did you mean &#39;select&#39;?&quot;)
+
+-- Type conversion hints:
+1 + true           -- Error(TypeError: &quot;Cannot add Int and Bool. Hint: ...&quot;)
+[1, 2] + 3         -- Error(TypeError: &quot;Cannot add List and Int. Hint: Use map()...&quot;)
+
+-- Function signature in arity errors:
+f = \(a, b) a + b
+f(1)               -- Error(ArityError: &quot;Expected 2 arguments (a, b) but got 1&quot;)</code></pre>
+<h3 id="assert">Assert</h3>
+<pre class="t"><code>assert(2 + 2 == 4)                -- true
+assert(false, &quot;custom message&quot;)   -- Error(AssertionError: ...)</code></pre>
+<hr />
+<h2 id="dataframes">DataFrames</h2>
+<p>DataFrames are T’s first-class tabular data type, loaded from
+CSV:</p>
+<pre class="t"><code>df = read_csv(&quot;data.csv&quot;)
+nrow(df)      -- number of rows
+ncol(df)      -- number of columns
+colnames(df)  -- list of column names
+df.age        -- column as Vector
+
+-- Optional arguments
+df = read_csv(&quot;data.tsv&quot;, separator = &quot;;&quot;)              -- custom separator
+df = read_csv(&quot;data.csv&quot;, skip_lines = 2)          -- skip first N lines
+df = read_csv(&quot;raw.csv&quot;, skip_header = true)        -- no header row
+df = read_csv(&quot;messy.csv&quot;, clean_colnames = true)   -- normalize column names
+
+-- Save DataFrames
+write_csv(df, &quot;output.csv&quot;)                         -- write to CSV
+write_csv(df, &quot;output.tsv&quot;, separator = &quot;\t&quot;)             -- custom separator</code></pre>
+<h3 id="column-name-cleaning">Column Name Cleaning</h3>
+<p>When <code>clean_colnames = true</code>, column names are normalized
+into safe, consistent snake_case identifiers:</p>
+<pre class="t"><code>-- Original headers: &quot;Growth%&quot;, &quot;MILLION€&quot;, &quot;café&quot;
+df = read_csv(&quot;data.csv&quot;, clean_colnames = true)
+colnames(df)  -- [&quot;growth_percent&quot;, &quot;million_euro&quot;, &quot;cafe&quot;]
+
+-- Standalone function on an existing DataFrame
+df2 = clean_colnames(df)
+
+-- Or on a list of strings
+clean_colnames([&quot;A.1&quot;, &quot;A-1&quot;])  -- [&quot;a_1&quot;, &quot;a_1_2&quot;]</code></pre>
+<p>The cleaning pipeline applies these transformations in order:</p>
+<table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 48%" />
+<col style="width: 29%" />
+</colgroup>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Transformation</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Symbol expansion (<code>%</code> → <code>percent</code>,
+<code>€</code> → <code>euro</code>, <code>$</code> →
+<code>dollar</code>, <code>£</code> → <code>pound</code>, <code>¥</code>
+→ <code>yen</code>)</td>
+<td><code>"growth%"</code> → <code>"growthpercent"</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Diacritics stripping</td>
+<td><code>"café"</code> → <code>"cafe"</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Lowercase</td>
+<td><code>"MyCol"</code> → <code>"mycol"</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Non-alphanumeric → <code>_</code>, collapse runs, trim edges</td>
+<td><code>"foo---bar"</code> → <code>"foo_bar"</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Prefix digit-leading names with <code>x_</code></td>
+<td><code>"1st"</code> → <code>"x_1st"</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Empty names → <code>col_N</code></td>
+<td><code>""</code> → <code>"col_1"</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>Collision resolution (first unchanged, then <code>_2</code>,
+<code>_3</code>, …)</td>
+<td><code>["A.1", "A-1"]</code> → <code>["a_1", "a_1_2"]</code></td>
+</tr>
+</tbody>
+</table>
+<p>The transformation is pure, stable across platforms, and
+idempotent.</p>
+<h3 id="data-manipulation">Data Manipulation</h3>
+<p>T provides six core data verbs with dollar-prefix NSE syntax for
+concise column references:</p>
+<pre class="t"><code>-- Use $column for column references
+df |&gt; select($name, $age)
+df |&gt; filter($age &gt; 25)
+df |&gt; mutate($age_plus_10 = $age + 10)         -- named-arg style
+df |&gt; arrange($age, &quot;desc&quot;)
+df |&gt; group_by($dept)
+   |&gt; summarize($count = nrow($dept))           -- named-arg style
+df |&gt; group_by($dept)
+   |&gt; mutate($dept_size, \(g) nrow(g))</code></pre>
+<h4 id="named-arg-syntax-col-expr">Named-Arg Syntax
+(<code>$col = expr</code>)</h4>
+<p>For <code>mutate</code> and <code>summarize</code>, you can use
+<code>$col = expr</code> to name the result column and provide an NSE
+expression in one step:</p>
+<pre class="t"><code>-- mutate: $new_col = NSE expression (auto-wrapped in lambda per row)
+df |&gt; mutate($bonus = $salary * 0.1)
+df |&gt; mutate($full_name = $first + &quot; &quot; + $last)
+
+-- summarize: $result_col = NSE aggregation (auto-wrapped in lambda per group)
+df |&gt; group_by($dept)
+   |&gt; summarize($avg_salary = mean($salary), $count = nrow($dept))</code></pre>
+<h4 id="dollar-prefix-vs-dot-accessor">Dollar-Prefix vs Dot
+Accessor</h4>
+<ul>
+<li><strong>Dollar (<code>$</code>)</strong>: Column reference in
+DataFrame context — <code>$column_name</code></li>
+<li><strong>Dot (<code>.</code>)</strong>: Field access on an explicit
+object — <code>row.field</code>, <code>obj.property</code></li>
+</ul>
+<pre class="t"><code>-- Dollar: references columns contextually (no explicit row variable)
+df |&gt; filter($age &gt; 30)
+
+-- Dot: accesses fields on an explicit object (in lambda context)
+df |&gt; filter($age &gt; 30)</code></pre>
+<h3 id="window-functions">Window Functions</h3>
+<p>Window functions compute values across a set of rows without
+collapsing them. All window functions handle <code>NA</code>
+gracefully.</p>
+<h4 id="ranking-functions">Ranking Functions</h4>
+<p>Ranking functions assign ranks to elements. NA values receive NA
+rank; ranks are computed only among non-NA values:</p>
+<pre class="t"><code>row_number([10, 30, 20])    -- Vector[1, 3, 2]   (ties broken by position)
+min_rank([1, 1, 2, 2, 2])  -- Vector[1, 1, 3, 3, 3]  (gaps after ties)
+dense_rank([1, 1, 2, 2])   -- Vector[1, 1, 2, 2]     (no gaps)
+cume_dist([1, 2, 3])        -- Vector[0.333..., 0.666..., 1.0]
+percent_rank([1, 2, 3])     -- Vector[0.0, 0.5, 1.0]
+ntile([1, 2, 3, 4], 2)     -- Vector[1, 1, 2, 2]
+
+-- NA handling: NA positions get NA rank
+row_number([3, NA, 1])     -- Vector[2, NA, 1]
+min_rank([3, NA, 1, 3])   -- Vector[2, NA, 1, 2]</code></pre>
+<h4 id="offset-functions-laglead">Offset Functions (lag/lead)</h4>
+<p>Shift values forward or backward, filling with NA. NA values in the
+input pass through:</p>
+<pre class="t"><code>lag([1, 2, 3, 4])          -- Vector[NA, 1, 2, 3]
+lag([1, 2, 3, 4], 2)       -- Vector[NA, NA, 1, 2]
+lead([1, 2, 3, 4])         -- Vector[2, 3, 4, NA]
+lead([1, 2, 3, 4], 2)      -- Vector[3, 4, NA, NA]
+
+-- NA passes through
+lag([1, NA, 3])            -- Vector[NA, 1, NA]</code></pre>
+<h4 id="cumulative-functions">Cumulative Functions</h4>
+<p>Cumulative functions propagate NA: once NA is encountered, all
+subsequent values become NA (matching R behavior):</p>
+<pre class="t"><code>cumsum([1, 2, 3, 4])      -- Vector[1, 3, 6, 10]
+cummin([3, 1, 4, 1])      -- Vector[3, 1, 1, 1]
+cummax([1, 3, 2, 5])      -- Vector[1, 3, 3, 5]
+cummean([2, 4, 6])         -- Vector[2.0, 3.0, 4.0]
+cumall([true, true, false]) -- Vector[true, true, false]
+cumany([false, true, false]) -- Vector[false, true, true]
+
+-- NA propagation
+cumsum([1, NA, 3])         -- Vector[1, NA, NA]</code></pre>
+<hr />
+<h2 id="shell-escape">Shell Escape (<code>?&lt;{ }&gt;</code>)</h2>
+<p>The shell escape syntax allows you to execute arbitrary shell
+commands directly from within T. This is useful for interacting with the
+filesystem, running git commands, or using other CLI tools.</p>
+<h3 id="as-a-statement">As a Statement</h3>
+<p>When used as a standalone statement, the command is executed and its
+output is printed directly to <code>stdout</code>. The return value of
+the expression is <code>null</code>.</p>
+<pre class="t"><code>?&lt;{ls -la}&gt;
+?&lt;{git status}&gt;</code></pre>
+<h3 id="as-an-expression">As an Expression</h3>
+<p>When used as part of an expression (e.g., in an assignment), the
+shell command’s <code>stdout</code> is captured and returned as a
+<code>String</code>.</p>
+<pre class="t"><code>files = ?&lt;{ls}&gt;
+current_user = ?&lt;{whoami}&gt;</code></pre>
+<h3 id="special-case-cd">Special Case: <code>cd</code></h3>
+<p>The <code>cd</code> command is special-cased to change the working
+directory of the T interpreter itself, rather than just a sub-shell.</p>
+<pre class="t"><code>?&lt;{cd /tmp}&gt;
+?&lt;{pwd}&gt;       -- will show /tmp
+?&lt;{cd ~}&gt;      -- expands ~ correctly</code></pre>
+<h3 id="multiline-commands">Multiline Commands</h3>
+<p>Shell escapes support multiline commands. Indentation common to all
+non-empty lines is automatically stripped.</p>
+<pre class="t"><code>?&lt;{
+  git add .
+  git commit -m &quot;update&quot;
+  git push
+}&gt;</code></pre>
+<h3 id="error-handling-1">Error Handling</h3>
+<p>If a shell command fails (returns a non-zero exit code), it produces
+a <code>ShellError</code> containing the <code>stderr</code> output.</p>
+<pre class="t"><code>result = ?&lt;{ls /nonexistent}&gt;
+is_error(result)  -- true</code></pre>
+<hr />
+<h2 id="pipelines">Pipelines</h2>
+<p>Pipelines define named computation nodes with automatic dependency
+resolution:</p>
+<pre class="t"><code>p = pipeline {
+  data = read_csv(&quot;sales.csv&quot;)
+  filtered = filter(data, $amount &gt; 100)
+  total = filtered |&gt; select($amount) |&gt; \(d) sum(d.amount)
+}
+
+p.data       -- access node result
+p.total      -- access computed value</code></pre>
+<p>Pipeline features: - <strong>Automatic dependency
+resolution</strong>: Nodes can be declared in any order -
+<strong>Deterministic execution</strong>: Same inputs always produce
+same outputs - <strong>Cycle detection</strong>: Circular dependencies
+are caught and reported - <strong>Introspection</strong>:
+<code>pipeline_nodes()</code>, <code>pipeline_deps()</code>,
+<code>pipeline_node()</code> - <strong>Cross-language</strong>:
+<code>node()</code>, <code>py()</code>/<code>pyn()</code>,
+<code>rn()</code>, and <code>shn()</code> enable execution in T, Python,
+R, and shell runtimes - <strong>Environment Variables</strong>: Pass
+custom variables into Nix build sandboxes via <code>env_vars</code> -
+<strong>Re-run</strong>: <code>pipeline_run()</code> re-executes the
+pipeline</p>
+<hr />
+<h2 id="standard-library">Standard Library</h2>
+<p>All packages are loaded automatically at startup:</p>
+<table>
+<colgroup>
+<col style="width: 18%" />
+<col style="width: 81%" />
+</colgroup>
+<thead>
+<tr>
+<th>Package</th>
+<th>Functions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>core</code></td>
+<td><code>print</code>, <code>type</code>, <code>length</code>,
+<code>head</code>, <code>tail</code>, <code>map</code>,
+<code>filter</code>, <code>sum</code>, <code>seq</code>,
+<code>getwd</code>, <code>file_exists</code>, <code>dir_exists</code>,
+<code>read_file</code>, <code>list_files</code>, <code>env</code>,
+<code>path_join</code>, <code>path_basename</code>,
+<code>path_dirname</code>, <code>path_ext</code>,
+<code>path_stem</code>, <code>path_abs</code></td>
+</tr>
+<tr>
+<td><code>base</code></td>
+<td><code>assert</code>, <code>is_na</code>, <code>na</code>,
+<code>na_int</code>, <code>na_float</code>, <code>na_bool</code>,
+<code>na_string</code>, <code>error</code>, <code>is_error</code>,
+<code>error_code</code>, <code>error_message</code>,
+<code>error_context</code></td>
+</tr>
+<tr>
+<td><code>math</code></td>
+<td><code>sqrt</code>, <code>abs</code>, <code>log</code>,
+<code>exp</code>, <code>pow</code></td>
+</tr>
+<tr>
+<td><code>stats</code></td>
+<td><code>mean</code>, <code>sd</code>, <code>quantile</code>,
+<code>cor</code>, <code>lm</code></td>
+</tr>
+<tr>
+<td><code>dataframe</code></td>
+<td><code>read_csv</code>, <code>write_csv</code>,
+<code>colnames</code>, <code>nrow</code>, <code>ncol</code>,
+<code>clean_colnames</code></td>
+</tr>
+<tr>
+<td><code>colcraft</code></td>
+<td><code>select</code>, <code>filter</code>, <code>mutate</code>,
+<code>arrange</code>, <code>group_by</code>, <code>summarize</code>,
+<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>,
+<code>cume_dist</code>, <code>percent_rank</code>, <code>ntile</code>,
+<code>lag</code>, <code>lead</code>, <code>cumsum</code>,
+<code>cummin</code>, <code>cummax</code>, <code>cummean</code>,
+<code>cumall</code>, <code>cumany</code></td>
+</tr>
+<tr>
+<td><code>pipeline</code></td>
+<td><code>pipeline_nodes</code>, <code>pipeline_deps</code>,
+<code>pipeline_node</code>, <code>pipeline_run</code></td>
+</tr>
+<tr>
+<td><code>explain</code></td>
+<td><code>explain</code>, <code>intent_fields</code>,
+<code>intent_get</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="math-functions">Math Functions</h3>
+<p>Pure numerical primitives that work on scalars and vectors:</p>
+<pre class="t"><code>sqrt(4)        -- 2.0
+abs(0 - 5)     -- 5
+log(10)        -- 2.30258509299
+exp(1)         -- 2.71828182846
+pow(2, 3)      -- 8.0</code></pre>
+<h3 id="stats-functions">Stats Functions</h3>
+<p>Statistical summaries that work on lists and vectors. All aggregation
+functions support an optional <code>na_rm</code> parameter:</p>
+<pre class="t"><code>mean([1, 2, 3, 4, 5])             -- 3.0
+sd([2, 4, 4, 4, 5, 5, 7, 9])     -- 2.1380899353
+quantile([1, 2, 3, 4, 5], 0.5)   -- 3.0 (median)
+cor(df.x, df.y)                   -- correlation coefficient
+lm(data = df, formula = y ~ x)   -- linear regression model
+
+-- With NA handling (na_rm = true skips NA values):
+mean([1, NA, 3], na_rm = true)    -- 2.0
+sum([1, NA, 3], na_rm = true)     -- 4
+sd([2, NA, 4, 9], na_rm = true)   -- 3.60555127546</code></pre>
+<h3 id="introspection">Introspection</h3>
+<pre class="t"><code>type(42)          -- &quot;Int&quot;
+type(df)          -- &quot;DataFrame&quot;
+explain(df)       -- detailed DataFrame summary
+packages()        -- list of loaded packages
+package_info(&quot;stats&quot;)  -- package details</code></pre>
+<h3 id="filesystem-path-operations">Filesystem &amp; Path
+Operations</h3>
+<p>T provides a suite of functions for interacting with the filesystem
+and manipulating paths.</p>
+<h4 id="filesystem">Filesystem</h4>
+<pre class="t"><code>getwd()                        -- &quot;/home/user/project&quot;
+file_exists(&quot;data.csv&quot;)        -- true
+dir_exists(&quot;tests&quot;)            -- true
+list_files(&quot;.&quot;, pattern = &quot;.t&quot;) -- [&quot;test1.t&quot;, &quot;test2.t&quot;]
+read_file(&quot;config.json&quot;)       -- &quot;{\&quot;port\&quot;: 8080}&quot;
+env(&quot;HOME&quot;)                    -- &quot;/home/user&quot;</code></pre>
+<h4 id="path-manipulation-lexical">Path Manipulation (Lexical)</h4>
+<p>These functions are purely text-based and do not check the disk.</p>
+<pre class="t"><code>path_join(&quot;dir&quot;, &quot;sub&quot;, &quot;f.txt&quot;) -- &quot;dir/sub/f.txt&quot;
+path_basename(&quot;/a/b/c.txt&quot;)      -- &quot;c.txt&quot;
+path_dirname(&quot;/a/b/c.txt&quot;)       -- &quot;/a/b&quot;
+path_ext(&quot;data.csv&quot;)             -- &quot;.csv&quot;
+path_stem(&quot;data.csv&quot;)            -- &quot;data&quot;
+path_abs(&quot;local.txt&quot;)            -- &quot;/absolute/path/to/local.txt&quot;</code></pre>
+<hr />
+<h2 id="intent-blocks">Intent Blocks</h2>
+<p>Intent blocks provide structured metadata for LLM-assisted
+workflows:</p>
+<pre class="t"><code>i = intent {
+  description: &quot;Summarize user activity&quot;,
+  assumes: &quot;Data excludes inactive users&quot;
+}
+
+intent_fields(i)            -- Dict of all fields
+intent_get(i, &quot;description&quot;) -- specific field value</code></pre>
+<hr />
+<h2 id="comments">Comments</h2>
+<pre class="t"><code>-- This is a single-line comment</code></pre>
+<hr />
+<h2 id="metaprogramming">Metaprogramming</h2>
+<p>T supports Lisp-style quotation and quasiquotation for code
+generation and DSL building.</p>
+<pre class="t"><code>x = 10
+captured = expr(1 + !!x)
+print(captured)  -- expr(1 + 10)
+eval(captured)     -- 11</code></pre>
+<p>See the <a href="quotation.html">Quotation Guide</a> for more
+details.</p>
+<hr />
+<h2 id="type-introspection">Type Introspection</h2>
+<p>The <code>type()</code> function returns the type name of any value
+as a string:</p>
+<pre class="t"><code>type(42)             -- &quot;Int&quot;
+type(3.14)           -- &quot;Float&quot;
+type(true)           -- &quot;Bool&quot;
+type(&quot;hello&quot;)        -- &quot;String&quot;
+type([1, 2])         -- &quot;List&quot;
+type({x: 1})         -- &quot;Dict&quot;
+type(NA)             -- &quot;NA&quot;
+type(1 / 0)          -- &quot;Error&quot;
+type(null)           -- &quot;Null&quot;</code></pre>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you have a solid grasp of T’s syntax and core features,
+explore these topics next:</p>
+<ol type="1">
+<li><strong><a href="type-system.html">Type System</a></strong> —
+Understand T’s mode-aware type system and lambda signatures.</li>
+<li><strong><a href="pipeline_tutorial.html">Pipeline
+Tutorial</a></strong> — Learn how to build reproducible, DAG-based data
+analysis workflows.</li>
+<li><strong><a href="data_manipulation_examples.html">Data Manipulation
+Examples</a></strong> — See T’s data verbs in action with worked
+examples.</li>
+</ol>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

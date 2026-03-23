@@ -1,0 +1,79 @@
+name: Pipeline GLM Examples E2E
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  glm-examples-e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v13
+      with:
+        name: rstats-on-nix
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        skipPush: true
+
+    - name: Run GLM Pipelines
+      env:
+        TLANG_FLAKE_URL: git+file://${{ github.workspace }}
+      run: |
+        # 1. Build T from current commit
+        nix build .#default --accept-flake-config
+        TLANG_BIN=$(pwd)/result/bin/t
+        
+        # 2. Create a clean workspace
+        cd ..
+        mkdir glm_test_workspace
+        cd glm_test_workspace
+        
+        # 3. Initialize a new project
+        "$TLANG_BIN" init --project glm_project --no-git
+        cd glm_project
+        
+        # 4. Configure Project dependencies (reusing root tproject.toml logic)
+        cat > tproject.toml <<EOF
+        [project]
+        name = "glm_project"
+        
+        [py-dependencies]
+        packages = ["pandas", "scikit-learn", "statsmodels", "sklearn2pmml"]
+        
+        [r-dependencies]
+        packages = ["dplyr", "faraway", "MASS", "r2pmml"]
+        EOF
+
+        # 5. Sync dependencies
+        "$TLANG_BIN" update
+        
+        # 6. Run HSB Pipeline
+        cp ${{ github.workspace }}/tests/pipeline/test_glm_hsb.t .
+        nix develop --accept-flake-config --command "$TLANG_BIN" run test_glm_hsb.t --unsafe
+
+        # 7. Run Discoveries Pipeline
+        cp ${{ github.workspace }}/tests/pipeline/test_glm_discoveries.t .
+        nix develop --accept-flake-config --command "$TLANG_BIN" run test_glm_discoveries.t --unsafe
+        
+        # 8. Run Warpbreaks Pipeline
+        cp ${{ github.workspace }}/tests/pipeline/test_glm_warpbreaks.t .
+        nix develop --accept-flake-config --command "$TLANG_BIN" run test_glm_warpbreaks.t --unsafe

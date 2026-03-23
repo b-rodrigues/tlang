@@ -1,0 +1,10 @@
+Scalar AND:
+false
+Scalar OR:
+true
+Scalar !:
+false
+Vector AND:
+[true, false, false, false]
+Vector OR:
+[true, true, true, false]

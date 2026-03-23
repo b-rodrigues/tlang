@@ -1,0 +1,16 @@
+---
+title: "T-Lang Quarto Test"
+format: html
+---
+
+## Data from T-Lang
+
+The following value was read from a T-Lang pipeline node:
+
+```{r}
+#| echo: false
+val <- read_node("data")
+cat(val)
+```
+
+This confirms that `read_node` substitution worked correctly!

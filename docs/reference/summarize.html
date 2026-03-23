@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Function Reference - summarize</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav>
+    <a href="../index.html">Home</a>
+    <a href="../getting-started.html">Get Started</a>
+    <a href="../language_overview.html">Overview</a>
+    <a href="../api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Function Reference - summarize</h1>
+</header>
+<h1 id="summarize">summarize</h1>
+<p>Summarize data</p>
+<p>Aggregates a DataFrame to a single row (or one row per group).</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>df</strong> (<code>DataFrame</code>): The input
+DataFrame.</p></li>
+<li><p><strong>…</strong> (<code>KeywordArgs</code>): Aggregations as
+name = expression pairs.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>The summarized DataFrame.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>summarize(mtcars, $mean_mpg = mean($mpg))
+summarize(group_by(mtcars, $cyl), $mean_hp = mean($hp))</code></pre>
+<h2 id="see-also">See Also</h2>
+<p><a href="mutate.html">mutate</a>, <a
+href="group_by.html">group_by</a></p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

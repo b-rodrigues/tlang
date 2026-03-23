@@ -1,0 +1,88 @@
+; src/dune
+
+(include_subdirs unqualified)
+
+; Generate C compiler flags from pkg-config for arrow-glib and parquet-glib
+; We query gobject-2.0 and glib-2.0 explicitly because the Nix sandbox
+; does not always resolve transitive pkg-config dependencies reliably.
+(rule
+ (targets arrow_cflags.sexp)
+ (action (with-stdout-to %{targets}
+  (bash "if [ -n \"${T_ARROW_CFLAGS:-}\" ]; then raw=\"$T_ARROW_CFLAGS\"; else raw=''; for p in arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --cflags $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
+
+(rule
+ (targets arrow_libs.sexp)
+ (action (with-stdout-to %{targets}
+  (bash "if [ -n \"${T_ARROW_LIBS:-}\" ]; then raw=\"$T_ARROW_LIBS\"; else raw=''; for p in arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --libs $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
+
+(rule
+ (target version.ml)
+ (deps ../VERSION)
+ (action (with-stdout-to %{target}
+          (bash "v=$(cat ../VERSION | tr -d '\\n'); echo \"let version = \\\"$v\\\"\""))))
+
+(library
+ (name t_lang)
+ (wrapped false)
+ (foreign_stubs
+  (language c)
+  (names arrow_stubs stats_stubs)
+  (flags (:include arrow_cflags.sexp)))
+ (c_library_flags (:include arrow_libs.sexp))
+ (modules
+   ; arrow — Arrow-backed table implementation
+   arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
+   arrow_owl_bridge
+   ; core language
+       ast lexer parser eval typecheck error serialization pmml_utils semantic_type symbol_table completion analyzer stats import_registry value_hash cli_args
+    ; pipeline compiler
+    nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter
+    builder_utils builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder_copy builder
+    ; packages/core
+    t_print t_type args head tail is_error t_seq t_map sum pretty_print packages t_get help t_boolean t_write_text converters file_ops path_ops
+    ; packages/strcraft
+    string_ops
+    ; packages/base
+    t_assert is_na na error_mod error_utils serialize deserialize t_json
+    ; packages/chrono
+    chrono
+    ; packages/dataframe
+   t_read_csv t_read_parquet t_write_csv t_read_arrow t_write_arrow t_dataframe colnames nrow ncol clean_colnames glimpse
+    ; packages/pipeline
+    pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node pipeline_copy
+     pipeline_to_frame filter_node mutate_node rename_node select_node arrange_node
+     pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2
+    ; packages/colcraft
+    t_select t_filter mutate arrange group_by ungroup summarize n n_distinct
+    window_rank window_offset window_cumulative pivot_longer pivot_wider t_complete
+     fill separate unite drop_na replace_na expand factors selection_helpers joins rename relocate distinct slice count slice_min_max nest unnest separate_rows uncount
+   ; packages/math
+   t_sqrt t_abs t_log t_exp pow ndarray t_iota round floor ceiling ceil trunc sign signif sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh
+   ; packages/stats
+   mean sd quantile cor lm predict t_read_pmml fit_stats add_diagnostics summary min max median var cov range iqr scale standardize normalize mad skewness kurtosis mode cv fivenum trimmed_mean winsorize huber_loss coef conf_int nobs df_residual sigma dispersion vcov compare residuals augment score distributions anova wald_test basis math_utils
+   ; packages/explain
+   intent_fields intent_get t_explain explain_json
+   ; package_manager
+   version package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager package_loader
+   ; tdoc
+   tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
+ )
+ (libraries menhirLib otoml yojson xmlm unix str)
+)
+
+(executable
+ (name repl)
+ (modules repl)
+ (libraries t_lang menhirLib linenoise unix)
+)
+
+(menhir
+ (modules parser)
+)
+
+(ocamllex lexer)
+(executable
+ (name lsp_server)
+ (modules lsp_server)
+ (libraries t_lang lsp jsonrpc unix str)
+)

@@ -1,0 +1,237 @@
+# T Project Development Guide
+
+This guide walks you through creating and developing a **T project** — a data analysis project that uses T packages.
+
+> **Package vs Project**: A *package* is a reusable library of T functions. A *project* is a data analysis workspace that depends on packages.
+
+## 1. Creating a Project
+
+Create a new project interactively:
+
+```bash
+$ t init --project housing-analysis
+Initializing new T project...
+Author [User]: Alice
+License [EUPL-1.2]: EUPL-1.2
+Nixpkgs date [2026-02-19]: 2026-02-19
+
+✓ Project 'housing-analysis' created successfully!
+```
+
+This creates the following structure:
+
+- **tproject.toml**: Project metadata and dependencies.
+- **flake.nix**: Reproducible environment definition.
+- **README.md**: Project documentation.
+- **.gitignore**: Git exclusion list.
+- **src/**: Your analysis scripts (e.g., `pipeline.t`).
+- **data/**: Data files.
+- **outputs/**: Output directory for results.
+- **tests/**: Project-specific tests.
+
+## 2. Entering the Development Environment
+
+Projects use Nix for reproducibility. Enter the development shell:
+
+```bash
+$ nix develop
+```
+
+This ensures all dependencies (T, packages, R, Nix) are available at the exact versions specified in `flake.lock`.
+
+## 3. Adding Dependencies
+
+Dependencies on T packages are declared in `tproject.toml`:
+
+```toml
+[project]
+name = "housing-analysis"
+description = "Analyzing housing data with T"
+
+[dependencies]
+my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
+data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
+
+[t]
+min_version = "0.51.1"
+```
+
+### 3.1 System Dependencies and LaTeX
+
+Beyond T packages, you can declare system-level tools and LaTeX packages required for your project.
+
+#### Additional Tools
+
+Use the `[additional-tools]` section to add any package from Nixpkgs (e.g., CLI utilities, compilers, or libraries):
+
+```toml
+[additional-tools]
+# These will be available in your 'nix develop' shell and pipeline sandboxes
+packages = ["git", "jq", "gawk", "pandoc"]
+```
+
+#### LaTeX Support
+
+If your project involves generating PDFs or reports, use the `[latex]` section. T automatically provides a `texlive` environment starting from `scheme-small`. Just list any additional LaTeX packages you need:
+
+```toml
+[latex]
+# Standard LaTeX packages
+packages = ["amsmath", "blindtext", "physics", "hyperref"]
+```
+
+After adding or changing dependencies (including `[additional-tools]` or `[latex]` sections), run:
+
+```bash
+$ t update
+Syncing 2 dependency(ies) from tproject.toml → flake.nix...
+Running nix flake update...
+```
+
+This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes (T, R, or Python) during execution. Then re-enter the shell:
+
+```bash
+$ nix develop
+```
+
+### 3.2 Upgrading T and Nixpkgs
+
+To upgrade your project to the latest version of T and set the project's nixpkgs date to today's UTC date:
+
+```bash
+$ t upgrade
+Checking for new T releases...
+Upgrading project to T 0.51.1 and nixpkgs date 2026-03-21 (today's UTC date)...
+Regenerating flake.nix and updating dependencies...
+Running nix flake update...
+```
+
+This updates your `tproject.toml` and then runs `t update` automatically.
+
+## 4. Importing Packages
+
+Once inside `nix develop`, you can use the `import` statement in your T scripts to load package functions.
+
+### Import All Public Functions
+
+```t
+import my_stats
+```
+
+This makes all public functions from `my_stats` available in scope.
+
+### Import Specific Functions
+
+```t
+import my_stats[weighted_mean, correlation]
+```
+
+Only `weighted_mean` and `correlation` are imported.
+
+### Import with Aliases
+
+```t
+import my_stats[wmean=weighted_mean, cor=correlation]
+```
+
+`weighted_mean` is available as `wmean`, `correlation` as `cor`.
+
+### Visibility
+
+All functions in a package are **public by default**. Package authors can mark internal helpers as private using `@private` in T-Doc comments — those functions will not be visible to importers.
+
+## 5. Writing Analysis Scripts
+
+Write your analysis in `src/`. For example, `src/pipeline.t`:
+
+```t
+import my_stats
+import data_utils[read_clean]
+
+p = pipeline {
+  data = read_csv("data/housing.csv")
+  clean = read_clean(data)
+  avg_price = mean(clean.$price)
+  price_by_area = clean |>
+    group_by($area) |>
+    summarize(avg=mean($price), sd=sd($price))
+}
+
+build_pipeline(p)
+print(price_by_area)
+```
+
+Run your script:
+
+```bash
+$ t run src/pipeline.t
+```
+
+Or use the REPL for interactive exploration:
+
+```bash
+$ t repl
+```
+
+## 6. Running Tests
+
+You can add tests in `tests/` following the same conventions as packages:
+
+```t
+-- tests/test-pipeline.t
+import my_stats
+
+result = weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
+assert(result == 1.7)
+```
+
+Run them with:
+
+```bash
+$ t test
+```
+
+## 7. Reproducibility
+
+Your project is fully reproducible through Nix:
+
+- **`flake.nix`** declares exact dependency sources (managed by `t update`)
+- **`flake.lock`** pins exact versions of all inputs
+- **`tproject.toml`** is the human-readable source of truth for dependencies
+
+Anyone can reproduce your environment:
+
+```bash
+$ git clone https://github.com/user/housing-analysis
+$ cd housing-analysis
+$ nix develop
+$ t run src/pipeline.t
+```
+
+The same T version, same package versions, same R packages, and same system libraries are used every time.
+
+## 8. IDE Support & Autocompletion
+
+T projects are designed to work seamlessly with modern editors via the **Language Server Protocol (LSP)**.
+
+### Using the LSP
+
+The `t-lsp` binary is provided automatically by your project's `nix develop` shell. 
+
+1.  Configure your editor (Vim, Emacs, or VS Code) once following the [Editor Support Guide](editors.md).
+2.  Launch your editor *inside* the project directory after running `nix develop`.
+3.  Alternatively, use **direnv** to automatically load the environment when you enter the project folder.
+
+Once active, you will get real-time autocompletion for:
+-   **Package functions**: Suggestions for all imported functions.
+-   **Local variables**: Defined earlier in your script.
+-   **DataFrame columns**: Column names from your data sources (accessible via the `$` prefix).
+
+---
+
+## Next Steps
+
+1. **[Language Overview](language_overview.md)** — Learn about types, syntax, and logic.
+2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to structure your analysis as a DAG.
+3. **[API Reference](api-reference.md)** — Explore the standard library.
+4. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.

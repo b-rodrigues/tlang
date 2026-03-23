@@ -1,0 +1,135 @@
+name: Quarto Extension CI
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+
+jobs:
+  test-quarto-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v13
+        with:
+          name: rstats-on-nix
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+      - name: Build T Binary
+        run: nix build .#default --accept-flake-config
+
+
+      - name: Render Quarto Document with T Filter
+        env:
+          # Point generated project flakes at this checkout so `t update`
+          # tests the current branch's Quarto-extension provisioning logic.
+          TLANG_FLAKE_URL: git+file://${{ github.workspace }}
+        run: |
+          REPO_ROOT=$(pwd)
+          CORE_VERSION=$(cat "$REPO_ROOT/VERSION" | tr -d '\n' | xargs)
+          if [ -z "$CORE_VERSION" ]; then
+            echo "❌ Error: Failed to extract core version from VERSION file."
+            exit 1
+          fi
+          TLANG_BIN="$REPO_ROOT/result/bin/t"
+          export TLANG_BIN
+
+          # Create a clean workspace and initialize a T project
+          cd ..
+          mkdir quarto-test-run
+          cd quarto-test-run
+          "$TLANG_BIN" init --project quarto_extension_test --no-git
+          cd quarto_extension_test
+
+          cat > tproject.toml <<EOF
+          [project]
+          name = "quarto_extension_test"
+          description = "Validate auto-provisioned Quarto extension"
+          
+          [r-dependencies]
+          packages = []
+          
+          [py-dependencies]
+          version = "python314"
+          packages = []
+          
+          [additional-tools]
+          packages = ["quarto"]
+          
+          [latex]
+          packages = []
+          
+          [t]
+          min_version = "$CORE_VERSION"
+          EOF
+
+          "$TLANG_BIN" update
+
+          # Copy the example document
+          cp "$REPO_ROOT/editors/quarto/tlang/example.qmd" .
+
+          # Enter the project shell to provision the Quarto extension, then render.
+          nix develop --accept-flake-config --command bash -c '
+            test -d _extensions/tlang
+            test ! -L _extensions/tlang
+            test -f _extensions/tlang/_extension.yml
+            target=$(cat _extensions/tlang/.tlang-store-path)
+            case "$target" in
+              */share/tlang/quarto/tlang)
+                ;;
+              *)
+                echo "❌ Error: _extensions/tlang points to unexpected target: $target"
+                exit 1
+                ;;
+            esac
+            quarto render example.qmd
+          '
+          
+          # Verify HTML generation
+          if [ ! -f example.html ]; then
+            echo "❌ Error: example.html was not generated."
+            exit 1
+          fi
+          
+          # Verify correct execution of T chunks
+          # The document contains mean([1, 2, 3, 4]) which should output 2.5
+          if grep -q "2.5" example.html; then
+            echo "✅ Success: Found expected output '2.5' in rendered document."
+          else
+            echo "❌ Error: Expected output '2.5' not found in example.html."
+            # Debug: show some output
+            grep -C 5 "mean" example.html || head -n 100 example.html
+            exit 1
+          fi
+          
+          # Verify that echo: false worked
+          # The summary chunk has #| echo: false, so "text_summary =" shouldn't be in the HTML (as code)
+          # but the value "This chunk still runs" should be.
+          if grep -q "This chunk still runs" example.html; then
+            echo "✅ Success: Found output from hidden chunk."
+          else
+            echo "❌ Error: Output from hidden chunk not found."
+            exit 1
+          fi
+
+          cp example.html "$REPO_ROOT/quarto-rendered-example.html"
+
+      - name: Upload Rendered Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarto-rendered-example
+          path: ${{ github.workspace }}/quarto-rendered-example.html

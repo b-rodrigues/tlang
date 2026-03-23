@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - data_manipulation_examples</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language -
+data_manipulation_examples</h1>
+</header>
+<h1 id="data-manipulation-examples">Data Manipulation Examples</h1>
+<blockquote>
+<p>Practical examples of data wrangling with T’s core verbs</p>
+</blockquote>
+<p>T provides a powerful suite of data manipulation functions in the
+<code>colcraft</code> package, inspired by <code>dplyr</code> and
+<code>tidyr</code>. These functions take a DataFrame as their first
+argument and return a new DataFrame, making them highly composable with
+the pipe operator.</p>
+<hr />
+<h2 id="loading-data">Loading Data</h2>
+<pre class="t"><code>df = read_csv(&quot;employees.csv&quot;)
+-- DataFrame(100 rows x 5 cols: [name, age, score, dept, salary])
+
+nrow(df)      -- 100
+ncol(df)      -- 5
+colnames(df)  -- [&quot;name&quot;, &quot;age&quot;, &quot;score&quot;, &quot;dept&quot;, &quot;salary&quot;]</code></pre>
+<h3 id="glimpse-inspect-dataframe-structure">glimpse() — Inspect
+DataFrame Structure</h3>
+<p>Use <code>glimpse()</code> for a quick, tidy overview of a
+DataFrame’s structure, dimensions, and contents:</p>
+<pre class="t"><code>df |&gt; glimpse()
+-- # A DataFrame: 100 × 5
+-- name   (String): &quot;Alice&quot;, &quot;Bob&quot;, &quot;Charlie&quot;, ...
+-- age    (Int): 30, 25, 42, ...
+-- score  (Float): 88.5, 92.0, 75.2, ...
+-- dept   (String): &quot;eng&quot;, &quot;eng&quot;, &quot;sales&quot;, ...
+-- salary (Float): 85000.0, 92000.0, 65000.0, ...</code></pre>
+<p>Unlike <code>print()</code>, which shows a formatted table,
+<code>glimpse()</code> lists columns vertically with their types and a
+sample of values, making it ideal for wide datasets or quick
+exploration.</p>
+<h3 id="read_csv-options">read_csv() Options</h3>
+<pre class="t"><code>-- Custom separator (e.g., semicolon-delimited files)
+df = read_csv(&quot;data.tsv&quot;, separator = &quot;;&quot;)
+
+-- Skip comment lines at the top of a file
+df = read_csv(&quot;data_with_header.csv&quot;, skip_lines = 2)
+
+-- No header row (columns named V1, V2, ...)
+df = read_csv(&quot;raw_data.csv&quot;, skip_header = true)
+
+-- Normalize column names to safe snake_case identifiers
+df = read_csv(&quot;messy_headers.csv&quot;, clean_colnames = true)</code></pre>
+<h3 id="column-name-cleaning">Column Name Cleaning</h3>
+<p>The <code>clean_colnames</code> option (or standalone function)
+normalizes column names:</p>
+<pre class="t"><code>-- As a read_csv option
+df = read_csv(&quot;data.csv&quot;, clean_colnames = true)
+-- &quot;Growth%&quot;  → &quot;growth_percent&quot;
+-- &quot;MILLION€&quot; → &quot;million_euro&quot;
+-- &quot;café&quot;     → &quot;cafe&quot;
+-- &quot;A.1&quot;      → &quot;a_1&quot;
+
+-- As a standalone function on a DataFrame
+df2 = clean_colnames(df)
+
+-- On a list of strings
+clean_colnames([&quot;A.1&quot;, &quot;A-1&quot;])  -- [&quot;a_1&quot;, &quot;a_1_2&quot;]</code></pre>
+<p>Duplicate names after cleaning are disambiguated: the first
+occurrence stays unchanged, subsequent duplicates get <code>_2</code>,
+<code>_3</code>, etc.</p>
+<hr />
+<h2 id="creating-dataframes">Creating DataFrames</h2>
+<p>You can create DataFrames manually from a list of rows using the
+<code>dataframe()</code> function. Each row can be a Dict or a named
+List.</p>
+<pre class="t"><code>-- From a list of named Lists (idiomatic row constructor)
+df = dataframe([
+  [name: &quot;Alice&quot;, age: 30, score: 88.5],
+  [name: &quot;Bob&quot;,   age: 25, score: 92.0]
+])
+
+-- DataFrame(2 rows x 3 cols: [name, age, score])</code></pre>
+<p>This is particularly useful for: - Creating lookup tables - Writing
+test cases - Entering small datasets manually</p>
+<h2 id="saving-data">Saving Data</h2>
+<pre class="t"><code>-- Save a DataFrame to CSV
+write_csv(df, &quot;output.csv&quot;)
+
+-- Save with a custom separator
+write_csv(df, &quot;output.tsv&quot;, separator = &quot;\t&quot;)</code></pre>
+<hr />
+<h2 id="select-choose-columns">select() — Choose Columns</h2>
+<p>Select keeps only the specified columns:</p>
+<pre class="t"><code>df |&gt; select($name, $age)
+-- DataFrame(100 rows x 2 cols: [name, age])
+
+df |&gt; select($name)
+-- DataFrame(100 rows x 1 cols: [name])</code></pre>
+<p><strong>Error handling:</strong></p>
+<pre class="t"><code>df |&gt; select($nonexistent)
+-- Error(KeyError: &quot;Column(s) not found: nonexistent&quot;)
+
+df |&gt; select(42)
+-- Error(TypeError: &quot;select() expects $column syntax&quot;)</code></pre>
+<hr />
+<h2 id="filter-choose-rows">filter() — Choose Rows</h2>
+<p>Filter keeps rows where a predicate returns true:</p>
+<pre class="t"><code>df |&gt; filter($age &gt; 30)
+df |&gt; filter($dept == &quot;eng&quot;)
+
+-- Combine with pipe
+df |&gt; filter($dept == &quot;eng&quot;) |&gt; nrow
+-- 42 (number of engineers)</code></pre>
+<p>The NSE syntax auto-transforms <code>$age &gt; 30</code> into
+<code>\(row) row.age &gt; 30</code>.</p>
+<hr />
+<h2 id="mutate-add-or-transform-columns">mutate() — Add or Transform
+Columns</h2>
+<p>Mutate adds a new column or replaces an existing one:</p>
+<pre class="t"><code>-- Named-arg NSE syntax: $col = NSE expression
+df |&gt; mutate($age_plus_10 = $age + 10)
+df |&gt; mutate($bonus = $salary * 0.1)
+
+-- Positional NSE for column name with explicit lambda
+df |&gt; mutate($age_plus_10, \(row) row.age + 10)</code></pre>
+<p><strong>Error handling:</strong></p>
+<pre class="t"><code>mutate(42, $x, \(r) r)
+-- Error(TypeError: &quot;mutate() expects a DataFrame as first argument&quot;)
+
+df |&gt; mutate(42, \(r) r)
+-- Error(TypeError: &quot;mutate() expects $column = expr syntax&quot;)</code></pre>
+<hr />
+<h2 id="arrange-sort-rows">arrange() — Sort Rows</h2>
+<p>Arrange sorts a DataFrame by a column:</p>
+<pre class="t"><code>df |&gt; arrange($age)
+df |&gt; arrange($age, &quot;desc&quot;)</code></pre>
+<p><strong>Error handling:</strong></p>
+<pre class="t"><code>df |&gt; arrange($nonexistent)
+-- Error(KeyError: &quot;Column &#39;nonexistent&#39; not found in DataFrame&quot;)
+
+df |&gt; arrange($age, &quot;up&quot;)
+-- Error(ValueError: &quot;arrange() direction must be &quot;asc&quot; or &quot;desc&quot;&quot;)</code></pre>
+<hr />
+<h2 id="group_by-group-rows">group_by() — Group Rows</h2>
+<p>Group creates a grouped DataFrame for subsequent summarization:</p>
+<pre class="t"><code>df |&gt; group_by($dept)
+-- DataFrame(100 rows x 5 cols: [...]) grouped by [dept]</code></pre>
+<p>Grouping is a marker — it doesn’t change the data, but tells
+<code>summarize()</code> and <code>mutate()</code> how to split the
+computation.</p>
+<p><strong>Error handling:</strong></p>
+<pre class="t"><code>df |&gt; group_by($nonexistent)
+-- Error(KeyError: &quot;Column(s) not found: nonexistent&quot;)
+
+df |&gt; group_by(42)
+-- Error(TypeError: &quot;group_by() expects $column syntax&quot;)</code></pre>
+<hr />
+<h2 id="summarize-aggregate-data">summarize() — Aggregate Data</h2>
+<p>Summarize computes aggregate statistics:</p>
+<h3 id="ungrouped-summarize">Ungrouped Summarize</h3>
+<pre class="t"><code>-- Named-arg NSE syntax: $col = NSE aggregation
+df |&gt; summarize($total_score = sum($score))
+
+-- Positional NSE with lambda
+df |&gt; summarize($total_rows, \(d) nrow(d))
+-- DataFrame(1 rows x 1 cols: [total_rows])</code></pre>
+<h3 id="grouped-summarize">Grouped Summarize</h3>
+<pre class="t"><code>-- Named-arg NSE syntax
+df |&gt; group_by($dept)
+   |&gt; summarize($count = nrow($dept), $avg_score = mean($score))
+
+-- Positional NSE with lambda
+df |&gt; group_by($dept)
+   |&gt; summarize($count, \(g) nrow(g))
+-- DataFrame(N rows x 2 cols: [dept, count])
+-- One row per group</code></pre>
+<hr />
+<h2 id="reshaping-data-tidyr">Reshaping Data (tidyr)</h2>
+<p>T includes a robust implementation of tidying functions for reshaping
+your data.</p>
+<h3 id="pivot_longer-lengthen-data">pivot_longer() — Lengthen Data</h3>
+<p>Pivots data from wide to long format by consolidating multiple
+columns into name-value pairs.</p>
+<pre class="t"><code>-- Pivot age and score into a single &quot;measure&quot; column
+df |&gt; pivot_longer($age, $score, names_to = &quot;measure&quot;, values_to = &quot;val&quot;)
+
+-- Resulting columns: name, dept, salary, measure, val</code></pre>
+<h3 id="pivot_wider-widen-data">pivot_wider() — Widen Data</h3>
+<p>Pivots data from long to wide format by spreading unique values
+across multiple columns.</p>
+<pre class="t"><code>-- Widen by department names, using salary as values
+df |&gt; select($name, $dept, $salary)
+   |&gt; pivot_wider(names_from = $dept, values_from = $salary)</code></pre>
+<h3 id="separate-split-columns">separate() — Split Columns</h3>
+<p>Splits a single character column into multiple columns based on a
+delimiter.</p>
+<pre class="t"><code>-- Split a &quot;date&quot; column into &quot;year&quot;, &quot;month&quot;, &quot;day&quot;
+df |&gt; separate($date, into = [&quot;year&quot;, &quot;month&quot;, &quot;day&quot;], sep = &quot;-&quot;)</code></pre>
+<h3 id="unite-combine-columns">unite() — Combine Columns</h3>
+<p>Combines multiple columns into a single character column.</p>
+<pre class="t"><code>-- Combine year, month, day into a single &quot;full_date&quot; column
+df |&gt; unite(&quot;full_date&quot;, $year, $month, $day, sep = &quot;-&quot;)</code></pre>
+<hr />
+<h2 id="missing-value-handling">Missing Value Handling</h2>
+<h3 id="drop_na-remove-nas">drop_na() — Remove NAs</h3>
+<p>Removes rows containing missing values in the specified columns.</p>
+<pre class="t"><code>-- Remove rows where Ozone or Solar.R are NA
+df |&gt; drop_na($Ozone, $`Solar.R`) -- Dots in names require backticks</code></pre>
+<h3 id="replace_na-replace-nas">replace_na() — Replace NAs</h3>
+<p>Replaces missing values with a specific constant for each column.</p>
+<pre class="t"><code>-- Replace NAs in Ozone with 0
+df |&gt; replace_na([Ozone: 0, `Solar.R`: 0])</code></pre>
+<h3 id="fill-fill-gaps">fill() — Fill Gaps</h3>
+<p>Propagates non-missing values in a specific direction.</p>
+<pre class="t"><code>-- Fill missing categories downwards
+df |&gt; fill($category, .direction = &quot;down&quot;)</code></pre>
+<hr />
+<h2 id="completing-and-expanding-data">Completing and Expanding
+Data</h2>
+<h3 id="complete-make-implicit-missing-values-explicit">complete() —
+Make Implicit Missing Values Explicit</h3>
+<p>Ensures all combinations of the specified columns exist in the
+data.</p>
+<pre class="t"><code>-- Ensure every item has a row for every group
+df |&gt; complete($group, $item_id, fill = [value: 0])</code></pre>
+<h3 id="expand-generate-all-combinations">expand() — Generate All
+Combinations</h3>
+<p>Generates all unique combinations of variables found in a
+dataset.</p>
+<pre class="t"><code>-- Every combination of type and size, regardless of whether it exists in df
+df |&gt; expand($type, $size)</code></pre>
+<h3 id="crossing-cartesian-product">crossing() — Cartesian Product</h3>
+<p>Creates a new DataFrame from the cross-product of inputs.</p>
+<pre class="t"><code>-- Independent of any existing DataFrame
+crossing(x = [1, 2, 3], y = [&quot;a&quot;, &quot;b&quot;])</code></pre>
+<h3 id="nesting-restrict-combinations">nesting() — Restrict
+Combinations</h3>
+<p>Used inside <code>expand()</code> or <code>complete()</code> to only
+include combinations already present in the data.</p>
+<pre class="t"><code>-- Only combinations of type and size that actually appear in the data
+df |&gt; expand(nesting($type, $size))
+
+-- In complete(): use nesting() to restrict some columns to existing combinations
+df |&gt; complete($group, nesting($item_id, $item_name))</code></pre>
+<hr />
+<h2 id="factors-categorical-variables">Factors — Categorical
+Variables</h2>
+<p>Create categorical data with defined levels. Factors respect their
+level order when sorting, rather than alphabetical order.</p>
+<h3 id="factor-create-a-factor">factor() — Create a Factor</h3>
+<p>Creates a factor from a vector or column, optionally specifying
+levels.</p>
+<pre class="t"><code>-- Create a factor from a vector
+let f = factor([&quot;low&quot;, &quot;high&quot;, &quot;medium&quot;], levels = [&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;])
+
+-- Create a factor column using mutate
+df |&gt; mutate($size_fct = factor($size, levels = [&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;]))</code></pre>
+<h3 id="as_factor-coerce-to-factor">as_factor() — Coerce to Factor</h3>
+<p>Coerces a column to a factor (categorical) value, deriving levels
+from the unique values present.</p>
+<pre class="t"><code>df |&gt; mutate($category = as_factor($category))</code></pre>
+<h3 id="fct_infreq-reorder-levels-by-frequency">fct_infreq() — Reorder
+Levels by Frequency</h3>
+<p>Reorders factor levels in descending order of frequency.</p>
+<pre class="t"><code>df |&gt; mutate($category = fct_infreq($category))</code></pre>
+<hr />
+<h2 id="grouped-mutate-group-wise-transformations">Grouped Mutate —
+Group-Wise Transformations</h2>
+<p>When <code>mutate()</code> is applied to a grouped DataFrame, the
+function receives the group sub-DataFrame instead of a single row. The
+result is broadcast to every row in that group:</p>
+<pre class="t"><code>-- Add group size to each row
+df |&gt; group_by($dept)
+   |&gt; mutate($dept_size, \(g) nrow(g))
+
+-- Compute group mean and broadcast
+df |&gt; group_by($dept)
+   |&gt; mutate($mean_score, \(g) mean(g.score))</code></pre>
+<h3 id="common-patterns">Common Patterns</h3>
+<pre class="t"><code>-- Chain grouped mutate with filter
+df |&gt; group_by($dept)
+   |&gt; mutate($dept_size, \(g) nrow(g))
+   |&gt; filter($dept_size &gt; 2)
+-- Keep only rows from large departments</code></pre>
+<p><strong>Note:</strong> Grouped mutate preserves the group keys on the
+resulting DataFrame.</p>
+<hr />
+<h2 id="composing-verbs">Composing Verbs</h2>
+<p>The real power is in composing verbs with the pipe operator:</p>
+<h3 id="example-1-filter-select-and-count">Example 1: Filter, Select,
+and Count</h3>
+<pre class="t"><code>df |&gt; filter($age &gt; 25)
+   |&gt; select($name, $score)
+   |&gt; nrow</code></pre>
+<h3 id="example-2-mutate-and-filter">Example 2: Mutate and Filter</h3>
+<pre class="t"><code>df |&gt; mutate($senior, \(row) row.age &gt;= 30)
+   |&gt; filter($senior == true)
+   |&gt; nrow</code></pre>
+<h3 id="example-3-complete-tidy-pipeline">Example 3: Complete Tidy
+Pipeline</h3>
+<pre class="t"><code>df |&gt; filter($age &gt; 25)
+   |&gt; select($name, $score)
+   |&gt; arrange($score, &quot;desc&quot;)
+   |&gt; nrow</code></pre>
+<h3 id="example-4-group-and-summarize">Example 4: Group and
+Summarize</h3>
+<pre class="t"><code>result = df
+  |&gt; group_by($dept)
+  |&gt; summarize($count, \(g) nrow(g))
+
+result.dept    -- Vector of department names
+result.count   -- Vector of counts per department</code></pre>
+<hr />
+<h2 id="error-recovery-with-maybe-pipe">Error Recovery with
+Maybe-Pipe</h2>
+<p>When working with data pipelines, operations can fail (missing files,
+invalid data, etc.). The maybe-pipe <code>?|&gt;</code> forwards errors
+to a recovery function instead of short-circuiting:</p>
+<h3 id="pattern-1-default-value-on-error">Pattern 1: Default Value on
+Error</h3>
+<pre class="t"><code>-- Normal pipe short-circuits on error:
+error(&quot;missing&quot;) |&gt; \(x) x + 1   -- Error (never calls function)
+
+-- Maybe-pipe forwards the error:
+with_default = \(x) if (is_error(x)) 0 else x
+error(&quot;missing&quot;) ?|&gt; with_default  -- 0</code></pre>
+<h3 id="pattern-2-recovery-in-data-pipelines">Pattern 2: Recovery in
+Data Pipelines</h3>
+<pre class="t"><code>-- Provide fallback values for errors
+with_default = \(result) if (is_error(result)) 0 else result
+
+value1 = 5 ?|&gt; with_default                    -- 5
+value2 = error(&quot;missing data&quot;) ?|&gt; with_default -- 0</code></pre>
+<h3 id="pattern-3-mixed-pipe-chain">Pattern 3: Mixed Pipe Chain</h3>
+<pre class="t"><code>recovery = \(x) if (is_error(x)) 0 else x
+increment = \(x) x + 1
+
+-- ?|&gt; forwards error to recovery, then |&gt; continues normally
+error(&quot;fail&quot;) ?|&gt; recovery |&gt; increment   -- 1</code></pre>
+<hr />
+<h2 id="using-math-and-stats">Using Math and Stats</h2>
+<p>Math and stats functions work on DataFrame columns:</p>
+<pre class="t"><code>-- Column statistics
+mean(df.salary)          -- mean salary
+sd(df.salary)            -- salary standard deviation
+quantile(df.score, 0.5)  -- median score
+
+-- Column transformations
+sqrt(df.score)     -- Vector of sqrt values
+abs(df.balance)    -- Vector of absolute values</code></pre>
+<h3 id="handling-missing-values-in-statistics">Handling Missing Values
+in Statistics</h3>
+<p>By default, aggregation functions <strong>error</strong> when
+encountering NA values, forcing explicit handling. Use
+<code>na_rm = true</code> to skip NA values:</p>
+<pre class="t"><code>-- Default: errors on NA (forces explicit handling)
+mean(df.salary)                      -- Error if any salary is NA
+
+-- Skip NA values with na_rm = true
+mean(df.salary, na_rm = true)        -- mean of non-NA salaries
+sum(df.amount, na_rm = true)         -- sum of non-NA amounts
+sd(df.score, na_rm = true)           -- sd of non-NA scores
+quantile(df.age, 0.5, na_rm = true)  -- median of non-NA ages
+cor(df.x, df.y, na_rm = true)        -- correlation with pairwise deletion</code></pre>
+<h3 id="linear-regression">Linear Regression</h3>
+<pre class="t"><code>model = lm(data = df, formula = salary ~ age)
+model.slope       -- coefficient
+model.intercept   -- intercept
+model.r_squared   -- R² goodness of fit
+model.n           -- number of observations</code></pre>
+<hr />
+<h2 id="using-pipelines-for-analysis">Using Pipelines for Analysis</h2>
+<p>For complex analyses, wrap your workflow in a pipeline for structure
+and caching:</p>
+<pre class="t"><code>p = pipeline {
+  raw = read_csv(&quot;sales.csv&quot;)
+  
+  -- Clean
+  clean = raw |&gt; filter($amount &gt; 0)
+  
+  -- Analyze by region
+  by_region = clean
+    |&gt; group_by($region)
+    |&gt; summarize($total, \(g) sum(g.amount))
+  
+  -- Sort results
+  ranked = by_region |&gt; arrange($total, &quot;desc&quot;)
+}
+
+p.ranked  -- regions ranked by total sales</code></pre>
+<hr />
+<h2 id="introspection-with-explain">Introspection with explain()</h2>
+<p>Use <code>explain()</code> to get structured metadata about any
+value:</p>
+<pre class="t"><code>e = explain(df)
+e.kind        -- &quot;dataframe&quot;
+e.nrow        -- number of rows
+e.ncol        -- number of columns
+e.schema      -- column type information
+e.na_stats    -- NA counts per column
+e.example_rows -- sample rows</code></pre>
+<hr />
+<h2 id="window-functions">Window Functions</h2>
+<p>Window functions operate on vectors without collapsing them, useful
+for ranking, shifting, and cumulative calculations.</p>
+<h3 id="ranking">Ranking</h3>
+<pre class="t"><code>-- Rank values (ties broken by position)
+row_number([10, 30, 20])    -- Vector[1, 3, 2]
+
+-- Rank with ties (minimum rank, with gaps)
+min_rank([1, 1, 2, 2, 2])  -- Vector[1, 1, 3, 3, 3]
+
+-- Dense rank (no gaps)
+dense_rank([1, 1, 2, 2])   -- Vector[1, 1, 2, 2]
+
+-- Divide into n groups
+ntile([1, 2, 3, 4, 5, 6], 3)  -- Vector[1, 1, 2, 2, 3, 3]</code></pre>
+<h3 id="lag-and-lead">Lag and Lead</h3>
+<pre class="t"><code>-- Previous value (lagged by 1)
+lag([10, 20, 30, 40])       -- Vector[NA, 10, 20, 30]
+
+-- Next value (lead by 1)
+lead([10, 20, 30, 40])      -- Vector[20, 30, 40, NA]
+
+-- Custom offset
+lag([10, 20, 30, 40], 2)    -- Vector[NA, NA, 10, 20]</code></pre>
+<h3 id="cumulative-functions">Cumulative Functions</h3>
+<pre class="t"><code>cumsum([1, 2, 3, 4])        -- Vector[1, 3, 6, 10]
+cummin([5, 3, 4, 1])        -- Vector[5, 3, 3, 1]
+cummax([1, 3, 2, 5])        -- Vector[1, 3, 3, 5]
+cummean([2, 4, 6])           -- Vector[2.0, 3.0, 4.0]</code></pre>
+<h3 id="na-handling-in-window-functions">NA Handling in Window
+Functions</h3>
+<p>All window functions handle NA values gracefully:</p>
+<ul>
+<li><strong>Ranking functions</strong>: NA positions receive NA rank;
+ranks are computed only among non-NA values</li>
+<li><strong>Offset functions (lag/lead)</strong>: NA values pass through
+unchanged</li>
+<li><strong>Cumulative functions</strong>: NA propagates to all
+subsequent values (matching R behavior)</li>
+</ul>
+<pre class="t"><code>-- Ranking with NA
+row_number([3, NA, 1])      -- Vector[2, NA, 1]
+min_rank([3, NA, 1, 3])    -- Vector[2, NA, 1, 2]
+
+-- Cumulative with NA (propagation)
+cumsum([1, NA, 3])           -- Vector[1, NA, NA]
+cummax([1, NA, 5])           -- Vector[1, NA, NA]</code></pre>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you’ve mastered the core data manipulation verbs, explore
+specialized data types and advanced modeling in T:</p>
+<ol type="1">
+<li><strong><a href="handling_dates.html">Handling Dates</a></strong> —
+Learn how to parse, manipulate, and format temporal data.</li>
+<li><strong><a href="string_manipulation.html">String
+Manipulation</a></strong> — Explore powerful functions for text
+processing and regular expressions.</li>
+<li><strong><a href="factors.html">Factors</a></strong> — Understand
+categorical variables and level management.</li>
+<li><strong><a href="api-reference.html">API Reference</a></strong> —
+Explore the full set of functions available in T’s standard
+library.</li>
+</ol>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

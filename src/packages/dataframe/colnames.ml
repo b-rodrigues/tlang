@@ -1,0 +1,27 @@
+open Ast
+
+(*
+--# Get column names
+--#
+--# Returns a list of column names in the DataFrame.
+--#
+--# @name colnames
+--# @param df :: DataFrame The input DataFrame.
+--# @return :: List[String] The column names.
+--# @example
+--#   colnames(mtcars)
+--# @family dataframe
+--# @seealso ncol, nrow
+--# @export
+*)
+let register env =
+  Env.add "colnames"
+    (make_builtin ~name:"colnames" 1 (fun args _env ->
+      match args with
+      | [VDataFrame { arrow_table; _ }] ->
+          VList (List.map (fun name -> (None, VString name)) (Arrow_table.column_names arrow_table))
+      | [VNA _] -> Error.type_error "Function `colnames` expects a DataFrame, got NA."
+      | [_] -> Error.type_error "Function `colnames` expects a DataFrame."
+      | _ -> Error.arity_error_named "colnames" 1 (List.length args)
+    ))
+    env

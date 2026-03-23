@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - architecture</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language - architecture</h1>
+</header>
+<h1 id="t-language-architecture">T Language Architecture</h1>
+<p>Internal design and implementation of the T programming language.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#language-pipeline">Language Pipeline</a></li>
+<li><a href="#core-components">Core Components</a></li>
+<li><a href="#type-system">Type System</a></li>
+<li><a href="#execution-model">Execution Model</a></li>
+<li><a href="#multi-language-execution">Multi-Language
+Execution</a></li>
+<li><a href="#arrow-backend">Arrow Backend</a></li>
+<li><a href="#package-system">Package System</a></li>
+<li><a href="#design-decisions">Design Decisions</a></li>
+</ul>
+<hr />
+<h2 id="overview">Overview</h2>
+<p>T is a tree-walking interpreter built in OCaml. The architecture
+prioritizes:</p>
+<ol type="1">
+<li><strong>Simplicity</strong>: Straightforward implementation easy to
+understand and modify</li>
+<li><strong>Correctness</strong>: Explicit semantics with no hidden
+behavior</li>
+<li><strong>Reproducibility</strong>: Deterministic execution and
+Nix-managed dependencies</li>
+<li><strong>Extensibility</strong>: Modular package system for adding
+functionality</li>
+</ol>
+<p><strong>Tech Stack:</strong> - <strong>Host Language</strong>: OCaml
+4.14+ - <strong>Parser Generator</strong>: Menhir (LR parser) -
+<strong>Lexer</strong>: ocamllex - <strong>Build System</strong>: Dune -
+<strong>Data Backend</strong>: Apache Arrow C GLib (via FFI) -
+<strong>Package Manager</strong>: Nix</p>
+<hr />
+<h2 id="language-pipeline">Language Pipeline</h2>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                     Source Code (.t file)                    │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│ LEXER (lexer.mll)                                            │
+│ • Tokenizes input (IDENT, INT, FLOAT, STRING, keywords)     │
+│ • Handles operators (|&gt;, ?|&gt;, ~)                             │
+│ • Supports multiline pipes                                   │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│ PARSER (parser.mly)                                          │
+│ • Builds AST from token stream                               │
+│ • Operator precedence (prec/assoc directives)                │
+│ • NSE for DataFrame verbs                                    │
+│ • Formula syntax (y ~ x)                                     │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│ AST (ast.ml)                                                 │
+│ • expr type: represents all expressions                      │
+│ • value type: runtime values                                 │
+│ • Includes types for errors, NA, pipelines, intents          │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│ EVALUATOR (eval.ml)                                          │
+│ • Tree-walking interpreter                                   │
+│ • Environment-based variable lookup                          │
+│ • Closures capture enclosing environment                     │
+│ • Conditional pipe short-circuits on errors                  │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│ STANDARD LIBRARY (packages/)                                 │
+│ • One file per function                                      │
+│ • Mix of T (.t) and OCaml (.ml) implementations              │
+│ • Auto-loaded at startup                                     │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ↓
+┌─────────────────────────────────────────────────────────────┐
+│ ARROW BACKEND (arrow/)                                       │
+│ • FFI to Arrow C GLib                                        │
+│ • Columnar storage for DataFrames                            │
+│ • Zero-copy column access                                    │
+│ • Vectorized compute kernels                                 │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+<hr />
+<h2 id="core-components">Core Components</h2>
+<h3 id="lexer-srclexer.mll">1. Lexer (<code>src/lexer.mll</code>)</h3>
+<p><strong>Purpose</strong>: Convert source text into tokens.</p>
+<p><strong>Key Features</strong>: - Keyword recognition
+(<code>if</code>, <code>else</code>, <code>function</code>,
+<code>pipeline</code>, etc.) - Operators: arithmetic (<code>+</code>,
+<code>-</code>, <code>*</code>, <code>/</code>), comparison
+(<code>==</code>, <code>&lt;</code>, <code>&gt;</code>), logical
+(<code>and</code>, <code>or</code>, <code>not</code>) - Pipe operators:
+<code>|&gt;</code>, <code>?|&gt;</code>, <code>~</code> (formula) -
+Multiline support: Pipes can span multiple lines - String literals with
+escape sequences - Comments: <code>--</code> to end of line</p>
+<p><strong>Example</strong>:</p>
+<pre class="t"><code>df |&gt; filter($age &gt; 30)</code></pre>
+<p>Tokens:</p>
+<pre><code>IDENT(&quot;df&quot;) PIPE IDENT(&quot;filter&quot;) LPAREN LAMBDA ...</code></pre>
+<h3 id="parser-srcparser.mly">2. Parser
+(<code>src/parser.mly</code>)</h3>
+<p><strong>Purpose</strong>: Build abstract syntax tree (AST) from
+tokens.</p>
+<p><strong>Grammar Highlights</strong>: - Expression-oriented:
+Everything is an expression (conditionals, blocks, etc.) - Operator
+precedence: <code>*</code> / <code>/</code> bind tighter than
+<code>+</code> / <code>-</code> - Pipe associativity: Left-associative
+(<code>a |&gt; f |&gt; g</code> = <code>(a |&gt; f) |&gt; g</code>) -
+List comprehensions: <code>[expr for x in xs if pred]</code> - Named
+arguments: <code>f(a = 1, b = 2)</code></p>
+<p><strong>Precedence</strong> (low to high): 1. <code>|&gt;</code>,
+<code>?|&gt;</code> (pipes) 2. <code>or</code> 3. <code>and</code> 4.
+<code>not</code> 5. <code>==</code>, <code>!=</code>, <code>&lt;</code>,
+<code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> 6.
+<code>+</code>, <code>-</code> 7. <code>*</code>, <code>/</code>,
+<code>%</code> 8. Unary <code>-</code> 9. Function application</p>
+<p><strong>Special Constructs</strong>: - <strong>Pipelines</strong>:
+<code>pipeline { node1 = expr1; node2 = expr2 }</code> -
+<strong>Intents</strong>: <code>intent { field: value }</code> -
+<strong>Formulas</strong>: <code>response ~ predictor</code> -
+<strong>Lambdas</strong>: <code>\(x) expr</code> or
+<code>function(x) expr</code></p>
+<h3 id="ast-srcast.ml">3. AST (<code>src/ast.ml</code>)</h3>
+<p><strong>Purpose</strong>: Define data structures for the abstract
+syntax tree and runtime values.</p>
+<p><strong>Key Types</strong>:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* Expression AST *)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> expr =</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  | <span class="dt">Int</span> <span class="kw">of</span> <span class="dt">int</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  | Float <span class="kw">of</span> <span class="dt">float</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  | <span class="dt">Bool</span> <span class="kw">of</span> <span class="dt">bool</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  | <span class="dt">String</span> <span class="kw">of</span> <span class="dt">string</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  | Ident <span class="kw">of</span> <span class="dt">string</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  | <span class="dt">List</span> <span class="kw">of</span> expr <span class="dt">list</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  | Dict <span class="kw">of</span> (<span class="dt">string</span> * expr) <span class="dt">list</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  | Lambda <span class="kw">of</span> <span class="dt">string</span> <span class="dt">list</span> * expr</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  | App <span class="kw">of</span> expr * expr <span class="dt">list</span>  <span class="co">(* Function application *)</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  | BinOp <span class="kw">of</span> binop * expr * expr</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>  | UnOp <span class="kw">of</span> unop * expr</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  | If <span class="kw">of</span> expr * expr * expr</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  | Let <span class="kw">of</span> <span class="dt">string</span> * expr</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  | Pipe <span class="kw">of</span> expr * expr  <span class="co">(* |&gt; *)</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  | MaybePipe <span class="kw">of</span> expr * expr  <span class="co">(* ?|&gt; *)</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>  | Pipeline <span class="kw">of</span> (<span class="dt">string</span> * expr) <span class="dt">list</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  | Intent <span class="kw">of</span> (<span class="dt">string</span> * expr) <span class="dt">list</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  | Formula <span class="kw">of</span> expr * expr  <span class="co">(* y ~ x *)</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  | ListComp <span class="kw">of</span> expr * <span class="dt">string</span> * expr * expr <span class="dt">option</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co">(* Runtime Values *)</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> value =</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>  | VInt <span class="kw">of</span> <span class="dt">int</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  | VFloat <span class="kw">of</span> <span class="dt">float</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  | VBool <span class="kw">of</span> <span class="dt">bool</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>  | VString <span class="kw">of</span> <span class="dt">string</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  | VList <span class="kw">of</span> value <span class="dt">list</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  | VDict <span class="kw">of</span> (<span class="dt">string</span>, value) <span class="dt">Hashtbl</span>.t</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  | VFunction <span class="kw">of</span> <span class="dt">string</span> <span class="dt">list</span> * expr * environment</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  | VDataFrame <span class="kw">of</span> dataframe</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  | VVector <span class="kw">of</span> vector</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>  | VNA <span class="kw">of</span> na_type</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>  | VError <span class="kw">of</span> error_info</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>  | VPipeline <span class="kw">of</span> pipeline_data</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>  | VIntent <span class="kw">of</span> intent_data</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span></code></pre></div>
+<p><strong>Design Notes</strong>: - Expressions are immutable;
+evaluation produces new values - Functions capture environment as
+closures - Errors and NA are first-class values, not exceptions -
+DataFrames hold Arrow table handles (or fallback lists)</p>
+<h3 id="evaluator-srceval.ml">4. Evaluator
+(<code>src/eval.ml</code>)</h3>
+<p><strong>Purpose</strong>: Execute AST nodes and produce values.</p>
+<p><strong>Execution Strategy</strong>: Tree-walking interpreter with
+environment-based variable lookup.</p>
+<p><strong>Key Functions</strong>:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* Main evaluation function *)</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> eval : environment -&gt; expr -&gt; value</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">(* Apply function to arguments *)</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> apply_function : value -&gt; value <span class="dt">list</span> -&gt; value</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co">(* Built-in operator evaluation *)</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> eval_binop : binop -&gt; value -&gt; value -&gt; value</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="kw">val</span> eval_unop : unop -&gt; value -&gt; value</span></code></pre></div>
+<p><strong>Environment Model</strong>: - Environments are hash tables:
+<code>string -&gt; value</code> - Nested scopes: Functions create child
+environments - Closures: Functions capture their defining environment -
+Immutability: Variables can’t be reassigned (shadowing allowed)</p>
+<p><strong>Pipe Evaluation</strong>:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* Conditional pipe |&gt; *)</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">match</span> eval env left <span class="kw">with</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>| VError _ <span class="kw">as</span> err -&gt; err  <span class="co">(* Short-circuit *)</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>| value -&gt; apply_function (eval env right) [value]</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co">(* Maybe-pipe ?|&gt; *)</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> value = eval env left <span class="kw">in</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>apply_function (eval env right) [value]  <span class="co">(* Always forward *)</span></span></code></pre></div>
+<p><strong>Error Handling</strong>: - Errors are <code>VError</code>
+values, not OCaml exceptions - Propagate through pipelines (unless
+caught) - Actionable error messages with context</p>
+<h3 id="repl-srcrepl.ml">5. REPL (<code>src/repl.ml</code>)</h3>
+<p><strong>Purpose</strong>: Interactive read-eval-print loop.</p>
+<p><strong>Features</strong>: - Persistent environment across
+evaluations - Pretty-printing of results - Multiline input support -
+Error recovery (don’t crash on errors) - Standard library auto-loaded at
+startup</p>
+<p><strong>Flow</strong>:</p>
+<pre><code>1. Read input
+2. Lex &amp; parse → AST
+3. Evaluate → value
+4. Pretty-print value
+5. Update environment (for assignments)
+6. Loop</code></pre>
+<hr />
+<h2 id="type-system">Type System</h2>
+<p>T is <strong>dynamically typed</strong> with runtime type
+checking.</p>
+<h3 id="value-types">Value Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>OCaml Representation</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Int</code></td>
+<td><code>VInt of int</code></td>
+<td>OCaml native int (63-bit on 64-bit systems)</td>
+</tr>
+<tr>
+<td><code>Float</code></td>
+<td><code>VFloat of float</code></td>
+<td>OCaml float (IEEE 754 double)</td>
+</tr>
+<tr>
+<td><code>Bool</code></td>
+<td><code>VBool of bool</code></td>
+<td>OCaml bool</td>
+</tr>
+<tr>
+<td><code>String</code></td>
+<td><code>VString of string</code></td>
+<td>OCaml string</td>
+</tr>
+<tr>
+<td><code>List</code></td>
+<td><code>VList of value list</code></td>
+<td>Heterogeneous lists</td>
+</tr>
+<tr>
+<td><code>Dict</code></td>
+<td><code>VDict of (string, value) Hashtbl.t</code></td>
+<td>Mutable hash table</td>
+</tr>
+<tr>
+<td><code>Function</code></td>
+<td><code>VFunction of params * body * env</code></td>
+<td>Closure</td>
+</tr>
+<tr>
+<td><code>DataFrame</code></td>
+<td><code>VDataFrame of dataframe</code></td>
+<td>Arrow table or fallback</td>
+</tr>
+<tr>
+<td><code>Vector</code></td>
+<td><code>VVector of vector</code></td>
+<td>Typed array (Int/Float/Bool/String)</td>
+</tr>
+<tr>
+<td><code>NA</code></td>
+<td><code>VNA of na_type</code></td>
+<td>Typed missing value</td>
+</tr>
+<tr>
+<td><code>Error</code></td>
+<td><code>VError of error_info</code></td>
+<td>Error with code, message, context</td>
+</tr>
+</tbody>
+</table>
+<h3 id="type-checking">Type Checking</h3>
+<p><strong>Runtime Dispatch</strong>: Functions check argument types at
+call time.</p>
+<p>Example (addition):</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">match</span> (left, right) <span class="kw">with</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>| (VInt a, VInt b) -&gt; VInt (a + b)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>| (VFloat a, VFloat b) -&gt; VFloat (a +. b)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>| (VInt a, VFloat b) -&gt; VFloat (<span class="dt">float_of_int</span> a +. b)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>| (VFloat a, VInt b) -&gt; VFloat (a +. <span class="dt">float_of_int</span> b)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>| _ -&gt; type_error <span class="st">&quot;Cannot add {type1} and {type2}&quot;</span></span></code></pre></div>
+<p><strong>No Static Types</strong>: T does not have a static type
+system. All type errors are discovered at runtime.</p>
+<hr />
+<h2 id="execution-model">Execution Model</h2>
+<h3 id="variable-binding">Variable Binding</h3>
+<pre class="t"><code>x = 42</code></pre>
+<p>Evaluates the right-hand side, binds result to <code>x</code> in the
+current environment.</p>
+<p><strong>Immutability</strong>: Once bound, <code>x</code> cannot be
+reassigned. Shadowing in nested scopes is allowed:</p>
+<pre class="t"><code>x = 1
+let_block = {
+  x = 2  -- Shadows outer x
+  x + 10  -- 12
+}
+x  -- Still 1</code></pre>
+<h3 id="function-application">Function Application</h3>
+<pre class="t"><code>f = \(a, b) a + b
+f(3, 5)  -- 8</code></pre>
+<ol type="1">
+<li>Evaluate function expression →
+<code>VFunction(["a", "b"], body, env)</code></li>
+<li>Evaluate arguments → <code>[VInt 3, VInt 5]</code></li>
+<li>Create new environment extending function’s captured
+environment</li>
+<li>Bind parameters: <code>a → 3</code>, <code>b → 5</code></li>
+<li>Evaluate body in new environment → <code>VInt 8</code></li>
+</ol>
+<h3 id="closures">Closures</h3>
+<p>Functions capture their defining environment:</p>
+<pre class="t"><code>make_adder = \(n) \(x) x + n
+add10 = make_adder(10)
+add10(5)  -- 15</code></pre>
+<p>The inner lambda <code>\(x) x + n</code> captures the environment
+where <code>n = 10</code>.</p>
+<h3 id="pipeline-execution">Pipeline Execution</h3>
+<p>Pipelines are DAGs of named computations:</p>
+<pre class="t"><code>p = pipeline {
+  x = 10
+  y = 20
+  sum = x + y
+}</code></pre>
+<p><strong>Execution</strong>: 1. Parse nodes →
+<code>[("x", Int 10), ("y", Int 20), ("sum", BinOp(Add, Ident "x", Ident "y"))]</code>
+2. Topological sort (dependency order): <code>x</code>, <code>y</code>,
+<code>sum</code> 3. Evaluate each node, binding results:
+<code>x → 10</code>, <code>y → 20</code>, <code>sum → 30</code> 4. Store
+in <code>VPipeline</code> with results table 5. Access via
+<code>p.sum</code> → <code>30</code></p>
+<p><strong>Cycle Detection</strong>: Circular dependencies produce an
+error:</p>
+<pre class="t"><code>pipeline { a = b; b = a }  -- Error: Circular dependency</code></pre>
+<h2 id="multi-language-execution">Multi-Language Execution</h2>
+<p>T leverages Nix to orchestrate computation across multiple runtimes.
+When a node is configured with <code>runtime = "R"</code> or
+<code>runtime = "Python"</code>, the following architecture is used:</p>
+<ol type="1">
+<li><strong>Isolation</strong>: Each node runs in a dedicated Nix
+derivation with its own language environment.</li>
+<li><strong>Environment Injection</strong>: Project dependencies from
+<code>tproject.toml</code> are automatically satisfied in the
+sandbox.</li>
+<li><strong>Data Interchange</strong>:
+<ul>
+<li><strong>DataFrames</strong>: Passed via Apache Arrow IPC for
+zero-copy performance.</li>
+<li><strong>Models</strong>: Passed via PMML (Predictive Model Markup
+Language) for high-fidelity cross-language persistence.</li>
+<li><strong>Scalars</strong>: Passed via JSON or T’s native binary
+format.</li>
+</ul></li>
+<li><strong>Code Injection</strong>: T automatically injects a bridge
+layer into the R/Python scripts to handle reading dependencies and
+writing the node result using the specified serializer.</li>
+</ol>
+<p>For direct user-facing Arrow file workflows outside pipelines, T also
+exposes:</p>
+<ul>
+<li><code>read_arrow(path)</code> for Arrow IPC input</li>
+<li><code>write_arrow(dataframe, path)</code> for Arrow IPC output</li>
+</ul>
+<p>That means Arrow is used both as an internal storage backend and as
+an interchange format at the language boundary.</p>
+<hr />
+<h2 id="arrow-backend">Arrow Backend</h2>
+<p>T uses <strong>Apache Arrow</strong> for high-performance columnar
+data.</p>
+<h3 id="architecture">Architecture</h3>
+<pre><code>┌─────────────────────┐
+│ T DataFrame Value   │
+│ (VDataFrame)        │
+└──────────┬──────────┘
+           │
+           ↓
+┌─────────────────────┐      ┌──────────────────────┐
+│ Native Arrow Handle │ OR   │ Fallback (OCaml list)│
+│ (arrow::Table*)     │      │ List of rows/columns │
+└──────────┬──────────┘      └──────────────────────┘
+           │
+           ↓
+┌─────────────────────────────────────────┐
+│ Arrow C GLib FFI (src/arrow/)           │
+│ • garrow_table_new_from_csv()           │
+│ • garrow_table_get_column()             │
+│ • garrow_array_get_value()              │
+│ • garrow_compute_*() kernels            │
+└─────────────────────────────────────────┘
+           │
+           ↓
+┌─────────────────────────────────────────┐
+│ Apache Arrow C++ (libarrow.so)          │
+│ • Columnar storage                       │
+│ • SIMD-accelerated compute               │
+│ • Zero-copy slicing                      │
+└─────────────────────────────────────────┘</code></pre>
+<h3 id="ffi-bindings">FFI Bindings</h3>
+<p>Located in <code>src/arrow/</code>: - <strong>arrow_ffi.ml</strong>:
+OCaml wrappers for C functions - <strong>C stubs</strong>: Interface to
+Arrow C GLib</p>
+<p><strong>Examples</strong>:</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">external</span> read_csv_native : <span class="dt">string</span> -&gt; arrow_table = <span class="st">&quot;caml_arrow_read_csv&quot;</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">external</span> read_ipc_native : <span class="dt">string</span> -&gt; arrow_table = <span class="st">&quot;caml_arrow_read_ipc&quot;</span></span></code></pre></div>
+<p>The repository currently exposes both a backend-native CSV reader and
+Arrow IPC read/write support. The public <code>read_csv()</code> builtin
+still layers OCaml CSV parsing on top of Arrow-backed table
+construction, while <code>read_arrow</code> / <code>write_arrow</code>
+expose Arrow IPC directly.</p>
+<h3 id="dual-path-operations">Dual-Path Operations</h3>
+<p>Every DataFrame operation has two paths:</p>
+<ol type="1">
+<li><strong>Native Arrow Path</strong> (when <code>native_handle</code>
+is available):
+<ul>
+<li>Use Arrow Compute kernels via FFI</li>
+<li>Zero-copy operations</li>
+<li>Vectorized SIMD execution</li>
+<li>Arrow IPC round-trips preserve the native storage model well</li>
+</ul></li>
+<li><strong>Fallback Path</strong> (when no native handle):
+<ul>
+<li>Pure OCaml implementation</li>
+<li>Works on converted list-of-records</li>
+<li>Slower but always available</li>
+<li>Still produces correct user-visible behavior when a schema cannot
+stay native</li>
+</ul></li>
+</ol>
+<p><strong>Example</strong> (<code>filter</code> operation):</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">match</span> df.native_handle <span class="kw">with</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>| <span class="dt">Some</span> handle -&gt;</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">(* Use Arrow filter kernel via FFI *)</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    arrow_compute_filter handle predicate</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>| <span class="dt">None</span> -&gt;</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">(* Fallback: OCaml list filter *)</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">List</span>.filter predicate df.rows</span></code></pre></div>
+<h3 id="column-access">Column Access</h3>
+<pre class="t"><code>df.age</code></pre>
+<p>Returns a <code>VVector</code>: - If native handle: Zero-copy view
+into Arrow column - If fallback: Extracted OCaml list</p>
+<hr />
+<h2 id="package-system">Package System</h2>
+<p>Standard library functions are organized into packages.</p>
+<h3 id="structure">Structure</h3>
+<pre><code>src/packages/
+├── base/          # Errors, NA, assertions
+├── core/          # Functional utilities
+├── math/          # Mathematical functions
+├── stats/         # Statistical functions
+├── dataframe/     # CSV I/O, DataFrame ops
+├── colcraft/      # Data verbs, window functions
+├── pipeline/      # Pipeline introspection
+└── explain/       # Debugging tools</code></pre>
+<p><strong>One File Per Function</strong>: Each function lives in its
+own file (e.g., <code>mean.ml</code>, <code>filter.ml</code>).</p>
+<h3 id="implementation-options">Implementation Options</h3>
+<ol type="1">
+<li><p><strong>OCaml (<code>.ml</code>)</strong>: Performance-critical
+or complex logic</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* src/packages/stats/mean.ml *)</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> mean values na_rm =</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* Implementation *)</span></span></code></pre></div></li>
+<li><p><strong>T (<code>.t</code>)</strong>: Simple functions defined in
+T itself</p>
+<pre class="t"><code>-- src/packages/core/double.t
+double = \(x) x * 2</code></pre></li>
+</ol>
+<h3 id="auto-loading">Auto-Loading</h3>
+<p>All packages are loaded at REPL/script startup:</p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* In repl.ml or main.ml *)</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> initial_env = Environment.create () <span class="kw">in</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>Package_loader.load_all_packages initial_env</span></code></pre></div>
+<p>Functions are registered in the global environment by name.</p>
+<hr />
+<h2 id="design-decisions">Design Decisions</h2>
+<h3 id="why-tree-walking-interpreter">Why Tree-Walking Interpreter?</h3>
+<p><strong>Pros</strong>: - Simple to implement and modify - Direct AST
+representation - Easy debugging - Fast development iteration</p>
+<p><strong>Cons</strong>: - Slower than bytecode or JIT - No
+ahead-of-time optimization</p>
+<p><strong>Decision</strong>: For alpha, simplicity and correctness
+outweigh raw performance. Future versions may add bytecode
+compilation.</p>
+<h3 id="why-ocaml">Why OCaml?</h3>
+<p><strong>Pros</strong>: - Excellent parser/compiler tooling (Menhir,
+ocamllex) - Strong type system for host language (prevents bugs) - Good
+FFI story (C bindings for Arrow) - Fast native compilation - Functional
+paradigm matches T’s design</p>
+<p><strong>Cons</strong>: - Smaller ecosystem than Python/JavaScript -
+Steeper learning curve for contributors</p>
+<p><strong>Decision</strong>: OCaml’s strengths in language
+implementation outweigh ecosystem concerns.</p>
+<h3 id="why-apache-arrow">Why Apache Arrow?</h3>
+<p><strong>Pros</strong>: - Industry-standard columnar format -
+Zero-copy interoperability (Parquet, R, Python, Julia) -
+High-performance compute kernels - Cross-language support</p>
+<p><strong>Cons</strong>: - Large dependency - C++ dependency management
+complexity (mitigated by Nix) - FFI maintenance burden</p>
+<p><strong>Decision</strong>: Arrow’s performance and interoperability
+are critical for data analysis. Nix ensures reproducible builds.</p>
+<h3 id="why-nix">Why Nix?</h3>
+<p><strong>Pros</strong>: - Perfect reproducibility (same inputs → same
+outputs) - Declarative dependency management - Isolated development
+environments - Cross-platform consistency</p>
+<p><strong>Cons</strong>: - Steep learning curve - Longer initial build
+times - Smaller user base than Docker</p>
+<p><strong>Decision</strong>: Reproducibility is a core value; Nix is
+the best tool for this goal.</p>
+<h3 id="why-explicit-na-handling">Why Explicit NA Handling?</h3>
+<p><strong>Pros</strong>: - No silent data loss - Forces user to think
+about missingness - Predictable behavior</p>
+<p><strong>Cons</strong>: - More verbose than automatic propagation -
+Requires <code>na_rm</code> parameters everywhere</p>
+<p><strong>Decision</strong>: Explicit beats implicit. R’s silent NA
+propagation leads to subtle bugs; T forces intentionality.</p>
+<h3 id="why-no-static-types">Why No Static Types?</h3>
+<p><strong>Pros</strong>: - Faster prototyping - Simpler user experience
+(no type annotations) - Easier REPL workflow</p>
+<p><strong>Cons</strong>: - Runtime errors instead of compile-time
+errors - Less safety for large codebases</p>
+<p><strong>Decision</strong>: For alpha, dynamic typing matches T’s
+exploratory, REPL-first workflow. Static typing may be added in future
+versions as an optional layer.</p>
+<hr />
+<h2 id="performance-characteristics">Performance Characteristics</h2>
+<h3 id="asymptotic-complexity">Asymptotic Complexity</h3>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Complexity</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Variable lookup</td>
+<td>O(1)</td>
+<td>Hash table</td>
+</tr>
+<tr>
+<td>Function call</td>
+<td>O(n) params</td>
+<td>Environment copy</td>
+</tr>
+<tr>
+<td>List access</td>
+<td>O(n)</td>
+<td>Linked list</td>
+</tr>
+<tr>
+<td>DataFrame filter (native)</td>
+<td>O(n)</td>
+<td>Arrow kernel</td>
+</tr>
+<tr>
+<td>DataFrame filter (fallback)</td>
+<td>O(n)</td>
+<td>OCaml iteration</td>
+</tr>
+<tr>
+<td>Pipeline topological sort</td>
+<td>O(V + E)</td>
+<td>DAG traversal</td>
+</tr>
+</tbody>
+</table>
+<h3 id="memory-model">Memory Model</h3>
+<ul>
+<li><strong>Values</strong>: Immutable, shared via references</li>
+<li><strong>DataFrames</strong>: Arrow columnar storage (shared
+buffers)</li>
+<li><strong>Closures</strong>: Capture full environment (can be
+large)</li>
+</ul>
+<h3 id="bottlenecks">Bottlenecks</h3>
+<ol type="1">
+<li><strong>Function calls</strong>: Environment copying is
+expensive</li>
+<li><strong>Fallback DataFrame ops</strong>: Pure OCaml slower than
+Arrow</li>
+<li><strong>List operations</strong>: Linked lists have poor cache
+locality</li>
+</ol>
+<h3 id="optimization-opportunities">Optimization Opportunities</h3>
+<ul>
+<li>Bytecode compilation</li>
+<li>JIT for hot paths</li>
+<li>Persistent data structures (fewer copies)</li>
+<li>Lazy evaluation for pipelines</li>
+<li>Arrow Compute for more operations</li>
+</ul>
+<hr />
+<h2 id="testing-strategy">Testing Strategy</h2>
+<h3 id="test-types">Test Types</h3>
+<ol type="1">
+<li><strong>Unit Tests</strong>: OCaml functions in
+<code>tests/</code></li>
+<li><strong>Golden Tests</strong>: Compare T output against R (in
+<code>tests/</code>)</li>
+<li><strong>Example Tests</strong>: Runnable examples in
+<code>examples/</code></li>
+<li><strong>Property Tests</strong>: QuickCheck-style (future)</li>
+</ol>
+<h3 id="golden-test-workflow">Golden Test Workflow</h3>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run T program</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe <span class="op">&lt;</span> tests/mean_test.t <span class="op">&gt;</span> t_output.txt</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Run equivalent R script</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> tests/mean_test.R <span class="op">&gt;</span> r_output.txt</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="fu">diff</span> t_output.txt r_output.txt</span></code></pre></div>
+<h3 id="testing-philosophy">Testing Philosophy</h3>
+<ul>
+<li><strong>Correctness over coverage</strong>: Focus on semantics, not
+LOC coverage</li>
+<li><strong>Cross-validation</strong>: Compare against established tools
+(R, Python)</li>
+<li><strong>Real-world data</strong>: Use actual CSV files, not just
+synthetic data</li>
+</ul>
+<hr />
+<h2 id="future-architecture-directions">Future Architecture
+Directions</h2>
+<h3 id="bytecode-compilation">Bytecode Compilation</h3>
+<p>Replace tree-walking interpreter with bytecode VM: - Compile AST →
+bytecode - Stack-based VM for execution - Faster loops and function
+calls</p>
+<h3 id="type-inference">Type Inference</h3>
+<p>Add optional static typing: - Hindley-Milner type inference - Gradual
+typing (mix static/dynamic) - IDE support via Language Server
+Protocol</p>
+<h3 id="distributed-execution">Distributed Execution</h3>
+<p>Pipeline nodes run on clusters: - Serialize pipelines to remote
+workers - Arrow Flight for zero-copy data transfer - Fault tolerance via
+re-execution</p>
+<h3 id="gpu-acceleration">GPU Acceleration</h3>
+<p>Arrow Compute on CUDA: - Offload aggregations to GPU - Vectorized
+operations on GPU - Requires cuDF or similar</p>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<p>Now that you understand T’s internal architecture, explore the full
+API or learn how to contribute to the project:</p>
+<ol type="1">
+<li><strong><a href="api-reference.html">API Reference</a></strong> —
+Exhaustive guide to T’s standard library.</li>
+<li><strong><a href="contributing.html">Contributing Guide</a></strong> —
+Learn how to contribute to T development.</li>
+<li><strong><a href="development.html">Development Guide</a></strong> —
+Technical details for setting up a local build.</li>
+<li><strong><a href="reproducibility.html">Reproducibility
+Guide</a></strong> — T’s commitment to reproducible research.</li>
+</ol>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

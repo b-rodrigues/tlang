@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - error-handling</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language - error-handling</h1>
+</header>
+<h1 id="error-handling-in-t">Error Handling in T</h1>
+<p>Comprehensive guide to error handling, recovery patterns, and
+debugging in T.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#error-philosophy">Error Philosophy</a></li>
+<li><a href="#error-types">Error Types</a></li>
+<li><a href="#error-as-values">Error as Values</a></li>
+<li><a href="#pipe-operators-and-errors">Pipe Operators and
+Errors</a></li>
+<li><a href="#error-recovery-patterns">Error Recovery Patterns</a></li>
+<li><a href="#common-errors">Common Errors</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+</ul>
+<hr />
+<h2 id="error-philosophy">Error Philosophy</h2>
+<p>T treats errors as <strong>first-class values</strong>, not
+exceptions. This design enables:</p>
+<ol type="1">
+<li><strong>Explicit Error Handling</strong>: Errors don’t crash
+programs; they flow through pipelines</li>
+<li><strong>Railway-Oriented Programming</strong>: Success and failure
+paths are explicit</li>
+<li><strong>Composable Recovery</strong>: Error handling logic can be
+pipelined like data</li>
+<li><strong>Predictable Behavior</strong>: No hidden control flow from
+exceptions</li>
+</ol>
+<p><strong>Key Principle</strong>: Errors are data, and data can be
+transformed, inspected, and recovered from.</p>
+<hr />
+<h2 id="error-types">Error Types</h2>
+<p>T has several categories of errors:</p>
+<h3 id="type-errors">1. Type Errors</h3>
+<p>Occur when operations receive incompatible types:</p>
+<pre class="t"><code>1 + &quot;hello&quot;
+-- Error(TypeError: Cannot add Int and String)
+
+[1, 2] * 3
+-- Error(TypeError: Cannot multiply List and Int. Hint: Use map(\(x) x * 3))</code></pre>
+<h3 id="name-errors">2. Name Errors</h3>
+<p>Occur when referencing undefined variables or functions:</p>
+<pre class="t"><code>undefined_var
+-- Error(NameError: &#39;undefined_var&#39; is not defined)
+
+prnt(42)
+-- Error(NameError: &#39;prnt&#39; is not defined. Did you mean &#39;print&#39;?)</code></pre>
+<p><strong>Features</strong>: - Levenshtein distance-based suggestions -
+Searches current scope and standard library - Case-insensitive
+suggestions</p>
+<h3 id="value-errors">3. Value Errors</h3>
+<p>Occur when values are invalid for the operation:</p>
+<pre class="t"><code>sqrt(-1)
+-- Error(ValueError: Cannot compute square root of negative number)
+
+quantile([1, 2, 3], 1.5)
+-- Error(ValueError: Quantile must be between 0 and 1)</code></pre>
+<h3 id="arity-errors">4. Arity Errors</h3>
+<p>Occur when function calls have wrong number of arguments:</p>
+<pre class="t"><code>add = \(a, b) a + b
+add(1)
+-- Error(ArityError: Expected 2 arguments (a, b) but got 1)
+
+add(1, 2, 3)
+-- Error(ArityError: Expected 2 arguments (a, b) but got 3)</code></pre>
+<p><strong>Features</strong>: - Shows expected parameter names - Shows
+actual argument count - Suggests correct usage</p>
+<h3 id="division-by-zero">5. Division by Zero</h3>
+<pre class="t"><code>1 / 0
+-- Error(DivisionByZero: Division by zero)
+
+10 % 0
+-- Error(DivisionByZero: Modulo by zero)</code></pre>
+<h3 id="na-errors">6. NA Errors</h3>
+<p>Occur when NA values are encountered without explicit handling:</p>
+<pre class="t"><code>mean([1, NA, 3])
+-- Error(NAError: NA value encountered. Use na_rm = true to skip NA values)
+
+1 + NA
+-- Error(TypeError: Operation on NA value)</code></pre>
+<h3 id="assertion-errors">7. Assertion Errors</h3>
+<p>Occur when assertions fail:</p>
+<pre class="t"><code>assert(2 + 2 == 5)
+-- Error(AssertionError: Assertion failed)
+
+assert(false, &quot;Custom message&quot;)
+-- Error(AssertionError: Custom message)</code></pre>
+<h3 id="validation-errors">8. Validation Errors</h3>
+<p>Custom errors for data validation:</p>
+<pre class="t"><code>validate_age = \(age) 
+  if (age &lt; 0 or age &gt; 150)
+    error(&quot;ValidationError&quot;, &quot;Age must be between 0 and 150&quot;)
+  else
+    age
+
+validate_age(-5)
+-- Error(ValidationError: Age must be between 0 and 150)</code></pre>
+<hr />
+<h2 id="error-as-values">Error as Values</h2>
+<h3 id="creating-errors">Creating Errors</h3>
+<pre class="t"><code>-- Generic error
+err = error(&quot;Something went wrong&quot;)
+
+-- Error with code
+err = error(&quot;NotFoundError&quot;, &quot;File not found&quot;)
+
+-- Conditional errors
+result = if (value &lt; 0)
+  error(&quot;ValueError&quot;, &quot;Value must be positive&quot;)
+else
+  value</code></pre>
+<h3 id="inspecting-errors">Inspecting Errors</h3>
+<pre class="t"><code>result = 1 / 0
+
+-- Check if error
+is_error(result)        -- true
+
+-- Get error code
+error_code(result)      -- &quot;DivisionByZero&quot;
+
+-- Get error message
+error_message(result)   -- &quot;Division by zero&quot;
+
+-- Get additional context
+error_context(result)   -- Stack trace or additional info</code></pre>
+<h3 id="error-propagation">Error Propagation</h3>
+<p>Errors flow through computations until caught:</p>
+<pre class="t"><code>step1 = 1 / 0                    -- Error
+step2 = step1 + 10               -- Still error (no computation)
+step3 = step2 * 2                -- Still error
+
+is_error(step3)                  -- true
+error_message(step3)             -- &quot;Division by zero&quot;</code></pre>
+<hr />
+<h2 id="pipe-operators-and-errors">Pipe Operators and Errors</h2>
+<h3 id="conditional-pipe">Conditional Pipe (<code>|&gt;</code>)</h3>
+<p><strong>Short-circuits</strong> on errors:</p>
+<pre class="t"><code>-- Success path
+5 |&gt; \(x) x * 2 |&gt; \(x) x + 1   -- 11
+
+-- Error short-circuits
+error(&quot;fail&quot;) |&gt; \(x) x * 2 |&gt; \(x) x + 1
+-- Error(GenericError: fail)
+-- The functions are never called</code></pre>
+<p><strong>Use case</strong>: Normal data pipelines where errors should
+stop processing.</p>
+<pre class="t"><code>df = read_csv(&quot;data.csv&quot;)
+  |&gt; filter($age &gt; 0)
+  |&gt; select($name, $age)
+  |&gt; arrange($age)
+-- If read_csv fails, rest of pipeline is skipped</code></pre>
+<h3 id="maybe-pipe">Maybe-Pipe (<code>?|&gt;</code>)</h3>
+<p><strong>Always forwards</strong> values, including errors:</p>
+<pre class="t"><code>-- Success path (same as |&gt;)
+5 ?|&gt; \(x) x * 2                 -- 10
+
+-- Error is forwarded to function
+error(&quot;fail&quot;) ?|&gt; \(x) 
+  if (is_error(x)) 0 else x      -- 0 (recovered!)</code></pre>
+<p><strong>Use case</strong>: Error recovery, fallback values,
+logging.</p>
+<pre class="t"><code>-- Recovery pattern
+result = risky_operation()
+  ?|&gt; \(x) if (is_error(x)) {
+    print(&quot;Error occurred: &quot; + error_message(x))
+    default_value
+  } else {
+    x
+  }
+
+-- Chain recovery with normal processing
+error(&quot;fail&quot;)
+  ?|&gt; \(x) if (is_error(x)) 0 else x  -- Recovery
+  |&gt; \(x) x + 1                        -- Normal processing (1)</code></pre>
+<hr />
+<h2 id="error-recovery-patterns">Error Recovery Patterns</h2>
+<h3 id="pattern-1-default-values">Pattern 1: Default Values</h3>
+<pre class="t"><code>-- Return default on error
+safe_divide = \(a, b)
+  (a / b) ?|&gt; \(result)
+    if (is_error(result)) 0.0 else result
+
+safe_divide(10, 0)   -- 0.0 (instead of error)
+safe_divide(10, 2)   -- 5.0</code></pre>
+<h3 id="pattern-2-fallback-sources">Pattern 2: Fallback Sources</h3>
+<pre class="t"><code>-- Try multiple data sources
+data = read_csv(&quot;primary.csv&quot;)
+  ?|&gt; \(x) if (is_error(x)) read_csv(&quot;backup.csv&quot;) else x
+  ?|&gt; \(x) if (is_error(x)) read_csv(&quot;fallback.csv&quot;) else x
+
+-- If all fail, handle gracefully
+final_data = data ?|&gt; \(x)
+  if (is_error(x)) {
+    print(&quot;All data sources failed&quot;)
+    empty_dataframe()  -- Return empty structure
+  } else {
+    x
+  }</code></pre>
+<h3 id="pattern-3-validation-and-recovery">Pattern 3: Validation and
+Recovery</h3>
+<pre class="t"><code>-- Validate, recover if invalid
+process_value = \(v)
+  if (v &lt; 0)
+    error(&quot;ValueError&quot;, &quot;Negative value&quot;)
+  else if (is_na(v))
+    error(&quot;NAError&quot;, &quot;NA value&quot;)
+  else
+    v * 2
+
+-- Recover from validation errors
+safe_process = \(v)
+  process_value(v) ?|&gt; \(result)
+    if (is_error(result)) {
+      print(&quot;Invalid value: &quot; + error_message(result))
+      0  -- Default
+    } else {
+      result
+    }
+
+safe_process(-5)   -- Prints error, returns 0
+safe_process(10)   -- Returns 20</code></pre>
+<h3 id="pattern-4-error-logging">Pattern 4: Error Logging</h3>
+<pre class="t"><code>-- Log errors and continue
+logged_operation = risky_function()
+  ?|&gt; \(x) if (is_error(x)) {
+    write_log(&quot;Error in risky_function: &quot; + error_message(x))
+    x  -- Pass error along
+  } else {
+    x
+  }
+
+-- Or convert to success after logging
+logged_with_default = logged_operation
+  ?|&gt; \(x) if (is_error(x)) default_value else x</code></pre>
+<h3 id="pattern-5-partial-success">Pattern 5: Partial Success</h3>
+<pre class="t"><code>-- Process list, collecting errors
+process_many = \(items)
+  map(items, \(item)
+    process_item(item) ?|&gt; \(result)
+      if (is_error(result))
+        {success: false, error: error_message(result)}
+      else
+        {success: true, value: result}
+  )
+
+results = process_many([1, -2, 3, 0])
+-- [
+--   {success: true, value: 2},
+--   {success: false, error: &quot;Negative value&quot;},
+--   {success: true, value: 6},
+--   {success: false, error: &quot;Division by zero&quot;}
+-- ]
+
+-- Filter successes
+successes = filter(results, \(r) r.success)</code></pre>
+<h3 id="pattern-6-error-transformation">Pattern 6: Error
+Transformation</h3>
+<pre class="t"><code>-- Transform errors into more specific types
+enhance_error = \(e)
+  if (is_error(e)) {
+    code = error_code(e)
+    msg = error_message(e)
+    
+    if (code == &quot;DivisionByZero&quot;)
+      error(&quot;MathError&quot;, &quot;Math operation failed: &quot; + msg)
+    else if (code == &quot;NAError&quot;)
+      error(&quot;DataQualityError&quot;, &quot;Data quality issue: &quot; + msg)
+    else
+      e
+  } else {
+    e
+  }
+
+risky_calc() ?|&gt; enhance_error</code></pre>
+<hr />
+<h2 id="common-errors">Common Errors</h2>
+<h3 id="na-handling-errors">NA Handling Errors</h3>
+<p><strong>Problem</strong>: Forgot to handle NA values</p>
+<pre class="t"><code>mean([1, 2, NA, 4])
+-- Error(NAError: NA value encountered)</code></pre>
+<p><strong>Solution</strong>: Use <code>na_rm = true</code></p>
+<pre class="t"><code>mean([1, 2, NA, 4], na_rm = true)  -- 2.33...</code></pre>
+<h3 id="type-mismatch-errors">Type Mismatch Errors</h3>
+<p><strong>Problem</strong>: Mixing incompatible types</p>
+<pre class="t"><code>&quot;Age: &quot; + 25
+-- Error(TypeError: Cannot add String and Int)</code></pre>
+<p><strong>Solution</strong>: Use separate print statements (alpha does
+not have string conversion yet)</p>
+<pre class="t"><code>-- Workaround for output:
+print(&quot;Age: &quot;)
+print(25)
+
+-- Or use R/Python for formatting if needed</code></pre>
+<h3 id="empty-collection-errors">Empty Collection Errors</h3>
+<p><strong>Problem</strong>: Operating on empty data</p>
+<pre class="t"><code>mean([])
+-- Error(ValueError: Cannot compute mean of empty list)</code></pre>
+<p><strong>Solution</strong>: Check before operating</p>
+<pre class="t"><code>safe_mean = \(data)
+  if (length(data) == 0)
+    error(&quot;ValueError&quot;, &quot;Empty data&quot;)
+  else
+    mean(data)
+
+-- Or use default
+safe_mean_with_default = \(data)
+  if (length(data) == 0) 0.0 else mean(data)</code></pre>
+<h3 id="division-by-zero-1">Division by Zero</h3>
+<p><strong>Problem</strong>: Dividing by zero</p>
+<pre class="t"><code>revenue_per_customer = total_revenue / customer_count
+-- Error if customer_count = 0</code></pre>
+<p><strong>Solution</strong>: Guard condition</p>
+<pre class="t"><code>revenue_per_customer = if (customer_count == 0)
+  0.0
+else
+  total_revenue / customer_count</code></pre>
+<h3 id="missing-column-errors">Missing Column Errors</h3>
+<p><strong>Problem</strong>: Referencing non-existent column</p>
+<pre class="t"><code>df.nonexistent_column
+-- Error(NameError: Column &#39;nonexistent_column&#39; not found)</code></pre>
+<p><strong>Solution</strong>: Check columns first</p>
+<pre class="t"><code>cols = colnames(df)
+has_column = length(filter(cols, \(c) c == &quot;age&quot;)) &gt; 0
+
+if (has_column)
+  df.age
+else
+  error(&quot;ColumnError&quot;, &quot;Required column &#39;age&#39; not found&quot;)</code></pre>
+<hr />
+<h2 id="best-practices">Best Practices</h2>
+<h3 id="fail-fast-fail-explicitly">1. Fail Fast, Fail Explicitly</h3>
+<p><strong>Good</strong>: Validate inputs early</p>
+<pre class="t"><code>process_data = \(df)
+  if (nrow(df) == 0)
+    error(&quot;ValidationError&quot;, &quot;Empty dataset&quot;)
+  else if (not has_required_columns(df))
+    error(&quot;ValidationError&quot;, &quot;Missing required columns&quot;)
+  else
+    -- Process data</code></pre>
+<p><strong>Bad</strong>: Silent failures</p>
+<pre class="t"><code>process_data = \(df)
+  -- Assumes data is valid, may fail later
+  df |&gt; filter(...) |&gt; summarize(...)</code></pre>
+<h3 id="use-descriptive-error-messages">2. Use Descriptive Error
+Messages</h3>
+<p><strong>Good</strong>: Clear, actionable messages</p>
+<pre class="t"><code>if (age &lt; 0 or age &gt; 150)
+  error(&quot;ValidationError&quot;, &quot;Age must be between 0 and 150, got: &quot; + str_string(age))</code></pre>
+<p><strong>Bad</strong>: Vague messages</p>
+<pre class="t"><code>if (age &lt; 0 or age &gt; 150)
+  error(&quot;Invalid age&quot;)</code></pre>
+<h3 id="choose-the-right-pipe">3. Choose the Right Pipe</h3>
+<p><strong>Use <code>|&gt;</code></strong> for normal success paths:</p>
+<pre class="t"><code>df |&gt; filter($active) |&gt; select($name)</code></pre>
+<p><strong>Use <code>?|&gt;</code></strong> for error recovery:</p>
+<pre class="t"><code>load_data() ?|&gt; \(x) if (is_error(x)) backup_data() else x</code></pre>
+<h3 id="document-error-conditions">4. Document Error Conditions</h3>
+<pre class="t"><code>-- Computes mean, errors if list is empty or contains NA
+-- Use na_rm = true to skip NA values
+my_mean = \(values, na_rm)
+  if (length(values) == 0)
+    error(&quot;ValueError&quot;, &quot;Empty list&quot;)
+  else
+    -- Implementation</code></pre>
+<h3 id="test-error-cases">5. Test Error Cases</h3>
+<pre class="t"><code>-- Test successful case
+assert(safe_divide(10, 2) == 5.0)
+
+-- Test error recovery
+assert(safe_divide(10, 0) == 0.0)
+assert(is_error(risky_function(-1)))</code></pre>
+<h3 id="log-errors-in-production">6. Log Errors in Production</h3>
+<pre class="t"><code>production_pipeline = pipeline {
+  data = read_csv(&quot;data.csv&quot;) ?|&gt; \(x) if (is_error(x)) {
+    write_log(&quot;CRITICAL: Failed to load data: &quot; + error_message(x))
+    x
+  } else x
+  
+  -- Rest of pipeline with error handling
+}</code></pre>
+<h3 id="avoid-deep-nesting">7. Avoid Deep Nesting</h3>
+<p><strong>Bad</strong>: Deeply nested error checks</p>
+<pre class="t"><code>result = if (is_error(step1))
+  handle_step1_error(step1)
+else
+  if (is_error(step2))
+    handle_step2_error(step2)
+  else
+    if (is_error(step3))
+      handle_step3_error(step3)
+    else
+      success_value</code></pre>
+<p><strong>Good</strong>: Use maybe-pipe for flat composition</p>
+<pre class="t"><code>result = step1
+  ?|&gt; \(x) if (is_error(x)) handle_step1_error(x) else step2(x)
+  ?|&gt; \(x) if (is_error(x)) handle_step2_error(x) else step3(x)
+  ?|&gt; \(x) if (is_error(x)) handle_step3_error(x) else x</code></pre>
+<hr />
+<h2 id="debugging-errors">Debugging Errors</h2>
+<h3 id="print-error-details">Print Error Details</h3>
+<pre class="t"><code>result = risky_operation()
+
+if (is_error(result)) {
+  print(&quot;Error code: &quot; + error_code(result))
+  print(&quot;Error message: &quot; + error_message(result))
+  print(&quot;Error context: &quot; + error_context(result))
+}</code></pre>
+<h3 id="trace-error-source">Trace Error Source</h3>
+<pre class="t"><code>-- Add markers in pipeline
+step1 = operation1() ?|&gt; \(x) if (is_error(x)) {
+  print(&quot;Error at step1&quot;)
+  x
+} else x
+
+step2 = operation2(step1) ?|&gt; \(x) if (is_error(x)) {
+  print(&quot;Error at step2&quot;)
+  x
+} else x</code></pre>
+<h3 id="assert-invariants">Assert Invariants</h3>
+<pre class="t"><code>-- Use assertions to catch logic errors
+result = computation()
+assert(result &gt; 0, &quot;Result should be positive&quot;)
+assert(length(result_list) == expected_length, &quot;Length mismatch&quot;)</code></pre>
+<hr />
+<p><strong>See Also</strong>: - <a href="examples.html">Examples</a> —
+Error handling patterns in practice - <a href="api-reference.html">API
+Reference</a> — Error-related functions - <a
+href="troubleshooting.html">Troubleshooting</a> — Common issues and
+solutions</p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

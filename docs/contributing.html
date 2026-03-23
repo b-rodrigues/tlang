@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - contributing</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<header id="title-block-header">
+<h1 class="title">T Programming Language - contributing</h1>
+</header>
+<h1 id="contributing-to-t">Contributing to T</h1>
+<p>Thank you for your interest in contributing to T! This guide will
+help you get started.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#code-of-ethics">Code of Ethics</a></li>
+<li><a href="#how-can-i-contribute">How Can I Contribute?</a></li>
+<li><a href="#development-setup">Development Setup</a></li>
+<li><a href="#project-structure">Project Structure</a></li>
+<li><a href="#coding-standards">Coding Standards</a></li>
+<li><a href="#testing-requirements">Testing Requirements</a></li>
+<li><a href="#submitting-changes">Submitting Changes</a></li>
+<li><a href="#review-process">Review Process</a></li>
+</ul>
+<hr />
+<h2 id="code-of-ethics">Code of Ethics</h2>
+<p>This project follows a <a href="code-of-ethics.html">Code of Ethics</a>
+adapted from the SQLite project. Please review it to understand the
+detailed ethical guidelines and expected behavior.</p>
+<hr />
+<h2 id="how-can-i-contribute">How Can I Contribute?</h2>
+<h3 id="reporting-bugs">Reporting Bugs</h3>
+<p><strong>Before submitting</strong>, check if the issue already exists
+in <a href="https://github.com/b-rodrigues/tlang/issues">GitHub
+Issues</a>.</p>
+<p><strong>When submitting</strong>: 1. Use a clear, descriptive title
+2. Describe the exact steps to reproduce 3. Provide sample code and data
+(if applicable) 4. Include your environment (OS, Nix version, OCaml
+version) 5. Attach error messages and stack traces</p>
+<p><strong>Example</strong>:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>**Bug**: <span class="in">`mean()`</span> returns incorrect result for large floats</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>**Steps**:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Start REPL</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Run: <span class="in">`mean([1e10, 1e10, 1e10])`</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Expected: <span class="in">`1e10`</span>, Got: <span class="in">`9.99999e9`</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>**Environment**:</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>OS: Ubuntu 22.04</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Nix: 2.13.3</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>OCaml: 4.14.1</span></code></pre></div>
+<h3 id="suggesting-features">Suggesting Features</h3>
+<p><strong>Before suggesting</strong>, consider: - Is it aligned with
+T’s design goals (reproducibility, explicitness, data analysis)? - Is it
+too broad or general-purpose? - Could it be a library instead of core
+language feature?</p>
+<p><strong>When suggesting</strong>: 1. Clearly describe the problem it
+solves 2. Provide concrete examples 3. Discuss alternatives</p>
+<h3 id="contributing-code">Contributing Code</h3>
+<p>We welcome: - Bug fixes - New standard library functions -
+Performance improvements - Documentation improvements - Test coverage
+expansion</p>
+<p><strong>Good first issues</strong> are tagged with
+<code>good-first-issue</code> in GitHub.</p>
+<h3 id="improving-documentation">Improving Documentation</h3>
+<p>Documentation contributions are highly valued: - Fix typos and
+grammatical errors - Add examples to existing docs - Write tutorials for
+common workflows - Improve API reference clarity</p>
+<hr />
+<h2 id="development-setup">Development Setup</h2>
+<p>See the <a href="development.html">Development Guide</a> for detailed
+setup instructions.</p>
+<p><strong>Quick Start</strong>:</p>
+<ol type="1">
+<li><p><strong>Install Nix</strong>: Follow the <a
+href="nix-installation.html">Nix Installation Guide</a>.</p></li>
+<li><p><strong>Clone and Build</strong>:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/b-rodrigues/tlang.git</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> tlang</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest</span></code></pre></div></li>
+</ol>
+<hr />
+<h2 id="project-structure">Project Structure</h2>
+<pre><code>tlang/
+├── src/
+│   ├── ast.ml              # AST definition
+│   ├── lexer.mll           # Lexer (ocamllex)
+│   ├── parser.mly          # Parser (Menhir)
+│   ├── eval.ml             # Evaluator
+│   ├── repl.ml             # REPL implementation
+│   ├── arrow/              # Arrow FFI bindings
+│   │   ├── arrow_ffi.ml
+│   │   └── arrow_stubs.c
+│   ├── ffi/                # Other FFI utilities
+│   └── packages/           # Standard library
+│       ├── base/           # Errors, NA, assertions
+│       ├── core/           # Functional utilities
+│       ├── math/           # Math functions
+│       ├── stats/          # Statistics
+│       ├── dataframe/      # DataFrame operations
+│       ├── colcraft/       # Data verbs
+│       ├── pipeline/       # Pipeline introspection
+│       └── explain/        # Debugging tools
+├── tests/                  # Test suite
+│   ├── unit/               # Unit tests
+│   ├── golden/             # Golden tests (T vs R)
+│   └── examples/           # Example programs
+├── docs/                   # Documentation
+├── examples/               # Example T programs
+├── scripts/                # Development scripts
+├── flake.nix               # Nix flake configuration
+├── dune-project            # Dune configuration
+└── Makefile                # Convenience targets</code></pre>
+<hr />
+<h2 id="coding-standards">Coding Standards</h2>
+<h3 id="ocaml-style">OCaml Style</h3>
+<p>Follow standard OCaml conventions:</p>
+<p><strong>Naming</strong>: - <code>snake_case</code> for functions and
+variables - <code>PascalCase</code> for modules and types -
+<code>SCREAMING_CASE</code> for constants</p>
+<p><strong>Formatting</strong>:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* Use ocamlformat for automatic formatting *)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> eval env expr =</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">match</span> expr <span class="kw">with</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  | <span class="dt">Int</span> n -&gt; VInt n</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  | Float f -&gt; VFloat f</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  | Ident name -&gt; Environment.lookup env name</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  | BinOp (op, left, right) -&gt;</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>      <span class="kw">let</span> v_left = eval env left <span class="kw">in</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>      <span class="kw">let</span> v_right = eval env right <span class="kw">in</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>      eval_binop op v_left v_right</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  | _ -&gt; <span class="dt">failwith</span> <span class="st">&quot;Not implemented&quot;</span></span></code></pre></div>
+<p><strong>Comments</strong>: - Use <code>(* OCaml comments *)</code>
+for implementation notes - Document complex logic - Explain “why” not
+“what”</p>
+<p><strong>Pattern Matching</strong>: - Exhaustively match all cases -
+Use <code>_</code> for catch-all only when intentional - Avoid deeply
+nested matches (extract functions)</p>
+<h3 id="t-language-style">T Language Style</h3>
+<p><strong>Example programs</strong> should demonstrate best
+practices:</p>
+<pre class="t"><code>-- Good: Clear variable names, explicit NA handling
+customers = read_csv(&quot;data.csv&quot;, clean_colnames = true)
+avg_age = mean(customers.age, na_rm = true)
+
+-- Bad: Cryptic names, implicit NA behavior
+c = read_csv(&quot;data.csv&quot;)
+a = mean(c.age)  -- Errors if NA present</code></pre>
+<p><strong>Documentation</strong>: - Include docstrings for new
+functions - Provide usage examples - Document parameters and return
+values</p>
+<hr />
+<h2 id="testing-requirements">Testing Requirements</h2>
+<h3 id="unit-tests">Unit Tests</h3>
+<p>Located in <code>tests/unit/</code>.</p>
+<p><strong>Example</strong> (<code>tests/unit/test_mean.ml</code>):</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> test_mean_basic () =</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> <span class="dt">result</span> = Stats.mean [VInt <span class="dv">1</span>; VInt <span class="dv">2</span>; VInt <span class="dv">3</span>] <span class="kw">false</span> <span class="kw">in</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">assert</span> (<span class="dt">result</span> = VFloat <span class="fl">2.0</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> test_mean_with_na () =</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> <span class="dt">result</span> = Stats.mean [VInt <span class="dv">1</span>; VNA NAInt; VInt <span class="dv">3</span>] <span class="kw">true</span> <span class="kw">in</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">assert</span> (<span class="dt">result</span> = VFloat <span class="fl">2.0</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> tests = [</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  (<span class="st">&quot;mean_basic&quot;</span>, test_mean_basic);</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  (<span class="st">&quot;mean_with_na&quot;</span>, test_mean_with_na);</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div>
+<h3 id="golden-tests">Golden Tests</h3>
+<p>Located in <code>tests/golden/</code>.</p>
+<p>Compare T output against R:</p>
+<p><strong>T Program</strong> (<code>tests/golden/mean.t</code>):</p>
+<pre class="t"><code>print(mean([1, 2, 3, 4, 5]))</code></pre>
+<p><strong>R Script</strong> (<code>tests/golden/mean.R</code>):</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">mean</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>)), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
+<p><strong>Run</strong>:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe <span class="op">&lt;</span> tests/golden/mean.t <span class="op">&gt;</span> t_output.txt</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> tests/golden/mean.R <span class="op">&gt;</span> r_output.txt</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">diff</span> t_output.txt r_output.txt</span></code></pre></div>
+<h3 id="test-coverage">Test Coverage</h3>
+<p><strong>Required</strong>: - All new functions must have unit tests -
+Bug fixes must include regression tests - Performance claims must
+include benchmarks</p>
+<p><strong>Recommended</strong>: - Test edge cases (empty lists, NA
+values, errors) - Test cross-platform behavior (Linux, macOS) - Test
+integration with existing features</p>
+<h3 id="running-tests">Running Tests</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># All tests</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Specific test</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest tests/unit/test_mean.ml</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Verbose output</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest <span class="at">--verbose</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Watch mode (re-run on changes)</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest <span class="at">--watch</span></span></code></pre></div>
+<hr />
+<h2 id="submitting-changes">Submitting Changes</h2>
+<h3 id="workflow">Workflow</h3>
+<ol type="1">
+<li><p><strong>Fork</strong> the repository</p></li>
+<li><p><strong>Clone</strong> your fork:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/YOUR_USERNAME/tlang.git</span></code></pre></div></li>
+<li><p><strong>Create a branch</strong>:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout <span class="at">-b</span> feature/my-feature</span></code></pre></div></li>
+<li><p><strong>Make changes</strong>:</p>
+<ul>
+<li>Write code</li>
+<li>Add tests</li>
+<li>Update documentation</li>
+</ul></li>
+<li><p><strong>Test</strong>:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest</span></code></pre></div></li>
+<li><p><strong>Commit</strong>:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add .</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">&quot;Add feature: description&quot;</span></span></code></pre></div></li>
+<li><p><strong>Push</strong>:</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> push origin feature/my-feature</span></code></pre></div></li>
+<li><p><strong>Open a Pull Request</strong> on GitHub</p></li>
+</ol>
+<h3 id="commit-messages">Commit Messages</h3>
+<p>Follow conventional commit format:</p>
+<pre><code>&lt;type&gt;(&lt;scope&gt;): &lt;subject&gt;
+
+&lt;body&gt;
+
+&lt;footer&gt;</code></pre>
+<p><strong>Types</strong>: - <code>feat</code>: New feature -
+<code>fix</code>: Bug fix - <code>docs</code>: Documentation only -
+<code>style</code>: Formatting, no code change - <code>refactor</code>:
+Code refactor - <code>test</code>: Add or fix tests -
+<code>chore</code>: Build, CI, tooling</p>
+<p><strong>Examples</strong>:</p>
+<pre><code>feat(stats): Add median function
+
+Implements median via quantile(0.5). Supports na_rm parameter.
+
+Closes #42</code></pre>
+<pre><code>fix(eval): Fix closure environment capture
+
+Closures were capturing global env instead of local env.
+This caused incorrect behavior in nested functions.</code></pre>
+<h3 id="pull-request-guidelines">Pull Request Guidelines</h3>
+<p><strong>Title</strong>: Clear and descriptive</p>
+<pre><code>Add median function to stats package</code></pre>
+<p><strong>Description</strong>: Include: - What changed and why -
+Related issue numbers (<code>Fixes #42</code>, <code>Closes #17</code>)
+- Testing done - Screenshots (for UI/output changes)</p>
+<p><strong>Example</strong>:</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Summary</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>Adds <span class="in">`median()`</span> function to stats package.</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="fu">## Changes</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Implement median as <span class="in">`quantile(data, 0.5)`</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Add unit tests</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Update API reference documentation</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## Testing</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Unit tests pass</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Golden test against R&#39;s <span class="in">`median()`</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Tested with NA values (na_rm parameter)</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>Fixes #42</span></code></pre></div>
+<p><strong>Checklist</strong>: - [ ] Code follows style guidelines - [ ]
+Tests added/updated - [ ] Documentation updated - [ ] All tests pass - [
+] Commit messages are clear</p>
+<hr />
+<h2 id="review-process">Review Process</h2>
+<h3 id="what-reviewers-look-for">What Reviewers Look For</h3>
+<ol type="1">
+<li><strong>Correctness</strong>: Does it work as intended?</li>
+<li><strong>Testing</strong>: Are changes adequately tested?</li>
+<li><strong>Style</strong>: Does it follow project conventions?</li>
+<li><strong>Documentation</strong>: Are changes documented?</li>
+<li><strong>Scope</strong>: Is the change focused and minimal?</li>
+<li><strong>Backward Compatibility</strong>: Does it break existing
+code?</li>
+</ol>
+<h3 id="addressing-feedback">Addressing Feedback</h3>
+<ul>
+<li>Be responsive to comments</li>
+<li>Don’t take criticism personally</li>
+<li>Ask questions if feedback is unclear</li>
+<li>Make requested changes promptly</li>
+<li>Mark conversations as resolved when addressed</li>
+</ul>
+<h3 id="approval-and-merge">Approval and Merge</h3>
+<ul>
+<li><strong>1 approval required</strong> for most changes</li>
+<li><strong>2 approvals required</strong> for breaking changes or core
+features</li>
+<li>Maintainers will merge once approved</li>
+<li>Squash-merge is used to keep history clean</li>
+</ul>
+<hr />
+<h2 id="adding-new-standard-library-functions">Adding New Standard
+Library Functions</h2>
+<h3 id="process">Process</h3>
+<ol type="1">
+<li><p><strong>Choose a package</strong>: <code>base</code>,
+<code>core</code>, <code>math</code>, <code>stats</code>,
+<code>dataframe</code>, <code>colcraft</code>, <code>pipeline</code>, or
+<code>explain</code></p></li>
+<li><p><strong>Create function file</strong>:
+<code>src/packages/&lt;package&gt;/&lt;function_name&gt;.ml</code> or
+<code>.t</code></p></li>
+<li><p><strong>Implement function</strong>:</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* src/packages/stats/median.ml *)</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> median values na_rm =</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  Stats.quantile values <span class="fl">0.5</span> na_rm</span></code></pre></div></li>
+<li><p><strong>Register in package loader</strong> (if needed)</p></li>
+<li><p><strong>Add tests</strong>:
+<code>tests/unit/test_median.ml</code></p></li>
+<li><p><strong>Update docs</strong>:
+<code>docs/api-reference.md</code></p></li>
+<li><p><strong>Add example</strong>:
+<code>examples/median_example.t</code></p></li>
+</ol>
+<h3 id="function-signature-guidelines">Function Signature
+Guidelines</h3>
+<p><strong>Parameters</strong>: - Required parameters first - Optional
+parameters (e.g., <code>na_rm</code>) last - Use named arguments for
+clarity</p>
+<p><strong>Return values</strong>: - Return values, not side effects
+(when possible) - Use <code>VError</code> for errors, not OCaml
+exceptions - Document return type in comments</p>
+<p><strong>Error handling</strong>:</p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* Good: Return VError *)</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> <span class="dt">List</span>.length values = <span class="dv">0</span> <span class="kw">then</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  VError { code = <span class="st">&quot;ValueError&quot;</span>; message = <span class="st">&quot;Empty list&quot;</span>; ... }</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="kw">else</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* Compute result *)</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="co">(* Bad: Raise exception *)</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> <span class="dt">List</span>.length values = <span class="dv">0</span> <span class="kw">then</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">failwith</span> <span class="st">&quot;Empty list&quot;</span></span></code></pre></div>
+<hr />
+<h2 id="getting-help">Getting Help</h2>
+<h3 id="communication-channels">Communication Channels</h3>
+<ul>
+<li><strong>GitHub Issues</strong>: Bug reports and feature
+requests</li>
+<li><strong>GitHub Discussions</strong>: General questions, ideas,
+show-and-tell</li>
+<li><strong>Pull Requests</strong>: Code review and technical
+discussion</li>
+</ul>
+<h3 id="asking-good-questions">Asking Good Questions</h3>
+<p>Include: - What you’re trying to do - What you’ve tried - Specific
+error messages - Minimal reproducible example - Your environment (OS,
+versions)</p>
+<p><strong>Example</strong>:</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>I&#39;m trying to add a new window function <span class="in">`row_min()`</span> but getting a type error:</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>Error: This expression has type &#39;a list but an expression was expected of type Vector.t</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>Code:</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a><span class="in">```ocaml</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="in">let row_min values =</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="in">  (* ... *)</span></span></code></pre></div>
+<p>I’ve looked at <code>row_number.ml</code> but can’t figure out where
+the conversion happens.</p>
+<p>Environment: Ubuntu 22.04, OCaml 4.14.1 ```</p>
+<hr />
+<h2 id="recognition">Recognition</h2>
+<p>Contributors are recognized in: - GitHub contributor graph - Release
+notes for significant contributions - <code>CONTRIBUTORS.md</code> file
+(coming soon)</p>
+<hr />
+<h2 id="license">License</h2>
+<p>By contributing, you agree that your contributions will be licensed
+under the <a href="../LICENSE">EUPL v1.2</a>.</p>
+<hr />
+<p><strong>Ready to contribute?</strong> Check out <a
+href="https://github.com/b-rodrigues/tlang/labels/good-first-issue">good
+first issues</a> or dive into the <a href="development.html">Development
+Guide</a>!</p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>
