@@ -457,10 +457,13 @@ df |> select($name, $age)
 df |> filter($age > 25)
 df |> mutate($age_plus_10 = $age + 10)         -- named-arg style
 df |> arrange($age, "desc")
-df |> group_by($dept)
-   |> summarize($count = nrow($dept))           -- named-arg style
-df |> group_by($dept)
-   |> mutate($dept_size, \(g) nrow(g))
+df |> 
+  group_by($dept) |> 
+  summarize($count = nrow($dept))           
+-- named-arg style
+df |> 
+  group_by($dept) |> 
+  mutate($dept_size, \(g) nrow(g))
 ```
 
 #### Named-Arg Syntax (`$col = expr`)
