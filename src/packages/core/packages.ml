@@ -89,7 +89,7 @@ let package_functions pkg =
 let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
-  functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get";
+  functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get"; "rm";
                "ifelse"; "case_when"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
@@ -611,6 +611,29 @@ let register env =
       | [] -> Error.make_error ArityError "run() requires a command argument"
       | _  -> Error.make_error ArityError "run() takes exactly one argument"
     ))
+    env
+  in
+  let env = Env.add "rm"
+    (VBuiltin { b_name = Some "rm"; b_arity = 0; b_variadic = true;
+                b_func = (fun args env_ref ->
+                  let extract_name = function
+                    | VString s | VSymbol s -> Some s
+                    | _ -> None
+                  in
+                  List.iter (fun (_, v) ->
+                    match extract_name v with
+                    | Some name -> env_ref := Env.remove name !env_ref
+                    | None ->
+                        (match v with
+                         | VList items ->
+                             List.iter (fun (_, item) ->
+                               match extract_name item with
+                               | Some name -> env_ref := Env.remove name !env_ref
+                               | None -> ()) items
+                         | _ -> ())
+                  ) args;
+                  VNull
+                )})
     env
   in
 
