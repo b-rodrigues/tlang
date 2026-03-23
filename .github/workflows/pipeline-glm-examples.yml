@@ -48,7 +48,7 @@ jobs:
         cd glm_test_workspace
         
         # 3. Initialize a new project
-        "$TLANG_BIN" init project glm_project --no-git
+        "$TLANG_BIN" init --project glm_project --no-git
         cd glm_project
         
         # 4. Configure Project dependencies (reusing root tproject.toml logic)

@@ -48,7 +48,7 @@ jobs:
         cd labs_test_workspace
         
         # 3. Initialize a new project
-        "$TLANG_BIN" init project labs_project --no-git
+        "$TLANG_BIN" init --project labs_project --no-git
         cd labs_project
         
         # 4. Configure Project dependencies

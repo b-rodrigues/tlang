@@ -52,7 +52,7 @@ jobs:
         cd arrow_test_workspace
         
         # 3. Initialize a new project
-        $TLANG_BIN init project arrow_project --no-git
+        $TLANG_BIN init --project arrow_project --no-git
         cd arrow_project
         
         # 4. Configure Project dependencies
