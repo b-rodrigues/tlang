@@ -392,25 +392,32 @@ let uniq_preserve (items : string list) : string list =
       end)
     items
 
-let rec combinations_of_size size = function
-  | [] -> if size = 0 then [ [] ] else []
-  | x :: xs ->
-      if size = 0 then [ [] ]
-      else
-        List.map (fun rest -> x :: rest) (combinations_of_size (size - 1) xs)
-        @ combinations_of_size size xs
+let combinations_of_size size lst =
+  let rec aux k prefix rest acc =
+    match k, rest with
+    | 0, _ ->
+        let combo = List.rev prefix in
+        combo :: acc
+    | _, [] ->
+        acc
+    | k, x :: xs ->
+        let acc = aux (k - 1) (x :: prefix) xs acc in
+        aux k prefix xs acc
+  in
+  aux size [] lst [] |> List.rev
 
 let expand_formula_interaction (factors : string list) : string list =
   let factors = uniq_preserve factors in
   let n = List.length factors in
   let rec loop size acc =
-    if size > n then acc
+    if size > n then
+      List.rev acc
     else
       let terms =
         combinations_of_size size factors
         |> List.map (String.concat ":")
       in
-      loop (size + 1) (acc @ terms)
+      loop (size + 1) (List.rev_append terms acc)
   in
   loop 1 []
 

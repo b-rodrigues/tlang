@@ -167,13 +167,14 @@ let register env =
             | Error _ as err -> err
             | Ok [] -> Error (Error.internal_error "lm() produced an empty predictor term.")
             | Ok (arr :: rest) ->
-                let combined =
-                  List.fold_left
-                    (fun acc next ->
-                      Array.init (Array.length acc) (fun i -> acc.(i) *. next.(i)))
-                    (Array.copy arr) rest
-                in
-                Ok (term, combined)
+                let acc = Array.copy arr in
+                List.iter
+                  (fun next ->
+                    for i = 0 to Array.length acc - 1 do
+                      acc.(i) <- acc.(i) *. next.(i)
+                    done)
+                  rest;
+                Ok (term, acc)
           in
           (* Extract response variable name *)
           (match response with
@@ -216,8 +217,9 @@ let register env =
                             | Ok xs_terms ->
                                 (match predictor_array df.arrow_table term with
                                  | Error e -> Error e
-                                 | Ok predictor_term -> Ok (xs_terms @ [ predictor_term ]))
+                                 | Ok predictor_term -> Ok (predictor_term :: xs_terms))
                           ) (Ok []) predictors in
+                          let xs_result = Result.map List.rev xs_result in
                           (match xs_result with
                            | Error e -> e
                            | Ok xs_terms ->

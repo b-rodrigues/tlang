@@ -24,7 +24,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "type(y ~ x1 * x2)"
     {|"Formula"|};
 
-  (* lm() with multi-variable formula rejects (currently single-var only) *)
+  (* lm() with multi-variable formula should succeed (multi-variable formulas supported) *)
   let csv_mv = "test_formula_edge_mv.csv" in
   let oc_mv = open_out csv_mv in
   output_string oc_mv "y,x1,x2\n1,2,5\n4,5,3\n7,8,7\n10,11,2\n";

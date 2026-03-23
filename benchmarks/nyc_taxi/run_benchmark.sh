@@ -173,23 +173,37 @@ ensure_core_subset() {
 import pathlib
 import sys
 
+import pyarrow as pa
 import pyarrow.parquet as pq
+import pyarrow.csv as pacsv
 
 source_parquet = pathlib.Path(sys.argv[1])
 output_csv = pathlib.Path(sys.argv[2])
 output_parquet = pathlib.Path(sys.argv[3])
 rows = int(sys.argv[4])
 
-table = pq.read_table(source_parquet)
-if table.num_rows < rows:
+parquet_file = pq.ParquetFile(source_parquet)
+total_rows = parquet_file.metadata.num_rows
+if total_rows < rows:
     raise SystemExit(
-        f"Materialized parquet at {source_parquet} only has {table.num_rows} rows; "
+        f"Materialized parquet at {source_parquet} only has {total_rows} rows; "
         f"need at least {rows} rows for the core verb benchmark."
     )
 
-subset = table.slice(0, rows)
+batches = []
+collected = 0
+for batch in parquet_file.iter_batches():
+    remaining = rows - collected
+    if batch.num_rows > remaining:
+        batch = batch.slice(0, remaining)
+    batches.append(batch)
+    collected += batch.num_rows
+    if collected >= rows:
+        break
+
+subset = pa.Table.from_batches(batches)
 pq.write_table(subset, output_parquet)
-subset.to_pandas().to_csv(output_csv, index=False)
+pacsv.write_csv(subset, output_csv)
 
 print(f"Wrote {rows} rows to {output_parquet}")
 print(f"Wrote {rows} rows to {output_csv}")
