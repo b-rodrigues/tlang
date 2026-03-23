@@ -69,6 +69,15 @@ let source_location ?file pos : Ast.source_location =
     column = max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1);
   }
 
+let runtime_from_path_extension ~default path =
+  match Filename.extension path with
+  | ".R" -> "R"
+  | ".py" -> "Python"
+  | ".qmd" -> "Quarto"
+  | ".sh" -> "sh"
+  | ".jl" -> "Julia"
+  | _ -> default
+
 let attach_location location value =
   match value, location with
   | VError err, Some loc when err.location = None -> VError { err with location = Some loc }
@@ -721,9 +730,9 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               let explicit = eval_string "runtime" "" in
               if explicit <> "" then explicit
               else match explicit_script_path_opt with
-                | Some path -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | ".jl" -> "Julia" | _ -> default_runtime)
+                | Some path -> runtime_from_path_extension ~default:default_runtime path
                 | None -> (match arg_path_opt with
-                    | Some path when not has_command -> (match Filename.extension path with ".R" -> "R" | ".py" -> "Python" | ".qmd" -> "Quarto" | ".sh" -> "sh" | ".jl" -> "Julia" | _ -> default_runtime)
+                    | Some path when not has_command -> runtime_from_path_extension ~default:default_runtime path
                     | _ -> default_runtime)
             in
             if has_command && runtime = "Quarto" then
@@ -1540,9 +1549,9 @@ and eval_list_comp env_ref body clauses =
         (match predicate with
          | VError _ as err -> Error err
          | VNA _ ->
-             Error
-               (Error.type_error
-                  "List comprehension filter cannot use NA as a condition.")
+              Error
+                (Error.type_error
+                  "List comprehension filter encountered NA. Handle NA values explicitly before filtering.")
          | VBool true -> eval_clauses current_env rest
          | VBool false -> Ok []
          | other ->
