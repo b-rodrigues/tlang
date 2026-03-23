@@ -575,10 +575,20 @@ p_cross = pipeline {
     (Packages.init_env ()) in
   (match v_py_auto with
    | Ast.VNode un when un.un_runtime = "Python" ->
-       incr pass_count; Printf.printf "  ✓ runtime auto-detected as Python for .py script\n"
+        incr pass_count; Printf.printf "  ✓ runtime auto-detected as Python for .py script\n"
+    | other ->
+         incr fail_count; Printf.printf "  ✗ runtime auto-detection for .py failed: %s\n"
+           (Ast.Utils.value_to_string other));
+
+  let (v_jl_auto, _) = eval_string_env
+    {|node(script = "my_script.jl")|}
+    (Packages.init_env ()) in
+  (match v_jl_auto with
+   | Ast.VNode un when un.un_runtime = "Julia" ->
+       incr pass_count; Printf.printf "  ✓ runtime auto-detected as Julia for .jl script\n"
    | other ->
-        incr fail_count; Printf.printf "  ✗ runtime auto-detection for .py failed: %s\n"
-          (Ast.Utils.value_to_string other));
+       incr fail_count; Printf.printf "  ✗ runtime auto-detection for .jl failed: %s\n"
+         (Ast.Utils.value_to_string other));
 
   let (v_quarto_auto, _) = eval_string_env
     {|node(script = "paper.qmd")|}
@@ -610,6 +620,16 @@ p_cross = pipeline {
   end else begin
     incr fail_count; Printf.printf "  ✗ node without script .script field\n    Expected: null\n    Got: %s\n"
       (Ast.Utils.value_to_string v_no_script)
+  end;
+
+  let (v_jn_runtime, _) = eval_string_env
+    {|node_obj = jn(script = "fit.jl"); node_obj.runtime|}
+    (Packages.init_env ()) in
+  if Ast.Utils.value_to_string v_jn_runtime = {|"Julia"|} then begin
+    incr pass_count; Printf.printf "  ✓ jn() sets the Julia runtime\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ jn() runtime\n    Expected: \"Julia\"\n    Got: %s\n"
+      (Ast.Utils.value_to_string v_jn_runtime)
   end;
 
   (* Test: pipeline with script-based node creates correct node structure *)

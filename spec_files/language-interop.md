@@ -127,6 +127,15 @@ Arrow.write(io, df)
 
 Same ingestion path in T.
 
+At the T language level, Julia nodes can now be declared with the dedicated `jn()` wrapper (equivalent to `node(runtime = Julia, ...)`) or inferred from `.jl` scripts:
+
+```t
+p = pipeline {
+  source = read_csv("data.csv")
+  features = jn(script = "features.jl", serializer = "arrow", deserializer = "arrow")
+}
+```
+
 ---
 
 ## 2.5 Schema Rules

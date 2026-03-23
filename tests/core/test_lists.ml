@@ -16,4 +16,22 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "tail wrong type mentions vector support"
     {|tail("abc")|}
     {|Error(TypeError: "Function `tail` expects a DataFrame, List, or Vector.")|};
+  test "list comprehension maps over seq"
+    "[x * 10 for x in seq(1, 5)]"
+    "[10, 20, 30, 40, 50]";
+  test "list comprehension filters values"
+    "[x for x in seq(1, 6) if x % 2 == 0]"
+    "[2, 4, 6]";
+  test "list comprehension supports nested for clauses"
+    "[x + y for x in [1, 2] for y in [10, 20]]"
+    "[11, 21, 12, 22]";
+  test "list comprehension captures surrounding bindings"
+    "scale = 3; [x * scale for x in [1, 2, 3]]"
+    "[3, 6, 9]";
+  test "list comprehension rejects non-iterables"
+    "[x for x in 1]"
+    {|Error(TypeError: "List comprehension `for` clauses expect a List or Vector, got Int.")|};
+  test "list comprehension filter requires bool"
+    "[x for x in [1, 2, 3] if 1]"
+    {|Error(TypeError: "List comprehension filter must evaluate to Bool, got Int.")|};
   print_newline ()

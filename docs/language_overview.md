@@ -275,6 +275,12 @@ head(numbers)    -- 1
 tail(numbers)    -- [2, 3]
 ```
 
+List comprehensions are also available for compact list generation:
+
+```t
+evens = [x * 10 for x in seq(1, 10) if x % 2 == 0]
+```
+
 ### Named Lists
 
 ```t
@@ -659,14 +665,14 @@ cat(read_log("scored"))
 
 For more comprehensive examples and templates, visit the [T Demos repository](https://github.com/b-rodrigues/t_demos).
 
-Instead of inlining code with `command`, nodes can point to an external file using `script`. `command` and `script` are mutually exclusive, and the runtime can be inferred from file extensions such as `.R` or `.py`.
+Instead of inlining code with `command`, nodes can point to an external file using `script`. `command` and `script` are mutually exclusive, and the runtime can be inferred from file extensions such as `.R`, `.py`, or `.jl`.
 
 Pipeline features:
 - **Automatic dependency resolution**: Nodes can be declared in any order
 - **Deterministic execution**: Same inputs always produce same outputs
 - **Cycle detection**: Circular dependencies are caught and reported
 - **Introspection**: `pipeline_nodes()`, `pipeline_deps()`, `pipeline_node()`
-- **Cross-language**: `node()`, `py()`/`pyn()`, `rn()`, and `shn()` enable execution in T, Python, R, and shell runtimes
+- **Cross-language**: `node()`, `py()`/`pyn()`, `rn()`, `jn()`, and `shn()` enable execution in T, Python, R, Julia, and shell runtimes
 - **Environment Variables**: Pass custom variables into Nix build sandboxes via `env_vars`
 - **Re-run**: `pipeline_run()` re-executes the pipeline
 
@@ -762,6 +768,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `node(command :: Any, script :: String, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
 - `pyn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
 - `rn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
+- `jn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
 - `build_pipeline(pipeline :: Pipeline) :: Null`
 - `pipeline_run(pipeline :: Pipeline) :: Pipeline`
 - `pipeline_nodes(p :: Pipeline) :: List[String]`
