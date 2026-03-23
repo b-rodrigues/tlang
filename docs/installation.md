@@ -27,6 +27,29 @@ For detailed instructions on installing Nix on **Linux**, **macOS**, and **Windo
 
 Once Nix is installed and flakes are enabled, you can proceed to Step 2.
 
+### Troubleshooting Nix Installation
+
+#### Enabling Experimental Features
+If you're using the standard Nix installer (not the Determinate Systems one), you might see an error that `nix shell` or other commands are not recognized. You can enable the required features by adding them to your Nix configuration or by appending a flag to each command:
+
+**Option 1: Add to config (Recommended)**
+```bash
+mkdir -p ~/.config/nix
+echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+```
+
+**Option 2: Use a command flag**
+Append `--extra-experimental-features "nix-command flakes"` to your Nix commands.
+
+#### Trusted Users and Binary Caches
+If you see warnings like `ignoring untrusted substituter`, it means you need to add yourself as a trusted user so Nix allows you to use the T binary cache. On macOS, you can run the following one-liner:
+
+```bash
+echo "trusted-users = root $USER" | sudo tee -a /etc/nix/nix.custom.conf && sudo launchctl kickstart -k system/org.nixos.nix-daemon
+```
+
+This works for both standard Nix installations and Determinate Nix installations. If you see warnings like `ignoring untrusted substituter`, this means the `trusted-users` configuration is not in place.
+
 ## Step 3: Clone T Repository
 
 ```bash
