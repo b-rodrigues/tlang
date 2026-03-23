@@ -1692,7 +1692,39 @@ and eval_call env_ref fn_val raw_args =
     ) args
   in
   let raw_args = transform_nse_args raw_args in
-  
+
+  (* Special case: rm() needs to capture symbols before evaluation to remove variables by name.
+     Without this, rm(x) evaluates x to its value and then tries to remove a variable 
+     named with that VALUE (e.g. if x="val", it removes variable "val", not "x").
+     This also handles the R-style rm(list = ...) named argument. *)
+  if current_builtin_name = Some "rm" then (
+    List.iter (fun (arg_name, e) ->
+      match arg_name with
+      | Some "list" ->
+          let v = eval_expr env_ref e in
+          (match v with
+           | VList items ->
+               List.iter (fun (_, item) ->
+                 match extract_name_opt item with
+                 | Some s -> env_ref := Env.remove s !env_ref
+                 | None -> ()) items
+           | _ ->
+               (match extract_name_opt v with
+                | Some s -> env_ref := Env.remove s !env_ref
+                | None -> ()))
+      | _ ->
+          match e.node with
+          | Var s -> env_ref := Env.remove s !env_ref
+          | ColumnRef s -> env_ref := Env.remove ("$" ^ s) !env_ref
+          | _ ->
+              let v = eval_expr env_ref e in
+              (match extract_name_opt v with
+               | Some s -> env_ref := Env.remove s !env_ref
+               | None -> ())
+    ) raw_args;
+    VNull
+  ) else begin
+
   let rec process_args_spliced acc = function
     | [] -> acc
     | (name, e) :: rest ->
@@ -1885,6 +1917,7 @@ and eval_call env_ref fn_val raw_args =
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
+  end
 
 and eval_binop env_ref op left right =
   (* Pipe is special: x |> f(y) becomes f(x, y), x |> f becomes f(x) *)

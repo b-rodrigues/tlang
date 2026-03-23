@@ -81,11 +81,15 @@ x = 10
 x := 20    -- Overwrites x with 20
 ```
 
-To remove a variable from the environment entirely, use the `rm()` function:
+To remove a variable from the environment entirely, use the `rm()` function. It supports bare symbols, strings, and the `list` parameter:
 
 ```t
-rm(x)      -- Removes x from the environment
-rm("name") -- Removes name by string
+rm(x)             -- Removes x from the environment
+rm("name")        -- Removes name by string
+rm(a, b, c)       -- Removes multiple variables
+
+vars = ["x", "y"]
+rm(list = vars)   -- Removes variables 'x' and 'y'
 ```
 
 ### Arithmetic and Operators

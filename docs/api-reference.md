@@ -595,6 +595,35 @@ Resolves a relative path to an absolute path against the current working directo
 
 ---
 
+### `rm(...)`
+
+Remove one or more variables from the environment by name. Supports bare symbols (R-style selective removal), strings, and lists of names via the `list` parameter.
+
+**Parameters:**
+
+- `...` — One or more variable symbols or strings identifying variables to remove.
+- `list` (optional) — A List of strings or symbols to remove.
+
+**Returns:**
+
+`null`
+
+**Examples:**
+
+```t
+x = 10; y = 20
+rm(x, y)          -- Removes x and y
+
+z = 30
+rm("z")           -- Removes z
+
+vars = ["a", "b"]
+rm(list = vars)   -- Removes variables 'a' and 'b'
+```
+
+
+---
+
 ## Base Package
 
 Error handling, NA values, and assertions.

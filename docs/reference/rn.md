@@ -10,9 +10,9 @@ A convenience wrapper around `node()` with `runtime = "R"`. Used directly within
 
 - **script** (`String`): (Optional) Path to an external `.R` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `R` automatically.
 
-- **serializer** (`Symbol`): (Optional) Custom serializer function. Default = default.
+- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default = default.
+- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
 
 - **functions** (`String`): | List[String] (Optional) R scripts to source before execution.
 

@@ -12,9 +12,9 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 - **runtime** (`Symbol`): (Optional) The runtime environment (T, R, Python, Quarto). Default = T.
 
-- **serializer** (`Symbol`): (Optional) Custom serializer function. Default = default.
+- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`Symbol`): (Optional) Custom deserializer function. Default = default.
+- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. For Quarto, use this to pass CLI arguments such as `subcommand`, `path`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 

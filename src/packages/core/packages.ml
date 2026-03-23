@@ -613,6 +613,31 @@ let register env =
     ))
     env
   in
+
+(*
+--# Remove objects from the environment
+--#
+--# Removes one or more variables from the current environment by name. 
+--# Supports bare symbols (R-style selective removal), strings, and lists 
+--# of names via the `list` parameter.
+--#
+--# @name rm
+--# @param ... :: Symbol | String One or more variables to remove.
+--# @param list :: List[String] (Optional) A list of variable names to remove.
+--# @return :: Null
+--# @example
+--#   x = 10; y = 20
+--#   rm(x, y)          -- Removes x and y
+--#   
+--#   z = 30
+--#   rm("z")           -- Removes z
+--#
+--#   vars = ["a", "b"]
+--#   rm(list = vars)   -- Removes variables 'a' and 'b'
+--#
+--# @family core
+--# @export
+*)
   let env = Env.add "rm"
     (VBuiltin { b_name = Some "rm"; b_arity = 0; b_variadic = true;
                 b_func = (fun args env_ref ->
