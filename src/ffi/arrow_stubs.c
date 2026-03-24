@@ -1840,10 +1840,8 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
 
   /* Build composite key string for each row and group using GHashTable */
   GHashTable *group_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-  /* Pre-size for high-cardinality keys to reduce rehashing */
-  if (nrows > 1024) {
-    g_hash_table_resize(group_map, (guint)(nrows < 65536 ? nrows : 65536));
-  }
+  /* GHashTable handles resizing automatically. There is no public pre-sizing API. */
+
   /* Track insertion order */
   GPtrArray *group_order = g_ptr_array_new(); /* stores owned copies of key strings */
   /* Store row indices per group as GArray of ints */
@@ -4940,11 +4938,8 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
     key_cols[k] = garrow_table_get_column_data(table, key_indices[k]);
   }
 
-  /* Pre-sized hash table for high-cardinality data */
-  guint initial_size = (guint)(nrows < 65536 ? nrows : 65536);
-  if (initial_size < 64) initial_size = 64;
+  /* GHashTable handles resizing automatically. There is no public pre-sizing API. */
   GHashTable *group_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-  g_hash_table_resize(group_map, initial_size);
 
   GPtrArray *group_order = g_ptr_array_new();
   GPtrArray *group_rows = g_ptr_array_new();
