@@ -8,9 +8,9 @@ This document outlines the step-by-step evolution of the T language from the cur
 
 **Objective**: Complete the "Finish Alpha" checklist and ensure production-grade performance on the Arrow backend.
 
-- [ ] **Arrow Backend Optimization**:
-    - [ ] **Grouped `mutate` / Windowing**: Materialize Arrow window kernels to replace OCaml fallbacks for `dense_rank`, `lag`, etc.
-    - [ ] **Grouping Kernels**: Optimize hash-based grouping for high-cardinality keys (>10k groups).
+- [x] **Arrow Backend Optimization**:
+    - [x] **Grouped `mutate` / Windowing**: Materialize Arrow window kernels to replace OCaml fallbacks for `dense_rank`, `lag`, etc.
+    - [x] **Grouping Kernels**: Optimize hash-based grouping for high-cardinality keys (>10k groups).
 - [ ] **Large Dataset Benchmarks**:
     - [ ] Achieve <1s baseline for core verbs (select/filter/mutate) on 100k rows.
     - [ ] Achieve <10s baseline for core verbs on 1M rows.

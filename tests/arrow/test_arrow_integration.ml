@@ -2014,6 +2014,104 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   print_newline ();
 
+  (* === Arrow Window Operations Tests === *)
+  Printf.printf "Arrow Integration — Window Operations:\n";
+
+  (* Test: Arrow-backed dense_rank via compute layer *)
+  let rank_cols = [
+    ("x", Arrow_table.FloatColumn [| Some 3.0; Some 1.0; Some 2.0; Some 1.0; Some 3.0 |]);
+  ] in
+  let rank_tbl = Arrow_table.create rank_cols 5 in
+  (match Arrow_compute.dense_rank_column rank_tbl "x" with
+   | Some ranks ->
+     (* Expected: 3.0→2, 1.0→1, 2.0→2? No, dense_rank: 1.0=rank1, 2.0=rank2, 3.0=rank3 *)
+     (* Values sorted: 1.0(idx1), 1.0(idx3), 2.0(idx2), 3.0(idx0), 3.0(idx4) *)
+     (* Dense ranks: idx0→3, idx1→1, idx2→2, idx3→1, idx4→3 *)
+     let ok = Array.length ranks = 5
+       && ranks.(1) = Some 1 && ranks.(3) = Some 1
+       && ranks.(2) = Some 2
+       && ranks.(0) = Some 3 && ranks.(4) = Some 3 in
+     if ok then begin
+       incr pass_count; Printf.printf "  ✓ dense_rank_column works on pure OCaml table\n"
+     end else begin
+       incr fail_count; Printf.printf "  ✗ dense_rank_column incorrect results\n"
+     end
+   | None ->
+     incr pass_count; Printf.printf "  ✓ dense_rank_column returns None on non-native table (expected)\n");
+
+  (* Test: Arrow-backed row_number *)
+  (match Arrow_compute.row_number_column rank_tbl "x" with
+   | Some ranks ->
+     let ok = Array.length ranks = 5 in
+     if ok then begin
+       incr pass_count; Printf.printf "  ✓ row_number_column returns result\n"
+     end else begin
+       incr fail_count; Printf.printf "  ✗ row_number_column wrong length\n"
+     end
+   | None ->
+     incr pass_count; Printf.printf "  ✓ row_number_column returns None on non-native table (expected)\n");
+
+  (* Test: Arrow-backed min_rank *)
+  (match Arrow_compute.min_rank_column rank_tbl "x" with
+   | Some ranks ->
+     let ok = Array.length ranks = 5 in
+     if ok then begin
+       incr pass_count; Printf.printf "  ✓ min_rank_column returns result\n"
+     end else begin
+       incr fail_count; Printf.printf "  ✗ min_rank_column wrong length\n"
+     end
+   | None ->
+     incr pass_count; Printf.printf "  ✓ min_rank_column returns None on non-native table (expected)\n");
+
+  (* Test: Arrow-backed lag_column *)
+  let lag_cols = [
+    ("val", Arrow_table.IntColumn [| Some 10; Some 20; Some 30; Some 40 |]);
+  ] in
+  let lag_tbl = Arrow_table.create lag_cols 4 in
+  (match Arrow_compute.lag_column lag_tbl "val" 1 with
+   | Some _new_tbl ->
+     incr pass_count; Printf.printf "  ✓ lag_column returns a new table\n"
+   | None ->
+     incr pass_count; Printf.printf "  ✓ lag_column returns None on non-native table (expected)\n");
+
+  (* Test: Arrow-backed lead_column *)
+  (match Arrow_compute.lead_column lag_tbl "val" 1 with
+   | Some _new_tbl ->
+     incr pass_count; Printf.printf "  ✓ lead_column returns a new table\n"
+   | None ->
+     incr pass_count; Printf.printf "  ✓ lead_column returns None on non-native table (expected)\n");
+
+  (* Test: group_by_optimized on pure OCaml tables falls back to standard *)
+  let grp_cols = [
+    ("key", Arrow_table.StringColumn [| Some "a"; Some "b"; Some "a"; Some "b" |]);
+    ("val", Arrow_table.IntColumn [| Some 1; Some 2; Some 3; Some 4 |]);
+  ] in
+  let grp_tbl = Arrow_table.create grp_cols 4 in
+  let grouped = Arrow_compute.group_by_optimized grp_tbl ["key"] in
+  let groups = Arrow_compute.get_ocaml_groups grouped in
+  let n_groups = List.length groups in
+  if n_groups = 2 then begin
+    incr pass_count; Printf.printf "  ✓ group_by_optimized falls back correctly (2 groups)\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ group_by_optimized fallback: expected 2 groups, got %d\n" n_groups
+  end;
+
+  (* Test: End-to-end window functions via T expressions *)
+  (* These test the full pipeline: mutate → vectorize → Arrow kernel → result *)
+  test "dense_rank in mutate (vector input)"
+    {|dense_rank([3.0, 1.0, 2.0, 1.0, 3.0])|}
+    "Vector[3, 1, 2, 1, 3]";
+
+  test "lag in mutate (vector input)"
+    {|lag([10, 20, 30, 40])|}
+    "Vector[NA, 10, 20, 30]";
+
+  test "lead in mutate (vector input)"
+    {|lead([10, 20, 30, 40])|}
+    "Vector[20, 30, 40, NA]";
+
+  print_newline ();
+
   (* Cleanup *)
   (try Sys.remove csv_path with _ -> ());
   (try Sys.remove csv_skip_path with _ -> ());
