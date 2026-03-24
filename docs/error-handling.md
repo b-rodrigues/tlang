@@ -8,6 +8,7 @@ Comprehensive guide to error handling, recovery patterns, and debugging in T.
 - [Error Types](#error-types)
 - [Error as Values](#error-as-values)
 - [Pipe Operators and Errors](#pipe-operators-and-errors)
+- [Pattern Matching and Errors](#pattern-matching-and-errors)
 - [Error Recovery Patterns](#error-recovery-patterns)
 - [Common Errors](#common-errors)
 - [Best Practices](#best-practices)
@@ -237,7 +238,7 @@ error("fail") ?|> \(x)
 -- Recovery pattern
 result = risky_operation()
   ?|> \(x) if (is_error(x)) {
-    print("Error occurred: " + error_message(x))
+    print(str_join(["Error occurred: ", error_message(x)]))
     default_value
   } else {
     x
@@ -251,35 +252,70 @@ error("fail")
 
 ---
 
+## Pattern Matching and Errors
+
+Pattern matching is the most declarative way to handle first-class errors in T. It allows you to destructure error values and branch logic based on specific outcomes.
+
+### Basic Error Matching
+
+Use the `Error { msg }` pattern to capture the error message:
+
+```t
+result = match(1 / 0) {
+  Error { msg: m } => str_sprintf("Caught error: %s", m),
+  val => str_sprintf("Result: %f", val)
+}
+-- "Caught error: Division by zero"
+```
+
+### Automatic Error Propagation
+
+If you don't explicitly handle `Error` in a `match` expression, the original error value is propagated automatically. This matches the behavior of the standard pipe (`|>`).
+
+```t
+-- This match does NOT handle Error
+res = match(error("Fail")) {
+  [head, ..tail] => head,
+  [] => 0
+}
+-- Result is still Error("Fail")
+```
+
+---
+
 ## Error Recovery Patterns
 
 ### Pattern 1: Default Values
 
 ```t
--- Return default on error
+-- Return default on error using match
 safe_divide = \(a, b)
-  (a / b) ?|> \(result)
-    if (is_error(result)) 0.0 else result
+  match(a / b) {
+    Error { _ } => 0.0,
+    res => res
+  }
 
-safe_divide(10, 0)   -- 0.0 (instead of error)
+safe_divide(10, 0)   -- 0.0
 safe_divide(10, 2)   -- 5.0
 ```
 
 ### Pattern 2: Fallback Sources
 
 ```t
--- Try multiple data sources
-data = read_csv("primary.csv")
-  ?|> \(x) if (is_error(x)) read_csv("backup.csv") else x
-  ?|> \(x) if (is_error(x)) read_csv("fallback.csv") else x
+-- Try multiple data sources cleanly
+data = match(read_csv("primary.csv")) {
+  Error { _ } => match(read_csv("backup.csv")) {
+    Error { _ } => read_csv("fallback.csv"),
+    res => res
+  },
+  res => res
+}
 
--- If all fail, handle gracefully
-final_data = data ?|> \(x)
-  if (is_error(x)) {
-    print("All data sources failed")
-    empty_dataframe()  -- Return empty structure
-  } else {
-    x
+-- Or combining match with the maybe-pipe for flat recovery
+final_data = read_csv("primary.csv")
+  ?|> \(res) match(res) {
+    Error { _ } => read_csv("backup.csv"),
+    valid_df => valid_df
   }
 ```
 
@@ -299,7 +335,7 @@ process_value = \(v)
 safe_process = \(v)
   process_value(v) ?|> \(result)
     if (is_error(result)) {
-      print("Invalid value: " + error_message(result))
+      print(str_sprintf("Invalid value: %s", error_message(result)))
       0  -- Default
     } else {
       result
@@ -315,7 +351,7 @@ safe_process(10)   -- Returns 20
 -- Log errors and continue
 logged_operation = risky_function()
   ?|> \(x) if (is_error(x)) {
-    write_log("Error in risky_function: " + error_message(x))
+    write_log(str_sprintf("Error in risky_function: %s", error_message(x)))
     x  -- Pass error along
   } else {
     x
@@ -353,25 +389,89 @@ successes = filter(results, \(r) r.success)
 
 ### Pattern 6: Error Transformation
 
+Pattern matching is excellent for converting low-level errors into domain-specific ones.
+
 ```t
--- Transform errors into more specific types
+-- Transform errors using match
 enhance_error = \(e)
-  if (is_error(e)) {
-    code = error_code(e)
-    msg = error_message(e)
-    
-    if (code == "DivisionByZero")
-      error("MathError", "Math operation failed: " + msg)
-    else if (code == "NAError")
-      error("DataQualityError", "Data quality issue: " + msg)
-    else
-      e
-  } else {
-    e
+  match(e) {
+    Error { msg } => 
+      if (str_detect(msg, "DivisionByZero"))
+        error("MathError", str_sprintf("Calculation failed: %s", msg))
+      else if (str_detect(msg, "NAError"))
+        error("DataQualityError", str_sprintf("Quality issue: %s", msg))
+      else
+        e,
+    _ => e
   }
 
 risky_calc() ?|> enhance_error
 ```
+
+### Pattern 7: Conditional Modeling and Automated Reporting
+
+In automated daily pipelines where data is refreshed externally, a three-way branching strategy is often necessary. You can use pattern matching to choose between a full complex model, a simplified fallback model, or a validation report based on the data's characteristics.
+
+```t
+p = pipeline {
+  -- 1. Load the latest daily raw data
+  raw_data = node(command = read_csv("daily_extract.csv"))
+
+  -- 2. Validate and "tag" the data based on quality metrics
+  quality_status = node(command = 
+    raw_data ?|> \(df) {
+      if (nrow(df) < 500) 
+        error("CriticalError", "Insufficient rows for any modeling.")
+      else if (length(levels(df.segment)) < 2)
+        [type: "low_diversity", data: df]
+      else
+        [type: "high_quality", data: df]
+    }
+  )
+
+  -- 3. Precise branching: Choose the best action for each state
+  final_result = node(command = 
+    quality_status ?|> \(outcome) match(outcome) {
+      -- Full Case: Sufficient data and factor levels
+      [type: "high_quality", data: df] => 
+        lm(df, $yield ~ $temp + $segment),
+      
+      -- Fallback Case: Enough data, but not enough factor diversity
+      -- We drop the 'segment' predictor to avoid model failure
+      [type: "low_diversity", data: df] => 
+        lm(df, $yield ~ $temp),
+      
+      -- Failure Case: Stop modeling and generate a diagnostic report
+      Error { msg } => 
+        generate_validation_report(msg, raw_data)
+    }
+  )
+}
+```
+
+**Why use this?**:
+*   **Adaptive Modeling**: Your pipeline automatically scales its complexity to match the quality of the incoming data, avoiding "singular matrix" or "one level factor" errors.
+*   **Operational Intelligence**: Instead of the whole pipeline failing due to a minor data shift (like one category disappearing from today's extract), the system gracefully degrades its service while still providing a result.
+*   **Auditability**: Every run clearly states which path was taken through the use of descriptive tags like `low_diversity` or `high_quality`.
+
+---
+
+## Comparing Error Handling Tools
+
+T offers several tools for managing errors, each suited for different scenarios:
+
+*   **Conditional Pipe (`|>`)**: Best for "fail-fast" pipelines where any error should immediately stop further processing. It's the default for sequential operations.
+*   **Maybe-Pipe (`?|>`)**: Ideal for scenarios requiring explicit error handling or recovery at each step. It allows functions to receive and act upon error values, enabling logging, fallback logic, or transformation.
+*   **Pattern Matching (`match`)**: The most declarative and powerful tool for branching logic based on error types or success values. It's excellent for:
+    *   **Specific Error Recovery**: Handling different error types differently.
+    *   **Default Values/Fallbacks**: Providing alternative values when an error occurs.
+    *   **Error Transformation**: Converting generic errors into more domain-specific ones.
+    *   **Complex Recovery Logic**: When `if (is_error(x))` becomes too nested or less readable.
+
+**General Guidance**:
+*   Use `|>` for the majority of your data pipelines where you expect success and want to stop on the first error.
+*   Use `?|>` when you need to inspect or act on an error *at a specific point* in a pipeline, often followed by `match` or an `if (is_error(...))` check.
+*   Use `match` when your error recovery logic involves different actions for different error types, or when you want a clear, declarative way to distinguish between success and various error states.
 
 ---
 
@@ -505,7 +605,7 @@ process_data = \(df)
 
 ```t
 if (age < 0 or age > 150)
-  error("ValidationError", "Age must be between 0 and 150, got: " + str_string(age))
+  error("ValidationError", str_sprintf("Age must be between 0 and 150, got: %s", str_string(age)))
 ```
 
 **Bad**: Vague messages
@@ -555,7 +655,7 @@ assert(is_error(risky_function(-1)))
 ```t
 production_pipeline = pipeline {
   data = read_csv("data.csv") ?|> \(x) if (is_error(x)) {
-    write_log("CRITICAL: Failed to load data: " + error_message(x))
+    write_log(str_sprintf("CRITICAL: Failed to load data: %s", error_message(x)))
     x
   } else x
   
@@ -599,9 +699,9 @@ result = step1
 result = risky_operation()
 
 if (is_error(result)) {
-  print("Error code: " + error_code(result))
-  print("Error message: " + error_message(result))
-  print("Error context: " + error_context(result))
+  print(str_sprintf("Error code: %s", error_code(result)))
+  print(str_sprintf("Error message: %s", error_message(result)))
+  print(str_sprintf("Error context: %s", error_context(result)))
 }
 ```
 

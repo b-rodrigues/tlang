@@ -91,6 +91,9 @@ let rec expr_has_build_pipeline = function
       expr_has_build_pipeline cond ||
       expr_has_build_pipeline then_ ||
       expr_has_build_pipeline else_
+  | { Ast.node = Ast.Match { scrutinee; cases }; _ } ->
+      expr_has_build_pipeline scrutinee ||
+      List.exists (fun (_, body) -> expr_has_build_pipeline body) cases
   | { Ast.node = Ast.Lambda { body; _ }; _ } -> expr_has_build_pipeline body
   | { Ast.node = Ast.ListLit items; _ } -> List.exists (fun (_, e) -> expr_has_build_pipeline e) items
   | { Ast.node = Ast.DictLit pairs; _ } -> List.exists (fun (_, e) -> expr_has_build_pipeline e) pairs

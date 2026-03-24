@@ -3,8 +3,9 @@
 (* Menhir grammar for the T language — Phase 0 Alpha *)
 open Ast
 
-(* Custom exception for mixed bracket forms - avoids circular dependency with Parser.Error *)
+(* Custom exceptions for parser-only validation. *)
 exception Mixed_bracket_form
+exception Invalid_match_pattern of string
 
 (* Helper to build a parameter record from parsing *)
 type parsed_param = string * Ast.typ option
@@ -56,7 +57,7 @@ let with_stmt_loc node pos =
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE IMPORT FUNCTION PIPELINE INTENT TRUE FALSE NULL NA
+%token IF ELSE IMPORT FUNCTION PIPELINE INTENT MATCH TRUE FALSE NULL NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -68,7 +69,7 @@ let with_stmt_loc node pos =
 %token <string> SHELL_CMD
 /* Symbols and Operators */
 %token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
-%token COMMA COLON COLON_EQ DOT EQUALS ARROW DOTDOTDOT
+%token COMMA COLON COLON_EQ DOT EQUALS ARROW FAT_ARROW DOTDOTDOT
 %token PIPE
 %token MAYBE_PIPE
 %token PLUS MINUS STAR SLASH PERCENT
@@ -305,6 +306,7 @@ primary_expr:
   | b = bracket_lit { b }
   | l = lambda_expr { l }
   | i = if_expr { i }
+  | m = match_expr { m }
   | p = pipeline_expr { p }
   | n = intent_expr { n }
   | b = block_expr { b }
@@ -393,6 +395,59 @@ if_expr:
     { with_loc (IfElse { cond; then_; else_ = with_loc (Value VNull) $startpos }) $startpos }
   | IF LPAREN cond = expr RPAREN then_ = primary_expr ELSE else_ = primary_expr
     { with_loc (IfElse { cond; then_; else_ }) $startpos }
+  ;
+
+match_expr:
+  | MATCH LPAREN skip_sep scrutinee = expr skip_sep RPAREN skip_sep LBRACE skip_sep cases = match_case_list RBRACE
+    { with_loc (Match { scrutinee; cases }) $startpos }
+  ;
+
+match_case_list:
+  | c = match_case skip_sep { [c] }
+  | c = match_case COMMA skip_sep rest = match_case_list { c :: rest }
+  ;
+
+match_case:
+  | pattern = match_pattern skip_sep FAT_ARROW skip_sep body = expr
+    { (pattern, body) }
+  ;
+
+match_pattern:
+  | p = list_match_pattern { p }
+  | ctor = any_ident LBRACE skip_sep field = error_pattern_field RBRACE
+    {
+      if ctor = "Error" then PError field
+      else
+        raise
+          (Invalid_match_pattern
+             (Printf.sprintf
+                "Invalid pattern constructor `%s`. Only `Error { ... }` is supported in constructor patterns."
+                ctor))
+    }
+  | NA { PNA }
+  | id = any_ident { if id = "_" then PWildcard else PVar id }
+  ;
+
+error_pattern_field:
+  | { None }
+  | id = any_ident skip_sep { Some id }
+  ;
+
+list_match_pattern:
+  | LBRACK skip_sep RBRACK { PList ([], None) }
+  | LBRACK skip_sep items = list_pattern_items RBRACK
+    { let (patterns, rest) = items in PList (patterns, rest) }
+  ;
+
+list_pattern_items:
+  | rest = list_rest_pattern skip_sep { ([], Some rest) }
+  | pattern = match_pattern skip_sep { ([pattern], None) }
+  | pattern = match_pattern COMMA skip_sep rest = list_pattern_items
+    { let (patterns, rest_name) = rest in (pattern :: patterns, rest_name) }
+  ;
+
+list_rest_pattern:
+  | DOT DOT id = any_ident { id }
   ;
 
 pipeline_expr:

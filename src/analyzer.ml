@@ -113,6 +113,10 @@ let rec infer_type scope expr =
       ignore (infer_type scope then_);
       ignore (infer_type scope else_);
       TUnknown
+  | Match { scrutinee; cases } ->
+      ignore (infer_type scope scrutinee);
+      List.iter (fun (_, body) -> ignore (infer_type scope body)) cases;
+      TUnknown
   | BinOp { left; right; _ } | BroadcastOp { left; right; _ } ->
       ignore (infer_type scope left);
       ignore (infer_type scope right);

@@ -28,6 +28,11 @@ let rec desugar_nse_expr (expr : Ast.expr) : Ast.expr =
         then_ = desugar_nse_expr then_;
         else_ = desugar_nse_expr else_ 
       })
+  | Match { scrutinee; cases } ->
+      Ast.mk_expr ?loc (Match {
+        scrutinee = desugar_nse_expr scrutinee;
+        cases = List.map (fun (pattern, body) -> (pattern, desugar_nse_expr body)) cases;
+      })
   | ListLit items ->
       Ast.mk_expr ?loc (ListLit (List.map (fun (n, e) -> (n, desugar_nse_expr e)) items))
   | DictLit entries ->
@@ -95,6 +100,8 @@ let rec uses_nse (expr : Ast.expr) : bool =
   | Call { fn; args } -> uses_nse fn || List.exists (fun (_, e) -> uses_nse e) args
   | IfElse { cond; then_; else_ } ->
       uses_nse cond || uses_nse then_ || uses_nse else_
+  | Match { scrutinee; cases } ->
+      uses_nse scrutinee || List.exists (fun (_, body) -> uses_nse body) cases
   | ListLit items -> List.exists (fun (_, e) -> uses_nse e) items
   | DictLit pairs -> List.exists (fun (_, e) -> uses_nse e) pairs
   | DotAccess { target; _ } -> uses_nse target
@@ -515,7 +522,84 @@ let vexpr v = match v with
   | _ -> Ast.mk_expr (Value v)
 let varexpr name = Ast.mk_expr (Var name)
 
-let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
+let add_fresh_match_binding bindings name value =
+  match List.assoc_opt name bindings with
+  | Some _ -> None
+  | None -> Some ((name, value) :: bindings)
+
+let merge_match_bindings bindings additions =
+  List.fold_left
+    (fun acc (name, value) ->
+      match acc with
+      | None -> None
+      | Some current -> add_fresh_match_binding current name value)
+    (Some bindings)
+    additions
+
+let rec match_pattern (pattern : Ast.match_pattern) (value : Ast.value)
+  : (string * Ast.value) list option =
+  match pattern, value with
+  | PWildcard, _ -> Some []
+  | PVar name, matched -> Some [ (name, matched) ]
+  | PNA, VNA _ -> Some []
+  | PError field, VError err ->
+      begin
+        match field with
+        | Some name -> Some [ (name, VString err.message) ]
+        | None -> Some []
+      end
+  | PList (patterns, rest_name), VList items ->
+      let rec match_list remaining_patterns remaining_items bindings =
+        match remaining_patterns, remaining_items with
+        | [], rest_items ->
+            begin
+              match rest_name with
+              | Some name -> add_fresh_match_binding bindings name (VList rest_items)
+              | None -> if rest_items = [] then Some bindings else None
+            end
+        | _ :: _, [] -> None
+        | pattern :: rest_patterns, (_, item_value) :: rest_items ->
+            begin
+              match match_pattern pattern item_value with
+              | None -> None
+              | Some matched_bindings ->
+                  begin
+                    match merge_match_bindings bindings matched_bindings with
+                    | None -> None
+                    | Some combined -> match_list rest_patterns rest_items combined
+                  end
+            end
+      in
+      match_list patterns items []
+  | _ -> None
+
+let rec eval_match (env_ref : environment ref) scrutinee cases =
+  let scrutinee_value = eval_expr env_ref scrutinee in
+  let rec eval_cases = function
+    | [] ->
+        begin
+          match scrutinee_value with
+          (* Preserve the original error when no arm handles it. *)
+          | VError _ as err -> err
+          | _ -> Error.match_error "Match expression did not match any pattern."
+        end
+    | (pattern, body) :: rest ->
+        begin
+          match match_pattern pattern scrutinee_value with
+          | None -> eval_cases rest
+          | Some bindings ->
+              let scoped_env =
+                List.fold_left
+                  (fun env (name, value) -> Env.add name value env)
+                  !env_ref
+                  bindings
+              in
+              eval_expr (ref scoped_env) body
+        end
+  in
+  eval_cases cases
+
+and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
   let result =
     match expr.node with
     | Unquote inner -> VUnquote (eval_expr env_ref inner)
@@ -550,6 +634,8 @@ let rec eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
          | VBool true -> eval_expr env_ref then_
          | VBool false -> eval_expr env_ref else_
          | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
+    | Match { scrutinee; cases } ->
+        eval_match env_ref scrutinee cases
 
     | Call { fn = { node = Var "expr"; _ }; args } ->
         (match args with
@@ -912,6 +998,23 @@ and free_vars (expr : Ast.expr) : string list =
         List.filter (fun v -> not (List.mem v bound)) (collect body)
     | { node = IfElse { cond; then_; else_ }; _ } ->
         collect cond @ collect then_ @ collect else_
+    | { node = Match { scrutinee; cases }; _ } ->
+        let collect_case (pattern, body) =
+          let rec bound_vars = function
+            | PWildcard | PNA -> []
+            | PVar name -> [name]
+            | PError None -> []
+            | PError (Some name) -> [name]
+            | PList (patterns, rest) ->
+                let names = List.concat_map bound_vars patterns in
+                match rest with
+                | Some name -> name :: names
+                | None -> names
+          in
+          let bound = bound_vars pattern in
+          List.filter (fun v -> not (List.mem v bound)) (collect body)
+        in
+        collect scrutinee @ List.concat_map collect_case cases
     | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect e) items
     | { node = ListComp _; _ } -> []
     | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect e) pairs
@@ -1487,6 +1590,11 @@ and quote_expr (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
   (* ── Control flow / structure ───────────────────────────────── *)
   | IfElse { cond; then_; else_ } ->
       Ast.mk_expr ?loc (IfElse { cond = q cond; then_ = q then_; else_ = q else_ })
+  | Match { scrutinee; cases } ->
+      Ast.mk_expr ?loc (Match {
+        scrutinee = q scrutinee;
+        cases = List.map (fun (pattern, body) -> (pattern, q body)) cases;
+      })
   | Block stmts       -> Ast.mk_expr ?loc (Block (List.map qs stmts))
   | Lambda l          -> Ast.mk_expr ?loc (Lambda { l with body = q l.body })
   | DotAccess { target; field } -> Ast.mk_expr ?loc (DotAccess { target = q target; field })
