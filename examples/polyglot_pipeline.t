@@ -24,17 +24,12 @@ p = pipeline {
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = "pmml"
+    deserializer = [data: "arrow", model_r: "pmml"]
   )
-
-  -- 4. Generate a shell report
-  report = shn(command = <{
-    printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
-  }>)
 }
 
 -- In a real workflow, you would build the pipeline to run it in the Nix sandbox:
--- build_pipeline(p)
+build_pipeline(p)
 
 -- For this demo, we can inspect the pipeline structure:
 print("Nodes in pipeline:")
