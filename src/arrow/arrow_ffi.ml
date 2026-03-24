@@ -316,3 +316,39 @@ external arrow_compute_compare_scalar : nativeint -> string -> float -> int -> b
     full OCaml column values. *)
 external arrow_column_null_mask : nativeint -> string -> bool array option
   = "caml_arrow_column_null_mask"
+
+(* ===================================================================== *)
+(* Window Operations (Phase 6 — v0.51.1)                                  *)
+(* ===================================================================== *)
+
+(** Return sorted 0-based row indices for a named numeric column.
+    Null values are placed last. ascending=true for ascending sort. *)
+external arrow_compute_sort_indices : nativeint -> string -> bool -> int array option
+  = "caml_arrow_compute_sort_indices"
+
+(** Compute dense ranks for a named numeric column.
+    Returns int option array: None for null positions, Some(rank) otherwise.
+    Ties receive the same rank with no gaps. *)
+external arrow_compute_dense_rank : nativeint -> string -> int option array option
+  = "caml_arrow_compute_dense_rank"
+
+(** Generalized ranking for a named numeric column.
+    rank_type: 0=row_number, 1=min_rank, 2=dense_rank.
+    Returns int option array: None for null positions, Some(rank) otherwise. *)
+external arrow_compute_rank : nativeint -> string -> int -> int option array option
+  = "caml_arrow_compute_rank"
+
+(** Shift a numeric column forward by offset positions (lag), filling NAs at start.
+    Returns Some(new_table_ptr) or None on failure/unsupported column type. *)
+external arrow_compute_lag_column : nativeint -> string -> int -> nativeint option
+  = "caml_arrow_compute_lag_column"
+
+(** Shift a numeric column backward by offset positions (lead), filling NAs at end.
+    Returns Some(new_table_ptr) or None on failure/unsupported column type. *)
+external arrow_compute_lead_column : nativeint -> string -> int -> nativeint option
+  = "caml_arrow_compute_lead_column"
+
+(** Optimized group-by with pre-sized hash table and numeric hashing fast path
+    for high-cardinality keys (>10k groups). Same interface as arrow_table_group_by. *)
+external arrow_group_by_optimized : nativeint -> string list -> nativeint option
+  = "caml_arrow_group_by_optimized"

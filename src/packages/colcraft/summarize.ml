@@ -161,7 +161,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                   let arrow_table = Arrow_bridge.table_from_value_columns value_columns 1 in
                   VDataFrame { arrow_table; group_keys = [] })
                else
-                 let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
+                 let grouped = Arrow_compute.group_by_optimized df.arrow_table df.group_keys in
                 let vectorized_pairs =
                   List.map (fun (name, fn) ->
                     match detect_vectorizable_agg fn with
