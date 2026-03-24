@@ -26,8 +26,8 @@ This document outlines the step-by-step evolution of the T language from the cur
 
 **Objective**: Expand the core syntax to close gaps in functional expressivity and developer experience.
 
-- [ ] **Pattern Matching (`match`)**:
-    - [ ] Implement `match` expression for lists, errors, and NA values.
+- [x] **Pattern Matching (`match`)**:
+    - [x] Implement `match` expression for lists, errors, and NA values.
     - **Expected Syntax**:
       ```t
       msg = match(x) {

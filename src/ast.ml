@@ -216,6 +216,13 @@ and lambda = {
   env : value Env.t option;
 }
 
+and match_pattern =
+  | PWildcard
+  | PVar of symbol
+  | PNA
+  | PList of match_pattern list * symbol option
+  | PError of symbol option
+
 and expr = expr_node located
 
 and expr_node =
@@ -225,6 +232,7 @@ and expr_node =
   | Call of { fn : expr; args : (string option * expr) list }
   | Lambda of lambda
   | IfElse of { cond : expr; then_ : expr; else_ : expr }
+  | Match of { scrutinee : expr; cases : (match_pattern * expr) list }
   | ListLit of (string option * expr) list
   | ListComp of { expr : expr; clauses : comp_clause list }
   | DictLit of (string * expr) list
@@ -414,6 +422,22 @@ module Utils = struct
     | And -> "&&" | Or -> "||" | BitAnd -> "&" | BitOr -> "|"
     | In -> "in" | Pipe -> "|>" | MaybePipe -> "?|>" | Formula -> "~"
 
+  and unparse_match_pattern = function
+    | PWildcard -> "_"
+    | PVar s -> s
+    | PNA -> "NA"
+    | PList (patterns, rest) ->
+        let items =
+          List.map unparse_match_pattern patterns
+          @
+          match rest with
+          | Some name -> [".." ^ name]
+          | None -> []
+        in
+        "[" ^ String.concat ", " items ^ "]"
+    | PError None -> "Error"
+    | PError (Some field) -> "Error { " ^ field ^ " }"
+
   and unparse_expr expr =
     match expr.node with
     | Value v -> value_to_string v
@@ -430,6 +454,13 @@ module Utils = struct
         "\\(" ^ String.concat ", " params ^ ") " ^ unparse_expr body
     | IfElse { cond; then_; else_ } ->
         "if (" ^ unparse_expr cond ^ ") " ^ unparse_expr then_ ^ " else " ^ unparse_expr else_
+    | Match { scrutinee; cases } ->
+        let cases_s =
+          List.map (fun (pattern, body) ->
+            unparse_match_pattern pattern ^ " => " ^ unparse_expr body
+          ) cases
+        in
+        "match(" ^ unparse_expr scrutinee ^ ") { " ^ String.concat ", " cases_s ^ " }"
     | ListLit items ->
         let items_s = List.map (fun (name, e) ->
           match name with

@@ -32,6 +32,7 @@ rule token = parse
   (* Keywords *)
   | "if"        { IF }
   | "else"      { ELSE }
+  | "match"     { MATCH }
   | "import"    { IMPORT }
 
   | "function"  { FUNCTION }
@@ -69,6 +70,7 @@ rule token = parse
   | '\\' { LAMBDA }  | ',' { COMMA }
   | ":=" { COLON_EQ }
   | ':' { COLON }    | '.' { DOT }
+  | "=>" { FAT_ARROW }
   | '=' { EQUALS }   | "->" { ARROW }
   | "..." { DOTDOTDOT }
   | "?|>" { MAYBE_PIPE }

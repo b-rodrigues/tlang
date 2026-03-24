@@ -64,6 +64,30 @@ and unparse_expr expr =
       Printf.sprintf "\\(%s) %s" (String.concat ", " params) (unparse_expr body)
   | IfElse { cond; then_; else_ } ->
       Printf.sprintf "if (%s) %s else %s" (unparse_expr cond) (unparse_expr then_) (unparse_expr else_)
+  | Match { scrutinee; cases } ->
+      let rec unparse_pattern = function
+        | PWildcard -> "_"
+        | PVar name -> name
+        | PNA -> "NA"
+        | PError None -> "Error"
+        | PError (Some field) -> Printf.sprintf "Error { %s }" field
+        | PList (patterns, rest) ->
+            let items =
+              List.map unparse_pattern patterns
+              @
+              match rest with
+              | Some name -> [".." ^ name]
+              | None -> []
+            in
+            Printf.sprintf "[%s]" (String.concat ", " items)
+      in
+      let cases_s =
+        cases
+        |> List.map (fun (pattern, body) ->
+          Printf.sprintf "%s => %s" (unparse_pattern pattern) (unparse_expr body))
+        |> String.concat ", "
+      in
+      Printf.sprintf "match(%s) { %s }" (unparse_expr scrutinee) cases_s
   | ListLit xs ->
       xs
       |> List.map (fun (name, e) ->

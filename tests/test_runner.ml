@@ -67,6 +67,7 @@ let () =
   Test_strings.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_pipe.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_ifelse.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_match.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_lists.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_dicts.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_builtins.run_tests pass_count fail_count eval_string eval_string_env test;
