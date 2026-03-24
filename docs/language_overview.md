@@ -264,6 +264,87 @@ Conditionals are expressions — they return values.
 
 ---
 
+## Pattern Matching (New)
+
+T now supports pattern matching on lists and errors using the `match` expression. This addition provides a more declarative way to destructure data and handle error states.
+
+```t
+-- Matching on lists
+x = [1, 2, 3]
+result = match(x) {
+  [h, ..t] => h,
+  [] => 0
+} -- 1
+
+-- Matching on errors
+res = 1 / 0
+msg = match(res) {
+  Error { msg: m } => m,
+  _ => "not an error"
+} -- "Division by zero"
+```
+
+Match arms are checked in order. If no patterns match, a `MatchError` is returned. Pattern bindings are scoped to the selected arm and do not leak out.
+
+### Data Science Examples
+
+Pattern matching is particularly useful for robust data pipelines and statistical reporting:
+
+```t
+-- 1. Graceful fallback for data loading
+df = read_csv("data.csv")
+data = match(df) {
+  Error { msg } => {
+    print(str_sprintf("Warning: %s. Falling back to backup.", msg));
+    read_csv("backup.csv")
+  },
+  _ => df
+}
+
+-- 2. Destructuring calculation results
+stats = [mean(x), sd(x), length(x)]
+report = match(stats) {
+  [m, s, n] => str_sprintf("Average: %f (±%f) from %d samples", m, s, n),
+  _ => "Invalid statistics list"
+}
+
+-- 3. Handling pipeline validation
+p = my_pipeline
+status = match(pipeline_validate(p)) {
+  [] => "Pipeline is valid and ready to build.",
+  [first_err, ..others] => 
+    str_join(["Found ", str_string(length(others) + 1), " validation errors."])
+}
+```
+
+### Integration with Maybe-Pipe and First-Class Errors
+
+Pattern matching is the final piece of T's "Errors-as-Values" philosophy. While the **maybe-pipe** (`?|>`) is used for simple forwarding and recovery, `match` provides precise control over different types of outcomes.
+
+```t
+-- Comprehensive error recovery pattern
+read_csv("raw_data.csv")
+  ?|> \(v) match(v) {
+    Error { msg: m } => 
+      if (str_detect(m, "File not found")) read_csv("default.csv")
+      else error("DataLoadError", str_sprintf("Critical failure: %s", m)),
+
+    df => df |> clean_data()
+  }
+```
+
+#### Comparison of Error Handling Patterns
+
+| Pattern | Behavior | Best Used For... |
+|---------|----------|-----------------|
+| `\|>` (Pipe) | Short-circuits on error | Standard "Happy Path" data flows. |
+| `?\|>` (Maybe-Pipe) | Forwards errors to functions | Simple fallback values or generic logging. |
+| `match` | Explicit branching | Complex recovery, destructuring messages, or handling multiple success/failure states. |
+
+For error handling, `match` expressions automatically propagate unhandled errors. If the scrutinee is an `Error` and no pattern explicitly handles it (via `Error { ... }` or a catch-all `_`), the original error value is returned.
+
+---
+
 ## Collections
 
 ### Lists

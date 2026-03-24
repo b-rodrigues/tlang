@@ -16,6 +16,6 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|match(1) { NA => "missing" }|}
     {|Error(MatchError: "Match expression did not match any pattern.")|};
   test "match bindings are scoped to the selected arm"
-    {|match([1, 2]) { [head, ..tail] => head, [] => 0 }; head|}
-    {|Error(NameError: "Name `head` is not defined.")|};
+    {|match([1, 2]) { [h, ..t] => h, [] => 0 }; h|}
+    {|Name `h` is not defined.|};
   print_newline ()

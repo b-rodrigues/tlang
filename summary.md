@@ -101,6 +101,9 @@ import "helpers.t"[clean_data, normalize]
 
 seq(5)
 seq(1, 10, by = 2)
+
+-- Pattern matching
+match([1, 2]) { [h, ..t] => h, [] => 0 }
 ```
 
 ### Three different literal/block forms
