@@ -39,7 +39,7 @@ p = pipeline {
     final_results = node(
         command = [r_part: summary_r, py_part: summary_py],
         runtime = T,
-        deserializer = "csv"
+        deserializer = [ summary_py: "csv", summary_r: "csv" ]
     )
 }
 
