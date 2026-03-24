@@ -4604,6 +4604,7 @@ CAMLprim value caml_arrow_compute_lag_column(value v_ptr, value v_col, value v_o
   }
 
   GArrowField *field = garrow_schema_get_field(schema, col_idx);
+  /* dtype is transfer-none from garrow_field_get_data_type; do not unref */
   GArrowDataType *dtype = garrow_field_get_data_type(field);
 
   gint64 nrows = garrow_table_get_n_rows(table);
@@ -4677,7 +4678,6 @@ CAMLprim value caml_arrow_compute_lag_column(value v_ptr, value v_col, value v_o
   }
 
   GArrowField *new_field = garrow_field_new(col_name, dtype);
-  /* dtype is transfer-none from garrow_field_get_data_type; do not unref */
   g_object_unref(field);
   g_object_unref(schema);
 
@@ -4724,6 +4724,7 @@ CAMLprim value caml_arrow_compute_lead_column(value v_ptr, value v_col, value v_
   }
 
   GArrowField *field = garrow_schema_get_field(schema, col_idx);
+  /* dtype is transfer-none from garrow_field_get_data_type; do not unref */
   GArrowDataType *dtype = garrow_field_get_data_type(field);
 
   gint64 nrows = garrow_table_get_n_rows(table);
@@ -4837,6 +4838,12 @@ numeric_cell_hash(GArrowArray *chunk, gint64 offset) {
   } else if (GARROW_IS_INT32_ARRAY(chunk)) {
     gint32 v = garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), offset);
     bits = (guint64)(guint32)v;
+  } else if (GARROW_IS_INT16_ARRAY(chunk)) {
+    gint16 v = garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset);
+    bits = (guint64)(guint16)v;
+  } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
+    guint32 v = garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset);
+    bits = (guint64)v;
   } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
     gdouble v = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
     memcpy(&bits, &v, sizeof(gdouble));
@@ -4899,6 +4906,8 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
 
     GArrowField *field = garrow_schema_get_field(schema, key_indices[i]);
     GArrowDataType *dtype = garrow_field_get_data_type(field);
+    /* Type tags match caml_arrow_table_get_schema conventions:
+       0=Int, 1=Float64, 2=Bool, 3=String, 6=Other/Null, 7=Date */
     if (GARROW_IS_INT8_DATA_TYPE(dtype) || GARROW_IS_INT16_DATA_TYPE(dtype) ||
         GARROW_IS_INT32_DATA_TYPE(dtype) || GARROW_IS_INT64_DATA_TYPE(dtype) ||
         GARROW_IS_UINT8_DATA_TYPE(dtype) || GARROW_IS_UINT16_DATA_TYPE(dtype) ||
@@ -4938,18 +4947,6 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
   GPtrArray *group_order = g_ptr_array_new();
   GPtrArray *group_rows = g_ptr_array_new();
   GPtrArray *group_key_vals = g_ptr_array_new();
-
-  if (n_keys <= 0) {
-    for (int j = 0; j < n_keys; j++) g_free(key_names[j]);
-    free(key_names); free(key_indices); free(key_types);
-    for (int k = 0; k < n_keys; k++) g_object_unref(key_cols[k]);
-    free(key_cols);
-    g_hash_table_destroy(group_map);
-    g_ptr_array_free(group_order, TRUE);
-    g_ptr_array_free(group_rows, TRUE);
-    g_ptr_array_free(group_key_vals, TRUE);
-    CAMLreturn(Val_none);
-  }
 
   /* Determine if we should use numeric hashing (all keys numeric and
      high-cardinality expected: nrows > 10000) */
