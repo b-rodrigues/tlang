@@ -13,8 +13,7 @@ p = pipeline {
     raw_data = node(
         command = read_csv("tests/pipeline/data/mtcars.csv", separator = "|"),
         runtime = T,
-        serializer = "csv",
-        functions = "tests/pipeline/iolib.t"
+        serializer = "csv"
     )
 
     -- NODE 2: R Language (using dplyr)
@@ -24,8 +23,7 @@ p = pipeline {
         command = <{ raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)) }>,
         runtime = R,
         deserializer = "csv",
-        serializer = "csv",
-        functions = "tests/pipeline/iolib.R"
+        serializer = "csv"
     )
 
     -- NODE 3: Python Language (using pandas)
@@ -33,8 +31,7 @@ p = pipeline {
         command = <{ raw_data.groupby("cyl").mean() }>,
         runtime = Python,
         deserializer = "csv",
-        serializer = "csv",
-        functions = "tests/pipeline/iolib.py"
+        serializer = "csv"
     )
 
     -- NODE 4: T Language
@@ -42,8 +39,7 @@ p = pipeline {
     final_results = node(
         command = [r_part: summary_r, py_part: summary_py],
         runtime = T,
-        deserializer = "csv",
-        functions = "tests/pipeline/iolib.t"
+        deserializer = "csv"
     )
 }
 
