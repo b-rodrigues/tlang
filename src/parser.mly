@@ -5,7 +5,7 @@ open Ast
 
 (* Custom exceptions for parser-only validation. *)
 exception Mixed_bracket_form
-exception Invalid_match_pattern_constructor of string
+exception Invalid_match_pattern of string
 
 (* Helper to build a parameter record from parsing *)
 type parsed_param = string * Ast.typ option
@@ -415,7 +415,15 @@ match_case:
 match_pattern:
   | p = list_match_pattern { p }
   | ctor = any_ident LBRACE skip_sep field = error_pattern_field RBRACE
-    { if ctor = "Error" then PError field else raise (Invalid_match_pattern_constructor ctor) }
+    {
+      if ctor = "Error" then PError field
+      else
+        raise
+          (Invalid_match_pattern
+             (Printf.sprintf
+                "Invalid pattern constructor `%s`. Only `Error { ... }` is supported in constructor patterns."
+                ctor))
+    }
   | NA { PNA }
   | id = any_ident { if id = "_" then PWildcard else PVar id }
   ;

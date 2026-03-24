@@ -522,7 +522,7 @@ let vexpr v = match v with
   | _ -> Ast.mk_expr (Value v)
 let varexpr name = Ast.mk_expr (Var name)
 
-let add_match_binding bindings name value =
+let add_fresh_match_binding bindings name value =
   match List.assoc_opt name bindings with
   | Some _ -> None
   | None -> Some ((name, value) :: bindings)
@@ -532,7 +532,7 @@ let merge_match_bindings bindings additions =
     (fun acc (name, value) ->
       match acc with
       | None -> None
-      | Some current -> add_match_binding current name value)
+      | Some current -> add_fresh_match_binding current name value)
     (Some bindings)
     additions
 
@@ -554,7 +554,7 @@ let rec match_pattern (pattern : Ast.match_pattern) (value : Ast.value)
         | [], rest_items ->
             begin
               match rest_name with
-              | Some name -> add_match_binding bindings name (VList rest_items)
+              | Some name -> add_fresh_match_binding bindings name (VList rest_items)
               | None -> if rest_items = [] then Some bindings else None
             end
         | _ :: _, [] -> None
@@ -579,6 +579,7 @@ let rec eval_match (env_ref : environment ref) scrutinee cases =
     | [] ->
         begin
           match scrutinee_value with
+          (* Preserve the original error when no arm handles it. *)
           | VError _ as err -> err
           | _ -> Error.match_error "Match expression did not match any pattern."
         end
