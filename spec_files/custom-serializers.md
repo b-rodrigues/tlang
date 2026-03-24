@@ -99,38 +99,23 @@ node_a = node(
 
 ### Explicit Human-Readable IDs
 ```t
-blob = register_serializer(
+^blob = register_serializer(
     id = "blob",
     writer = write_blob,
     reader = read_blob
 )
+
+node_a = node(..., serializer = ^blob)
 ```
 
 `blob` is now an object of class `serializer`.
 
-- **Pros:** Easy to debug ("X says blob, Y says csv").
-- **Cons:** Collision potential if two users define "blob" with different functions.
+- **Pros:** Easy to debug ("X says x, Y says y").
+- **Cons:** Collision potential.
 
 ## Naming Conventions: `csv` vs `CSV`
 
 To distinguish `serializer` objects from standard variables or functions, we should establish a clear naming convention. 
-
-### Option 1: All Caps (e.g., `CSV`, `ARROW`, `PMML`)
-Since T already uses all-caps identifiers for runtimes (e.g., `runtime = R`, `runtime = Python`), using all-caps for built-in serialization objects provides high visibility and consistency.
-
-```t
-node_a = node(
-    command = <{ ... }>,
-    serializer = CSV
-)
-```
-- **Pros:** Clearly signals "this is a first-class system object". Consistent with existing runtime constants.
-- **Cons:** Might look "shouty" or outdated to some developers.
-
-### Option 2: Pascal Case (e.g., `Csv`, `Arrow`)
-Matches the naming convention of T's core types (e.g., `DataFrame`, `Tensor`).
-- **Pros:** Consistent with type names.
-- **Cons:** Might be confused with a class constructor call if the language supports them.
 
 ### Option 4: Symbol-Prefixed (e.g., `^csv`, `^arrow`)
 Inspired by how Clojure or Ruby use `:` for keywords/symbols, or T's own use of `$` for column references.
@@ -141,8 +126,6 @@ node_a = node(
     serializer = ^csv
 )
 ```
-- **Pros:** Very clean. Immediate visual signal that `^csv` is a specific "Serializer Object" and not a variable or function. Can be lowercase without risk of conflict with local variables.
-- **Cons:** Requires a small update to the lexer and parser to recognize the `^` prefix (similar to how `$` is handled).
 
 ### Recommendation
 While **ALL_CAPS** (`CSV`) is the easiest to implement immediately using existing infrastructure, the **Symbol-Prefix** (`^csv`) is an elegant long-term solution that fits T's ergonomic design (mirroring `$col`).
@@ -164,14 +147,29 @@ node_a = node(..., serializer = ^blob)
 - **Extensibility:** Users can easily share serializer packages (e.g., a lib that provides Parquet serialization).
 - **Consistency:** Provides a unified interface for both built-in and user-provided serialization.
 
-## Phased Implementation Approach
+## Phased Implementation Plan
 
 ### Phase 1: Core AST and Lexer Updates
-- **Lexer**: Add a rule to recognize the \^\ prefix as a special identifier type (e.g., \SERIALIZER_ID\).
-- **AST**: Define the \serializer\ object type in OCaml, containing \id\, \writer\, \eader\, and \extension\.
-- **Environment**: Pre-populate the T environment with the standard \serializer\ constructor.
+- **Lexer**: Add a rule to recognize the `^` prefix as a special identifier type (e.g., `SERIALIZER_ID`).
+- **AST**: Define the `serializer` object type in OCaml, containing `id`, `writer`, `reader`, and `extension`.
+- **Environment**: Pre-populate the T environment with the standard `serializer` constructor.
 
 ### Phase 2: Refactoring Built-ins
-- **Standard Library**: Migrate \csv\, \rrow\, and \pmml\ to be children of the new \serializer\ type.
-- **Node API**: Update the ode()\ and \n()\ functions to accept these objects in addition to (and eventually instead of) raw strings.
-- **Backwards Compatibility**: Ensure passing \ÿ
+- **Standard Library**: Migrate `csv`, `arrow`, and `pmml` to be instances of the new `serializer` type.
+- **Node API**: Update the `node()` and `rn()` functions to accept these objects in addition to (and eventually instead of) raw strings.
+- **Backwards Compatibility**: Ensure passing `"csv"` still resolves internally to `^csv`.
+
+### Phase 3: Pipeline Coherence Checks
+- **Builder Logic**: Modify the OCaml pipeline builder (`src/pipeline/builder_populate.ml`) to perform coherence checks.
+- **Edge cases**: Handle multi-deserializer maps (ensuring each input matches its source node's serializer).
+- **Errors**: Add descriptive error messages for mismatched serialization formats.
+
+### Phase 4: User-Defined register_serializer
+- **FFI**: Implement `register_serializer` to allow T users to create their own pairs.
+- **Registration**: Enforce uniqueness of names (e.g., you cannot register two different `^blob` objects).
+- **Validation**: Ensure user-registered types are correctly propagated across nodes.
+
+### Phase 5: Polishing and Advanced Features
+- **Structural Hashing**: Implement automatic ID generation if the user omits the `id` field.
+- **Auto-Suffix**: Automatically append the serializer's `extension` to intermediate files in the cache.
+- **Metadata**: Allow serializers to store additional metadata (versioning, encoding, etc.).
