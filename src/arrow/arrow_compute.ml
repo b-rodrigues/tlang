@@ -850,7 +850,10 @@ let lead_column (t : Arrow_table.t) (col_name : string) (offset : int) : Arrow_t
 
 (** Optimized group-by for high-cardinality keys.
     Uses pre-sized hash table and numeric fast path when >10k rows with
-    all-numeric key columns. Falls back to standard group_by otherwise. *)
+    all-numeric key columns. Falls back to standard group_by when:
+    - The table has no native Arrow handle (pure OCaml storage)
+    - The native optimized grouping kernel returns None (e.g., unsupported column types)
+    Callers can check Arrow_table.is_native_backed to predict which path will be taken. *)
 let group_by_optimized (t : Arrow_table.t) (keys : string list) : grouped_table =
   match t.native_handle with
   | Some handle when not handle.Arrow_table.freed ->

@@ -4604,7 +4604,8 @@ CAMLprim value caml_arrow_compute_lag_column(value v_ptr, value v_col, value v_o
   }
 
   GArrowField *field = garrow_schema_get_field(schema, col_idx);
-  /* dtype is transfer-none from garrow_field_get_data_type; do not unref */
+  /* dtype is transfer-none from garrow_field_get_data_type — owned by field,
+     do not unref dtype separately; field is unreffed after use. */
   GArrowDataType *dtype = garrow_field_get_data_type(field);
 
   gint64 nrows = garrow_table_get_n_rows(table);
@@ -4724,7 +4725,8 @@ CAMLprim value caml_arrow_compute_lead_column(value v_ptr, value v_col, value v_
   }
 
   GArrowField *field = garrow_schema_get_field(schema, col_idx);
-  /* dtype is transfer-none from garrow_field_get_data_type; do not unref */
+  /* dtype is transfer-none from garrow_field_get_data_type — owned by field,
+     do not unref dtype separately; field is unreffed after use. */
   GArrowDataType *dtype = garrow_field_get_data_type(field);
 
   gint64 nrows = garrow_table_get_n_rows(table);
