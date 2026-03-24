@@ -163,3 +163,15 @@ node_a = node(..., serializer = ^blob)
 - **Simplicity:** Familiar formats like `^blob` become first-class citizens of the same system used for custom blobs.
 - **Extensibility:** Users can easily share serializer packages (e.g., a lib that provides Parquet serialization).
 - **Consistency:** Provides a unified interface for both built-in and user-provided serialization.
+
+## Phased Implementation Approach
+
+### Phase 1: Core AST and Lexer Updates
+- **Lexer**: Add a rule to recognize the \^\ prefix as a special identifier type (e.g., \SERIALIZER_ID\).
+- **AST**: Define the \serializer\ object type in OCaml, containing \id\, \writer\, \eader\, and \extension\.
+- **Environment**: Pre-populate the T environment with the standard \serializer\ constructor.
+
+### Phase 2: Refactoring Built-ins
+- **Standard Library**: Migrate \csv\, \rrow\, and \pmml\ to be children of the new \serializer\ type.
+- **Node API**: Update the ode()\ and \n()\ functions to accept these objects in addition to (and eventually instead of) raw strings.
+- **Backwards Compatibility**: Ensure passing \ÿ
