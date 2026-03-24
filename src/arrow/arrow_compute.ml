@@ -792,3 +792,78 @@ let column_null_mask (t : Arrow_table.t) (col_name : string) : bool array option
        | Some _ as result -> result
        | None -> ocaml_fallback ())
   | _ -> ocaml_fallback ()
+
+(* ===================================================================== *)
+(* Window Operations (Phase 6 — v0.51.1)                                  *)
+(* ===================================================================== *)
+
+(** Compute ranking for a named numeric column using Arrow native kernels.
+    rank_type: 0=row_number, 1=min_rank, 2=dense_rank.
+    Returns Some(int option array) where None = null position.
+    Falls back to None when no native handle is present. *)
+let rank_column (t : Arrow_table.t) (col_name : string) (rank_type : int) : int option array option =
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+      Arrow_ffi.arrow_compute_rank handle.ptr col_name rank_type
+  | _ -> None
+
+(** Compute dense rank for a named numeric column.
+    Shorthand for rank_column with rank_type=2. *)
+let dense_rank_column (t : Arrow_table.t) (col_name : string) : int option array option =
+  rank_column t col_name 2
+
+(** Compute row_number for a named numeric column.
+    Shorthand for rank_column with rank_type=0. *)
+let row_number_column (t : Arrow_table.t) (col_name : string) : int option array option =
+  rank_column t col_name 0
+
+(** Compute min_rank for a named numeric column.
+    Shorthand for rank_column with rank_type=1. *)
+let min_rank_column (t : Arrow_table.t) (col_name : string) : int option array option =
+  rank_column t col_name 1
+
+(** Lag a numeric column by offset positions using Arrow native kernel.
+    Returns Some(new_table) when native path succeeds, None otherwise. *)
+let lag_column (t : Arrow_table.t) (col_name : string) (offset : int) : Arrow_table.t option =
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+      (match Arrow_ffi.arrow_compute_lag_column handle.ptr col_name offset with
+       | Some new_ptr ->
+           let schema = schema_from_native_ptr new_ptr in
+           let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
+           Some (Arrow_table.create_from_native new_ptr schema nrows)
+       | None -> None)
+  | _ -> None
+
+(** Lead a numeric column by offset positions using Arrow native kernel.
+    Returns Some(new_table) when native path succeeds, None otherwise. *)
+let lead_column (t : Arrow_table.t) (col_name : string) (offset : int) : Arrow_table.t option =
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+      (match Arrow_ffi.arrow_compute_lead_column handle.ptr col_name offset with
+       | Some new_ptr ->
+           let schema = schema_from_native_ptr new_ptr in
+           let nrows = Arrow_ffi.arrow_table_num_rows new_ptr in
+           Some (Arrow_table.create_from_native new_ptr schema nrows)
+       | None -> None)
+  | _ -> None
+
+(** Optimized group-by for high-cardinality keys.
+    Uses pre-sized hash table and numeric fast path when >10k rows with
+    all-numeric key columns. Falls back to standard group_by when:
+    - The table has no native Arrow handle (pure OCaml storage)
+    - The native optimized grouping kernel returns None (e.g., unsupported column types)
+    Callers can check Arrow_table.is_native_backed to predict which path will be taken. *)
+let group_by_optimized (t : Arrow_table.t) (keys : string list) : grouped_table =
+  match t.native_handle with
+  | Some handle when not handle.Arrow_table.freed ->
+       (match Arrow_ffi.arrow_group_by_optimized handle.ptr keys with
+        | Some gptr ->
+            let gh = { ptr = gptr; freed = false } in
+            register_group_finalizer gh;
+            { base_table = t; group_keys = keys;
+              native_group = Some gh; ocaml_groups = ref None }
+        | None ->
+            group_by t keys)
+  | _ ->
+      group_by t keys

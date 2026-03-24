@@ -1840,6 +1840,8 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
 
   /* Build composite key string for each row and group using GHashTable */
   GHashTable *group_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  /* GHashTable handles resizing automatically. There is no public pre-sizing API. */
+
   /* Track insertion order */
   GPtrArray *group_order = g_ptr_array_new(); /* stores owned copies of key strings */
   /* Store row indices per group as GArray of ints */
@@ -4240,4 +4242,874 @@ CAMLprim value caml_arrow_table_new(value v_cols) {
   v_res = caml_alloc(1, 0);
   Store_field(v_res, 0, caml_copy_nativeint((intnat)table));
   CAMLreturn(v_res);
+}
+
+/* ===================================================================== */
+/* Arrow Window Operations                                               */
+/* ===================================================================== */
+
+/* --- Sort indices ---------------------------------------------------- */
+/* (nativeint table_ptr, string col_name, bool ascending) -> int array option
+   Returns 0-based row indices that would sort the column, NULLs last. */
+
+typedef struct {
+  gint64 index;
+  gdouble value;
+  gboolean is_null;
+} SortTriple;
+
+static int sort_triple_cmp_asc(const void *a, const void *b) {
+  const SortTriple *sa = (const SortTriple *)a;
+  const SortTriple *sb = (const SortTriple *)b;
+  if (sa->is_null && sb->is_null) return 0;
+  if (sa->is_null) return 1;   /* NULLs last */
+  if (sb->is_null) return -1;
+  if (sa->value < sb->value) return -1;
+  if (sa->value > sb->value) return 1;
+  /* Stable tie-break by original index */
+  return (sa->index < sb->index) ? -1 : (sa->index > sb->index) ? 1 : 0;
+}
+
+static int sort_triple_cmp_desc(const void *a, const void *b) {
+  const SortTriple *sa = (const SortTriple *)a;
+  const SortTriple *sb = (const SortTriple *)b;
+  if (sa->is_null && sb->is_null) return 0;
+  if (sa->is_null) return 1;   /* NULLs last */
+  if (sb->is_null) return -1;
+  if (sa->value > sb->value) return -1;
+  if (sa->value < sb->value) return 1;
+  return (sa->index < sb->index) ? -1 : (sa->index > sb->index) ? 1 : 0;
+}
+
+CAMLprim value caml_arrow_compute_sort_indices(value v_ptr, value v_col, value v_asc) {
+  CAMLparam3(v_ptr, v_col, v_asc);
+  CAMLlocal2(v_result, v_arr);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col);
+  int ascending = Bool_val(v_asc);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint col_idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+  if (col_idx < 0) CAMLreturn(Val_none);
+
+  gint64 nrows = garrow_table_get_n_rows(table);
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, col_idx);
+  if (chunked == NULL) CAMLreturn(Val_none);
+
+  NumericChunkCursor cursor;
+  numeric_chunk_cursor_init(&cursor, chunked);
+
+  SortTriple *triples = (SortTriple *)malloc(sizeof(SortTriple) * (size_t)nrows);
+  if (triples == NULL) {
+    numeric_chunk_cursor_destroy(&cursor);
+    g_object_unref(chunked);
+    CAMLreturn(Val_none);
+  }
+
+  gboolean supported = TRUE;
+  for (gint64 i = 0; i < nrows; i++) {
+    triples[i].index = i;
+    if (!get_numeric_value(&cursor, i, &triples[i].is_null, &triples[i].value)) {
+      supported = FALSE;
+      break;
+    }
+  }
+  numeric_chunk_cursor_destroy(&cursor);
+  g_object_unref(chunked);
+
+  if (!supported) {
+    free(triples);
+    CAMLreturn(Val_none);
+  }
+
+  qsort(triples, (size_t)nrows,
+        sizeof(SortTriple),
+        ascending ? sort_triple_cmp_asc : sort_triple_cmp_desc);
+
+  v_arr = caml_alloc(nrows, 0);
+  for (gint64 i = 0; i < nrows; i++) {
+    Store_field(v_arr, i, Val_int((int)triples[i].index));
+  }
+  free(triples);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, v_arr);
+  CAMLreturn(v_result);
+}
+
+/* --- Dense rank ------------------------------------------------------ */
+/* (nativeint table_ptr, string col_name) -> int option array option
+   Assigns dense ranks (no gaps) to non-NULL numeric values.
+   NULL positions receive None; ranked positions receive Some(rank). */
+
+typedef struct {
+  gint64 row_index;
+  gdouble value;
+} RankPair;
+
+static int rank_pair_cmp(const void *a, const void *b) {
+  const RankPair *ra = (const RankPair *)a;
+  const RankPair *rb = (const RankPair *)b;
+  if (ra->value < rb->value) return -1;
+  if (ra->value > rb->value) return 1;
+  /* Stable tie-break by original row index */
+  return (ra->row_index < rb->row_index) ? -1 : (ra->row_index > rb->row_index) ? 1 : 0;
+}
+
+CAMLprim value caml_arrow_compute_dense_rank(value v_ptr, value v_col) {
+  CAMLparam2(v_ptr, v_col);
+  CAMLlocal3(v_result, v_arr, v_some);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint col_idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+  if (col_idx < 0) CAMLreturn(Val_none);
+
+  gint64 nrows = garrow_table_get_n_rows(table);
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, col_idx);
+  if (chunked == NULL) CAMLreturn(Val_none);
+
+  NumericChunkCursor cursor;
+  numeric_chunk_cursor_init(&cursor, chunked);
+
+  /* Separate NULL and non-NULL rows */
+  gboolean *is_null_flag = (gboolean *)malloc(sizeof(gboolean) * (size_t)nrows);
+  RankPair *pairs = (RankPair *)malloc(sizeof(RankPair) * (size_t)nrows);
+  if (is_null_flag == NULL || pairs == NULL) {
+    free(is_null_flag);
+    free(pairs);
+    numeric_chunk_cursor_destroy(&cursor);
+    g_object_unref(chunked);
+    CAMLreturn(Val_none);
+  }
+
+  gint64 n_valid = 0;
+  gboolean supported = TRUE;
+  for (gint64 i = 0; i < nrows; i++) {
+    gboolean is_null;
+    gdouble val;
+    if (!get_numeric_value(&cursor, i, &is_null, &val)) {
+      supported = FALSE;
+      break;
+    }
+    is_null_flag[i] = is_null;
+    if (!is_null) {
+      pairs[n_valid].row_index = i;
+      pairs[n_valid].value = val;
+      n_valid++;
+    }
+  }
+  numeric_chunk_cursor_destroy(&cursor);
+  g_object_unref(chunked);
+
+  if (!supported) {
+    free(is_null_flag);
+    free(pairs);
+    CAMLreturn(Val_none);
+  }
+
+  /* Sort non-null pairs by value */
+  qsort(pairs, (size_t)n_valid, sizeof(RankPair), rank_pair_cmp);
+
+  /* Assign dense ranks: same value → same rank, no gaps */
+  int *ranks = (int *)calloc((size_t)nrows, sizeof(int));
+  if (ranks == NULL) {
+    free(is_null_flag);
+    free(pairs);
+    CAMLreturn(Val_none);
+  }
+
+  if (n_valid > 0) {
+    int current_rank = 1;
+    ranks[pairs[0].row_index] = current_rank;
+    for (gint64 i = 1; i < n_valid; i++) {
+      if (pairs[i].value != pairs[i - 1].value) {
+        current_rank++;
+      }
+      ranks[pairs[i].row_index] = current_rank;
+    }
+  }
+  free(pairs);
+
+  /* Build int option array: None for NULLs, Some(rank) for others */
+  v_arr = caml_alloc(nrows, 0);
+  for (gint64 i = 0; i < nrows; i++) {
+    if (is_null_flag[i]) {
+      Store_field(v_arr, i, Val_none);
+    } else {
+      v_some = caml_alloc(1, 0);
+      Store_field(v_some, 0, Val_int(ranks[i]));
+      Store_field(v_arr, i, v_some);
+    }
+  }
+  free(is_null_flag);
+  free(ranks);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, v_arr);
+  CAMLreturn(v_result);
+}
+
+/* --- Generalized rank ------------------------------------------------ */
+/* (nativeint table_ptr, string col_name, int rank_type) -> int option array option
+   rank_type: 0 = row_number, 1 = min_rank, 2 = dense_rank */
+
+CAMLprim value caml_arrow_compute_rank(value v_ptr, value v_col, value v_rank_type) {
+  CAMLparam3(v_ptr, v_col, v_rank_type);
+  CAMLlocal3(v_result, v_arr, v_some);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col);
+  int rank_type = Int_val(v_rank_type);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint col_idx = garrow_schema_get_field_index(schema, col_name);
+  g_object_unref(schema);
+  if (col_idx < 0) CAMLreturn(Val_none);
+
+  gint64 nrows = garrow_table_get_n_rows(table);
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, col_idx);
+  if (chunked == NULL) CAMLreturn(Val_none);
+
+  NumericChunkCursor cursor;
+  numeric_chunk_cursor_init(&cursor, chunked);
+
+  gboolean *is_null_flag = (gboolean *)malloc(sizeof(gboolean) * (size_t)nrows);
+  RankPair *pairs = (RankPair *)malloc(sizeof(RankPair) * (size_t)nrows);
+  if (is_null_flag == NULL || pairs == NULL) {
+    free(is_null_flag);
+    free(pairs);
+    numeric_chunk_cursor_destroy(&cursor);
+    g_object_unref(chunked);
+    CAMLreturn(Val_none);
+  }
+
+  gint64 n_valid = 0;
+  gboolean supported = TRUE;
+  for (gint64 i = 0; i < nrows; i++) {
+    gboolean is_null;
+    gdouble val;
+    if (!get_numeric_value(&cursor, i, &is_null, &val)) {
+      supported = FALSE;
+      break;
+    }
+    is_null_flag[i] = is_null;
+    if (!is_null) {
+      pairs[n_valid].row_index = i;
+      pairs[n_valid].value = val;
+      n_valid++;
+    }
+  }
+  numeric_chunk_cursor_destroy(&cursor);
+  g_object_unref(chunked);
+
+  if (!supported) {
+    free(is_null_flag);
+    free(pairs);
+    CAMLreturn(Val_none);
+  }
+
+  qsort(pairs, (size_t)n_valid, sizeof(RankPair), rank_pair_cmp);
+
+  int *ranks = (int *)calloc((size_t)nrows, sizeof(int));
+  if (ranks == NULL) {
+    free(is_null_flag);
+    free(pairs);
+    CAMLreturn(Val_none);
+  }
+
+  if (n_valid > 0) {
+    switch (rank_type) {
+      case 0: {
+        /* row_number: sequential 1..n among non-NULL values */
+        for (gint64 i = 0; i < n_valid; i++) {
+          ranks[pairs[i].row_index] = (int)(i + 1);
+        }
+        break;
+      }
+      case 1: {
+        /* min_rank: ties get minimum rank, gaps after ties */
+        int current_rank = 1;
+        ranks[pairs[0].row_index] = current_rank;
+        for (gint64 i = 1; i < n_valid; i++) {
+          if (pairs[i].value != pairs[i - 1].value) {
+            current_rank = (int)(i + 1);
+          }
+          ranks[pairs[i].row_index] = current_rank;
+        }
+        break;
+      }
+      case 2: {
+        /* dense_rank: ties get same rank, no gaps */
+        int current_rank = 1;
+        ranks[pairs[0].row_index] = current_rank;
+        for (gint64 i = 1; i < n_valid; i++) {
+          if (pairs[i].value != pairs[i - 1].value) {
+            current_rank++;
+          }
+          ranks[pairs[i].row_index] = current_rank;
+        }
+        break;
+      }
+      default:
+        /* Unknown rank type — fall through with zero ranks, treated below */
+        break;
+    }
+  }
+  free(pairs);
+
+  v_arr = caml_alloc(nrows, 0);
+  for (gint64 i = 0; i < nrows; i++) {
+    if (is_null_flag[i]) {
+      Store_field(v_arr, i, Val_none);
+    } else {
+      v_some = caml_alloc(1, 0);
+      Store_field(v_some, 0, Val_int(ranks[i]));
+      Store_field(v_arr, i, v_some);
+    }
+  }
+  free(is_null_flag);
+  free(ranks);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, v_arr);
+  CAMLreturn(v_result);
+}
+
+/* --- Lag column ------------------------------------------------------ */
+/* (nativeint table_ptr, string col_name, int offset) -> nativeint option
+   Shifts a numeric column forward by `offset` rows, filling NAs at start.
+   Returns a new table with the column replaced. */
+
+CAMLprim value caml_arrow_compute_lag_column(value v_ptr, value v_col, value v_offset) {
+  CAMLparam3(v_ptr, v_col, v_offset);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col);
+  int offset = Int_val(v_offset);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint col_idx = garrow_schema_get_field_index(schema, col_name);
+  if (col_idx < 0) {
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *field = garrow_schema_get_field(schema, col_idx);
+  /* dtype is transfer-none from garrow_field_get_data_type — owned by field,
+     do not unref dtype separately; field is unreffed after use. */
+  GArrowDataType *dtype = garrow_field_get_data_type(field);
+
+  gint64 nrows = garrow_table_get_n_rows(table);
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, col_idx);
+  if (chunked == NULL) {
+    g_object_unref(field);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  NumericChunkCursor cursor;
+  numeric_chunk_cursor_init(&cursor, chunked);
+
+  GError *error = NULL;
+  GArrowArrayBuilder *builder = NULL;
+  gboolean is_int64 = GARROW_IS_INT64_DATA_TYPE(dtype);
+  gboolean is_double = GARROW_IS_DOUBLE_DATA_TYPE(dtype);
+
+  if (is_int64) {
+    builder = (GArrowArrayBuilder *)garrow_int64_array_builder_new();
+  } else if (is_double) {
+    builder = (GArrowArrayBuilder *)garrow_double_array_builder_new();
+  } else {
+    /* Unsupported column type — return None to trigger OCaml fallback */
+    numeric_chunk_cursor_destroy(&cursor);
+    g_object_unref(chunked);
+    g_object_unref(field);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  for (gint64 i = 0; i < nrows; i++) {
+    gint64 src_row = i - (gint64)offset;
+    if (src_row < 0 || src_row >= nrows) {
+      garrow_array_builder_append_null(builder, &error);
+    } else {
+      gboolean is_null;
+      gdouble val;
+      if (!get_numeric_value(&cursor, src_row, &is_null, &val) || is_null) {
+        garrow_array_builder_append_null(builder, &error);
+      } else if (is_int64) {
+        garrow_int64_array_builder_append_value(
+            GARROW_INT64_ARRAY_BUILDER(builder), (gint64)val, &error);
+      } else {
+        garrow_double_array_builder_append_value(
+            GARROW_DOUBLE_ARRAY_BUILDER(builder), val, &error);
+      }
+    }
+    if (error) { g_error_free(error); error = NULL; }
+  }
+  numeric_chunk_cursor_destroy(&cursor);
+  g_object_unref(chunked);
+
+  GArrowArray *arr = garrow_array_builder_finish(builder, &error);
+  g_object_unref(builder);
+  if (arr == NULL) {
+    if (error) g_error_free(error);
+    g_object_unref(field);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GList *chunk_list = g_list_append(NULL, arr);
+  GArrowChunkedArray *new_ca = garrow_chunked_array_new(chunk_list, &error);
+  g_list_free_full(chunk_list, g_object_unref);
+  if (new_ca == NULL) {
+    if (error) g_error_free(error);
+    g_object_unref(field);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *new_field = garrow_field_new(col_name, dtype);
+  g_object_unref(field);
+  g_object_unref(schema);
+
+  GArrowTable *tmp = garrow_table_remove_column(table, col_idx, &error);
+  if (tmp == NULL) {
+    g_object_unref(new_ca);
+    g_object_unref(new_field);
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowTable *result = garrow_table_add_column(tmp, col_idx, new_field, new_ca, &error);
+  g_object_unref(tmp);
+  g_object_unref(new_ca);
+  g_object_unref(new_field);
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
+/* --- Lead column ----------------------------------------------------- */
+/* (nativeint table_ptr, string col_name, int offset) -> nativeint option
+   Shifts a numeric column backward by `offset` rows, filling NAs at end.
+   Returns a new table with the column replaced. */
+
+CAMLprim value caml_arrow_compute_lead_column(value v_ptr, value v_col, value v_offset) {
+  CAMLparam3(v_ptr, v_col, v_offset);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  const char *col_name = String_val(v_col);
+  int offset = Int_val(v_offset);
+
+  GArrowSchema *schema = garrow_table_get_schema(table);
+  gint col_idx = garrow_schema_get_field_index(schema, col_name);
+  if (col_idx < 0) {
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *field = garrow_schema_get_field(schema, col_idx);
+  /* dtype is transfer-none from garrow_field_get_data_type — owned by field,
+     do not unref dtype separately; field is unreffed after use. */
+  GArrowDataType *dtype = garrow_field_get_data_type(field);
+
+  gint64 nrows = garrow_table_get_n_rows(table);
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, col_idx);
+  if (chunked == NULL) {
+    g_object_unref(field);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  NumericChunkCursor cursor;
+  numeric_chunk_cursor_init(&cursor, chunked);
+
+  GError *error = NULL;
+  GArrowArrayBuilder *builder = NULL;
+  gboolean is_int64 = GARROW_IS_INT64_DATA_TYPE(dtype);
+  gboolean is_double = GARROW_IS_DOUBLE_DATA_TYPE(dtype);
+
+  if (is_int64) {
+    builder = (GArrowArrayBuilder *)garrow_int64_array_builder_new();
+  } else if (is_double) {
+    builder = (GArrowArrayBuilder *)garrow_double_array_builder_new();
+  } else {
+    numeric_chunk_cursor_destroy(&cursor);
+    g_object_unref(chunked);
+    g_object_unref(field);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  for (gint64 i = 0; i < nrows; i++) {
+    gint64 src_row = i + (gint64)offset;
+    if (src_row < 0 || src_row >= nrows) {
+      garrow_array_builder_append_null(builder, &error);
+    } else {
+      gboolean is_null;
+      gdouble val;
+      if (!get_numeric_value(&cursor, src_row, &is_null, &val) || is_null) {
+        garrow_array_builder_append_null(builder, &error);
+      } else if (is_int64) {
+        garrow_int64_array_builder_append_value(
+            GARROW_INT64_ARRAY_BUILDER(builder), (gint64)val, &error);
+      } else {
+        garrow_double_array_builder_append_value(
+            GARROW_DOUBLE_ARRAY_BUILDER(builder), val, &error);
+      }
+    }
+    if (error) { g_error_free(error); error = NULL; }
+  }
+  numeric_chunk_cursor_destroy(&cursor);
+  g_object_unref(chunked);
+
+  GArrowArray *arr = garrow_array_builder_finish(builder, &error);
+  g_object_unref(builder);
+  if (arr == NULL) {
+    if (error) g_error_free(error);
+    g_object_unref(field);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GList *chunk_list = g_list_append(NULL, arr);
+  GArrowChunkedArray *new_ca = garrow_chunked_array_new(chunk_list, &error);
+  g_list_free_full(chunk_list, g_object_unref);
+  if (new_ca == NULL) {
+    if (error) g_error_free(error);
+    g_object_unref(field);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowField *new_field = garrow_field_new(col_name, dtype);
+  g_object_unref(field);
+  g_object_unref(schema);
+
+  GArrowTable *tmp = garrow_table_remove_column(table, col_idx, &error);
+  if (tmp == NULL) {
+    g_object_unref(new_ca);
+    g_object_unref(new_field);
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  GArrowTable *result = garrow_table_add_column(tmp, col_idx, new_field, new_ca, &error);
+  g_object_unref(tmp);
+  g_object_unref(new_ca);
+  g_object_unref(new_field);
+  if (result == NULL) {
+    if (error) g_error_free(error);
+    CAMLreturn(Val_none);
+  }
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)result));
+  CAMLreturn(v_result);
+}
+
+/* --- Optimized group-by ---------------------------------------------- */
+/* Same interface as caml_arrow_table_group_by but with pre-sized hash table
+   and faster key concatenation for high-cardinality data.
+   Uses the existing GroupedTable struct for the return value. */
+
+/* Hash helper: compute a quick 64-bit hash for a numeric cell to avoid
+   string formatting overhead on high-cardinality numeric columns. */
+static guint64
+numeric_cell_hash(GArrowArray *chunk, gint64 offset) {
+  guint64 bits = 0;
+  if (GARROW_IS_INT64_ARRAY(chunk)) {
+    gint64 v = garrow_int64_array_get_value(GARROW_INT64_ARRAY(chunk), offset);
+    memcpy(&bits, &v, sizeof(gint64));
+  } else if (GARROW_IS_INT32_ARRAY(chunk)) {
+    gint32 v = garrow_int32_array_get_value(GARROW_INT32_ARRAY(chunk), offset);
+    bits = (guint64)(guint32)v;
+  } else if (GARROW_IS_INT16_ARRAY(chunk)) {
+    gint16 v = garrow_int16_array_get_value(GARROW_INT16_ARRAY(chunk), offset);
+    bits = (guint64)(guint16)v;
+  } else if (GARROW_IS_UINT32_ARRAY(chunk)) {
+    guint32 v = garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(chunk), offset);
+    bits = (guint64)v;
+  } else if (GARROW_IS_DOUBLE_ARRAY(chunk)) {
+    gdouble v = garrow_double_array_get_value(GARROW_DOUBLE_ARRAY(chunk), offset);
+    memcpy(&bits, &v, sizeof(gdouble));
+  } else if (GARROW_IS_FLOAT_ARRAY(chunk)) {
+    gfloat v = garrow_float_array_get_value(GARROW_FLOAT_ARRAY(chunk), offset);
+    guint32 u;
+    memcpy(&u, &v, sizeof(gfloat));
+    bits = (guint64)u;
+  } else {
+    bits = 0;
+  }
+  return bits;
+}
+
+CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
+  CAMLparam2(v_ptr, v_key_names);
+  CAMLlocal1(v_result);
+
+  GArrowTable *table = (GArrowTable *)Nativeint_val(v_ptr);
+  gint64 nrows = garrow_table_get_n_rows(table);
+  GArrowSchema *schema = garrow_table_get_schema(table);
+
+  /* Count and resolve key column names → indices */
+  int n_keys = 0;
+  value iter = v_key_names;
+  while (iter != Val_emptylist) {
+    n_keys++;
+    iter = Field(iter, 1);
+  }
+  if (n_keys == 0) {
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  int *key_indices = (int *)malloc(sizeof(int) * n_keys);
+  int *key_types = (int *)malloc(sizeof(int) * n_keys);
+  gchar **key_names = (gchar **)malloc(sizeof(gchar *) * n_keys);
+  if (key_indices == NULL || key_types == NULL || key_names == NULL) {
+    free(key_indices);
+    free(key_types);
+    free(key_names);
+    g_object_unref(schema);
+    CAMLreturn(Val_none);
+  }
+
+  iter = v_key_names;
+  for (int i = 0; i < n_keys; i++) {
+    value head = Field(iter, 0);
+    const char *name = String_val(head);
+    key_names[i] = g_strdup(name);
+    key_indices[i] = garrow_schema_get_field_index(schema, name);
+    if (key_indices[i] < 0) {
+      for (int j = 0; j <= i; j++) g_free(key_names[j]);
+      free(key_names);
+      free(key_indices);
+      free(key_types);
+      g_object_unref(schema);
+      CAMLreturn(Val_none);
+    }
+
+    GArrowField *field = garrow_schema_get_field(schema, key_indices[i]);
+    GArrowDataType *dtype = garrow_field_get_data_type(field);
+    /* Type tags match caml_arrow_table_get_schema conventions:
+       0=Int, 1=Float64, 2=Bool, 3=String, 6=Other/Null, 7=Date */
+    if (GARROW_IS_INT8_DATA_TYPE(dtype) || GARROW_IS_INT16_DATA_TYPE(dtype) ||
+        GARROW_IS_INT32_DATA_TYPE(dtype) || GARROW_IS_INT64_DATA_TYPE(dtype) ||
+        GARROW_IS_UINT8_DATA_TYPE(dtype) || GARROW_IS_UINT16_DATA_TYPE(dtype) ||
+        GARROW_IS_UINT32_DATA_TYPE(dtype) || GARROW_IS_UINT64_DATA_TYPE(dtype))
+                                                  key_types[i] = 0;
+    else if (GARROW_IS_DOUBLE_DATA_TYPE(dtype))   key_types[i] = 1;
+    else if (GARROW_IS_BOOLEAN_DATA_TYPE(dtype))  key_types[i] = 2;
+    else if (GARROW_IS_STRING_DATA_TYPE(dtype) ||
+             GARROW_IS_LARGE_STRING_DATA_TYPE(dtype))
+                                                  key_types[i] = 3;
+    else if (GARROW_IS_DATE32_DATA_TYPE(dtype) ||
+             GARROW_IS_DATE64_DATA_TYPE(dtype))   key_types[i] = 7;
+    else                                          key_types[i] = 6;
+
+    g_object_unref(field);
+    iter = Field(iter, 1);
+  }
+  g_object_unref(schema);
+
+  /* Fetch key column chunked arrays */
+  GArrowChunkedArray **key_cols = (GArrowChunkedArray **)malloc(sizeof(GArrowChunkedArray *) * n_keys);
+  if (key_cols == NULL) {
+    for (int j = 0; j < n_keys; j++) g_free(key_names[j]);
+    free(key_names); free(key_indices); free(key_types);
+    CAMLreturn(Val_none);
+  }
+  for (int k = 0; k < n_keys; k++) {
+    key_cols[k] = garrow_table_get_column_data(table, key_indices[k]);
+  }
+
+  /* GHashTable handles resizing automatically. There is no public pre-sizing API. */
+  GHashTable *group_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+
+  GPtrArray *group_order = g_ptr_array_new();
+  GPtrArray *group_rows = g_ptr_array_new();
+  GPtrArray *group_key_vals = g_ptr_array_new();
+
+  /* Determine if we should use numeric hashing (all keys numeric and
+     high-cardinality expected: nrows > 10000) */
+  gboolean use_numeric_hash = (nrows > 10000);
+  for (int k = 0; k < n_keys && use_numeric_hash; k++) {
+    if (key_types[k] != 0 && key_types[k] != 1) {
+      use_numeric_hash = FALSE;
+    }
+  }
+
+  /* Pre-allocate per-key cursors for numeric columns when using fast path */
+  NumericChunkCursor *key_cursors = NULL;
+  if (use_numeric_hash) {
+    key_cursors = (NumericChunkCursor *)malloc(sizeof(NumericChunkCursor) * n_keys);
+    if (key_cursors != NULL) {
+      for (int k = 0; k < n_keys; k++) {
+        numeric_chunk_cursor_init(&key_cursors[k], key_cols[k]);
+      }
+    } else {
+      use_numeric_hash = FALSE;
+    }
+  }
+
+  /* Build composite key string for each row and group */
+  GString *key_buf = g_string_sized_new(n_keys * 20);
+
+  for (gint64 row = 0; row < nrows; row++) {
+    g_string_truncate(key_buf, 0);
+
+    if (use_numeric_hash && key_cursors != NULL) {
+      /* Fast path: use numeric hash bytes directly */
+      for (int k = 0; k < n_keys; k++) {
+        if (k > 0) g_string_append_c(key_buf, '|');
+        gint64 offset = 0;
+        if (numeric_chunk_cursor_seek(&key_cursors[k], row, &offset) &&
+            !garrow_array_is_null(key_cursors[k].chunk, offset)) {
+          guint64 h = numeric_cell_hash(key_cursors[k].chunk, offset);
+          g_string_append_printf(key_buf, "%" G_GUINT64_FORMAT, h);
+        } else {
+          g_string_append(key_buf, "N");
+        }
+      }
+    } else {
+      /* Standard path: string-format each key */
+      for (int k = 0; k < n_keys; k++) {
+        if (k > 0) g_string_append_c(key_buf, '|');
+        gchar *cell_str = cell_value_as_string(table, key_indices[k], row);
+        g_string_append(key_buf, cell_str);
+        g_free(cell_str);
+      }
+    }
+
+    gpointer existing = g_hash_table_lookup(group_map, key_buf->str);
+    if (existing == NULL) {
+      gchar *key_copy = g_strdup(key_buf->str);
+      guint group_id = group_order->len;
+      g_hash_table_insert(group_map, key_copy, GUINT_TO_POINTER(group_id + 1));
+      g_ptr_array_add(group_order, g_strdup(key_buf->str));
+
+      GArray *rows_arr = g_array_new(FALSE, FALSE, sizeof(int));
+      int row_int = (int)row;
+      g_array_append_val(rows_arr, row_int);
+      g_ptr_array_add(group_rows, rows_arr);
+
+      /* Store per-group key values */
+      gchar **kv = (gchar **)malloc(sizeof(gchar *) * n_keys);
+      for (int k = 0; k < n_keys; k++) {
+        kv[k] = cell_value_as_string(table, key_indices[k], row);
+      }
+      g_ptr_array_add(group_key_vals, kv);
+    } else {
+      guint group_id = GPOINTER_TO_UINT(existing) - 1;
+      GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, group_id);
+      int row_int = (int)row;
+      g_array_append_val(rows_arr, row_int);
+    }
+  }
+
+  g_string_free(key_buf, TRUE);
+
+  if (use_numeric_hash && key_cursors != NULL) {
+    for (int k = 0; k < n_keys; k++) {
+      numeric_chunk_cursor_destroy(&key_cursors[k]);
+    }
+    free(key_cursors);
+  }
+
+  for (int k = 0; k < n_keys; k++) g_object_unref(key_cols[k]);
+  free(key_cols);
+
+  int n_groups = (int)group_order->len;
+
+  /* Build GroupedTable result and sort it to match R's convention */
+  int *group_permutation = (int *)malloc(sizeof(int) * n_groups);
+  for (int i = 0; i < n_groups; i++) group_permutation[i] = i;
+
+  GroupedTableSortContext sort_ctx = {
+    .table = table,
+    .n_keys = n_keys,
+    .key_indices = key_indices,
+    .key_types = key_types,
+    .group_key_values = (gchar ***)group_key_vals->pdata
+  };
+
+#if GLIB_CHECK_VERSION(2, 82, 0)
+  g_sort_array(group_permutation, n_groups, sizeof(int),
+               compare_group_keys, &sort_ctx);
+#else
+  g_qsort_with_data(group_permutation, n_groups, sizeof(int),
+                    compare_group_keys, &sort_ctx);
+#endif
+
+  GroupedTable *gt = (GroupedTable *)malloc(sizeof(GroupedTable));
+  if (gt == NULL) {
+    /* Cleanup on allocation failure */
+    free(group_permutation);
+    for (int j = 0; j < n_keys; j++) g_free(key_names[j]);
+    free(key_names); free(key_indices); free(key_types);
+    g_hash_table_destroy(group_map);
+    for (guint g = 0; g < (guint)n_groups; g++) {
+      g_array_free((GArray *)g_ptr_array_index(group_rows, g), TRUE);
+      gchar **kv = (gchar **)g_ptr_array_index(group_key_vals, g);
+      for (int k = 0; k < n_keys; k++) g_free(kv[k]);
+      free(kv);
+    }
+    g_ptr_array_free(group_order, TRUE);
+    g_ptr_array_free(group_rows, TRUE);
+    g_ptr_array_free(group_key_vals, TRUE);
+    CAMLreturn(Val_none);
+  }
+
+  gt->table = g_object_ref(table);
+  gt->n_groups = n_groups;
+  gt->n_keys = n_keys;
+  gt->key_names = key_names;
+  gt->group_sizes = (int *)malloc(sizeof(int) * n_groups);
+  gt->group_row_indices = (int **)malloc(sizeof(int *) * n_groups);
+  gt->group_key_values = (gchar ***)malloc(sizeof(gchar **) * n_groups);
+
+  for (int i = 0; i < n_groups; i++) {
+    int g = group_permutation[i];
+    GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, g);
+    gt->group_sizes[i] = (int)rows_arr->len;
+    gt->group_row_indices[i] = (int *)malloc(sizeof(int) * rows_arr->len);
+    memcpy(gt->group_row_indices[i], rows_arr->data, sizeof(int) * rows_arr->len);
+    /* GArray itself will be free'd later */
+
+    gt->group_key_values[i] = (gchar **)g_ptr_array_index(group_key_vals, g);
+  }
+
+  for (int g = 0; g < n_groups; g++) {
+    GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, g);
+    g_array_free(rows_arr, TRUE);
+  }
+
+  free(group_permutation);
+  g_hash_table_destroy(group_map);
+
+  g_ptr_array_free(group_order, TRUE);
+  g_ptr_array_free(group_rows, FALSE);     /* elements transferred to gt */
+  g_ptr_array_free(group_key_vals, FALSE); /* elements transferred to gt */
+
+  free(key_indices);
+  free(key_types);
+
+  v_result = caml_alloc(1, 0);
+  Store_field(v_result, 0, caml_copy_nativeint((intnat)gt));
+  CAMLreturn(v_result);
 }

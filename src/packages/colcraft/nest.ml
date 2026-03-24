@@ -36,7 +36,7 @@ let nest_impl (named_args : (string option * value) list) _env =
           } in
           VDataFrame { arrow_table = new_table; group_keys = [] }
         else
-          let grouped = Arrow_compute.group_by df.arrow_table group_cols in
+          let grouped = Arrow_compute.group_by_optimized df.arrow_table group_cols in
           let groups = Arrow_compute.get_ocaml_groups grouped in
           let n_groups = List.length groups in
 

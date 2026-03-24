@@ -53,6 +53,74 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
       in
       find_unused !temp_counter
     in
+    (* Detect window function calls and lower them to Arrow native kernels.
+       Patterns: dense_rank($col), row_number($col), min_rank($col),
+                 lag($col), lag($col, n), lead($col), lead($col, n). *)
+    let try_vectorize_window_call fn_name args =
+      match fn_name, args with
+      (* rank functions: single column arg *)
+      | "dense_rank", [(None, arg)] ->
+        (match is_col_ref param arg with
+         | Some src_col ->
+           (match Arrow_compute.dense_rank_column table src_col with
+            | Some ranks ->
+              let col_data = Arrow_table.IntColumn ranks in
+              Some (Arrow_compute.add_computed_column table col_name col_data)
+            | None -> None)
+         | None -> None)
+      | "row_number", [(None, arg)] ->
+        (match is_col_ref param arg with
+         | Some src_col ->
+           (match Arrow_compute.row_number_column table src_col with
+            | Some ranks ->
+              let col_data = Arrow_table.IntColumn ranks in
+              Some (Arrow_compute.add_computed_column table col_name col_data)
+            | None -> None)
+         | None -> None)
+      | "min_rank", [(None, arg)] ->
+        (match is_col_ref param arg with
+         | Some src_col ->
+           (match Arrow_compute.min_rank_column table src_col with
+            | Some ranks ->
+              let col_data = Arrow_table.IntColumn ranks in
+              Some (Arrow_compute.add_computed_column table col_name col_data)
+            | None -> None)
+         | None -> None)
+      (* lag/lead: column arg + optional offset *)
+      | "lag", [(None, arg)] ->
+        (match is_col_ref param arg with
+         | Some src_col ->
+           (match Arrow_compute.lag_column table src_col 1 with
+            | Some new_table ->
+              Some (Arrow_table.add_column_from_table table col_name new_table src_col)
+            | None -> None)
+         | None -> None)
+      | "lag", [(None, arg); (None, offset_expr)] ->
+        (match is_col_ref param arg, extract_scalar offset_expr with
+         | Some src_col, Some (IntScalar n) when n >= 0 ->
+           (match Arrow_compute.lag_column table src_col n with
+            | Some new_table ->
+              Some (Arrow_table.add_column_from_table table col_name new_table src_col)
+            | None -> None)
+         | _ -> None)
+      | "lead", [(None, arg)] ->
+        (match is_col_ref param arg with
+         | Some src_col ->
+           (match Arrow_compute.lead_column table src_col 1 with
+            | Some new_table ->
+              Some (Arrow_table.add_column_from_table table col_name new_table src_col)
+            | None -> None)
+         | None -> None)
+      | "lead", [(None, arg); (None, offset_expr)] ->
+        (match is_col_ref param arg, extract_scalar offset_expr with
+         | Some src_col, Some (IntScalar n) when n >= 0 ->
+           (match Arrow_compute.lead_column table src_col n with
+            | Some new_table ->
+              Some (Arrow_table.add_column_from_table table col_name new_table src_col)
+            | None -> None)
+         | _ -> None)
+      | _ -> None
+    in
     let rec vectorize_expr current_table expr =
       match is_col_ref param expr with
       | Some col -> Some (current_table, col)
@@ -128,13 +196,23 @@ let try_vectorize_mutate (table : Arrow_table.t) (fn : value)
                  | None -> None))
         | _ -> None
     in
-    (match vectorize_expr table body with
-     | Some (result_table, result_col) ->
-       if result_col = col_name then Some result_table
-       else
-         Some (Arrow_table.add_column_from_table table col_name result_table result_col)
+    (* Try window function vectorization first, then arithmetic vectorization *)
+    let window_result =
+      match body.node with
+      | Call { fn = { node = Var fn_name; _ }; args } ->
+        try_vectorize_window_call fn_name args
+      | _ -> None
+    in
+    (match window_result with
+     | Some _ -> window_result
      | None ->
-       None)
+       match vectorize_expr table body with
+       | Some (result_table, result_col) ->
+         if result_col = col_name then Some result_table
+         else
+           Some (Arrow_table.add_column_from_table table col_name result_table result_col)
+       | None ->
+         None)
   | _ -> None
 
 let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr -> Ast.value) ~uses_nse:(_uses_nse : Ast.expr -> bool) ~desugar_nse_expr:(_desugar_nse_expr : Ast.expr -> Ast.expr) env =
@@ -158,7 +236,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
       let apply_mutation df col_name fn =
         let nrows = Arrow_table.num_rows df.arrow_table in
         if df.group_keys <> [] then
-          let grouped = Arrow_compute.group_by df.arrow_table df.group_keys in
+          let grouped = Arrow_compute.group_by_optimized df.arrow_table df.group_keys in
           let groups = Arrow_compute.get_ocaml_groups grouped in
           let new_col = Array.make nrows VNull in
           let had_error = ref None in
