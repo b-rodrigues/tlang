@@ -14,11 +14,11 @@ This document outlines the step-by-step evolution of the T language from the cur
 - [ ] **Large Dataset Benchmarks**:
     - [ ] Achieve <1s baseline for core verbs (select/filter/mutate) on 100k rows.
     - [ ] Achieve <10s baseline for core verbs on 1M rows.
-- [ ] **Edge Case Hardening**:
-    - [ ] Exhaustive tests for empty groups, all-NA groups, and single-row groups.
-    - [ ] Handle window overflows and tie-breaking in rank functions.
-- [ ] **Formula Engine**:
-    - [ ] Support for interaction terms and collinearity detection in `lm()`.
+- [x] **Edge Case Hardening**:
+    - [x] Exhaustive tests for empty groups, all-NA groups, and single-row groups.
+    - [x] Handle window overflows and tie-breaking in rank functions.
+- [x] **Formula Engine**:
+    - [x] Support for interaction terms and collinearity detection in `lm()`.
 
 ---
 

@@ -140,6 +140,44 @@ let pearson_cor (xs : float array) (ys : float array) : float option =
     if !sum_xx = 0.0 || !sum_yy = 0.0 then None
     else Some (!sum_xy /. Float.sqrt (!sum_xx *. !sum_yy))
 
+let array_has_zero_variance (xs : float array) : bool =
+  let n = Array.length xs in
+  n = 0
+  || let first = xs.(0) in
+     let rec loop idx =
+       idx >= n || (Float.abs (xs.(idx) -. first) < 1e-12 && loop (idx + 1))
+     in
+     loop 1
+
+(* Treat correlations within floating-point epsilon of ±1 as perfect collinearity. *)
+let collinearity_threshold = 1e-10
+
+let detect_collinearity (predictors : (string * float array) list) : string option =
+  match List.find_opt (fun (_, xs) -> array_has_zero_variance xs) predictors with
+  | Some (name, _) ->
+      Some (Printf.sprintf "predictor `%s` has zero variance" name)
+  | None ->
+      let items = Array.of_list predictors in
+      let rec outer i =
+        if i >= Array.length items then None
+        else
+          let name_i, xs_i = items.(i) in
+          let rec inner j =
+            if j >= Array.length items then outer (i + 1)
+            else
+              let name_j, xs_j = items.(j) in
+              match pearson_cor xs_i xs_j with
+              | Some corr when Float.abs corr > 1.0 -. collinearity_threshold ->
+                  Some
+                    (Printf.sprintf
+                       "predictors `%s` and `%s` are perfectly collinear"
+                       name_i name_j)
+              | _ -> inner (j + 1)
+          in
+          inner (i + 1)
+      in
+      outer 0
+
 (* ================================================================== *)
 (* Multi-predictor OLS via Normal Equations                            *)
 (* ================================================================== *)

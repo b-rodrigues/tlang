@@ -18,7 +18,7 @@ Options:
   --csv-path PATH      Path to the materialized CSV used by T
   --months LIST        Comma-separated YYYY-MM list used if auto-preparing data
   --results PATH       Output CSV path
-  --queries LIST       Comma-separated query ids (default: q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13)
+  --queries LIST       Comma-separated query ids (default: q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19)
   --iterations N       Number of runs per engine/query (default: 1)
   --help               Show this message
 EOF
@@ -29,8 +29,12 @@ CSV_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.csv"
 PARQUET_PATH="$SCRIPT_DIR/data/nyc_taxi_materialized.parquet"
 MONTHS="2023-01,2023-02,2023-03"
 RESULTS_PATH="$SCRIPT_DIR/results/results.csv"
-QUERIES="q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13"
+QUERIES="q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19"
 ITERATIONS=1
+CORE_100K_CSV="$SCRIPT_DIR/data/nyc_taxi_core_100k.csv"
+CORE_100K_PARQUET="$SCRIPT_DIR/data/nyc_taxi_core_100k.parquet"
+CORE_1M_CSV="$SCRIPT_DIR/data/nyc_taxi_core_1m.csv"
+CORE_1M_PARQUET="$SCRIPT_DIR/data/nyc_taxi_core_1m.parquet"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -140,6 +144,76 @@ PY
 }
 
 ensure_benchmark_inputs
+
+core_benchmark_query_requested() {
+  case ",$QUERIES," in
+    *,q14,*|*,q15,*|*,q16,*|*,q17,*|*,q18,*|*,q19,*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+ensure_core_subset() {
+  local source_parquet="$1"
+  local rows="$2"
+  local output_csv="$3"
+  local output_parquet="$4"
+
+  if [[ -f "$output_csv" && -f "$output_parquet" ]]; then
+    return
+  fi
+
+  mkdir -p "$(dirname "$output_csv")"
+  mkdir -p "$(dirname "$output_parquet")"
+
+  python - "$source_parquet" "$output_csv" "$output_parquet" "$rows" <<'PY'
+import pathlib
+import sys
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pyarrow.csv as pacsv
+
+source_parquet = pathlib.Path(sys.argv[1])
+output_csv = pathlib.Path(sys.argv[2])
+output_parquet = pathlib.Path(sys.argv[3])
+rows = int(sys.argv[4])
+
+parquet_file = pq.ParquetFile(source_parquet)
+total_rows = parquet_file.metadata.num_rows
+if total_rows < rows:
+    raise SystemExit(
+        f"Materialized parquet at {source_parquet} only has {total_rows} rows; "
+        f"need at least {rows} rows for the core verb benchmark."
+    )
+
+batches = []
+collected = 0
+for batch in parquet_file.iter_batches():
+    remaining = rows - collected
+    if batch.num_rows > remaining:
+        batch = batch.slice(0, remaining)
+    batches.append(batch)
+    collected += batch.num_rows
+    if collected >= rows:
+        break
+
+subset = pa.Table.from_batches(batches)
+pq.write_table(subset, output_parquet)
+pacsv.write_csv(subset, output_csv)
+
+print(f"Wrote {rows} rows to {output_parquet}")
+print(f"Wrote {rows} rows to {output_csv}")
+PY
+}
+
+if core_benchmark_query_requested; then
+  ensure_core_subset "$PARQUET_PATH" 100000 "$CORE_100K_CSV" "$CORE_100K_PARQUET"
+  ensure_core_subset "$PARQUET_PATH" 1000000 "$CORE_1M_CSV" "$CORE_1M_PARQUET"
+fi
 
 if ! command -v Rscript >/dev/null 2>&1; then
   echo "Rscript is required" >&2
@@ -260,6 +334,11 @@ PY
 IFS=',' read -r -a QUERY_LIST <<< "$QUERIES"
 
 for query in "${QUERY_LIST[@]}"; do
+  python_args=(--dataset "$PARQUET_DIR")
+  r_args=("$PARQUET_DIR")
+  t_csv="$CSV_PATH"
+  t_parquet="$PARQUET_PATH"
+
   case "$query" in
     q1)
       python_script="$SCRIPT_DIR/python/q1_long_trips.py"
@@ -326,6 +405,60 @@ for query in "${QUERY_LIST[@]}"; do
       r_script="$SCRIPT_DIR/r/q13_high_cardinality_rollup.R"
       t_script="$SCRIPT_DIR/queries/q13_high_cardinality_rollup.t"
       ;;
+    q14)
+      python_script="$SCRIPT_DIR/python/q14_core_select.py"
+      r_script="$SCRIPT_DIR/r/q14_core_select.R"
+      t_script="$SCRIPT_DIR/queries/q14_core_select.t"
+      python_args=(--input-parquet "$CORE_100K_PARQUET")
+      r_args=("$CORE_100K_PARQUET")
+      t_csv="$CORE_100K_CSV"
+      t_parquet="$CORE_100K_PARQUET"
+      ;;
+    q15)
+      python_script="$SCRIPT_DIR/python/q15_core_filter.py"
+      r_script="$SCRIPT_DIR/r/q15_core_filter.R"
+      t_script="$SCRIPT_DIR/queries/q15_core_filter.t"
+      python_args=(--input-parquet "$CORE_100K_PARQUET")
+      r_args=("$CORE_100K_PARQUET")
+      t_csv="$CORE_100K_CSV"
+      t_parquet="$CORE_100K_PARQUET"
+      ;;
+    q16)
+      python_script="$SCRIPT_DIR/python/q16_core_mutate.py"
+      r_script="$SCRIPT_DIR/r/q16_core_mutate.R"
+      t_script="$SCRIPT_DIR/queries/q16_core_mutate.t"
+      python_args=(--input-parquet "$CORE_100K_PARQUET")
+      r_args=("$CORE_100K_PARQUET")
+      t_csv="$CORE_100K_CSV"
+      t_parquet="$CORE_100K_PARQUET"
+      ;;
+    q17)
+      python_script="$SCRIPT_DIR/python/q14_core_select.py"
+      r_script="$SCRIPT_DIR/r/q14_core_select.R"
+      t_script="$SCRIPT_DIR/queries/q14_core_select.t"
+      python_args=(--input-parquet "$CORE_1M_PARQUET")
+      r_args=("$CORE_1M_PARQUET")
+      t_csv="$CORE_1M_CSV"
+      t_parquet="$CORE_1M_PARQUET"
+      ;;
+    q18)
+      python_script="$SCRIPT_DIR/python/q15_core_filter.py"
+      r_script="$SCRIPT_DIR/r/q15_core_filter.R"
+      t_script="$SCRIPT_DIR/queries/q15_core_filter.t"
+      python_args=(--input-parquet "$CORE_1M_PARQUET")
+      r_args=("$CORE_1M_PARQUET")
+      t_csv="$CORE_1M_CSV"
+      t_parquet="$CORE_1M_PARQUET"
+      ;;
+    q19)
+      python_script="$SCRIPT_DIR/python/q16_core_mutate.py"
+      r_script="$SCRIPT_DIR/r/q16_core_mutate.R"
+      t_script="$SCRIPT_DIR/queries/q16_core_mutate.t"
+      python_args=(--input-parquet "$CORE_1M_PARQUET")
+      r_args=("$CORE_1M_PARQUET")
+      t_csv="$CORE_1M_CSV"
+      t_parquet="$CORE_1M_PARQUET"
+      ;;
     *)
       echo "Unknown query id: $query" >&2
       exit 1
@@ -333,9 +466,9 @@ for query in "${QUERY_LIST[@]}"; do
   esac
 
   for iteration in $(seq 1 "$ITERATIONS"); do
-    run_query python "$query" "$iteration" python "$python_script" --dataset "$PARQUET_DIR"
-    run_query r "$query" "$iteration" Rscript "$r_script" "$PARQUET_DIR"
-    run_query t "$query" "$iteration" env NYC_TAXI_CSV="$CSV_PATH" NYC_TAXI_PARQUET="$PARQUET_PATH" "$T_BIN" run --unsafe "$t_script"
+    run_query python "$query" "$iteration" python "$python_script" "${python_args[@]}"
+    run_query r "$query" "$iteration" Rscript "$r_script" "${r_args[@]}"
+    run_query t "$query" "$iteration" env NYC_TAXI_CSV="$t_csv" NYC_TAXI_PARQUET="$t_parquet" "$T_BIN" run --unsafe "$t_script"
   done
 done
 

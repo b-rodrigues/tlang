@@ -381,14 +381,67 @@ let rec broadcast2 op v1 v2 =
   | s1, s2 ->
       eval_scalar_binop op s1 s2
 
+let uniq_preserve (items : string list) : string list =
+  let seen = Hashtbl.create (List.length items) in
+  List.filter
+    (fun item ->
+      if Hashtbl.mem seen item then false
+      else begin
+        Hashtbl.add seen item ();
+        true
+      end)
+    items
+
+let combinations_of_size size lst =
+  let rec aux k prefix rest acc =
+    match k, rest with
+    | 0, _ ->
+        let combo = List.rev prefix in
+        combo :: acc
+    | _, [] ->
+        acc
+    | k, x :: xs ->
+        let acc = aux (k - 1) (x :: prefix) xs acc in
+        aux k prefix xs acc
+  in
+  aux size [] lst [] |> List.rev
+
+let expand_formula_interaction (factors : string list) : string list =
+  let factors = uniq_preserve factors in
+  let n = List.length factors in
+  let rec loop size acc =
+    if size > n then
+      List.rev acc
+    else
+      let terms =
+        combinations_of_size size factors
+        |> List.map (String.concat ":")
+      in
+      loop (size + 1) (List.rev_append terms acc)
+  in
+  loop 1 []
+
+let rec extract_formula_product_factors (expr : Ast.expr) : string list option =
+  match expr.node with
+  | Var s -> Some [ s ]
+  | BinOp { op = Mul; left; right } ->
+      (match extract_formula_product_factors left, extract_formula_product_factors right with
+       | Some lhs, Some rhs -> Some (lhs @ rhs)
+       | _ -> None)
+  | _ -> None
+
 (** Extract variable names from a formula expression.
-    Supports: x, x + y, x + y + z
-    Returns list of variable names *)
+    Supports additive terms and interaction expansion via `*`.
+    Returns predictor/response names in model-matrix order. *)
 let rec extract_formula_vars (expr : Ast.expr) : string list =
   match expr.node with
-  | Var s -> [s]
+  | Var s -> [ s ]
   | BinOp { op = Plus; left; right } ->
-      extract_formula_vars left @ extract_formula_vars right
+      uniq_preserve (extract_formula_vars left @ extract_formula_vars right)
+  | BinOp { op = Mul; _ } ->
+      (match extract_formula_product_factors expr with
+       | Some factors -> expand_formula_interaction factors
+       | None -> [])
   | Value (VInt 1) -> []  (* Intercept term: y ~ x + 1 *)
   | _ -> []  (* Unsupported formula syntax *)
 
