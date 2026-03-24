@@ -37,21 +37,12 @@ This document outlines the step-by-step evolution of the T language from the cur
         NA             => "Missing"
       }
       ```
-- [ ] **List Comprehensions**:
-    - [ ] Enable `FOR` and `IF` clauses for compact list generation.
-    - **Expected Syntax**:
-      ```t
-      evens = [x * 10 for x in seq(1, 10) if x % 2 == 0]
-      ```
-- [ ] **String Interpolation**:
-    - [ ] Native `"{expr}"` embedding in double-quoted strings, but check if `sprintf` is enough.
 - [ ] **Immutable Update Lenses**:
-    - [ ] Implement `set()`, `over()`, and `modify()` for deep dict/list updates (e.g. `df |> set(col.Petal.Length, 1.0)`).
+    - [ ] Implement `set()`, `over()`, and `modify()` for deep dict/list updates (e.g. `df |> set($Petal.Length, 1.0)`).
 - [ ] **First-class Serializer System**:
     - [ ] Implement `serializer` structure with `writer`/`reader` functions.
     - [ ] Add `^` symbol prefix for serializer identifiers (e.g., `^csv`, `^arrow`).
     - [ ] Implement static coherence checks in the pipeline builder to ensure source/target format matching.
-
 
 ---
 
