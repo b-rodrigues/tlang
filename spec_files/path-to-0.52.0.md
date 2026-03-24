@@ -11,9 +11,9 @@ This document outlines the step-by-step evolution of the T language from the cur
 - [x] **Arrow Backend Optimization**:
     - [x] **Grouped `mutate` / Windowing**: Materialize Arrow window kernels to replace OCaml fallbacks for `dense_rank`, `lag`, etc.
     - [x] **Grouping Kernels**: Optimize hash-based grouping for high-cardinality keys (>10k groups).
-- [ ] **Large Dataset Benchmarks**:
-    - [ ] Achieve <1s baseline for core verbs (select/filter/mutate) on 100k rows.
-    - [ ] Achieve <10s baseline for core verbs on 1M rows.
+- [x] **Large Dataset Benchmarks**:
+    - [x] Achieve <1s baseline for core verbs (select/filter/mutate) on 100k rows.
+    - [x] Achieve <10s baseline for core verbs on 1M rows.
 - [x] **Edge Case Hardening**:
     - [x] Exhaustive tests for empty groups, all-NA groups, and single-row groups.
     - [x] Handle window overflows and tie-breaking in rank functions.
