@@ -46,53 +46,28 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
     ) p.p_exprs
   in
 
-  (* Cross-reference dependencies and their serializers/deserializers *)
-  let check_strategies () =
-    let rec lookup_key k = function
-      | [] -> None
-      | (key, e) :: _ when key = k -> Some e
-      | _ :: rest -> lookup_key k rest
-    in
-    let get_strategy_label dep_name expr =
-      let e = match expr.Ast.node with
-        | Ast.DictLit items ->
-            (match lookup_key dep_name items with Some item_e -> item_e | None -> Ast.mk_expr (Ast.Var "default"))
-        | Ast.ListLit items ->
-            (match List.find_map (fun (k, e) -> if k = Some dep_name then Some e else None) items with
-             | Some item_e -> item_e | None -> Ast.mk_expr (Ast.Var "default"))
-        | _ -> expr
+  (* Ensure nodes with multiple dependencies use a dictionary for their deserializer strategy. *)
+  let check_multi_dep_strategies () =
+    List.find_map (fun (name, _) ->
+      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+      let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
+      
+      let is_dict_or_list = function
+        | Ast.DictLit _ | Ast.ListLit _ -> true
+        | _ -> false
       in
-      match e.Ast.node with
-      | Ast.Value (Ast.VString s) -> s
-      | Ast.Var s -> s
-      | _ -> "custom"
-    in
-    
-    let find_mismatch () =
-      List.find_map (fun (name, _) ->
-        let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-        let node_des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
-        
-        List.find_map (fun dep_name ->
-          let dep_ser_expr = match List.assoc_opt dep_name p.p_serializers with 
-            | Some e -> e | None -> Ast.mk_expr (Ast.Var "default") 
-          in
-          let dep_ser = match dep_ser_expr.Ast.node with 
-            | Ast.Value (Ast.VString s) -> s | Ast.Var s -> s | _ -> "custom" 
-          in
-          let expected_des = get_strategy_label dep_name node_des in
-          
-          if dep_ser <> expected_des && dep_ser <> "default" && expected_des <> "default" then
-            Some (Printf.sprintf "Mismatched strategies for node `%s`: dependency `%s` provides `%s` but node expects `%s`.\nTo fix this, use a dictionary for `deserializer`, e.g.:\n  deserializer = [ %s: \"%s\", ... ]"
-                   name dep_name dep_ser expected_des dep_name dep_ser)
-          else None
-        ) deps
-      ) p.p_exprs
-    in
-    find_mismatch ()
+      
+      if List.length deps >= 2 && not (is_dict_or_list des.Ast.node) then
+        let strategy = Nix_unparse.expr_to_string des in
+        if strategy <> "default" then
+          Some (Printf.sprintf "Node `%s` has multiple dependencies but uses a single deserializer strategy (\"%s\").\nThis strategy is applied to ALL dependencies, which may cause parse errors if they use different formats (e.g. Arrow vs PMML).\nPlease use a dictionary to specify the deserializer for each dependency, e.g.:\n  deserializer = [ %s: \"...\", %s: \"...\" ]"
+                 name strategy (List.hd deps) (List.nth deps 1))
+        else None
+      else None
+    ) p.p_exprs
   in
 
-  match check_strategies () with
+  match check_multi_dep_strategies () with
   | Some err -> Error (err)
   | None ->
   ensure_pipeline_dir ();
