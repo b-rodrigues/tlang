@@ -5036,10 +5036,30 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
 
   int n_groups = (int)group_order->len;
 
-  /* Build GroupedTable result */
+  /* Build GroupedTable result and sort it to match R's convention */
+  int *group_permutation = (int *)malloc(sizeof(int) * n_groups);
+  for (int i = 0; i < n_groups; i++) group_permutation[i] = i;
+
+  GroupedTableSortContext sort_ctx = {
+    .table = table,
+    .n_keys = n_keys,
+    .key_indices = key_indices,
+    .key_types = key_types,
+    .group_key_values = (gchar ***)group_key_vals->pdata
+  };
+
+#if GLIB_CHECK_VERSION(2, 82, 0)
+  g_sort_array(group_permutation, n_groups, sizeof(int),
+               compare_group_keys, &sort_ctx);
+#else
+  g_qsort_with_data(group_permutation, n_groups, sizeof(int),
+                    compare_group_keys, &sort_ctx);
+#endif
+
   GroupedTable *gt = (GroupedTable *)malloc(sizeof(GroupedTable));
   if (gt == NULL) {
     /* Cleanup on allocation failure */
+    free(group_permutation);
     for (int j = 0; j < n_keys; j++) g_free(key_names[j]);
     free(key_names); free(key_indices); free(key_types);
     g_hash_table_destroy(group_map);
@@ -5055,26 +5075,33 @@ CAMLprim value caml_arrow_group_by_optimized(value v_ptr, value v_key_names) {
     CAMLreturn(Val_none);
   }
 
-  g_object_ref(table);
-  gt->table = table;
+  gt->table = g_object_ref(table);
   gt->n_groups = n_groups;
   gt->n_keys = n_keys;
   gt->key_names = key_names;
-  gt->group_row_indices = (int **)malloc(sizeof(int *) * n_groups);
   gt->group_sizes = (int *)malloc(sizeof(int) * n_groups);
+  gt->group_row_indices = (int **)malloc(sizeof(int *) * n_groups);
   gt->group_key_values = (gchar ***)malloc(sizeof(gchar **) * n_groups);
+
+  for (int i = 0; i < n_groups; i++) {
+    int g = group_permutation[i];
+    GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, g);
+    gt->group_sizes[i] = (int)rows_arr->len;
+    gt->group_row_indices[i] = (int *)malloc(sizeof(int) * rows_arr->len);
+    memcpy(gt->group_row_indices[i], rows_arr->data, sizeof(int) * rows_arr->len);
+    /* GArray itself will be free'd later */
+
+    gt->group_key_values[i] = (gchar **)g_ptr_array_index(group_key_vals, g);
+  }
 
   for (int g = 0; g < n_groups; g++) {
     GArray *rows_arr = (GArray *)g_ptr_array_index(group_rows, g);
-    gt->group_sizes[g] = (int)rows_arr->len;
-    gt->group_row_indices[g] = (int *)malloc(sizeof(int) * rows_arr->len);
-    memcpy(gt->group_row_indices[g], rows_arr->data, sizeof(int) * rows_arr->len);
     g_array_free(rows_arr, TRUE);
-
-    gt->group_key_values[g] = (gchar **)g_ptr_array_index(group_key_vals, g);
   }
 
+  free(group_permutation);
   g_hash_table_destroy(group_map);
+
   g_ptr_array_free(group_order, TRUE);
   g_ptr_array_free(group_rows, FALSE);     /* elements transferred to gt */
   g_ptr_array_free(group_key_vals, FALSE); /* elements transferred to gt */
