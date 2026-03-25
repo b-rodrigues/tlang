@@ -376,6 +376,23 @@ fruits %>%
 crossing(x = 1:3, y = c("a", "b")) %>%
   save_output("crossing_x_y", "crossing(x = 1:3, y = c('a', 'b'))")
 
+# Test 10.12: nest roundtrip (nest then unnest)
+mtcars %>%
+  nest(data = c(mpg, hp)) %>%
+  unnest(data) %>%
+  select(car_name, mpg, cyl, disp, hp, drat, wt, qsec, vs, am, gear, carb) %>%
+  arrange(car_name) %>%
+  save_output("mtcars_nest_unnest", "nest(mpg, hp) %>% unnest(data)")
+
+# Test 10.13: nest with grouping
+mtcars %>%
+  group_by(cyl) %>%
+  nest(data = c(mpg, hp)) %>%
+  unnest(data) %>%
+  select(car_name, mpg, cyl, disp, hp, drat, wt, qsec, vs, am, gear, carb) %>%
+  arrange(car_name) %>%
+  save_output("mtcars_nest_grouped", "group_by(cyl) %>% nest() %>% unnest()")
+
 # ============================================================================
 # Test Suite 23: FACTOR operations
 # ============================================================================

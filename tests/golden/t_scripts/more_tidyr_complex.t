@@ -1,7 +1,8 @@
 mt = read_csv("data/mtcars.csv", sep = "|")
 
 print("--- nest/unnest ---")
-mt_nested = nest(mt, data = [$mpg, $hp])
+-- Matchers! This will nest 'mpg'
+mt_nested = nest(mt, data = starts_with("mpg"))
 print("Nested nrow:")
 print(nrow(mt_nested))
 print("Nested colnames:")

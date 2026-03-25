@@ -4,22 +4,56 @@ open Arrow_table
 let nest_impl (named_args : (string option * value) list) _env =
   match named_args with
   | (_, VDataFrame df) :: rest ->
-      let all_names = Arrow_table.column_names df.arrow_table in
-      
-      (* Support data = [...] keyword *)
-      let to_nest = match List.assoc_opt (Some "data") rest with
-        | Some (VVector arr) -> 
-            Array.to_list arr |> List.filter_map Utils.extract_column_name
-        | Some (VList items) ->
-            List.map snd items |> List.filter_map Utils.extract_column_name
-        | Some (VSymbol s) -> (match Utils.extract_column_name (VSymbol s) with Some n -> [n] | None -> [])
-        | _ -> 
-            (* Positional columns to nest *)
-            List.filter (fun (k, _) -> k = None) rest 
-            |> List.map snd 
-            |> List.filter_map Utils.extract_column_name
-      in
-      if to_nest = [] then VDataFrame df
+    let all_names = Arrow_table.column_names df.arrow_table in
+    
+    let rec resolve_col v =
+      match v with
+      | VSymbol _ -> (match Utils.extract_column_name v with Some s -> Result.Ok [s] | None -> Result.Ok [])
+      | VString s -> Result.Ok [s]
+      | VVector arr -> 
+          let results = Array.to_list arr |> List.map resolve_col in
+          (match List.find_opt Result.is_error results with
+           | Some (Result.Error e) -> Result.Error e
+           | _ -> Result.Ok (List.concat_map (function Result.Ok s -> s | _ -> []) results))
+      | VList items -> 
+          let results = List.map snd items |> List.map resolve_col in
+          (match List.find_opt Result.is_error results with
+           | Some (Result.Error e) -> Result.Error e
+           | _ -> Result.Ok (List.concat_map (function Result.Ok s -> s | _ -> []) results))
+      | VBuiltin b ->
+          (match b.b_func [(None, VDataFrame df)] (ref Env.empty) with
+           | VList items -> 
+               let names = List.map snd items |> List.filter_map (function 
+                 | VString s -> Some s 
+                 | VSymbol _ as item_v -> Utils.extract_column_name item_v 
+                 | _ -> None)
+               in Result.Ok names
+           | other -> Result.Error (Error.make_error TypeError ("Matcher returned " ^ Utils.value_to_string other)))
+      | _ -> Result.Error (Error.make_error TypeError ("Invalid column selection: " ^ Utils.value_to_string v))
+    in
+
+    (* Support data = [...] keyword or positional columns *)
+    let to_nest_res = match List.assoc_opt (Some "data") rest with
+      | Some v -> resolve_col v
+      | None ->
+          let positional = List.filter (fun (k, _) -> k = None) rest |> List.map snd in
+          if positional = [] && df.group_keys <> [] then
+            (* Nest everything EXCEPT group keys *)
+            Result.Ok (List.filter (fun n -> not (List.mem n df.group_keys)) all_names)
+          else
+            let results = List.map resolve_col positional in
+            match List.find_opt Result.is_error results with
+            | Some (Result.Error e) -> Result.Error e
+            | _ -> Result.Ok (List.concat_map (function Result.Ok s -> s | _ -> []) results)
+    in
+
+    begin match to_nest_res with
+    | Result.Error e -> e
+    | Result.Ok to_nest ->
+      let missing = List.filter (fun n -> not (List.mem n all_names)) to_nest in
+      if missing <> [] then
+        Error.make_error KeyError (Printf.sprintf "Column(s) not found in DataFrame: %s." (String.concat ", " missing))
+      else if to_nest = [] then VDataFrame df
       else
         let group_cols = List.filter (fun n -> not (List.mem n to_nest)) all_names in
         let new_col_name = match List.assoc_opt (Some "name") rest with Some (VString s) -> s | _ -> "data" in
@@ -104,6 +138,7 @@ let nest_impl (named_args : (string option * value) list) _env =
             group_keys = []
           }
           end
+    end
   | _ :: _ -> Error.type_error "Function `nest` expects a DataFrame as first argument."
   | [] -> Error.make_error ArityError "Function `nest` requires a DataFrame."
 
@@ -111,8 +146,18 @@ let nest_impl (named_args : (string option * value) list) _env =
 --# Nest columns into sub-dataframes
 --#
 --# Packs selected columns into nested DataFrame values grouped by the remaining columns.
+--# Supports flexible column selection using symbols, strings, or selection helpers
+--# (like starts_with, ends_with).
+--#
+--# If the DataFrame is already grouped (via group_by()) and no columns are
+--# specified, nest() will automatically nest all columns except the grouping keys.
 --#
 --# @name nest
+--# @param df :: DataFrame The DataFrame to nest.
+--# @param data :: Selection (Optional) Columns or matchers to nest.
+--# @param name :: String (Optional) Name for the new nested column, defaults to "data".
+--# @param ... :: Selection (Optional) Positional columns to nest if 'data' is not provided.
+--# @return :: DataFrame A new DataFrame with grouped keys and a nested list-column.
 --# @family colcraft
 --# @export
 *)

@@ -286,6 +286,33 @@ Combines multiple columns into a single character column.
 df |> unite("full_date", $year, $month, $day, sep = "-")
 ```
 
+### nest() — Nest Columns into Sub-DataFrames
+
+Groups data and packs selected columns into a single nested list-column containing DataFrames.
+
+```t
+-- Nest columns mpg and hp into a column named "data"
+-- Other columns (cyl, etc.) remain as grouping keys
+nt = df |> nest($mpg, $hp)
+
+-- Use selection helpers to nest all columns starting with 's'
+nt = df |> nest(data = starts_with("s"))
+
+-- Automatic grouping behavior:
+-- If already grouped, nest() without arguments nests all non-grouping columns.
+nt = df |> group_by($cyl) |> nest()
+-- Resulting schema: [cyl, data] where data contains all other columns
+```
+
+### unnest() — Expand Nested Columns
+
+Expands a nested list-column back into regular rows and columns.
+
+```t
+-- Unnest the "data" column back into individual columns
+df_flat = nt |> unnest($data)
+```
+
 ---
 
 ## Missing Value Handling
