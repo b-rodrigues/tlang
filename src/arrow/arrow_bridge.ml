@@ -103,11 +103,14 @@ let values_to_column (values : value array) : Arrow_table.column_data =
       | v -> Some (Utils.value_to_string v)
     ) values)
   else if !has_dataframe then
-    Arrow_table.ListColumn (Array.map (function
-      | VDataFrame df -> Some df.arrow_table
-      | VNA _ -> None
-      | _ -> None
-    ) values)
+    if !has_int || !has_float || !has_bool || !has_string || !has_date || !has_datetime || !has_factor || !factor_inconsistent then
+      failwith "values_to_column: mixed DataFrame and non-DataFrame values cannot be stored in a single column"
+    else
+      Arrow_table.ListColumn (Array.map (function
+        | VDataFrame df -> Some df.arrow_table
+        | VNA _ -> None
+        | _ -> None
+      ) values)
   else if !has_float then
     Arrow_table.FloatColumn (Array.map (fun v ->
       match v with

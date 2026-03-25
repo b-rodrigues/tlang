@@ -28,6 +28,7 @@ let nest_impl (named_args : (string option * value) list) _env =
                  | VSymbol _ as item_v -> Utils.extract_column_name item_v 
                  | _ -> None)
                in Result.Ok names
+           | VError e -> Result.Error e
            | other -> Result.Error (Error.make_error TypeError ("Matcher returned " ^ Utils.value_to_string other)))
       | _ -> Result.Error (Error.make_error TypeError ("Invalid column selection: " ^ Utils.value_to_string v))
     in
