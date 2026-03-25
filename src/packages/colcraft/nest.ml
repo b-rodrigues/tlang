@@ -29,8 +29,9 @@ let nest_impl (named_args : (string option * value) list) _env =
                  | _ -> None)
                in Result.Ok names
            | VError e -> Result.Error e
-           | other -> Result.Error (Error.make_error TypeError ("Matcher returned " ^ Utils.value_to_string other)))
-      | _ -> Result.Error (Error.make_error TypeError ("Invalid column selection: " ^ Utils.value_to_string v))
+           | other -> Result.Error (Error.make_error_info TypeError ("Matcher returned " ^ Utils.value_to_string other)))
+      | VError e -> Result.Error e
+      | _ -> Result.Error (Error.make_error_info TypeError ("Invalid column selection: " ^ Utils.value_to_string v))
     in
 
     (* Support data = [...] keyword or positional columns *)
@@ -49,7 +50,7 @@ let nest_impl (named_args : (string option * value) list) _env =
     in
 
     begin match to_nest_res with
-    | Result.Error e -> e
+    | Result.Error e -> VError e
     | Result.Ok to_nest ->
       let missing = List.filter (fun n -> not (List.mem n all_names)) to_nest in
       if missing <> [] then

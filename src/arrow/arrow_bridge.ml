@@ -68,6 +68,15 @@ let values_to_column (values : value array) : Arrow_table.column_data =
   ) values;
   if !all_na then
     Arrow_table.NullColumn (Array.length values)
+  else if !has_dataframe then
+    if !has_int || !has_float || !has_bool || !has_string || !has_date || !has_datetime || !has_factor || !factor_inconsistent then
+      failwith "values_to_column: mixed DataFrame and non-DataFrame values cannot be stored in a single column"
+    else
+      Arrow_table.ListColumn (Array.map (function
+        | VDataFrame df -> Some df.arrow_table
+        | VNA _ -> None
+        | _ -> None
+      ) values)
   else if !has_factor && not !factor_inconsistent then
     Arrow_table.DictionaryColumn (Array.map (function
       | VFactor (i, _, _) -> Some i
@@ -102,33 +111,21 @@ let values_to_column (values : value array) : Arrow_table.column_data =
       | VNA _ -> None
       | v -> Some (Utils.value_to_string v)
     ) values)
-  else if !has_dataframe then
-    if !has_int || !has_float || !has_bool || !has_string || !has_date || !has_datetime || !has_factor || !factor_inconsistent then
-      failwith "values_to_column: mixed DataFrame and non-DataFrame values cannot be stored in a single column"
-    else
-      Arrow_table.ListColumn (Array.map (function
-        | VDataFrame df -> Some df.arrow_table
-        | VNA _ -> None
-        | _ -> None
-      ) values)
   else if !has_float then
-    Arrow_table.FloatColumn (Array.map (fun v ->
-      match v with
+    Arrow_table.FloatColumn (Array.map (function
       | VFloat f -> Some f
       | VInt i -> Some (float_of_int i)
       | VNA _ -> None
       | _ -> None
     ) values)
   else if !has_int then
-    Arrow_table.IntColumn (Array.map (fun v ->
-      match v with
+    Arrow_table.IntColumn (Array.map (function
       | VInt i -> Some i
       | VNA _ -> None
       | _ -> None
     ) values)
   else if !has_bool then
-    Arrow_table.BoolColumn (Array.map (fun v ->
-      match v with
+    Arrow_table.BoolColumn (Array.map (function
       | VBool b -> Some b
       | VNA _ -> None
       | _ -> None
