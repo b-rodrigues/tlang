@@ -91,7 +91,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     {|"List"|};
   test "packages count"
     "length(packages())"
-    "10";
+    "11";
   test "package_info stats"
     {|package_info("stats").name|}
     {|"stats"|};
@@ -136,6 +136,12 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "package_info math"
     {|package_info("math").name|}
     {|"math"|};
+  test "package_info lens"
+    {|package_info("lens").name|}
+    {|"lens"|};
+  test "package_info lens functions"
+    {|length(package_info("lens").functions)|}
+    "6";
   test "package_info non-string"
     "package_info(42)"
     {|Error(TypeError: "Function `package_info` expects a string argument.")|};

@@ -538,6 +538,14 @@ test_that("TIDYR: crossing", {
   compare_csvs("crossing_x_y")
 })
 
+test_that("TIDYR: nest roundtrip", {
+  compare_csvs("mtcars_nest_unnest")
+})
+
+test_that("TIDYR: nest grouped", {
+  compare_csvs("mtcars_nest_grouped")
+})
+
 # ============================================================================
 # Test Suite 23: FACTORS
 # ============================================================================

@@ -63,7 +63,7 @@ let package_families = function
   | "strcraft" -> ["strcraft"; "string"]
   | "stats" -> ["stats"; "descriptive-statistics"]
   | "base" -> ["base"; "json"; "serialization"]
-  | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" | "chrono" as pkg -> [pkg]
+  | "math" | "colcraft" | "dataframe" | "pipeline" | "explain" | "chrono" | "lens" as pkg -> [pkg]
   | _ -> []
 
 let dedup_sort_strings xs =
@@ -178,6 +178,12 @@ let explain_package = {
   functions = ["explain"; "explain_json"; "intent_fields"; "intent_get"];
 }
 
+let lens_package = {
+  name = "lens";
+  description = "Composable functional lenses for nested data structures";
+  functions = ["col_lens"; "over"; "compose"; "set"; "node_lens"; "env_var_lens"];
+}
+
 (** All standard packages *)
 let all_packages = [
   core_package;
@@ -190,6 +196,7 @@ let all_packages = [
   colcraft_package;
   pipeline_package;
   explain_package;
+  lens_package;
 ]
 
 (** Convert a package to a T value *)
@@ -870,6 +877,8 @@ let init_env () =
   let env = Intent_get.register env in
   let env = T_explain.register env in
   let env = Explain_json.register ~eval_call:Eval.eval_call_immutable env in
+  (* Lens package *)
+  let env = Lens.register ~eval_call:Eval.eval_call_immutable env in
   (* Phase 7: Pretty-print and packages *)
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in

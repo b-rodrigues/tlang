@@ -114,6 +114,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   print_newline ();
 
   Printf.printf "Pipeline Build and Artifact I/O:\n";
+  (* Clean up any stale logs from previous runs to avoid picking up mock logs *)
+  let _ = try
+    if Sys.file_exists "_pipeline" then
+      let files = Sys.readdir "_pipeline" in
+      Array.iter (fun f -> if String.length f >= 10 && String.sub f 0 10 = "build_log_" then Sys.remove (Filename.concat "_pipeline" f)) files
+    else
+      Unix.mkdir "_pipeline" 0o755
+  with _ -> () in
   test "build_pipeline returns output path"
     "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (true) else (starts_with(out, \"/nix/store/\"))\nok"
     "true";

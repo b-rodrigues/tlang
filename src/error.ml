@@ -4,9 +4,13 @@
 
 open Ast
 
+(** Create a raw error info record *)
+let make_error_info ?location ?(context=[]) code message =
+  { code; message; context; location }
+
 (** Create a raw error value *)
 let make_error ?location ?(context=[]) code message =
-  VError { code; message; context; location }
+  VError (make_error_info ?location ~context code message)
 
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false

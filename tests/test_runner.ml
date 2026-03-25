@@ -109,8 +109,12 @@ let () =
   Test_large_datasets.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_error_recovery.run_tests pass_count fail_count eval_string eval_string_env test;
 
+
   (* Package manager tests *)
   Test_package_manager.run_tests pass_count fail_count eval_string eval_string_env test;
+
+  (* Lens tests *)
+  Test_lens.run_tests pass_count fail_count eval_string eval_string_env test;
 
   (* Quotation tests *)
   Test_quotation.run_tests pass_count fail_count eval_string eval_string_env test;

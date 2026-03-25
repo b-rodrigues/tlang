@@ -37,8 +37,14 @@ This document outlines the step-by-step evolution of the T language from the cur
         NA             => "Missing"
       }
       ```
-- [ ] **Immutable Update Lenses**:
-    - [ ] Implement `set()`, `over()`, and `modify()` for deep dict/list updates (e.g. `df |> set($Petal.Length, 1.0)`).
+- [x] **Immutable Update Lenses**:
+    - [x] Implement `set()`, `over()`, and **variadic `modify()`** for deep surgical updates (e.g., `df |> modify(col1, f1, col2, f2)`).
+    - [x] **Variadic `compose()`**: Chain any number of lenses into a single path.
+    - [x] **Pipeline Lenses**: `node_lens()` and `env_var_lens()` for orchestration.
+- [ ] **Lens Library Extensions**:
+    - [ ] **`idx_lens(i)`**: Target elements in a List or Vector by index.
+    - [ ] **`filter_lens(p)`**: Target all elements in a collection satisfying a predicate.
+    - [ ] **Row Lenses**: `row_lens(index)` for targeting specific rows in a DataFrame.
 - [ ] **First-class Serializer System**:
     - [ ] Implement `serializer` structure with `writer`/`reader` functions.
     - [ ] Add `^` symbol prefix for serializer identifiers (e.g., `^csv`, `^arrow`).
