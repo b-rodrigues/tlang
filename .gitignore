@@ -31,3 +31,4 @@ benchmarks/nyc_taxi/results/*.log
 *.vsix
 !editors/vscode/t-lang-*.vsix
 node_modules/
+*.tobj

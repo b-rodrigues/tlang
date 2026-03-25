@@ -25,14 +25,15 @@ nested_updated = nested |> mutate(
 ```
 
 ### The Lens Way (Elegant)
-With lenses, you define a **composition** that reaches exactly where you want to go. T understands the vectorization automatically.
+With lenses, you define a **composition** that reaches exactly where you want to go. Lenses handle the traversal for you, including vectorization across DataFrames.
 
 ```t
--- Target 'salary' INSIDE 'data'
-nested_salary_l = compose(col_lens("data"), col_lens("salary"))
+-- Compose multiple levels into a single declarative path
+-- compose() accepts any number of lenses
+pop_l = compose(col_lens("cities"), col_lens("neighborhoods"), col_lens("population"))
 
--- One clean operation
-nested_updated = nested |> over(nested_salary_l, \(x) x .* 1.1)
+-- One clean operation that penetrates 3 levels of nesting
+countries_updated = countries |> over(pop_l, \(x) x .* 1.05)
 ```
 
 The `over()` function takes the complex structure, the lens, and a transformation function. It drills down, applies the function, and builds the updated structure back up on its way out.
@@ -89,10 +90,29 @@ final = updated |> over(salary_l, \(x) x .* 0.9)
 | :--- | :--- | :--- |
 | **`set(data, lens, value)`** | `(A, Lens, B) -> A` | Replaces the focused value. |
 | **`over(data, lens, f)`** | `(A, Lens, B -> B) -> A` | Transforms the focused value. |
-| **`compose(L1, L2)`** | `(Lens, Lens) -> Lens` | Chains focus from L1 into L2. |
+| **`modify(data, lens1, f1, ...)`** | `(A, Lens, B -> B, ...) -> A` | Applies multiple lens transformations in sequence. |
+| **`compose(...)`** | `(...Lens) -> Lens` | Chains any number of lenses into one path. |
 | **`col_lens(name)`** | `String -> Lens` | Generic column/key focus. |
 | **`node_lens(name)`** | `String -> Lens` | Pipeline node focus. |
 | **`env_var_lens(n, v)`** | `(Str, Str) -> Lens` | Pipeline env var focus. |
+
+---
+
+### 5. Multi-transformation with `modify()`
+
+When you need to perform multiple distinct transformations on the same structure, `modify()` is more efficient and readable than chaining multiple `over()` calls.
+
+```t
+df = dataframe([[x: 1, y: 3], [x: 2, y: 4]])
+lx = col_lens("x")
+ly = col_lens("y")
+
+-- Apply two different transformations in one go
+df_updated = df |> modify(
+  lx, \(v) v .+ 1,
+  ly, \(v) v .* 10
+)
+```
 
 ---
 

@@ -83,6 +83,17 @@ let rec col_lens_set_impl col_name ~eval_call args env =
       ) arr)
   | _ -> Error.type_error "Lens set expects (data, value)"
 
+(*
+--# Create a Column Lens
+--#
+--# Targets a column in a DataFrame or a key in a Dictionary.
+--#
+--# @name col_lens
+--# @param name :: String The column or key name.
+--# @return :: Lens A lens for the specified column/key.
+--# @family lens
+--# @export
+*)
 let col_lens_impl ~eval_call args _env =
   match args with
   | [(_, v)] ->
@@ -107,58 +118,106 @@ let col_lens_impl ~eval_call args _env =
        | None -> Error.type_error "col_lens expects a column name ($col or \"col\")")
   | _ -> Error.arity_error_named "col_lens" 1 (List.length args)
 
+(*
+--# Transform Focused Value
+--#
+--# Applies a function to the value focused by a lens and returns the updated structure.
+--#
+--# @name over
+--# @param data :: Any The input structure.
+--# @param lens :: Lens The lens defining the focus.
+--# @param func :: Function The transformation function.
+--# @return :: Any The updated structure.
+--# @family lens
+--# @export
+*)
 let over_impl ~eval_call args env =
   match args with
   | [(_, data); (_, lens); (_, func)] ->
       over_val ~eval_call (ref env) lens data func
   | _ -> Error.arity_error_named "over" 3 (List.length args)
 
+(*
+--# Compose Lenses
+--#
+--# Combines two lenses into one, focusing on a value deep within a nested structure.
+--#
+--# @name compose
+--# @param lens1 :: Lens The outer lens.
+--# @param lens2 :: Lens The inner lens.
+--# @return :: Lens The composite lens.
+--# @family lens
+--# @export
+*)
+let compose2 ~eval_call lens1 lens2 =
+  match lens1, lens2 with
+  | VDict l1, VDict l2 ->
+      let has_field l name = List.mem_assoc name l in
+      if not (has_field l1 "get" && has_field l1 "set") then
+        Error.type_error "compose: First argument is not a valid lens (missing get/set)"
+      else if not (has_field l2 "get" && has_field l2 "set") then
+        Error.type_error "compose: Second argument is not a valid lens (missing get/set)"
+      else begin
+        let get1 = List.assoc "get" l1 in
+        let get2 = List.assoc "get" l2 in
+        let set2 = List.assoc "set" l2 in
+        
+        let get_composite = VBuiltin {
+          b_name = None; b_arity = 1; b_variadic = false;
+          b_func = (fun args env_ref ->
+            match args with
+            | [(_, data)] ->
+                     let inner = eval_call !env_ref get1 [(None, mk_expr (Value data))] in
+                     (match inner with
+                      | VError _ as e -> e
+                      | _ ->
+                          eval_call !env_ref get2 [(None, mk_expr (Value inner))])
+            | _ -> Error.arity_error_named "get" 1 (List.length args))
+        } in
+        
+        let set_composite = VBuiltin {
+          b_name = None; b_arity = 2; b_variadic = false;
+          b_func = (fun args env_ref ->
+            match args with
+            | [(_, data); (_, val_v)] ->
+                     let setter_lambda = VLambda {
+                       params = ["inner"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
+                       body = mk_expr (Call { fn = mk_expr (Value set2); args = [(None, mk_expr (Var "inner")); (None, mk_expr (Value val_v))] });
+                       env = Some !env_ref;
+                     } in
+                     over_val ~eval_call env_ref lens1 data setter_lambda
+            | _ -> Error.arity_error_named "set" 2 (List.length args))
+        } in
+        VDict [("get", get_composite); ("set", set_composite)]
+      end
+  | (VError _ as e), _ -> e
+  | _, (VError _ as e) -> e
+  | _ -> Error.type_error "compose expects Lenses"
+
 let compose_impl ~eval_call args _env =
   match args with
-  | [(_, lens1); (_, lens2)] ->
-      (match lens1, lens2 with
-       | VDict l1, VDict l2 ->
-           let has_field l name = List.mem_assoc name l in
-           if not (has_field l1 "get" && has_field l1 "set") then
-             Error.type_error "compose: First argument is not a valid lens (missing get/set)"
-           else if not (has_field l2 "get" && has_field l2 "set") then
-             Error.type_error "compose: Second argument is not a valid lens (missing get/set)"
-           else begin
-             let get1 = List.assoc "get" l1 in
-             let get2 = List.assoc "get" l2 in
-             let set2 = List.assoc "set" l2 in
-             
-             let get_composite = VBuiltin {
-               b_name = None; b_arity = 1; b_variadic = false;
-               b_func = (fun args env_ref ->
-                 match args with
-                 | [(_, data)] ->
-                          let inner = eval_call !env_ref get1 [(None, mk_expr (Value data))] in
-                          (match inner with
-                           | VError _ as e -> e
-                           | _ ->
-                               eval_call !env_ref get2 [(None, mk_expr (Value inner))])
-                 | _ -> Error.arity_error_named "get" 1 (List.length args))
-             } in
-             
-             let set_composite = VBuiltin {
-               b_name = None; b_arity = 2; b_variadic = false;
-               b_func = (fun args env_ref ->
-                 match args with
-                 | [(_, data); (_, val_v)] ->
-                          let setter_lambda = VLambda {
-                            params = ["inner"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
-                            body = mk_expr (Call { fn = mk_expr (Value set2); args = [(None, mk_expr (Var "inner")); (None, mk_expr (Value val_v))] });
-                            env = Some !env_ref;
-                          } in
-                          over_val ~eval_call env_ref lens1 data setter_lambda
-                 | _ -> Error.arity_error_named "set" 2 (List.length args))
-             } in
-             VDict [("get", get_composite); ("set", set_composite)]
-           end
-       | _ -> Error.type_error "compose expects two Lenses")
-  | _ -> Error.arity_error_named "compose" 2 (List.length args)
+  | [] -> Error.arity_error_named "compose" 2 0
+  | [(_, l)] -> l
+  | (_, l1) :: rest ->
+      List.fold_left (fun acc (_, l_next) -> 
+        match acc with
+        | VError _ -> acc
+        | _ -> compose2 ~eval_call acc l_next
+      ) l1 rest
 
+(*
+--# Set Focused Value
+--#
+--# Replaces the value focused by a lens with a new value.
+--#
+--# @name set
+--# @param data :: Any The input structure.
+--# @param lens :: Lens The lens defining the focus.
+--# @param value :: Any The new value to set.
+--# @return :: Any The updated structure.
+--# @family lens
+--# @export
+*)
 let set_impl ~eval_call args env =
   match args with
   | [(_, data); (_, lens); (_, val_v)] ->
@@ -170,6 +229,19 @@ let set_impl ~eval_call args env =
        | _ -> Error.type_error "set: second argument must be a Lens")
  | _ -> Error.arity_error_named "set" 3 (List.length args)
 
+(*
+--# Multiple Lens Transformations
+--#
+--# Applies a sequence of lens-based transformations to the same data structure.
+--# Takes pairs of (lens, function).
+--#
+--# @name modify
+--# @param data :: Any The input structure.
+--# @param ... :: Lens, Function Sequence of lens and transformation function pairs.
+--# @return :: Any The final updated structure.
+--# @family lens
+--# @export
+*)
 let modify_impl ~eval_call args env =
   match args with
   | (_, data) :: rest ->
@@ -186,6 +258,17 @@ let modify_impl ~eval_call args env =
       apply_mods data rest
   | [] -> Error.arity_error_named "modify" 1 0
 
+(*
+--# Pipeline Node Lens
+--#
+--# Targets the cached result value of a specific node in a Pipeline.
+--#
+--# @name node_lens
+--# @param node_name :: String The name of the node.
+--# @return :: Lens A lens for the node's value.
+--# @family lens
+--# @export
+*)
 let node_lens_impl ~eval_call:_ args _env =
   match args with
   | [(_, VString node_name)] ->
@@ -212,6 +295,18 @@ let node_lens_impl ~eval_call:_ args _env =
       VDict [("get", get_fn); ("set", set_fn)]
   | _ -> Error.type_error "node_lens expects a node name (String)"
 
+(*
+--# Pipeline Env Var Lens
+--#
+--# Targets a specific environment variable for a node in a Pipeline.
+--#
+--# @name env_var_lens
+--# @param node_name :: String The name of the node.
+--# @param var_name :: String The name of the environment variable.
+--# @return :: Lens A lens for the environment variable.
+--# @family lens
+--# @export
+*)
 let env_var_lens_impl ~eval_call:_ args _env =
   match args with
   | [(_, VString node_name); (_, VString var_name)] ->
@@ -245,14 +340,14 @@ let env_var_lens_impl ~eval_call:_ args _env =
   | _ -> Error.type_error "env_var_lens expects (node_name, var_name)"
 
 let register ~eval_call env =
-  let make_l_builtin name arity f env =
-    Env.add name (VBuiltin { b_name = Some name; b_arity = arity; b_variadic = false; b_func = (fun args env_ref -> f ~eval_call args !env_ref) }) env
+  let make_l_builtin ?(variadic=false) name arity f env =
+    Env.add name (VBuiltin { b_name = Some name; b_arity = arity; b_variadic = variadic; b_func = (fun args env_ref -> f ~eval_call args !env_ref) }) env
   in
   env
   |> make_l_builtin "col_lens" 1 col_lens_impl
   |> make_l_builtin "over" 3 over_impl
-  |> make_l_builtin "compose" 2 compose_impl
+  |> make_l_builtin ~variadic:true "compose" 2 compose_impl
   |> make_l_builtin "set" 3 set_impl
-  |> make_l_builtin "modify" 1 modify_impl
+  |> make_l_builtin ~variadic:true "modify" 1 modify_impl
   |> make_l_builtin "node_lens" 1 node_lens_impl
   |> make_l_builtin "env_var_lens" 2 env_var_lens_impl
