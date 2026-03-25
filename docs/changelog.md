@@ -4,6 +4,11 @@
 
 ### Features & UX
 
+- **Immutable Update Lenses**: Finalized the lens system with support for deep surgical updates to Dictionaries and DataFrames.
+    - Introduced **`modify()`**: A variadic builtin for applying multiple lens transformations in a single pass.
+    - Updated **`compose()`**: Now variadic, allowing any number of lenses to be chained into a single declarative path.
+    - **Orchestration Lenses**: Added `node_lens()` and `env_var_lens()` for inspecting and modifying Pipeline node results and environment variables.
+    - **Vectorization**: Lenses are fully vectorized, allowing transformations to penetrate nested DataFrames across all rows automatically.
 - **`rm()` Function**: New core language feature for removing variables from the environment. Supports symbols, strings, and list-based removal (e.g., `rm(x, y)`, `rm("z")`, `rm(list = vars)`).
 - **Asynchronous Build Progress**: Implemented a new streaming build progress reporter in the terminal. Pipeline builds now show real-time "building" and "built" alerts for each node, with high-noise Nix logs filtered by default.
 - **Error Visibility**: When a pipeline fails, the summary now correctly reports the count of errored nodes (e.g., "[1 node errored]").

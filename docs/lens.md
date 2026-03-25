@@ -8,35 +8,43 @@ Lenses solve this by providing a first-class, composable way to "zoom in" on nes
 
 ---
 
-## 1. The Problem: Nested DataFrame "Pyramid of Doom"
+## 1. The Core Transformation: Lenses vs. Nested Mutates
 
-Suppose you have a DataFrame where each row contains another DataFrame (a nested list-column). Your goal is to increase the `salary` field inside those sub-tables by 10%.
+When your data is flat, `mutate()` is perfect. But as soon as you have **nested DataFrames** (e.g., a "World" table containing "Countries", which contain "Cities", which contain "Neighborhoods"), standard verbs force you into a **Pyramid of Doom**.
 
-### The Old Way (Painful)
-Before lenses, you had to nest your logic using `mutate` combined with `map`:
+### The Nested Mutate approach (The "Pyramid of Doom")
+To update a value three levels deep, you have to manually traverse every layer using `map()` and `mutate()`. Notice how you must invent new lambda variables (`c`, `nb`) for every level:
 
 ```t
--- This is verbose and error-prone as nesting depth increases
-nested_updated = nested |> mutate(
-  $data = map($data, \(inner_df) {
-    inner_df |> mutate($salary = $salary * 1.1)
-  })
+-- Increasing population by 5% three levels deep
+updated_world = world |> mutate(
+  $countries = map($countries, \(c) 
+    c |> mutate(
+      $cities = map($cities, \(nb) 
+        nb |> mutate($population = $population * 1.05)
+      )
+    )
+  )
 )
 ```
+This is fragile: if the schema changes, you have to rewrite the entire block. It's also hard to read and easy to make a mistake in the nesting.
 
-### The Lens Way (Elegant)
-With lenses, you define a **composition** that reaches exactly where you want to go. Lenses handle the traversal for you, including vectorization across DataFrames.
+### The Lens Approach (Declarative Pathing)
+Lenses allow you to define the **path** to the data once, and then apply it in a single operation. T handles the deep traversal and reconstruction of the immutable structure automatically.
 
 ```t
--- Compose multiple levels into a single declarative path
--- compose() accepts any number of lenses
-pop_l = compose(col_lens("cities"), col_lens("neighborhoods"), col_lens("population"))
+-- Define the path once
+-- compose() is variadic and accepts any number of lenses
+pop_l = compose(col_lens("countries"), col_lens("cities"), col_lens("population"))
 
--- One clean operation that penetrates 3 levels of nesting
-countries_updated = countries |> over(pop_l, \(x) x .* 1.05)
+-- Perform the surgical update
+updated_world = world |> over(pop_l, \(x) x .* 1.05)
 ```
 
-The `over()` function takes the complex structure, the lens, and a transformation function. It drills down, applies the function, and builds the updated structure back up on its way out.
+#### Why Lenses Win:
+1.  **Readability**: The operation is a single flat line, not a 7-level nested block.
+2.  **Vectorization**: Lenses in T are **fully vectorized**. The `over` function automatically distributes your transformation across all rows at every level of the hierarchy.
+3.  **Reuse**: You can define `pop_l` as a variable and use it for `get()`, `set()`, or `over()` across your entire project.
 
 ---
 
@@ -100,19 +108,24 @@ final = updated |> over(salary_l, \(x) x .* 0.9)
 
 ### 5. Multi-transformation with `modify()`
 
-When you need to perform multiple distinct transformations on the same structure, `modify()` is more efficient and readable than chaining multiple `over()` calls.
+When you need to perform multiple distinct transformations on a complex structure, `modify()` is significantly more powerful and readable than chaining multiple `over()` calls. It handles the intermediate states and passes the result through each transformation sequentially.
+
+**Scenario: Updating a nation's name AND its cities' populations in one operation.**
 
 ```t
-df = dataframe([[x: 1, y: 3], [x: 2, y: 4]])
-lx = col_lens("x")
-ly = col_lens("y")
+-- Defining the two distinct paths
+capital_l = compose(col_lens("countries"), col_lens("capital"))
+pop_l     = compose(col_lens("countries"), col_lens("cities"), col_lens("population"))
 
--- Apply two different transformations in one go
-df_updated = df |> modify(
-  lx, \(v) v .+ 1,
-  ly, \(v) v .* 10
+-- Apply heterogeneous transformations in a single pass
+-- This avoids multiple traversals of the 'world' structure.
+updated_world = world |> modify(
+    capital_l, \(c) c + " (Verified)",
+    pop_l,     \(p) p .* 1.05
 )
 ```
+
+To achieve this with standard verbs, you would need to nest your `mutate` logic inside another `mutate` logic, and then rebuild the entire tree—a process that quickly becomes unmanageable as the number of paths grows. `modify()` keeps the update list flat and declarative.
 
 ---
 
