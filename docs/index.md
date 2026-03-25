@@ -129,6 +129,7 @@ The `path` field is the "escape hatch"—it gives you the absolute path to the n
 - [Statistical Formulas](formulas.html) — formula syntax for modeling
 - [Performance](performance.html) — Arrow backend and optimization
 - [Performance Analysis](performance_analysis.html) — in-depth analysis of T's performance metrics
+- [Composable Lenses](lens.html) — functional updates for nested structures
 
 ### Developer Resources
 - [Architecture](architecture.html) — language design and implementation
