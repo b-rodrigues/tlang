@@ -39,6 +39,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
   let factor_levels = ref [] in
   let factor_ordered = ref false in
   let factor_inconsistent = ref false in
+  let has_dataframe = ref false in
   let all_na = ref true in
   Array.iter (fun v ->
     match v with
@@ -48,6 +49,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
     | VString _ -> has_string := true; all_na := false
     | VDate _ -> has_date := true; all_na := false
     | VDatetime _ -> has_datetime := true; all_na := false
+    | VDataFrame _ -> has_dataframe := true; all_na := false
     | VFactor (_, levels, ordered) ->
         all_na := false;
         (match !factor_levels with
@@ -99,6 +101,12 @@ let values_to_column (values : value array) : Arrow_table.column_data =
       | VFactor (i, levels, _) -> (match List.nth_opt levels i with Some s -> Some s | None -> None)
       | VNA _ -> None
       | v -> Some (Utils.value_to_string v)
+    ) values)
+  else if !has_dataframe then
+    Arrow_table.ListColumn (Array.map (function
+      | VDataFrame df -> Some df.arrow_table
+      | VNA _ -> None
+      | _ -> None
     ) values)
   else if !has_float then
     Arrow_table.FloatColumn (Array.map (fun v ->
