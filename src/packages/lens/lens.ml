@@ -168,7 +168,23 @@ let set_impl ~eval_call args env =
             | Some set_fn -> eval_call env set_fn [(None, mk_expr (Value data)); (None, mk_expr (Value val_v))]
             | None -> Error.type_error "Lens missing set function")
        | _ -> Error.type_error "set: second argument must be a Lens")
-  | _ -> Error.arity_error_named "set" 3 (List.length args)
+ | _ -> Error.arity_error_named "set" 3 (List.length args)
+
+let modify_impl ~eval_call args env =
+  match args with
+  | (_, data) :: rest ->
+      let rec apply_mods current_data mods =
+        match mods with
+        | [] -> current_data
+        | (_, lens) :: (_, func) :: tail ->
+            let result = over_val ~eval_call (ref env) lens current_data func in
+            (match result with
+             | VError _ as e -> e
+             | _ -> apply_mods result tail)
+        | _ -> Error.type_error "modify expects (data, lens1, func1, lens2, func2, ...)"
+      in
+      apply_mods data rest
+  | [] -> Error.arity_error_named "modify" 1 0
 
 let node_lens_impl ~eval_call:_ args _env =
   match args with
@@ -237,5 +253,6 @@ let register ~eval_call env =
   |> make_l_builtin "over" 3 over_impl
   |> make_l_builtin "compose" 2 compose_impl
   |> make_l_builtin "set" 3 set_impl
+  |> make_l_builtin "modify" 1 modify_impl
   |> make_l_builtin "node_lens" 1 node_lens_impl
   |> make_l_builtin "env_var_lens" 2 env_var_lens_impl
