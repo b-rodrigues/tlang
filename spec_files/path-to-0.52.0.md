@@ -38,7 +38,7 @@ This document outlines the step-by-step evolution of the T language from the cur
       }
       ```
 - [x] **Immutable Update Lenses**:
-    - [x] Implement `set()`, `over()`, and `modify()` for deep dict/list updates (e.g. `df |> set($Petal.Length, 1.0)`).
+    - [x] Implement `set()` and `over()` for deep dict/list updates (e.g. `df |> set($Petal.Length, 1.0)`); `modify()` deferred to a later release.
 - [ ] **First-class Serializer System**:
     - [ ] Implement `serializer` structure with `writer`/`reader` functions.
     - [ ] Add `^` symbol prefix for serializer identifiers (e.g., `^csv`, `^arrow`).
