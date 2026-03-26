@@ -40,6 +40,8 @@ let rec col_lens_get_impl col_name ~eval_call args env =
        | None -> VNA NAGeneric)
   | [(_, VVector arr)] ->
       VVector (Array.map (fun v -> col_lens_get_impl col_name ~eval_call [(None, v)] env) arr)
+  | [(_, VList items)] ->
+      VList (List.map (fun (name, v) -> (name, col_lens_get_impl col_name ~eval_call [(None, v)] env)) items)
   | [(_, other)] -> 
       Error.type_error (Printf.sprintf "Lens get('%s') cannot be applied to %s" col_name (Utils.type_name other))
   | _ -> Error.arity_error_named ("get_" ^ col_name) 1 (List.length args)
@@ -81,6 +83,14 @@ let rec col_lens_set_impl col_name ~eval_call args env =
       VVector (Array.map (fun data ->
         col_lens_set_impl col_name ~eval_call [(None, data); (None, scalar)] env
       ) arr)
+  | [(_, VList items); (_, VList vals)] when List.length items = List.length vals ->
+      VList (List.map2 (fun (name, data) (_, v) ->
+        (name, col_lens_set_impl col_name ~eval_call [(None, data); (None, v)] env)
+      ) items vals)
+  | [(_, VList items); (_, scalar)] ->
+      VList (List.map (fun (name, data) ->
+        (name, col_lens_set_impl col_name ~eval_call [(None, data); (None, scalar)] env)
+      ) items)
   | _ -> Error.type_error "Lens set expects (data, value)"
 
 (*
@@ -490,6 +500,28 @@ let over_impl ~eval_call args env =
   | _ -> Error.arity_error_named "over" 3 (List.length args)
 
 (*
+--# Get Value via Lens
+--#
+--# Retrieves a focused value from a data structure using a lens.
+--#
+--# @name get
+--# @param data :: Any The data structure to focus on.
+--# @param lens :: Lens The lens defining the focus.
+--# @return :: Any The focused value.
+--# @family lens
+--# @export
+*)
+let get_impl ~eval_call args env =
+  match args with
+  | [(_, data); (_, VDict items)] ->
+      (match List.assoc_opt "get" items with
+       | Some get_fn -> eval_call env get_fn [(None, mk_expr (Value data))]
+       | None -> Error.type_error "Lens missing get function")
+  | [(_, _); (_, other)] ->
+      Error.type_error (Printf.sprintf "Lens get expects a Lens (VDict) as its second argument, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "get" 2 (List.length args)
+
+(*
 --# Compose Lenses
 --#
 --# Combines two lenses into one, focusing on a value deep within a nested structure.
@@ -698,6 +730,7 @@ let register ~eval_call env =
   env
   |> make_l_builtin "col_lens" 1 col_lens_impl
   |> make_l_builtin "over" 3 over_impl
+  |> make_l_builtin "get" 2 get_impl
   |> make_l_builtin ~variadic:true "compose" 2 compose_impl
   |> make_l_builtin "set" 3 set_impl
   |> make_l_builtin ~variadic:true "modify" 1 modify_impl

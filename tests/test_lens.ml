@@ -83,6 +83,6 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   test "package_info lens functions"
     {|length(package_info("lens").functions)|}
-    "9";
+    "11";
 
   print_newline ()

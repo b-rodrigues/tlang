@@ -181,7 +181,7 @@ let explain_package = {
 let lens_package = {
   name = "lens";
   description = "Composable functional lenses for nested data structures";
-  functions = ["col_lens"; "over"; "compose"; "set"; "node_lens"; "env_var_lens"; "idx_lens"; "row_lens"; "filter_lens"];
+  functions = ["col_lens"; "over"; "get"; "compose"; "set"; "modify"; "node_lens"; "env_var_lens"; "idx_lens"; "row_lens"; "filter_lens"];
 }
 
 (** All standard packages *)
