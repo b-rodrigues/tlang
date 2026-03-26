@@ -4,7 +4,54 @@ open Builder_utils
 open Builder_logs
 
 let read_node ?which_log name =
-  let logs = get_logs () in
+  let env_name = "T_NODE_" ^ name in
+  match Sys.getenv_opt env_name with
+  | Some path when which_log = None ->
+      (* We are likely in a Nix sandbox. The env var points to the node's output directory.
+         We look for 'artifact' and 'class' to reconstruct a partial ComputedNode. *)
+      let artifact_path = Filename.concat path "artifact" in
+      let class_path = Filename.concat path "class" in
+      if Sys.file_exists artifact_path && Sys.file_exists class_path then
+        let ch = open_in class_path in
+        let cls = try input_line ch |> String.trim with _ -> "unknown" in
+        close_in ch;
+        
+        (* Reconstruct metadata as best as we can.
+           We'll mark it as 'unknown' runtime/serializer but we have the path. *)
+        let cn = {
+          cn_name = name;
+          cn_runtime = "unknown";
+          cn_path = artifact_path;
+          cn_serializer = (
+            match cls with 
+            | "ArrowDataFrame" | "data.frame" | "DataFrame" | "Table" -> "arrow"
+            | "JSON" | "VDict" | "VList" | "list" | "dict" -> "json"
+            | "PMML" | "pmml" -> "pmml"
+            | _ -> "default"
+          );
+          cn_class = cls;
+          cn_dependencies = [];
+        } in
+        
+        (* Apply auto-loading if we have a known serializer *)
+        if cn.cn_serializer = "json" then
+           match Serialization.read_json cn.cn_path with
+           | Ok v -> v
+           | Error _ -> VComputedNode cn
+        else if cn.cn_serializer = "arrow" then
+           match Arrow_io.read_ipc cn.cn_path with
+           | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+           | Error _ -> VComputedNode cn
+        else if cn.cn_serializer = "pmml" then
+           match Pmml_utils.read_pmml cn.cn_path with
+           | Ok v -> v
+           | Error _ -> VComputedNode cn
+        else
+          VComputedNode cn
+      else
+        Error.make_error FileError (Printf.sprintf "read_node: node `%s` found in environment as %s, but artifact is missing." name path)
+  | _ ->
+      let logs = get_logs () in
   let log_file_result =
     match which_log with
     | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
