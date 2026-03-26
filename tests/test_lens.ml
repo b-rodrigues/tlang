@@ -68,6 +68,19 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); l = filter_lens(\(r) r.x > 1); set(df, l, [x: 0, y: 0]).y|}
     "Vector[10, 0, 0]";
 
+  (* 7. Additional filter_lens coverage *)
+  test "filter_lens over on List"
+    {|v = [1, 2, 3, 4]; l = filter_lens(\(x) x > 2); over(v, l, \(x) x * 10)|}
+    "[1, 2, 30, 40]";
+
+  test "compose(filter_lens, col_lens) on DataFrame"
+    {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); lf = filter_lens(\(r) r.x > 1); ly = col_lens("y"); l = compose(lf, ly); df2 = over(df, l, \(v) v .* 2); df2.y|}
+    "Vector[10, 40, 60]";
+
+  test "filter_lens predicate must return Bool"
+    {|v = [1, 2, 3]; l = filter_lens(\(x) x); l.get(v)|}
+    {|Error(TypeError: "filter_lens predicate must return Bool, got Int")|};
+
   test "package_info lens functions"
     {|length(package_info("lens").functions)|}
     "9";
