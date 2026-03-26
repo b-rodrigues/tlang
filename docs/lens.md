@@ -92,7 +92,82 @@ final = updated |> over(salary_l, \(x) x .* 0.9)
 
 ---
 
-## 4. API Reference Summary
+## 4. Collections and Filtering: Beyond Hierarchy
+
+Lenses in T are not just for drilling down; they can also target elements by position or condition.
+
+### `idx_lens(index)`
+Focuses on a specific 0-based index in a **List** or **Vector**.
+
+```t
+v = [10, 20, 30]
+-- Update the second element
+v2 = set(v, idx_lens(1), 99) -- [10, 99, 30]
+```
+
+### `row_lens(index)`
+Focuses on a specific row in a **DataFrame**. When composed with `col_lens`, this allows for surgical, cell-level updates.
+
+```t
+df = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
+-- Update 'y' only in the first row
+df2 = set(df, compose(row_lens(0), col_lens("y")), 99)
+```
+
+### `filter_lens(predicate)`
+Focuses on elements or rows that satisfy a condition. It works on **Lists**, **Vectors**, and **DataFrames**.
+
+```t
+v = [1, 2, 3, 4, 5]
+-- Increment only even numbers
+v2 = over(v, filter_lens(\(x) x % 2 == 0), \(x) x + 10) 
+-- Returns [1, 12, 3, 14, 5]
+```
+
+---
+
+## 5. Lenses vs. Standard Verbs: The Convincing Case
+
+You might ask: *"Why use `filter_lens()` when I can just use `filter()`?"* or *"Why `row_lens()` when I can use `mutate()`?"*
+
+The answer lies in **composition**, **bidirectionality**, and **context preservation**.
+
+### A. Context Preservation (The "Focus" vs "Subset" distinction)
+Standard `filter()` returns a *new, smaller* collection. If you want to modify those rows and put them back into the original table, you have to do a join or a complex `mutate` with conditional logic.
+
+**With `filter()` + `mutate()` (Traditional):**
+You must process every row and tell the engine how to handle the ones you *don't* want to change.
+```t
+-- Traditional approach: explicit 'else' case required to keep data
+df |> mutate($val = if_else($status == "expired", 0, $val))
+```
+
+**With `filter_lens()` (Lens):**
+You only focus on the targets. T handles "putting the values back" into the original structure automatically.
+```t
+-- Lens approach: "Zoom in, change, zoom out."
+df |> set(filter_lens(\(r) r.status == "expired") |> compose(col_lens("val")), 0)
+```
+
+### B. Cell-Level Precision
+Standard DataFrame verbs are **column-oriented**. Updating a single specific cell (e.g., "The third row of the 'Notes' column") is surprisingly verbose in SQL or Dplyr-style logic.
+
+**Traditional:**
+```t
+df |> mutate($notes = if_else(row_number() == 2, "Verified", $notes))
+```
+
+**Lens:**
+```t
+df |> set(compose(row_lens(2), col_lens("notes")), "Verified")
+```
+
+### C. True Orthogonality
+Standard verbs like `select()` are specialized for DataFrames. Lenses are **polymorphic**. A `col_lens("id")` works exactly the same whether it's looking at a row in a DataFrame, a standalone Dict, or a nested JSON-like List. You learn one "path language" that applies to every data type in T.
+
+---
+
+## 6. API Reference Summary
 
 | Function | Signature | Use Case |
 | :--- | :--- | :--- |
@@ -103,10 +178,13 @@ final = updated |> over(salary_l, \(x) x .* 0.9)
 | **`col_lens(name)`** | `String -> Lens` | Generic column/key focus. |
 | **`node_lens(name)`** | `String -> Lens` | Pipeline node focus. |
 | **`env_var_lens(n, v)`** | `(Str, Str) -> Lens` | Pipeline env var focus. |
+| **`idx_lens(i)`** | `Int -> Lens` | List/Vector index focus. |
+| **`row_lens(i)`** | `Int -> Lens` | DataFrame row focus. |
+| **`filter_lens(p)`** | `Function -> Lens` | Condition-based focus. |
 
 ---
 
-### 5. Multi-transformation with `modify()`
+### 7. Multi-transformation with `modify()`
 
 When you need to perform multiple distinct transformations on a complex structure, `modify()` is significantly more powerful and readable than chaining multiple `over()` calls. It handles the intermediate states and passes the result through each transformation sequentially.
 

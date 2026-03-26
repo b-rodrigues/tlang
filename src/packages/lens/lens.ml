@@ -118,6 +118,223 @@ let col_lens_impl ~eval_call args _env =
        | None -> Error.type_error "col_lens expects a column name ($col or \"col\")")
   | _ -> Error.arity_error_named "col_lens" 1 (List.length args)
 
+let idx_lens_get_impl i ~eval_call:_ args _env =
+  match args with
+  | [(_, VList items)] ->
+      let len = List.length items in
+      if i < 0 || i >= len then Error.index_error i len
+      else let (_, v) = List.nth items i in v
+  | [(_, VVector arr)] ->
+      let len = Array.length arr in
+      if i < 0 || i >= len then Error.index_error i len
+      else arr.(i)
+  | [(_, other)] -> Error.type_error (Printf.sprintf "idx_lens get expects a List or Vector, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "idx_get" 1 (List.length args)
+
+let idx_lens_set_impl i ~eval_call:_ args _env =
+  match args with
+  | [(_, VList items); (_, val_v)] ->
+      let len = List.length items in
+      if i < 0 || i >= len then Error.index_error i len
+      else
+        let new_items = List.mapi (fun j (name, v) -> if j = i then (name, val_v) else (name, v)) items in
+        VList new_items
+  | [(_, VVector arr); (_, val_v)] ->
+      let len = Array.length arr in
+      if i < 0 || i >= len then Error.index_error i len
+      else
+        let new_arr = Array.copy arr in
+        new_arr.(i) <- val_v;
+        VVector new_arr
+  | [(_, other); _] -> Error.type_error (Printf.sprintf "idx_lens set expects a List or Vector, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "idx_set" 2 (List.length args)
+
+(*
+--# Index Lens
+--#
+--# Targets an element in a List or Vector by its 0-based index.
+--#
+--# @name idx_lens
+--# @param i :: Int The index to target.
+--# @return :: Lens A lens for the specified index.
+--# @family lens
+--# @export
+*)
+let idx_lens_impl ~eval_call args _env =
+  match args with
+  | [(_, VInt i)] ->
+      let get_fn = VBuiltin {
+        b_name = Some (Printf.sprintf "idx_get_%d" i); b_arity = 1; b_variadic = false;
+        b_func = (fun args env_ref -> idx_lens_get_impl i ~eval_call args !env_ref)
+      } in
+      let set_fn = VBuiltin {
+        b_name = Some (Printf.sprintf "idx_set_%d" i); b_arity = 2; b_variadic = false;
+        b_func = (fun args env_ref -> idx_lens_set_impl i ~eval_call args !env_ref)
+      } in
+      VDict [("get", get_fn); ("set", set_fn)]
+  | [(_, VNA _)] -> Error.type_error "idx_lens: index cannot be NA"
+  | [(_, other)] -> Error.type_error (Printf.sprintf "idx_lens expects an integer index, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "idx_lens" 1 (List.length args)
+
+let row_lens_get_impl i ~eval_call:_ args _env =
+  match args with
+  | [(_, VDataFrame df)] ->
+      let nrows = Arrow_table.num_rows df.arrow_table in
+      if i < 0 || i >= nrows then Error.index_error i nrows
+      else
+        let dict = Arrow_bridge.row_to_dict df.arrow_table i in
+        VDict dict
+  | [(_, other)] -> Error.type_error (Printf.sprintf "row_lens get expects a DataFrame, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "row_get" 1 (List.length args)
+
+let row_lens_set_impl i ~eval_call:_ args _env =
+  match args with
+  | [(_, VDataFrame df); (_, VDict row_items)] ->
+      let nrows = Arrow_table.num_rows df.arrow_table in
+      if i < 0 || i >= nrows then Error.index_error i nrows
+      else
+        let names = Arrow_table.column_names df.arrow_table in
+        let updated_cols = List.map (fun name ->
+          let col = match Arrow_table.get_column df.arrow_table name with
+            | Some c -> c
+            | None -> Arrow_table.NullColumn nrows
+          in
+          let vals = Arrow_bridge.column_to_values col in
+          let new_val = match List.assoc_opt name row_items with
+            | Some v -> v
+            | None -> VNA NAGeneric
+          in
+          if i < Array.length vals then vals.(i) <- new_val;
+          (name, Arrow_bridge.values_to_column vals)
+        ) names in
+        VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows }
+  | [(_, VDataFrame _); (_, other)] -> Error.type_error (Printf.sprintf "row_lens set expects a Dict for the row data, got %s" (Utils.type_name other))
+  | [(_, other); _] -> Error.type_error (Printf.sprintf "row_lens set expects a DataFrame, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "row_set" 2 (List.length args)
+
+(*
+--# Row Lens
+--#
+--# Targets a specific row in a DataFrame by its 0-based index.
+--#
+--# @name row_lens
+--# @param i :: Int The row index.
+--# @return :: Lens A lens for the specified row.
+--# @family lens
+--# @export
+*)
+let row_lens_impl ~eval_call args _env =
+  match args with
+  | [(_, VInt i)] ->
+      let get_fn = VBuiltin {
+        b_name = Some (Printf.sprintf "row_get_%d" i); b_arity = 1; b_variadic = false;
+        b_func = (fun args env_ref -> row_lens_get_impl i ~eval_call args !env_ref)
+      } in
+      let set_fn = VBuiltin {
+        b_name = Some (Printf.sprintf "row_set_%d" i); b_arity = 2; b_variadic = false;
+        b_func = (fun args env_ref -> row_lens_set_impl i ~eval_call args !env_ref)
+      } in
+      VDict [("get", get_fn); ("set", set_fn)]
+  | [(_, VNA _)] -> Error.type_error "row_lens: index cannot be NA"
+  | [(_, other)] -> Error.type_error (Printf.sprintf "row_lens expects an integer index, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "row_lens" 1 (List.length args)
+
+let filter_lens_get_impl p ~eval_call args env =
+  match args with
+  | [(_, VList items)] ->
+      let filtered = List.filter (fun (_, v) ->
+        let res = eval_call env p [(None, mk_expr (Value v))] in
+        Utils.is_truthy res
+      ) items in
+      VList filtered
+  | [(_, VVector arr)] ->
+      let filtered = Array.to_list arr |> List.filter (fun v ->
+        let res = eval_call env p [(None, mk_expr (Value v))] in
+        Utils.is_truthy res
+      ) in
+      VVector (Array.of_list filtered)
+  | [(_, VDataFrame df)] ->
+      let nrows = Arrow_table.num_rows df.arrow_table in
+      let keep = Array.make nrows false in
+      for i = 0 to nrows - 1 do
+        let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
+        let res = eval_call env p [(None, mk_expr (Value row_dict))] in
+        if Utils.is_truthy res then keep.(i) <- true
+      done;
+      let new_table = Arrow_compute.filter df.arrow_table keep in
+      VDataFrame { df with arrow_table = new_table }
+  | [(_, other)] -> Error.type_error (Printf.sprintf "filter_lens get expects a Collection, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "filter_get" 1 (List.length args)
+
+let filter_lens_set_impl p ~eval_call args env =
+  match args with
+  | [(_, VList items); (_, val_v)] ->
+      let new_items = List.map (fun (name, v) ->
+        let res = eval_call env p [(None, mk_expr (Value v))] in
+        if Utils.is_truthy res then (name, val_v) else (name, v)
+      ) items in
+      VList new_items
+  | [(_, VVector arr); (_, val_v)] ->
+      let new_arr = Array.map (fun v ->
+        let res = eval_call env p [(None, mk_expr (Value v))] in
+        if Utils.is_truthy res then val_v else v
+      ) arr in
+      VVector new_arr
+  | [(_, VDataFrame df); (_, VDict row_items)] ->
+      let nrows = Arrow_table.num_rows df.arrow_table in
+      let names = Arrow_table.column_names df.arrow_table in
+      let mask = Array.make nrows false in
+      for i = 0 to nrows - 1 do
+        let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
+        let res = eval_call env p [(None, mk_expr (Value row_dict))] in
+        if Utils.is_truthy res then mask.(i) <- true
+      done;
+      let updated_cols = List.map (fun name ->
+        let col = match Arrow_table.get_column df.arrow_table name with
+          | Some c -> c
+          | None -> Arrow_table.NullColumn nrows
+        in
+        let vals = Arrow_bridge.column_to_values col in
+        let new_val = match List.assoc_opt name row_items with
+          | Some v -> v
+          | None -> VNA NAGeneric
+        in
+        for i = 0 to nrows - 1 do
+          if mask.(i) then vals.(i) <- new_val
+        done;
+        (name, Arrow_bridge.values_to_column vals)
+      ) names in
+      VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows }
+  | [(_, VDataFrame _); (_, other)] -> Error.type_error (Printf.sprintf "filter_lens set on DataFrame expects a Dict for the row data, got %s" (Utils.type_name other))
+  | [(_, other); _] -> Error.type_error (Printf.sprintf "filter_lens set expects a Collection, got %s" (Utils.type_name other))
+  | _ -> Error.arity_error_named "filter_set" 2 (List.length args)
+
+(*
+--# Filter Lens
+--#
+--# Targets elements in a List/Vector or rows in a DataFrame that satisfy a predicate.
+--#
+--# @name filter_lens
+--# @param p :: Function The predicate function.
+--# @return :: Lens A lens for elements matching the predicate.
+--# @family lens
+--# @export
+*)
+let filter_lens_impl ~eval_call args _env =
+  match args with
+  | [(_, VNA _)] -> Error.type_error "filter_lens: predicate cannot be NA"
+  | [(_, p)] ->
+      let get_fn = VBuiltin {
+        b_name = None; b_arity = 1; b_variadic = false;
+        b_func = (fun args env_ref -> filter_lens_get_impl p ~eval_call args !env_ref)
+      } in
+      let set_fn = VBuiltin {
+        b_name = None; b_arity = 2; b_variadic = false;
+        b_func = (fun args env_ref -> filter_lens_set_impl p ~eval_call args !env_ref)
+      } in
+      VDict [("get", get_fn); ("set", set_fn)]
+  | _ -> Error.arity_error_named "filter_lens" 1 (List.length args)
+
 (*
 --# Transform Focused Value
 --#
@@ -351,3 +568,6 @@ let register ~eval_call env =
   |> make_l_builtin ~variadic:true "modify" 1 modify_impl
   |> make_l_builtin "node_lens" 1 node_lens_impl
   |> make_l_builtin "env_var_lens" 2 env_var_lens_impl
+  |> make_l_builtin "idx_lens" 1 idx_lens_impl
+  |> make_l_builtin "row_lens" 1 row_lens_impl
+  |> make_l_builtin "filter_lens" 1 filter_lens_impl
