@@ -129,7 +129,7 @@ let idx_lens_get_impl i ~eval_call:_ args _env =
       if i < 0 || i >= len then Error.index_error i len
       else arr.(i)
   | [(_, other)] -> Error.type_error (Printf.sprintf "idx_lens get expects a List or Vector, got %s" (Utils.type_name other))
-  | _ -> Error.arity_error_named "idx_get" 1 (List.length args)
+  | _ -> Error.arity_error_named "idx_lens.get" 1 (List.length args)
 
 let idx_lens_set_impl i ~eval_call:_ args _env =
   match args with
@@ -147,7 +147,7 @@ let idx_lens_set_impl i ~eval_call:_ args _env =
         new_arr.(i) <- val_v;
         VVector new_arr
   | [(_, other); _] -> Error.type_error (Printf.sprintf "idx_lens set expects a List or Vector, got %s" (Utils.type_name other))
-  | _ -> Error.arity_error_named "idx_set" 2 (List.length args)
+  | _ -> Error.arity_error_named "idx_lens.set" 2 (List.length args)
 
 (*
 --# Index Lens
@@ -207,7 +207,18 @@ let row_lens_set_impl i ~eval_call:_ args _env =
           if i < Array.length vals then vals.(i) <- new_val;
           (name, Arrow_bridge.values_to_column vals)
         ) names in
-        VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows }
+        (* Add new columns for keys present in the row Dict but missing from the DataFrame *)
+        let names_tbl = Hashtbl.create (List.length names) in
+        List.iter (fun n -> Hashtbl.replace names_tbl n ()) names;
+        let extra_cols = List.filter_map (fun (name, v) ->
+          if Hashtbl.mem names_tbl name then None
+          else
+            let vals = Array.make nrows (VNA NAGeneric) in
+            vals.(i) <- v;
+            Some (name, Arrow_bridge.values_to_column vals)
+        ) row_items in
+        let all_cols = updated_cols @ extra_cols in
+        VDataFrame { df with arrow_table = Arrow_table.create all_cols nrows }
   | [(_, VDataFrame _); (_, other)] -> Error.type_error (Printf.sprintf "row_lens set expects a Dict for the row data, got %s" (Utils.type_name other))
   | [(_, other); _] -> Error.type_error (Printf.sprintf "row_lens set expects a DataFrame, got %s" (Utils.type_name other))
   | _ -> Error.arity_error_named "row_set" 2 (List.length args)
@@ -240,74 +251,198 @@ let row_lens_impl ~eval_call args _env =
   | _ -> Error.arity_error_named "row_lens" 1 (List.length args)
 
 let filter_lens_get_impl p ~eval_call args env =
+  let eval_pred v =
+    match eval_call env p [(None, mk_expr (Value v))] with
+    | VBool b -> Ok b
+    | VError _ as e -> Error e
+    | other ->
+        Error (Error.type_error
+          (Printf.sprintf "filter_lens predicate must return Bool, got %s"
+            (Utils.type_name other)))
+  in
   match args with
   | [(_, VList items)] ->
-      let filtered = List.filter (fun (_, v) ->
-        let res = eval_call env p [(None, mk_expr (Value v))] in
-        Utils.is_truthy res
-      ) items in
-      VList filtered
+      let rec aux acc = function
+        | [] -> Ok (List.rev acc)
+        | (name, v) :: rest ->
+            (match eval_pred v with
+             | Ok true -> aux ((name, v) :: acc) rest
+             | Ok false -> aux acc rest
+             | Error e -> Error e)
+      in
+      (match aux [] items with
+       | Ok filtered -> VList filtered
+       | Error e -> e)
   | [(_, VVector arr)] ->
-      let filtered = Array.to_list arr |> List.filter (fun v ->
-        let res = eval_call env p [(None, mk_expr (Value v))] in
-        Utils.is_truthy res
-      ) in
-      VVector (Array.of_list filtered)
+      let rec aux acc = function
+        | [] -> Ok (List.rev acc)
+        | v :: rest ->
+            (match eval_pred v with
+             | Ok true -> aux (v :: acc) rest
+             | Ok false -> aux acc rest
+             | Error e -> Error e)
+      in
+      (match aux [] (Array.to_list arr) with
+       | Ok filtered -> VVector (Array.of_list filtered)
+       | Error e -> e)
   | [(_, VDataFrame df)] ->
       let nrows = Arrow_table.num_rows df.arrow_table in
       let keep = Array.make nrows false in
-      for i = 0 to nrows - 1 do
-        let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
-        let res = eval_call env p [(None, mk_expr (Value row_dict))] in
-        if Utils.is_truthy res then keep.(i) <- true
-      done;
-      let new_table = Arrow_compute.filter df.arrow_table keep in
-      VDataFrame { df with arrow_table = new_table }
-  | [(_, other)] -> Error.type_error (Printf.sprintf "filter_lens get expects a Collection, got %s" (Utils.type_name other))
-  | _ -> Error.arity_error_named "filter_get" 1 (List.length args)
+      let rec aux i =
+        if i >= nrows then Ok ()
+        else
+          let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
+          match eval_pred row_dict with
+          | Ok b -> keep.(i) <- b; aux (i + 1)
+          | Error e -> Error e
+      in
+      (match aux 0 with
+       | Error e -> e
+       | Ok () ->
+           let new_table = Arrow_compute.filter df.arrow_table keep in
+           VDataFrame { df with arrow_table = new_table })
+  | [(_, other)] ->
+      Error.type_error (Printf.sprintf "filter_lens get expects a Collection, got %s"
+        (Utils.type_name other))
+  | _ -> Error.arity_error_named "filter_lens.get" 1 (List.length args)
 
 let filter_lens_set_impl p ~eval_call args env =
+  let eval_pred v =
+    match eval_call env p [(None, mk_expr (Value v))] with
+    | VBool b -> Ok b
+    | VError _ as e -> Error e
+    | other ->
+        Error (Error.type_error
+          (Printf.sprintf "filter_lens predicate must return Bool, got %s"
+            (Utils.type_name other)))
+  in
+  (* Build predicate mask using an indexed value accessor. Returns (mask, match_count) or error. *)
+  let build_mask n get_v =
+    let mask = Array.make n false in
+    let rec aux i count =
+      if i >= n then Ok (mask, count)
+      else
+        match eval_pred (get_v i) with
+        | Ok b ->
+            if b then mask.(i) <- true;
+            aux (i + 1) (if b then count + 1 else count)
+        | Error e -> Error e
+    in
+    aux 0 0
+  in
   match args with
-  | [(_, VList items); (_, val_v)] ->
-      let new_items = List.map (fun (name, v) ->
-        let res = eval_call env p [(None, mk_expr (Value v))] in
-        if Utils.is_truthy res then (name, val_v) else (name, v)
-      ) items in
-      VList new_items
-  | [(_, VVector arr); (_, val_v)] ->
-      let new_arr = Array.map (fun v ->
-        let res = eval_call env p [(None, mk_expr (Value v))] in
-        if Utils.is_truthy res then val_v else v
-      ) arr in
-      VVector new_arr
-  | [(_, VDataFrame df); (_, VDict row_items)] ->
+  | [(_, VList items); (_, replacement)] ->
+      let arr = Array.of_list items in
+      (match build_mask (Array.length arr) (fun i -> snd arr.(i)) with
+       | Error e -> e
+       | Ok (mask, match_count) ->
+           (match replacement with
+            | VList repl_items ->
+                let repl_len = List.length repl_items in
+                if repl_len <> match_count then
+                  Error.type_error
+                    (Printf.sprintf
+                       "filter_lens set on List: replacement has %d elements but %d were matched"
+                       repl_len match_count)
+                else
+                  let repl_arr = Array.of_list (List.map snd repl_items) in
+                  let repl_idx = ref 0 in
+                  let new_items = Array.to_list (Array.mapi (fun i (name, v) ->
+                    if mask.(i) then
+                      let new_v = repl_arr.(!repl_idx) in
+                      incr repl_idx; (name, new_v)
+                    else (name, v)
+                  ) arr) in
+                  VList new_items
+            | val_v ->
+                (* scalar broadcast: replace every matched element with val_v *)
+                VList (Array.to_list (Array.mapi (fun i (name, v) ->
+                  if mask.(i) then (name, val_v) else (name, v)
+                ) arr))))
+  | [(_, VVector arr); (_, replacement)] ->
+      (match build_mask (Array.length arr) (fun i -> arr.(i)) with
+       | Error e -> e
+       | Ok (mask, match_count) ->
+           (match replacement with
+            | VVector repl_arr ->
+                let repl_len = Array.length repl_arr in
+                if repl_len <> match_count then
+                  Error.type_error
+                    (Printf.sprintf
+                       "filter_lens set on Vector: replacement has %d elements but %d were matched"
+                       repl_len match_count)
+                else
+                  let repl_idx = ref 0 in
+                  let new_arr = Array.mapi (fun i v ->
+                    if mask.(i) then begin
+                      let new_v = repl_arr.(!repl_idx) in
+                      incr repl_idx; new_v
+                    end else v
+                  ) arr in
+                  VVector new_arr
+            | val_v ->
+                (* scalar broadcast *)
+                VVector (Array.mapi (fun i v -> if mask.(i) then val_v else v) arr)))
+  | [(_, VDataFrame df); (_, replacement)] ->
       let nrows = Arrow_table.num_rows df.arrow_table in
-      let names = Arrow_table.column_names df.arrow_table in
-      let mask = Array.make nrows false in
-      for i = 0 to nrows - 1 do
-        let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
-        let res = eval_call env p [(None, mk_expr (Value row_dict))] in
-        if Utils.is_truthy res then mask.(i) <- true
-      done;
-      let updated_cols = List.map (fun name ->
-        let col = match Arrow_table.get_column df.arrow_table name with
-          | Some c -> c
-          | None -> Arrow_table.NullColumn nrows
-        in
-        let vals = Arrow_bridge.column_to_values col in
-        let new_val = match List.assoc_opt name row_items with
-          | Some v -> v
-          | None -> VNA NAGeneric
-        in
-        for i = 0 to nrows - 1 do
-          if mask.(i) then vals.(i) <- new_val
-        done;
-        (name, Arrow_bridge.values_to_column vals)
-      ) names in
-      VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows }
-  | [(_, VDataFrame _); (_, other)] -> Error.type_error (Printf.sprintf "filter_lens set on DataFrame expects a Dict for the row data, got %s" (Utils.type_name other))
-  | [(_, other); _] -> Error.type_error (Printf.sprintf "filter_lens set expects a Collection, got %s" (Utils.type_name other))
-  | _ -> Error.arity_error_named "filter_set" 2 (List.length args)
+      (match build_mask nrows
+               (fun i -> VDict (Arrow_bridge.row_to_dict df.arrow_table i)) with
+       | Error e -> e
+       | Ok (mask, match_count) ->
+           let names = Arrow_table.column_names df.arrow_table in
+           (match replacement with
+            | VDataFrame df_repl ->
+                let repl_nrows = Arrow_table.num_rows df_repl.arrow_table in
+                if repl_nrows <> match_count then
+                  Error.type_error
+                    (Printf.sprintf
+                       "filter_lens set on DataFrame: replacement has %d rows but %d were matched"
+                       repl_nrows match_count)
+                else
+                  let updated_cols = List.map (fun name ->
+                    let col = match Arrow_table.get_column df.arrow_table name with
+                      | Some c -> c | None -> Arrow_table.NullColumn nrows
+                    in
+                    let vals = Arrow_bridge.column_to_values col in
+                    let repl_col = match Arrow_table.get_column df_repl.arrow_table name with
+                      | Some c -> c | None -> Arrow_table.NullColumn match_count
+                    in
+                    let repl_vals = Arrow_bridge.column_to_values repl_col in
+                    let repl_idx = ref 0 in
+                    for i = 0 to nrows - 1 do
+                      if mask.(i) then begin
+                        vals.(i) <- repl_vals.(!repl_idx);
+                        incr repl_idx
+                      end
+                    done;
+                    (name, Arrow_bridge.values_to_column vals)
+                  ) names in
+                  VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows }
+            | VDict row_items ->
+                (* scalar broadcast: apply the same Dict to every matched row *)
+                let updated_cols = List.map (fun name ->
+                  let col = match Arrow_table.get_column df.arrow_table name with
+                    | Some c -> c | None -> Arrow_table.NullColumn nrows
+                  in
+                  let vals = Arrow_bridge.column_to_values col in
+                  let new_val = match List.assoc_opt name row_items with
+                    | Some v -> v | None -> VNA NAGeneric
+                  in
+                  for i = 0 to nrows - 1 do
+                    if mask.(i) then vals.(i) <- new_val
+                  done;
+                  (name, Arrow_bridge.values_to_column vals)
+                ) names in
+                VDataFrame { df with arrow_table = Arrow_table.create updated_cols nrows }
+            | other ->
+                Error.type_error
+                  (Printf.sprintf
+                     "filter_lens set on DataFrame expects a Dict or DataFrame, got %s"
+                     (Utils.type_name other))))
+  | [(_, other); _] ->
+      Error.type_error (Printf.sprintf "filter_lens set expects a Collection, got %s"
+        (Utils.type_name other))
+  | _ -> Error.arity_error_named "filter_lens.set" 2 (List.length args)
 
 (*
 --# Filter Lens
