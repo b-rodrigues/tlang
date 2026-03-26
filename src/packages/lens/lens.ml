@@ -517,8 +517,20 @@ let get_impl ~eval_call args env =
       (match List.assoc_opt "get" items with
        | Some get_fn -> eval_call env get_fn [(None, mk_expr (Value data))]
        | None -> Error.type_error "Lens missing get function")
+  | [(_, VList items); (_, VInt i)] ->
+      let len = List.length items in
+      if i < 0 || i >= len then Error.index_error i len
+      else let (_, v) = List.nth items i in v
+  | [(_, VVector arr); (_, VInt i)] ->
+      let len = Array.length arr in
+      if i < 0 || i >= len then Error.index_error i len
+      else arr.(i)
+  | [(_, VNDArray arr); (_, VInt i)] ->
+      let len = Array.length arr.data in
+      if i < 0 || i >= len then Error.index_error i len
+      else VFloat arr.data.(i)
   | [(_, _); (_, other)] ->
-      Error.type_error (Printf.sprintf "Lens get expects a Lens (VDict) as its second argument, got %s" (Utils.type_name other))
+      Error.type_error (Printf.sprintf "get expects either (data, Lens) or (collection, Index). Got %s for the second argument." (Utils.type_name other))
   | _ -> Error.arity_error_named "get" 2 (List.length args)
 
 (*
