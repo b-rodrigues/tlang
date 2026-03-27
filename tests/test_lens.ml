@@ -47,4 +47,42 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|p = pipeline { a = node(command = <{ 1 }>, runtime = R, env_vars = [DEBUG: "false"]) }; l = env_var_lens("a", "DEBUG"); p2 = set(p, l, "true"); l.get(p2)|}
     {|"true"|};
 
+  (* 6. Library Extensions *)
+  test "idx_lens on List"
+    {|v = [10, 20, 30]; l = idx_lens(1); set(v, l, 99)|}
+    "[10, 99, 30]";
+
+  test "idx_lens on Vector (manual call)"
+    {|v = select(dataframe([[a: 1, b: 2], [a: 3, b: 4]]), $a); l = idx_lens(0); set(v, l, 5)|}
+    "Vector[5, 3]";
+
+  test "row_lens on DataFrame"
+    {|df = dataframe([[x: 1, y: 3], [x: 2, y: 4]]); l = row_lens(0); set(df, l, [x: 10, y: 20]).x|}
+    "Vector[10, 2]";
+
+  test "filter_lens on List"
+    {|v = [1, 2, 3, 4]; l = filter_lens(\(x) x > 2); set(v, l, 0)|}
+    "[1, 2, 0, 0]";
+
+  test "filter_lens on DataFrame"
+    {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); l = filter_lens(\(r) r.x > 1); set(df, l, [x: 0, y: 0]).y|}
+    "Vector[10, 0, 0]";
+
+  (* 7. Additional filter_lens coverage *)
+  test "filter_lens over on List"
+    {|v = [1, 2, 3, 4]; l = filter_lens(\(x) x > 2); over(v, l, \(x) x * 10)|}
+    "[1, 2, 30, 40]";
+
+  test "compose(filter_lens, col_lens) on DataFrame"
+    {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); lf = filter_lens(\(r) r.x > 1); ly = col_lens("y"); l = compose(lf, ly); df2 = over(df, l, \(v) v .* 2); df2.y|}
+    "Vector[10, 40, 60]";
+
+  test "filter_lens predicate must return Bool"
+    {|v = [1, 2, 3]; l = filter_lens(\(x) x); l.get(v)|}
+    {|Error(TypeError: "filter_lens predicate must return Bool, got Int")|};
+
+  test "package_info lens functions"
+    {|length(package_info("lens").functions)|}
+    "11";
+
   print_newline ()
