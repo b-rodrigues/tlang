@@ -8,207 +8,213 @@ Lenses solve this by providing a first-class, composable way to "zoom in" on nes
 
 ---
 
-## 1. The Core Transformation: Lenses vs. Nested Mutates
+## Part I: Why Lenses
 
-When your data is flat, `mutate()` is perfect. But as soon as you have **nested DataFrames** (e.g., a "World" table containing "Countries", which contain "Cities", which contain "Neighborhoods"), standard verbs force you into a **Pyramid of Doom**.
+### 1. The Core Problem: Deeply Nested Structures
 
-### The Nested Mutate approach (The "Pyramid of Doom")
-To update a value three levels deep, you have to manually traverse every layer using `map()` and `mutate()`. Notice how you must invent new lambda variables (`c`, `nb`) for every level:
+Consider a dataset that is genuinely hierarchical: a `clients` DataFrame where each row's `projects` column holds another DataFrame of that client's projects, and each project's `milestones` column holds a further DataFrame of milestones. Each client has a different number of projects; each project has a different number of milestones. This kind of structure arises naturally after a `nest()` call, or when loading hierarchical data from a JSON API.
 
 ```t
--- Increasing population by 5% three levels deep
-updated_world = world |> mutate(
-  $countries = map($countries, \(c) 
-    c |> mutate(
-      $cities = map($cities, \(nb) 
-        nb |> mutate($population = $population * 1.05)
+-- clients: DataFrame
+--   $name     : String
+--   $projects : DataFrame (nested)
+--       $title      : String
+--       $milestones : DataFrame (nested)
+--           $label   : String
+--           $pct_int : Int    -- completion percentage, 0–100
+```
+
+A business requirement: **apply a 10-point uplift to every milestone's `$pct_int` value** (an end-of-quarter adjustment). Because the number of milestones varies per project and per client, you cannot simply `mutate($pct_int = $pct_int + 10)` on the top-level DataFrame—`$pct_int` lives three levels down.
+
+#### The Nested Mutate Approach (The "Pyramid of Doom")
+
+With standard verbs you have to peel back every layer manually, inventing a new lambda variable at each level:
+
+```t
+updated_clients = clients |> mutate(
+  $projects = map($projects, \(proj)
+    proj |> mutate(
+      $milestones = map($milestones, \(ms)
+        ms |> mutate($pct_int = min($pct_int + 10, 100))
       )
     )
   )
 )
 ```
-This is fragile: if the schema changes, you have to rewrite the entire block. It's also hard to read and easy to make a mistake in the nesting.
 
-### The Lens Approach (Declarative Pathing)
-Lenses allow you to define the **path** to the data once, and then apply it in a single operation. T handles the deep traversal and reconstruction of the immutable structure automatically.
+This is fragile: rename a column or add another level of nesting and you rewrite the entire block. The deeper the hierarchy, the worse it gets.
+
+#### The Lens Approach (Declarative Pathing)
+
+Lenses let you declare the **path** to the target once, then apply it in a single operation. T handles traversal and immutable reconstruction automatically.
 
 ```t
--- Define the path once
--- compose() is variadic and accepts any number of lenses
-pop_l = compose(col_lens("countries"), col_lens("cities"), col_lens("population"))
+-- Define the path once; compose() is variadic
+pct_l = compose(col_lens("projects"), col_lens("milestones"), col_lens("pct_int"))
 
--- Perform the surgical update
-updated_world = world |> over(pop_l, \(x) x .* 1.05)
+-- Apply the transformation everywhere in one line
+updated_clients = clients |> over(pct_l, \(x) min(x .+ 10, 100))
 ```
 
-#### Why Lenses Win:
-1.  **Readability**: The operation is a single flat line, not a 7-level nested block.
-2.  **Vectorization**: Lenses in T are **fully vectorized**. The `over` function automatically distributes your transformation across all rows at every level of the hierarchy.
-3.  **Reuse**: You can define `pop_l` as a variable and use it for `get()`, `set()`, or `over()` across your entire project.
+**Why lenses win:**
+
+1. **Readability**: The path is declared once; the operation is a single flat expression.
+2. **Vectorization**: `over()` distributes your function across all matching values at every level automatically. When the focused value is a Vector (as it is here), broadcasting operators like `.+` and `.*` are required for element-wise operations; scalar operators will not work as intended.
+3. **Reuse**: Name a lens once and use it with `get()`, `set()`, or `over()` anywhere in the codebase.
 
 ---
 
-## 2. The Problem: Surgical Edits to Pipelines
+### 2. The Problem: Surgical Edits to Pipelines
 
 Pipelines in T are often treated as immutable specifications. If you needed to change an environment variable for a deep node or update a cached result before building, you previously had to reconstruct the pipeline or use internal hacks.
 
-### The Solution: Orchestration Lenses
+#### The Solution: Orchestration Lenses
+
 Specialized lenses allow you to treat a Pipeline as a queryable data structure.
 
-*   **`node_lens(node_name)`**: Targets the cached result value of a specific node.
-*   **`env_var_lens(node_name, var_name)`**: Targets a specific environment variable for a given node.
+- **`node_lens(node_name)`**: Targets the cached result value of a specific node.
+- **`env_var_lens(node_name, var_name)`**: Targets a specific environment variable for a given node.
 
 ```t
 p = build_pipeline("complex_analysis.t")
 
--- Injection of a debug flag into a specific node's environment
+-- Inject a debug flag into a specific node's environment
 debug_l = env_var_lens("compute_stats", "DEBUG")
 p_debug = p |> set(debug_l, "true")
 
--- Re-running with the new environment
+-- Re-run with the updated environment
 build_pipeline(p_debug)
 ```
 
 ---
 
-## 3. Beyond the Impossible: Standard DataFrames
+## Part II: Lens API
 
-While lenses excel at solving nesting problems, they also provide a unified interface for standard DataFrames. If you are writing a generic function that should work across different schemas, lenses are your best friend.
+### 3. Core Operations
 
-### `col_lens(name)`
-Targets a column in a DataFrame or a key in a Dictionary.
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| **`set(data, lens, value)`** | `(A, Lens, B) -> A` | Replaces the focused value. |
+| **`over(data, lens, f)`** | `(A, Lens, B -> B) -> A` | Applies a function to the focused value. |
+| **`modify(data, lens1, f1, ...)`** | `(A, Lens, B -> B, ...) -> A` | Applies multiple lens+function pairs in sequence. |
+| **`compose(...)`** | `(...Lens) -> Lens` | Chains lenses into a single path (left-to-right). |
+
+> **Broadcasting**: When `over()` focuses on a column, the function receives a **Vector**. Use broadcasting operators (`.+`, `.*`, etc.) for element-wise math, not scalar operators. This applies at every level of a nested traversal.
+
+#### `modify()`: Multiple transformations in one call
+
+When you need to transform several paths in one operation, `modify()` keeps the update list flat and readable instead of chaining multiple `over()` calls.
 
 ```t
-employees = dataframe([[name: "Alice", salary: 50000]])
+-- Two distinct paths through the same nested structure
+pct_l   = compose(col_lens("projects"), col_lens("milestones"), col_lens("pct_int"))
+label_l = compose(col_lens("projects"), col_lens("milestones"), col_lens("label"))
+
+updated_clients = clients |> modify(
+    pct_l,   \(x) min(x .+ 10, 100),
+    label_l, \(s) s + " ✓"
+)
+```
+
+---
+
+### 4. Primitive Lenses
+
+#### `col_lens(name)`
+
+Targets a column in a DataFrame, a key in a Dictionary, or a named field in a nested record. This is the primary building block for navigating hierarchical structures.
+
+```t
+employees = dataframe([[name: "Alice", salary: 50000],
+                       [name: "Bob",   salary: 48000]])
 
 salary_l = col_lens("salary")
 
--- Update a single field
-updated = employees |> set(salary_l, [60000])
+-- Replace values
+raised   = employees |> set(salary_l, [60000, 58000])
 
--- Transform a field
-final = updated |> over(salary_l, \(x) x .* 0.9)
+-- Transform values
+after_tax = raised |> over(salary_l, \(x) x .* 0.75)
+```
+
+#### `idx_lens(index)`
+
+Focuses on a single 0-based index in a **List** or **Vector**.
+
+```t
+scores = [10, 20, 30]
+
+-- Correct the second score
+scores2 = scores |> set(idx_lens(1), 99)  -- [10, 99, 30]
+```
+
+#### `row_lens(index)`
+
+Focuses on a specific row in a **DataFrame**. Compose with `col_lens` for cell-level access.
+
+```t
+df  = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
+
+-- Update a single cell (row 0, column "y")
+df2 = df |> set(compose(row_lens(0), col_lens("y")), 99)
 ```
 
 ---
 
-## 4. Collections and Filtering: Beyond Hierarchy
+### 5. Traversals: `filter_lens`
 
-Lenses in T are not just for drilling down; they can also target elements by position or condition.
+> **Note:** `filter_lens` is a **traversal**, not a lens—it focuses on *multiple* elements simultaneously rather than a single one. Unlike a lens, which always focuses on exactly one location, a traversal may focus on zero, one, or many locations. Composition with other lenses works via the same `compose()` function, but the update function is applied independently to each matched element, and the results are written back into their original positions.
 
-### `idx_lens(index)`
-Focuses on a specific 0-based index in a **List** or **Vector**.
+`filter_lens(predicate)` focuses on every element or row satisfying a condition. It works on **Lists**, **Vectors**, and **DataFrames**.
 
 ```t
-v = [10, 20, 30]
--- Update the second element
-v2 = set(v, idx_lens(1), 99) -- [10, 99, 30]
+scores = [1, 2, 3, 4, 5]
+
+-- Add 10 to every even number
+scores2 = scores |> over(filter_lens(\(x) x % 2 == 0), \(x) x + 10)
+-- [1, 12, 3, 14, 5]
 ```
 
-### `row_lens(index)`
-Focuses on a specific row in a **DataFrame**. When composed with `col_lens`, this allows for surgical, cell-level updates.
+When composing a traversal with another lens, pass both to `compose()`. Do **not** use `|>` inside an argument position—the operator precedence will cause the expression to parse incorrectly:
 
 ```t
-df = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
--- Update 'y' only in the first row
-df2 = set(df, compose(row_lens(0), col_lens("y")), 99)
+-- Correct: both arguments to compose()
+df |> set(compose(filter_lens(\(r) r.status == "expired"), col_lens("val")), 0)
+
+-- Wrong: |> inside an argument position parses incorrectly
+-- df |> set(filter_lens(\(r) r.status == "expired") |> compose(col_lens("val")), 0)
 ```
 
-### `filter_lens(predicate)`
-Focuses on elements or rows that satisfy a condition. It works on **Lists**, **Vectors**, and **DataFrames**.
+For flat-DataFrame conditional updates, `mutate()` with `if_else()` is often simpler and more familiar:
 
 ```t
-v = [1, 2, 3, 4, 5]
--- Increment only even numbers
-v2 = over(v, filter_lens(\(x) x % 2 == 0), \(x) x + 10) 
--- Returns [1, 12, 3, 14, 5]
-```
-
----
-
-## 5. Lenses vs. Standard Verbs: The Convincing Case
-
-You might ask: *"Why use `filter_lens()` when I can just use `filter()`?"* or *"Why `row_lens()` when I can use `mutate()`?"*
-
-The answer lies in **composition**, **bidirectionality**, and **context preservation**.
-
-### A. Context Preservation (The "Focus" vs "Subset" distinction)
-Standard `filter()` returns a *new, smaller* collection. If you want to modify those rows and put them back into the original table, you have to do a join or a complex `mutate` with conditional logic.
-
-**With `filter()` + `mutate()` (Traditional):**
-You must process every row and tell the engine how to handle the ones you *don't* want to change.
-```t
--- Traditional approach: explicit 'else' case required to keep data
+-- Equivalent, and clearer for the flat case
 df |> mutate($val = if_else($status == "expired", 0, $val))
 ```
 
-**With `filter_lens()` (Lens):**
-You only focus on the targets. T handles "putting the values back" into the original structure automatically.
-```t
--- Lens approach: "Zoom in, change, zoom out."
-df |> set(filter_lens(\(r) r.status == "expired") |> compose(col_lens("val")), 0)
-```
-
-### B. Cell-Level Precision
-Standard DataFrame verbs are **column-oriented**. Updating a single specific cell (e.g., "The third row of the 'Notes' column") is surprisingly verbose in SQL or Dplyr-style logic.
-
-**Traditional:**
-```t
-df |> mutate($notes = if_else(row_number() == 2, "Verified", $notes))
-```
-
-**Lens:**
-```t
-df |> set(compose(row_lens(2), col_lens("notes")), "Verified")
-```
-
-### C. True Orthogonality
-Standard verbs like `select()` are specialized for DataFrames. Lenses are **polymorphic**. A `col_lens("id")` works exactly the same whether it's looking at a row in a DataFrame, a standalone Dict, or a nested JSON-like List. You learn one "path language" that applies to every data type in T.
+The traversal form pays off when the condition and transformation live inside a *nested* structure—for example, when `df` is itself a column inside a larger DataFrame and a top-level `mutate` cannot reach the target field.
 
 ---
 
-## 6. API Reference Summary
+### 6. API Quick Reference
 
 | Function | Signature | Use Case |
 | :--- | :--- | :--- |
 | **`set(data, lens, value)`** | `(A, Lens, B) -> A` | Replaces the focused value. |
 | **`over(data, lens, f)`** | `(A, Lens, B -> B) -> A` | Transforms the focused value. |
-| **`modify(data, lens1, f1, ...)`** | `(A, Lens, B -> B, ...) -> A` | Applies multiple lens transformations in sequence. |
+| **`modify(data, lens1, f1, ...)`** | `(A, Lens, B -> B, ...) -> A` | Multiple lens+function pairs in one call. |
 | **`compose(...)`** | `(...Lens) -> Lens` | Chains any number of lenses into one path. |
-| **`col_lens(name)`** | `String -> Lens` | Generic column/key focus. |
+| **`col_lens(name)`** | `String -> Lens` | Column/key/field focus. |
 | **`node_lens(name)`** | `String -> Lens` | Pipeline node focus. |
-| **`env_var_lens(n, v)`** | `(Str, Str) -> Lens` | Pipeline env var focus. |
+| **`env_var_lens(n, v)`** | `(String, String) -> Lens` | Pipeline env var focus. |
 | **`idx_lens(i)`** | `Int -> Lens` | List/Vector index focus. |
 | **`row_lens(i)`** | `Int -> Lens` | DataFrame row focus. |
-| **`filter_lens(p)`** | `Function -> Lens` | Condition-based focus. |
-
----
-
-### 7. Multi-transformation with `modify()`
-
-When you need to perform multiple distinct transformations on a complex structure, `modify()` is significantly more powerful and readable than chaining multiple `over()` calls. It handles the intermediate states and passes the result through each transformation sequentially.
-
-**Scenario: Updating a nation's name AND its cities' populations in one operation.**
-
-```t
--- Defining the two distinct paths
-capital_l = compose(col_lens("countries"), col_lens("capital"))
-pop_l     = compose(col_lens("countries"), col_lens("cities"), col_lens("population"))
-
--- Apply heterogeneous transformations in a single pass
--- This avoids multiple traversals of the 'world' structure.
-updated_world = world |> modify(
-    capital_l, \(c) c + " (Verified)",
-    pop_l,     \(p) p .* 1.05
-)
-```
-
-To achieve this with standard verbs, you would need to nest your `mutate` logic inside another `mutate` logic, and then rebuild the entire tree—a process that quickly becomes unmanageable as the number of paths grows. `modify()` keeps the update list flat and declarative.
+| **`filter_lens(p)`** | `Function -> Traversal` | Condition-based multi-focus. |
 
 ---
 
 ### Best Practices
 
-1.  **Broadcasting**: When using `over()` on a column lens, the function receives a **Vector**. Use broadcasting operators like `.*` for element-wise math.
-2.  **Naming**: Store your common paths as named lenses: `sales_data_l = compose(col_lens("results"), col_lens("sales"))`.
-3.  **Encapsulation**: When building packages, export lenses for your internal data structures so users can extend your logic without knowing your column names.
+1. **Name your paths**: Store commonly used lenses as named variables (`pct_l`, `salary_l`) and reuse them across `get`, `set`, and `over` calls.
+2. **Encapsulation**: When building packages, export lenses for your internal data structures so users can extend your logic without knowing column names.
+3. **Prefer standard verbs for flat DataFrames**: Lenses shine in nested or polymorphic contexts. For straightforward flat-DataFrame operations, `mutate()` and `filter()` are simpler and more idiomatic.
