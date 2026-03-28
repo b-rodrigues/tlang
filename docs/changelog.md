@@ -2,10 +2,7 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
-### Features & UX
 
-- **T-Native Caching Extension**: Exploring local artifact caching to speed up subsequent `populate_pipeline` calls during development.
-- **Improved REPL Autocompletion**: Enhancing `t-lsp` support for context-aware completion of dictionary keys and dataframe columns.
 
 ## Version 0.51.2 — Current Stable Release
 
