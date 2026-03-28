@@ -53,7 +53,8 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
       let des = match List.assoc_opt name p.p_deserializers with Some e -> e | None -> Ast.mk_expr (Ast.Var "default") in
       
       let is_dict_or_list = function
-        | Ast.DictLit _ | Ast.ListLit _ -> true
+        | Ast.DictLit _ | Ast.ListLit _
+        | Ast.Value (Ast.VDict _) | Ast.Value (Ast.VList _) -> true
         | _ -> false
       in
       
