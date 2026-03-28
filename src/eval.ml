@@ -605,6 +605,10 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | Unquote inner -> VUnquote (eval_expr env_ref inner)
     | UnquoteSplice inner -> VUnquoteSplice (eval_expr env_ref inner)
     | ShellExpr cmd -> eval_shell_expr env_ref cmd
+    | Value (VSymbol s) when String.length s > 0 && s.[0] = '^' ->
+        (match Serialization_registry.lookup (String.sub s 1 (String.length s - 1)) with
+         | Some ser -> VSerializer ser
+         | None -> VSymbol s)
     | Value v -> v
     | Var s ->
         (match Env.find_opt s !env_ref with

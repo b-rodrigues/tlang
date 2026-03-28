@@ -661,6 +661,7 @@ let register env =
 
 (** Initialize the environment with all standard packages *)
 let init_env () =
+  Serialization_registry.init_builtins ();
   let env = Env.empty in
   (* Core package *)
   let env = T_print.register env in
