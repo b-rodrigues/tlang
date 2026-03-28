@@ -1,6 +1,16 @@
 # Changelog
 
-## [0.51.2] - 2026-03-24 (Upcoming)
+## [0.51.3] - 2026-04-xx (Upcoming)
+
+### Features & UX
+
+- **T-Native Caching Extension**: Exploring local artifact caching to speed up subsequent `populate_pipeline` calls during development.
+- **Improved REPL Autocompletion**: Enhancing `t-lsp` support for context-aware completion of dictionary keys and dataframe columns.
+
+## Version 0.51.2 — Current Stable Release
+
+**Status**: Beta  
+**Release Date**: 28th of March 2026
 
 ### Features & UX
 
@@ -45,7 +55,7 @@
 
 Version history and roadmap for the T programming language.
 
-## Version 0.51.1 — Current Stable Release
+## [0.51.1] - 2026-03-21
 
 **Status**: Beta
 **Release Date**: 21st of March 2026
