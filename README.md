@@ -21,23 +21,24 @@ T's core strength is its **mandatory pipeline architecture**. It treats R script
 ```t
 -- A reproducible polyglot pipeline
 p = pipeline {
-  -- 1. Load data natively in T (CSV backend)
+  -- 1. Load data natively in T (using the ^csv serializer)
+  -- The ^ prefix identifies a first-class serializer in the T registry.
   data = node(
     command = read_csv("examples/sample_data.csv") |> filter($age > 25),
-    serializer = "csv"
+    serializer = ^csv
   )
   
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = <{ lm(score ~ age, data = data) }>,
-    serializer = "pmml",
-    deserializer = "csv"
+    serializer = ^pmml,
+    deserializer = ^csv
   )
   
-  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
+  -- 3. Predict natively in T (no R/Python runtime needed!)
   predictions = node(
     command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = "pmml"
+    deserializer = ^pmml
   )
 
   -- 4. Generate a shell report
