@@ -113,9 +113,9 @@ Shell nodes default to `serializer = text`, which makes them a good fit for repo
 
 ## 3. Cross-Language Integration
 
-T is designed to orchestrate code across multiple languages. The pipeline runner manages the serialization and deserialization of data between R, Python, and T using industry-standard formats.
+T is designed to orchestrate code across multiple languages. The pipeline runner manages the serialization and deserialization of data between R, Python, and T using a first-class serializer system. For a deep dive into how T handles data interchange, see the [Serializers Documentation](serializers.md).
 
-### Supported Interchange Formats
+### Interchange Formats Comparison
 
 | Format | Option | Best For | Requirement |
 |---|---|---|---|
