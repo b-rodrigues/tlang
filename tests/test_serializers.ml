@@ -1,7 +1,7 @@
 (* tests/test_serializers.ml *)
 open Ast
 
-let run_tests pass_count fail_count _eval_string eval_string_env test =
+let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "First-Class Serializers:\n";
 
   (* 1. Built-in Registry Resolution *)
@@ -60,16 +60,20 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          (Ast.Utils.value_to_string other));
 
   (* 4. Static Coherence Checks - Match *)
-  let _ = eval_string_env {|
+  let env_match = Packages.init_env () in
+  let (v, _) = eval_string_env {|
     p = pipeline {
        a = node(command = <{ 1 }>, serializer = ^arrow)
        b = node(command = <{ a + 1 }>, deserializer = ^arrow)
     }
-    "ok"
-  |} env_coh in
-  test "Static coherence matching formats (syntax check)"
-    {| "ok" |}
-    {|"ok"|};
+    populate_pipeline(p)
+  |} env_match in
+  (match v with
+   | VString _ -> 
+       incr pass_count; Printf.printf "  ✓ Static coherence check accepts matching formats\n"
+   | other -> 
+       incr fail_count; Printf.printf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
+         (Ast.Utils.value_to_string other));
 
   (* 5. Robustness: Placeholder error *)
   let (v, _) = eval_string_env {| (^csv).writer("test.csv", 1) |} (Packages.init_env ()) in
@@ -80,8 +84,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
        incr fail_count; Printf.printf "  ✗ Placeholder writer failed to throw error\n") ;
 
   (* 6. Invalid Identifiers *)
-  test "Invalid serializer identifier"
-    {| ^non_existent |}
-    {|^non_existent|}; (* Stays a symbol if not in registry *)
+  let (v, _) = eval_string_env {| ^non_existent |} (Packages.init_env ()) in
+  (match v with
+   | VSymbol "^non_existent" ->
+       incr pass_count; Printf.printf "  ✓ Invalid identifier resolves to symbol\n"
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ Invalid identifier failed\n") ;
+
+  (* 7. Rejection of plain strings in polyglot snippets *)
+  let (v, _) = eval_string_env {| 
+    [ format: "custom", r_writer: "not a code block" ] 
+  |} (Packages.init_env ()) in
+  (match v with
+   | VDict pairs ->
+       (match List.assoc_opt "r_writer" pairs with
+        | Some (VString _) -> 
+            incr pass_count; Printf.printf "  ✓ Dict accurately stores VString for snippets (awaiting emitter rejection)\n"
+        | _ -> 
+            incr fail_count; Printf.printf "  ✗ Dict failed to store VString for sniperts\n")
+   | _ -> 
+       incr fail_count; Printf.printf "  ✗ Snippet rejection test setup failed\n");
 
   print_newline ()

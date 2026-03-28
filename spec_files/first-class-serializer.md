@@ -161,13 +161,13 @@ type serializer = {
   writer: function(path: string, value: any) -> result[null, string],
   reader: function(path: string) -> result[any, string],
   
-  -- R implementation (code snippets)
-  r_writer: string, -- e.g., "function(obj, path) { write.csv(obj, path) }"
-  r_reader: string, -- e.g., "function(path) { read.csv(path) }"
+  -- R implementation (code snippets - MUST use <{ ... }>)
+  r_writer: <{ function(obj, path) { write.csv(obj, path) } }>,
+  r_reader: <{ function(path) { read.csv(path) } }>,
   
-  -- Python implementation (code snippets)
-  py_writer: string,
-  py_reader: string
+  -- Python implementation (code snippets - MUST use <{ ... }>)
+  py_writer: <{ lambda obj, path: obj.to_csv(path) }>,
+  py_reader: <{ lambda path: pd.read_csv(path) }>
 }
 ```
 

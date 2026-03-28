@@ -29,7 +29,7 @@ let init_builtins () =
       | "arrow" -> (Some "r_write_arrow",  Some "r_read_arrow",  Some "py_write_arrow",  Some "py_read_arrow")
       | "json" ->  (Some "r_write_json",   Some "r_read_json",   Some "py_write_json",   Some "py_read_json")
       | "pmml" ->  (Some "r_write_pmml",   Some "r_read_pmml",   Some "py_write_pmml",   Some "py_read_pmml")
-      | "text" ->  (Some "writeLines",     Some "readLines",     Some "open(path,'w').write", Some "open(path).read")
+      | "text" ->  (Some "writeLines",     Some "readLines",     Some "lambda obj, path: open(path, 'w').write(str(obj))", Some "lambda path: open(path).read()")
       | _ -> (None, None, None, None)
     in
     {
