@@ -205,8 +205,8 @@ A comprehensive test suite must be implemented to verify both the ergonomic and 
 
 ## 10. Next Steps
 
-- [ ] Update `src/ast.ml` with `VSerializer` and record type.
-- [ ] Add `^` identifier support to `lexer.mll` and `parser.mly`.
-- [ ] Implement `src/serialization_registry.ml` to hold built-in serializers.
-- [ ] Refactor `Nix_emit_node.ml` to use the snippets from `VSerializer`.
-- [ ] Update `populate_pipeline.ml` with static coherence checks.
+- [x] Update `src/ast.ml` with `VSerializer` and record type.
+- [x] Add `^` identifier support to `lexer.mll` and `parser.mly`.
+- [x] Implement `src/serialization_registry.ml` to hold built-in serializers.
+- [x] Refactor `Nix_emit_node.ml` to use the snippets from `VSerializer`.
+- [x] Update `populate_pipeline.ml` with static coherence checks.
