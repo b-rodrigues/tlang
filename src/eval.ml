@@ -605,6 +605,10 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | Unquote inner -> VUnquote (eval_expr env_ref inner)
     | UnquoteSplice inner -> VUnquoteSplice (eval_expr env_ref inner)
     | ShellExpr cmd -> eval_shell_expr env_ref cmd
+    | Value (VSymbol s) when String.length s > 0 && s.[0] = '^' ->
+        (match Serialization_registry.lookup (String.sub s 1 (String.length s - 1)) with
+         | Some ser -> VSerializer ser
+         | None -> VSymbol s)
     | Value v -> v
     | Var s ->
         (match Env.find_opt s !env_ref with
@@ -943,8 +947,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | ListLit items -> eval_list_lit env_ref items
     | DictLit pairs -> eval_dict_lit env_ref pairs
     | DotAccess { target; field } -> eval_dot_access env_ref target field
-    | RawCode _ ->
-        make_error GenericError "Raw code blocks (<{ ... }>) contain foreign language code and cannot be evaluated directly in T. Use them only in `node(command = ..., runtime = R|Python|Julia)`-style foreign-runtime nodes. Quarto nodes work differently: they require a `.qmd` script and do not support raw code blocks."
+    | RawCode { raw_text; _ } -> VRawCode raw_text
     | ListComp _ -> Error.internal_error "List comprehensions are not yet implemented"
     | Block stmts -> eval_block env_ref stmts
     | PipelineDef nodes -> eval_pipeline env_ref nodes
@@ -1792,6 +1795,16 @@ and eval_dot_access env_ref target_expr field =
       | "shell_args" -> VList (List.map (fun e -> (None, VString (Nix_unparse.unparse_expr e))) un.un_shell_args)
       | "noop" -> VBool un.un_noop
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
+  | VSerializer s ->
+      (match field with
+      | "writer" -> s.s_writer
+      | "reader" -> s.s_reader
+      | "format" -> VString s.s_format
+      | "r_writer" -> (match s.s_r_writer with Some sw -> VRawCode sw | None -> VNull)
+      | "r_reader" -> (match s.s_r_reader with Some sr -> VRawCode sr | None -> VNull)
+      | "py_writer" -> (match s.s_py_writer with Some sw -> VRawCode sw | None -> VNull)
+      | "py_reader" -> (match s.s_py_reader with Some sr -> VRawCode sr | None -> VNull)
+      | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Serializer has no field `%s`" field))
   | VShellResult sr ->
       (match field with
       | "stdout"    -> VString sr.sr_stdout

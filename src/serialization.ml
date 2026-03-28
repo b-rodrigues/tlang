@@ -260,6 +260,7 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   | VFloat f -> `Float f
   | VBool b -> `Bool b
   | VString s -> `String s
+  | VRawCode s -> `String s
   | VDate days -> `String (json_date_string days)
   | VDatetime (micros, tz) -> `String (json_datetime_string micros tz)
   | VNull -> `Null
@@ -314,8 +315,8 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
           | Some tz -> `String tz
           | None -> `Null));
       ]
-  | VFactor _ ->
-      invalid_arg "value_to_yojson: VFactor is not supported for JSON serialization"
+  | VFactor _ | VSerializer _ ->
+      invalid_arg "value_to_yojson: VFactor/VSerializer is not supported for JSON serialization"
   | VUnquote _ | VUnquoteSplice _ | VDynamicArg _ | VQuo _ | VEnv _ ->
       invalid_arg "value_to_yojson: metaprogramming intermediate values are not serializable"
 

@@ -101,6 +101,9 @@ rule token = parse
   | '$' (identifier as col) { COLUMN_REF col }
   | '$' '`' ([^'`']* as col) '`' { COLUMN_REF col }
 
+  (* Serializer identifiers with ^ prefix *)
+  | '^' (identifier as s) { SERIALIZER_ID s }
+
   (* Identifiers must be matched after keywords *)
   | identifier as lxm { IDENT lxm }
 

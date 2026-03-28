@@ -151,6 +151,16 @@ and interval = {
   iv_tz : string option;
 }
 
+and serializer = {
+  s_format : string;
+  s_writer : value; (* VLambda or VBuiltin *)
+  s_reader : value; (* VLambda or VBuiltin *)
+  s_r_writer : string option;
+  s_r_reader : string option;
+  s_py_writer : string option;
+  s_py_reader : string option;
+}
+
 (** Runtime values *)
 and value =
   (* Scalar Types *)
@@ -158,6 +168,7 @@ and value =
   | VFloat of float
   | VBool of bool
   | VString of string
+  | VRawCode of string
   | VSymbol of symbol
   | VDate of int
   | VDatetime of int64 * string option
@@ -196,6 +207,7 @@ and value =
   | VDynamicArg of string * value
   (* Internal: environment as a first-class value, used by __q_caller_env__ *)
   | VEnv of value Env.t
+  | VSerializer of serializer
 
 
 
@@ -282,6 +294,7 @@ and typ =
   | TVar of string
   | TCustom of string
   | TComputedNode
+  | TSerializer
   | TExpr
 
 type program = stmt list
@@ -334,7 +347,7 @@ module Utils = struct
       Used by data verbs (select, arrange, group_by, etc.) to accept
       $column_name NSE syntax.  String arguments are intentionally rejected;
       users should write $col, not "col". *)
-  let is_string = function VString _ -> true | _ -> false
+  let is_string = function VString _ -> true | VRawCode _ -> true | _ -> false
   let is_symbol = function VSymbol _ -> true | _ -> false
   
   let extract_column_name = function
@@ -389,11 +402,12 @@ module Utils = struct
     | TVar s -> s
     | TCustom s -> s
     | TComputedNode -> "ComputedNode"
+    | TSerializer -> "Serializer"
     | TExpr -> "Expression"
 
   let type_name = function
     | VInt _ -> "Int" | VFloat _ -> "Float"
-    | VBool _ -> "Bool" | VString _ -> "String"
+    | VBool _ -> "Bool" | VString _ -> "String" | VRawCode _ -> "Code"
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
     | VList _ -> "List" | VDict _ -> "Dict"
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
@@ -406,6 +420,7 @@ module Utils = struct
     | VInterval _ -> "Interval"
     | VIntent _ -> "Intent"
     | VFormula _ -> "Formula"
+    | VSerializer _ -> "Serializer"
     | VComputedNode _ -> "ComputedNode"
     | VNode _ -> "Node"
     | VExpr _ -> "Expression"
@@ -507,6 +522,7 @@ module Utils = struct
     | VFloat f -> string_of_float f
     | VBool b -> string_of_bool b
     | VString s -> "\"" ^ String.escaped s ^ "\""
+    | VRawCode s -> "<{ " ^ s ^ " }>"
     | VSymbol s -> s
     | VDate days ->
         let tm = Unix.gmtime (float_of_int days *. 86400.) in
@@ -629,6 +645,8 @@ module Utils = struct
     | VComputedNode cn ->
         Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s\npath: %s"
           cn.cn_runtime cn.cn_serializer cn.cn_class cn.cn_path
+    | VSerializer s ->
+        Printf.sprintf "serializer<^%s>" s.s_format
     | VNode un ->
         Printf.sprintf "node<%s>(...)" un.un_runtime
     | VShellResult { sr_stdout; _ } ->
@@ -641,6 +659,7 @@ module Utils = struct
 
   let value_to_raw_string = function
     | VString s -> s
+    | VRawCode s -> s
     | VShellResult { sr_stdout; _ } -> sr_stdout
     | VFloat f ->
         if f = floor f then
@@ -735,6 +754,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VFloat _, TFloat -> true
   | VBool _, TBool -> true
   | VString _, TString -> true
+  | VRawCode _, TString -> true
   | VNull, TNull -> true
   | VNA _, _ -> true (* NA is compatible with any type (it's a special bottom/missing value) *)
   

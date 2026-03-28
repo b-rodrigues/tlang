@@ -31,6 +31,7 @@
    test_lsp_support
    test_sh_node
     test_lens
+    test_serializers
  )
  (libraries t_lang menhirLib otoml unix str)
 )

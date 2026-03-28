@@ -66,8 +66,55 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
       else None
     ) p.p_exprs
   in
+  
+  let check_serializer_coherence () =
+    let eval_expr e = Eval.eval_expr (ref Ast.Env.empty) e in
+    let get_ser name = 
+      match List.assoc_opt name p.p_serializers with
+      | Some e -> eval_expr e
+      | None -> Ast.VNull
+    in
+    let get_des name = 
+      match List.assoc_opt name p.p_deserializers with
+      | Some e -> eval_expr e
+      | None -> Ast.VNull
+    in
+    let extract_format = function
+      | Ast.VSerializer s -> Some s.s_format
+      | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
+      | Ast.VDict pairs ->
+          (match List.assoc_opt "format" pairs with
+           | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
+           | _ -> None)
+      | _ -> None
+    in
+    List.find_map (fun (name, _) ->
+      let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
+      let node_des_val = get_des name in
+      List.find_map (fun dep_name ->
+        let producer_ser_val = get_ser dep_name in
+        let producer_fmt = extract_format producer_ser_val in
+        let consumer_fmt =
+          match node_des_val with
+          | Ast.VDict pairs ->
+              (match List.assoc_opt dep_name pairs with
+               | Some v -> extract_format v
+               | None -> extract_format node_des_val)
+          | _ -> extract_format node_des_val
+        in
+        match producer_fmt, consumer_fmt with
+        | Some pf, Some cf when pf <> cf && pf <> "default" && cf <> "default" -> 
+            Some (Printf.sprintf "Serializer coherence error: Node `%s` expects format `%s` for dependency `%s`, but `%s` produces format `%s`."
+                    name cf dep_name dep_name pf)
+        | _ -> None
+      ) deps
+    ) p.p_exprs
+  in
 
   match check_multi_dep_strategies () with
+  | Some err -> Error (err)
+  | None ->
+  match check_serializer_coherence () with
   | Some err -> Error (err)
   | None ->
   ensure_pipeline_dir ();
