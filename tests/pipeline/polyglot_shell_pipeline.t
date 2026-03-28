@@ -8,21 +8,21 @@ p = pipeline {
     raw_data = node(
         command = read_csv("tests/pipeline/data/mtcars.csv", separator = "|"),
         runtime = T,
-        serializer = t_write_csv,
+        serializer = "^csv",
         functions = "tests/pipeline/iolib.t"
     )
 
     summary_r = rn(
         command = <{ raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)) }>,
-        serializer = r_write_csv,
-        deserializer = r_read_csv,
+        serializer = "^csv",
+        deserializer = "^csv",
         functions = "tests/pipeline/iolib.R"
     )
 
     summary_py = pyn(
         command = <{ summary_py = raw_data.groupby("cyl").agg({"mpg": "mean"}).reset_index().rename(columns={"mpg": "avg_mpg"}) }>,
-        serializer = py_write_csv,
-        deserializer = py_read_csv,
+        serializer = "^csv",
+        deserializer = "^csv",
         functions = "tests/pipeline/iolib.py"
     )
 
