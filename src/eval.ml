@@ -715,6 +715,21 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     | [(_, c)] -> c | _ -> default)
                | _ -> default)
         in
+        (* Eagerly evaluate serializer/deserializer args in the current env.
+           This lets users define serializers as top-level variables or import
+           them from .t files. The result is re-wrapped as Value(v) so the Nix
+           emitter (which calls eval_expr_safe with empty env) can still
+           resolve the value at code-generation time.
+           IMPORTANT: only evaluate when the user actually supplied the arg —
+           the default sentinels (varexpr "text", varexpr "default") are NOT
+           string literals but variable-name look-ups that would fail in env. *)
+        let lookup_serializer_arg name default =
+          match List.assoc_opt (Some name) args with
+          | Some e ->
+            let v = eval_expr env_ref e in
+            Ast.mk_expr (Ast.Value v)
+          | None -> default
+        in
         let lookup_env_vars () =
           let is_env_value = function
             | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
@@ -887,8 +902,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | RawCode _ ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
-                      un_deserializer = lookup_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
+                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -899,8 +914,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | Value (VString _) | Value (VSymbol _) | Value VNull when runtime = "sh" ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_arg "serializer" (varexpr "text");
-                      un_deserializer = lookup_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" (varexpr "text");
+                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -911,8 +926,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | _ when Option.is_some un_script ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
-                      un_deserializer = lookup_arg "deserializer" (varexpr "default");
+                      un_serializer = lookup_serializer_arg "serializer" (match runtime with "sh" -> varexpr "text" | _ -> varexpr "default");
+                      un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -926,8 +941,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               else
                 VNode {
                   un_command; un_script; un_runtime = runtime;
-                  un_serializer = lookup_arg "serializer" (varexpr "default");
-                  un_deserializer = lookup_arg "deserializer" (varexpr "default");
+                  un_serializer = lookup_serializer_arg "serializer" (varexpr "default");
+                  un_deserializer = lookup_serializer_arg "deserializer" (varexpr "default");
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;

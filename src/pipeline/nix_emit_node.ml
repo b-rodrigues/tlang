@@ -776,7 +776,12 @@ def py_read_pmml(path):
         let strategy_expr = match deserializer.Ast.node with
           | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> Ast.mk_expr (Ast.Var "default"))
           | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> Ast.mk_expr (Ast.Var "default"))
+          | Ast.Value (Ast.VDict items) ->
+              (match List.assoc_opt dep_name items with
+               | Some v -> Ast.mk_expr (Ast.Value v)
+               | None -> Ast.mk_expr (Ast.Var "default"))
           | _ -> deserializer
+
         in
         let strategy_is_string = match strategy_expr.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
