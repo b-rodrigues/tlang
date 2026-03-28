@@ -2,7 +2,7 @@
 
 data_node = node(
     command = read_csv("data/mtcars.csv", separator: "|"),
-    serializer = write_csv
+    serializer = "^csv"
 )
 
 model_node = node(
@@ -11,7 +11,7 @@ model_node = node(
         lm(mpg ~ wt + hp, data = data_node)
     }>,
     runtime = "R",
-    deserializer = read.csv,
+    deserializer = "^csv",
     serializer = "pmml"
 )
 
@@ -30,7 +30,7 @@ preds_node = node(
         p
     }>,
     runtime = "T",
-    deserializer = [data_node: read_csv, model_node: "pmml"]
+    deserializer = [data_node: "^csv", model_node: "pmml"]
 )
 
 model_py_node = node(
@@ -73,7 +73,7 @@ model_py_node.sigma_ = np.sqrt(mse)
 model_py_node
     }>,
     runtime = "Python",
-    deserializer = pd.read_csv,
+    deserializer = "^csv",
     serializer = "pmml"
 )
 
@@ -86,7 +86,7 @@ preds_py_node = node(
         p
     }>,
     runtime = "T",
-    deserializer = [data_node: read_csv, model_py_node: "pmml"]
+    deserializer = [data_node: "^csv", model_py_node: "pmml"]
 )
 
 model_sm_node = node(
@@ -105,7 +105,7 @@ model_sm_node = sm.GLM(y, X, family=sm.families.Gaussian()).fit()
 model_sm_node
     }>,
     runtime = "Python",
-    deserializer = pd.read_csv,
+    deserializer = "^csv",
     serializer = "pmml"
 )
 
@@ -118,7 +118,7 @@ preds_sm_node = node(
         p
     }>,
     runtime = "T",
-    deserializer = [data_node: read_csv, model_sm_node: "pmml"]
+    deserializer = [data_node: "^csv", model_sm_node: "pmml"]
 )
 
 p = pipeline {
