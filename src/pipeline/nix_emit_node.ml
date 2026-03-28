@@ -794,7 +794,7 @@ def py_read_pmml(path):
              | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
         | None ->
           if strategy = "default" then
-            (if runtime = "R" then "readRDS" else if runtime = "Python" then "pickle.load" else "deserialize")
+            (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else "deserialize")
           else if strategy_is_string then
             (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
           else
@@ -845,7 +845,7 @@ def py_read_pmml(path):
          | None -> List.assoc_opt fmt write_fns |> Option.value ~default:fmt)
     | None ->
         if ser_s = "default" then
-          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "pickle.dump" else "serialize")
+          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else "serialize")
         else if ser_expr_is_string then
           (match List.assoc_opt ser_s write_fns with Some fn -> fn | None -> ser_s)
         else
