@@ -151,6 +151,16 @@ and interval = {
   iv_tz : string option;
 }
 
+and serializer = {
+  s_format : string;
+  s_writer : value; (* VLambda or VBuiltin *)
+  s_reader : value; (* VLambda or VBuiltin *)
+  s_r_writer : string option;
+  s_r_reader : string option;
+  s_py_writer : string option;
+  s_py_reader : string option;
+}
+
 (** Runtime values *)
 and value =
   (* Scalar Types *)
@@ -196,6 +206,7 @@ and value =
   | VDynamicArg of string * value
   (* Internal: environment as a first-class value, used by __q_caller_env__ *)
   | VEnv of value Env.t
+  | VSerializer of serializer
 
 
 
@@ -282,6 +293,7 @@ and typ =
   | TVar of string
   | TCustom of string
   | TComputedNode
+  | TSerializer
   | TExpr
 
 type program = stmt list
@@ -389,6 +401,7 @@ module Utils = struct
     | TVar s -> s
     | TCustom s -> s
     | TComputedNode -> "ComputedNode"
+    | TSerializer -> "Serializer"
     | TExpr -> "Expression"
 
   let type_name = function
@@ -406,6 +419,7 @@ module Utils = struct
     | VInterval _ -> "Interval"
     | VIntent _ -> "Intent"
     | VFormula _ -> "Formula"
+    | VSerializer _ -> "Serializer"
     | VComputedNode _ -> "ComputedNode"
     | VNode _ -> "Node"
     | VExpr _ -> "Expression"
@@ -629,6 +643,8 @@ module Utils = struct
     | VComputedNode cn ->
         Printf.sprintf "computed_node<%s>\nserializer: %s\nclass: %s\npath: %s"
           cn.cn_runtime cn.cn_serializer cn.cn_class cn.cn_path
+    | VSerializer s ->
+        Printf.sprintf "serializer<^%s>" s.s_format
     | VNode un ->
         Printf.sprintf "node<%s>(...)" un.un_runtime
     | VShellResult { sr_stdout; _ } ->
