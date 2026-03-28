@@ -45,10 +45,10 @@ This document outlines the step-by-step evolution of the T language from the cur
     - [x] **`idx_lens(i)`**: Target elements in a List or Vector by index.
     - [x] **`filter_lens(p)`**: Target all elements in a collection satisfying a predicate.
     - [x] **Row Lenses**: `row_lens(index)` for targeting specific rows in a DataFrame.
-- [ ] **First-class Serializer System**:
-    - [ ] Implement `serializer` structure with `writer`/`reader` functions.
-    - [ ] Add `^` symbol prefix for serializer identifiers (e.g., `^csv`, `^arrow`).
-    - [ ] Implement static coherence checks in the pipeline builder to ensure source/target format matching.
+- [x] **First-class Serializer System**:
+    - [x] Implement `serializer` structure with `writer`/`reader` functions.
+    - [x] Add `^` symbol prefix for serializer identifiers (e.g., `^csv`, `^arrow`).
+    - [x] Implement static coherence checks in the pipeline builder to ensure source/target format matching.
 
 ---
 
