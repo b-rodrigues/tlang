@@ -957,10 +957,21 @@ def py_read_pmml(path):
          match List.rev non_imports with
          | last :: rest when not (is_assignment_stmt last) && not (String.starts_with ~prefix:"print(" (String.trim last)) ->
              let last_trimmed = String.trim last in
-             String.concat "\n" (List.rev (("return " ^ last_trimmed) :: rest)), true
+             let spaces = ref 0 in
+             while !spaces < String.length last && (last.[!spaces] = ' ' || last.[!spaces] = '\t') do
+               incr spaces
+             done;
+             let ind = String.sub last 0 !spaces in
+             String.concat "\n" (List.rev ((ind ^ "return " ^ last_trimmed) :: rest)), true
          | last :: rest ->
              (match get_assignment_name last with
-              | Some n -> String.concat "\n" (List.rev (("return " ^ n) :: last :: rest)), true
+              | Some n ->
+                  let spaces = ref 0 in
+                  while !spaces < String.length last && (last.[!spaces] = ' ' || last.[!spaces] = '\t') do
+                    incr spaces
+                  done;
+                  let ind = String.sub last 0 !spaces in
+                  String.concat "\n" (List.rev ((ind ^ "return " ^ n) :: last :: rest)), true
               | None -> String.concat "\n" non_imports, false)
          | _ -> String.concat "\n" non_imports, false
       else if runtime = "T" then
