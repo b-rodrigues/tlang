@@ -260,6 +260,7 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   | VFloat f -> `Float f
   | VBool b -> `Bool b
   | VString s -> `String s
+  | VRawCode s -> `String s
   | VDate days -> `String (json_date_string days)
   | VDatetime (micros, tz) -> `String (json_datetime_string micros tz)
   | VNull -> `Null

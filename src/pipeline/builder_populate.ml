@@ -72,20 +72,20 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
     let get_ser name = 
       match List.assoc_opt name p.p_serializers with
       | Some e -> eval_expr e
-      | None -> 
-          (match Serialization_registry.lookup "tlang" with 
-           | Some s -> VSerializer s | None -> VNull)
+      | None -> Ast.VNull
     in
     let get_des name = 
       match List.assoc_opt name p.p_deserializers with
       | Some e -> eval_expr e
-      | None -> 
-          (match Serialization_registry.lookup "tlang" with 
-           | Some s -> VSerializer s | None -> VNull)
+      | None -> Ast.VNull
     in
     let extract_format = function
       | Ast.VSerializer s -> Some s.s_format
-      | Ast.VString s | Ast.VSymbol s -> Some (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s)
+      | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
+      | Ast.VDict pairs ->
+          (match List.assoc_opt "format" pairs with
+           | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
+           | _ -> None)
       | _ -> None
     in
     List.find_map (fun (name, _) ->

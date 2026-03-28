@@ -54,7 +54,26 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
   let get_format = function
     | Ast.VSerializer s -> Some s.s_format
-    | Ast.VString s | Ast.VSymbol s -> Some (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s)
+    | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
+    | Ast.VDict pairs -> 
+        (match List.assoc_opt "format" pairs with
+         | Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s)
+         | _ -> None)
+    | _ -> None
+  in
+
+  let get_polyglot_snippet ~lang ~kind v =
+    match v, lang, kind with
+    | Ast.VSerializer s, "R", "writer" -> s.s_r_writer
+    | Ast.VSerializer s, "R", "reader" -> s.s_r_reader
+    | Ast.VSerializer s, "Python", "writer" -> s.s_py_writer
+    | Ast.VSerializer s, "Python", "reader" -> s.s_py_reader
+    | Ast.VDict pairs, lang, kind ->
+        let key = (match lang, kind with
+          | "R", "writer" -> "r_writer" | "R", "reader" -> "r_reader"
+          | "Python", "writer" -> "py_writer" | "Python", "reader" -> "py_reader"
+          | _ -> "unknown") in
+        (match List.assoc_opt key pairs with Some (VRawCode s) -> Some s | _ -> None)
     | _ -> None
   in
 
@@ -762,43 +781,22 @@ def py_read_pmml(path):
         let strategy_is_string = match strategy_expr.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
-        (* Association list: strategy name -> read function name *)
         let read_fns = match runtime with
-          | "R" -> [
-              "json",  "r_read_json";
-              "arrow", "r_read_arrow";
-              "pmml",  "r_read_pmml";
-              "csv",   "r_read_csv";
-            ]
-          | "Python" -> [
-              "json",  "py_read_json";
-              "arrow", "py_read_arrow";
-              "pmml",  "py_read_pmml";
-              "csv",   "py_read_csv";
-            ]
-          (* T keeps its user-facing names for arrow/csv, while json/pmml still
-             use the internal t_* helpers exposed by the standard library. *)
-          | _ -> [
-              "json",  "t_read_json";
-              "arrow", "read_arrow";
-              "pmml",  "t_read_pmml";
-              "csv",   "read_csv";
-            ]
+          | "R" -> [ "json", "r_read_json"; "arrow", "r_read_arrow"; "pmml", "r_read_pmml"; "csv", "r_read_csv"; ]
+          | "Python" -> [ "json", "py_read_json"; "arrow", "py_read_arrow"; "pmml", "py_read_pmml"; "csv", "py_read_csv"; ]
+          | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "pmml", "t_read_pmml"; "csv", "read_csv"; ]
         in
-        let des_val = eval_expr_safe strategy_expr in
-        match des_val with
-        | Ast.VSerializer s ->
-            (match runtime with
-             | "R" -> Option.value ~default:(List.assoc_opt s.s_format read_fns |> Option.value ~default:s.s_format) s.s_r_reader
-             | "Python" -> Option.value ~default:(List.assoc_opt s.s_format read_fns |> Option.value ~default:s.s_format) s.s_py_reader
-             | _ -> List.assoc_opt s.s_format read_fns |> Option.value ~default:s.s_format)
-        | _ ->
+        let des_node_val = eval_expr_safe strategy_expr in
+        match get_format des_node_val with
+        | Some fmt ->
+            (match get_polyglot_snippet ~lang:runtime ~kind:"reader" des_node_val with
+             | Some snippet -> snippet
+             | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
+        | None ->
           if strategy = "default" then
-            (if runtime = "R" then "readRDS" else "deserialize")
+            (if runtime = "R" then "readRDS" else if runtime = "Python" then "pickle.load" else "deserialize")
           else if strategy_is_string then
-            (match List.assoc_opt strategy read_fns with
-             | Some fn -> fn
-             | None    -> strategy)
+            (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
           else
             strategy
       in
@@ -835,45 +833,23 @@ def py_read_pmml(path):
   let ser_expr_is_string = match serializer.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
   let ser_s = Nix_unparse.expr_to_string serializer in
   let ser_call =
-    (* Association list: strategy name -> write function name *)
     let write_fns = match runtime with
-      | "R" -> [
-          "json",  "r_write_json";
-          "arrow", "r_write_arrow";
-          "pmml",  "r_write_pmml";
-          "csv",   "r_write_csv";
-        ]
-      | "Python" -> [
-          "json",  "py_write_json";
-          "arrow", "py_write_arrow";
-          "pmml",  "py_write_pmml";
-          "csv",   "py_write_csv";
-        ]
-      (* T keeps its user-facing names for arrow/csv, while json/pmml still
-         use the internal t_* helpers exposed by the standard library. *)
-      | _ -> [
-          "json",  "t_write_json";
-          "arrow", "write_arrow";
-          "pmml",  "t_write_pmml";
-          "csv",   "write_csv";
-        ]
+      | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "pmml", "r_write_pmml"; "csv", "r_write_csv"; ]
+      | "Python" -> [ "json", "py_write_json"; "arrow", "py_write_arrow"; "pmml", "py_write_pmml"; "csv", "py_write_csv"; ]
+      | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "pmml", "t_write_pmml"; "csv", "write_csv"; ]
     in
-    let ser_val = eval_expr_safe serializer in
-    match ser_val with
-    | Ast.VSerializer s ->
-        (match runtime with
-         | "R" -> Option.value ~default:(List.assoc_opt s.s_format write_fns |> Option.value ~default:s.s_format) s.s_r_writer
-         | "Python" -> Option.value ~default:(List.assoc_opt s.s_format write_fns |> Option.value ~default:s.s_format) s.s_py_writer
-         | _ -> List.assoc_opt s.s_format write_fns |> Option.value ~default:s.s_format)
-    | _ ->
-      if ser_s = "default" then
-        (if runtime = "R" then "saveRDS" else "serialize")
-      else if ser_expr_is_string then
-        (match List.assoc_opt ser_s write_fns with
-         | Some fn -> fn
-         | None    -> ser_s)
-      else
-        ser_s
+    match get_format ser_val with
+    | Some fmt ->
+        (match get_polyglot_snippet ~lang:runtime ~kind:"writer" ser_val with
+         | Some snippet -> snippet
+         | None -> List.assoc_opt fmt write_fns |> Option.value ~default:fmt)
+    | None ->
+        if ser_s = "default" then
+          (if runtime = "R" then "saveRDS" else if runtime = "Python" then "pickle.dump" else "serialize")
+        else if ser_expr_is_string then
+          (match List.assoc_opt ser_s write_fns with Some fn -> fn | None -> ser_s)
+        else
+          ser_s
   in
 
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in

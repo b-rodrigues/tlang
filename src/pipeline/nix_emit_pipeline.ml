@@ -16,13 +16,17 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let ser = eval_expr ser_expr in
     let des = eval_expr des_expr in
     let has_fmt v =
-      match v with
-      | Ast.VSerializer s -> s.s_format = target
-      | Ast.VString s | Ast.VSymbol s -> 
-          let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
+      let get_fmt = function
+        | Ast.VSerializer s -> Some s.s_format
+        | Ast.VString s | Ast.VSymbol s -> Some (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s)
+        | Ast.VDict pairs -> (match List.assoc_opt "format" pairs with Some (VString s) | Some (VSymbol s) -> Some s | _ -> None)
+        | _ -> None
+      in
+      match get_fmt v with
+      | Some s ->
+          let s = String.lowercase_ascii s in
           s = target || (target = "arrow" && (s = "write_parquet" || s = "read_parquet" || s = "write_feather" || s = "read_feather"))
-      | Ast.VDict pairs -> List.exists (fun (_, v) -> (match v with Ast.VSerializer s -> s.s_format = target | Ast.VString s | Ast.VSymbol s -> String.lowercase_ascii s = target | _ -> false)) pairs
-      | _ -> false
+      | None -> false
     in
     has_fmt ser || has_fmt des
   in
