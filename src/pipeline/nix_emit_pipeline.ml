@@ -9,18 +9,24 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   ) p.p_imports in
   let node_names = List.map fst p.p_exprs in
 
-  let is_arrow_ser_or_des name =
-    let ser = List.assoc name p.p_serializers in
-    let des = List.assoc name p.p_deserializers in
-    let check expr =
-      match expr.Ast.node with
-      | Value (VString s) | Value (VSymbol s) | Var s -> 
-          let s = String.lowercase_ascii s in
-          s = "arrow" || s = "write_parquet" || s = "read_parquet" || s = "write_feather" || s = "read_feather"
+  let check_strategy name target =
+    let ser_expr = List.assoc name p.p_serializers in
+    let des_expr = List.assoc name p.p_deserializers in
+    let eval_expr e = Eval.eval_expr (ref Ast.Env.empty) e in
+    let ser = eval_expr ser_expr in
+    let des = eval_expr des_expr in
+    let has_fmt v =
+      match v with
+      | Ast.VSerializer s -> s.s_format = target
+      | Ast.VString s | Ast.VSymbol s -> 
+          let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
+          s = target || (target = "arrow" && (s = "write_parquet" || s = "read_parquet" || s = "write_feather" || s = "read_feather"))
+      | Ast.VDict pairs -> List.exists (fun (_, v) -> (match v with Ast.VSerializer s -> s.s_format = target | Ast.VString s | Ast.VSymbol s -> String.lowercase_ascii s = target | _ -> false)) pairs
       | _ -> false
     in
-    check ser || check des
+    has_fmt ser || has_fmt des
   in
+  let is_arrow_ser_or_des name = check_strategy name "arrow" in
   let needs_r_arrow = p.p_exprs |> List.exists (fun (name, _) ->
     let runtime = List.assoc name p.p_runtimes in
     runtime = "R" && is_arrow_ser_or_des name
@@ -30,16 +36,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     runtime = "Python" && is_arrow_ser_or_des name
   ) in
 
-  let is_pmml_ser_or_des name =
-    let ser = List.assoc name p.p_serializers in
-    let des = List.assoc name p.p_deserializers in
-    let check expr =
-      match expr.Ast.node with
-      | Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "pmml"
-      | _ -> false
-    in
-    check ser || check des
-  in
+  let is_pmml_ser_or_des name = check_strategy name "pmml" in
   let needs_r_pmml = p.p_exprs |> List.exists (fun (name, _) ->
     let runtime = List.assoc name p.p_runtimes in
     runtime = "R" && is_pmml_ser_or_des name
@@ -72,22 +69,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
-  let is_csv_ser_or_des name =
-    let ser = List.assoc name p.p_serializers in
-    let des = List.assoc name p.p_deserializers in
-    let check expr =
-      match expr.Ast.node with
-      | Value (VString s) | Value (VSymbol s) | Var s ->
-          let s = String.lowercase_ascii s in
-          s = "csv" || s = "r_write_csv" || s = "r_read_csv" || s = "py_write_csv" || s = "py_read_csv" || s = "t_write_csv" || s = "t_read_csv" || s = "pandas"
-      | ListLit items ->
-          List.exists (fun (_, e) -> match e.Ast.node with Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "csv" | _ -> false) items
-      | DictLit items ->
-          List.exists (fun (_, e) -> match e.Ast.node with Value (VString s) | Value (VSymbol s) | Var s -> String.lowercase_ascii s = "csv" | _ -> false) items
-      | _ -> false
-    in
-    check ser || check des
-  in
+  let is_csv_ser_or_des name = check_strategy name "csv" in
   let needs_py_csv = p.p_exprs |> List.exists (fun (name, _) ->
     let runtime = List.assoc name p.p_runtimes in
     runtime = "Python" && is_csv_ser_or_des name
