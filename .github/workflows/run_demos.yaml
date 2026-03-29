@@ -2,7 +2,8 @@ name: Trigger Demo Actions
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, release-*]
+  pull_request:
 
 jobs:
   trigger-demo:
@@ -15,4 +16,3 @@ jobs:
             -H "Authorization: token ${{ secrets.TRIGGER_DEMOS }}" \
             https://api.github.com/repos/b-rodrigues/t_demos/dispatches \
             -d '{"event_type": "trigger-demo", "client_payload": {"ref": "${GITHUB_REF}"}}'
-
