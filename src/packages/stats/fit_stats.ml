@@ -27,14 +27,14 @@ let register env =
         match v with
         | VDict pairs -> 
             let keys = List.map fst pairs in
-            let () = Printf.printf "glance(DEBUG): found keys: [%s]\n" (String.concat ", " keys) in
+            let () = prerr_endline ("glance(DEBUG): found keys: [" ^ (String.concat ", " keys) ^ "]") in
             (match extract_stats_row pairs with
              | Some (f, i) -> Some (name, f, i)
              | None -> 
-                 let () = Printf.printf "glance(DEBUG): extract_stats_row failed for %s\n" (Option.value ~default:"unnamed" name) in
+                 let () = prerr_endline ("glance(DEBUG): extract_stats_row failed for " ^ (Option.value ~default:"unnamed" name)) in
                  None)
         | _ -> 
-            let () = Printf.printf "glance(DEBUG): item not a Dict\n" in
+            let () = prerr_endline "glance(DEBUG): item not a Dict" in
             None
       ) models in
       
