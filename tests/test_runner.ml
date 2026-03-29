@@ -4,6 +4,7 @@
 
 let pass_count = ref 0
 let fail_count = ref 0
+let failures = ref []
 
 let () =
   Eval.show_warnings := false
@@ -47,7 +48,9 @@ let test name input expected =
     Printf.printf "  ✓ %s\n" name
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result
+    let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end
 
 let () =
@@ -130,8 +133,10 @@ let () =
 
   (* Summary *)
   let total = !pass_count + !fail_count in
-  Printf.printf "=== Results: %d/%d passed ===\n" !pass_count total;
+  Printf.printf "\n=== Results: %d/%d passed ===\n" !pass_count total;
   if !fail_count > 0 then begin
+    Printf.printf "\nFAILURE SUMMARY:\n";
+    List.iter (fun msg -> Printf.printf "%s\n" msg) (List.rev !failures);
     Printf.printf "FAILED: %d tests failed\n" !fail_count;
     exit 1
   end else

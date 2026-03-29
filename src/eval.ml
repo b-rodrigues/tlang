@@ -1005,17 +1005,17 @@ and eval_intent env_ref pairs =
 
 (** Extract free variable names from an expression *)
 and free_vars (expr : Ast.expr) : string list =
-  let rec collect = function
+  let rec collect is_call_target = function
     | { node = Value _; _ } -> []
-    | { node = Var s; _ } -> [s]
+    | { node = Var s; _ } -> if is_call_target then [] else [s]
     | { node = ColumnRef _; _ } -> []
     | { node = Call { fn; args }; _ } ->
-        collect fn @ List.concat_map (fun (_, e) -> collect e) args
+        collect true fn @ List.concat_map (fun (_, e) -> collect false e) args
     | { node = Lambda { body; params; _ }; _ } ->
         let bound = params in
-        List.filter (fun v -> not (List.mem v bound)) (collect body)
+        List.filter (fun v -> not (List.mem v bound)) (collect false body)
     | { node = IfElse { cond; then_; else_ }; _ } ->
-        collect cond @ collect then_ @ collect else_
+        collect false cond @ collect false then_ @ collect false else_
     | { node = Match { scrutinee; cases }; _ } ->
         let collect_case (pattern, body) =
           let rec bound_vars = function
@@ -1030,30 +1030,30 @@ and free_vars (expr : Ast.expr) : string list =
                 | None -> names
           in
           let bound = bound_vars pattern in
-          List.filter (fun v -> not (List.mem v bound)) (collect body)
+          List.filter (fun v -> not (List.mem v bound)) (collect false body)
         in
-        collect scrutinee @ List.concat_map collect_case cases
-    | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect e) items
+        collect false scrutinee @ List.concat_map collect_case cases
+    | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect false e) items
     | { node = ListComp _; _ } -> []
-    | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect e) pairs
-    | { node = BinOp { left; right; _ }; _ } -> collect left @ collect right
-    | { node = UnOp { operand; _ }; _ } -> collect operand
-    | { node = BroadcastOp { left; right; _ }; _ } -> collect left @ collect right
-    | { node = DotAccess { target; _ }; _ } -> collect target
+    | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
+    | { node = BinOp { left; right; _ }; _ } -> collect false left @ collect false right
+    | { node = UnOp { operand; _ }; _ } -> collect false operand
+    | { node = BroadcastOp { left; right; _ }; _ } -> collect false left @ collect false right
+    | { node = DotAccess { target; _ }; _ } -> collect false target
     | { node = RawCode { raw_identifiers; _ }; _ } -> raw_identifiers  (* Lexically extracted identifiers for dependency detection *)
-    | { node = Block stmts; _ } -> List.concat_map collect_stmt stmts
+    | { node = Block stmts; _ } -> List.concat_map (collect_stmt false) stmts
     | { node = PipelineDef _; _ } -> []
-    | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect e) pairs
-    | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect e
+    | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
+    | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect false e
     | { node = ShellExpr _; _ } -> []
 
-  and collect_stmt = function
-    | { node = Expression e; _ } -> collect e
-    | { node = Assignment { expr; _ }; _ } -> collect expr
-    | { node = Reassignment { expr; _ }; _ } -> collect expr
+  and collect_stmt is_call_target = function
+    | { node = Expression e; _ } -> collect is_call_target e
+    | { node = Assignment { expr; _ }; _ } -> collect false expr
+    | { node = Reassignment { expr; _ }; _ } -> collect false expr
     | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> []
   in
-  let vars = collect expr in
+  let vars = collect false expr in
   List.sort_uniq String.compare vars
 
 (** Topological sort of pipeline nodes based on dependencies *)
@@ -1217,6 +1217,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
           dep_runtime <> my_runtime && 
           my_runtime <> "Quarto" && 
           my_runtime <> "sh" &&
+          my_runtime <> "T" &&
           (match un.un_deserializer.node with Var "default" -> true | _ -> false)
       | None -> false (* External dependency — we don't know its runtime yet *)
     ) my_deps in
@@ -1243,13 +1244,13 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       else if un.un_runtime = "T" then
         let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
         let is_unbuilt d = match Env.find_opt d !current_env_ref with
-          | Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>"
+          | Some (VComputedNode _) -> 
+              (* If the dependency is a node (built or unbuilt), we must defer local 
+                 evaluation of the command, as it is a recipe for Nix. *)
+              true
           | None ->
-              (* Only treat missing entries as unbuilt if [d] is a known pipeline node.
-                 Otherwise it's likely a non-node identifier (e.g., a function), which
-                 should be resolved during evaluation so that genuine naming errors
-                 surface instead of being silently deferred. *)
-              List.mem d node_names
+              (* Allow unknown names to be deferred for cross-pipeline or late resolution. *)
+              true
           | _ -> false
         in
         let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
@@ -1356,7 +1357,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     }
 
 (** Re-run a pipeline *)
-and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
+and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
   let desugared_nodes = List.map (fun (name, expr) ->
     (name, {
@@ -1379,80 +1380,32 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
   | Error cycle_node ->
     Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
-    let rerun_eval_or_defer name un env_ref =
+    let rerun_eval_or_defer name un _env_ref =
       if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
-      else if un.un_runtime = "T" then
+      else 
         let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
-        let is_unbuilt d =
-          (* Only treat missing names as "unbuilt" if they refer to other pipeline nodes.
-             Non-node names should be resolved (or fail) during normal evaluation. *)
-          if not (List.mem d node_names) then
-            false
-          else
-            match Env.find_opt d !env_ref with
-            | Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>"
-            | None -> true
-            | _ -> false
-        in
-        if List.exists is_unbuilt node_deps then
+        if strict then begin
+           match List.find_opt (fun d -> not (List.mem d node_names) && not (Env.mem d !env_ref)) node_deps with
+           | Some missing -> 
+               Error.make_error NameError (Printf.sprintf "Pipeline node `%s` depends on unknown identifier `%s`." name missing)
+           | None ->
+              VComputedNode {
+                cn_name = name;
+                cn_runtime = un.un_runtime;
+                cn_path = "<unbuilt>";
+                cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.unparse_expr un.un_serializer);
+                cn_class = "Unknown";
+                cn_dependencies = node_deps;
+              }
+        end else
           VComputedNode {
             cn_name = name;
-            cn_runtime = "T";
+            cn_runtime = un.un_runtime;
             cn_path = "<unbuilt>";
             cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.unparse_expr un.un_serializer);
             cn_class = "Unknown";
             cn_dependencies = node_deps;
           }
-        else
-          let get_strategy dep_name =
-            let rec lookup_in_list target = function
-              | [] -> None
-              | (Some n, e) :: _ when n = target -> Some e
-              | _ :: rest -> lookup_in_list target rest
-            in
-            let rec lookup_in_dict target = function
-              | [] -> None
-              | (n, e) :: _ when n = target -> Some e
-              | _ :: rest -> lookup_in_dict target rest
-            in
-            let strategy_expr = match un.un_deserializer.node with
-              | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> un.un_deserializer)
-              | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> un.un_deserializer)
-              | _ -> un.un_deserializer
-            in
-            match strategy_expr.node with
-            | Ast.Value (Ast.VString s) -> s
-            | Ast.Var s -> s
-            | _ -> "default"
-          in
-          let env_with_deserialized = List.fold_left (fun acc dname ->
-            let strategy = get_strategy dname in
-            match Env.find_opt dname acc with
-            | Some (VComputedNode cn) when strategy = "json" && cn.cn_serializer = "json" ->
-                (match Serialization.read_json cn.cn_path with
-                 | Ok v -> Env.add dname v acc
-                 | Error msg -> 
-                     Printf.eprintf "Warning: Automatic JSON deserialization failed for dependency `%s` of node `%s` during re-run: %s\n%!" dname name msg;
-                     acc)
-            | Some (VComputedNode cn) when strategy = "pmml" && cn.cn_serializer = "pmml" ->
-                (match Pmml_utils.read_pmml cn.cn_path with
-                 | Ok v -> Env.add dname v acc
-                 | Error msg -> 
-                     Printf.eprintf "Warning: Automatic PMML deserialization failed for dependency `%s` of node `%s` during re-run: %s\n%!" dname name msg;
-                     acc)
-            | _ -> acc
-          ) !env_ref node_deps in
-          let cmd = match un.un_command.node with Value (VExpr e) -> e | _ -> un.un_command in
-          eval_expr (ref env_with_deserialized) cmd
-          |> annotate_pipeline_error ~runtime:"T" name
-      else VComputedNode {
-        cn_name = name;
-        cn_runtime = un.un_runtime;
-        cn_path = "<unbuilt>";
-        cn_serializer = (match un.un_serializer.node with Ast.Value (Ast.VString s) -> s | _ -> Nix_unparse.unparse_expr un.un_serializer);
-        cn_class = "Unknown";
-        cn_dependencies = List.assoc name prev.p_deps;
-      }
     in
     let (results, _, _) = List.fold_left (fun (results, current_env_ref, changed) name ->
       let un = List.assoc name desugared_nodes in

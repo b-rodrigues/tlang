@@ -5,7 +5,7 @@ let merge_new lst1 lst2 =
   let keys1 = List.map fst lst1 in
   lst1 @ List.filter (fun (k, _) -> not (List.mem k keys1)) lst2
 
-let register env =
+let register ~rerun_pipeline env =
 
 (*
 --# Chain Two Pipelines
@@ -26,7 +26,7 @@ let register env =
 --# @export
 *)
   let env = Env.add "chain"
-    (make_builtin ~name:"chain" 2 (fun args _env ->
+    (make_builtin ~name:"chain" 2 (fun args env ->
       match args with
       | [VPipeline p1; VPipeline p2] ->
           let names1 = List.map fst p1.p_exprs in
@@ -46,7 +46,7 @@ let register env =
               Error.make_error ValueError
                 "Function `chain`: no shared dependency names found between the two pipelines."
             else
-              VPipeline {
+              rerun_pipeline ?strict:None env {
                 p_nodes        = merge_new p1.p_nodes p2.p_nodes;
                 p_exprs        = merge_new p1.p_exprs p2.p_exprs;
                 p_deps         = merge_new p1.p_deps p2.p_deps;
@@ -88,7 +88,7 @@ let register env =
 --# @export
 *)
   let env = Env.add "parallel"
-    (make_builtin ~name:"parallel" 2 (fun args _env ->
+    (make_builtin ~name:"parallel" 2 (fun args env ->
       match args with
       | [VPipeline p1; VPipeline p2] ->
           let names1 = List.map fst p1.p_exprs in
@@ -100,7 +100,7 @@ let register env =
                  "Function `parallel`: name collision(s) detected: %s. Use `rename_node` to resolve."
                  (String.concat ", " collisions))
           else
-            VPipeline {
+            rerun_pipeline ?strict:None env {
               p_nodes        = merge_new p1.p_nodes p2.p_nodes;
               p_exprs        = merge_new p1.p_exprs p2.p_exprs;
               p_deps         = merge_new p1.p_deps p2.p_deps;

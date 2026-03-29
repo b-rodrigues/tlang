@@ -120,12 +120,13 @@ let patch p1 p2 =
 --# @family pipeline
 --# @export
 *)
-let register env =
-  let env = Env.add "union" (make_builtin ~name:"union" 2 (fun args _ ->
+let register ~rerun_pipeline env =
+  let env = Env.add "union" (make_builtin ~name:"union" 2 (fun args env ->
     match args with
     | [VPipeline p1; VPipeline p2] -> 
         (match union p1 p2 with
-        | Ok p -> p
+        | Ok (VPipeline p) -> rerun_pipeline ?strict:None env p
+        | Ok _ -> failwith "unreachable"
         | Error e -> e)
     | _ -> Error.type_error "Function `union` expects two Pipeline arguments."
   )) env in
@@ -139,9 +140,12 @@ let register env =
     | [VPipeline p1; VPipeline p2] -> intersect p1 p2
     | _ -> Error.type_error "Function `intersect` expects two Pipeline arguments."
   )) env in
-  let env = Env.add "patch" (make_builtin ~name:"patch" 2 (fun args _ ->
+  let env = Env.add "patch" (make_builtin ~name:"patch" 2 (fun args env ->
     match args with
-    | [VPipeline p1; VPipeline p2] -> patch p1 p2
+    | [VPipeline p1; VPipeline p2] -> 
+        (match patch p1 p2 with 
+        | VPipeline p -> rerun_pipeline ?strict:None env p
+        | _ -> failwith "unreachable")
     | _ -> Error.type_error "Function `patch` expects two Pipeline arguments."
   )) env in
   env

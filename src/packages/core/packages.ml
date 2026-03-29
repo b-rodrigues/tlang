@@ -743,11 +743,12 @@ let init_env () =
     env
   in
   (* Pipeline package *)
+  let rerun_pipeline_fn ?strict env prev = Eval.rerun_pipeline (ref env) ?strict prev in
   let env = Pipeline_nodes.register env in
   let env = Pipeline_deps.register env in
   let env = Pipeline_node.register env in
-  let env = Pipeline_run.register ~rerun_pipeline:(fun env prev -> Eval.rerun_pipeline (ref env) prev) env in
-  let env = Build_pipeline.register env in
+  let env = Pipeline_run.register ~rerun_pipeline:rerun_pipeline_fn env in
+  let env = Build_pipeline.register ~rerun_pipeline:rerun_pipeline_fn env in
   let env = Populate_pipeline.register env in
   let env = Inspect_pipeline.register env in
   let env = Read_node.register env in
@@ -760,10 +761,10 @@ let init_env () =
   let env = Select_node.register env in
   let env = Arrange_node.register env in
   (* Phase 3 — Set operations & DAG-aware transformations *)
-  let env = Pipeline_set_ops.register env in
+  let env = Pipeline_set_ops.register ~rerun_pipeline:rerun_pipeline_fn env in
   let env = Pipeline_dag_ops.register env in
   (* Phase 4 — Composition & inspection utilities *)
-  let env = Pipeline_composition.register env in
+  let env = Pipeline_composition.register ~rerun_pipeline:rerun_pipeline_fn env in
   let env = Pipeline_inspect2.register env in
   (* Colcraft package *)
   let env = T_select.register env in
