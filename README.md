@@ -7,7 +7,7 @@
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
 [![OCaml](https://img.shields.io/badge/OCaml-5.x-EC6813.svg?logo=ocaml&logoColor=white)](https://ocaml.org)
 
-**T** is an experimental **orchestration engine** designed for **reproducible, polyglot data science**. 
+**T** is an experimental **orchestration engine** designed for **reproducible, polyglot data science**.
 
 Instead of replacing your existing R, Python, and Julia workflows, T coordinates them. It provides a functional, immutable Domain-Specific Language (DSL) to define **Pipelines** as first-class objects, ensuring your total environment is managed by **Nix** for ironclad reproducibility.
 
