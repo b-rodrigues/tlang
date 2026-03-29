@@ -26,10 +26,16 @@ let register env =
       let rows = List.filter_map (fun (name, v) ->
         match v with
         | VDict pairs -> 
+            let keys = List.map fst pairs in
+            let () = Printf.printf "glance(DEBUG): found keys: [%s]\n" (String.concat ", " keys) in
             (match extract_stats_row pairs with
              | Some (f, i) -> Some (name, f, i)
-             | None -> None)
-        | _ -> None
+             | None -> 
+                 let () = Printf.printf "glance(DEBUG): extract_stats_row failed for %s\n" (Option.value ~default:"unnamed" name) in
+                 None)
+        | _ -> 
+            let () = Printf.printf "glance(DEBUG): item not a Dict\n" in
+            None
       ) models in
       
       if rows = [] then
