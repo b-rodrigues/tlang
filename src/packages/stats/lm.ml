@@ -29,7 +29,7 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
     ("p_value", p_value_col);
   ] nrows in
   let tidy_df = VDataFrame { arrow_table = tidy_table; group_keys = [] } in
-  (* Model internals dict — used by fit_stats() and add_diagnostics() *)
+  (* Model internals dict — used by glance() and add_diagnostics() *)
   let n = result.nobs in
   let model_data = VDict [
     ("r_squared", VFloat result.r_squared);
@@ -114,7 +114,7 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
 --#   model = lm(mtcars, mpg ~ wt + hp)
 --#   summary(model)
 --# @family stats
---# @seealso summary, fit_stats, add_diagnostics
+--# @seealso summary, glance, add_diagnostics
 --# @export
 *)
 let register env =

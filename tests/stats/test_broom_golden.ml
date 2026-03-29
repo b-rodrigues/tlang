@@ -1,5 +1,5 @@
 (* tests/stats/test_broom_golden.ml *)
-(* Golden tests comparing T lm()/fit_stats()/add_diagnostics() *)
+(* Golden tests comparing T lm()/glance()/add_diagnostics() *)
 (* against R's broom::tidy/glance/augment reference values.     *)
 (* Reference values computed from R 4.x with broom package.    *)
 
@@ -120,8 +120,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
 
   print_newline ();
 
-  (* === GLANCE (broom::glance via fit_stats()) === *)
-  Printf.printf "Golden — Broom: fit_stats() (broom::glance):\n";
+  (* === GLANCE (broom::glance via glance()) === *)
+  Printf.printf "Golden — Broom: glance() (broom::glance):\n";
 
   (* Reference values from R's broom::glance(fit):
      r.squared = 0.957929594
@@ -138,9 +138,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
      nobs = 10
   *)
 
-  let (_, env_g) = eval_string_env "gs = fit_stats(model)" env in
+  let (_, env_g) = eval_string_env "gs = glance(model)" env in
 
-  (* fit_stats returns a 1-row DataFrame; column access returns a 1-element Vector *)
+  (* glance returns a 1-row DataFrame; column access returns a 1-element Vector *)
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
     "gs.r_squared" 0.95793 0.001 "glance: r_squared ≈ 0.958";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g

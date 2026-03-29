@@ -2,6 +2,28 @@ open Ast
 
 (** glance(model) — returns a DataFrame of model-level statistics.
     Accepts a single model or a list of models. Equivalent to broom::glance(). *)
+(*
+--# Glance at Model Statistics
+--#
+--# Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC).
+--# Supports single model objects or labeled collections of models for comparison.
+--#
+--# When passed a list or dictionary of models, it stacks the results into a 
+--# single DataFrame, automatically adding a 'model' column if labels are present.
+--#
+--# @name glance
+--# @param x :: Model | List[Model] | Dict[String, Model] The model(s) to inspect.
+--# @return :: DataFrame A tidy one-row-per-model summary of goodness-of-fit.
+--# @example
+--#   m1 = lm(mpg ~ wt, data = mtcars)
+--#   glance(m1)
+--# @example
+--#   m2 = lm(mpg ~ hp + wt, data = mtcars)
+--#   glance([Model_1: m1, Model_2: m2])
+--# @family stats
+--# @seealso lm, summary
+--# @export
+*)
 
 let extract_stats_row pairs =
   match List.assoc_opt "_model_data" pairs with
@@ -75,5 +97,4 @@ let register env =
         let table = Arrow_table.create columns n in
         VDataFrame { arrow_table = table; group_keys = [] }
   in
-  let env = Env.add "glance" (make_builtin ~name:"glance" 1 glance_func) env in
-  Env.add "fit_stats" (make_builtin ~name:"fit_stats" 1 glance_func) env
+  Env.add "glance" (make_builtin ~name:"glance" 1 glance_func) env
