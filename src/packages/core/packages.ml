@@ -106,7 +106,7 @@ let strcraft_package = {
 let stats_package = {
   name = "stats";
   description = "Statistical summaries and models";
-  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "glance"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
+  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
                "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "augment"; "score";
                "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"];
 }
@@ -838,7 +838,7 @@ let init_env () =
   let env = Lm.register env in
   let env = Predict.register env in
   let env = T_read_pmml.register env in
-  let env = Glance.register env in
+  let env = Fit_stats.register env in
   let env = Add_diagnostics.register env in
   let env = Summary.register env in
   let env = Min.register env in

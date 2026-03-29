@@ -174,21 +174,21 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr fail_count; Printf.printf "  ✗ summary() has 2 rows\n    Expected: 2\n    Got: %s\n" result
   end;
 
-  (* Test glance() *)
-  let (v, _) = eval_string_env "type(glance(model))" env_lm in
+  (* Test fit_stats() *)
+  let (v, _) = eval_string_env "type(fit_stats(model))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = {|"DataFrame"|} then begin
-    incr pass_count; Printf.printf "  ✓ glance() returns a DataFrame\n"
+    incr pass_count; Printf.printf "  ✓ fit_stats() returns a DataFrame\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ glance() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ fit_stats() returns a DataFrame\n    Expected: \"DataFrame\"\n    Got: %s\n" result
   end;
 
-  let (v, _) = eval_string_env "nrow(glance(model))" env_lm in
+  let (v, _) = eval_string_env "nrow(fit_stats(model))" env_lm in
   let result = Ast.Utils.value_to_string v in
   if result = "1" then begin
-    incr pass_count; Printf.printf "  ✓ glance() returns 1 row\n"
+    incr pass_count; Printf.printf "  ✓ fit_stats() returns 1 row\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ glance() returns 1 row\n    Expected: 1\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ fit_stats() returns 1 row\n    Expected: 1\n    Got: %s\n" result
   end;
 
   (* Test add_diagnostics() *)

@@ -96,7 +96,7 @@ let rec help_impl args _env =
 --# @return :: Null
 --# @example
 --#   apropos("stat")
---#   -- Finds functions like "glance", "mean", "sd", etc.
+--#   -- Finds functions like "fit_stats", "mean", "sd", etc.
 --# @family core
 --# @seealso help
 --# @export

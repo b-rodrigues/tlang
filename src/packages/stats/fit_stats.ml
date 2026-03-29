@@ -1,9 +1,9 @@
 open Ast
 
-(** glance(model) — returns a DataFrame of model-level statistics.
-    Accepts a single model or a list of models. Equivalent to broom::glance(). *)
+(** fit_stats(model) — returns a DataFrame of model-level statistics.
+    Accepts a single model or a list of models. *)
 (*
---# Glance at Model Statistics
+--# Model Goodness-of-Fit Statistics
 --#
 --# Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC).
 --# Supports single model objects or labeled collections of models for comparison.
@@ -11,15 +11,15 @@ open Ast
 --# When passed a list or dictionary of models, it stacks the results into a 
 --# single DataFrame, automatically adding a 'model' column if labels are present.
 --#
---# @name glance
+--# @name fit_stats
 --# @param x :: Model | List[Model] | Dict[String, Model] The model(s) to inspect.
 --# @return :: DataFrame A tidy one-row-per-model summary of goodness-of-fit.
 --# @example
 --#   m1 = lm(mpg ~ wt, data = mtcars)
---#   glance(m1)
+--#   fit_stats(m1)
 --# @example
 --#   m2 = lm(mpg ~ hp + wt, data = mtcars)
---#   glance([Model_1: m1, Model_2: m2])
+--#   fit_stats([Model_1: m1, Model_2: m2])
 --# @family stats
 --# @seealso lm, summary
 --# @export
@@ -36,7 +36,7 @@ let extract_stats_row pairs =
   | _ -> None
 
 let register env =
-  let glance_func args _env =
+  let fit_stats_func args _env =
     let models = match args with
       | [VList items] -> items
       | [VDict pairs] -> 
@@ -48,7 +48,7 @@ let register env =
       | _ -> []
     in
     if models = [] then
-      Error.type_error "Function `glance` expects a model (Dict) or a List of models."
+      Error.type_error "Function `fit_stats` expects a model (Dict) or a List of models."
     else
       let rows = List.filter_map (fun (name, v) ->
         match v with
@@ -60,7 +60,7 @@ let register env =
       ) models in
       
       if rows = [] then
-        Error.type_error "Function `glance` found no valid model objects in the input."
+        Error.type_error "Function `fit_stats` found no valid model objects in the input."
       else
         let n = List.length rows in
         let mk_float_col getter =
@@ -97,4 +97,4 @@ let register env =
         let table = Arrow_table.create columns n in
         VDataFrame { arrow_table = table; group_keys = [] }
   in
-  Env.add "glance" (make_builtin ~name:"glance" 1 glance_func) env
+  Env.add "fit_stats" (make_builtin ~name:"fit_stats" 1 fit_stats_func) env

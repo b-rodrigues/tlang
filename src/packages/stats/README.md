@@ -12,7 +12,7 @@ Statistical summaries and models.
 | `cor(x, y)` | Pearson correlation coefficient |
 | `lm(data, formula)` | Linear regression model object |
 | `summary(model)` | Tidy coefficients table (like `broom::tidy`) |
-| `glance(model)` | Goodness-of-fit statistics (like `broom::glance`) |
+| `fit_stats(model)` | Goodness-of-fit statistics (like `broom::fit_stats`) |
 | `add_diagnostics(model, data)` | Augment data with diagnostics (like `broom::augment`) |
 | `min(x)` | Minimum value |
 | `max(x)` | Maximum value |
@@ -46,7 +46,7 @@ max([3, 1, 2])                  -- 3
 model = lm(data = df, formula = y ~ x1 + x2)
 model                        -- prints: {formula, r_squared, adj_r_squared, sigma, nobs}
 summary(model)               -- coefficients table (term, estimate, std_error, statistic, p_value)
-glance(model)             -- R², adj R², sigma, F-stat, AIC, BIC, etc.
+fit_stats(model)             -- R², adj R², sigma, F-stat, AIC, BIC, etc.
 add_diagnostics(model, data = df)  -- original data + .fitted, .resid, .hat, .cooksd, etc.
 ```
 

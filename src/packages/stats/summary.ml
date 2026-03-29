@@ -14,7 +14,7 @@ open Ast
 --#   s = summary(model)
 --#   coefficients = s._tidy_df
 --# @family stats
---# @seealso lm, glance
+--# @seealso lm, fit_stats
 --# @export
 *)
 let register env =

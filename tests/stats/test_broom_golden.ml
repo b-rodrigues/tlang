@@ -1,6 +1,6 @@
 (* tests/stats/test_broom_golden.ml *)
-(* Golden tests comparing T lm()/glance()/add_diagnostics() *)
-(* against R's broom::tidy/glance/augment reference values.     *)
+(* Golden tests comparing T lm()/fit_stats()/add_diagnostics() *)
+(* against R's broom::tidy/fit_stats/augment reference values.     *)
 (* Reference values computed from R 4.x with broom package.    *)
 
 (** Helper: check if a float string is within tolerance of expected *)
@@ -120,10 +120,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
 
   print_newline ();
 
-  (* === GLANCE (broom::glance via glance()) === *)
-  Printf.printf "Golden — Broom: glance() (broom::glance):\n";
+  (* === GLANCE (broom::fit_stats via fit_stats()) === *)
+  Printf.printf "Golden — Broom: fit_stats() (broom::fit_stats):\n";
 
-  (* Reference values from R's broom::glance(fit):
+  (* Reference values from R's broom::fit_stats(fit):
      r.squared = 0.957929594
      adj.r.squared = 0.945909478
      sigma = 1.050679519
@@ -138,31 +138,31 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
      nobs = 10
   *)
 
-  let (_, env_g) = eval_string_env "gs = glance(model)" env in
+  let (_, env_g) = eval_string_env "gs = fit_stats(model)" env in
 
-  (* glance returns a 1-row DataFrame; column access returns a 1-element Vector *)
+  (* fit_stats returns a 1-row DataFrame; column access returns a 1-element Vector *)
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.r_squared" 0.95793 0.001 "glance: r_squared ≈ 0.958";
+    "gs.r_squared" 0.95793 0.001 "fit_stats: r_squared ≈ 0.958";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.adj_r_squared" 0.94591 0.001 "glance: adj_r_squared ≈ 0.946";
+    "gs.adj_r_squared" 0.94591 0.001 "fit_stats: adj_r_squared ≈ 0.946";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.sigma" 1.05068 0.01 "glance: sigma ≈ 1.051";
+    "gs.sigma" 1.05068 0.01 "fit_stats: sigma ≈ 1.051";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.statistic" 79.694 1.0 "glance: F-statistic ≈ 79.7";
+    "gs.statistic" 79.694 1.0 "fit_stats: F-statistic ≈ 79.7";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.df" 2.0 0.1 "glance: df = 2";
+    "gs.df" 2.0 0.1 "fit_stats: df = 2";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.logLik" (-12.9004) 0.01 "glance: logLik ≈ -12.90";
+    "gs.logLik" (-12.9004) 0.01 "fit_stats: logLik ≈ -12.90";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.AIC" 33.801 0.05 "glance: AIC ≈ 33.80";
+    "gs.AIC" 33.801 0.05 "fit_stats: AIC ≈ 33.80";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.BIC" 35.011 0.05 "glance: BIC ≈ 35.01";
+    "gs.BIC" 35.011 0.05 "fit_stats: BIC ≈ 35.01";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.deviance" 7.72749 0.01 "glance: deviance ≈ 7.727";
+    "gs.deviance" 7.72749 0.01 "fit_stats: deviance ≈ 7.727";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.df_residual" 7.0 0.1 "glance: df_residual = 7";
+    "gs.df_residual" 7.0 0.1 "fit_stats: df_residual = 7";
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
-    "gs.nobs" 10.0 0.1 "glance: nobs = 10";
+    "gs.nobs" 10.0 0.1 "fit_stats: nobs = 10";
 
   print_newline ();
 
