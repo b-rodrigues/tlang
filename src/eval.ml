@@ -1242,7 +1242,11 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
       else if un.un_runtime = "T" then
         let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
-        let is_unbuilt d = match Env.find_opt d !current_env_ref with Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>" | _ -> false in
+        let is_unbuilt d = match Env.find_opt d !current_env_ref with 
+          | Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>" 
+          | None -> true (* Unresolved/external dependency *)
+          | _ -> false 
+        in
         let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
         if is_raw || List.exists is_unbuilt node_deps then
           VComputedNode {
@@ -1374,7 +1378,11 @@ and rerun_pipeline env_ref (prev : Ast.pipeline_result) : value =
       if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
       else if un.un_runtime = "T" then
         let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
-        let is_unbuilt d = match Env.find_opt d !env_ref with Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>" | _ -> false in
+        let is_unbuilt d = match Env.find_opt d !env_ref with 
+          | Some (VComputedNode cn) -> cn.cn_path = "<unbuilt>" 
+          | None -> true (* Unresolved/external dependency *)
+          | _ -> false 
+        in
         if List.exists is_unbuilt node_deps then
           VComputedNode {
             cn_name = name;
