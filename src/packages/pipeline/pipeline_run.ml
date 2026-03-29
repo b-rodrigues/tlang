@@ -16,7 +16,7 @@ let register ~rerun_pipeline env =
   Env.add "pipeline_run"
     (make_builtin ~name:"pipeline_run" 1 (fun args env ->
       match args with
-      | [VPipeline prev] -> rerun_pipeline env prev
+      | [VPipeline prev] -> rerun_pipeline ?strict:None env prev
       | [_] -> Error.type_error "Function `pipeline_run` expects a Pipeline."
       | _ -> Error.arity_error_named "pipeline_run" 1 (List.length args)
     ))

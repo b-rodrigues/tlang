@@ -634,4 +634,63 @@ p_cross = pipeline {
     incr fail_count; Printf.printf "  ✗ pipeline with script node\n    Expected: [\"data\", \"result\"]\n    Got: %s\n" pipeline_nodes_s
   end;
 
+  print_newline ();
+
+  Printf.printf "Phase 3 — Cross-Pipeline Deferral & NameError Behavior:\n";
+
+  (* Test: T node whose sibling R node is <unbuilt> is itself correctly deferred *)
+  let (v_t_deferred, _) = eval_string_env
+    {|p = pipeline {
+  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = "json")
+  t_step = r_step * 2
+}
+p.t_step|}
+    (Packages.init_env ()) in
+  (match v_t_deferred with
+  | Ast.VComputedNode cn when cn.cn_path = "<unbuilt>" ->
+      incr pass_count; Printf.printf "  ✓ T node is deferred when its sibling node is <unbuilt>\n"
+  | other ->
+      incr fail_count; Printf.printf "  ✗ T node should be deferred when sibling is <unbuilt>\n    Got: %s\n"
+        (Ast.Utils.value_to_string other));
+
+  (* Test: T node with a typo'd/undefined function name raises NameError and is NOT silently deferred *)
+  let (v_name_err, _) = eval_string_env
+    {|pipeline {
+  x = 1
+  y = nonexistent_func_xyzzy(x)
+}|}
+    (Packages.init_env ()) in
+  let name_err_str = Ast.Utils.value_to_string v_name_err in
+  if contains_substring name_err_str "Name `nonexistent_func_xyzzy` is not defined." then begin
+    incr pass_count; Printf.printf "  ✓ undefined function in T node raises NameError (not silently deferred)\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ undefined function in T node should raise NameError\n    Got: %s\n" name_err_str
+  end;
+
+  (* Test: rerun_pipeline correctly keeps a T node deferred when its sibling is <unbuilt> *)
+  let (v_rerun_base, _) = eval_string_env
+    {|pipeline {
+  r_step = node(command = <{ 1 + 2 }>, runtime = R, deserializer = "json")
+  t_step = r_step * 2
+}|}
+    (Packages.init_env ()) in
+  (match v_rerun_base with
+  | Ast.VPipeline p ->
+    (match Eval.rerun_pipeline (ref (Packages.init_env ())) p with
+    | Ast.VPipeline rerun ->
+      (match List.assoc_opt "t_step" rerun.p_nodes with
+      | Some (Ast.VComputedNode cn) when cn.cn_path = "<unbuilt>" ->
+          incr pass_count; Printf.printf "  ✓ T node stays deferred after rerun when sibling is <unbuilt>\n"
+      | Some other ->
+          incr fail_count; Printf.printf "  ✗ T node should stay deferred after rerun\n    Got: %s\n"
+            (Ast.Utils.value_to_string other)
+      | None ->
+          incr fail_count; Printf.printf "  ✗ T node should stay deferred after rerun: node not found\n")
+    | other ->
+        incr fail_count; Printf.printf "  ✗ rerun_pipeline returned unexpected value: %s\n"
+          (Ast.Utils.value_to_string other))
+  | other ->
+      incr fail_count; Printf.printf "  ✗ initial pipeline for rerun test failed: %s\n"
+        (Ast.Utils.value_to_string other));
+
   print_newline ()

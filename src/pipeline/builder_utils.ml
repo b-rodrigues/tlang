@@ -124,7 +124,7 @@ let ensure_pipeline_dir () =
     Unix.mkdir pipeline_dir 0o755
 
 let rec find_project_root dir =
-  if Sys.file_exists (Filename.concat dir "flake.nix") || Sys.file_exists (Filename.concat dir "dune-project") then
+  if Sys.file_exists (Filename.concat dir "flake.nix") || Sys.file_exists (Filename.concat dir "dune-project") || Sys.file_exists (Filename.concat dir "tproject.toml") then
     dir
   else
     let parent = Filename.dirname dir in

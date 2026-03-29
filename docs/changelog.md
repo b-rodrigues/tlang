@@ -2,7 +2,13 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
-
+- **Lazy Pipeline Evaluation**: Implemented lazy cross-pipeline dependency resolution. 
+    - Pipelines now support referencing nodes from other pipelines by name during definition without triggering immediate `NameError`.
+    - Evaluation of T-runtime nodes is automatically deferred to the build phase if dependencies are unresolved, enabling intuitive and ergonomic pipeline composition.
+    - The mechanism preserves all node metadata (runtime, serializers) and ensures DAG integrity for downstream compatibility checks.
+- **Project Root Discovery**: Enhanced the builder's root-finding algorithm to recognize `tproject.toml` as a valid project root indicator, preventing incorrect filesystem traversal during Nix DAG generation.
+- **Architectural Documentation**: Added `spec_files/eager_pipeline_evaluation.md` detailing the technical implementation and safety constraints of the new lazy evaluation engine.
+- Integration tests in b-rodrigues/t_demos now run on PRs as well.
 
 ## Version 0.51.2 — Current Stable Release
 
@@ -276,3 +282,4 @@ Version history and roadmap for the T programming language.
 - Changelog (this file)
 - **Model Interchange & PMML**: Documentation for cross-language model support and broom-style outputs for imported models.
 - **Improved Data Inspection**: Enhanced `glimpse()` documentation for quick DataFrame summaries.
+
