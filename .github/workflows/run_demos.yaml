@@ -4,7 +4,6 @@ on:
   push:
     branches: [main, master, eager_eval, release-*]
   pull_request:
-    branches: [main, master, eager_eval]
 
 jobs:
   validate-dynamic-pipeline:
