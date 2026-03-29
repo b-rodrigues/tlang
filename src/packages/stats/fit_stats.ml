@@ -17,7 +17,12 @@ let register env =
   let glance_func args _env =
     let models = match args with
       | [VList items] -> items
-      | [VDict pairs] -> [(None, VDict pairs)]
+      | [VDict pairs] -> 
+          if List.mem_assoc "_model_data" pairs then
+            [(None, VDict pairs)] (* Single model object *)
+          else
+            (* A dictionary of models, e.g., [m1: model_a, m2: model_b] *)
+            List.map (fun (k, v) -> (Some k, v)) pairs
       | _ -> []
     in
     if models = [] then
@@ -26,16 +31,10 @@ let register env =
       let rows = List.filter_map (fun (name, v) ->
         match v with
         | VDict pairs -> 
-            let keys = List.map fst pairs in
-            let () = prerr_endline ("glance(DEBUG): found keys: [" ^ (String.concat ", " keys) ^ "]") in
             (match extract_stats_row pairs with
              | Some (f, i) -> Some (name, f, i)
-             | None -> 
-                 let () = prerr_endline ("glance(DEBUG): extract_stats_row failed for " ^ (Option.value ~default:"unnamed" name)) in
-                 None)
-        | _ -> 
-            let () = prerr_endline "glance(DEBUG): item not a Dict" in
-            None
+             | None -> None)
+        | _ -> None
       ) models in
       
       if rows = [] then
