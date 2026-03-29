@@ -106,7 +106,7 @@ let strcraft_package = {
 let stats_package = {
   name = "stats";
   description = "Statistical summaries and models";
-  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
+  functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "glance"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
                "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "augment"; "score";
                "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"];
 }

@@ -1,57 +1,74 @@
 open Ast
 
-(** fit_stats(model) — returns a 1-row DataFrame of model-level statistics.
-    Equivalent to broom::glance(). *)
-(*
---# Model Fit Statistics
---#
---# Returns a one-row DataFrame containing model-level statistics (R-squared, AIC, etc.).
---#
---# @name fit_stats
---# @param model :: Model The model object.
---# @return :: DataFrame Model statistics.
---# @example
---#   fit_stats(model)
---# @family stats
---# @seealso lm, summary
---# @export
-*)
+(** glance(model) — returns a DataFrame of model-level statistics.
+    Accepts a single model or a list of models. Equivalent to broom::glance(). *)
+
+let extract_stats_row pairs =
+  match List.assoc_opt "_model_data" pairs with
+  | Some (VDict model) ->
+      let get_float key = match List.assoc_opt key model with
+        | Some (VFloat f) -> Some f | _ -> None in
+      let get_int key = match List.assoc_opt key model with
+        | Some (VInt i) -> Some i | _ -> None in
+      Some (get_float, get_int)
+  | _ -> None
+
 let register env =
-  Env.add "fit_stats"
-    (make_builtin ~name:"fit_stats" 1 (fun args _env ->
-      match args with
-      | [VDict pairs] ->
-        (match List.assoc_opt "_model_data" pairs with
-         | Some (VDict model) ->
-           let get_float key = match List.assoc_opt key model with
-             | Some (VFloat f) -> Some f | _ -> None in
-           let get_int key = match List.assoc_opt key model with
-             | Some (VInt i) -> Some i | _ -> None in
-           (* Build 1-row DataFrame *)
-           let mk_f v = match v with Some f -> Some f | None -> None in
-           let mk_i v = match v with Some i -> Some (float_of_int i) | None -> None in
-           let columns = [
-             ("r_squared",     Arrow_table.FloatColumn [| mk_f (get_float "r_squared") |]);
-             ("adj_r_squared", Arrow_table.FloatColumn [| mk_f (get_float "adj_r_squared") |]);
-             ("sigma",         Arrow_table.FloatColumn [| mk_f (get_float "sigma") |]);
-             ("statistic",     Arrow_table.FloatColumn [| mk_f (get_float "f_statistic") |]);
-             ("p_value",       Arrow_table.FloatColumn [| mk_f (get_float "f_p_value") |]);
-             ("df",            Arrow_table.FloatColumn [| mk_i (get_int "df_model") |]);
-             ("logLik",        Arrow_table.FloatColumn [| mk_f (get_float "log_lik") |]);
-             ("AIC",           Arrow_table.FloatColumn [| mk_f (get_float "aic") |]);
-             ("BIC",           Arrow_table.FloatColumn [| mk_f (get_float "bic") |]);
-             ("deviance",      Arrow_table.FloatColumn [| mk_f (get_float "deviance") |]);
-             ("df_residual",   Arrow_table.FloatColumn [| mk_i (get_int "df_residual") |]);
-             ("nobs",          Arrow_table.FloatColumn [| mk_i (get_int "nobs") |]);
-             ("null_deviance",    Arrow_table.FloatColumn [| mk_f (get_float "null_deviance") |]);
-             ("null_df",          Arrow_table.FloatColumn [| mk_i (get_int "null_deviance_df") |]);
-             ("dispersion",       Arrow_table.FloatColumn [| mk_f (get_float "dispersion") |]);
-           ] in
-           let table = Arrow_table.create columns 1 in
-           VDataFrame { arrow_table = table; group_keys = [] }
-         | _ ->
-           Error.type_error "Function `fit_stats` expects a model returned by `lm`.")
-      | _ ->
-        Error.type_error "Function `fit_stats` expects a model returned by `lm`."
-    ))
-    env
+  let glance_func args _env =
+    let models = match args with
+      | [VList items] -> items
+      | [VDict pairs] -> [(None, VDict pairs)]
+      | _ -> []
+    in
+    if models = [] then
+      Error.type_error "Function `glance` expects a model (Dict) or a List of models."
+    else
+      let rows = List.filter_map (fun (name, v) ->
+        match v with
+        | VDict pairs -> 
+            (match extract_stats_row pairs with
+             | Some (f, i) -> Some (name, f, i)
+             | None -> None)
+        | _ -> None
+      ) models in
+      
+      if rows = [] then
+        Error.type_error "Function `glance` found no valid model objects in the input."
+      else
+        let n = List.length rows in
+        let mk_float_col getter =
+          Arrow_table.FloatColumn (Array.of_list (List.map (fun (_, f, _) -> f getter) rows))
+        in
+        let mk_int_col getter =
+          Arrow_table.FloatColumn (Array.of_list (List.map (fun (_, _, i) -> 
+            match i getter with Some v -> Some (float_of_int v) | None -> None
+          ) rows))
+        in
+        
+        let columns = [
+          ("r_squared",     mk_float_col "r_squared");
+          ("adj_r_squared", mk_float_col "adj_r_squared");
+          ("sigma",         mk_float_col "sigma");
+          ("statistic",     mk_float_col "f_statistic");
+          ("p_value",       mk_float_col "f_p_value");
+          ("df",            mk_int_col "df_model");
+          ("logLik",        mk_float_col "log_lik");
+          ("AIC",           mk_float_col "aic");
+          ("BIC",           mk_float_col "bic");
+          ("deviance",      mk_float_col "deviance");
+          ("df_residual",   mk_int_col "df_residual");
+          ("nobs",          mk_int_col "nobs");
+        ] in
+        
+        (* Add model name column if any models were named in the list *)
+        let columns = 
+          if List.exists (fun (name, _, _) -> Option.is_some name) rows then
+            ("model", Arrow_table.StringColumn (Array.of_list (List.map (fun (name, _, _) -> name) rows))) :: columns
+          else columns
+        in
+
+        let table = Arrow_table.create columns n in
+        VDataFrame { arrow_table = table; group_keys = [] }
+  in
+  let env = Env.add "glance" (make_builtin ~name:"glance" 1 glance_func) env in
+  Env.add "fit_stats" (make_builtin ~name:"fit_stats" 1 glance_func) env
