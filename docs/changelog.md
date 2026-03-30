@@ -8,6 +8,9 @@
     - The mechanism preserves all node metadata (runtime, serializers) and ensures DAG integrity for downstream compatibility checks.
 - **Project Root Discovery**: Enhanced the builder's root-finding algorithm to recognize `tproject.toml` as a valid project root indicator, preventing incorrect filesystem traversal during Nix DAG generation.
 - **Architectural Documentation**: Added `spec_files/eager_pipeline_evaluation.md` detailing the technical implementation and safety constraints of the new lazy evaluation engine.
+- **Test Failure Summary**: Enhanced the test runner to provide a clean, aggregated summary of all failures and error messages at the end of the suite execution, improving visibility and debugging efficiency.
+- **`fit_stats()` API Standardization**: Unified model-level statistics on a single, standardized `fit_stats()` function. The function now natively supports lists and dictionaries of models, allowing for effortless aggregation of goodness-of-fit statistics (R², AIC, BIC, etc.) from multiple languages (R, Python, T) into a single tidy T DataFrame.
+- **Test Suite Synchronization**: Updated the internal test suite and golden benchmarks to align with the new `fit_stats()` API.
 - Integration tests in b-rodrigues/t_demos now run on PRs as well.
 
 ## Version 0.51.2 — Current Stable Release
@@ -17,7 +20,7 @@
 
 ### Features & UX
 
-- **Immutable Update Lenses**: Finalized the lens system with support for deep surgical updates to Dictionaries and DataFrames.
+- **Immutable Update Lenses**: F inalized the lens system with support for deep surgical updates to Dictionaries and DataFrames.
     - Introduced **`modify()`**: A variadic builtin for applying multiple lens transformations in a single pass.
     - Updated **`compose()`**: Now variadic, allowing any number of lenses to be chained into a single declarative path.
     - **Orchestration Lenses**: Added `node_lens()` and `env_var_lens()` for inspecting and modifying Pipeline node results and environment variables.
