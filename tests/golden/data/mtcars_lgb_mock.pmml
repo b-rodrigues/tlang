@@ -1,0 +1,845 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
+	<Header>
+		<Application name="SkLearn2PMML package" version="0.128.0"/>
+		<Timestamp>2026-03-30T14:23:17Z</Timestamp>
+	</Header>
+	<MiningBuildTask>
+		<Extension name="repr">PMMLPipeline(steps=[('regressor', XGBRegressor(base_score=None, booster=None, callbacks=None,
+             colsample_bylevel=None, colsample_bynode=None,
+             colsample_bytree=1.0, device=None, early_stopping_rounds=None,
+             enable_categorical=False, eval_metric=None, feature_types=None,
+             feature_weights=None, gamma=None, grow_policy=None,
+             importance_type=None, interaction_constraints=None,
+             learning_rate=0.1, max_bin=None, max_cat_threshold=None,
+             max_cat_to_onehot=None, max_delta_step=None, max_depth=3,
+             max_leaves=None, min_child_weight=None, missing=nan,
+             monotone_constraints=None, multi_strategy=None, n_estimators=25,
+             n_jobs=None, num_parallel_tree=None, ...))])</Extension>
+	</MiningBuildTask>
+	<DataDictionary>
+		<DataField name="mpg" optype="continuous" dataType="float"/>
+		<DataField name="cyl" optype="continuous" dataType="float">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="disp" optype="continuous" dataType="float">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="hp" optype="continuous" dataType="float">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="drat" optype="continuous" dataType="float">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="wt" optype="continuous" dataType="float">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="qsec" optype="continuous" dataType="float">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="gear" optype="continuous" dataType="float">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+	</DataDictionary>
+	<MiningModel functionName="regression" algorithmName="LightGBM (GBTree)" x-mathContext="float">
+		<MiningSchema>
+			<MiningField name="mpg" usageType="target"/>
+			<MiningField name="cyl"/>
+			<MiningField name="disp"/>
+			<MiningField name="hp"/>
+			<MiningField name="drat"/>
+			<MiningField name="wt"/>
+			<MiningField name="qsec"/>
+			<MiningField name="gear"/>
+		</MiningSchema>
+		<Targets>
+			<Target field="mpg" rescaleConstant="20.090626"/>
+		</Targets>
+		<Segmentation multipleModelMethod="sum" missingPredictionTreatment="returnMissing">
+			<Segment id="1">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.5841798">
+						<True/>
+						<Node score="0.090624936">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.8550893">
+								<SimplePredicate field="wt" operator="lessThan" value="2.32"/>
+							</Node>
+							<Node score="0.24320303">
+								<SimplePredicate field="hp" operator="lessThan" value="97.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.12929693">
+							<SimplePredicate field="cyl" operator="lessThan" value="8.0"/>
+							<Node score="0.054749947">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.28917977">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="2">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.53306407">
+						<True/>
+						<Node score="0.084583215">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.82785714">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+							</Node>
+							<Node score="0.281056">
+								<SimplePredicate field="hp" operator="lessThan" value="97.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.11959963">
+							<SimplePredicate field="cyl" operator="lessThan" value="8.0"/>
+							<Node score="0.050369915">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.26387662">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="3">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.44205815">
+						<True/>
+						<Node score="0.07894433">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.71864814">
+								<SimplePredicate field="wt" operator="lessThan" value="2.32"/>
+							</Node>
+							<Node score="0.2038837">
+								<SimplePredicate field="hp" operator="lessThan" value="97.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.17469333">
+							<SimplePredicate field="hp" operator="lessThan" value="180.0"/>
+							<Node score="0.046340372">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="4">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.44774088">
+						<True/>
+						<Node score="0.073681325">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.6989815">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+							</Node>
+							<Node score="0.23196553">
+								<SimplePredicate field="hp" operator="lessThan" value="97.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.097527556">
+							<SimplePredicate field="cyl" operator="lessThan" value="8.0"/>
+							<Node score="0.042633098">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.21547556">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="5">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.4085636">
+						<True/>
+						<Node score="0.06876927">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.640733">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+							</Node>
+							<Node score="0.21340823">
+								<SimplePredicate field="hp" operator="lessThan" value="97.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.09021292">
+							<SimplePredicate field="cyl" operator="lessThan" value="8.0"/>
+							<Node score="0.03922245">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.19662149">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="6">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.39524165">
+						<True/>
+						<Node score="0.064184636">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.58733857">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+							</Node>
+							<Node score="0.19633564">
+								<SimplePredicate field="hp" operator="lessThan" value="97.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.13176247">
+							<SimplePredicate field="hp" operator="lessThan" value="180.0"/>
+							<Node score="0.036084633">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.18616955">
+							<SimplePredicate field="wt" operator="lessThan" value="3.78"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="7">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="drat"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.19547309">
+						<True/>
+						<Node score="0.12359568">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.51023555">
+								<SimplePredicate field="wt" operator="lessThan" value="2.32"/>
+							</Node>
+						</Node>
+						<Node score="-0.07356477">
+							<SimplePredicate field="cyl" operator="lessThan" value="8.0"/>
+							<Node score="0.033197824">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.4269645">
+							<SimplePredicate field="drat" operator="lessThan" value="3.07"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="8">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.12622525">
+						<True/>
+						<Node score="0.051665943">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.49587402">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+							</Node>
+							<Node score="0.16300838">
+								<SimplePredicate field="hp" operator="lessThan" value="97.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.12701611">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+							<Node score="0.03054203">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.36779374">
+							<SimplePredicate field="hp" operator="lessThan" value="264.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="9">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.4056681">
+						<True/>
+						<Node score="0.07104969">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.4545512">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+							</Node>
+							<Node score="0.17975165">
+								<SimplePredicate field="hp" operator="lessThan" value="93.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.09369349">
+							<SimplePredicate field="hp" operator="lessThan" value="180.0"/>
+							<Node score="0.028098641">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.18665615">
+							<SimplePredicate field="disp" operator="lessThan" value="460.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="10">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node score="-0.05902486">
+						<True/>
+						<Node score="0.06536572">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.41667184">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+							</Node>
+							<Node score="0.16776817">
+								<SimplePredicate field="hp" operator="lessThan" value="93.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.10441629">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+							<Node score="0.025850717">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.29768348">
+							<SimplePredicate field="drat" operator="lessThan" value="3.77"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="11">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.33094886">
+						<True/>
+						<Node score="0.09022307">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.44525433">
+								<SimplePredicate field="disp" operator="lessThan" value="79.0"/>
+							</Node>
+							<Node score="0.21651661">
+								<SimplePredicate field="qsec" operator="lessThan" value="17.02"/>
+							</Node>
+						</Node>
+						<Node score="-0.076358974">
+							<SimplePredicate field="hp" operator="lessThan" value="180.0"/>
+							<Node score="0.023782691">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.1408522">
+							<SimplePredicate field="qsec" operator="lessThan" value="17.82"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="12">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.33671474">
+						<True/>
+						<Node score="0.08248964">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.41186032">
+								<SimplePredicate field="disp" operator="lessThan" value="79.0"/>
+							</Node>
+							<Node score="0.20208219">
+								<SimplePredicate field="qsec" operator="lessThan" value="17.02"/>
+							</Node>
+						</Node>
+						<Node score="-0.012171487">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+							<Node score="-0.1163886">
+								<SimplePredicate field="drat" operator="lessThan" value="3.08"/>
+							</Node>
+						</Node>
+						<Node score="-0.14509358">
+							<SimplePredicate field="disp" operator="lessThan" value="460.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="13">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.3142671">
+						<True/>
+						<Node score="0.07541915">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.38097087">
+								<SimplePredicate field="disp" operator="lessThan" value="79.0"/>
+							</Node>
+							<Node score="0.18861008">
+								<SimplePredicate field="qsec" operator="lessThan" value="17.02"/>
+							</Node>
+						</Node>
+						<Node score="-0.07986279">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+							<Node score="0.025518417">
+								<SimplePredicate field="hp" operator="lessThan" value="113.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.13300242">
+							<SimplePredicate field="disp" operator="lessThan" value="460.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="14">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.29331598">
+						<True/>
+						<Node score="0.06895471">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.35239813">
+								<SimplePredicate field="disp" operator="lessThan" value="79.0"/>
+							</Node>
+							<Node score="0.17603607">
+								<SimplePredicate field="qsec" operator="lessThan" value="17.02"/>
+							</Node>
+						</Node>
+						<Node score="-0.10528938">
+							<SimplePredicate field="disp" operator="lessThan" value="460.0"/>
+							<Node score="0.00875642">
+								<SimplePredicate field="hp" operator="lessThan" value="150.0"/>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="15">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+					</MiningSchema>
+					<Node score="-0.022860877">
+						<True/>
+						<Node score="0.07164852">
+							<SimplePredicate field="hp" operator="lessThan" value="123.0"/>
+							<Node score="0.28408632">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+							</Node>
+							<Node score="-0.034518432">
+								<SimplePredicate field="drat" operator="lessThan" value="2.93"/>
+							</Node>
+						</Node>
+						<Node score="-0.26004696">
+							<SimplePredicate field="drat" operator="lessThan" value="3.07"/>
+						</Node>
+						<Node score="-0.10389477">
+							<SimplePredicate field="disp" operator="lessThan" value="351.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="16">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.05430174">
+						<True/>
+						<Node score="0.053868264">
+							<SimplePredicate field="cyl" operator="lessThan" value="6.0"/>
+							<Node score="0.3046618">
+								<SimplePredicate field="disp" operator="lessThan" value="79.0"/>
+							</Node>
+							<Node score="0.1524425">
+								<SimplePredicate field="qsec" operator="lessThan" value="17.02"/>
+							</Node>
+						</Node>
+						<Node score="0.06320813">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+							<Node score="-0.054356076">
+								<SimplePredicate field="disp" operator="lessThan" value="350.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.2096002">
+							<SimplePredicate field="hp" operator="lessThan" value="264.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="17">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.0078037838">
+						<True/>
+						<Node score="0.026802719">
+							<SimplePredicate field="hp" operator="lessThan" value="123.0"/>
+							<Node score="0.3116108">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+								<Node score="0.12890315">
+									<SimplePredicate field="qsec" operator="lessThan" value="19.44"/>
+								</Node>
+							</Node>
+							<Node score="0.1082524">
+								<SimplePredicate field="hp" operator="lessThan" value="93.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.22870456">
+							<SimplePredicate field="drat" operator="lessThan" value="3.07"/>
+						</Node>
+						<Node score="-0.08481907">
+							<SimplePredicate field="disp" operator="lessThan" value="360.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="18">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="gear"/>
+					</MiningSchema>
+					<Node score="-0.08434742">
+						<True/>
+						<Node score="0.13437448">
+							<SimplePredicate field="hp" operator="lessThan" value="123.0"/>
+							<Node score="0.26300898">
+								<SimplePredicate field="disp" operator="lessThan" value="79.0"/>
+							</Node>
+							<Node score="0.03792567">
+								<SimplePredicate field="gear" operator="lessThan" value="5.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.21155171">
+							<SimplePredicate field="drat" operator="lessThan" value="3.07"/>
+						</Node>
+						<Node score="-0.01785157">
+							<SimplePredicate field="hp" operator="lessThan" value="180.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="19">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.008424696">
+						<True/>
+						<Node score="0.05419413">
+							<SimplePredicate field="hp" operator="lessThan" value="123.0"/>
+							<Node score="0.27330285">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+								<Node score="0.10835276">
+									<SimplePredicate field="qsec" operator="lessThan" value="19.44"/>
+								</Node>
+							</Node>
+							<Node score="-0.03331108">
+								<SimplePredicate field="drat" operator="lessThan" value="2.93"/>
+							</Node>
+						</Node>
+						<Node score="-0.19568534">
+							<SimplePredicate field="drat" operator="lessThan" value="3.07"/>
+						</Node>
+						<Node score="-0.075535126">
+							<SimplePredicate field="disp" operator="lessThan" value="351.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="20">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.036605168">
+						<True/>
+						<Node score="0.2550827">
+							<SimplePredicate field="wt" operator="lessThan" value="2.32"/>
+							<Node score="0.0036584854">
+								<SimplePredicate field="qsec" operator="lessThan" value="19.44"/>
+								<Node score="0.12559591">
+									<SimplePredicate field="qsec" operator="lessThan" value="18.6"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node score="-0.03667436">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+							<Node score="0.03575998">
+								<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							</Node>
+						</Node>
+						<Node score="-0.16350453">
+							<SimplePredicate field="hp" operator="lessThan" value="264.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="21">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.18915533">
+						<True/>
+						<Node score="0.23807716">
+							<SimplePredicate field="wt" operator="lessThan" value="2.32"/>
+							<Node score="0.0034755708">
+								<SimplePredicate field="qsec" operator="lessThan" value="19.44"/>
+								<Node score="0.11617627">
+									<SimplePredicate field="qsec" operator="lessThan" value="18.6"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node score="0.019211508">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+							<Node score="-0.05491684">
+								<SimplePredicate field="drat" operator="lessThan" value="3.08"/>
+							</Node>
+						</Node>
+						<Node score="-0.07238388">
+							<SimplePredicate field="disp" operator="lessThan" value="460.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="22">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.16609824">
+						<True/>
+						<Node score="0.012587252">
+							<SimplePredicate field="hp" operator="lessThan" value="150.0"/>
+							<Node score="0.22220536">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+								<Node score="0.08795939">
+									<SimplePredicate field="qsec" operator="lessThan" value="19.44"/>
+								</Node>
+							</Node>
+							<Node score="0.08178794">
+								<SimplePredicate field="hp" operator="lessThan" value="93.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.021957468">
+							<SimplePredicate field="qsec" operator="lessThan" value="17.82"/>
+							<Node score="-0.1205973">
+								<SimplePredicate field="hp" operator="lessThan" value="175.0"/>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="23">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.15364087">
+						<True/>
+						<Node score="0.011443017">
+							<SimplePredicate field="hp" operator="lessThan" value="150.0"/>
+							<Node score="0.20739162">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+								<Node score="0.08136244">
+									<SimplePredicate field="qsec" operator="lessThan" value="19.44"/>
+								</Node>
+							</Node>
+							<Node score="0.07633546">
+								<SimplePredicate field="hp" operator="lessThan" value="93.0"/>
+							</Node>
+						</Node>
+						<Node score="0.0043687182">
+							<SimplePredicate field="qsec" operator="lessThan" value="17.82"/>
+							<Node score="-0.07293242">
+								<SimplePredicate field="disp" operator="lessThan" value="351.0"/>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="24">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.127129">
+						<True/>
+						<Node score="0.011845865">
+							<SimplePredicate field="wt" operator="lessThan" value="3.435"/>
+							<Node score="0.1935655">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+								<Node score="0.075260304">
+									<SimplePredicate field="qsec" operator="lessThan" value="19.44"/>
+								</Node>
+							</Node>
+							<Node score="0.07124641">
+								<SimplePredicate field="hp" operator="lessThan" value="93.0"/>
+							</Node>
+						</Node>
+						<Node score="0.06360309">
+							<SimplePredicate field="hp" operator="lessThan" value="205.0"/>
+							<Node score="-0.050414722">
+								<SimplePredicate field="disp" operator="lessThan" value="350.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.027589893">
+							<SimplePredicate field="disp" operator="lessThan" value="304.0"/>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="25">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node score="-0.13450101">
+						<True/>
+						<Node score="0.011023903">
+							<SimplePredicate field="hp" operator="lessThan" value="150.0"/>
+							<Node score="0.18066114">
+								<SimplePredicate field="disp" operator="lessThan" value="108.0"/>
+								<Node score="0.069615796">
+									<SimplePredicate field="qsec" operator="lessThan" value="19.44"/>
+								</Node>
+							</Node>
+							<Node score="0.066496596">
+								<SimplePredicate field="hp" operator="lessThan" value="93.0"/>
+							</Node>
+						</Node>
+						<Node score="-0.013581969">
+							<SimplePredicate field="qsec" operator="lessThan" value="17.82"/>
+							<Node score="-0.10433423">
+								<SimplePredicate field="hp" operator="lessThan" value="175.0"/>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+		</Segmentation>
+	</MiningModel>
+</PMML>

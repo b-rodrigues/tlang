@@ -56,4 +56,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf {|m = t_read_pmml("%s"); fs = fit_stats(m); fs.n_features|} (String.escaped pmml_path))
     "Vector[1.]";
 
+  let mtcars_pmml = Filename.concat root "tests/golden/data/mtcars_lgb_mock.pmml" in
+  test "lightgbm regression model_type"
+    (Printf.sprintf {|m = t_read_pmml("%s"); m.model_type|} (String.escaped mtcars_pmml))
+    {|\"lightgbm\"|};
+
+  test "fit_stats lightgbm regression n_trees"
+    (Printf.sprintf {|m = t_read_pmml("%s"); fs = fit_stats(m); fs.n_trees|} (String.escaped mtcars_pmml))
+    "Vector[25.]";
+
   print_newline ()
+
