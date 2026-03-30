@@ -13,6 +13,7 @@
 - **Test Suite Synchronization**: Updated the internal test suite and golden benchmarks to align with the new `fit_stats()` API.
 - Integration tests in b-rodrigues/t_demos now run on PRs as well.
 - **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
+- **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.
 
 ## Version 0.51.2 — Current Stable Release
 

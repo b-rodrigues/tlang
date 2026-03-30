@@ -202,11 +202,31 @@ let unique_fields fields =
     if Hashtbl.mem seen f then false else (Hashtbl.add seen f (); true)
   ) fields
 
+let normalize_field_name field =
+  let prefixes = ["double("; "float("; "integer("; "int("; "long("] in
+  let rec strip_prefixes = function
+    | [] -> None
+    | prefix :: rest ->
+        if String.starts_with ~prefix field && String.ends_with ~suffix:")" field then
+          let inner = String.sub field (String.length prefix) (String.length field - String.length prefix - 1) in
+          Some inner
+        else strip_prefixes rest
+  in
+  strip_prefixes prefixes
+
 let resolve_field_eval df field =
-  match Arrow_table.get_column df.arrow_table field with
+  let col_name, col_opt =
+    match Arrow_table.get_column df.arrow_table field with
+    | Some col -> (field, Some col)
+    | None ->
+        (match normalize_field_name field with
+         | Some inner -> (inner, Arrow_table.get_column df.arrow_table inner)
+         | None -> (field, None))
+  in
+  match col_opt with
   | None -> Error (Printf.sprintf "Predictor `%s` not found in DataFrame." field)
   | Some col ->
-      (match Arrow_table.column_type df.arrow_table field with
+      (match Arrow_table.column_type df.arrow_table col_name with
        | Some ArrowString ->
            Ok (fun row_idx ->
              match Arrow_table.get_string col row_idx with

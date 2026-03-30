@@ -591,6 +591,18 @@ test_that("PMML: randomForest predictions", {
 })
 
 # ============================================================================
+# Test Suite 24.1: PMML Random Forest (scikit-learn)
+# ============================================================================
+
+test_that("PMML: sklearn random forest (classification) predictions", {
+  compare_csvs("iris_sklearn_rf_predictions")
+})
+
+test_that("PMML: sklearn random forest (regression) predictions", {
+  compare_csvs("mtcars_sklearn_rf_predictions", tolerance = 1e-4)
+})
+
+# ============================================================================
 # Test Suite 25: CHRONO
 # ============================================================================
 
