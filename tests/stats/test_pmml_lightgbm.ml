@@ -21,7 +21,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let env = Packages.init_env () in
   let (_, env) =
-    eval_string_env (Printf.sprintf {|df = read_csv("%s")|} (String.escaped iris_path)) env
+    eval_string_env (Printf.sprintf {|df = read_csv("%s") |> clean_colnames()|} (String.escaped iris_path)) env
   in
   let (_, env) =
     eval_string_env (Printf.sprintf {|m = t_read_pmml("%s")|} (String.escaped pmml_path)) env
