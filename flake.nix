@@ -33,6 +33,7 @@
             readr
             testthat
             randomForest
+            xgboost
             stringr
             tidyr
             purrr
@@ -50,6 +51,7 @@
           pandas
           pyarrow
           scikit-learn
+          xgboost
           sklearn2pmml
           statsmodels
           nbformat
