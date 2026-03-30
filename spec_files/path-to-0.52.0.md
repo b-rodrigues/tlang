@@ -68,7 +68,7 @@ This document outlines the step-by-step evolution of the T language from the cur
       df |> mutate($pred = predict(clf, df))
       ```
 - [ ] **Model Metrics**:
-    - [ ] Expand `glance()` and `tidy()` to return standard statistics for all native model types.
+    - [ ] Expand `fit_stats()` and `tidy()` to return standard statistics for all native model types.
 
 ---
  

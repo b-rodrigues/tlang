@@ -80,7 +80,7 @@
 
 (menhir
  (modules parser)
-)
+ (flags --explain --dump))
 
 (ocamllex lexer)
 (executable

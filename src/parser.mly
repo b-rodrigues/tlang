@@ -101,19 +101,22 @@ let with_stmt_loc node pos =
 %token EOF
 
 /* PRECEDENCE AND ASSOCIATIVITY (lowest to highest) */
+%nonassoc LAMBDA FUNCTION
 %nonassoc IF_WITHOUT_ELSE
 %nonassoc ELSE
+%left PIPE MAYBE_PIPE
 %left TILDE
 %left OR
 %left AND
-%left BITOR
-%left BITAND
+%left BITOR DOT_BITOR
+%left BITAND DOT_BITAND
 %nonassoc EQ NEQ LT GT LTE GTE IN
 %nonassoc DOT_EQ DOT_NEQ DOT_LT DOT_GT DOT_LTE DOT_GTE
 %left PLUS MINUS
 %left DOT_PLUS DOT_MINUS
 %left STAR SLASH PERCENT
 %left DOT_MUL DOT_DIV DOT_PERCENT
+%left DOT LPAREN
 
 
 
@@ -124,20 +127,24 @@ let with_stmt_loc node pos =
 /* GRAMMAR RULES */
 
 /* A program is a list of statements, possibly separated by newlines/semicolons */
+stmt_list:
+  | { [] }
+  | statement rest_stmt_list { $1 :: $2 }
+  ;
+
+rest_stmt_list:
+  | { [] }
+  | sep stmt_list { $2 }
+  ;
+
 program:
-  | skip_sep stmts = stmt_list EOF { stmts }
+  | skip_sep stmts = stmt_list skip_sep EOF { stmts }
   ;
 
 skip_sep:
   | { () }
   | skip_sep NEWLINE { () }
   | skip_sep SEMICOLON { () }
-  ;
-
-stmt_list:
-  | { [] }
-  | s = statement skip_sep { [s] }
-  | s = statement sep skip_sep rest = stmt_list { s :: rest }
   ;
 
 sep:
@@ -148,29 +155,34 @@ sep:
   ;
 
 statement:
-  | name = any_ident EQUALS e = expr
+  | name = any_ident skip_sep EQUALS skip_sep e = expr
     { with_stmt_loc (Assignment { name; typ = None; expr = e }) $startpos }
-  | name = any_ident COLON t = typ EQUALS e = expr
+  | name = any_ident skip_sep COLON skip_sep t = typ skip_sep EQUALS skip_sep e = expr
     { with_stmt_loc (Assignment { name; typ = Some t; expr = e }) $startpos }
-  | name = any_ident COLON_EQ e = expr
+  | name = any_ident skip_sep COLON_EQ skip_sep e = expr
     { with_stmt_loc (Reassignment { name; expr = e }) $startpos }
   | IMPORT s = STRING { with_stmt_loc (Import s) $startpos }
-  | IMPORT s = STRING LBRACK skip_sep names = import_name_list RBRACK
+  | IMPORT s = STRING LBRACK skip_sep names = import_name_list skip_sep RBRACK
     { with_stmt_loc (ImportFileFrom { filename = s; names }) $startpos }
-  | IMPORT id = any_ident LBRACK skip_sep names = import_name_list RBRACK
+  | IMPORT id = any_ident LBRACK skip_sep names = import_name_list skip_sep RBRACK
     { with_stmt_loc (ImportFrom { package = id; names }) $startpos }
   | IMPORT id = any_ident { with_stmt_loc (ImportPackage id) $startpos }
   | e = expr { with_stmt_loc (Expression e) $startpos }
   ;
-
 import_name_list:
-  | n = import_name skip_sep { [n] }
-  | n = import_name COMMA skip_sep rest = import_name_list { n :: rest }
+  | { [] }
+  | n = import_name rest = import_name_list_rest { n :: rest }
+  ;
+
+import_name_list_rest:
+  | { [] }
+  | COMMA skip_sep n = import_name rest = import_name_list_rest { n :: rest }
+  | COMMA { [] }
   ;
 
 import_name:
   | name = any_ident { { import_name = name; import_alias = None } }
-  | alias = any_ident EQUALS name = any_ident
+  | alias = any_ident skip_sep EQUALS skip_sep name = any_ident
     { { import_name = name; import_alias = Some alias } }
   ;
 
@@ -266,7 +278,7 @@ unary_expr:
 /* Function calls and dot access are postfix operations */
 postfix_expr:
   | e = primary_expr { e }
-  | fn = postfix_expr LPAREN skip_sep args = call_args RPAREN
+  | fn = postfix_expr LPAREN skip_sep args = call_args skip_sep RPAREN
     { with_loc (Call { fn; args }) $startpos }
   | target = postfix_expr DOT field = any_ident
     { with_loc (DotAccess { target; field }) $startpos }
@@ -274,17 +286,22 @@ postfix_expr:
 
 call_args:
   | { [] }
-  | a = arg skip_sep { [a] }
-  | a = arg COMMA skip_sep rest = call_args { a :: rest }
+  | a = arg rest = call_args_rest { a :: rest }
+  ;
+
+call_args_rest:
+  | { [] }
+  | COMMA skip_sep a = arg rest = call_args_rest { a :: rest }
+  | COMMA { [] }
   ;
 
 arg:
   | e = expr { (None, e) }
-  | name = any_ident COLON e = expr { (Some name, e) }
-  | name = any_ident EQUALS e = expr { (Some name, e) }
-  | DOT name = IDENT EQUALS e = expr { (Some ("." ^ name), e) }
-  | col = COLUMN_REF EQUALS e = expr { (Some col, e) }
-  | BANG_BANG name_expr = unary_expr COLON_EQ e = expr
+  | name = any_ident skip_sep COLON skip_sep e = expr { (Some name, e) }
+  | name = any_ident skip_sep EQUALS skip_sep e = expr { (Some name, e) }
+  | DOT name = IDENT skip_sep EQUALS skip_sep e = expr { (Some ("." ^ name), e) }
+  | col = COLUMN_REF skip_sep EQUALS skip_sep e = expr { (Some col, e) }
+  | BANG_BANG name_expr = unary_expr skip_sep COLON_EQ skip_sep e = expr
     { (None, with_loc (Call { fn = with_loc (Var "__dynamic_arg__") $startpos;
                             args = [(None, name_expr); (None, e)] }) $startpos) }
   ;
@@ -303,10 +320,9 @@ primary_expr:
   | id = any_ident { with_loc (Var id) $startpos }
   | DOTDOTDOT { with_loc (Var "...") $startpos }
   | LPAREN skip_sep e = expr skip_sep RPAREN { e }
-  | LPAREN skip_sep fn = expr COMMA skip_sep args = call_args RPAREN
-    { with_loc (Call { fn; args }) $startpos }
   | b = bracket_lit { b }
   | l = lambda_expr { l }
+  | f = function_expr { f }
   | i = if_expr { i }
   | m = match_expr { m }
   | p = pipeline_expr { p }
@@ -319,25 +335,23 @@ primary_expr:
   ;
 
 block_expr:
-  | LBRACE skip_sep stmts = stmt_list RBRACE { with_loc (Block stmts) $startpos }
+  | LBRACE skip_sep stmts = stmt_list skip_sep RBRACE { with_loc (Block stmts) $startpos }
   ;
 
 lambda_expr:
-  | LAMBDA g = generic_params_opt LPAREN p = params RPAREN body = expr
+  | LAMBDA g = generic_params_opt LPAREN skip_sep RPAREN body = expr %prec LAMBDA
     {
-      let names = List.map fst p.params in
-      let param_types = List.map snd p.params in
       with_loc (Lambda {
-        params = names;
-        param_types;
-        return_type = p.return_type;
+        params = [];
+        param_types = [];
+        return_type = None;
         generic_params = g;
-        variadic = p.has_variadic;
+        variadic = false;
         body;
         env = None;
       }) $startpos
     }
-  | FUNCTION g = generic_params_opt LPAREN p = params RPAREN body = expr
+  | LAMBDA g = generic_params_opt LPAREN skip_sep p = params_ne skip_sep RPAREN body = expr %prec LAMBDA
     {
       let names = List.map fst p.params in
       let param_types = List.map snd p.params in
@@ -353,37 +367,74 @@ lambda_expr:
     }
   ;
 
-
-
-/* Optional generic parameters like <T, U> */
+function_expr:
+  | FUNCTION g = generic_params_opt LPAREN skip_sep RPAREN body = expr %prec FUNCTION
+    {
+      with_loc (Lambda {
+        params = [];
+        param_types = [];
+        return_type = None;
+        generic_params = g;
+        variadic = false;
+        body;
+        env = None;
+      }) $startpos
+    }
+  | FUNCTION g = generic_params_opt LPAREN skip_sep p = params_ne skip_sep RPAREN body = expr %prec FUNCTION
+    {
+      let names = List.map fst p.params in
+      let param_types = List.map snd p.params in
+      with_loc (Lambda {
+        params = names;
+        param_types;
+        body;
+        return_type = p.return_type;
+        generic_params = g;
+        variadic = p.has_variadic;
+        env = None;
+      }) $startpos
+    }
+  ;
 generic_params_opt:
   | { [] }
   | LT gs = generic_param_list GT { gs }
   ;
 
 generic_param_list:
-  | g = IDENT skip_sep { [g] }
-  | g = IDENT COMMA skip_sep rest = generic_param_list { g :: rest }
+  | { [] }
+  | g = IDENT rest = generic_param_list_rest { g :: rest }
+  ;
+
+generic_param_list_rest:
+  | { [] }
+  | COMMA skip_sep g = IDENT rest = generic_param_list_rest { g :: rest }
+  | COMMA { [] }
   ;
 
 /* Helper for parsing parameter lists with optional variadic `...` and optional return type code `-> Type` */
-params:
-  | p = params_raw { { params = p.params; has_variadic = p.has_variadic; return_type = None } }
-  | p = params_raw ARROW rt = typ { { params = p.params; has_variadic = p.has_variadic; return_type = Some rt } }
+params_ne:
+  | p = params_raw_ne { p }
+  | p = params_raw_ne skip_sep ARROW skip_sep rt = typ { { p with return_type = Some rt } }
   ;
 
 params_raw:
-  | (* empty *) { { params = []; has_variadic = false; return_type = None } }
-  | ps = param_list
-    { { params = ps; has_variadic = false; return_type = None } }
-  | ps = param_list COMMA skip_sep DOTDOTDOT
-    { { params = ps; has_variadic = true; return_type = None } }
-  | DOTDOTDOT
-    { { params = []; has_variadic = true; return_type = None } }
+  | { { params = []; has_variadic = false; return_type = None } }
+  | p = params_raw_ne { p }
+  ;
+
+params_raw_ne:
+  | DOTDOTDOT { { params = []; has_variadic = true; return_type = None } }
+  | p = param rest = params_raw_rest { { rest with params = p :: rest.params } }
+  ;
+
+params_raw_rest:
+  | { { params = []; has_variadic = false; return_type = None } }
+  | COMMA skip_sep rest = params_raw_ne { rest }
+  | COMMA { { params = []; has_variadic = false; return_type = None } }
   ;
 
 param_list:
-  | p = param skip_sep { [p] }
+  | p = param { [p] }
   | p = param COMMA skip_sep rest = param_list { p :: rest }
   ;
 
@@ -393,20 +444,26 @@ param:
   ;
 
 if_expr:
-  | IF LPAREN cond = expr RPAREN then_ = primary_expr %prec IF_WITHOUT_ELSE
+  | IF LPAREN skip_sep cond = expr skip_sep RPAREN then_ = primary_expr %prec IF_WITHOUT_ELSE
     { with_loc (IfElse { cond; then_; else_ = with_loc (Value VNull) $startpos }) $startpos }
-  | IF LPAREN cond = expr RPAREN then_ = primary_expr ELSE else_ = primary_expr
+  | IF LPAREN skip_sep cond = expr skip_sep RPAREN then_ = primary_expr ELSE else_ = primary_expr
     { with_loc (IfElse { cond; then_; else_ }) $startpos }
   ;
 
 match_expr:
-  | MATCH LPAREN skip_sep scrutinee = expr skip_sep RPAREN skip_sep LBRACE skip_sep cases = match_case_list RBRACE
-    { with_loc (Match { scrutinee; cases }) $startpos }
+  | MATCH LPAREN skip_sep e = expr skip_sep RPAREN skip_sep LBRACE cases = match_case_list skip_sep RBRACE
+    { with_loc (Match { scrutinee = e; cases }) $startpos }
   ;
 
 match_case_list:
-  | c = match_case skip_sep { [c] }
-  | c = match_case COMMA skip_sep rest = match_case_list { c :: rest }
+  | { [] }
+  | c = match_case rest = match_case_list_rest { c :: rest }
+  ;
+
+match_case_list_rest:
+  | { [] }
+  | COMMA skip_sep c = match_case rest = match_case_list_rest { c :: rest }
+  | COMMA { [] }
   ;
 
 match_case:
@@ -437,15 +494,21 @@ error_pattern_field:
 
 list_match_pattern:
   | LBRACK skip_sep RBRACK { PList ([], None) }
-  | LBRACK skip_sep items = list_pattern_items RBRACK
+  | LBRACK skip_sep items = list_pattern_items skip_sep RBRACK
     { let (patterns, rest) = items in PList (patterns, rest) }
   ;
 
 list_pattern_items:
-  | rest = list_rest_pattern skip_sep { ([], Some rest) }
-  | pattern = match_pattern skip_sep { ([pattern], None) }
-  | pattern = match_pattern COMMA skip_sep rest = list_pattern_items
-    { let (patterns, rest_name) = rest in (pattern :: patterns, rest_name) }
+  | { ([], None) }
+  | id = list_rest_pattern { ([], Some id) }
+  | p = match_pattern rest = list_pattern_items_rest { (p :: fst rest, snd rest) }
+  ;
+
+list_pattern_items_rest:
+  | { ([], None) }
+  | COMMA skip_sep p = match_pattern rest = list_pattern_items_rest { (p :: fst rest, snd rest) }
+  | COMMA skip_sep id = list_rest_pattern { ([], Some id) }
+  | COMMA { ([], None) }
   ;
 
 list_rest_pattern:
@@ -453,52 +516,85 @@ list_rest_pattern:
   ;
 
 pipeline_expr:
-  | PIPELINE LBRACE skip_sep nodes = pipeline_node_list RBRACE
+  | PIPELINE LBRACE skip_sep nodes = pipeline_node_list skip_sep RBRACE
     { with_loc (PipelineDef nodes) $startpos }
   ;
 
 pipeline_node_list:
   | { [] }
-  | n = pipeline_node skip_sep { [n] }
-  | n = pipeline_node sep skip_sep rest = pipeline_node_list { n :: rest }
+  | n = pipeline_node rest = pipeline_node_list_rest { n :: rest }
+  ;
+
+pipeline_node_list_rest:
+  | { [] }
+  | pipeline_sep_single skip_sep n = pipeline_node rest = pipeline_node_list_rest { n :: rest }
+  | pipeline_sep_single { [] }
+  ;
+
+pipeline_sep_single:
+  | NEWLINE { () }
+  | SEMICOLON { () }
+  ;
+
+pipeline_sep:
+  | NEWLINE { () }
+  | SEMICOLON { () }
+  | pipeline_sep NEWLINE { () }
+  | pipeline_sep SEMICOLON { () }
   ;
 
 pipeline_node:
-  | name = any_ident EQUALS e = expr { (name, e) }
+  | name = any_ident skip_sep EQUALS skip_sep e = expr { (name, e) }
   ;
 
 intent_expr:
-  | INTENT LBRACE skip_sep pairs = intent_field_list RBRACE
+  | INTENT LBRACE skip_sep pairs = intent_field_list skip_sep RBRACE
     { with_loc (IntentDef pairs) $startpos }
   ;
 
 intent_field_list:
   | { [] }
-  | p = intent_field skip_sep { [p] }
-  | p = intent_field COMMA skip_sep rest = intent_field_list { p :: rest }
-  | p = intent_field sep skip_sep rest = intent_field_list { p :: rest }
+  | f = intent_field rest = intent_field_list_rest { f :: rest }
+  ;
+
+intent_field_list_rest:
+  | { [] }
+  | COMMA skip_sep f = intent_field rest = intent_field_list_rest { f :: rest }
+  | pipeline_sep_single skip_sep f = intent_field rest = intent_field_list_rest { f :: rest }
+  | COMMA { [] }
+  | pipeline_sep_single { [] }
   ;
 
 intent_field:
-  | key = any_ident COLON value = expr { (key, value) }
+  | key = any_ident skip_sep COLON skip_sep value = expr { (key, value) }
   ;
 
 bracket_lit:
-  | LBRACK skip_sep items = bracket_items RBRACK
+  | LBRACK skip_sep RBRACK { with_loc (ListLit []) $startpos }
+  | LBRACK skip_sep items = bracket_items skip_sep RBRACK
     { with_loc (build_bracket_literal items) $startpos }
   | LBRACK skip_sep COLON skip_sep RBRACK
     { with_loc (DictLit []) $startpos }
   ;
 
+bracket_items_ne:
+  | b = bracket_item rest = bracket_items_rest { b :: rest }
+  ;
+
 bracket_items:
   | { [] }
-  | i = bracket_item skip_sep { [i] }
-  | i = bracket_item COMMA skip_sep rest = bracket_items { i :: rest }
+  | b = bracket_item rest = bracket_items_rest { b :: rest }
+  ;
+
+bracket_items_rest:
+  | { [] }
+  | COMMA skip_sep b = bracket_item rest = bracket_items_rest { b :: rest }
+  | COMMA { [] }
   ;
 
 bracket_item:
-  | key = any_ident COLON value = expr { BrPair (key, value) }
-  | BANG_BANG name_expr = unary_expr COLON_EQ value = expr
+  | key = any_ident skip_sep COLON skip_sep value = expr { BrPair (key, value) }
+  | BANG_BANG name_expr = unary_expr skip_sep COLON_EQ skip_sep value = expr
     { BrDynamic (with_loc (Call { fn = with_loc (Var "__dynamic_arg__") $startpos;
                                               args = [(None, name_expr); (None, value)] }) $startpos) }
   | e = expr { BrExpr e }
@@ -539,6 +635,12 @@ typ:
   ;
 
 type_args:
-  | t = typ skip_sep { [t] }
-  | t = typ COMMA skip_sep rest = type_args { t :: rest }
+  | { [] }
+  | t = typ rest = type_args_rest { t :: rest }
+  ;
+
+type_args_rest:
+  | { [] }
+  | COMMA skip_sep t = typ rest = type_args_rest { t :: rest }
+  | COMMA { [] }
   ;
