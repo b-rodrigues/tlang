@@ -458,9 +458,17 @@ let register env =
       in
       match (data_v, model_v) with
       | (Some (VDataFrame df), Some (VDict pairs)) ->
-        (match List.assoc_opt "model_type" pairs with
-         | Some (VString "random_forest") -> predict_forest_model df (VDict pairs)
-         | Some (VString "decision_tree") -> predict_tree_model df (VDict pairs)
+        let model_type =
+          match List.assoc_opt "model_type" pairs with
+          | Some (VString s) -> Some s
+          | _ ->
+              (match List.assoc_opt "class" pairs with
+               | Some (VString s) -> Some s
+               | _ -> None)
+        in
+        (match model_type with
+         | Some ("random_forest" | "forest") -> predict_forest_model df (VDict pairs)
+         | Some ("decision_tree" | "tree") -> predict_tree_model df (VDict pairs)
          | _ ->
         (* Extract coefficients and intercept *)
         let coeffs = match List.assoc_opt "coefficients" pairs with

@@ -314,7 +314,16 @@ let read_tree_pmml path =
                 (match parse_segments [] segments with
                  | Ok trees ->
                      let forest = { function_name; target; method_; trees } in
+                     let model_data =
+                       VDict [
+                         ("model_type", VString "random_forest");
+                         ("mining_function", VString function_name);
+                         ("target", (match target with Some t -> VString t | None -> VNull));
+                         ("n_trees", VInt (List.length trees));
+                       ]
+                     in
                      Ok (VDict [
+                       ("_model_data", model_data);
                        ("class", VString "random_forest");
                        ("model_type", VString "random_forest");
                        ("mining_function", VString function_name);
@@ -337,7 +346,16 @@ let read_tree_pmml path =
                 let target = parse_target_from_schema tree_model in
                 (match parse_tree_model ?target tree_model with
                  | Ok tree ->
+                     let model_data =
+                       VDict [
+                         ("model_type", VString "decision_tree");
+                         ("mining_function", VString tree.function_name);
+                         ("target", (match tree.target with Some t -> VString t | None -> VNull));
+                         ("n_trees", VInt 1);
+                       ]
+                     in
                      Ok (VDict [
+                       ("_model_data", model_data);
                        ("class", VString "decision_tree");
                        ("model_type", VString "decision_tree");
                        ("mining_function", VString tree.function_name);
