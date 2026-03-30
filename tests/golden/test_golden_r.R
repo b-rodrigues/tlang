@@ -590,6 +590,10 @@ test_that("PMML: randomForest predictions", {
   compare_csvs("iris_random_forest_predictions")
 })
 
+test_that("PMML: randomForest regression predictions", {
+  compare_csvs("mtcars_random_forest_predictions", tolerance = 1e-4)
+})
+
 # ============================================================================
 # Test Suite 24.1: PMML Random Forest (scikit-learn)
 # ============================================================================

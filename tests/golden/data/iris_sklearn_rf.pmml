@@ -2,7 +2,7 @@
 <PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
 	<Header>
 		<Application name="SkLearn2PMML package" version="0.128.0"/>
-		<Timestamp>2026-03-30T12:42:44Z</Timestamp>
+		<Timestamp>2026-03-30T12:54:18Z</Timestamp>
 	</Header>
 	<MiningBuildTask>
 		<Extension name="repr">PMMLPipeline(steps=[('classifier', RandomForestClassifier(n_estimators=50, random_state=123))])</Extension>
