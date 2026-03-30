@@ -26,20 +26,27 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env) =
     eval_string_env (Printf.sprintf {|m = t_read_pmml("%s")|} (String.escaped pmml_path)) env
   in
-  let (v, _) = eval_string_env {|head(predict(df, m))|} env in
-  let result = Ast.Utils.value_to_string v |> String.trim in
-  let match_found =
-    try
-      let _ = Str.search_forward (Str.regexp "setosa") result 0 in
-      true
-    with _ -> false
-  in
-  if match_found then begin
-    incr pass_count; Printf.printf "  ✓ randomForest predict first label\n"
-  end else begin
-    incr fail_count;
-    Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
-  end;
+  let (v, _) = eval_string_env {|predict(df, m)|} env in
+  (match v with
+   | Ast.VVector arr ->
+       let first = if Array.length arr > 0 then arr.(0) else Ast.VNull in
+       let result = Ast.Utils.value_to_string first |> String.trim in
+       let match_found =
+         try
+           let _ = Str.search_forward (Str.regexp "setosa") result 0 in
+           true
+         with _ -> false
+       in
+       if match_found then begin
+         incr pass_count; Printf.printf "  ✓ randomForest predict first label\n"
+       end else begin
+         incr fail_count;
+         Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
+       end
+   | _ ->
+       let result = Ast.Utils.value_to_string v |> String.trim in
+       incr fail_count;
+       Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result);
 
   let (stats_v, _) = eval_string_env {|fit_stats(m) |> colnames()|} env in
   let stats_cols = Ast.Utils.value_to_string stats_v |> String.trim in
