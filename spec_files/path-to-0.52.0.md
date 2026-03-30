@@ -57,10 +57,10 @@ This document outlines the step-by-step evolution of the T language from the cur
 **Objective**: Strengthen the native model evaluator and PMML support beyond linear models.
 
 - [ ] **Advanced PMML Support**:
-    - [ ] Native evaluation (no external runtime) for **Decision Trees** and **Random Forests**.
+    - [x] Native evaluation (no external runtime) for **Decision Trees** and **Random Forests**.
     - [ ] Native evaluation for **XGBoost** and **LightGBM** (standard PMML exports).
 - [ ] **Predictive Modeling Refactor**:
-    - [ ] Refactor `predict()` to support non-linear model structures.
+    - [x] Refactor `predict()` to support non-linear model structures.
     - [ ] Implement dummy/one-hot encoding for factor columns in **native `lm()`**.
     - **Expected Syntax**:
       ```t

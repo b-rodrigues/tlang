@@ -16,7 +16,7 @@ Instead of replacing your existing R, Python, and Julia workflows, T coordinates
 T's core strength is its **mandatory pipeline architecture**. It treats R scripts, Python models, and Shell commands as first-class nodes in a directed acyclic graph (DAG). T handles the "glue":
 - **Nix-Powered Sandboxing**: Each node runs in its own reproducible environment.
 - **High-performance Data Transfer**: Move DataFrames between R, Python, and T using Apache Arrow IPC via the Nix store.
-- **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML.
+- **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML (linear models, decision trees, random forests).
 
 ```t
 -- A reproducible polyglot pipeline

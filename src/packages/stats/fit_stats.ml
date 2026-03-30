@@ -25,18 +25,215 @@ open Ast
 --# @export
 *)
 
-let extract_stats_row pairs =
-  match List.assoc_opt "_model_data" pairs with
-  | Some (VDict model) ->
-      let get_float key = match List.assoc_opt key model with
-        | Some (VFloat f) -> Some f | _ -> None in
-      let get_int key = match List.assoc_opt key model with
-        | Some (VInt i) -> Some i | _ -> None in
-      Some (get_float, get_int)
+type stats_row = {
+  name: string option;
+  get_float: string -> float option;
+  get_int: string -> int option;
+  get_string: string -> string option;
+}
+
+let value_list = function
+  | VList items -> List.map (fun (_, v) -> v) items
+  | _ -> []
+
+let assoc_string key pairs =
+  match List.assoc_opt key pairs with
+  | Some (VString s) -> Some s
   | _ -> None
+
+let assoc_int key pairs =
+  match List.assoc_opt key pairs with
+  | Some (VInt i) -> Some i
+  | _ -> None
+
+let rec fields_from_predicate v =
+  match v with
+  | VDict pairs ->
+      (match assoc_string "type" pairs with
+       | Some "simple" | Some "set" ->
+           (match assoc_string "field" pairs with Some f -> [f] | None -> [])
+       | Some "compound" ->
+           (match List.assoc_opt "predicates" pairs with
+            | Some preds ->
+                preds
+                |> value_list
+                |> List.concat_map fields_from_predicate
+            | None -> [])
+       | _ -> [])
+  | _ -> []
+
+let rec fields_from_node v =
+  match v with
+  | VDict pairs ->
+      let pred_fields =
+        match List.assoc_opt "predicate" pairs with
+        | Some pred -> fields_from_predicate pred
+        | None -> []
+      in
+      let child_fields =
+        match List.assoc_opt "children" pairs with
+        | Some children ->
+            children
+            |> value_list
+            |> List.concat_map fields_from_node
+        | None -> []
+      in
+      pred_fields @ child_fields
+  | _ -> []
+
+let unique_fields fields =
+  let seen = Hashtbl.create 16 in
+  List.filter (fun f ->
+    if Hashtbl.mem seen f then false else (Hashtbl.add seen f (); true)
+  ) fields
+
+let extract_stats_row pairs =
+  let model_type = assoc_string "model_type" pairs in
+  let model_data = match List.assoc_opt "_model_data" pairs with
+    | Some (VDict model) -> Some model
+    | _ -> None
+  in
+  let extra_int =
+    match model_type with
+    | Some "random_forest" ->
+        let n_trees =
+          match List.assoc_opt "n_trees" pairs with
+          | Some (VInt i) -> Some i
+          | _ ->
+              (match List.assoc_opt "forest" pairs with
+               | Some (VDict forest_pairs) ->
+                   (match List.assoc_opt "trees" forest_pairs with
+                    | Some trees -> Some (List.length (value_list trees))
+                    | _ -> None)
+               | _ -> None)
+        in
+        let n_features =
+          match List.assoc_opt "forest" pairs with
+          | Some (VDict forest_pairs) ->
+              (match List.assoc_opt "trees" forest_pairs with
+               | Some trees ->
+                   let fields =
+                     trees
+                     |> value_list
+                     |> List.concat_map (function
+                        | VDict tree_pairs ->
+                            (match List.assoc_opt "root" tree_pairs with
+                             | Some root -> fields_from_node root
+                             | None -> [])
+                        | _ -> [])
+                   in
+                   Some (List.length (unique_fields fields))
+               | _ -> None)
+          | _ -> None
+        in
+        ("n_trees", n_trees, "n_features", n_features)
+    | Some "decision_tree" ->
+        let n_features =
+          match List.assoc_opt "tree" pairs with
+          | Some (VDict tree_pairs) ->
+              (match List.assoc_opt "root" tree_pairs with
+               | Some root ->
+                   let fields = fields_from_node root |> unique_fields in
+                   Some (List.length fields)
+               | None -> None)
+          | _ -> None
+        in
+        ("n_trees", Some 1, "n_features", n_features)
+    | Some "xgboost" ->
+        let n_trees =
+          match List.assoc_opt "xgb_model" pairs with
+          | Some (VDict xgb_pairs) ->
+              (match List.assoc_opt "models" xgb_pairs with
+               | Some (VList model_entries) ->
+                   let total =
+                     List.fold_left (fun acc (_, entry) ->
+                       match entry with
+                       | VDict entry_pairs ->
+                           (match List.assoc_opt "forest" entry_pairs with
+                            | Some (VDict forest_pairs) ->
+                                (match List.assoc_opt "trees" forest_pairs with
+                                 | Some trees -> acc + List.length (value_list trees)
+                                 | _ -> acc)
+                            | _ -> acc)
+                       | _ -> acc
+                     ) 0 model_entries
+                   in
+                   Some total
+               | _ -> None)
+          | _ -> None
+        in
+        let n_features =
+          match List.assoc_opt "xgb_model" pairs with
+          | Some (VDict xgb_pairs) ->
+              (match List.assoc_opt "models" xgb_pairs with
+               | Some (VList model_entries) ->
+                   let all_fields =
+                     List.concat_map (fun (_, entry) ->
+                       match entry with
+                       | VDict entry_pairs ->
+                           (match List.assoc_opt "forest" entry_pairs with
+                            | Some (VDict forest_pairs) ->
+                                (match List.assoc_opt "trees" forest_pairs with
+                                 | Some trees ->
+                                     trees
+                                     |> value_list
+                                     |> List.concat_map (function
+                                        | VDict tree_pairs ->
+                                            (match List.assoc_opt "root" tree_pairs with
+                                             | Some root -> fields_from_node root
+                                             | None -> [])
+                                        | _ -> [])
+                                 | _ -> [])
+                            | _ -> [])
+                       | _ -> []
+                     ) model_entries
+                   in
+                   Some (List.length (unique_fields all_fields))
+               | _ -> None)
+          | _ -> None
+        in
+        ("n_trees", n_trees, "n_features", n_features)
+    | _ -> ("n_trees", None, "n_features", None)
+  in
+  let get_float key =
+    match model_data with
+    | Some model ->
+        (match List.assoc_opt key model with
+         | Some (VFloat f) -> Some f
+         | _ -> None)
+    | None -> None
+  in
+  let get_int key =
+    let (trees_key, trees_val, feats_key, feats_val) = extra_int in
+    if key = trees_key then trees_val
+    else if key = feats_key then feats_val
+    else
+      match model_data with
+      | Some model ->
+          (match List.assoc_opt key model with
+           | Some (VInt i) -> Some i
+           | _ -> None)
+      | None -> None
+  in
+  let get_string key =
+    match key with
+    | "model_type" -> model_type
+    | "mining_function" -> assoc_string "mining_function" pairs
+    | _ ->
+        (match model_data with
+         | Some model ->
+             (match List.assoc_opt key model with
+              | Some (VString s) -> Some s
+              | _ -> None)
+         | None -> None)
+  in
+  Some { name = None; get_float; get_int; get_string }
 
 let register env =
   let fit_stats_func args _env =
+    match args with
+    | [VError _ as e] -> e
+    | _ ->
     let models = match args with
       | [VList items] -> items
       | [VDict pairs] -> 
@@ -52,9 +249,9 @@ let register env =
     else
       let rows = List.filter_map (fun (name, v) ->
         match v with
-        | VDict pairs -> 
+        | VDict pairs ->
             (match extract_stats_row pairs with
-             | Some (f, i) -> Some (name, f, i)
+             | Some row -> Some { row with name }
              | None -> None)
         | _ -> None
       ) models in
@@ -64,12 +261,15 @@ let register env =
       else
         let n = List.length rows in
         let mk_float_col getter =
-          Arrow_table.FloatColumn (Array.of_list (List.map (fun (_, f, _) -> f getter) rows))
+          Arrow_table.FloatColumn (Array.of_list (List.map (fun row -> row.get_float getter) rows))
         in
         let mk_int_col getter =
-          Arrow_table.FloatColumn (Array.of_list (List.map (fun (_, _, i) -> 
-            match i getter with Some v -> Some (float_of_int v) | None -> None
+          Arrow_table.FloatColumn (Array.of_list (List.map (fun row ->
+            match row.get_int getter with Some v -> Some (float_of_int v) | None -> None
           ) rows))
+        in
+        let mk_string_col getter =
+          Arrow_table.StringColumn (Array.of_list (List.map (fun row -> row.get_string getter) rows))
         in
         
         let columns = [
@@ -85,12 +285,16 @@ let register env =
           ("deviance",      mk_float_col "deviance");
           ("df_residual",   mk_int_col "df_residual");
           ("nobs",          mk_int_col "nobs");
+          ("n_trees",       mk_int_col "n_trees");
+          ("n_features",    mk_int_col "n_features");
+          ("model_type",    mk_string_col "model_type");
+          ("mining_function", mk_string_col "mining_function");
         ] in
         
         (* Add model name column if any models were named in the list *)
         let columns = 
-          if List.exists (fun (name, _, _) -> Option.is_some name) rows then
-            ("model", Arrow_table.StringColumn (Array.of_list (List.map (fun (name, _, _) -> name) rows))) :: columns
+          if List.exists (fun row -> Option.is_some row.name) rows then
+            ("model", Arrow_table.StringColumn (Array.of_list (List.map (fun row -> row.name) rows))) :: columns
           else columns
         in
 

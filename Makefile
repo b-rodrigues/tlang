@@ -33,6 +33,8 @@ golden-expected:
 	@Rscript tests/golden/generate_expected_window.R
 	@Rscript tests/golden/generate_expected_ndarray.R
 	@Rscript tests/golden/generate_expected_chrono.R
+	@echo "=== Generating expected outputs from scikit-learn ==="
+	@python tests/golden/generate_expected_sklearn.py
 
 # Run T tests (T -> CSV)
 # Fail on error

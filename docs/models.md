@@ -1,7 +1,7 @@
 # Statistical Models & Tidy Output
 
 > [!IMPORTANT]
-> **Native Support Note**: $T$ currently provides a native implementation for Linear Models (`lm`) for convenience. For more advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a "Polyglot" approach where models are trained in R or Python nodes and then consumed natively in T via PMML.
+> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a "Polyglot" approach where models are trained in R or Python nodes and then consumed natively in T via PMML.
 
 $T$ treats models as first-class objects that can be summarized and evaluated regardless of which runtime created them.
 
@@ -62,6 +62,7 @@ A convenience function that returns a two-column DataFrame with just `term` and 
 
 ### `fit_stats(model)`
 Returns a single-row DataFrame of model-level statistics (R-squared, AIC, BIC, etc.).
+For PMML decision trees and random forests, this includes tree metadata such as `n_trees`, `n_features`, `model_type`, and `mining_function`.
 
 ```t
 stats = fit_stats(model)
@@ -152,6 +153,8 @@ preds = predict(new_data, model)
 ```
 
 $T$ supports various link functions for GLMs (imported via PMML), including **Logit**, **Probit**, **Log**, **Inverse**, and **Cloglog**.
+
+> **PMML Trees & Boosting**: $T$ can now evaluate PMML-imported **Decision Trees**, **Random Forests**, and **XGBoost (GBTree)** models natively (no external runtime). This includes PMML exports from **scikit-learn** via `sklearn2pmml`. Use `t_read_pmml()` to load the model and `predict(df, model)` to score new data.
 
 ---
 

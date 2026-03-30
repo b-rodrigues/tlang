@@ -12,6 +12,10 @@
 - **`fit_stats()` API Standardization**: Unified model-level statistics on a single, standardized `fit_stats()` function. The function now natively supports lists and dictionaries of models, allowing for effortless aggregation of goodness-of-fit statistics (R², AIC, BIC, etc.) from multiple languages (R, Python, T) into a single tidy T DataFrame.
 - **Test Suite Synchronization**: Updated the internal test suite and golden benchmarks to align with the new `fit_stats()` API.
 - Integration tests in b-rodrigues/t_demos now run on PRs as well.
+- **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
+- **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.
+- **fit_stats() for Forests**: Added tree/forest metadata (model type, number of trees, feature count, mining function) when calling `fit_stats()` on PMML random forests.
+- **PMML XGBoost**: Added native PMML parsing and prediction support for XGBoost (GBTree) models, with golden coverage for sklearn2pmml exports.
 
 ## Version 0.51.2 — Current Stable Release
 
@@ -285,4 +289,3 @@ Version history and roadmap for the T programming language.
 - Changelog (this file)
 - **Model Interchange & PMML**: Documentation for cross-language model support and broom-style outputs for imported models.
 - **Improved Data Inspection**: Enhanced `glimpse()` documentation for quick DataFrame summaries.
-

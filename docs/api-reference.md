@@ -1120,7 +1120,7 @@ Get a single-row DataFrame of model-level statistics. Similar to `broom::glance(
 **Parameters:**
 
 
-- `model` — Linear model object
+- `model` — Model object (linear model, decision tree, or random forest; PMML imports supported)
 
 **Returns:**
 
@@ -1156,7 +1156,7 @@ add_diagnostics(model, data = df)
 
 ### `predict(data, model)`
 
-Perform vectorized prediction on a new DataFrame.
+Perform vectorized prediction on a new DataFrame. Supports linear models as well as PMML decision trees and random forests.
 
 **Parameters:**
 
