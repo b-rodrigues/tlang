@@ -26,6 +26,8 @@ def main() -> None:
         n_estimators=10,
         max_depth=3,
         learning_rate=0.1,
+        min_child_samples=1,
+        min_data_in_bin=1,
         random_state=123,
         verbose=-1
     )
@@ -51,6 +53,8 @@ def main() -> None:
         n_estimators=20,
         max_depth=3,
         learning_rate=0.1,
+        min_child_samples=1,
+        min_data_in_bin=1,
         random_state=123,
         verbose=-1
     )

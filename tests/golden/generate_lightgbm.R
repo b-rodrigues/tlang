@@ -21,7 +21,7 @@ lgb_clf <- lightgbm(
   obj = "binary",
   nrounds = 10,
   verbose = -1,
-  params = list(max_depth = 3, learning_rate = 0.1)
+  params = list(max_depth = 3, learning_rate = 0.1, min_data_in_leaf = 1, min_data_in_bin = 1)
 )
 
 r2pmml(lgb_clf, file.path(data_dir, "iris_lgb_bin.pmml"))
@@ -42,7 +42,7 @@ lgb_reg <- lightgbm(
   obj = "regression",
   nrounds = 20,
   verbose = -1,
-  params = list(max_depth = 3, learning_rate = 0.1)
+  params = list(max_depth = 3, learning_rate = 0.1, min_data_in_leaf = 1, min_data_in_bin = 1)
 )
 
 r2pmml(lgb_reg, file.path(data_dir, "mtcars_lgb_reg.pmml"))
