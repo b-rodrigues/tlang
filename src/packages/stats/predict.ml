@@ -191,7 +191,7 @@ let forest_of_value v =
        | Error msg, _, _ | _, Error msg, _ | _, _, Error msg -> Error msg)
   | _ -> Error "Expected forest model to be a Dict."
 
-let xgb_model_of_value v =
+let boosted_model_of_value v =
   match v with
   | VDict pairs ->
       (match get_string_field "function_name" pairs, get_list_field "models" pairs with
@@ -230,14 +230,14 @@ let xgb_model_of_value v =
                            (match forest_of_value forest_val with
                             | Ok forest -> collect ((rescale_constant, rescale_factor, forest) :: acc) rest
                             | Error msg -> Error msg)
-                       | None -> Error "Missing `forest` in xgboost model entry.")
-                  | _ -> Error "Expected xgboost model entry to be a Dict.")
+                       | None -> Error "Missing `forest` in boosted model entry.")
+                  | _ -> Error "Expected boosted model entry to be a Dict.")
            in
            (match collect [] model_vals with
             | Ok models -> Ok { function_name; target; classes; models }
             | Error msg -> Error msg)
        | Error msg, _ | _, Error msg -> Error msg)
-  | _ -> Error "Expected xgboost model to be a Dict."
+  | _ -> Error "Expected boosted model to be a Dict."
 
 let rec predicate_fields = function
   | PredSimple { field; _ } -> [field]
@@ -544,12 +544,12 @@ let score_to_class classes scores =
         let max_idx = loop 0 s 1 rest in
         class_val max_idx
 
-let predict_xgb_model df model =
+let predict_boosted_model df model =
   match model with
   | VDict pairs ->
-      (match List.assoc_opt "xgb_model" pairs with
+      (match List.assoc_opt "boosted_model" pairs with
        | Some xgb_val ->
-           (match xgb_model_of_value xgb_val with
+           (match boosted_model_of_value xgb_val with
             | Error msg -> Error.make_error TypeError msg
             | Ok xgb ->
                 let fields =
@@ -601,8 +601,8 @@ let predict_xgb_model df model =
                             | _ -> out.(i) <- VNA NAFloat)
                      done;
                      VVector out))
-       | None -> Error.type_error "Function `predict` expects an xgboost model with `xgb_model`.")
-  | _ -> Error.type_error "Function `predict` expects an xgboost model Dict."
+       | None -> Error.type_error "Function `predict` expects a boosted model (xgboost/lightgbm) with `boosted_model`.")
+  | _ -> Error.type_error "Function `predict` expects a boosted model Dict."
 
 let register env =
   Env.add "predict"
@@ -632,7 +632,7 @@ let register env =
         (match model_type with
          | Some ("random_forest" | "forest") -> predict_forest_model df (VDict pairs)
          | Some ("decision_tree" | "tree") -> predict_tree_model df (VDict pairs)
-         | Some "xgboost" -> predict_xgb_model df (VDict pairs)
+         | Some ("xgboost" | "lightgbm") -> predict_boosted_model df (VDict pairs)
          | _ ->
         (* Extract coefficients and intercept *)
         let coeffs = match List.assoc_opt "coefficients" pairs with

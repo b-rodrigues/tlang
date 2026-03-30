@@ -139,9 +139,9 @@ let extract_stats_row pairs =
           | _ -> None
         in
         ("n_trees", Some 1, "n_features", n_features)
-    | Some "xgboost" ->
+    | Some ("xgboost" | "lightgbm") ->
         let n_trees =
-          match List.assoc_opt "xgb_model" pairs with
+          match List.assoc_opt "boosted_model" pairs with
           | Some (VDict xgb_pairs) ->
               (match List.assoc_opt "models" xgb_pairs with
                | Some (VList model_entries) ->
@@ -163,7 +163,7 @@ let extract_stats_row pairs =
           | _ -> None
         in
         let n_features =
-          match List.assoc_opt "xgb_model" pairs with
+          match List.assoc_opt "boosted_model" pairs with
           | Some (VDict xgb_pairs) ->
               (match List.assoc_opt "models" xgb_pairs with
                | Some (VList model_entries) ->

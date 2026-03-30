@@ -460,20 +460,21 @@ let read_tree_pmml path =
              | _ -> None
            in
            (match algorithm_name with
-            | Some name when contains_substring name "xgboost" ->
+            | Some name when contains_substring name "xgboost" || contains_substring name "lightgbm" ->
                 (match parse_xgboost_pmml root mining_model with
                  | Ok xgb ->
+                     let model_type = if contains_substring name "lightgbm" then "lightgbm" else "xgboost" in
                      Ok (VDict [
                        ("_model_data", VDict [
-                         ("model_type", VString "xgboost");
+                         ("model_type", VString model_type);
                          ("mining_function", VString xgb.function_name);
                          ("target", (match xgb.target with Some t -> VString t | None -> VNull));
                        ]);
-                       ("class", VString "xgboost");
-                       ("model_type", VString "xgboost");
+                       ("class", VString model_type);
+                       ("model_type", VString model_type);
                        ("mining_function", VString xgb.function_name);
                        ("target", (match xgb.target with Some t -> VString t | None -> VNull));
-                       ("xgb_model", xgb_model_to_value xgb);
+                       ("boosted_model", xgb_model_to_value xgb);
                        ("_display_keys", VList [
                          (None, VString "class");
                          (None, VString "model_type");
@@ -574,18 +575,18 @@ let read_tree_pmml path =
     Extracts coefficients, standard errors, and model stats into a full T linear model object. *)
 let read_pmml path =
   try
-    let is_xgboost =
+    let is_boosted =
       match parse_xml path with
       | Some root ->
           (match find_first "MiningModel" root with
            | Some (Elem (_, attrs, _)) ->
                (match find_attr "algorithmName" attrs with
-                | Some name -> contains_substring name "xgboost"
+                | Some name -> contains_substring name "xgboost" || contains_substring name "lightgbm"
                 | None -> false)
            | _ -> false)
       | None -> false
     in
-    if is_xgboost then
+    if is_boosted then
       (match read_tree_pmml path with
        | Ok v -> Ok v
        | Error msg -> Error msg)

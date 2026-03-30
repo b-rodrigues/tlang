@@ -41,6 +41,7 @@
             jsonlite
             arrow
             r2pmml
+            lightgbm
             faraway
             MASS
             forcats
