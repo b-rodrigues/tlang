@@ -12,7 +12,7 @@ Statistical summaries and models.
 | `cor(x, y)` | Pearson correlation coefficient |
 | `lm(data, formula)` | Linear regression model object |
 | `summary(model)` | Tidy coefficients table (like `broom::tidy`) |
-| `fit_stats(model)` | Goodness-of-fit statistics (like `broom::glance`) |
+| `fit_stats(model)` | Goodness-of-fit statistics (like `broom::fit_stats`) |
 | `add_diagnostics(model, data)` | Augment data with diagnostics (like `broom::augment`) |
 | `min(x)` | Minimum value |
 | `max(x)` | Maximum value |

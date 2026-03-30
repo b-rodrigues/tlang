@@ -1,22 +1,25 @@
 # fit_stats
 
-Model Fit Statistics
+Model Goodness-of-Fit Statistics
 
-Returns a one-row DataFrame containing model-level statistics (R-squared, AIC, etc.).
+Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC). Supports single model objects or labeled collections of models for comparison.  When passed a list or dictionary of models, it stacks the results into a single DataFrame, automatically adding a 'model' column if labels are present.
 
 ## Parameters
 
-- **model** (`Model`): The model object.
+- **x** (`Model`): | List[Model] | Dict[String, Model] The model(s) to inspect.
 
 
 ## Returns
 
-Model statistics.
+A tidy one-row-per-model summary of goodness-of-fit.
 
 ## Examples
 
 ```t
-fit_stats(model)
+m1 = lm(mpg ~ wt, data = mtcars)
+fit_stats(m1)
+m2 = lm(mpg ~ hp + wt, data = mtcars)
+fit_stats([Model_1: m1, Model_2 = m2])
 ```
 
 ## See Also

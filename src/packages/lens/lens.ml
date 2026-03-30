@@ -6,7 +6,9 @@ open Ast
 --# Lenses provide a way to get and set values in nested structures.
 --# Supports column-based lenses for DataFrames and Dicts.
 --#
+--# @name lens
 --# @family lens
+--# @export
 *)
 
 let over_val ~eval_call env_ref lens data func =

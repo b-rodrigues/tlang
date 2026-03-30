@@ -141,7 +141,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     {|"lens"|};
   test "package_info lens functions"
     {|length(package_info("lens").functions)|}
-    "11";
+    "12";
   test "package_info non-string"
     "package_info(42)"
     {|Error(TypeError: "Function `package_info` expects a string argument.")|};

@@ -42,9 +42,11 @@
 | [char_at](char_at.html) | Get character at index |
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
 | [coef](coef.html) | Model Coefficients |
+| [col_lens](col_lens.html) | Create a Column Lens |
 | [colnames](colnames.html) | Get column names |
 | [compare](compare.html) | Compare Models |
 | [complete](complete.html) | Complete a data frame |
+| [compose](compose.html) | Compose Lenses |
 | [conf_int](conf_int.html) | Confidence Intervals for Model Coefficients |
 | [contains](contains.html) | Check if string contains substring |
 | [cor](cor.html) | Correlation |
@@ -76,12 +78,15 @@
 | [downstream_of](downstream_of.html) | Extract Downstream Subgraph |
 | [drop_na](drop_na.html) | Remove rows with missing values |
 | [ends_with](ends_with.html) | Check if string ends with suffix |
+| [enquo](enquo.html) | Capture a function argument's expression (non-standard evaluation) |
+| [enquos](enquos.html) | Capture variadic argument expressions (non-standard evaluation) |
 | [env](env.html) | Get environment variable |
+| [env_var_lens](env_var_lens.html) | Pipeline Env Var Lens |
 | [error](error.html) | Raise Error |
 | [error_code](error_code.html) | Get error code |
 | [error_context](error_context.html) | Get error context |
 | [error_message](error_message.html) | Get error message |
-| [eval](eval.html) | Evaluate a quoted expression |
+| [eval](eval.html) | Evaluate a quoted expression or quosure |
 | [everything](everything.html) | Select every column |
 | [exit](exit.html) | Exit the interpreter |
 | [exp](exp.html) | Exponential function |
@@ -89,7 +94,7 @@
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [expr](expr.html) | Capture an expression |
-| [exprs](exprs.html) | Capture multiple expressions |
+| [exprs](exprs.html) |  |
 | [factor](factor.html) | Create factor values |
 | [fct](fct.html) | Create factors in first-seen order |
 | [fct_c](fct_c.html) | Concatenate factor vectors |
@@ -108,8 +113,9 @@
 | [file_exists](file_exists.html) | Check if file exists |
 | [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
+| [filter_lens](filter_lens.html) | Filter Lens |
 | [filter_node](filter_node.html) | Filter Pipeline Nodes |
-| [fit_stats](fit_stats.html) | Model Fit Statistics |
+| [fit_stats](fit_stats.html) | Model Goodness-of-Fit Statistics |
 | [fivenum](fivenum.html) | Five-number summary |
 | [floor](floor.html) | Floor function |
 | [floor_date](floor_date.html) | Round dates down |
@@ -126,6 +132,7 @@
 | [help](help.html) | Display documentation for a function |
 | [hour](hour.html) | Extract the hour |
 | [huber_loss](huber_loss.html) | Huber loss |
+| [idx_lens](idx_lens.html) | Index Lens |
 | [ifelse](ifelse.html) | Vectorized If-Else |
 | [index_of](index_of.html) | Find index of substring |
 | [inner_join](inner_join.html) | Join matching rows |
@@ -155,6 +162,7 @@
 | [lead](lead.html) | Lead values |
 | [left_join](left_join.html) | Join rows from the left table |
 | [length](length.html) | Get length |
+| [lens](lens.html) | Lens Library |
 | [levels](levels.html) | Get factor levels |
 | [list_files](list_files.html) | List files in directory |
 | [list_logs](list_logs.html) | List Pipeline Logs |
@@ -175,6 +183,7 @@
 | [min_rank](min_rank.html) | Minimum Rank |
 | [minute](minute.html) | Extract the minute |
 | [mode](mode.html) | Mode |
+| [modify](modify.html) | Multiple Lens Transformations |
 | [month](month.html) | Extract or label the month |
 | [mutate](mutate.html) | Mutate DataFrame |
 | [mutate_node](mutate_node.html) | Mutate Pipeline Node Metadata |
@@ -192,11 +201,13 @@
 | [nesting](nesting.html) | Helper to find combinations present in data |
 | [nobs](nobs.html) | Number of Observations |
 | [node](node.html) | Configure a Pipeline Node |
+| [node_lens](node_lens.html) | Pipeline Node Lens |
 | [normalize](normalize.html) | Normalize values |
 | [now](now.html) | Get the current datetime |
 | [nrow](nrow.html) | Number of rows |
 | [ntile](ntile.html) | N-tiles |
 | [ordered](ordered.html) | Create ordered factors |
+| [over](over.html) | Transform Focused Value |
 | [package_info](package_info.html) | Get package information |
 | [packages](packages.html) | List available packages |
 | [parallel](parallel.html) | Combine Pipelines in Parallel |
@@ -245,10 +256,13 @@
 | [pyn](pyn.html) | Configure a Python Pipeline Node |
 | [quantile](quantile.html) | Quantiles |
 | [quarter](quarter.html) | Extract the quarter |
+| [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
+| [quos](quos.html) | Capture multiple expressions with their lexical environment (quosures) |
 | [range](range.html) | Range |
 | [read_arrow](read_arrow.html) | Read Arrow IPC file |
 | [read_csv](read_csv.html) | Read CSV file |
 | [read_file](read_file.html) | Read file contents |
+| [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
 | [read_parquet](read_parquet.html) | Read Parquet file |
 | [rebuild_node](rebuild_node.html) | Rebuild a Pipeline Node |
@@ -260,9 +274,11 @@
 | [reshape](reshape.html) | Reshape an NDArray |
 | [residuals](residuals.html) | Model Residuals |
 | [rewire](rewire.html) | Rewire a Node's Dependencies |
+| [rm](rm.html) | Remove objects from the environment |
 | [rn](rn.html) | Configure an R Pipeline Node |
 | [round](round.html) | Round values |
 | [round_date](round_date.html) | Round dates to the nearest unit |
+| [row_lens](row_lens.html) | Row Lens |
 | [row_number](row_number.html) | Row Number |
 | [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
@@ -280,6 +296,7 @@
 | [separate_rows](separate_rows.html) | Split delimited values into rows |
 | [seq](seq.html) | Generate a sequence of integers |
 | [serialize](serialize.html) | Serialize Value |
+| [set](set.html) | Set Focused Value |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
 | [sigma](sigma.html) | Residual Standard Deviation |
@@ -320,6 +337,7 @@
 | [summary](summary.html) | Model Summary |
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
 | [t_doc](t_doc.html) | Generate Documentation |
+| [t_make](t_make.html) | Build Pipeline Internally |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
 | [t_read_pmml](t_read_pmml.html) | Read a PMML model file |
 | [t_run](t_run.html) | Run a T script |
@@ -347,6 +365,7 @@
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
+| [unknown](unknown.html) | Lens Library |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
