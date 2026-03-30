@@ -10,14 +10,14 @@ expected_dir <- file.path(base_dir, "tests", "golden", "expected")
 
 iris_df <- read_csv(file.path(data_dir, "iris.csv"))
 # LightGBM likes clean names
-iris_df <- iris_df %>% rename_all(~gsub("\\.", "_", .))
-iris_train <- iris_df %>% filter(Species != "virginica")
-iris_train$Species <- as.integer(iris_train$Species == "setosa")
+iris_df <- iris_df %>% rename_all(~tolower(gsub("\\.", "_", .)))
+iris_train <- iris_df %>% filter(species != "virginica")
+iris_train$species <- as.integer(iris_train$species == "setosa")
 
 # LightGBM (binary classification)
 lgb_clf <- lightgbm(
-  data = as.matrix(iris_train %>% select(-Species)),
-  label = iris_train$Species,
+  data = as.matrix(iris_train %>% select(-species)),
+  label = iris_train$species,
   obj = "binary",
   nrounds = 10,
   verbose = -1,
@@ -27,12 +27,12 @@ lgb_clf <- lightgbm(
 r2pmml(lgb_clf, file.path(data_dir, "iris_lgb_bin.pmml"))
 
 # Predictions
-iris_preds <- predict(lgb_clf, as.matrix(iris_df %>% select(-Species) %>% rename_all(~gsub("\\.", "_", .))))
+iris_preds <- predict(lgb_clf, as.matrix(iris_df %>% select(-species)))
 write_csv(data.frame(pred = as.integer(iris_preds > 0.5)), file.path(expected_dir, "iris_lgb_bin_predictions.csv"))
 
 # LightGBM (regression)
 mtcars_df <- read_csv(file.path(data_dir, "mtcars.csv")) %>% select_if(is.numeric)
-mtcars_df <- mtcars_df %>% rename_all(~gsub("\\.", "_", .))
+mtcars_df <- mtcars_df %>% rename_all(~tolower(gsub("\\.", "_", .)))
 mtcars_y <- mtcars_df$mpg
 mtcars_x <- mtcars_df %>% select(-mpg)
 

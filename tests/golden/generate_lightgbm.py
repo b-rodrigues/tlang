@@ -17,9 +17,9 @@ def main() -> None:
     mtcars_path = os.path.join(data_dir, "mtcars.csv")
 
     iris = pd.read_csv(iris_path)
-    iris_x = iris.drop(columns=["Species"])
-    iris_x.columns = [c.replace(".", "_") for c in iris_x.columns] # LightGBM likes clean names
-    iris_y = (iris["Species"] == "setosa").astype(int)
+    iris.columns = [c.replace(".", "_").lower() for c in iris.columns] # LightGBM likes clean names
+    iris_x = iris.drop(columns=["species"])
+    iris_y = (iris["species"] == "setosa").astype(int)
 
     # LightGBM (binary classification)
     lgb_clf = LGBMClassifier(
@@ -47,7 +47,7 @@ def main() -> None:
     mtcars_numeric = mtcars.select_dtypes(include=["number"])
     mtcars_y = mtcars_numeric["mpg"]
     mtcars_x = mtcars_numeric.drop(columns=["mpg"])
-    mtcars_x.columns = [c.replace(".", "_") for c in mtcars_x.columns]
+    mtcars_x.columns = [c.replace(".", "_").lower() for c in mtcars_x.columns]
 
     lgb_reg = LGBMRegressor(
         n_estimators=20,
