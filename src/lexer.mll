@@ -26,8 +26,12 @@ rule token = parse
      doesn't terminate the expression when immediately followed by |> . *)
   | '\n' [' ' '\t']* "?|>" { Lexing.new_line lexbuf; MAYBE_PIPE }
   | '\n' [' ' '\t']* "|>" { Lexing.new_line lexbuf; PIPE }
-  | '\n' [' ' '\t']* '}' { Lexing.new_line lexbuf; RBRACE_TRAIL }
-  | ';' [' ' '\t']* '}' { RBRACE_TRAIL }
+  | ('\n' [' ' '\t']*)+ '}' {
+      let s = Lexing.lexeme lexbuf in
+      String.iter (fun c -> if c = '\n' then Lexing.new_line lexbuf) s;
+      RBRACE_TRAIL
+    }
+  | (';' [' ' '\t']*)+ '}' { RBRACE_TRAIL }
   | '\n'            { Lexing.new_line lexbuf; NEWLINE }
   | ',' [' ' '\t']* "..." { COMMA_DOTDOTDOT }
   | ';'             { SEMICOLON }
