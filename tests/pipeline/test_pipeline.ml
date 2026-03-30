@@ -287,9 +287,7 @@ p_cross = pipeline {
   c = node(command = <{ b + 1 }>, runtime = Python, serializer = write_pkl, deserializer = read_pkl, functions = ["my_utils.py", "my_serializer.py"], include = "data.csv")
 }
   |} in
-  Printf.printf "  DEBUG: Parsing explicit_node_code...\n";
   let (_, env_cross) = eval_string_env explicit_node_code (Packages.init_env ()) in
-  Printf.printf "  DEBUG: Parsed successfully.\n";
   let (v_cross, _) = eval_string_env "pipeline_nodes(p_cross)" env_cross in
   let cross_nodes = Ast.Utils.value_to_string v_cross in
   if cross_nodes = "[\"a\", \"b\", \"c\"]" then begin

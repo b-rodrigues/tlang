@@ -499,7 +499,6 @@ list_match_pattern:
   ;
 
 list_pattern_items:
-  | { ([], None) }
   | id = list_rest_pattern { ([], Some id) }
   | p = match_pattern rest = list_pattern_items_rest { (p :: fst rest, snd rest) }
   ;
@@ -571,7 +570,7 @@ intent_field:
 
 bracket_lit:
   | LBRACK skip_sep RBRACK { with_loc (ListLit []) $startpos }
-  | LBRACK skip_sep items = bracket_items skip_sep RBRACK
+  | LBRACK skip_sep items = bracket_items_ne skip_sep RBRACK
     { with_loc (build_bracket_literal items) $startpos }
   | LBRACK skip_sep COLON skip_sep RBRACK
     { with_loc (DictLit []) $startpos }
@@ -635,7 +634,6 @@ typ:
   ;
 
 type_args:
-  | { [] }
   | t = typ rest = type_args_rest { t :: rest }
   ;
 

@@ -79,8 +79,7 @@
 )
 
 (menhir
- (modules parser)
- (flags --explain --dump))
+ (modules parser))
 
 (ocamllex lexer)
 (executable
