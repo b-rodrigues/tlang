@@ -15,6 +15,7 @@
 - **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
 - **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.
 - **fit_stats() for Forests**: Added tree/forest metadata (model type, number of trees, feature count, mining function) when calling `fit_stats()` on PMML random forests.
+- **PMML XGBoost**: Added native PMML parsing and prediction support for XGBoost (GBTree) models, with golden coverage for sklearn2pmml exports.
 
 ## Version 0.51.2 — Current Stable Release
 

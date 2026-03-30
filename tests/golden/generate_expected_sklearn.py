@@ -5,6 +5,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn2pmml import sklearn2pmml
 from sklearn2pmml.pipeline import PMMLPipeline
+from xgboost import XGBClassifier, XGBRegressor
 
 
 def main() -> None:
@@ -48,6 +49,48 @@ def main() -> None:
     mtcars_preds = reg_pipe.predict(mtcars_x)
     pd.DataFrame({"pred": mtcars_preds}).to_csv(
         os.path.join(expected_dir, "mtcars_sklearn_rf_predictions.csv"),
+        index=False,
+    )
+
+    # XGBoost (binary classification)
+    iris_bin_y = (iris["Species"] == "setosa").astype(int)
+    xgb_clf = XGBClassifier(
+        n_estimators=10,
+        max_depth=3,
+        learning_rate=0.1,
+        subsample=1.0,
+        colsample_bytree=1.0,
+        eval_metric="logloss",
+        random_state=123,
+    )
+    xgb_clf_pipe = PMMLPipeline([("classifier", xgb_clf)])
+    xgb_clf_pipe.fit(iris_x, iris_bin_y)
+
+    sklearn2pmml(xgb_clf_pipe, os.path.join(data_dir, "iris_xgb_bin.pmml"), with_repr=True)
+
+    xgb_clf_preds = xgb_clf_pipe.predict(iris_x)
+    pd.DataFrame({"pred": xgb_clf_preds}).to_csv(
+        os.path.join(expected_dir, "iris_xgb_bin_predictions.csv"),
+        index=False,
+    )
+
+    # XGBoost (regression)
+    xgb_reg = XGBRegressor(
+        n_estimators=25,
+        max_depth=3,
+        learning_rate=0.1,
+        subsample=1.0,
+        colsample_bytree=1.0,
+        random_state=123,
+    )
+    xgb_reg_pipe = PMMLPipeline([("regressor", xgb_reg)])
+    xgb_reg_pipe.fit(mtcars_x, mtcars_y)
+
+    sklearn2pmml(xgb_reg_pipe, os.path.join(data_dir, "mtcars_xgb_reg.pmml"), with_repr=True)
+
+    xgb_reg_preds = xgb_reg_pipe.predict(mtcars_x)
+    pd.DataFrame({"pred": xgb_reg_preds}).to_csv(
+        os.path.join(expected_dir, "mtcars_xgb_reg_predictions.csv"),
         index=False,
     )
 

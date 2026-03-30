@@ -607,6 +607,18 @@ test_that("PMML: sklearn random forest (regression) predictions", {
 })
 
 # ============================================================================
+# Test Suite 24.2: PMML XGBoost (scikit-learn)
+# ============================================================================
+
+test_that("PMML: xgboost binary predictions", {
+  compare_csvs("iris_xgb_bin_predictions")
+})
+
+test_that("PMML: xgboost regression predictions", {
+  compare_csvs("mtcars_xgb_reg_predictions", tolerance = 1e-4)
+})
+
+# ============================================================================
 # Test Suite 25: CHRONO
 # ============================================================================
 

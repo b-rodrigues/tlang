@@ -139,6 +139,60 @@ let extract_stats_row pairs =
           | _ -> None
         in
         ("n_trees", Some 1, "n_features", n_features)
+    | Some "xgboost" ->
+        let n_trees =
+          match List.assoc_opt "xgb_model" pairs with
+          | Some (VDict xgb_pairs) ->
+              (match List.assoc_opt "models" xgb_pairs with
+               | Some (VList model_entries) ->
+                   let total =
+                     List.fold_left (fun acc (_, entry) ->
+                       match entry with
+                       | VDict entry_pairs ->
+                           (match List.assoc_opt "forest" entry_pairs with
+                            | Some (VDict forest_pairs) ->
+                                (match List.assoc_opt "trees" forest_pairs with
+                                 | Some trees -> acc + List.length (value_list trees)
+                                 | _ -> acc)
+                            | _ -> acc)
+                       | _ -> acc
+                     ) 0 model_entries
+                   in
+                   Some total
+               | _ -> None)
+          | _ -> None
+        in
+        let n_features =
+          match List.assoc_opt "xgb_model" pairs with
+          | Some (VDict xgb_pairs) ->
+              (match List.assoc_opt "models" xgb_pairs with
+               | Some (VList model_entries) ->
+                   let all_fields =
+                     List.concat_map (fun (_, entry) ->
+                       match entry with
+                       | VDict entry_pairs ->
+                           (match List.assoc_opt "forest" entry_pairs with
+                            | Some (VDict forest_pairs) ->
+                                (match List.assoc_opt "trees" forest_pairs with
+                                 | Some trees ->
+                                     trees
+                                     |> value_list
+                                     |> List.concat_map (function
+                                        | VDict tree_pairs ->
+                                            (match List.assoc_opt "root" tree_pairs with
+                                             | Some root -> fields_from_node root
+                                             | None -> [])
+                                        | _ -> [])
+                                 | _ -> [])
+                            | _ -> [])
+                       | _ -> []
+                     ) model_entries
+                   in
+                   Some (List.length (unique_fields all_fields))
+               | _ -> None)
+          | _ -> None
+        in
+        ("n_trees", n_trees, "n_features", n_features)
     | _ -> ("n_trees", None, "n_features", None)
   in
   let get_float key =

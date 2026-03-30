@@ -44,6 +44,13 @@ type pmml_forest = {
   trees: pmml_tree list;
 }
 
+type pmml_xgb_model = {
+  function_name: string;
+  target: string option;
+  classes: string list;
+  models: (float * float * pmml_forest) list; (* rescale_constant, rescale_factor, forest *)
+}
+
 let parse_xml path =
   let ic = open_in path in
   Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
@@ -81,6 +88,18 @@ let parse_xml path =
 
 let find_attr name attrs =
   List.find_map (fun (n, v) -> if n = name then Some v else None) attrs
+
+let contains_substring hay needle =
+  let hay = String.lowercase_ascii hay in
+  let needle = String.lowercase_ascii needle in
+  let hlen = String.length hay in
+  let nlen = String.length needle in
+  let rec loop i =
+    if i + nlen > hlen then false
+    else if String.sub hay i nlen = needle then true
+    else loop (i + 1)
+  in
+  if nlen = 0 then true else loop 0
 
 let get_attr name attrs =
   match find_attr name attrs with
@@ -225,6 +244,29 @@ let parse_target_from_schema node =
       loop children
   | _ -> None
 
+let parse_target_values node target_name =
+  let rec find_datafield = function
+    | [] -> None
+    | Elem ("DataField", attrs, children) :: rest ->
+        (match find_attr "name" attrs with
+         | Some name when name = target_name -> Some children
+         | _ -> find_datafield rest)
+    | _ :: rest -> find_datafield rest
+  in
+  match node with
+  | Elem ("PMML", _, children) ->
+      (match find_first "DataDictionary" (Elem ("PMML", [], children)) with
+       | Some (Elem (_, _, dd_children)) ->
+           (match find_datafield dd_children with
+            | Some df_children ->
+                df_children
+                |> List.filter_map (function
+                  | Elem ("Value", attrs, _) -> find_attr "value" attrs
+                  | _ -> None)
+            | None -> [])
+       | _ -> [])
+  | _ -> []
+
 let tree_to_value (tree : pmml_tree) =
   let rec predicate_to_value = function
     | PredTrue -> VDict [("type", VString "true")]
@@ -278,68 +320,225 @@ let forest_to_value (forest : pmml_forest) =
     ("trees", VList (List.map (fun t -> (None, tree_to_value t)) forest.trees));
   ]
 
+let xgb_model_to_value (model : pmml_xgb_model) =
+  let model_values =
+    model.models
+    |> List.map (fun (rescale_constant, rescale_factor, forest) ->
+      let base = [
+        ("rescale_constant", VFloat rescale_constant);
+        ("rescale_factor", VFloat rescale_factor);
+        ("forest", forest_to_value forest);
+      ] in
+      (None, VDict base))
+  in
+  VDict [
+    ("function_name", VString model.function_name);
+    ("target", (match model.target with Some t -> VString t | None -> VNull));
+    ("classes", VList (List.map (fun v -> (None, VString v)) model.classes));
+    ("models", VList model_values);
+  ]
+
+let parse_targets_rescale node =
+  match find_first "Targets" node with
+  | Some (Elem (_, _, targets_children)) ->
+      (match List.find_opt (function Elem ("Target", _, _) -> true | _ -> false) targets_children with
+       | Some (Elem (_, attrs, _)) ->
+           let rescale_constant =
+             match find_attr "rescaleConstant" attrs with
+             | Some v -> (match get_float_opt v with Some f -> f | None -> 0.0)
+             | None -> 0.0
+           in
+           let rescale_factor =
+             match find_attr "rescaleFactor" attrs with
+             | Some v -> (match get_float_opt v with Some f -> f | None -> 1.0)
+             | None -> 1.0
+           in
+           (rescale_constant, rescale_factor)
+       | _ -> (0.0, 1.0))
+  | _ -> (0.0, 1.0)
+
+let parse_xgboost_pmml root mining_model =
+  let target = parse_target_from_schema mining_model in
+  let target_name = match target with Some t -> t | None -> "" in
+  let classes = if target_name = "" then [] else parse_target_values root target_name in
+  let function_name =
+    match mining_model with
+    | Elem (_, attrs, _) -> (match find_attr "functionName" attrs with Some s -> s | None -> "regression")
+    | _ -> "regression"
+  in
+  let segmentation =
+    match mining_model with
+    | Elem (_, _, children) ->
+        (match List.find_opt (function Elem ("Segmentation", _, _) -> true | _ -> false) children with
+         | Some seg -> Some seg
+         | None -> find_first "Segmentation" mining_model)
+    | _ -> find_first "Segmentation" mining_model
+  in
+  let segmentation =
+    match segmentation with
+    | Some _ -> segmentation
+    | None ->
+        (match find_first "Segmentation" root with
+         | Some seg -> Some seg
+         | None ->
+             (match find_all "Segmentation" root with
+              | seg :: _ -> Some seg
+              | [] -> None))
+  in
+  let parse_sum_forest node =
+    let rescale_constant, rescale_factor = parse_targets_rescale node in
+    let segmentation = find_first "Segmentation" node in
+    match segmentation with
+    | Some (Elem (_, attrs, seg_children)) ->
+        let method_ = match find_attr "multipleModelMethod" attrs with Some s -> s | None -> "sum" in
+        let segments =
+          seg_children
+          |> List.filter (function Elem ("Segment", _, _) -> true | _ -> false)
+        in
+        let rec parse_segments acc = function
+          | [] -> Ok (List.rev acc)
+          | Elem ("Segment", _, children) :: rest ->
+              let tree =
+                match List.find_opt (function Elem ("TreeModel", _, _) -> true | _ -> false) children with
+                | Some t -> t
+                | None -> Elem ("TreeModel", [], [])
+              in
+              (match parse_tree_model ?target tree with
+               | Ok tm -> parse_segments (tm :: acc) rest
+               | Error msg -> Error msg)
+          | _ :: rest -> parse_segments acc rest
+        in
+        (match parse_segments [] segments with
+         | Ok trees ->
+             let forest = { function_name = "regression"; target; method_; trees } in
+             Ok (rescale_constant, rescale_factor, forest)
+         | Error msg -> Error msg)
+    | _ -> Error "PMML Parse Error: <Segmentation> missing in XGBoost MiningModel."
+  in
+  let parse_model_chain seg_children =
+    let segments =
+      seg_children
+      |> List.filter (function Elem ("Segment", _, _) -> true | _ -> false)
+    in
+    let rec parse_segments acc = function
+      | [] -> Ok (List.rev acc)
+      | Elem ("Segment", _, children) :: rest ->
+          (match List.find_opt (function Elem ("MiningModel", _, _) -> true | _ -> false) children with
+           | Some sub_model ->
+               (match parse_sum_forest sub_model with
+                | Ok model -> parse_segments (model :: acc) rest
+                | Error msg -> Error msg)
+           | None -> parse_segments acc rest)
+      | _ :: rest -> parse_segments acc rest
+    in
+    parse_segments [] segments
+  in
+  match segmentation with
+  | Some (Elem (_, attrs, seg_children)) ->
+      let method_ = match find_attr "multipleModelMethod" attrs with Some s -> s | None -> "sum" in
+      (match method_ with
+       | "modelChain" ->
+           (match parse_model_chain seg_children with
+            | Ok models ->
+                Ok { function_name; target; classes; models }
+            | Error msg -> Error msg)
+       | _ ->
+           (match parse_sum_forest mining_model with
+            | Ok model -> Ok { function_name; target; classes; models = [model] }
+            | Error msg -> Error msg))
+  | _ -> Error "PMML Parse Error: <Segmentation> missing in XGBoost MiningModel."
+
 let read_tree_pmml path =
   match parse_xml path with
   | None -> Error "PMML Parse Error: Empty or invalid PMML document."
   | Some root ->
       (match find_first "MiningModel" root with
        | Some mining_model ->
-           let target = parse_target_from_schema mining_model in
-           let function_name =
+           let algorithm_name =
              match mining_model with
-             | Elem (_, attrs, _) -> (match find_attr "functionName" attrs with Some s -> s | None -> "classification")
-             | _ -> "classification"
+             | Elem (_, attrs, _) -> find_attr "algorithmName" attrs
+             | _ -> None
            in
-           let segmentation = find_first "Segmentation" mining_model in
-           (match segmentation with
-            | Some (Elem (_, attrs, seg_children)) ->
-                let method_ = match find_attr "multipleModelMethod" attrs with Some s -> s | None -> "majorityVote" in
-                let segments =
-                  seg_children
-                  |> List.filter (function Elem ("Segment", _, _) -> true | _ -> false)
-                in
-                let rec parse_segments acc = function
-                  | [] -> Ok (List.rev acc)
-                  | Elem ("Segment", _, children) :: rest ->
-                      let tree =
-                        match List.find_opt (function Elem ("TreeModel", _, _) -> true | _ -> false) children with
-                        | Some t -> t
-                        | None -> Elem ("TreeModel", [], [])
-                      in
-                      (match parse_tree_model ?target tree with
-                       | Ok tm -> parse_segments (tm :: acc) rest
-                       | Error msg -> Error msg)
-                  | _ :: rest -> parse_segments acc rest
-                in
-                (match parse_segments [] segments with
-                 | Ok trees ->
-                     let forest = { function_name; target; method_; trees } in
-                     let model_data =
-                       VDict [
-                         ("model_type", VString "random_forest");
-                         ("mining_function", VString function_name);
-                         ("target", (match target with Some t -> VString t | None -> VNull));
-                         ("n_trees", VInt (List.length trees));
-                       ]
-                     in
+           (match algorithm_name with
+            | Some name when contains_substring name "xgboost" ->
+                (match parse_xgboost_pmml root mining_model with
+                 | Ok xgb ->
                      Ok (VDict [
-                       ("_model_data", model_data);
-                       ("class", VString "random_forest");
-                       ("model_type", VString "random_forest");
-                       ("mining_function", VString function_name);
-                       ("target", (match target with Some t -> VString t | None -> VNull));
-                       ("n_trees", VInt (List.length trees));
-                       ("forest", forest_to_value forest);
+                       ("_model_data", VDict [
+                         ("model_type", VString "xgboost");
+                         ("mining_function", VString xgb.function_name);
+                         ("target", (match xgb.target with Some t -> VString t | None -> VNull));
+                       ]);
+                       ("class", VString "xgboost");
+                       ("model_type", VString "xgboost");
+                       ("mining_function", VString xgb.function_name);
+                       ("target", (match xgb.target with Some t -> VString t | None -> VNull));
+                       ("xgb_model", xgb_model_to_value xgb);
                        ("_display_keys", VList [
                          (None, VString "class");
                          (None, VString "model_type");
                          (None, VString "mining_function");
                          (None, VString "target");
-                         (None, VString "n_trees");
                        ]);
                      ])
                  | Error msg -> Error msg)
-            | _ -> Error "PMML Parse Error: <Segmentation> missing in <MiningModel>.")
+            | _ ->
+                let target = parse_target_from_schema mining_model in
+                let function_name =
+                  match mining_model with
+                  | Elem (_, attrs, _) -> (match find_attr "functionName" attrs with Some s -> s | None -> "classification")
+                  | _ -> "classification"
+                in
+                let segmentation = find_first "Segmentation" mining_model in
+                (match segmentation with
+                 | Some (Elem (_, attrs, seg_children)) ->
+                     let method_ = match find_attr "multipleModelMethod" attrs with Some s -> s | None -> "majorityVote" in
+                     let segments =
+                       seg_children
+                       |> List.filter (function Elem ("Segment", _, _) -> true | _ -> false)
+                     in
+                     let rec parse_segments acc = function
+                       | [] -> Ok (List.rev acc)
+                       | Elem ("Segment", _, children) :: rest ->
+                           let tree =
+                             match List.find_opt (function Elem ("TreeModel", _, _) -> true | _ -> false) children with
+                             | Some t -> t
+                             | None -> Elem ("TreeModel", [], [])
+                           in
+                           (match parse_tree_model ?target tree with
+                            | Ok tm -> parse_segments (tm :: acc) rest
+                            | Error msg -> Error msg)
+                       | _ :: rest -> parse_segments acc rest
+                     in
+                     (match parse_segments [] segments with
+                      | Ok trees ->
+                          let forest = { function_name; target; method_; trees } in
+                          let model_data =
+                            VDict [
+                              ("model_type", VString "random_forest");
+                              ("mining_function", VString function_name);
+                              ("target", (match target with Some t -> VString t | None -> VNull));
+                              ("n_trees", VInt (List.length trees));
+                            ]
+                          in
+                          Ok (VDict [
+                            ("_model_data", model_data);
+                            ("class", VString "random_forest");
+                            ("model_type", VString "random_forest");
+                            ("mining_function", VString function_name);
+                            ("target", (match target with Some t -> VString t | None -> VNull));
+                            ("n_trees", VInt (List.length trees));
+                            ("forest", forest_to_value forest);
+                            ("_display_keys", VList [
+                              (None, VString "class");
+                              (None, VString "model_type");
+                              (None, VString "mining_function");
+                              (None, VString "target");
+                              (None, VString "n_trees");
+                            ]);
+                          ])
+                      | Error msg -> Error msg)
+                 | _ -> Error "PMML Parse Error: <Segmentation> missing in <MiningModel>."))
        | None ->
            (match find_first "TreeModel" root with
             | Some tree_model ->
@@ -375,6 +574,22 @@ let read_tree_pmml path =
     Extracts coefficients, standard errors, and model stats into a full T linear model object. *)
 let read_pmml path =
   try
+    let is_xgboost =
+      match parse_xml path with
+      | Some root ->
+          (match find_first "MiningModel" root with
+           | Some (Elem (_, attrs, _)) ->
+               (match find_attr "algorithmName" attrs with
+                | Some name -> contains_substring name "xgboost"
+                | None -> false)
+           | _ -> false)
+      | None -> false
+    in
+    if is_xgboost then
+      (match read_tree_pmml path with
+       | Ok v -> Ok v
+       | Error msg -> Error msg)
+    else
     let ic = open_in path in
     Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
     let i = Xmlm.make_input (`Channel ic) in
