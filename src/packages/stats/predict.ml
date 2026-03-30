@@ -618,6 +618,8 @@ let register env =
         | None -> (match positional with _ :: v :: _ -> Some v | _ -> (match positional with v :: _ when data_v <> Some v -> Some v | _ -> None))
       in
       match (data_v, model_v) with
+      | (Some (VError _ as e), _) -> e
+      | (_, Some (VError _ as e)) -> e
       | (Some (VDataFrame df), Some (VDict pairs)) ->
         let model_type =
           match List.assoc_opt "model_type" pairs with
@@ -779,10 +781,10 @@ let register env =
               else VFloat (apply_link_inv x)
             ) out))
 
-      | (Some (VDataFrame _), _) ->
-          Error.type_error "Function `predict` expects a model (Dict) as second argument."
-      | (Some _, _) ->
-          Error.type_error "Function `predict` expects a DataFrame as first argument."
+      | (Some (VDataFrame _), Some other) ->
+          Error.type_error (Printf.sprintf "Function `predict` expects a model (Dict) as second argument. Received: %s" (Utils.type_name other))
+      | (Some other, _) ->
+          Error.type_error (Printf.sprintf "Function `predict` expects a DataFrame as first argument. Received: %s" (Utils.type_name other))
       | _ ->
           Error.make_error ArityError "Function `predict` expects 2 arguments (data, model)."
     ))

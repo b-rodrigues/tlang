@@ -231,6 +231,9 @@ let extract_stats_row pairs =
 
 let register env =
   let fit_stats_func args _env =
+    match args with
+    | [VError _ as e] -> e
+    | _ ->
     let models = match args with
       | [VList items] -> items
       | [VDict pairs] -> 
