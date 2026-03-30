@@ -6,7 +6,7 @@ This document outlines the architecture for integrating PMML tree-based models (
 
 PMML models are treated as first-class citizens in $T$ via the `t_read_pmml()` function. The integration follows a three-stage pipeline:
 
-1.  **Parsing (`src/pmml_utils.ml`)**: Consumes XML and converts it into a structured OCaml OCaml internal representation.
+1.  **Parsing (`src/pmml_utils.ml`)**: Consumes XML and converts it into a structured OCaml internal representation.
 2.  **Prediction (`src/packages/stats/predict.ml`)**: Evaluates the model against a $T$ DataFrame (`VTable`).
 3.  **Statistics (`src/packages/stats/fit_stats.ml`)**: Extracts metadata and "broom-style" tidy metrics from the model.
 
