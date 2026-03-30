@@ -12,7 +12,7 @@ PMML models are treated as first-class citizens in $T$ via the `t_read_pmml()` f
 
 ## 2. Shared Data Structures
 
-Internal model data is stored in the `boosted_model` key of the `VModel` record. This generalized structure handles all additive ensembles:
+Internal model data is stored in the `boosted_model` key of the **model Dict** (a `VDict` object). This generalized structure handles all additive ensembles:
 
 ```ocaml
 type boosted_ensemble = {

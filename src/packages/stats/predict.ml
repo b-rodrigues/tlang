@@ -49,7 +49,7 @@ type forest_model = {
   trees: tree_model list;
 }
 
-type xgb_model = {
+type boosted_ensemble = {
   function_name: string;
   target: string option;
   classes: string list;
@@ -191,7 +191,7 @@ let forest_of_value v =
        | Error msg, _, _ | _, Error msg, _ | _, _, Error msg -> Error msg)
   | _ -> Error "Expected forest model to be a Dict."
 
-let boosted_model_of_value v =
+let boosted_model_of_value (v : Ast.value) =
   match v with
   | VDict pairs ->
       (match get_string_field "function_name" pairs, get_list_field "models" pairs with
@@ -234,7 +234,7 @@ let boosted_model_of_value v =
                   | _ -> Error "Expected boosted model entry to be a Dict.")
            in
            (match collect [] model_vals with
-            | Ok models -> Ok { function_name; target; classes; models }
+            | Ok models -> Ok ({ function_name; target; classes; models } : boosted_ensemble)
             | Error msg -> Error msg)
        | Error msg, _ | _, Error msg -> Error msg)
   | _ -> Error "Expected boosted model to be a Dict."
@@ -548,12 +548,12 @@ let predict_boosted_model df model =
   match model with
   | VDict pairs ->
       (match List.assoc_opt "boosted_model" pairs with
-       | Some xgb_val ->
-           (match boosted_model_of_value xgb_val with
+       | Some ensemble_val ->
+           (match boosted_model_of_value ensemble_val with
             | Error msg -> Error.make_error TypeError msg
-            | Ok xgb ->
+            | Ok ensemble ->
                 let fields =
-                  xgb.models
+                  ensemble.models
                   |> List.map (fun (_, _, forest) ->
                     forest.trees |> List.map (fun t -> node_fields t.root) |> List.concat)
                   |> List.concat
@@ -574,17 +574,17 @@ let predict_boosted_model df model =
                      let out = Array.make nrows VNull in
                      for i = 0 to nrows - 1 do
                        let scores =
-                         xgb.models
+                         ensemble.models
                          |> List.map (fun (rescale_constant, rescale_factor, forest) ->
                            match eval_forest_sum evals forest i with
                            | Some sum -> (sum *. rescale_factor) +. rescale_constant
                            | None -> nan)
                        in
-                       match xgb.function_name with
+                       match ensemble.function_name with
                        | "classification" ->
                            if scores = [] then out.(i) <- VNA NAFloat
                            else if List.exists Float.is_nan scores then out.(i) <- VNA NAFloat
-                           else if xgb.classes = [] then
+                           else if ensemble.classes = [] then
                              (* Default to binary sigmoid probability *)
                              (match scores with
                               | s :: _ ->
@@ -592,9 +592,9 @@ let predict_boosted_model df model =
                                   out.(i) <- VFloat prob
                               | [] -> out.(i) <- VNA NAFloat)
                            else if List.length scores = 1 then
-                             out.(i) <- score_to_class xgb.classes scores
+                             out.(i) <- score_to_class ensemble.classes scores
                            else
-                             out.(i) <- score_to_class xgb.classes scores
+                             out.(i) <- score_to_class ensemble.classes scores
                        | _ ->
                            (match scores with
                             | s :: _ when not (Float.is_nan s) -> out.(i) <- VFloat s

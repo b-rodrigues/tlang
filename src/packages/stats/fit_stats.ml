@@ -142,8 +142,8 @@ let extract_stats_row pairs =
     | Some ("xgboost" | "lightgbm") ->
         let n_trees =
           match List.assoc_opt "boosted_model" pairs with
-          | Some (VDict xgb_pairs) ->
-              (match List.assoc_opt "models" xgb_pairs with
+          | Some (VDict ensemble_pairs) ->
+              (match List.assoc_opt "models" ensemble_pairs with
                | Some (VList model_entries) ->
                    let total =
                      List.fold_left (fun acc (_, entry) ->
@@ -164,8 +164,8 @@ let extract_stats_row pairs =
         in
         let n_features =
           match List.assoc_opt "boosted_model" pairs with
-          | Some (VDict xgb_pairs) ->
-              (match List.assoc_opt "models" xgb_pairs with
+          | Some (VDict ensemble_pairs) ->
+              (match List.assoc_opt "models" ensemble_pairs with
                | Some (VList model_entries) ->
                    let all_fields =
                      List.concat_map (fun (_, entry) ->
@@ -181,7 +181,7 @@ let extract_stats_row pairs =
                                         | VDict tree_pairs ->
                                             (match List.assoc_opt "root" tree_pairs with
                                              | Some root -> fields_from_node root
-                                             | None -> [])
+                                              | None -> [])
                                         | _ -> [])
                                  | _ -> [])
                             | _ -> [])
