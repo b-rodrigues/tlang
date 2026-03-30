@@ -583,7 +583,15 @@ test_that("FACTOR: month sort", {
 })
 
 # ============================================================================
-# Test Suite 24: CHRONO
+# Test Suite 24: PMML Random Forest
+# ============================================================================
+
+test_that("PMML: randomForest predictions", {
+  compare_csvs("iris_random_forest_predictions")
+})
+
+# ============================================================================
+# Test Suite 25: CHRONO
 # ============================================================================
 
 test_that("CHRONO: parsing and component extraction", {

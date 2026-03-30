@@ -9,6 +9,342 @@ type predictor_info = {
   mutable p_value: float option;
 }
 
+(** Lightweight XML tree for PMML parsing. *)
+type xml_node =
+  | Elem of string * (string * string) list * xml_node list
+  | Data of string
+
+type pmml_predicate =
+  | PredTrue
+  | PredFalse
+  | PredSimple of { field: string; op: string; value: string option }
+  | PredSimpleSet of { field: string; op: string; values: string list }
+  | PredCompound of { op: string; predicates: pmml_predicate list }
+
+type pmml_score =
+  | ScoreFloat of float
+  | ScoreString of string
+
+type pmml_node = {
+  predicate: pmml_predicate;
+  score: pmml_score option;
+  children: pmml_node list;
+}
+
+type pmml_tree = {
+  function_name: string;
+  target: string option;
+  root: pmml_node;
+}
+
+type pmml_forest = {
+  function_name: string;
+  target: string option;
+  method_: string;
+  trees: pmml_tree list;
+}
+
+let parse_xml path =
+  let ic = open_in path in
+  Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
+    let i = Xmlm.make_input (`Channel ic) in
+    let rec parse_nodes acc =
+      if Xmlm.eoi i then List.rev acc
+      else
+        match Xmlm.peek i with
+        | `El_end -> let _ = Xmlm.input i in List.rev acc
+        | `Dtd _ -> let _ = Xmlm.input i in parse_nodes acc
+        | _ ->
+            let node = parse_node () in
+            parse_nodes (node :: acc)
+    and parse_node () =
+      match Xmlm.input i with
+      | `El_start ((_, name), attrs) ->
+          let attrs = List.map (fun ((_, n), v) -> (n, v)) attrs in
+          let children = parse_nodes [] in
+          Elem (name, attrs, children)
+      | `Data d -> Data d
+      | `Dtd _ -> parse_node ()
+      | `El_end -> Data ""
+    in
+    let rec parse_document () =
+      if Xmlm.eoi i then None
+      else
+        match Xmlm.peek i with
+        | `Dtd _ -> let _ = Xmlm.input i in parse_document ()
+        | `El_start _ -> Some (parse_node ())
+        | `Data _ -> let _ = Xmlm.input i in parse_document ()
+        | `El_end -> let _ = Xmlm.input i in parse_document ()
+    in
+    parse_document ()
+  )
+
+let find_attr name attrs =
+  List.find_map (fun (n, v) -> if n = name then Some v else None) attrs
+
+let get_attr name attrs =
+  match find_attr name attrs with
+  | Some v -> Ok v
+  | None -> Error (Printf.sprintf "Required PMML attribute '%s' missing." name)
+
+let get_float_opt s = try Some (float_of_string s) with _ -> None
+
+let rec find_first name node =
+  match node with
+  | Elem (n, _, children) when n = name -> Some node
+  | Elem (_, _, children) ->
+      List.find_map (find_first name) children
+  | Data _ -> None
+
+let rec find_all name node =
+  match node with
+  | Elem (n, _, children) ->
+      let here = if n = name then [node] else [] in
+      let nested = List.concat (List.map (find_all name) children) in
+      here @ nested
+  | Data _ -> []
+
+let rec string_data children =
+  let rec loop acc = function
+    | [] -> String.concat "" (List.rev acc)
+    | Data d :: rest -> loop (d :: acc) rest
+    | Elem (_, _, sub) :: rest -> loop acc (sub @ rest)
+  in
+  loop [] children
+
+let split_ws s =
+  s
+  |> String.split_on_char ' '
+  |> List.filter (fun x -> x <> "")
+
+let rec parse_predicate nodes =
+  match nodes with
+  | [] -> Ok PredTrue
+  | Data _ :: rest -> parse_predicate rest
+  | Elem (name, attrs, children) :: rest ->
+      (match name with
+       | "True" -> Ok PredTrue
+       | "False" -> Ok PredFalse
+       | "SimplePredicate" ->
+           (match get_attr "field" attrs, get_attr "operator" attrs with
+            | Ok field, Ok op ->
+                let value = find_attr "value" attrs in
+                Ok (PredSimple { field; op; value })
+            | Error msg, _ | _, Error msg -> Error msg)
+       | "SimpleSetPredicate" ->
+           (match get_attr "field" attrs, get_attr "booleanOperator" attrs with
+            | Ok field, Ok op ->
+           let values =
+             match find_first "Array" (Elem (name, attrs, children)) with
+             | Some (Elem (_, _, array_children)) ->
+                 let raw = String.trim (string_data array_children) in
+                 split_ws raw
+             | _ -> []
+           in
+           Ok (PredSimpleSet { field; op; values })
+            | Error msg, _ | _, Error msg -> Error msg)
+       | "CompoundPredicate" ->
+           (match get_attr "booleanOperator" attrs with
+            | Error msg -> Error msg
+            | Ok op ->
+           let preds =
+             children
+             |> List.filter (function Elem _ -> true | Data _ -> false)
+             |> List.map (function Elem (n, a, c) -> Elem (n, a, c) | Data _ -> Data "")
+             |> List.filter (function Data _ -> false | Elem _ -> true)
+           in
+           let rec collect acc = function
+             | [] -> Ok (List.rev acc)
+             | Elem (n, a, c) :: rest ->
+                 (match parse_predicate [Elem (n, a, c)] with
+                  | Ok p -> collect (p :: acc) rest
+                  | Error msg -> Error msg)
+             | Data _ :: rest -> collect acc rest
+           in
+           (match collect [] preds with
+            | Ok preds -> Ok (PredCompound { op; predicates = preds })
+            | Error msg -> Error msg))
+       | _ -> parse_predicate rest)
+
+let rec parse_node node =
+  match node with
+  | Elem ("Node", attrs, children) ->
+      let score =
+        match find_attr "score" attrs with
+        | Some s ->
+            (match get_float_opt s with
+             | Some f -> Some (ScoreFloat f)
+             | None -> Some (ScoreString s))
+        | None -> None
+      in
+      let predicate = parse_predicate children in
+      let child_nodes =
+        children
+        |> List.filter (function Elem ("Node", _, _) -> true | _ -> false)
+        |> List.map (fun n -> parse_node n)
+      in
+      (match predicate with
+       | Ok p -> Ok { predicate = p; score; children = child_nodes }
+       | Error msg -> Error msg)
+  | _ -> Error "Expected <Node> element in TreeModel."
+
+let parse_tree_model ?target node =
+  match node with
+  | Elem ("TreeModel", attrs, children) ->
+      let function_name = match find_attr "functionName" attrs with Some s -> s | None -> "classification" in
+      let root =
+        match List.find_opt (function Elem ("Node", _, _) -> true | _ -> false) children with
+        | Some n -> n
+        | None -> Elem ("Node", [], [])
+      in
+      (match parse_node root with
+       | Ok root_node -> Ok { function_name; target; root = root_node }
+       | Error msg -> Error msg)
+  | _ -> Error "Expected <TreeModel> element."
+
+let parse_target_from_schema node =
+  let mining_schema = find_first "MiningSchema" node in
+  match mining_schema with
+  | Some (Elem (_, _, children)) ->
+      let rec loop = function
+        | [] -> None
+        | Elem ("MiningField", attrs, _) :: rest ->
+            (match find_attr "usageType" attrs, find_attr "name" attrs with
+             | Some "target", Some name -> Some name
+             | _ -> loop rest)
+        | _ :: rest -> loop rest
+      in
+      loop children
+  | _ -> None
+
+let tree_to_value tree =
+  let rec predicate_to_value = function
+    | PredTrue -> VDict [("type", VString "true")]
+    | PredFalse -> VDict [("type", VString "false")]
+    | PredSimple { field; op; value } ->
+        let base = [("type", VString "simple"); ("field", VString field); ("op", VString op)] in
+        let base =
+          match value with
+          | Some v -> base @ [("value", VString v)]
+          | None -> base
+        in
+        VDict base
+    | PredSimpleSet { field; op; values } ->
+        VDict [
+          ("type", VString "set");
+          ("field", VString field);
+          ("op", VString op);
+          ("values", VList (List.map (fun v -> (None, VString v)) values));
+        ]
+    | PredCompound { op; predicates } ->
+        VDict [
+          ("type", VString "compound");
+          ("op", VString op);
+          ("predicates", VList (List.map (fun p -> (None, predicate_to_value p)) predicates));
+        ]
+  in
+  let rec node_to_value n =
+    let score_val =
+      match n.score with
+      | Some (ScoreFloat f) -> VFloat f
+      | Some (ScoreString s) -> VString s
+      | None -> VNull
+    in
+    VDict [
+      ("predicate", predicate_to_value n.predicate);
+      ("score", score_val);
+      ("children", VList (List.map (fun c -> (None, node_to_value c)) n.children));
+    ]
+  in
+  VDict [
+    ("function_name", VString tree.function_name);
+    ("target", (match tree.target with Some t -> VString t | None -> VNull));
+    ("root", node_to_value tree.root);
+  ]
+
+let forest_to_value forest =
+  VDict [
+    ("function_name", VString forest.function_name);
+    ("target", (match forest.target with Some t -> VString t | None -> VNull));
+    ("method", VString forest.method_);
+    ("trees", VList (List.map (fun t -> (None, tree_to_value t)) forest.trees));
+  ]
+
+let read_tree_pmml path =
+  match parse_xml path with
+  | None -> Error "PMML Parse Error: Empty or invalid PMML document."
+  | Some root ->
+      (match find_first "MiningModel" root with
+       | Some mining_model ->
+           let target = parse_target_from_schema mining_model in
+           let function_name =
+             match mining_model with
+             | Elem (_, attrs, _) -> (match find_attr "functionName" attrs with Some s -> s | None -> "classification")
+             | _ -> "classification"
+           in
+           let segmentation = find_first "Segmentation" mining_model in
+           (match segmentation with
+            | Some (Elem (_, attrs, seg_children)) ->
+                let method_ = match find_attr "multipleModelMethod" attrs with Some s -> s | None -> "majorityVote" in
+                let segments =
+                  seg_children
+                  |> List.filter (function Elem ("Segment", _, _) -> true | _ -> false)
+                in
+                let rec parse_segments acc = function
+                  | [] -> Ok (List.rev acc)
+                  | Elem ("Segment", _, children) :: rest ->
+                      let tree =
+                        match List.find_opt (function Elem ("TreeModel", _, _) -> true | _ -> false) children with
+                        | Some t -> t
+                        | None -> Elem ("TreeModel", [], [])
+                      in
+                      (match parse_tree_model ?target tree with
+                       | Ok tm -> parse_segments (tm :: acc) rest
+                       | Error msg -> Error msg)
+                  | _ :: rest -> parse_segments acc rest
+                in
+                (match parse_segments [] segments with
+                 | Ok trees ->
+                     let forest = { function_name; target; method_; trees } in
+                     Ok (VDict [
+                       ("class", VString "random_forest");
+                       ("model_type", VString "random_forest");
+                       ("mining_function", VString function_name);
+                       ("target", (match target with Some t -> VString t | None -> VNull));
+                       ("n_trees", VInt (List.length trees));
+                       ("forest", forest_to_value forest);
+                       ("_display_keys", VList [
+                         (None, VString "class");
+                         (None, VString "model_type");
+                         (None, VString "mining_function");
+                         (None, VString "target");
+                         (None, VString "n_trees");
+                       ]);
+                     ])
+                 | Error msg -> Error msg)
+            | _ -> Error "PMML Parse Error: <Segmentation> missing in <MiningModel>.")
+       | None ->
+           (match find_first "TreeModel" root with
+            | Some tree_model ->
+                let target = parse_target_from_schema tree_model in
+                (match parse_tree_model ?target tree_model with
+                 | Ok tree ->
+                     Ok (VDict [
+                       ("class", VString "decision_tree");
+                       ("model_type", VString "decision_tree");
+                       ("mining_function", VString tree.function_name);
+                       ("target", (match tree.target with Some t -> VString t | None -> VNull));
+                       ("tree", tree_to_value tree);
+                       ("_display_keys", VList [
+                         (None, VString "class");
+                         (None, VString "model_type");
+                         (None, VString "mining_function");
+                         (None, VString "target");
+                       ]);
+                     ])
+                 | Error msg -> Error msg)
+            | None -> Error "No <MiningModel> or <TreeModel> found in PMML."))
+
 (** PMML parser for RegressionModel.
     Extracts coefficients, standard errors, and model stats into a full T linear model object. *)
 let read_pmml path =
@@ -170,7 +506,10 @@ let read_pmml path =
     in
     loop ();
 
-    if not !found_model then Error "No <RegressionModel> or <GeneralRegressionModel> found in PMML"
+    if not !found_model then
+      (match read_tree_pmml path with
+       | Ok v -> Ok v
+       | Error msg -> Error msg)
     else
 
         let is_glm = Option.is_some !glm_stats in

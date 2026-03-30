@@ -6,6 +6,8 @@
 library(dplyr)
 library(readr)
 library(tidyr)
+library(randomForest)
+library(r2pmml)
 
 data_dir <- "tests/golden/data"
 output_dir <- "tests/golden/expected"
@@ -445,4 +447,18 @@ months_df %>%
   arrange(m_fct) %>%
   save_output("factor_months_sort", "factor(months) sort")
 
+# ============================================================================
+# Test Suite 24: PMML Random Forest
+# ============================================================================
+message("\n=== Test Suite 24: PMML Random Forest ===")
 
+iris_rf <- read_csv(file.path(data_dir, "iris.csv"), show_col_types = FALSE)
+set.seed(123)
+rf_model <- randomForest(Species ~ ., data = iris_rf, ntree = 50)
+
+# Persist PMML for T to read
+r2pmml(rf_model, file.path(data_dir, "iris_random_forest.pmml"))
+
+rf_preds <- predict(rf_model, iris_rf)
+rf_out <- data.frame(pred = as.character(rf_preds))
+save_output(rf_out, "iris_random_forest_predictions", "randomForest PMML predictions")
