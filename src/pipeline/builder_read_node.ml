@@ -51,7 +51,10 @@ let read_node ?which_log name =
       else
         Error.make_error FileError (Printf.sprintf "read_node: node `%s` found in environment as %s, but artifact is missing." name path)
   | _ ->
-      let logs = get_logs () in
+      let logs = match which_log with
+        | Some _ -> get_all_logs ()
+        | None -> get_logs ()
+      in
   let log_file_result =
     match which_log with
     | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
