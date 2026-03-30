@@ -91,7 +91,7 @@ let get_float_opt s = try Some (float_of_string s) with _ -> None
 
 let rec find_first name node =
   match node with
-  | Elem (n, _, children) when n = name -> Some node
+  | Elem (n, _, _) when n = name -> Some node
   | Elem (_, _, children) ->
       List.find_map (find_first name) children
   | Data _ -> None
@@ -104,7 +104,7 @@ let rec find_all name node =
       here @ nested
   | Data _ -> []
 
-let rec string_data children =
+let string_data children =
   let rec loop acc = function
     | [] -> String.concat "" (List.rev acc)
     | Data d :: rest -> loop (d :: acc) rest
@@ -181,11 +181,19 @@ let rec parse_node node =
       let child_nodes =
         children
         |> List.filter (function Elem ("Node", _, _) -> true | _ -> false)
-        |> List.map (fun n -> parse_node n)
+        |> List.map parse_node
+      in
+      let rec collect acc = function
+        | [] -> Ok (List.rev acc)
+        | Ok node :: rest -> collect (node :: acc) rest
+        | Error msg :: _ -> Error msg
       in
       (match predicate with
-       | Ok p -> Ok { predicate = p; score; children = child_nodes }
-       | Error msg -> Error msg)
+       | Error msg -> Error msg
+       | Ok p ->
+           (match collect [] child_nodes with
+            | Ok nodes -> Ok { predicate = p; score; children = nodes }
+            | Error msg -> Error msg))
   | _ -> Error "Expected <Node> element in TreeModel."
 
 let parse_tree_model ?target node =
@@ -217,7 +225,7 @@ let parse_target_from_schema node =
       loop children
   | _ -> None
 
-let tree_to_value tree =
+let tree_to_value (tree : pmml_tree) =
   let rec predicate_to_value = function
     | PredTrue -> VDict [("type", VString "true")]
     | PredFalse -> VDict [("type", VString "false")]
@@ -262,7 +270,7 @@ let tree_to_value tree =
     ("root", node_to_value tree.root);
   ]
 
-let forest_to_value forest =
+let forest_to_value (forest : pmml_forest) =
   VDict [
     ("function_name", VString forest.function_name);
     ("target", (match forest.target with Some t -> VString t | None -> VNull));
@@ -507,6 +515,10 @@ let read_pmml path =
     loop ();
 
     if not !found_model then
+      (match read_tree_pmml path with
+       | Ok v -> Ok v
+       | Error msg -> Error msg)
+    else if (not !found_table) && !coeffs = [] && Option.is_none !intercept then
       (match read_tree_pmml path with
        | Ok v -> Ok v
        | Error msg -> Error msg)

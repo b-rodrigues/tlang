@@ -452,7 +452,8 @@ months_df %>%
 # ============================================================================
 message("\n=== Test Suite 24: PMML Random Forest ===")
 
-iris_rf <- read_csv(file.path(data_dir, "iris.csv"), show_col_types = FALSE)
+iris_rf <- read_csv(file.path(data_dir, "iris.csv"), show_col_types = FALSE) %>%
+  mutate(Species = as.factor(Species))
 set.seed(123)
 rf_model <- randomForest(Species ~ ., data = iris_rf, ntree = 50)
 

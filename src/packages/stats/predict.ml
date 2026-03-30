@@ -106,8 +106,12 @@ let rec predicate_of_value v =
                 Ok (PredSimpleSet { field; op; values })
             | Error msg, _ | _, Error msg -> Error msg)
        | Ok "compound" ->
-           (match get_string_field "op" pairs, List.assoc_opt "predicates" pairs with
-            | Ok op, Some vlist ->
+           (match get_string_field "op" pairs with
+            | Error msg -> Error msg
+            | Ok op ->
+              (match List.assoc_opt "predicates" pairs with
+               | None -> Error "Missing `predicates` in compound predicate."
+               | Some vlist ->
                 let preds = value_list vlist in
                 let rec collect acc = function
                   | [] -> Ok (List.rev acc)
@@ -118,9 +122,7 @@ let rec predicate_of_value v =
                 in
                 (match collect [] preds with
                  | Ok preds -> Ok (PredCompound { op; predicates = preds })
-                 | Error msg -> Error msg)
-            | Error msg, _ | _, Error msg -> Error msg
-            | Ok _, None -> Error "Missing `predicates` in compound predicate.")
+                 | Error msg -> Error msg)))
        | Ok other -> Error (Printf.sprintf "Unknown predicate type `%s`." other))
   | _ -> Error "Expected predicate to be a Dict."
 

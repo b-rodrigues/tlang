@@ -153,6 +153,8 @@ preds = predict(new_data, model)
 
 $T$ supports various link functions for GLMs (imported via PMML), including **Logit**, **Probit**, **Log**, **Inverse**, and **Cloglog**.
 
+> **PMML Trees & Forests**: $T$ can now evaluate PMML-imported **Decision Trees** and **Random Forests** natively (no external runtime). Use `t_read_pmml()` to load the model and `predict(df, model)` to score new data.
+
 ---
 
 ## Model Interchange & PMML
