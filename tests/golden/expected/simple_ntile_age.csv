@@ -1,0 +1,11 @@
+id,name,age,score,passed,ntile_age
+1,Alice,25,85.5,TRUE,1
+2,Bob,30,92.3,TRUE,2
+3,Charlie,35,78.9,TRUE,4
+4,David,28,88.1,TRUE,2
+5,Eve,22,95,TRUE,1
+6,Frank,45,82.4,TRUE,4
+7,Grace,33,90.2,TRUE,3
+8,Henry,29,76.5,TRUE,2
+9,Iris,31,89.3,TRUE,3
+10,Jack,27,91.7,TRUE,1

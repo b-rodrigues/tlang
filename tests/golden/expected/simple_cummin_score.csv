@@ -1,0 +1,11 @@
+id,name,age,score,passed,cummin_score
+1,Alice,25,85.5,TRUE,85.5
+2,Bob,30,92.3,TRUE,85.5
+3,Charlie,35,78.9,TRUE,78.9
+4,David,28,88.1,TRUE,78.9
+5,Eve,22,95,TRUE,78.9
+6,Frank,45,82.4,TRUE,78.9
+7,Grace,33,90.2,TRUE,78.9
+8,Henry,29,76.5,TRUE,76.5
+9,Iris,31,89.3,TRUE,76.5
+10,Jack,27,91.7,TRUE,76.5
