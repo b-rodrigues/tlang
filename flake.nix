@@ -22,7 +22,14 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         # Use the Nix packages for the specified system
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = (import nixpkgs { inherit system; }).extend (self: super: {
+          lightgbm = super.lightgbm.overrideAttrs (old: {
+            cudaSupport = false;
+            openclSupport = false;
+            cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
+            buildInputs = (old.buildInputs or []) ++ [ self.boost ];
+          });
+        });
 
 
 
@@ -41,7 +48,10 @@
             jsonlite
             arrow
             r2pmml
-            lightgbm
+            (lightgbm.overrideAttrs (old: {
+              cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
+              buildInputs = (old.buildInputs or []) ++ [ pkgs.boost ];
+            }))
             faraway
             MASS
             forcats
@@ -53,6 +63,10 @@
           pyarrow
           scikit-learn
           xgboost
+          (p.lightgbm.overrideAttrs (old: {
+            cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
+            buildInputs = (old.buildInputs or []) ++ [ pkgs.boost ];
+          }))
           sklearn2pmml
           statsmodels
           nbformat
@@ -243,6 +257,8 @@
             pkgs.shellcheck
             pkgs.jpmml-statsmodels
             pkgs.jre
+            pkgs.boost
+            pkgs.cmake
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''

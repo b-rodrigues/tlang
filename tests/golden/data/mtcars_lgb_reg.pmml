@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
+	<Header>
+		<Application name="SkLearn2PMML package" version="0.128.0"/>
+		<Timestamp>2026-03-30T17:39:11Z</Timestamp>
+	</Header>
+	<MiningBuildTask>
+		<Extension name="repr">PMMLPipeline(steps=[('regressor', LGBMRegressor(max_depth=3, n_estimators=20, random_state=123, verbose=-1))])</Extension>
+	</MiningBuildTask>
+	<DataDictionary>
+		<DataField name="mpg" optype="continuous" dataType="double"/>
+	</DataDictionary>
+	<MiningModel functionName="regression" algorithmName="LightGBM">
+		<MiningSchema>
+			<MiningField name="mpg" usageType="target"/>
+		</MiningSchema>
+		<Segmentation multipleModelMethod="sum" missingPredictionTreatment="returnMissing">
+			<Segment id="1">
+				<True/>
+				<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+					<MiningSchema/>
+					<Node score="20.09062498807907">
+						<True/>
+					</Node>
+				</TreeModel>
+			</Segment>
+		</Segmentation>
+	</MiningModel>
+</PMML>

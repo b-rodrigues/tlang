@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
+	<Header>
+		<Application name="SkLearn2PMML package" version="0.128.0"/>
+		<Timestamp>2026-03-30T17:39:10Z</Timestamp>
+	</Header>
+	<MiningBuildTask>
+		<Extension name="repr">PMMLPipeline(steps=[('classifier', LGBMClassifier(max_depth=3, n_estimators=10, random_state=123, verbose=-1))])</Extension>
+	</MiningBuildTask>
+	<DataDictionary>
+		<DataField name="Species" optype="categorical" dataType="integer">
+			<Value value="0"/>
+			<Value value="1"/>
+		</DataField>
+		<DataField name="Sepal_Length" optype="continuous" dataType="double">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="Sepal_Width" optype="continuous" dataType="double">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="Petal_Length" optype="continuous" dataType="double">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+		<DataField name="Petal_Width" optype="continuous" dataType="double">
+			<Value value="NaN" property="missing"/>
+		</DataField>
+	</DataDictionary>
+	<MiningModel functionName="classification" algorithmName="LightGBM">
+		<MiningSchema>
+			<Extension name="X-FeatureImportances">
+				<InlineTable>
+					<Extension name="numberOfImportances" value="4"/>
+					<Extension name="numberOfNonZeroImportances" value="4"/>
+					<Extension name="sumOfImportances" value="33.0"/>
+					<Extension name="minImportance" value="1.0"/>
+					<Extension name="maxImportance" value="14.0"/>
+					<row>
+						<data:name>Petal_Width</data:name>
+						<data:importance>1.0</data:importance>
+					</row>
+					<row>
+						<data:name>Sepal_Width</data:name>
+						<data:importance>14.0</data:importance>
+					</row>
+					<row>
+						<data:name>Sepal_Length</data:name>
+						<data:importance>7.0</data:importance>
+					</row>
+					<row>
+						<data:name>Petal_Length</data:name>
+						<data:importance>11.0</data:importance>
+					</row>
+				</InlineTable>
+			</Extension>
+			<MiningField name="Species" usageType="target"/>
+			<MiningField name="Sepal_Length" importance="7.0"/>
+			<MiningField name="Sepal_Width" importance="14.0"/>
+			<MiningField name="Petal_Length" importance="11.0"/>
+			<MiningField name="Petal_Width" importance="1.0"/>
+		</MiningSchema>
+		<Segmentation multipleModelMethod="modelChain" missingPredictionTreatment="returnMissing">
+			<Segment id="1">
+				<True/>
+				<MiningModel functionName="regression">
+					<MiningSchema>
+						<MiningField name="Sepal_Length"/>
+						<MiningField name="Sepal_Width"/>
+						<MiningField name="Petal_Length"/>
+						<MiningField name="Petal_Width"/>
+					</MiningSchema>
+					<Output>
+						<OutputField name="lgbmValue" optype="continuous" dataType="double" isFinalResult="false"/>
+					</Output>
+					<Segmentation multipleModelMethod="sum" missingPredictionTreatment="returnMissing">
+						<Segment id="1">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Length"/>
+									<MiningField name="Sepal_Width"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="-0.415647174357337">
+									<True/>
+									<Node score="-0.8431471839127065">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="3.1500000000000004"/>
+										<Node score="-0.8431471839127066">
+											<SimplePredicate field="Sepal_Length" operator="greaterThan" value="5.750000000000001"/>
+											<Node score="-0.8431471839127067">
+												<SimplePredicate field="Sepal_Length" operator="greaterThan" value="6.750000000000001"/>
+											</Node>
+										</Node>
+									</Node>
+									<Node score="-0.39314717385442294">
+										<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.35"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="2">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Length"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="0.2503275462314941">
+									<True/>
+									<Node score="-0.14303539160744638">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="3.1500000000000004"/>
+										<Node score="-0.1430353916074464">
+											<SimplePredicate field="Sepal_Length" operator="greaterThan" value="6.750000000000001"/>
+										</Node>
+									</Node>
+									<Node score="0.23037655704815838">
+										<SimplePredicate field="Sepal_Length" operator="greaterThan" value="5.050000000000001"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="3">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Length"/>
+									<MiningField name="Sepal_Width"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="0.19807391498656277">
+									<True/>
+									<Node score="-0.1372997832649253">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="3.1500000000000004"/>
+										<Node score="-0.13729978326492537">
+											<SimplePredicate field="Sepal_Length" operator="greaterThan" value="6.3500000000000005"/>
+										</Node>
+									</Node>
+									<Node score="0.21692605888856079">
+										<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.35"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="4">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Length"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="0.19537850660500114">
+									<True/>
+									<Node score="-0.1325145539863787">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="3.1500000000000004"/>
+									</Node>
+									<Node score="0.1776734602911608">
+										<SimplePredicate field="Sepal_Length" operator="greaterThan" value="5.050000000000001"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="5">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Width"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="0.15965500962343324">
+									<True/>
+									<Node score="-0.1284791851874308">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="3.1500000000000004"/>
+									</Node>
+									<Node score="0.1783657342375421">
+										<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.35"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="6">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Width"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="0.147370573425005">
+									<True/>
+									<Node score="-0.12504549901838596">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="3.1500000000000004"/>
+										<Node score="-0.12504549901838596">
+											<SimplePredicate field="Sepal_Width" operator="greaterThan" value="2.650000000000001"/>
+										</Node>
+									</Node>
+									<Node score="0.16556536785816697">
+										<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.35"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="7">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Width"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="0.15765736409836414">
+									<True/>
+									<Node score="-0.13167543232280332">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="1.8"/>
+										<Node score="-0.08146000113455215">
+											<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.150000000000001"/>
+										</Node>
+										<Node score="-0.1221015772524402">
+											<SimplePredicate field="Sepal_Width" operator="greaterThan" value="2.650000000000001"/>
+										</Node>
+									</Node>
+									<Node score="0.15573707573739146">
+										<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.4500000000000006"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="8">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Length"/>
+									<MiningField name="Sepal_Width"/>
+									<MiningField name="Petal_Length"/>
+									<MiningField name="Petal_Width"/>
+								</MiningSchema>
+								<Node score="0.14974936860484242">
+									<True/>
+									<Node score="-0.1287679600970914">
+										<SimplePredicate field="Petal_Width" operator="greaterThan" value="0.45000000000000007"/>
+										<Node score="-0.08034236423595073">
+											<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.150000000000001"/>
+										</Node>
+										<Node score="-0.11952661124622262">
+											<SimplePredicate field="Petal_Length" operator="greaterThan" value="4.250000000000001"/>
+										</Node>
+									</Node>
+									<Node score="0.1485476169023756">
+										<SimplePredicate field="Sepal_Length" operator="greaterThan" value="4.950000000000001"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="9">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Width"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="0.12240408904934214">
+									<True/>
+									<Node score="-0.11711322709339639">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="3.1500000000000004"/>
+										<Node score="-0.11841183975355106">
+											<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.0500000000000003"/>
+										</Node>
+										<Node score="-0.1173238212345872">
+											<SimplePredicate field="Sepal_Width" operator="greaterThan" value="2.650000000000001"/>
+										</Node>
+									</Node>
+									<Node score="0.14206840893933595">
+										<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.35"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="10">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction">
+								<MiningSchema>
+									<MiningField name="Sepal_Width"/>
+									<MiningField name="Petal_Length"/>
+								</MiningSchema>
+								<Node score="0.13776852855682137">
+									<True/>
+									<Node score="-0.1264346303987933">
+										<SimplePredicate field="Petal_Length" operator="greaterThan" value="1.8"/>
+										<Node score="-0.07431289063883405">
+											<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.150000000000001"/>
+										</Node>
+										<Node score="-0.11540723766889814">
+											<SimplePredicate field="Petal_Length" operator="greaterThan" value="4.250000000000001"/>
+										</Node>
+									</Node>
+									<Node score="0.13612292622976307">
+										<SimplePredicate field="Sepal_Width" operator="greaterThan" value="3.4500000000000006"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+					</Segmentation>
+				</MiningModel>
+			</Segment>
+			<Segment id="2">
+				<True/>
+				<RegressionModel functionName="classification" normalizationMethod="logit">
+					<MiningSchema>
+						<MiningField name="Species" usageType="target"/>
+						<MiningField name="lgbmValue"/>
+					</MiningSchema>
+					<Output>
+						<OutputField name="probability(0)" optype="continuous" dataType="double" feature="probability" value="0"/>
+						<OutputField name="probability(1)" optype="continuous" dataType="double" feature="probability" value="1"/>
+					</Output>
+					<RegressionTable intercept="0.0" targetCategory="1">
+						<NumericPredictor name="lgbmValue" coefficient="1.0"/>
+					</RegressionTable>
+					<RegressionTable intercept="0.0" targetCategory="0"/>
+				</RegressionModel>
+			</Segment>
+		</Segmentation>
+	</MiningModel>
+</PMML>
