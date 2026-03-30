@@ -70,10 +70,12 @@ let with_stmt_loc node pos =
 %token <string> SERIALIZER_ID
 /* Symbols and Operators */
 %token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
+%token RBRACE_TRAIL
 %token COMMA COLON COLON_EQ DOT EQUALS ARROW FAT_ARROW DOTDOTDOT
 %token PIPE
 %token MAYBE_PIPE
 %token PLUS MINUS STAR SLASH PERCENT
+%token COMMA_DOTDOTDOT
 
 /* ... */
 
@@ -101,19 +103,24 @@ let with_stmt_loc node pos =
 %token EOF
 
 /* PRECEDENCE AND ASSOCIATIVITY (lowest to highest) */
+%nonassoc LOWEST
 %nonassoc IF_WITHOUT_ELSE
 %nonassoc ELSE
+%left PIPE MAYBE_PIPE
 %left TILDE
 %left OR
 %left AND
 %left BITOR
+%left DOT_BITOR
 %left BITAND
+%left DOT_BITAND
 %nonassoc EQ NEQ LT GT LTE GTE IN
 %nonassoc DOT_EQ DOT_NEQ DOT_LT DOT_GT DOT_LTE DOT_GTE
 %left PLUS MINUS
 %left DOT_PLUS DOT_MINUS
 %left STAR SLASH PERCENT
 %left DOT_MUL DOT_DIV DOT_PERCENT
+%left DOT LPAREN
 
 
 
@@ -128,23 +135,25 @@ program:
   | skip_sep stmts = stmt_list EOF { stmts }
   ;
 
+sep:
+  | NEWLINE { () }
+  | SEMICOLON { () }
+  ;
+
+seps:
+  | sep { () }
+  | sep seps { () }
+  ;
+
 skip_sep:
   | { () }
-  | skip_sep NEWLINE { () }
-  | skip_sep SEMICOLON { () }
+  | seps { () }
   ;
 
 stmt_list:
   | { [] }
-  | s = statement skip_sep { [s] }
-  | s = statement sep skip_sep rest = stmt_list { s :: rest }
-  ;
-
-sep:
-  | NEWLINE { () }
-  | SEMICOLON { () }
-  | sep NEWLINE { () }
-  | sep SEMICOLON { () }
+  | s = statement { [s] }
+  | s = statement seps rest = stmt_list { s :: rest }
   ;
 
 statement:
@@ -175,7 +184,7 @@ import_name:
   ;
 
 expr:
-  | e = pipe_expr { e }
+  | e = pipe_expr %prec LOWEST { e }
   ;
 
 pipe_expr:
@@ -187,25 +196,25 @@ pipe_expr:
   ;
 
 formula_expr:
-  | e = or_expr { e }
+  | e = or_expr %prec LOWEST { e }
   | left = or_expr TILDE right = or_expr
     { with_loc (BinOp { op = Formula; left; right }) $startpos }
   ;
 
 or_expr:
-  | e = and_expr { e }
+  | e = and_expr %prec LOWEST { e }
   | left = or_expr OR right = and_expr
     { with_loc (BinOp { op = Or; left; right }) $startpos }
   ;
 
 and_expr:
-  | e = bit_or_expr { e }
+  | e = bit_or_expr %prec LOWEST { e }
   | left = and_expr AND right = bit_or_expr
     { with_loc (BinOp { op = And; left; right }) $startpos }
   ;
 
 bit_or_expr:
-  | e = bit_and_expr { e }
+  | e = bit_and_expr %prec LOWEST { e }
   | left = bit_or_expr BITOR right = bit_and_expr
     { with_loc (BinOp { op = BitOr; left; right }) $startpos }
   | left = bit_or_expr DOT_BITOR right = bit_and_expr
@@ -221,7 +230,7 @@ bit_and_expr:
   ;
 
 cmp_expr:
-  | e = add_expr { e }
+  | e = add_expr %prec LOWEST { e }
   | left = add_expr EQ right = add_expr  { with_loc (BinOp { op = Eq; left; right }) $startpos }
   | left = add_expr NEQ right = add_expr { with_loc (BinOp { op = NEq; left; right }) $startpos }
   | left = add_expr LT right = add_expr  { with_loc (BinOp { op = Lt; left; right }) $startpos }
@@ -238,7 +247,7 @@ cmp_expr:
   ;
 
 add_expr:
-  | e = mul_expr { e }
+  | e = mul_expr %prec LOWEST { e }
   | left = add_expr PLUS right = mul_expr  { with_loc (BinOp { op = Plus; left; right }) $startpos }
   | left = add_expr MINUS right = mul_expr { with_loc (BinOp { op = Minus; left; right }) $startpos }
   | left = add_expr DOT_PLUS right = mul_expr  { with_loc (BroadcastOp { op = Plus; left; right }) $startpos }
@@ -256,7 +265,7 @@ mul_expr:
   ;
 
 unary_expr:
-  | e = postfix_expr { e }
+  | e = postfix_expr %prec LOWEST { e }
   | MINUS e = unary_expr { with_loc (UnOp { op = Neg; operand = e }) $startpos }
   | BANG e = unary_expr { with_loc (UnOp { op = Not; operand = e }) $startpos }
   | BANG_BANG e = unary_expr { with_loc (Unquote e) $startpos }
@@ -319,7 +328,7 @@ primary_expr:
   ;
 
 block_expr:
-  | LBRACE skip_sep stmts = stmt_list RBRACE { with_loc (Block stmts) $startpos }
+  | LBRACE skip_sep stmts = stmt_list rbrace { with_loc (Block stmts) $startpos }
   ;
 
 lambda_expr:
@@ -374,12 +383,15 @@ params:
 
 params_raw:
   | (* empty *) { { params = []; has_variadic = false; return_type = None } }
-  | ps = param_list
-    { { params = ps; has_variadic = false; return_type = None } }
-  | ps = param_list COMMA skip_sep DOTDOTDOT
-    { { params = ps; has_variadic = true; return_type = None } }
   | DOTDOTDOT
     { { params = []; has_variadic = true; return_type = None } }
+  | ps = param_list v = variadic_opt
+    { { params = ps; has_variadic = v; return_type = None } }
+  ;
+
+variadic_opt:
+  | { false }
+  | COMMA_DOTDOTDOT { true }
   ;
 
 param_list:
@@ -400,7 +412,7 @@ if_expr:
   ;
 
 match_expr:
-  | MATCH LPAREN skip_sep scrutinee = expr skip_sep RPAREN skip_sep LBRACE skip_sep cases = match_case_list RBRACE
+  | MATCH LPAREN skip_sep scrutinee = expr skip_sep RPAREN skip_sep LBRACE skip_sep cases = match_case_list rbrace
     { with_loc (Match { scrutinee; cases }) $startpos }
   ;
 
@@ -416,7 +428,7 @@ match_case:
 
 match_pattern:
   | p = list_match_pattern { p }
-  | ctor = any_ident LBRACE skip_sep field = error_pattern_field RBRACE
+  | ctor = any_ident LBRACE skip_sep field = error_pattern_field rbrace
     {
       if ctor = "Error" then PError field
       else
@@ -453,14 +465,15 @@ list_rest_pattern:
   ;
 
 pipeline_expr:
-  | PIPELINE LBRACE skip_sep nodes = pipeline_node_list RBRACE
+  | PIPELINE LBRACE skip_sep rbrace
+    { with_loc (PipelineDef []) $startpos }
+  | PIPELINE LBRACE skip_sep nodes = pipeline_nodes rbrace
     { with_loc (PipelineDef nodes) $startpos }
   ;
 
-pipeline_node_list:
-  | { [] }
-  | n = pipeline_node skip_sep { [n] }
-  | n = pipeline_node sep skip_sep rest = pipeline_node_list { n :: rest }
+pipeline_nodes:
+  | n = pipeline_node { [n] }
+  | n = pipeline_node seps rest = pipeline_nodes { n :: rest }
   ;
 
 pipeline_node:
@@ -468,15 +481,16 @@ pipeline_node:
   ;
 
 intent_expr:
-  | INTENT LBRACE skip_sep pairs = intent_field_list RBRACE
+  | INTENT LBRACE skip_sep rbrace
+    { with_loc (IntentDef []) $startpos }
+  | INTENT LBRACE skip_sep pairs = intent_fields rbrace
     { with_loc (IntentDef pairs) $startpos }
   ;
 
-intent_field_list:
-  | { [] }
-  | p = intent_field skip_sep { [p] }
-  | p = intent_field COMMA skip_sep rest = intent_field_list { p :: rest }
-  | p = intent_field sep skip_sep rest = intent_field_list { p :: rest }
+intent_fields:
+  | p = intent_field { [p] }
+  | p = intent_field COMMA skip_sep rest = intent_fields { p :: rest }
+  | p = intent_field seps rest = intent_fields { p :: rest }
   ;
 
 intent_field:
@@ -541,4 +555,9 @@ typ:
 type_args:
   | t = typ skip_sep { [t] }
   | t = typ COMMA skip_sep rest = type_args { t :: rest }
+  ;
+/* Allow a trailing separator before closing braces (newline/semicolon). */
+rbrace:
+  | RBRACE { () }
+  | RBRACE_TRAIL { () }
   ;
