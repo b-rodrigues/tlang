@@ -41,4 +41,19 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
   end;
 
+  let (stats_v, _) = eval_string_env {|fit_stats(m) |> colnames()|} env in
+  let stats_cols = Ast.Utils.value_to_string stats_v |> String.trim in
+  let has_trees =
+    try
+      let _ = Str.search_forward (Str.regexp "n_trees") stats_cols 0 in
+      true
+    with _ -> false
+  in
+  if has_trees then begin
+    incr pass_count; Printf.printf "  ✓ randomForest fit_stats includes n_trees\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ randomForest fit_stats includes n_trees\n    Expected: column n_trees\n    Got: %s\n" stats_cols
+  end;
+
   print_newline ()

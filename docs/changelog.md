@@ -14,6 +14,7 @@
 - Integration tests in b-rodrigues/t_demos now run on PRs as well.
 - **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
 - **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.
+- **fit_stats() for Forests**: Added tree/forest metadata (model type, number of trees, feature count, mining function) when calling `fit_stats()` on PMML random forests.
 
 ## Version 0.51.2 — Current Stable Release
 

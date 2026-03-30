@@ -62,6 +62,7 @@ A convenience function that returns a two-column DataFrame with just `term` and 
 
 ### `fit_stats(model)`
 Returns a single-row DataFrame of model-level statistics (R-squared, AIC, BIC, etc.).
+For PMML decision trees and random forests, this includes tree metadata such as `n_trees`, `n_features`, `model_type`, and `mining_function`.
 
 ```t
 stats = fit_stats(model)
