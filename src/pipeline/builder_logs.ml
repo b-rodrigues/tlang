@@ -4,12 +4,22 @@ open Builder_utils
 let get_logs () =
   if not (Sys.file_exists pipeline_dir) then []
   else
-    Sys.readdir pipeline_dir
-    |> Array.to_list
-    |> List.filter (fun f ->
-      Filename.check_suffix f ".json"
-      && String.starts_with ~prefix:"build_log_" f)
-    |> List.sort (fun a b -> compare b a)
+    let logs =
+      Sys.readdir pipeline_dir
+      |> Array.to_list
+      |> List.filter (fun f ->
+        Filename.check_suffix f ".json"
+        && String.starts_with ~prefix:"build_log_" f)
+    in
+    let logs =
+      if List.length logs > 1 then
+        List.filter (fun f ->
+          f <> "build_log_ocaml_mock.json"
+          && f <> "build_log_legacy_version.json"
+        ) logs
+      else logs
+    in
+    logs |> List.sort (fun a b -> compare b a)
 
 let read_log path =
   try

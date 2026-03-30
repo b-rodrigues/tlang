@@ -536,7 +536,7 @@ let read_pmml path =
       (match read_tree_pmml path with
        | Ok v -> Ok v
        | Error msg -> Error msg)
-    else if (not !found_table) && !coeffs = [] && Option.is_none !intercept then
+    else if (not !found_table) && !coeffs = [] && Option.is_none !intercept && Option.is_none !glm_stats then
       (match read_tree_pmml path with
        | Ok v -> Ok v
        | Error msg -> Error msg)
