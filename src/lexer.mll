@@ -7,6 +7,7 @@ exception SyntaxError of string
 let is_ident_char = function
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '$' -> true
   | _ -> false
+
 }
 
 let digit = ['0'-'9']
@@ -25,8 +26,8 @@ rule token = parse
      doesn't terminate the expression when immediately followed by |> . *)
   | '\n' [' ' '\t']* "?|>" { Lexing.new_line lexbuf; MAYBE_PIPE }
   | '\n' [' ' '\t']* "|>" { Lexing.new_line lexbuf; PIPE }
-  (* Ignore trailing newlines before a closing brace. *)
-  | '\n' [' ' '\t']* '}' { Lexing.new_line lexbuf; RBRACE }
+  | '\n' [' ' '\t']* '}' { Lexing.new_line lexbuf; RBRACE_TRAIL }
+  | ';' [' ' '\t']* '}' { RBRACE_TRAIL }
   | '\n'            { Lexing.new_line lexbuf; NEWLINE }
   | ',' [' ' '\t']* "..." { COMMA_DOTDOTDOT }
   | ';'             { SEMICOLON }

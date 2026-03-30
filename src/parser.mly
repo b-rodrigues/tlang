@@ -70,6 +70,7 @@ let with_stmt_loc node pos =
 %token <string> SERIALIZER_ID
 /* Symbols and Operators */
 %token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
+%token RBRACE_TRAIL
 %token COMMA COLON COLON_EQ DOT EQUALS ARROW FAT_ARROW DOTDOTDOT
 %token PIPE
 %token MAYBE_PIPE
@@ -327,7 +328,7 @@ primary_expr:
   ;
 
 block_expr:
-  | LBRACE skip_sep stmts = stmt_list RBRACE { with_loc (Block stmts) $startpos }
+  | LBRACE skip_sep stmts = stmt_list rbrace { with_loc (Block stmts) $startpos }
   ;
 
 lambda_expr:
@@ -411,7 +412,7 @@ if_expr:
   ;
 
 match_expr:
-  | MATCH LPAREN skip_sep scrutinee = expr skip_sep RPAREN skip_sep LBRACE skip_sep cases = match_case_list RBRACE
+  | MATCH LPAREN skip_sep scrutinee = expr skip_sep RPAREN skip_sep LBRACE skip_sep cases = match_case_list rbrace
     { with_loc (Match { scrutinee; cases }) $startpos }
   ;
 
@@ -427,7 +428,7 @@ match_case:
 
 match_pattern:
   | p = list_match_pattern { p }
-  | ctor = any_ident LBRACE skip_sep field = error_pattern_field RBRACE
+  | ctor = any_ident LBRACE skip_sep field = error_pattern_field rbrace
     {
       if ctor = "Error" then PError field
       else
@@ -464,15 +465,15 @@ list_rest_pattern:
   ;
 
 pipeline_expr:
-  | PIPELINE LBRACE skip_sep RBRACE
+  | PIPELINE LBRACE skip_sep rbrace
     { with_loc (PipelineDef []) $startpos }
-  | PIPELINE LBRACE skip_sep nodes = pipeline_node_list RBRACE
+  | PIPELINE LBRACE skip_sep nodes = pipeline_nodes rbrace
     { with_loc (PipelineDef nodes) $startpos }
   ;
 
-pipeline_node_list:
+pipeline_nodes:
   | n = pipeline_node { [n] }
-  | n = pipeline_node seps rest = pipeline_node_list { n :: rest }
+  | n = pipeline_node seps rest = pipeline_nodes { n :: rest }
   ;
 
 pipeline_node:
@@ -480,16 +481,16 @@ pipeline_node:
   ;
 
 intent_expr:
-  | INTENT LBRACE skip_sep RBRACE
+  | INTENT LBRACE skip_sep rbrace
     { with_loc (IntentDef []) $startpos }
-  | INTENT LBRACE skip_sep pairs = intent_field_list RBRACE
+  | INTENT LBRACE skip_sep pairs = intent_fields rbrace
     { with_loc (IntentDef pairs) $startpos }
   ;
 
-intent_field_list:
+intent_fields:
   | p = intent_field { [p] }
-  | p = intent_field COMMA skip_sep rest = intent_field_list { p :: rest }
-  | p = intent_field seps rest = intent_field_list { p :: rest }
+  | p = intent_field COMMA skip_sep rest = intent_fields { p :: rest }
+  | p = intent_field seps rest = intent_fields { p :: rest }
   ;
 
 intent_field:
@@ -554,4 +555,9 @@ typ:
 type_args:
   | t = typ skip_sep { [t] }
   | t = typ COMMA skip_sep rest = type_args { t :: rest }
+  ;
+/* Allow a trailing separator before closing braces (newline/semicolon). */
+rbrace:
+  | RBRACE { () }
+  | RBRACE_TRAIL { () }
   ;
