@@ -123,12 +123,14 @@
             # Used by Arrow-Owl bridge for matrix operations in lm(), cor()
             # ocamlVersion.owl
             pkgs.jpmml-statsmodels
+            pkgs.jre
+            pkgs.onnxruntime
           ];
 
           buildPhase = ''
-            export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:$PKG_CONFIG_PATH"
-            export T_ARROW_CFLAGS="-I${pkgs.arrow-cpp}/include -I${pkgs.arrow-glib}/include -I${pkgs.glib.dev}/include -I${pkgs.glib.dev}/include/glib-2.0 -I${pkgs.glib.out}/lib/glib-2.0/include"
-            export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0"
+            export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:${pkgs.onnxruntime}/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export T_ARROW_CFLAGS="-I${pkgs.arrow-cpp}/include -I${pkgs.arrow-glib}/include -I${pkgs.glib.dev}/include -I${pkgs.glib.dev}/include/glib-2.0 -I${pkgs.glib.out}/lib/glib-2.0/include -I${pkgs.onnxruntime}/include"
+            export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -L${pkgs.onnxruntime}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lonnxruntime"
             dune build src/repl.exe src/lsp_server.exe
           '';
 
@@ -178,14 +180,17 @@
             "-I${pkgs.glib.dev}/include"
             "-I${pkgs.glib.dev}/include/glib-2.0"
             "-I${pkgs.glib.out}/lib/glib-2.0/include"
+            "-I${pkgs.onnxruntime}/include"
           ];
           T_ARROW_LIBS = builtins.concatStringsSep " " [
             "-L${pkgs.arrow-cpp}/lib"
             "-L${pkgs.arrow-glib}/lib"
             "-L${pkgs.glib.out}/lib"
+            "-L${pkgs.onnxruntime}/lib"
             "-larrow" "-larrow-glib"
             "-lparquet" "-lparquet-glib"
             "-lglib-2.0" "-lgobject-2.0" "-lgio-2.0"
+            "-lonnxruntime"
           ];
 
 
@@ -262,6 +267,7 @@
             pkgs.jre
             pkgs.boost
             pkgs.cmake
+            pkgs.onnxruntime
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''

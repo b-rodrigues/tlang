@@ -8,12 +8,12 @@
 (rule
  (targets arrow_cflags.sexp)
  (action (with-stdout-to %{targets}
-  (bash "if [ -n \"${T_ARROW_CFLAGS:-}\" ]; then raw=\"$T_ARROW_CFLAGS\"; else raw=''; for p in arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --cflags $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
+  (bash "if [ -n \"${T_ARROW_CFLAGS:-}\" ]; then raw=\"$T_ARROW_CFLAGS\"; else raw=''; for p in onnxruntime arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --cflags $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
 
 (rule
  (targets arrow_libs.sexp)
  (action (with-stdout-to %{targets}
-  (bash "if [ -n \"${T_ARROW_LIBS:-}\" ]; then raw=\"$T_ARROW_LIBS\"; else raw=''; for p in arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --libs $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
+  (bash "if [ -n \"${T_ARROW_LIBS:-}\" ]; then raw=\"$T_ARROW_LIBS\"; else raw=''; for p in onnxruntime arrow-glib parquet-glib gobject-2.0 glib-2.0 gio-2.0; do f=$(pkg-config --libs $p 2>/dev/null) && raw=\"$raw $f\"; done; fi; if [ -z \"$raw\" ]; then echo '()'; else echo \"$raw\" | tr ' ' '\\n' | sed '/^$/d' | sort -u | sed 's/.*/\"&\"/' | tr '\\n' ' ' | sed 's/.*/(&)/'; fi"))))
 
 (rule
  (target version.ml)
@@ -26,7 +26,7 @@
  (wrapped false)
  (foreign_stubs
   (language c)
-  (names arrow_stubs stats_stubs)
+  (names arrow_stubs stats_stubs onnx_stubs)
   (flags (:include arrow_cflags.sexp)))
  (c_library_flags (:include arrow_libs.sexp))
  (modules
@@ -59,7 +59,7 @@
    ; packages/math
    t_sqrt t_abs t_log t_exp pow ndarray t_iota round floor ceiling ceil trunc sign signif sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh
    ; packages/stats
-   mean sd quantile cor lm predict t_read_pmml t_read_onnx fit_stats add_diagnostics summary min max median var cov range iqr scale standardize normalize mad skewness kurtosis mode cv fivenum trimmed_mean winsorize huber_loss coef conf_int nobs df_residual sigma dispersion vcov compare residuals augment score distributions anova wald_test basis math_utils
+   mean sd quantile cor lm predict onnx_ffi t_read_pmml t_read_onnx fit_stats add_diagnostics summary min max median var cov range iqr scale standardize normalize mad skewness kurtosis mode cv fivenum trimmed_mean winsorize huber_loss coef conf_int nobs df_residual sigma dispersion vcov compare residuals augment score distributions anova wald_test basis math_utils
     ; packages/lens
     lens
     ; packages/explain
