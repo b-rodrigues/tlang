@@ -838,6 +838,7 @@ let init_env () =
   let env = Lm.register env in
   let env = Predict.register env in
   let env = T_read_pmml.register env in
+  let env = T_read_onnx.register env in
   let env = Fit_stats.register env in
   let env = Add_diagnostics.register env in
   let env = Summary.register env in

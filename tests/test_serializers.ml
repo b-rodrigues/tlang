@@ -4,6 +4,11 @@ open Ast
 let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "First-Class Serializers:\n";
 
+  let contains s sub = 
+    try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
+    with Not_found -> false
+  in
+
   (* 1. Built-in Registry Resolution *)
   let (v, _) = eval_string_env {| ^csv |} (Packages.init_env ()) in
   (match v with
@@ -18,6 +23,33 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
        incr pass_count; Printf.printf "  ✓ ^arrow resolves to serializer record\n"
    | _ ->
        incr fail_count; Printf.printf "  ✗ ^arrow resolution failed\n") ;
+
+  (* ONNX serializer resolution *)
+  let (v, _) = eval_string_env {| ^onnx |} (Packages.init_env ()) in
+  (match v with
+   | VSerializer s when s.s_format = "onnx" ->
+       incr pass_count; Printf.printf "  ✓ ^onnx resolves to serializer record\n"
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ ^onnx resolution failed\n") ;
+
+  (* ONNX serializer has correct R/Python helpers *)
+  let (v, _) = eval_string_env {| ^onnx |} (Packages.init_env ()) in
+  (match v with
+   | VSerializer s when s.s_r_writer = Some "r_write_onnx"
+                      && s.s_r_reader = Some "r_read_onnx"
+                      && s.s_py_writer = Some "py_write_onnx"
+                      && s.s_py_reader = Some "py_read_onnx" ->
+       incr pass_count; Printf.printf "  ✓ ^onnx has correct R/Python helper names\n"
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ ^onnx R/Python helper names incorrect\n") ;
+
+  (* ONNX placeholder writer throws descriptive error *)
+  let (v, _) = eval_string_env {| (^onnx).writer("test.onnx", 1) |} (Packages.init_env ()) in
+  (match v with
+   | VError { message; _ } when contains message "does not have a T-native implementation yet" ->
+       incr pass_count; Printf.printf "  ✓ ^onnx placeholder writer throws descriptive error\n"
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ ^onnx placeholder writer failed to throw error\n") ;
 
   (* 2. Custom Serializers *)
   let env = Packages.init_env () in
@@ -36,11 +68,6 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   end else begin
     incr fail_count; Printf.printf "  ✗ Custom serializer mock failed\n"
   end;
-
-  let contains s sub = 
-    try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
-    with Not_found -> false
-  in
 
   (* 3. Static Coherence Checks - Mismatch *)
   let env_coh = Packages.init_env () in
