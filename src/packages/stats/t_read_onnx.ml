@@ -20,7 +20,7 @@ let register env =
       match args with
       | [VString path] ->
           if not (Sys.file_exists path) then
-            Error.make_error FileError (Printf.sprintf "ONNX model file not found: %s" path)
+            Error.make_error FileError (Printf.sprintf "Function `t_read_onnx`: ONNX model file not found: %s" path)
           else
             VDict [
               "model_type", VString "onnx";
