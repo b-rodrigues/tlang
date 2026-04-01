@@ -12,6 +12,12 @@
 - **`fit_stats()` API Standardization**: Unified model-level statistics on a single, standardized `fit_stats()` function. The function now natively supports lists and dictionaries of models, allowing for effortless aggregation of goodness-of-fit statistics (R², AIC, BIC, etc.) from multiple languages (R, Python, T) into a single tidy T DataFrame.
 - **Test Suite Synchronization**: Updated the internal test suite and golden benchmarks to align with the new `fit_stats()` API.
 - Integration tests in b-rodrigues/t_demos now run on PRs as well.
+- **ONNX Serializer Strategy**: Initial implementation of the ONNX (Open Neural Network Exchange) model interchange system.
+    - Registered `^onnx` as a first-class serializer for multi-runtime model portability.
+    - Added ONNX export/import helpers for R and Python in the Nix pipeline emitter.
+    - Implemented T-native metadata reader (`t_read_onnx`) for orchestration and downstream evaluation in polyglot nodes.
+    - Verified registry resolution and static format coherence checks for ONNX-backed artifacts.
+    - *Note*: While ONNX inference is stable, the `skl2onnx` Python exporter in the current Nix environment (2026-03-29) is temporarily broken due to internal dependency issues; use real artifacts for golden tests until nixpkgs is updated.
 - **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
 - **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.
 - **fit_stats() for Forests**: Added tree/forest metadata (model type, number of trees, feature count, mining function) when calling `fit_stats()` on PMML random forests.

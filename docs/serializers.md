@@ -29,6 +29,7 @@ If you don't specify a serializer, T uses the `^tlang` (internal binary) format 
 | `^tlang` | T-Native | T-to-T interchange | T only |
 | `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia |
 | `^pmml` | PMML | Predictive Models | T, R, Python |
+| `^onnx` | ONNX | ML Models | T, R, Python |
 | `^json` | JSON | Config, lists, dicts | T, R, Python |
 | `^csv` | CSV | Tabular data | T, R, Python |
 | `^text` | Plain Text | Logs, shell output | All |
