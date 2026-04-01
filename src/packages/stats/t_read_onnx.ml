@@ -3,15 +3,13 @@ open Ast
 (*
 --# Read an ONNX model file
 --#
---# Loads an ONNX model file from disk and returns a dictionary containing 
---# model metadata and the file path.
---# Actual ONNX inference is performed by R or Python runtimes using their
---# respective ONNX Runtime bindings. The T-native reader stores the model
---# path for downstream use in polyglot pipeline nodes.
+--# Loads an ONNX model file from disk and returns a model dictionary.
+--# The resulting dictionary contains the model type identifier (^onnx) and the file path.
+--# This model object can be passed to `predict()` for native T-side inference.
 --#
 --# @name t_read_onnx
 --# @param path :: String The file path to the .onnx model.
---# @return :: Dict A dictionary with format metadata and the model path.
+--# @return :: Dict A model dictionary for native scoring.
 --# @family stats
 --# @export
 *)
@@ -25,7 +23,7 @@ let register env =
               Error.make_error FileError (Printf.sprintf "Function `t_read_onnx`: ONNX model file not found: %s" path)
             else
               VDict [
-                "model_type", VString "onnx";
+                "model_type", VSymbol "^onnx";
                 "path", VString path;
               ]
         | [VError _ as e] -> e
@@ -35,6 +33,6 @@ let register env =
   in
   Env.add "t_write_onnx"
     (make_builtin ~name:"t_write_onnx" 2 (fun _args _env ->
-      Error.make_error RuntimeError "Serializer ^onnx does not have a T-native implementation yet. Use ^onnx within R or Python nodes to export models."
+      Error.make_error RuntimeError "Serializer ^onnx does not have a T-native writer implementation yet. Use ^onnx within R or Python nodes to export models."
     ))
     env

@@ -604,6 +604,37 @@ let predict_boosted_model df model =
        | None -> Error.type_error "Function `predict` expects a boosted model (xgboost/lightgbm) with `boosted_model`.")
   | _ -> Error.type_error "Function `predict` expects a boosted model Dict."
 
+let predict_onnx_model df model =
+  match model with
+  | VDict pairs ->
+      (match List.assoc_opt "path" pairs with
+       | Some (VString path) ->
+           (try
+             let session = Onnx_ffi.get_session path in
+             let colnames = Arrow_table.column_names df.arrow_table in
+             let numeric_cols = 
+               List.filter (fun n ->
+                 match Arrow_table.column_type df.arrow_table n with
+                 | Some (ArrowInt64 | ArrowFloat64) -> true
+                 | _ -> false) colnames 
+             in
+             let nrows = Arrow_table.num_rows df.arrow_table in
+             let ncols = List.length numeric_cols in
+             if ncols = 0 then Error.make_error ValueError "DataFrame has no numeric columns for ONNX prediction."
+             else
+               let data = Array.make_matrix nrows ncols 0.0 in
+               List.iteri (fun j cname ->
+                 let col = Arrow_table.get_float_column df.arrow_table cname in
+                 for i = 0 to nrows - 1 do
+                   data.(i).(j) <- (match col.(i) with Some f -> f | None -> 0.0)
+                 done
+               ) numeric_cols;
+               let res = Onnx_ffi.session_run session data in
+               VList (Array.to_list (Array.map (fun f -> (None, VFloat f)) res))
+           with Failure msg -> Error.make_error RuntimeError msg)
+       | _ -> Error.type_error "Function `predict` expects an ONNX model with a `path` field.")
+  | _ -> Error.type_error "Function `predict` expects an ONNX model Dict."
+
 let register env =
   Env.add "predict"
     (make_builtin_named ~name:"predict" ~variadic:true 0 (fun args _env ->
@@ -623,17 +654,22 @@ let register env =
       | (Some (VDataFrame df), Some (VDict pairs)) ->
         let model_type =
           match List.assoc_opt "model_type" pairs with
-          | Some (VString s) -> Some s
+          | Some (VString s) | Some (VSymbol s) -> 
+              let s = if String.length s > 0 && s.[0] = '^' then String.sub s 1 (String.length s - 1) else s in
+              Some s
           | _ ->
               (match List.assoc_opt "class" pairs with
-               | Some (VString s) -> Some s
+               | Some (VString s) | Some (VSymbol s) -> 
+                  let s = if String.length s > 0 && s.[0] = '^' then String.sub s 1 (String.length s - 1) else s in
+                   Some s
                | _ -> None)
         in
-        (match model_type with
-         | Some ("random_forest" | "forest") -> predict_forest_model df (VDict pairs)
-         | Some ("decision_tree" | "tree") -> predict_tree_model df (VDict pairs)
-         | Some ("xgboost" | "lightgbm") -> predict_boosted_model df (VDict pairs)
-         | _ ->
+         (match model_type with
+          | Some ("random_forest" | "forest") -> predict_forest_model df (VDict pairs)
+          | Some ("decision_tree" | "tree") -> predict_tree_model df (VDict pairs)
+          | Some ("xgboost" | "lightgbm") -> predict_boosted_model df (VDict pairs)
+          | Some "onnx" -> predict_onnx_model df (VDict pairs)
+          | _ ->
         (* Extract coefficients and intercept *)
         let coeffs = match List.assoc_opt "coefficients" pairs with
           | Some (VDict c) -> c
