@@ -33,19 +33,17 @@ Adding `"onnx"` as a T serializer keyword enables:
 model = node(
     command = <{
         from sklearn.linear_model import LogisticRegression
-        import skl2onnx, numpy as np
+        import numpy as np
         clf = LogisticRegression().fit(X, y)
-        t_export_onnx(clf, "$out/artifact",
-                      initial_types=[("input", skl2onnx.common.data_types.FloatTensorType([None, X.shape[1]]))])
     }>,
     runtime = Python,
-    serializer = "onnx"
+    serializer = ^onnx
 )
 
 predictions = node(
     command = <{ predict(data, model) }>,
     runtime = T,
-    deserializer = [data: "arrow", model: "onnx"]
+    deserializer = [data: ^arrow, model: ^onnx]
 )
 ```
 
@@ -111,6 +109,8 @@ Implement `t_onnx_r_code` and `t_onnx_py_code` string literals in `nix_emit_node
 
 **R helpers** (`r_write_onnx`, `r_read_onnx`):
 
+Add the `onnx` R package to the Nix flake.
+
 ```r
 r_write_onnx <- function(object, path) {
   # Uses the 'onnx' R package (CRAN) which wraps torch::onnx_export for torch
@@ -134,6 +134,8 @@ r_read_onnx <- function(path) {
 ```
 
 **Python helpers** (`py_write_onnx`, `py_read_onnx`):
+
+Add the requires Onnx Python packages to the flake.
 
 ```python
 def py_write_onnx(model, path):
@@ -241,7 +243,7 @@ The `OnnxRuntime` module lives in `src/arrow/onnx_runtime.ml` (following the sam
 
 ### Phase 5 — Known Symbols and `known_symbols`
 
-ONNX does not require a new `VSymbol` entry — `"onnx"` is used as a string literal in node arguments, identical to `"pmml"`. No changes to `src/packages/core/packages.ml` are needed.
+ONNX does not require a new `VSymbol` entry — `^onnx` is used in node arguments, identical to `^pmml`. No changes to `src/packages/core/packages.ml` are needed.
 
 ### Phase 6 — Tests
 
