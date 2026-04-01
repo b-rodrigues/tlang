@@ -17,6 +17,7 @@ T's core strength is its **mandatory pipeline architecture**. It treats R script
 - **Nix-Powered Sandboxing**: Each node runs in its own reproducible environment.
 - **High-performance Data Transfer**: Move DataFrames between R, Python, and T using Apache Arrow IPC via the Nix store.
 - **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML (linear models, decision trees, random forests).
+- **Model Interchange Choices**: Use `^pmml` for T-native classical model scoring, or `^onnx` for ONNX export/import across Python, R, and runtime-backed inference.
 
 ```t
 -- A reproducible polyglot pipeline
@@ -49,6 +50,29 @@ p = pipeline {
 
 -- Build the pipeline into reproducible Nix artifacts
 build_pipeline(p)
+```
+
+ONNX is also available as a first-class serializer:
+
+```t
+p = pipeline {
+  model_py = pyn(
+    command = <{
+      from sklearn.linear_model import LogisticRegression
+      clf = LogisticRegression().fit(X, y)
+      clf
+    }>,
+    serializer = ^onnx
+  )
+
+  scored = pyn(
+    command = <{
+      session = model_py
+      session
+    }>,
+    deserializer = ^onnx
+  )
+}
 ```
 
 ## Why T?

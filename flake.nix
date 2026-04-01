@@ -47,6 +47,7 @@
             broom
             jsonlite
             arrow
+            onnx
             r2pmml
             (lightgbm.overrideAttrs (old: {
               cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
@@ -67,6 +68,8 @@
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
             buildInputs = (old.buildInputs or []) ++ [ pkgs.boost ];
           }))
+          skl2onnx
+          onnxruntime
           sklearn2pmml
           statsmodels
           nbformat

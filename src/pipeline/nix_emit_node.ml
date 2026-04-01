@@ -765,17 +765,29 @@ r_read_onnx <- function(path) {
 
   let t_onnx_py_code = {|
 def _infer_n_features(model):
+    import numpy as np
     if hasattr(model, 'n_features_in_'):
-        return model.n_features_in_
+        return int(model.n_features_in_)
     if hasattr(model, 'coef_'):
-        import numpy as np
         c = np.array(model.coef_)
         return c.shape[-1] if c.ndim >= 1 else 1
-    return 1
+    if hasattr(model, 'in_features'):
+        return int(model.in_features)
+    modules = getattr(model, 'modules', None)
+    if callable(modules):
+        for module in model.modules():
+            if hasattr(module, 'in_features'):
+                return int(module.in_features)
+    raise RuntimeError(
+        "Unable to infer ONNX input feature count. "
+        "Expected a scikit-learn model (n_features_in_, coef_), "
+        "a PyTorch model (in_features, modules), or another model "
+        "with explicit feature metadata."
+    )
 
 def _make_dummy_input(model):
     import torch
-    return torch.randn(1, 10)
+    return torch.randn(1, _infer_n_features(model))
 
 def py_write_onnx(model, path):
     import numpy as np

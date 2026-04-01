@@ -686,6 +686,8 @@ is_error(result)  -- true
 
 Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file.
 
+Built-in serializer keywords include `"csv"`, `"arrow"`, `"pmml"`, and `"onnx"` (or `^csv`, `^arrow`, `^pmml`, `^onnx` when referencing the first-class serializer values directly).
+
 ```t
 p = pipeline {
   -- 1. Load data natively in T (CSV backend)
@@ -718,6 +720,28 @@ build_pipeline(p)
 -- Access pipeline results
 p.data           -- Native T object
 p.predictions    -- Results with predictions column
+```
+
+For ONNX-based interchange, use a Python or R node to write the model and a Python, R, or T node to read it back:
+
+```t
+p = pipeline {
+  model_py = pyn(
+    command = <{
+      from sklearn.linear_model import LogisticRegression
+      clf = LogisticRegression().fit(X, y)
+      clf
+    }>,
+    serializer = ^onnx
+  )
+
+  onnx_session = pyn(
+    command = <{
+      model_py
+    }>,
+    deserializer = ^onnx
+  )
+}
 ```
 
 #### Debugging and Logs

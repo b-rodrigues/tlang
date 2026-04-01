@@ -1,7 +1,7 @@
 # Statistical Models & Tidy Output
 
 > [!IMPORTANT]
-> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a "Polyglot" approach where models are trained in R or Python nodes and then consumed natively in T via PMML.
+> **Native Support Note**: $T$ provides native implementations for Linear Models (`lm`) and PMML-imported **Decision Trees** and **Random Forests**. For other advanced modeling (GLMs, Mixed Models, Machine Learning), $T$ uses a polyglot approach where models are trained in R or Python nodes and exchanged through PMML or ONNX.
 
 $T$ treats models as first-class objects that can be summarized and evaluated regardless of which runtime created them.
 
@@ -19,7 +19,7 @@ model = lm(data = mtcars, formula = mpg ~ wt + hp)
 ```
 
 ### Advanced Modeling (Polyglot)
-To fit models beyond simple OLS, you should use `R` or `Python` nodes within a $T$ pipeline. These nodes produce a model object that is serialized to PMML, allowing $T$ to consume it natively for inspection and prediction.
+To fit models beyond simple OLS, use `R` or `Python` nodes within a $T$ pipeline. These nodes can serialize model artifacts through PMML or ONNX depending on the scoring path you want.
 
 #### Example: Logistic Regression in R
 ```t
@@ -34,6 +34,22 @@ p = pipeline {
 build_pipeline(p)
 model = read_node("model_node")
 summary(model) -- Fully supported in T!
+```
+
+#### Example: Logistic Regression in Python via ONNX
+```t
+p = pipeline {
+    model_node = pyn(
+        command = <{
+            from sklearn.linear_model import LogisticRegression
+            clf = LogisticRegression().fit(X, y)
+            clf
+        }>,
+        serializer = ^onnx
+    )
+}
+build_pipeline(p)
+model = read_node("model_node")
 ```
 
 ---
@@ -144,7 +160,7 @@ v = vcov(model)
 
 ## Prediction
 
-The `predict(data, model)` function performs vectorized predictions natively in $T$. 
+The `predict(data, model)` function performs vectorized predictions natively in $T$ for native and PMML-backed models. ONNX artifacts are intended for runtime-backed interchange through Python or R nodes.
 
 ```t
 -- Fast, native evaluation in T
@@ -158,13 +174,21 @@ $T$ supports various link functions for GLMs (imported via PMML), including **Lo
 
 ---
 
-## Model Interchange & PMML
+## Model Interchange: PMML and ONNX
 
 ### Why PMML?
-The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and other runtimes. It allows:
+The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and other runtimes when you want T-native scoring. It allows:
 1. **R Integration**: Using any R model that has a PMML exporter (e.g. `stats::glm`, `survival::coxph`).
 2. **Python Integration**: Using `scikit-learn` or `statsmodels`.
 3. **Reproducibility**: Models persist independently of the original runtime code.
+
+### Why ONNX?
+**ONNX** is the preferred interchange format when you want broad ML model coverage or runtime-backed inference outside T's native PMML evaluator. It allows:
+1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
+2. **R/Python Runtime Loading**: Reading models via the `onnx` R package or Python `onnxruntime`.
+3. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
+
+Use `^pmml` when you want T-native prediction support today. Use `^onnx` when you want a portable model artifact for Python or R runtime execution.
 
 ### Cross-Runtime Consistency
 $T$'s statistical evaluator is verified against R's reference implementation. Results match R's `broom::tidy()` and `stats::predict()` exactly.
