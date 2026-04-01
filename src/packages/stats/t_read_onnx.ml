@@ -3,7 +3,8 @@ open Ast
 (*
 --# Read an ONNX model file
 --#
---# Loads an ONNX model file from disk and returns its path as a string.
+--# Loads an ONNX model file from disk and returns a dictionary containing 
+--# model metadata and the file path.
 --# Actual ONNX inference is performed by R or Python runtimes using their
 --# respective ONNX Runtime bindings. The T-native reader stores the model
 --# path for downstream use in polyglot pipeline nodes.
