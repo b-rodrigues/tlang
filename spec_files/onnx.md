@@ -1,5 +1,8 @@
 # ONNX Serializer for T
 
+> [!NOTE]
+> **Status**: Phases 1-3 (Registry, Nix Emitter, R/Python Helpers) are **Completed**. Phase 4 (Native T-Inference) is currently **In Progress** (Metadata loading is implemented; OCaml FFI for inference is the next milestone).
+
 ## What is ONNX?
 
 **ONNX (Open Neural Network Exchange)** is an open standard format for representing machine learning models. It was developed collaboratively by Microsoft, Meta, and others, and is now maintained by the Linux Foundation AI & Data. ONNX defines a common graph-based IR (intermediate representation) and a set of built-in operators that cover a wide range of model architectures, from classical machine learning (linear models, tree ensembles, SVMs, gradient boosting) to deep neural networks.
@@ -225,7 +228,9 @@ In `src/pipeline/nix_emit_node.ml`:
 
 ### Phase 4 — T-Native ONNX Reader (`src/packages/stats/t_read_onnx.ml`)
 
-Add OCaml bindings to `onnxruntime` (the C API) via a new stub file in `src/ffi/`. The reader function:
+**Current State**: Metadata implementation complete. The reader identifies `.onnx` files and returns a dictionary with the model path and type.
+
+**Remaining/Future Work**: Add OCaml bindings to `onnxruntime` (the C API) via a new stub file in `src/ffi/`. The full reader function will:
 
 1. Calls `OnnxRuntime.create_session path` to load the model.
 2. Returns `VModel (OnnxModel { session; input_names; output_names })`.
@@ -278,3 +283,15 @@ ONNX does not require a new `VSymbol` entry — `^onnx` is used in node argument
 | Deep learning | no | yes |
 
 The key implementation difference is in Phase 4: PMML requires a hand-written evaluator (currently ~1500 lines across `pmml_utils.ml` and `predict.ml`), whereas ONNX delegates evaluation entirely to the ONNX Runtime C library. This makes the T-side ONNX reader simpler to implement and maintain, at the cost of adding a C FFI dependency.
+
+---
+
+## Current Progress Summary (2026-03-29)
+
+- [x] **Registry Registration**: `^onnx` is a first-class serializer in `src/serialization_registry.ml`.
+- [x] **Nix Pipeline Emitter**: `nix_emit_node.ml` correctly detects ONNX usage and injects cross-runtime helpers.
+- [x] **Polyglot Helpers**: `r_write_onnx`, `r_read_onnx`, `py_write_onnx`, `py_read_onnx` are implemented and injected.
+- [x] **Metadata Reader**: `t_read_onnx` is implemented in OCaml and registered in the `stats` package.
+- [x] **Placeholder Writer**: `t_write_onnx` implemented as a descriptive placeholder to support pipeline validation.
+- [ ] **Native T-Inference**: OCaml FFI for `onnxruntime` C API is pending (models currently load as metadata for R/Python consumption).
+- [ ] **Golden Tests**: Drafted in `tests/golden/generate_onnx.py`. Fully automated execution is pending resolution of `skl2onnx` environment issues in the Nix sandbox.
