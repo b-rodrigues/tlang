@@ -19,7 +19,7 @@ def main():
     X = iris.drop(columns=["Species"]).values.astype(np.float32)
     y = iris["Species"].values
     
-    clf = LogisticRegression(max_iter=1000)
+    clf = LogisticRegression(max_iter=1000, random_state=123, solver='lbfgs', multi_class='multinomial')
     clf.fit(X, y)
     
     # Export to ONNX
