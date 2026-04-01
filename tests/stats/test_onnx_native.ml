@@ -6,7 +6,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "ONNX Native:\n";
 
   (* Create a dummy ONNX file *)
-  let filename = "test_dummy.onnx" in
+  let filename = Filename.temp_file "onnx_test" ".onnx" in
   let out = open_out filename in
   output_string out "onnx-binary-content-mock";
   close_out out;
