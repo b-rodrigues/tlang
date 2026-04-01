@@ -321,7 +321,7 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 - Relationship helpers and distributions: `cor(x, y, na_rm = false)`, `cov(x, y, na_rm = false)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`
 - Modeling: `lm(data, formula)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `augment(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
 - PMML: native decision tree, random forest, XGBoost, and LightGBM evaluation via `t_read_pmml()` + `predict()`
-- ONNX interchange: serializer/deserializer support via `^onnx`, plus `t_read_onnx(path)` for artifact loading
+- ONNX Support: Native prediction for ONNX models via `t_read_onnx(path)` + `predict()`, plus serializer/deserializer support via `^onnx`. Supports 64-bit to 32-bit float casting for deep learning interchange.
 - Basis/model exchange: `cut(x, breaks, ...)`, `poly(x, degree, ...)`, `t_read_pmml(path)`, `t_read_onnx(path)`
 
 ### `pipeline`

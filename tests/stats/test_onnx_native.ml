@@ -27,7 +27,20 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
           | Some (VString path) when path = filename ->
               incr pass_count; Printf.printf "  ✓ t_read_onnx stores path\n"
           | _ ->
-              incr fail_count; Printf.printf "  ✗ t_read_onnx failed to store path")
+              incr fail_count; Printf.printf "  ✗ t_read_onnx failed to store path");
+         
+         (* Verify predict call on invalid ONNX fails gracefully *)
+         let (v_pred, _) = eval_string_env (Printf.sprintf {| 
+           df = dataframe(n1 = [1.0, 2.0], n2 = [3.0, 4.0]);
+           model = t_read_onnx("%s");
+           predict(df, model)
+         |} filename) env in
+         (match v_pred with
+          | Ast.VError { code = RuntimeError; _ } ->
+              incr pass_count; Printf.printf "  ✓ predict on invalid ONNX fails gracefully\n"
+          | _ ->
+              incr fail_count; 
+              Printf.printf "  ✗ predict on invalid ONNX should return RuntimeError, got: %s\n" (Ast.Utils.value_to_string v_pred))
      | _ ->
          incr fail_count; 
          Printf.printf "  ✗ t_read_onnx returned unexpected value type: %s\n" (Ast.Utils.value_to_string v))

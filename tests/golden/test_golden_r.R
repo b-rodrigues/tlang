@@ -300,6 +300,19 @@ test_that("WINDOW OFFSET: lead on mtcars.mpg", {
 # ============================================================================
 # Test Suite 13: CUMULATIVE WINDOW FUNCTIONS
 # ============================================================================
+# Test Suite 25: ONNX Native Prediction
+test_that("ONNX: Logistic Regression predictions (iris)", {
+  # This one skips if skl2onnx was not run
+  if (file.exists("tests/golden/data/iris_logreg.onnx")) {
+    compare_csvs("iris_onnx_logreg_predictions")
+  } else {
+    skip("iris_logreg.onnx not found")
+  }
+})
+
+test_that("ONNX: Linear Regression predictions (mtcars hp~wt)", {
+  compare_csvs("mtcars_onnx_reg_predictions")
+})
 
 test_that("WINDOW CUMULATIVE: cumsum on simple.score", {
   compare_csvs("simple_cumsum_score")
