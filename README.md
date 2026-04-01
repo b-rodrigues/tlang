@@ -1,7 +1,7 @@
 # T Orchestration Engine
 
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.51.2%20%22Sangoku%22-blue.svg)](https://tstats-project.org)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.51.3%20%22Oni%22-blue.svg)](https://tstats-project.org)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
@@ -16,8 +16,8 @@ Instead of replacing your existing R, Python, and Julia workflows, T coordinates
 T's core strength is its **mandatory pipeline architecture**. It treats R scripts, Python models, and Shell commands as first-class nodes in a directed acyclic graph (DAG). T handles the "glue":
 - **Nix-Powered Sandboxing**: Each node runs in its own reproducible environment.
 - **High-performance Data Transfer**: Move DataFrames between R, Python, and T using Apache Arrow IPC via the Nix store.
-- **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML (linear models, decision trees, random forests).
-- **Model Interchange Choices**: Use `^pmml` for T-native classical model scoring, or `^onnx` for ONNX export/import across Python, R, and runtime-backed inference.
+- **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML (linear models, decision trees, random forests, and boosted trees like **XGBoost** and **LightGBM**).
+- **Model Interchange & Orchestration**: Use `^onnx` for model portability across Python and R nodes with T-native metadata orchestration.
 
 ```t
 -- A reproducible polyglot pipeline
@@ -182,7 +182,7 @@ See the [Installation Guide](docs/installation.md) for detailed setup instructio
 
 ## Status & Missing Features
 
-**Alpha 0.51.2** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
+**Alpha 0.51.3** — The core syntax and functional semantics are stable. T is now a **reproducibility- and pipeline-first** language, with extensive native support for standard data manipulation verbs:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
