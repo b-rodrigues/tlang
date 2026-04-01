@@ -15,7 +15,12 @@
 - **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
 - **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.
 - **fit_stats() for Forests**: Added tree/forest metadata (model type, number of trees, feature count, mining function) when calling `fit_stats()` on PMML random forests.
-- **PMML XGBoost**: Added native PMML parsing and prediction support for XGBoost (GBTree) models, with golden coverage for sklearn2pmml exports.
+- **PMML XGBoost & LightGBM**: Added native PMML parsing and prediction support for boosted tree ensembles.
+    - Added support for **LightGBM** models with shared additive tree logic.
+    - Generalized the internal ensemble structure to a common `boosted_model` format.
+    - Updated `fit_stats()` to provide tree counts and feature counts for all supported boosted ensembles.
+    - Fixed `flake.nix` build issues for LightGBM/Boost by disabling GPU support and adjusting CMake flags for CPU-only builds.
+    - Added full golden test coverage for both XGBoost and LightGBM using real artifacts from R and Python.
 
 ## Version 0.51.2 — Current Stable Release
 

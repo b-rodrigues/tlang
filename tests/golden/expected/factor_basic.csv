@@ -1,0 +1,11 @@
+id,name,age,score,passed,name_fct
+1,Alice,25,85.5,TRUE,Alice
+2,Bob,30,92.3,TRUE,Bob
+3,Charlie,35,78.9,TRUE,Charlie
+4,David,28,88.1,TRUE,David
+5,Eve,22,95,TRUE,Eve
+6,Frank,45,82.4,TRUE,Frank
+7,Grace,33,90.2,TRUE,Grace
+8,Henry,29,76.5,TRUE,Henry
+9,Iris,31,89.3,TRUE,Iris
+10,Jack,27,91.7,TRUE,Jack

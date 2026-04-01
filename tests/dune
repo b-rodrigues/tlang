@@ -12,6 +12,7 @@
    test_math test_stats test_broom_golden test_explain_tests
    test_pmml_random_forest
    test_pmml_xgboost
+   test_pmml_lightgbm
    test_cli
    test_golden test_boolean_golden test_core_semantics test_in test_operators test_bitwise_error
    test_arrow_helpers

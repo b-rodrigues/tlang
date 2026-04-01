@@ -44,7 +44,7 @@ type pmml_forest = {
   trees: pmml_tree list;
 }
 
-type pmml_xgb_model = {
+type pmml_boosted_ensemble = {
   function_name: string;
   target: string option;
   classes: string list;
@@ -320,7 +320,7 @@ let forest_to_value (forest : pmml_forest) =
     ("trees", VList (List.map (fun t -> (None, tree_to_value t)) forest.trees));
   ]
 
-let xgb_model_to_value (model : pmml_xgb_model) =
+let boosted_ensemble_to_value (model : pmml_boosted_ensemble) =
   let model_values =
     model.models
     |> List.map (fun (rescale_constant, rescale_factor, forest) ->
@@ -357,7 +357,7 @@ let parse_targets_rescale node =
        | _ -> (0.0, 1.0))
   | _ -> (0.0, 1.0)
 
-let parse_xgboost_pmml root mining_model =
+let parse_boosted_pmml root mining_model =
   let target = parse_target_from_schema mining_model in
   let target_name = match target with Some t -> t | None -> "" in
   let classes = if target_name = "" then [] else parse_target_values root target_name in
@@ -385,7 +385,7 @@ let parse_xgboost_pmml root mining_model =
               | seg :: _ -> Some seg
               | [] -> None))
   in
-  let parse_sum_forest node =
+  let parse_additive_forest node =
     let rescale_constant, rescale_factor = parse_targets_rescale node in
     let segmentation = find_first "Segmentation" node in
     match segmentation with
@@ -413,7 +413,7 @@ let parse_xgboost_pmml root mining_model =
              let forest = { function_name = "regression"; target; method_; trees } in
              Ok (rescale_constant, rescale_factor, forest)
          | Error msg -> Error msg)
-    | _ -> Error "PMML Parse Error: <Segmentation> missing in XGBoost MiningModel."
+    | _ -> Error "PMML Parse Error: <Segmentation> missing in boosted ensemble MiningModel."
   in
   let parse_model_chain seg_children =
     let segments =
@@ -425,7 +425,7 @@ let parse_xgboost_pmml root mining_model =
       | Elem ("Segment", _, children) :: rest ->
           (match List.find_opt (function Elem ("MiningModel", _, _) -> true | _ -> false) children with
            | Some sub_model ->
-               (match parse_sum_forest sub_model with
+               (match parse_additive_forest sub_model with
                 | Ok model -> parse_segments (model :: acc) rest
                 | Error msg -> Error msg)
            | None -> parse_segments acc rest)
@@ -443,10 +443,10 @@ let parse_xgboost_pmml root mining_model =
                 Ok { function_name; target; classes; models }
             | Error msg -> Error msg)
        | _ ->
-           (match parse_sum_forest mining_model with
+           (match parse_additive_forest mining_model with
             | Ok model -> Ok { function_name; target; classes; models = [model] }
             | Error msg -> Error msg))
-  | _ -> Error "PMML Parse Error: <Segmentation> missing in XGBoost MiningModel."
+  | _ -> Error "PMML Parse Error: <Segmentation> missing in boosted ensemble MiningModel."
 
 let read_tree_pmml path =
   match parse_xml path with
@@ -460,20 +460,21 @@ let read_tree_pmml path =
              | _ -> None
            in
            (match algorithm_name with
-            | Some name when contains_substring name "xgboost" ->
-                (match parse_xgboost_pmml root mining_model with
-                 | Ok xgb ->
+            | Some name when contains_substring name "xgboost" || contains_substring name "lightgbm" ->
+                (match parse_boosted_pmml root mining_model with
+                 | Ok ensemble ->
+                     let model_type = if contains_substring name "lightgbm" then "lightgbm" else "xgboost" in
                      Ok (VDict [
                        ("_model_data", VDict [
-                         ("model_type", VString "xgboost");
-                         ("mining_function", VString xgb.function_name);
-                         ("target", (match xgb.target with Some t -> VString t | None -> VNull));
+                         ("model_type", VString model_type);
+                         ("mining_function", VString ensemble.function_name);
+                         ("target", (match ensemble.target with Some t -> VString t | None -> VNull));
                        ]);
-                       ("class", VString "xgboost");
-                       ("model_type", VString "xgboost");
-                       ("mining_function", VString xgb.function_name);
-                       ("target", (match xgb.target with Some t -> VString t | None -> VNull));
-                       ("xgb_model", xgb_model_to_value xgb);
+                       ("class", VString model_type);
+                       ("model_type", VString model_type);
+                       ("mining_function", VString ensemble.function_name);
+                       ("target", (match ensemble.target with Some t -> VString t | None -> VNull));
+                       ("boosted_model", boosted_ensemble_to_value ensemble);
                        ("_display_keys", VList [
                          (None, VString "class");
                          (None, VString "model_type");
@@ -574,18 +575,18 @@ let read_tree_pmml path =
     Extracts coefficients, standard errors, and model stats into a full T linear model object. *)
 let read_pmml path =
   try
-    let is_xgboost =
+    let is_boosted =
       match parse_xml path with
       | Some root ->
           (match find_first "MiningModel" root with
            | Some (Elem (_, attrs, _)) ->
                (match find_attr "algorithmName" attrs with
-                | Some name -> contains_substring name "xgboost"
+                | Some name -> contains_substring name "xgboost" || contains_substring name "lightgbm"
                 | None -> false)
            | _ -> false)
       | None -> false
     in
-    if is_xgboost then
+    if is_boosted then
       (match read_tree_pmml path with
        | Ok v -> Ok v
        | Error msg -> Error msg)

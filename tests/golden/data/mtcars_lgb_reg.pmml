@@ -1,0 +1,1222 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
+	<Header>
+		<Application name="R2PMML package" version="0.31.0"/>
+		<Timestamp>2026-03-30T18:35:32Z</Timestamp>
+	</Header>
+	<DataDictionary>
+		<DataField name="_target" optype="continuous" dataType="double"/>
+		<DataField name="cyl" optype="continuous" dataType="double">
+			<Interval closure="closedClosed" leftMargin="4.0" rightMargin="8.0"/>
+		</DataField>
+		<DataField name="disp" optype="continuous" dataType="double">
+			<Interval closure="closedClosed" leftMargin="71.1" rightMargin="472.0"/>
+		</DataField>
+		<DataField name="hp" optype="continuous" dataType="double">
+			<Interval closure="closedClosed" leftMargin="52.0" rightMargin="335.0"/>
+		</DataField>
+		<DataField name="drat" optype="continuous" dataType="double">
+			<Interval closure="closedClosed" leftMargin="2.76" rightMargin="4.93"/>
+		</DataField>
+		<DataField name="wt" optype="continuous" dataType="double">
+			<Interval closure="closedClosed" leftMargin="1.513" rightMargin="5.424"/>
+		</DataField>
+		<DataField name="qsec" optype="continuous" dataType="double">
+			<Interval closure="closedClosed" leftMargin="14.5" rightMargin="22.9"/>
+		</DataField>
+	</DataDictionary>
+	<MiningModel functionName="regression" algorithmName="LightGBM">
+		<MiningSchema>
+			<Extension name="X-FeatureImportances">
+				<InlineTable>
+					<Extension name="numberOfImportances" value="12"/>
+					<Extension name="numberOfNonZeroImportances" value="12"/>
+					<Extension name="sumOfImportances" value="280.0"/>
+					<Extension name="minImportance" value="9.0"/>
+					<Extension name="maxImportance" value="45.0"/>
+					<row>
+						<data:name>hp</data:name>
+						<data:importance>45.0</data:importance>
+					</row>
+					<row>
+						<data:name>hp</data:name>
+						<data:importance>45.0</data:importance>
+					</row>
+					<row>
+						<data:name>cyl</data:name>
+						<data:importance>9.0</data:importance>
+					</row>
+					<row>
+						<data:name>cyl</data:name>
+						<data:importance>9.0</data:importance>
+					</row>
+					<row>
+						<data:name>drat</data:name>
+						<data:importance>12.0</data:importance>
+					</row>
+					<row>
+						<data:name>drat</data:name>
+						<data:importance>12.0</data:importance>
+					</row>
+					<row>
+						<data:name>wt</data:name>
+						<data:importance>26.0</data:importance>
+					</row>
+					<row>
+						<data:name>wt</data:name>
+						<data:importance>26.0</data:importance>
+					</row>
+					<row>
+						<data:name>disp</data:name>
+						<data:importance>35.0</data:importance>
+					</row>
+					<row>
+						<data:name>disp</data:name>
+						<data:importance>35.0</data:importance>
+					</row>
+					<row>
+						<data:name>qsec</data:name>
+						<data:importance>13.0</data:importance>
+					</row>
+					<row>
+						<data:name>qsec</data:name>
+						<data:importance>13.0</data:importance>
+					</row>
+				</InlineTable>
+			</Extension>
+			<MiningField name="_target" usageType="target"/>
+			<MiningField name="cyl" importance="18.0" invalidValueTreatment="asIs"/>
+			<MiningField name="disp" importance="70.0" invalidValueTreatment="asIs"/>
+			<MiningField name="hp" importance="90.0" invalidValueTreatment="asIs"/>
+			<MiningField name="drat" importance="24.0" invalidValueTreatment="asIs"/>
+			<MiningField name="wt" importance="52.0" invalidValueTreatment="asIs"/>
+			<MiningField name="qsec" importance="26.0" invalidValueTreatment="asIs"/>
+		</MiningSchema>
+		<Segmentation multipleModelMethod="sum" missingPredictionTreatment="returnMissing">
+			<Segment id="1">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="21.121562469005585" recordCount="32" defaultChild="-4">
+						<True/>
+						<Node id="-4" score="19.121562469005585" recordCount="6" defaultChild="-6">
+							<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+							<Node id="-6" score="19.918229164679847" recordCount="4" defaultChild="0">
+								<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								<Node id="0" score="21.121562469005585" recordCount="2">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="1.8850000000000002"/>
+								</Node>
+								<Node id="6" score="20.746562469005585" recordCount="2">
+									<SimplePredicate field="wt" operator="greaterThan" value="1.8850000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="20.746562469005585" recordCount="2" defaultChild="4">
+								<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								<Node id="4" score="21.471562659740446" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="77.20000000000002"/>
+								</Node>
+								<Node id="7" score="21.321562659740447" recordCount="1">
+									<SimplePredicate field="disp" operator="greaterThan" value="77.20000000000002"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-2" score="20.259340244531632" recordCount="26" defaultChild="-5">
+							<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+							<Node id="-5" score="21.471562659740446" recordCount="12" defaultChild="1">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="266.90000000000003"/>
+								<Node id="1" score="20.259340244531632" recordCount="9">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.4375000000000004"/>
+								</Node>
+								<Node id="5" score="19.918229164679847" recordCount="3">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.4375000000000004"/>
+								</Node>
+							</Node>
+							<Node id="-3" score="19.669895836214224" recordCount="14" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="266.90000000000003"/>
+								<Node id="2" score="19.669895836214224" recordCount="12">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="3" score="19.121562469005585" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="2">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.9278437614440919" recordCount="32" defaultChild="-4">
+						<True/>
+						<Node id="-4" score="-0.8721562385559075" recordCount="6" defaultChild="-6">
+							<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+							<Node id="-6" score="-0.002341429392496745" recordCount="4" defaultChild="0">
+								<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								<Node id="0" score="0.9278437614440919" recordCount="2">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="1.8850000000000002"/>
+								</Node>
+								<Node id="6" score="0.5903437137603758" recordCount="2">
+									<SimplePredicate field="wt" operator="greaterThan" value="1.8850000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.5903437137603758" recordCount="2" defaultChild="4">
+								<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								<Node id="4" score="1.2428439140319816" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="77.20000000000002"/>
+								</Node>
+								<Node id="7" score="1.1078438758850087" recordCount="1">
+									<SimplePredicate field="disp" operator="greaterThan" value="77.20000000000002"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-2" score="0.30739924112955713" recordCount="26" defaultChild="-5">
+							<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+							<Node id="-5" score="1.2428439140319816" recordCount="12" defaultChild="1">
+								<SimplePredicate field="cyl" operator="lessOrEqual" value="7.000000000000001"/>
+								<Node id="1" score="0.30739924112955713" recordCount="3">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="96.00000000000001"/>
+								</Node>
+								<Node id="5" score="-0.002341429392496745" recordCount="9">
+									<SimplePredicate field="hp" operator="greaterThan" value="96.00000000000001"/>
+								</Node>
+							</Node>
+							<Node id="-3" score="-0.37865623732407894" recordCount="14" defaultChild="2">
+								<SimplePredicate field="cyl" operator="greaterThan" value="7.000000000000001"/>
+								<Node id="2" score="-0.37865623732407894" recordCount="12">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="3" score="-0.8721562385559075" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="3">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.7554760138193769" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="0.05180012732744213" recordCount="11" defaultChild="-6">
+							<SimplePredicate field="cyl" operator="lessOrEqual" value="5.000000000000001"/>
+							<Node id="-6" score="-0.46712396144866936" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.7554760138193769" recordCount="3">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="6" score="1.0578094959259028" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="1.0578094959259028" recordCount="6" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.4248177051544188" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="92.00000000000001"/>
+								</Node>
+								<Node id="7" score="0.17131303548812862" recordCount="4">
+									<SimplePredicate field="hp" operator="greaterThan" value="92.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.4248177051544188" recordCount="21" defaultChild="-4">
+							<SimplePredicate field="cyl" operator="greaterThan" value="5.000000000000001"/>
+							<Node id="-4" score="-0.7849406719207764" recordCount="14" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="0.05180012732744213" recordCount="4">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.3250000000000006"/>
+								</Node>
+								<Node id="4" score="-0.22186340190470222" recordCount="10">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.3250000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="-0.22186340190470222" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.7849406719207764" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="222.50000000000003"/>
+								</Node>
+								<Node id="5" score="-0.46712396144866936" recordCount="5">
+									<SimplePredicate field="hp" operator="greaterThan" value="222.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="4">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.6799283981323244" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="0.04662011414766308" recordCount="11" defaultChild="-6">
+							<SimplePredicate field="cyl" operator="lessOrEqual" value="5.000000000000001"/>
+							<Node id="-6" score="-0.4204115676879882" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.6799283981323244" recordCount="3">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="6" score="0.9520285606384274" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.9520285606384274" recordCount="6" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.38233592510223374" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="92.00000000000001"/>
+								</Node>
+								<Node id="7" score="0.15418173074722286" recordCount="4">
+									<SimplePredicate field="hp" operator="greaterThan" value="92.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.38233592510223374" recordCount="21" defaultChild="-4">
+							<SimplePredicate field="cyl" operator="greaterThan" value="5.000000000000001"/>
+							<Node id="-4" score="-0.7064465999603272" recordCount="14" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="0.04662011414766308" recordCount="4">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.3250000000000006"/>
+								</Node>
+								<Node id="4" score="-0.19967706143856048" recordCount="10">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.3250000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="-0.19967706143856048" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.7064465999603272" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="222.50000000000003"/>
+								</Node>
+								<Node id="5" score="-0.4204115676879882" recordCount="5">
+									<SimplePredicate field="hp" operator="greaterThan" value="222.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="5">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.6119355360666914" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="0.041958105564117394" recordCount="11" defaultChild="-6">
+							<SimplePredicate field="cyl" operator="lessOrEqual" value="5.000000000000001"/>
+							<Node id="-6" score="-0.37837040901184077" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.6119355360666914" recordCount="3">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="6" score="0.8568256616592405" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.8568256616592405" recordCount="6" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.3441023349761962" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="92.00000000000001"/>
+								</Node>
+								<Node id="7" score="0.13876356184482572" recordCount="4">
+									<SimplePredicate field="hp" operator="greaterThan" value="92.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.3441023349761962" recordCount="21" defaultChild="-4">
+							<SimplePredicate field="cyl" operator="greaterThan" value="5.000000000000001"/>
+							<Node id="-4" score="-0.6358019351959229" recordCount="14" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="0.041958105564117394" recordCount="4">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.3250000000000006"/>
+								</Node>
+								<Node id="4" score="-0.17970935687422754" recordCount="10">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.3250000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="-0.17970935687422754" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.6358019351959229" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="222.50000000000003"/>
+								</Node>
+								<Node id="5" score="-0.37837040901184077" recordCount="5">
+									<SimplePredicate field="hp" operator="greaterThan" value="222.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="6">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node id="-1" score="0.8318931579589841" recordCount="32" defaultChild="-4">
+						<True/>
+						<Node id="-4" score="-0.5722217559814448" recordCount="6" defaultChild="-7">
+							<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+							<Node id="-7" score="0.6303253650665276" recordCount="3" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="78.85000000000001"/>
+								<Node id="0" score="0.8318931579589841" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="73.40000000000002"/>
+								</Node>
+								<Node id="7" score="0.6703592538833616" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="73.40000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="0.0013784870505332949" recordCount="3" defaultChild="4">
+								<SimplePredicate field="disp" operator="greaterThan" value="78.85000000000001"/>
+								<Node id="4" score="0.37137955427169783" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="111.50000000000001"/>
+								</Node>
+								<Node id="6" score="0.6303253650665276" recordCount="1">
+									<SimplePredicate field="hp" operator="greaterThan" value="111.50000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-2" score="0.20733356475830067" recordCount="26" defaultChild="-5">
+							<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+							<Node id="-5" score="0.37137955427169783" recordCount="12" defaultChild="1">
+								<SimplePredicate field="cyl" operator="lessOrEqual" value="7.000000000000001"/>
+								<Node id="1" score="0.20733356475830067" recordCount="3">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="96.00000000000001"/>
+								</Node>
+								<Node id="5" score="0.0013784870505332949" recordCount="9">
+									<SimplePredicate field="hp" operator="greaterThan" value="96.00000000000001"/>
+								</Node>
+							</Node>
+							<Node id="-3" score="-0.25297163901074476" recordCount="14" defaultChild="2">
+								<SimplePredicate field="cyl" operator="greaterThan" value="7.000000000000001"/>
+								<Node id="2" score="-0.25297163901074476" recordCount="12">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="3" score="-0.5722217559814448" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="7">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.49500651359558123" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="0.037624442577362034" recordCount="11" defaultChild="-6">
+							<SimplePredicate field="cyl" operator="lessOrEqual" value="5.000000000000001"/>
+							<Node id="-6" score="-0.11423028792653765" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.49500651359558123" recordCount="3">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="6" score="0.6960304975509641" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.6960304975509641" recordCount="6" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.2807564496994017" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="92.00000000000001"/>
+								</Node>
+								<Node id="7" score="0.11445159912109373" recordCount="4">
+									<SimplePredicate field="hp" operator="greaterThan" value="92.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.2807564496994017" recordCount="21" defaultChild="-5">
+							<SimplePredicate field="cyl" operator="greaterThan" value="5.000000000000001"/>
+							<Node id="-5" score="-0.5149995803833005" recordCount="11" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="177.50000000000003"/>
+								<Node id="1" score="0.037624442577362034" recordCount="4">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.3250000000000006"/>
+								</Node>
+								<Node id="5" score="-0.11423028792653765" recordCount="7">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.3250000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-4" score="-0.27716082036495215" recordCount="10" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="177.50000000000003"/>
+								<Node id="3" score="-0.27716082036495215" recordCount="8">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="4" score="-0.5149995803833005" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="8">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.44550587336222347" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.19008293509483326" recordCount="11" defaultChild="-6">
+							<SimplePredicate field="cyl" operator="lessOrEqual" value="5.000000000000001"/>
+							<Node id="-6" score="-0.2095201075077056" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.44550587336222347" recordCount="3">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="6" score="0.6264274597167967" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.6264274597167967" recordCount="6" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.25268080234527573" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="92.00000000000001"/>
+								</Node>
+								<Node id="7" score="0.10300644338130949" recordCount="4">
+									<SimplePredicate field="hp" operator="greaterThan" value="92.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.25268080234527573" recordCount="21" defaultChild="-4">
+							<SimplePredicate field="cyl" operator="greaterThan" value="5.000000000000001"/>
+							<Node id="-4" score="-0.38911190032958987" recordCount="14" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="-0.19008293509483326" recordCount="5">
+									<SimplePredicate field="drat" operator="lessOrEqual" value="3.0750000000000006"/>
+								</Node>
+								<Node id="4" score="-0.021305048944325083" recordCount="9">
+									<SimplePredicate field="drat" operator="greaterThan" value="3.0750000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="-0.021305048944325083" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.38911190032958987" recordCount="5">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="254.50000000000003"/>
+								</Node>
+								<Node id="5" score="-0.2095201075077056" recordCount="2">
+									<SimplePredicate field="hp" operator="greaterThan" value="254.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="9">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+					</MiningSchema>
+					<Node id="-1" score="0.5322692076365154" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.1710746467113494" recordCount="11" defaultChild="-6">
+							<SimplePredicate field="cyl" operator="lessOrEqual" value="5.000000000000001"/>
+							<Node id="-6" score="-0.2557925963401794" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.5322692076365154" recordCount="3">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="78.85000000000001"/>
+								</Node>
+								<Node id="6" score="0.3668138384819029" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="78.85000000000001"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.3668138384819029" recordCount="6" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.227412724494934" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="92.00000000000001"/>
+								</Node>
+								<Node id="7" score="0.09270579591393469" recordCount="4">
+									<SimplePredicate field="hp" operator="greaterThan" value="92.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.227412724494934" recordCount="21" defaultChild="-4">
+							<SimplePredicate field="cyl" operator="greaterThan" value="5.000000000000001"/>
+							<Node id="-4" score="-0.4245883941650391" recordCount="14" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="-0.1710746467113494" recordCount="5">
+									<SimplePredicate field="drat" operator="lessOrEqual" value="3.0750000000000006"/>
+								</Node>
+								<Node id="4" score="-0.019174546541439165" recordCount="9">
+									<SimplePredicate field="drat" operator="greaterThan" value="3.0750000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="-0.019174546541439165" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.4245883941650391" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="222.50000000000003"/>
+								</Node>
+								<Node id="5" score="-0.2557925963401794" recordCount="5">
+									<SimplePredicate field="hp" operator="greaterThan" value="222.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="10">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.35875872770945233" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.15073190354742105" recordCount="15" defaultChild="-7">
+							<SimplePredicate field="hp" operator="lessOrEqual" value="118.00000000000001"/>
+							<Node id="-7" score="-0.16298883557319635" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.35875872770945233" recordCount="3">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="7" score="0.5105577945709227" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="0.06676924973726273" recordCount="10" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.16491092741489416" recordCount="4">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="96.00000000000001"/>
+								</Node>
+								<Node id="5" score="0.03843451142311096" recordCount="6">
+									<SimplePredicate field="hp" operator="greaterThan" value="96.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.16491092741489416" recordCount="17" defaultChild="-4">
+							<SimplePredicate field="hp" operator="greaterThan" value="118.00000000000001"/>
+							<Node id="-4" score="-0.31786962985992434" recordCount="10" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="-0.15073190354742105" recordCount="8">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="355.50000000000006"/>
+								</Node>
+								<Node id="4" score="0.06676924973726273" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="355.50000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="0.03843451142311096" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.31786962985992434" recordCount="5">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="254.50000000000003"/>
+								</Node>
+								<Node id="6" score="-0.16298883557319635" recordCount="2">
+									<SimplePredicate field="hp" operator="greaterThan" value="254.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="11">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.5121753215789793" recordCount="32" defaultChild="-4">
+						<True/>
+						<Node id="-4" score="-0.31516067186991376" recordCount="6" defaultChild="-7">
+							<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+							<Node id="-7" score="0.4006843090057368" recordCount="3" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="78.85000000000001"/>
+								<Node id="0" score="0.5121753215789793" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="73.40000000000002"/>
+								</Node>
+								<Node id="7" score="0.3934820413589476" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="73.40000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="-0.06000706255435944" recordCount="3" defaultChild="4">
+								<SimplePredicate field="disp" operator="greaterThan" value="78.85000000000001"/>
+								<Node id="4" score="0.20464929938316337" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="111.50000000000001"/>
+								</Node>
+								<Node id="6" score="0.4006843090057368" recordCount="1">
+									<SimplePredicate field="hp" operator="greaterThan" value="111.50000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-2" score="0.06701616048812864" recordCount="26" defaultChild="-5">
+							<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+							<Node id="-5" score="0.20464929938316337" recordCount="12" defaultChild="1">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="266.90000000000003"/>
+								<Node id="1" score="0.06701616048812864" recordCount="9">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.4375000000000004"/>
+								</Node>
+								<Node id="5" score="-0.06000706255435944" recordCount="3">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.4375000000000004"/>
+								</Node>
+							</Node>
+							<Node id="-3" score="-0.1442513194951144" recordCount="14" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="266.90000000000003"/>
+								<Node id="2" score="-0.1442513194951144" recordCount="11">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="17.710000000000004"/>
+								</Node>
+								<Node id="3" score="-0.31516067186991376" recordCount="3">
+									<SimplePredicate field="qsec" operator="greaterThan" value="17.710000000000004"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="12">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node id="-1" score="0.3897418101628622" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.12384415790438648" recordCount="15" defaultChild="-5">
+							<SimplePredicate field="hp" operator="lessOrEqual" value="118.00000000000001"/>
+							<Node id="-5" score="0.07451745867729187" recordCount="6" defaultChild="0">
+								<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+								<Node id="0" score="0.3897418101628622" recordCount="3">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="78.85000000000001"/>
+								</Node>
+								<Node id="5" score="0.2429948727289835" recordCount="3">
+									<SimplePredicate field="disp" operator="greaterThan" value="78.85000000000001"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="-0.2788220643997192" recordCount="9" defaultChild="2">
+								<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+								<Node id="2" score="-0.07190555930137635" recordCount="1">
+									<SimplePredicate field="drat" operator="lessOrEqual" value="3.0750000000000006"/>
+								</Node>
+								<Node id="7" score="0.07550615966320039" recordCount="8">
+									<SimplePredicate field="drat" operator="greaterThan" value="3.0750000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="-0.07190555930137635" recordCount="17" defaultChild="-4">
+							<SimplePredicate field="hp" operator="greaterThan" value="118.00000000000001"/>
+							<Node id="-4" score="-0.15778240164120994" recordCount="10" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="-0.12384415790438648" recordCount="8">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="355.50000000000006"/>
+								</Node>
+								<Node id="4" score="0.07451745867729187" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="355.50000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="0.2429948727289835" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.15778240164120994" recordCount="3">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.81"/>
+								</Node>
+								<Node id="6" score="-0.2788220643997192" recordCount="4">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.81"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="13">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="cyl"/>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+					</MiningSchema>
+					<Node id="-1" score="0.4219835758209232" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.11517323687672608" recordCount="11" defaultChild="-6">
+							<SimplePredicate field="cyl" operator="lessOrEqual" value="5.000000000000001"/>
+							<Node id="-6" score="-0.11648658514022824" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.4219835758209232" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="73.40000000000002"/>
+								</Node>
+								<Node id="6" score="0.2774250417947769" recordCount="4">
+									<SimplePredicate field="disp" operator="greaterThan" value="73.40000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.2774250417947769" recordCount="6" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.12653955221176147" recordCount="4">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="96.00000000000001"/>
+								</Node>
+								<Node id="7" score="0.023624351620674125" recordCount="2">
+									<SimplePredicate field="hp" operator="greaterThan" value="96.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.12653955221176147" recordCount="21" defaultChild="-4">
+							<SimplePredicate field="cyl" operator="greaterThan" value="5.000000000000001"/>
+							<Node id="-4" score="-0.23935974836349488" recordCount="14" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="-0.11517323687672608" recordCount="5">
+									<SimplePredicate field="drat" operator="lessOrEqual" value="3.0750000000000006"/>
+								</Node>
+								<Node id="4" score="-0.008828063474761115" recordCount="9">
+									<SimplePredicate field="drat" operator="greaterThan" value="3.0750000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="-0.008828063474761115" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.23935974836349488" recordCount="5">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="254.50000000000003"/>
+								</Node>
+								<Node id="5" score="-0.11648658514022824" recordCount="2">
+									<SimplePredicate field="hp" operator="greaterThan" value="254.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="14">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node id="-1" score="0.32080988089243573" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.19276297092437666" recordCount="15" defaultChild="-5">
+							<SimplePredicate field="hp" operator="lessOrEqual" value="118.00000000000001"/>
+							<Node id="-5" score="-0.15055559515953065" recordCount="6" defaultChild="0">
+								<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+								<Node id="0" score="0.32080988089243573" recordCount="3">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="1.8850000000000002"/>
+								</Node>
+								<Node id="5" score="0.19337904055913285" recordCount="3">
+									<SimplePredicate field="wt" operator="greaterThan" value="1.8850000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="0.19337904055913285" recordCount="9" defaultChild="2">
+								<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+								<Node id="2" score="-0.05319768190383911" recordCount="1">
+									<SimplePredicate field="drat" operator="lessOrEqual" value="3.0750000000000006"/>
+								</Node>
+								<Node id="6" score="0.06295075565576554" recordCount="8">
+									<SimplePredicate field="drat" operator="greaterThan" value="3.0750000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="-0.05319768190383911" recordCount="17" defaultChild="-7">
+							<SimplePredicate field="hp" operator="greaterThan" value="118.00000000000001"/>
+							<Node id="-7" score="0.06295075565576554" recordCount="3" defaultChild="1">
+								<SimplePredicate field="drat" operator="lessOrEqual" value="3.0350000000000006"/>
+								<Node id="1" score="-0.19276297092437666" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="7" score="-0.2670083761215209" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-4" score="-0.0570463828328583" recordCount="14" defaultChild="3">
+								<SimplePredicate field="drat" operator="greaterThan" value="3.0350000000000006"/>
+								<Node id="3" score="-0.0570463828328583" recordCount="9">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="222.50000000000003"/>
+								</Node>
+								<Node id="4" score="-0.15055559515953065" recordCount="5">
+									<SimplePredicate field="hp" operator="greaterThan" value="222.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="15">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.20482215285301208" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.17348667383193903" recordCount="15" defaultChild="-6">
+							<SimplePredicate field="hp" operator="lessOrEqual" value="118.00000000000001"/>
+							<Node id="-6" score="0.022126954421401022" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.20482215285301208" recordCount="3">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="6" score="0.31456507444381704" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="-0.11658815098926426" recordCount="10" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.10432981550693515" recordCount="4">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="96.00000000000001"/>
+								</Node>
+								<Node id="5" score="0.022126954421401022" recordCount="6">
+									<SimplePredicate field="hp" operator="greaterThan" value="96.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.10432981550693515" recordCount="17" defaultChild="-7">
+							<SimplePredicate field="hp" operator="greaterThan" value="118.00000000000001"/>
+							<Node id="-7" score="0.31456507444381704" recordCount="3" defaultChild="1">
+								<SimplePredicate field="drat" operator="lessOrEqual" value="3.0350000000000006"/>
+								<Node id="1" score="-0.17348667383193903" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="7" score="-0.2403075218200683" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-4" score="-0.03447844684123993" recordCount="14" defaultChild="3">
+								<SimplePredicate field="drat" operator="greaterThan" value="3.0350000000000006"/>
+								<Node id="3" score="-0.03447844684123993" recordCount="6">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="177.50000000000003"/>
+								</Node>
+								<Node id="4" score="-0.11658815098926426" recordCount="8">
+									<SimplePredicate field="hp" operator="greaterThan" value="177.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="16">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node id="-1" score="0.26458857059478763" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.15613800287246643" recordCount="15" defaultChild="-5">
+							<SimplePredicate field="hp" operator="lessOrEqual" value="118.00000000000001"/>
+							<Node id="-5" score="-0.12384122014045716" recordCount="6" defaultChild="0">
+								<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+								<Node id="0" score="0.26458857059478763" recordCount="3">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="1.8850000000000002"/>
+								</Node>
+								<Node id="5" score="0.15325056910514828" recordCount="3">
+									<SimplePredicate field="wt" operator="greaterThan" value="1.8850000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="0.15325056910514828" recordCount="9" defaultChild="2">
+								<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+								<Node id="2" score="-0.05009060502052307" recordCount="1">
+									<SimplePredicate field="drat" operator="lessOrEqual" value="3.0750000000000006"/>
+								</Node>
+								<Node id="6" score="0.051360377576202154" recordCount="8">
+									<SimplePredicate field="drat" operator="greaterThan" value="3.0750000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="-0.05009060502052307" recordCount="17" defaultChild="-7">
+							<SimplePredicate field="hp" operator="greaterThan" value="118.00000000000001"/>
+							<Node id="-7" score="0.051360377576202154" recordCount="3" defaultChild="1">
+								<SimplePredicate field="drat" operator="lessOrEqual" value="3.0350000000000006"/>
+								<Node id="1" score="-0.15613800287246643" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="7" score="-0.21627676486968986" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-4" score="-0.04515691051880519" recordCount="14" defaultChild="3">
+								<SimplePredicate field="drat" operator="greaterThan" value="3.0350000000000006"/>
+								<Node id="3" score="-0.04515691051880519" recordCount="9">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="222.50000000000003"/>
+								</Node>
+								<Node id="4" score="-0.12384122014045716" recordCount="5">
+									<SimplePredicate field="hp" operator="greaterThan" value="222.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="17">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.1509331151843071" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.14052419662475532" recordCount="15" defaultChild="-5">
+							<SimplePredicate field="hp" operator="lessOrEqual" value="118.00000000000001"/>
+							<Node id="-5" score="-0.014082360267639161" recordCount="6" defaultChild="0">
+								<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+								<Node id="0" score="0.1509331151843071" recordCount="4">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="5" score="0.26221661567687976" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="0.26221661567687976" recordCount="9" defaultChild="2">
+								<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+								<Node id="2" score="-0.04508154690265656" recordCount="1">
+									<SimplePredicate field="drat" operator="lessOrEqual" value="3.0750000000000006"/>
+								</Node>
+								<Node id="6" score="0.04622433893382549" recordCount="8">
+									<SimplePredicate field="drat" operator="greaterThan" value="3.0750000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="-0.04508154690265656" recordCount="17" defaultChild="-7">
+							<SimplePredicate field="hp" operator="greaterThan" value="118.00000000000001"/>
+							<Node id="-7" score="0.04622433893382549" recordCount="3" defaultChild="1">
+								<SimplePredicate field="drat" operator="lessOrEqual" value="3.0350000000000006"/>
+								<Node id="1" score="-0.14052419662475532" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="7" score="-0.19464910030364982" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-4" score="-0.09473829633659787" recordCount="14" defaultChild="3">
+								<SimplePredicate field="drat" operator="greaterThan" value="3.0350000000000006"/>
+								<Node id="3" score="-0.09473829633659787" recordCount="9">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="350.50000000000006"/>
+								</Node>
+								<Node id="4" score="-0.014082360267639161" recordCount="5">
+									<SimplePredicate field="disp" operator="greaterThan" value="350.50000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="18">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+					</MiningSchema>
+					<Node id="-1" score="0.21932695706685387" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.07364491708576676" recordCount="15" defaultChild="-7">
+							<SimplePredicate field="hp" operator="lessOrEqual" value="118.00000000000001"/>
+							<Node id="-7" score="0.013368400962402422" recordCount="5" defaultChild="0">
+								<SimplePredicate field="disp" operator="lessOrEqual" value="101.55000000000001"/>
+								<Node id="0" score="0.21932695706685387" recordCount="3">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="1.8850000000000002"/>
+								</Node>
+								<Node id="7" score="0.12675306797027583" recordCount="2">
+									<SimplePredicate field="wt" operator="greaterThan" value="1.8850000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="-0.06029839590191839" recordCount="10" defaultChild="2">
+								<SimplePredicate field="disp" operator="greaterThan" value="101.55000000000001"/>
+								<Node id="2" score="0.07897339165210726" recordCount="4">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="96.00000000000001"/>
+								</Node>
+								<Node id="6" score="0.013368400962402422" recordCount="6">
+									<SimplePredicate field="hp" operator="greaterThan" value="96.00000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.07897339165210726" recordCount="17" defaultChild="-4">
+							<SimplePredicate field="hp" operator="greaterThan" value="118.00000000000001"/>
+							<Node id="-4" score="-0.1527769422531128" recordCount="10" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="-0.07364491708576676" recordCount="8">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="355.50000000000006"/>
+								</Node>
+								<Node id="4" score="0.0830249309539795" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="355.50000000000006"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="0.0830249309539795" recordCount="7" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.1527769422531128" recordCount="5">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="254.50000000000003"/>
+								</Node>
+								<Node id="5" score="-0.06029839590191839" recordCount="2">
+									<SimplePredicate field="hp" operator="greaterThan" value="254.50000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="19">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="hp"/>
+						<MiningField name="drat"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.11973029300570488" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.234958815574646" recordCount="16" defaultChild="-5">
+							<SimplePredicate field="wt" operator="lessOrEqual" value="3.3250000000000006"/>
+							<Node id="-5" score="-0.01892280744181739" recordCount="6" defaultChild="0">
+								<SimplePredicate field="wt" operator="lessOrEqual" value="2.2600000000000002"/>
+								<Node id="0" score="0.11973029300570488" recordCount="4">
+									<SimplePredicate field="qsec" operator="lessOrEqual" value="19.455000000000002"/>
+								</Node>
+								<Node id="5" score="0.2186909556388854" recordCount="2">
+									<SimplePredicate field="qsec" operator="greaterThan" value="19.455000000000002"/>
+								</Node>
+							</Node>
+							<Node id="-6" score="0.2186909556388854" recordCount="10" defaultChild="2">
+								<SimplePredicate field="wt" operator="greaterThan" value="2.2600000000000002"/>
+								<Node id="2" score="0.013687266036868099" recordCount="8">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.18"/>
+								</Node>
+								<Node id="6" score="0.07859743535518643" recordCount="2">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.18"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.013687266036868099" recordCount="16" defaultChild="-4">
+							<SimplePredicate field="wt" operator="greaterThan" value="3.3250000000000006"/>
+							<Node id="-4" score="-0.11691653370857238" recordCount="10" defaultChild="1">
+								<SimplePredicate field="hp" operator="lessOrEqual" value="192.50000000000003"/>
+								<Node id="1" score="-0.234958815574646" recordCount="1">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="3.4375000000000004"/>
+								</Node>
+								<Node id="4" score="-0.01892280744181739" recordCount="9">
+									<SimplePredicate field="wt" operator="greaterThan" value="3.4375000000000004"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.07859743535518643" recordCount="6" defaultChild="3">
+								<SimplePredicate field="hp" operator="greaterThan" value="192.50000000000003"/>
+								<Node id="3" score="-0.11691653370857238" recordCount="5">
+									<SimplePredicate field="drat" operator="lessOrEqual" value="3.7150000000000003"/>
+								</Node>
+								<Node id="7" score="-0.19314935207366926" recordCount="1">
+									<SimplePredicate field="drat" operator="greaterThan" value="3.7150000000000003"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+			<Segment id="20">
+				<True/>
+				<TreeModel functionName="regression" missingValueStrategy="defaultChild" splitCharacteristic="binarySplit">
+					<MiningSchema>
+						<MiningField name="disp"/>
+						<MiningField name="hp"/>
+						<MiningField name="wt"/>
+						<MiningField name="qsec"/>
+					</MiningSchema>
+					<Node id="-1" score="0.16330109834670992" recordCount="32" defaultChild="-2">
+						<True/>
+						<Node id="-2" score="-0.1643389701843262" recordCount="17" defaultChild="-6">
+							<SimplePredicate field="hp" operator="lessOrEqual" value="136.50000000000003"/>
+							<Node id="-6" score="0.026471889821382672" recordCount="3" defaultChild="0">
+								<SimplePredicate field="wt" operator="lessOrEqual" value="1.8850000000000002"/>
+								<Node id="0" score="0.16330109834670992" recordCount="2">
+									<SimplePredicate field="wt" operator="lessOrEqual" value="1.7250000000000003"/>
+								</Node>
+								<Node id="6" score="0.21976542472839325" recordCount="1">
+									<SimplePredicate field="wt" operator="greaterThan" value="1.7250000000000003"/>
+								</Node>
+							</Node>
+							<Node id="-5" score="-0.029050363153219225" recordCount="14" defaultChild="2">
+								<SimplePredicate field="wt" operator="greaterThan" value="1.8850000000000002"/>
+								<Node id="2" score="0.17387828826904297" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="78.85000000000001"/>
+								</Node>
+								<Node id="5" score="0.026471889821382672" recordCount="13">
+									<SimplePredicate field="disp" operator="greaterThan" value="78.85000000000001"/>
+								</Node>
+							</Node>
+						</Node>
+						<Node id="-3" score="0.17387828826904297" recordCount="15" defaultChild="-4">
+							<SimplePredicate field="hp" operator="greaterThan" value="136.50000000000003"/>
+							<Node id="-4" score="-0.1487692475318908" recordCount="12" defaultChild="1">
+								<SimplePredicate field="qsec" operator="lessOrEqual" value="17.710000000000004"/>
+								<Node id="1" score="-0.1643389701843262" recordCount="2">
+									<SimplePredicate field="hp" operator="lessOrEqual" value="162.50000000000003"/>
+								</Node>
+								<Node id="4" score="-0.029050363153219225" recordCount="10">
+									<SimplePredicate field="hp" operator="greaterThan" value="162.50000000000003"/>
+								</Node>
+							</Node>
+							<Node id="-7" score="0.21976542472839325" recordCount="3" defaultChild="3">
+								<SimplePredicate field="qsec" operator="greaterThan" value="17.710000000000004"/>
+								<Node id="3" score="-0.1487692475318908" recordCount="1">
+									<SimplePredicate field="disp" operator="lessOrEqual" value="450.00000000000006"/>
+								</Node>
+								<Node id="7" score="-0.148214840888977" recordCount="2">
+									<SimplePredicate field="disp" operator="greaterThan" value="450.00000000000006"/>
+								</Node>
+							</Node>
+						</Node>
+					</Node>
+				</TreeModel>
+			</Segment>
+		</Segmentation>
+	</MiningModel>
+</PMML>

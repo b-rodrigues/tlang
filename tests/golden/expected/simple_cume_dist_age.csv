@@ -1,0 +1,11 @@
+id,name,age,score,passed,cume_dist_age
+1,Alice,25,85.5,TRUE,0.2
+2,Bob,30,92.3,TRUE,0.6
+3,Charlie,35,78.9,TRUE,0.9
+4,David,28,88.1,TRUE,0.4
+5,Eve,22,95,TRUE,0.1
+6,Frank,45,82.4,TRUE,1
+7,Grace,33,90.2,TRUE,0.8
+8,Henry,29,76.5,TRUE,0.5
+9,Iris,31,89.3,TRUE,0.7
+10,Jack,27,91.7,TRUE,0.3
