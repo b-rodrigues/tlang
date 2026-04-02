@@ -136,7 +136,7 @@ CAMLprim value caml_onnx_session_create(value v_path) {
     }
 
     CHECK_STATUS_GOTO(g_ort->SessionGetInputTypeInfo(session, 0, &input_type_info));
-    tensor_info = g_ort->CastTypeInfoToTensorInfo(input_type_info);
+    CHECK_STATUS_GOTO(g_ort->CastTypeInfoToTensorInfo(input_type_info, &tensor_info));
     if (tensor_info != NULL) {
         size_t dim_count = 0;
         CHECK_STATUS_GOTO(g_ort->GetDimensionsCount(tensor_info, &dim_count));

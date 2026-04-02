@@ -665,8 +665,6 @@ let predict_onnx_model df model =
                                    expected_width ncols)
                             else
                               let data = Array.make_matrix nrows ncols 0.0 in
-                              (* Mutable state is used here only to short-circuit nested row/column traversal
-                                 once a missing value is encountered, without allocating another intermediate matrix. *)
                               let has_missing = ref false in
                               List.iteri (fun j cname ->
                                 if not !has_missing then begin
@@ -684,7 +682,7 @@ let predict_onnx_model df model =
                                   "DataFrame contains missing values in numeric columns required for ONNX prediction."
                               else
                                 let res = Onnx_ffi.session_run session data in
-                                VVector (Array.map (fun f -> VFloat f) res)))
+                                VVector (Array.map (fun f -> VFloat f) res))
             with Failure msg -> Error.make_error RuntimeError msg)
         | _ -> Error.type_error "Function `predict` expects an ONNX model with a `path` field.")
    | _ -> Error.type_error "Function `predict` expects an ONNX model Dict."
