@@ -30,8 +30,17 @@ jobs:
           name: rstats-on-nix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       
-      - name: Build T and push to Cachix
+      - name: Build T and DevShell, then push to Cachix
         run: |
+          # Build default package (T executable)
           nix build .#default --print-build-logs
+          
+          # Build devShell dependencies and create a GC root via profile
+          nix develop .#default --profile dev-shell-profile --command true
+          
+          # Resolve paths for Cachix
           RESULT_PATH="$(python3 -c 'import os; print(os.path.realpath("result"))')"
-          cachix push rstats-on-nix "$RESULT_PATH"
+          SHELL_PATH="$(python3 -c 'import os; print(os.path.realpath("dev-shell-profile"))')"
+          
+          echo "Pushing $RESULT_PATH and $SHELL_PATH to Cachix..."
+          cachix push rstats-on-nix "$RESULT_PATH" "$SHELL_PATH"
