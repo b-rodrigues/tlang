@@ -8,7 +8,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-
 jobs:
   # Job 1: Verify the Native Path (Performance & Vectors)
   arrow-native:
