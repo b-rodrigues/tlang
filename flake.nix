@@ -97,7 +97,9 @@
             pkgs.makeWrapper
             ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
               pkgs.autoPatchelfHook
-          ];
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              pkgs.fixDarwinDylibNames
+            ];
 
           buildInputs = [
             ocamlVersion.menhirLib
@@ -130,7 +132,7 @@
           buildPhase = ''
             export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:${pkgs.onnxruntime}/lib/pkgconfig:$PKG_CONFIG_PATH"
             export T_ARROW_CFLAGS="-I${pkgs.arrow-cpp}/include -I${pkgs.arrow-glib}/include -I${pkgs.glib.dev}/include -I${pkgs.glib.dev}/include/glib-2.0 -I${pkgs.glib.out}/lib/glib-2.0/include -I${pkgs.onnxruntime}/include"
-            export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -L${pkgs.onnxruntime}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lonnxruntime"
+            export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -L${pkgs.onnxruntime}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lonnxruntime ${if pkgs.stdenv.isDarwin then "-Wl,-rpath,${pkgs.arrow-cpp}/lib -Wl,-rpath,${pkgs.arrow-glib}/lib -Wl,-rpath,${pkgs.glib.out}/lib -Wl,-rpath,${pkgs.onnxruntime}/lib" else ""}"
             dune build src/repl.exe src/lsp_server.exe
           '';
 
@@ -141,11 +143,13 @@
             mkdir -p $out/share/tlang/quarto
             cp -r editors/quarto/tlang/_extensions/tlang $out/share/tlang/quarto/
             makeWrapper $out/bin/.t-unwrapped $out/bin/t \
-              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}" \
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
+              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
               
             makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
-              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}"
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
+              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}"
           '';
 
           meta = with pkgs.lib; {
@@ -182,16 +186,23 @@
             "-I${pkgs.glib.out}/lib/glib-2.0/include"
             "-I${pkgs.onnxruntime}/include"
           ];
-          T_ARROW_LIBS = builtins.concatStringsSep " " [
-            "-L${pkgs.arrow-cpp}/lib"
-            "-L${pkgs.arrow-glib}/lib"
-            "-L${pkgs.glib.out}/lib"
-            "-L${pkgs.onnxruntime}/lib"
-            "-larrow" "-larrow-glib"
-            "-lparquet" "-lparquet-glib"
-            "-lglib-2.0" "-lgobject-2.0" "-lgio-2.0"
-            "-lonnxruntime"
-          ];
+          T_ARROW_LIBS = builtins.concatStringsSep " " (
+            [
+              "-L${pkgs.arrow-cpp}/lib"
+              "-L${pkgs.arrow-glib}/lib"
+              "-L${pkgs.glib.out}/lib"
+              "-L${pkgs.onnxruntime}/lib"
+              "-larrow" "-larrow-glib"
+              "-lparquet" "-lparquet-glib"
+              "-lglib-2.0" "-lgobject-2.0" "-lgio-2.0"
+              "-lonnxruntime"
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              "-Wl,-rpath,${pkgs.arrow-cpp}/lib"
+              "-Wl,-rpath,${pkgs.arrow-glib}/lib"
+              "-Wl,-rpath,${pkgs.glib.out}/lib"
+              "-Wl,-rpath,${pkgs.onnxruntime}/lib"
+            ]
+          );
 
 
           # These are the packages that will be available in your shell.
