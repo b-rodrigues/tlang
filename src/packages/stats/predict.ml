@@ -1,6 +1,24 @@
 (* src/packages/stats/predict.ml *)
 open Ast
 
+let onnx_string_list_of_value value =
+  match value with
+  | VList items ->
+      let rec collect acc = function
+        | [] -> Ok (List.rev acc)
+        | (_, VString s) :: rest -> collect (s :: acc) rest
+        | _ :: _ ->
+            Error (Error.type_error "Function `predict` expects ONNX model `features` to be a list of strings.")
+      in
+      collect [] items
+  | _ ->
+      Error (Error.type_error "Function `predict` expects ONNX model `features` to be a list of strings.")
+
+let onnx_feature_columns pairs numeric_cols =
+  match List.assoc_opt "features" pairs with
+  | Some feature_value -> onnx_string_list_of_value feature_value
+  | None -> Ok numeric_cols
+
 (** predict(df, model) — performs native prediction for a linear model.
     Inspired by tidypredict. *)
 (*
@@ -606,34 +624,70 @@ let predict_boosted_model df model =
 
 let predict_onnx_model df model =
   match model with
-  | VDict pairs ->
-      (match List.assoc_opt "path" pairs with
-       | Some (VString path) ->
-           (try
-             let session = Onnx_ffi.get_session path in
-             let colnames = Arrow_table.column_names df.arrow_table in
-             let numeric_cols = 
-               List.filter (fun n ->
-                 match Arrow_table.column_type df.arrow_table n with
-                 | Some (ArrowInt64 | ArrowFloat64) -> true
-                 | _ -> false) colnames 
-             in
-             let nrows = Arrow_table.num_rows df.arrow_table in
-             let ncols = List.length numeric_cols in
-             if ncols = 0 then Error.make_error ValueError "DataFrame has no numeric columns for ONNX prediction."
-             else
-               let data = Array.make_matrix nrows ncols 0.0 in
-               List.iteri (fun j cname ->
-                 let col = Arrow_table.get_float_column df.arrow_table cname in
-                 for i = 0 to nrows - 1 do
-                   data.(i).(j) <- (match col.(i) with Some f -> f | None -> 0.0)
-                 done
-               ) numeric_cols;
-               let res = Onnx_ffi.session_run session data in
-               VList (Array.to_list (Array.map (fun f -> (None, VFloat f)) res))
-           with Failure msg -> Error.make_error RuntimeError msg)
-       | _ -> Error.type_error "Function `predict` expects an ONNX model with a `path` field.")
-  | _ -> Error.type_error "Function `predict` expects an ONNX model Dict."
+   | VDict pairs ->
+       (match List.assoc_opt "path" pairs with
+        | Some (VString path) ->
+            (try
+              let session = Onnx_ffi.get_session path in
+              let colnames = Arrow_table.column_names df.arrow_table in
+              let numeric_cols =
+                List.filter (fun n ->
+                  match Arrow_table.column_type df.arrow_table n with
+                  | Some (ArrowInt64 | ArrowFloat64) -> true
+                  | _ -> false) colnames
+              in
+              let nrows = Arrow_table.num_rows df.arrow_table in
+              (match onnx_feature_columns pairs numeric_cols with
+                 | Error err -> err
+                 | Ok feature_cols ->
+                      let ncols = List.length feature_cols in
+                      if ncols = 0 then
+                        Error.make_error ValueError "DataFrame has no numeric columns for ONNX prediction."
+                      else
+                        let invalid_col =
+                          List.find_opt
+                            (fun cname ->
+                              match Arrow_table.column_type df.arrow_table cname with
+                              | Some (ArrowInt64 | ArrowFloat64) -> false
+                              | _ -> true)
+                            feature_cols
+                        in
+                        match invalid_col with
+                        | Some cname ->
+                            Error.make_error ValueError
+                              ("Column `" ^ cname ^ "` required for ONNX prediction is missing or not numeric.")
+                        | None ->
+                            let expected_width = Onnx_ffi.session_input_width session in
+                            if expected_width > 0 && expected_width <> ncols then
+                              Error.make_error ValueError
+                                (Printf.sprintf
+                                   "Function `predict` expected %d numeric feature columns for this ONNX model but received %d."
+                                   expected_width ncols)
+                            else
+                              let data = Array.make_matrix nrows ncols 0.0 in
+                              (* Mutable state is used here only to short-circuit nested row/column traversal
+                                 once a missing value is encountered, without allocating another intermediate matrix. *)
+                              let has_missing = ref false in
+                              List.iteri (fun j cname ->
+                                if not !has_missing then begin
+                                  let col = Arrow_table.get_float_column df.arrow_table cname in
+                                  for i = 0 to nrows - 1 do
+                                    if not !has_missing then
+                                      match col.(i) with
+                                      | Some f -> data.(i).(j) <- f
+                                      | None -> has_missing := true
+                                  done
+                                end
+                              ) feature_cols;
+                              if !has_missing then
+                                Error.make_error ValueError
+                                  "DataFrame contains missing values in numeric columns required for ONNX prediction."
+                              else
+                                let res = Onnx_ffi.session_run session data in
+                                VVector (Array.map (fun f -> VFloat f) res)))
+            with Failure msg -> Error.make_error RuntimeError msg)
+        | _ -> Error.type_error "Function `predict` expects an ONNX model with a `path` field.")
+   | _ -> Error.type_error "Function `predict` expects an ONNX model Dict."
 
 let register env =
   Env.add "predict"
