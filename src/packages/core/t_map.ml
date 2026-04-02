@@ -25,6 +25,11 @@ let register ~eval_call env =
             (name, result)
           ) items in
           VList mapped
-      | _ -> Error.type_error "Function `map` expects a List and a Function."
+      | [VVector items; fn] ->
+          let mapped = Array.map (fun v ->
+            eval_call env fn [(None, Ast.mk_expr (Value v))]
+          ) items in
+          VVector mapped
+      | _ -> Error.type_error "Function `map` expects a List or Vector and a Function."
     ))
     env
