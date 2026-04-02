@@ -5,7 +5,7 @@ on:
       - main
       - master
   schedule:
-    - cron: '0 4 * * *' # Every night at 04:00 AM
+    - cron: '0 3 * * *' # Every night at 03:00 AM
 
 jobs:
   build:
