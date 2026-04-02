@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-03-29";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-04-02";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -47,6 +47,7 @@
             broom
             jsonlite
             arrow
+            onnx
             r2pmml
             (lightgbm.overrideAttrs (old: {
               cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
@@ -67,6 +68,8 @@
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
             buildInputs = (old.buildInputs or []) ++ [ pkgs.boost ];
           }))
+          skl2onnx
+          onnxruntime
           sklearn2pmml
           statsmodels
           nbformat
@@ -94,7 +97,9 @@
             pkgs.makeWrapper
             ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
               pkgs.autoPatchelfHook
-          ];
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              pkgs.fixDarwinDylibNames
+            ];
 
           buildInputs = [
             ocamlVersion.menhirLib
@@ -120,12 +125,14 @@
             # Used by Arrow-Owl bridge for matrix operations in lm(), cor()
             # ocamlVersion.owl
             pkgs.jpmml-statsmodels
+            pkgs.jre
+            pkgs.onnxruntime
           ];
 
           buildPhase = ''
-            export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:$PKG_CONFIG_PATH"
-            export T_ARROW_CFLAGS="-I${pkgs.arrow-cpp}/include -I${pkgs.arrow-glib}/include -I${pkgs.glib.dev}/include -I${pkgs.glib.dev}/include/glib-2.0 -I${pkgs.glib.out}/lib/glib-2.0/include"
-            export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0"
+            export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:${pkgs.onnxruntime}/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export T_ARROW_CFLAGS="-I${pkgs.arrow-cpp}/include -I${pkgs.arrow-glib}/include -I${pkgs.glib.dev}/include -I${pkgs.glib.dev}/include/glib-2.0 -I${pkgs.glib.out}/lib/glib-2.0/include -I${pkgs.onnxruntime}/include"
+            export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -L${pkgs.onnxruntime}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lonnxruntime ${if pkgs.stdenv.isDarwin then "-Wl,-rpath,${pkgs.arrow-cpp}/lib -Wl,-rpath,${pkgs.arrow-glib}/lib -Wl,-rpath,${pkgs.glib.out}/lib -Wl,-rpath,${pkgs.onnxruntime}/lib" else ""}"
             dune build src/repl.exe src/lsp_server.exe
           '';
 
@@ -136,11 +143,13 @@
             mkdir -p $out/share/tlang/quarto
             cp -r editors/quarto/tlang/_extensions/tlang $out/share/tlang/quarto/
             makeWrapper $out/bin/.t-unwrapped $out/bin/t \
-              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}" \
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
+              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
               
             makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
-              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp ]}"
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
+              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}"
           '';
 
           meta = with pkgs.lib; {
@@ -175,15 +184,25 @@
             "-I${pkgs.glib.dev}/include"
             "-I${pkgs.glib.dev}/include/glib-2.0"
             "-I${pkgs.glib.out}/lib/glib-2.0/include"
+            "-I${pkgs.onnxruntime}/include"
           ];
-          T_ARROW_LIBS = builtins.concatStringsSep " " [
-            "-L${pkgs.arrow-cpp}/lib"
-            "-L${pkgs.arrow-glib}/lib"
-            "-L${pkgs.glib.out}/lib"
-            "-larrow" "-larrow-glib"
-            "-lparquet" "-lparquet-glib"
-            "-lglib-2.0" "-lgobject-2.0" "-lgio-2.0"
-          ];
+          T_ARROW_LIBS = builtins.concatStringsSep " " (
+            [
+              "-L${pkgs.arrow-cpp}/lib"
+              "-L${pkgs.arrow-glib}/lib"
+              "-L${pkgs.glib.out}/lib"
+              "-L${pkgs.onnxruntime}/lib"
+              "-larrow" "-larrow-glib"
+              "-lparquet" "-lparquet-glib"
+              "-lglib-2.0" "-lgobject-2.0" "-lgio-2.0"
+              "-lonnxruntime"
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              "-Wl,-rpath,${pkgs.arrow-cpp}/lib"
+              "-Wl,-rpath,${pkgs.arrow-glib}/lib"
+              "-Wl,-rpath,${pkgs.glib.out}/lib"
+              "-Wl,-rpath,${pkgs.onnxruntime}/lib"
+            ]
+          );
 
 
           # These are the packages that will be available in your shell.
@@ -259,6 +278,7 @@
             pkgs.jre
             pkgs.boost
             pkgs.cmake
+            pkgs.onnxruntime
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''
