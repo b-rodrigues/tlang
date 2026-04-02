@@ -1,13 +1,16 @@
 name: Pipeline Multi-Deserializer Map E2E
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
+  workflow_dispatch:
+
 
 jobs:
   multi-deserializer-e2e:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

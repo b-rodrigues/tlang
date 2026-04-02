@@ -1,13 +1,16 @@
 name: Pipeline Integration Test
 
 on:
-  push:
-    branches: [ main, develop, pipeline ]
-  pull_request:
-    branches: [ main, develop ]
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
+  workflow_dispatch:
+
 
 jobs:
   pipeline-test:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

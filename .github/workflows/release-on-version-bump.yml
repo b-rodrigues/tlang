@@ -2,13 +2,15 @@ name: Release on Version Bump
 
 on:
   workflow_run:
-    workflows: ["golden-test"]
+    workflows: ["Build and Cache"]
     types:
       - completed
+  workflow_dispatch:
+
 
 jobs:
   release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
 
     permissions:

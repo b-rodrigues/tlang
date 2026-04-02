@@ -1,14 +1,16 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'VERSION'
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
+  workflow_dispatch:
+
 
 jobs:
   create-release:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
