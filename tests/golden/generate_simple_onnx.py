@@ -5,6 +5,8 @@ import numpy as np
 import onnx
 from onnx import helper, TensorProto
 from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from skl2onnx import to_onnx
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -56,7 +58,7 @@ def main():
     )
     print(f"Generated {onnx_reg_path}")
 
-    # 2. Logistic Regression Model: Species ~ . (iris)
+    # 2. Logistic Regression Model: Species ~ . (iris) using skl2onnx
     iris_path = os.path.join(data_dir, "iris.csv")
     if not os.path.exists(iris_path):
         iris = pd.DataFrame({
@@ -75,39 +77,42 @@ def main():
     y_clf = iris['Species_code']
     
     model_clf = LogisticRegression(solver='lbfgs', max_iter=1000).fit(X_clf, y_clf)
-    W_clf_raw = model_clf.coef_.T.astype(np.float32)
-    B_clf_raw = model_clf.intercept_.astype(np.float32)
+    options = {id(model_clf): {'zipmap': False}}
+    onx_clf = to_onnx(model_clf, X_clf[:1], options=options)
     
-    w_clf_init = helper.make_tensor("W_clf", TensorProto.FLOAT, [4, 3], W_clf_raw.flatten())
-    b_clf_init = helper.make_tensor("B_clf", TensorProto.FLOAT, [3], B_clf_raw.flatten())
-    
-    input_x_clf = helper.make_tensor_value_info('X_clf', TensorProto.FLOAT, [None, 4])
-    output_y_clf = helper.make_tensor_value_info('Y_output', TensorProto.FLOAT, [None])
-    
-    node_matmul_clf = helper.make_node("MatMul", ["X_clf", "W_clf"], ["scores"])
-    node_add_clf = helper.make_node("Add", ["scores", "B_clf"], ["scores_biased"])
-    node_argmax_clf = helper.make_node("ArgMax", ["scores_biased"], ["argmax_out"], axis=1)
-    node_cast_clf = helper.make_node("Cast", ["argmax_out"], ["Y_output"], to=TensorProto.FLOAT)
-    
-    graph_clf = helper.make_graph(
-        [node_matmul_clf, node_add_clf, node_argmax_clf, node_cast_clf], 
-        "iris_clf", 
-        [input_x_clf], 
-        [output_y_clf], 
-        initializer=[w_clf_init, b_clf_init]
-    )
-    onx_clf = helper.make_model(graph_clf, producer_name="t-golden-gen")
-    
+    # Prune probabilities output
+    if len(onx_clf.graph.output) > 1:
+        del onx_clf.graph.output[1]
+        
     onnx_clf_path = os.path.join(data_dir, "iris_logreg.onnx")
     with open(onnx_clf_path, "wb") as f:
         f.write(onx_clf.SerializeToString())
     
-    preds_class = model_clf.predict(X_clf).astype(float)
-    pd.DataFrame({"pred": preds_class}).to_csv(
+    preds_clf = model_clf.predict(X_clf).astype(float)
+    pd.DataFrame({"pred": preds_clf}).to_csv(
         os.path.join(expected_dir, "iris_onnx_logreg_predictions.csv"),
         index=False
     )
-    print(f"Generated {onnx_clf_path}")
+    print(f"Generated {onnx_clf_path} using skl2onnx")
+
+    # 3. Random Forest Model: Species ~ . (iris) using skl2onnx
+    model_rf = RandomForestClassifier(n_estimators=10, random_state=42).fit(X_clf, y_clf)
+    onx_rf = to_onnx(model_rf, X_clf[:1], options={id(model_rf): {'zipmap': False}})
+    
+    # Prune probabilities output
+    if len(onx_rf.graph.output) > 1:
+        del onx_rf.graph.output[1]
+        
+    onnx_rf_path = os.path.join(data_dir, "iris_rf.onnx")
+    with open(onnx_rf_path, "wb") as f:
+        f.write(onx_rf.SerializeToString())
+        
+    preds_rf = model_rf.predict(X_clf).astype(float)
+    pd.DataFrame({"pred": preds_rf}).to_csv(
+        os.path.join(expected_dir, "iris_onnx_rf_predictions.csv"),
+        index=False
+    )
+    print(f"Generated {onnx_rf_path} using skl2onnx")
 
 if __name__ == "__main__":
     main()
