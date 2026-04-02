@@ -5,6 +5,7 @@ on:
     workflows: ["Build and Cache"]
     types:
       - completed
+  pull_request:
   workflow_dispatch:
 
 
@@ -13,7 +14,7 @@ permissions:
 
 jobs:
   repl-hello:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     name: REPL Hello on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:

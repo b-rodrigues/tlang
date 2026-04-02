@@ -5,13 +5,14 @@ on:
     workflows: ["Build and Cache"]
     types:
       - completed
+  pull_request:
   workflow_dispatch:
 
 
 jobs:
   # Job 1: Verify the Native Path (Performance & Vectors)
   arrow-native:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     name: Arrow Native Path Validation
     strategy:
       matrix:
@@ -52,7 +53,7 @@ jobs:
 
   # Job 2: Verify the Pure OCaml Fallback (Robustness)
   arrow-fallback:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     name: Arrow OCaml Fallback Validation
     strategy:
       matrix:

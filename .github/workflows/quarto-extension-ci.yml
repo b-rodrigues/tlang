@@ -5,12 +5,13 @@ on:
     workflows: ["Build and Cache"]
     types:
       - completed
+  pull_request:
   workflow_dispatch:
 
 
 jobs:
   test-quarto-extension:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
