@@ -1,13 +1,21 @@
 name: Golden Tests (T vs R)
 
 on:
-  push:
-    branches: [ main, develop ]
   pull_request:
-    branches: [ main, develop ]
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 
 jobs:
   build:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     name: Golden tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:

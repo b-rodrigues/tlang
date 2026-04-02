@@ -13,6 +13,7 @@
    test_pmml_random_forest
    test_pmml_xgboost
    test_pmml_lightgbm
+   test_onnx_native
    test_cli
    test_golden test_boolean_golden test_core_semantics test_in test_operators test_bitwise_error
    test_arrow_helpers

@@ -1,14 +1,17 @@
 name: NYC Taxi Benchmarks
 
 on:
-  push:
-    branches: [ main, develop ]
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
   pull_request:
-    branches: [ main, develop ]
   workflow_dispatch:
+
 
 jobs:
   benchmark:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:

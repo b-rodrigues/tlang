@@ -20,9 +20,15 @@ let register env =
   *)
   let env = Env.add "dataframe"
     (make_builtin ~name:"dataframe" 1 (fun args _env ->
-      match args with
-      | [VList rows] ->
-          (match rows with
+      let rows = match args with
+        | [VList l] -> l
+        | [VVector a] -> List.init (Array.length a) (fun i -> (None, a.(i)))
+        | _ -> []
+      in
+      if rows = [] && args <> [VList []] && args <> [VVector [||]] then
+        Error.type_error "Function `dataframe` expects a single argument (List or Vector of rows)."
+      else
+        (match rows with
            | [] -> VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
            | (_first_row_name, first_row_val) :: _ ->
                (* Inspect first row to determine columns *)
@@ -74,9 +80,8 @@ let register env =
                     let arrow_table = Arrow_bridge.table_from_value_columns columns nrows in
                     VDataFrame { arrow_table; group_keys = [] }
                 
-                | _ -> Error.type_error (Printf.sprintf "Function `dataframe` expects a list of Dicts (rows). First row is: %s" (Ast.Utils.value_to_string first_row_val))))
-                
-      | _ -> Error.type_error (Printf.sprintf "Function `dataframe` expects a single argument (List of Dicts). Received: %s" (String.concat ", " (List.map Ast.Utils.value_to_string args)))
+                | _ -> Error.type_error (Printf.sprintf "Function `dataframe` expects a list of Dicts (rows). First row is: %s" (Ast.Utils.value_to_string first_row_val)))
+        )
     )) env in
   (*
   --# Extract column as vector

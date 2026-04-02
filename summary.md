@@ -315,13 +315,14 @@ Purpose: scalar math, trigonometry, rounding, and ndarray/matrix operations.
 
 ### `stats`
 
-Purpose: descriptive statistics, scaling/normalization, linear models, diagnostics, basis functions, PMML model I/O, and distribution helpers.
+Purpose: descriptive statistics, scaling/normalization, linear models, diagnostics, basis functions, PMML/ONNX model I/O, and distribution helpers.
 
 - Descriptive statistics: `mean(x, na_rm = false)`, `median(x, na_rm = false)`, `min(x, na_rm = false)`, `max(x, na_rm = false)`, `range(x, na_rm = false)`, `var(x, na_rm = false)`, `sd(x, na_rm = false)`, `iqr(x, na_rm = false)`, `mad(x, constant = 1.4826)`, `fivenum(x)`, `quantile(x, probs, na_rm = false)`, `skewness(x)`, `kurtosis(x)`, `trimmed_mean(x, trim = 0.1, na_rm = false)`, `winsorize(x, probs = [0.05, 0.95])`, `cv(x)`, `normalize(x)`, `standardize(x)`, `scale(x)`, `huber_loss(actual, predicted, delta = 1.0)`
 - Relationship helpers and distributions: `cor(x, y, na_rm = false)`, `cov(x, y, na_rm = false)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`
 - Modeling: `lm(data, formula)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `augment(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
 - PMML: native decision tree, random forest, XGBoost, and LightGBM evaluation via `t_read_pmml()` + `predict()`
-- Basis/model exchange: `cut(x, breaks, ...)`, `poly(x, degree, ...)`, `t_read_pmml(path)`
+- ONNX Support: Native prediction for ONNX models via `t_read_onnx(path)` + `predict()`, plus serializer/deserializer support via `^onnx`. Supports 64-bit to 32-bit float casting for deep learning interchange.
+- Basis/model exchange: `cut(x, breaks, ...)`, `poly(x, degree, ...)`, `t_read_pmml(path)`, `t_read_onnx(path)`
 
 ### `pipeline`
 

@@ -88,6 +88,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
   let is_pmml_ser = is_ser "pmml" in
   let is_pmml_des = is_fmt_in_des "pmml" in
+  let is_onnx_ser = is_ser "onnx" in
+  let is_onnx_des = is_fmt_in_des "onnx" in
 
   let ext, extra_input = match runtime with
     | "R" -> 
@@ -747,10 +749,87 @@ def py_read_pmml(path):
     return Model.load(path)
 |} in
 
+  let t_onnx_r_code = {|
+r_write_onnx <- function(object, path) {
+  if (!requireNamespace("onnx", quietly = TRUE))
+    stop("Package 'onnx' is required for ONNX serialization from R.")
+  onnx::onnx_save_model(object, path)
+}
+
+r_read_onnx <- function(path) {
+  if (!requireNamespace("onnx", quietly = TRUE))
+    stop("Package 'onnx' is required for ONNX deserialization in R.")
+  onnx::onnx_load_model(path)
+}
+|} in
+
+  let t_onnx_py_code = {|
+def _infer_n_features(model):
+    import numpy as np
+    if hasattr(model, 'n_features_in_'):
+        return int(model.n_features_in_)
+    if hasattr(model, 'coef_'):
+        c = np.array(model.coef_)
+        return c.shape[-1] if c.ndim >= 1 else 1
+    if hasattr(model, 'in_features'):
+        return int(model.in_features)
+    modules = getattr(model, 'modules', None)
+    if callable(modules):
+        for module in model.modules():
+            if hasattr(module, 'in_features'):
+                return int(module.in_features)
+    raise RuntimeError(
+        "Unable to infer ONNX input feature count. "
+        "Expected a scikit-learn model (n_features_in_, coef_), "
+        "a PyTorch model (in_features, modules), or another model "
+        "with explicit feature metadata."
+    )
+
+def _make_dummy_input(model):
+    import torch
+    return torch.randn(1, _infer_n_features(model))
+
+def py_write_onnx(model, path):
+    import numpy as np
+    try:
+        from skl2onnx import convert_sklearn
+        from skl2onnx.common.data_types import FloatTensorType
+        n_features = _infer_n_features(model)
+        initial_types = [("input", FloatTensorType([None, n_features]))]
+        onnx_model = convert_sklearn(model, initial_types=initial_types)
+        with open(path, "wb") as f:
+            f.write(onnx_model.SerializeToString())
+        return path
+    except ImportError:
+        pass
+    try:
+        import torch
+        dummy = _make_dummy_input(model)
+        torch.onnx.export(model, dummy, path, opset_version=17)
+        return path
+    except ImportError:
+        pass
+    raise RuntimeError(
+        "ONNX export in Python requires 'skl2onnx' (for scikit-learn models) "
+        "or 'torch' (for PyTorch models). Install the appropriate package."
+    )
+
+def py_read_onnx(path):
+    try:
+        import onnxruntime as rt
+        return rt.InferenceSession(path)
+    except ImportError:
+        raise RuntimeError(
+            "ONNX deserialization requires 'onnxruntime'. "
+            "Install it with: pip install onnxruntime"
+        )
+|} in
+
   let json_injection   = make_injection ~enabled:(is_json_ser  || is_json_des)  ~r_code:t_json_r_code  ~py_code:t_json_py_code in
   let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code in
   let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code in
   let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code in
+  let onnx_injection   = make_injection ~enabled:(is_onnx_ser  || is_onnx_des)  ~r_code:t_onnx_r_code  ~py_code:t_onnx_py_code in
   let pickle_injection =
     if runtime = "Python" then
       Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
@@ -787,9 +866,9 @@ def py_read_pmml(path):
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         let read_fns = match runtime with
-          | "R" -> [ "json", "r_read_json"; "arrow", "r_read_arrow"; "pmml", "r_read_pmml"; "csv", "r_read_csv"; ]
-          | "Python" -> [ "json", "py_read_json"; "arrow", "py_read_arrow"; "pmml", "py_read_pmml"; "csv", "py_read_csv"; ]
-          | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "pmml", "t_read_pmml"; "csv", "read_csv"; ]
+          | "R" -> [ "json", "r_read_json"; "arrow", "r_read_arrow"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; ]
+          | "Python" -> [ "json", "py_read_json"; "arrow", "py_read_arrow"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; ]
+          | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
         in
         let des_node_val = eval_expr_safe strategy_expr in
         match get_format des_node_val with
@@ -839,9 +918,9 @@ def py_read_pmml(path):
   let ser_s = Nix_unparse.expr_to_string serializer in
   let ser_call =
     let write_fns = match runtime with
-      | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "pmml", "r_write_pmml"; "csv", "r_write_csv"; ]
-      | "Python" -> [ "json", "py_write_json"; "arrow", "py_write_arrow"; "pmml", "py_write_pmml"; "csv", "py_write_csv"; ]
-      | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "pmml", "t_write_pmml"; "csv", "write_csv"; ]
+      | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
+      | "Python" -> [ "json", "py_write_json"; "arrow", "py_write_arrow"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; ]
+      | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; ]
     in
     match get_format ser_val with
     | Some fmt ->
@@ -1196,8 +1275,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd

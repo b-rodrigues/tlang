@@ -1,10 +1,10 @@
 name: Deploy Documentation
 
 on:
-  push:
-    branches:
-      - main
-      - master
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')) || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -38,6 +39,7 @@ jobs:
           path: docs
 
   deploy:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')) || github.event_name == 'workflow_dispatch' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

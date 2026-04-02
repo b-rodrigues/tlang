@@ -1,18 +1,20 @@
 name: REPL Hello Test
 
 on:
-  push:
-    branches:
-      - main
-      - master
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
   pull_request:
   workflow_dispatch:
+
 
 permissions:
   contents: read
 
 jobs:
   repl-hello:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     name: REPL Hello on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:

@@ -1,13 +1,17 @@
 name: Factor Roundtrip E2E
 
 on:
-  push:
-    branches: [ factors, main ]
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
   pull_request:
-    branches: [ factors, main ]
+  workflow_dispatch:
+
 
 jobs:
   factor-roundtrip-e2e:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

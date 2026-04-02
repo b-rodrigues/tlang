@@ -34,7 +34,9 @@ golden-expected:
 	@Rscript tests/golden/generate_expected_ndarray.R
 	@Rscript tests/golden/generate_expected_chrono.R
 	@echo "=== Generating expected outputs from scikit-learn ==="
-	@python tests/golden/generate_expected_sklearn.py
+	@python3 tests/golden/generate_expected_sklearn.py
+	@python3 tests/golden/generate_onnx.py || echo "WARNING: tests/golden/generate_onnx.py failed; keeping existing ONNX golden artifacts"
+	@python3 tests/golden/generate_simple_onnx.py || echo "WARNING: tests/golden/generate_simple_onnx.py failed; keeping existing ONNX golden artifacts"
 
 # Run T tests (T -> CSV)
 # Fail on error
