@@ -33,4 +33,5 @@ jobs:
       - name: Build T and push to Cachix
         run: |
           nix build .#default --print-build-logs
-          cachix push rstats-on-nix $(readlink -f result)
+          RESULT_PATH="$(python3 -c 'import os; print(os.path.realpath("result"))')"
+          cachix push rstats-on-nix "$RESULT_PATH"

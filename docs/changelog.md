@@ -20,7 +20,7 @@
         - Supports direct `predict(df, model)` on ONNX model objects within T nodes.
         - Includes automatic 64-bit to 32-bit float conversion for standard tensor inputs.
         - Persistent session management with automated GC-based lifecycle control via custom blocks.
-    - *Note*: While ONNX inference is stable, the `skl2onnx` Python exporter in the current Nix environment (2026-03-29) is temporarily broken due to internal dependency issues; use real artifacts for golden tests until nixpkgs is updated.
+    - *Current limitation*: While ONNX inference is stable, the `skl2onnx` Python exporter is still failing in the current Nix Python environment due to an upstream import issue. The golden tests therefore keep checked-in ONNX artifacts as a fallback until that dependency issue is resolved.
 - **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
 - **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.
 - **fit_stats() for Forests**: Added tree/forest metadata (model type, number of trees, feature count, mining function) when calling `fit_stats()` on PMML random forests.

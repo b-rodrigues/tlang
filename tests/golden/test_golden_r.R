@@ -300,7 +300,7 @@ test_that("WINDOW OFFSET: lead on mtcars.mpg", {
 # ============================================================================
 # Test Suite 13: CUMULATIVE WINDOW FUNCTIONS
 # ============================================================================
-# Test Suite 25: ONNX Native Prediction
+# Test Suite 13b: ONNX Native Prediction
 test_that("ONNX: Logistic Regression predictions (iris)", {
   # This one skips if skl2onnx was not run
   if (file.exists("tests/golden/data/iris_logreg.onnx")) {

@@ -10,7 +10,7 @@ model = t_read_onnx("tests/golden/data/iris_logreg.onnx")
 -- Native prediction (returns VVector of class indices)
 preds = predict(X, model)
 
--- map on VVector returns VVector of VList rows
+-- map on VVector returns rows built from Dict values
 rows = preds |> map(\(p) [ pred: p ])
 result = dataframe(rows)
 

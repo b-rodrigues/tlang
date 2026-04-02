@@ -8,6 +8,7 @@
 #include <caml/custom.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 const OrtApi* g_ort = NULL;
@@ -192,6 +193,7 @@ CAMLprim value caml_onnx_session_run(value v_session, value v_inputs) {
     OrtValue* output_tensor = NULL;
     OrtTensorTypeAndShapeInfo* shape_info = NULL;
     int64_t* dims = NULL;
+    ONNXTensorElementDataType output_type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED;
     size_t nrows = Wosize_val(v_inputs);
     if (s->input_count != 1 || s->output_count != 1) {
         SET_ERROR("Function `predict` currently supports ONNX models with exactly one input and one output.");
@@ -231,9 +233,8 @@ CAMLprim value caml_onnx_session_run(value v_session, value v_inputs) {
     const char* output_names[] = { s->output_names[0] };
     CHECK_STATUS_GOTO(g_ort->Run(s->session, NULL, input_names, (const OrtValue* const*)&input_tensor, 1, output_names, 1, &output_tensor));
 
-    float* output_data;
-    CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&output_data));
     CHECK_STATUS_GOTO(g_ort->GetTensorTypeAndShape(output_tensor, &shape_info));
+    CHECK_STATUS_GOTO(g_ort->GetTensorElementType(shape_info, &output_type));
     size_t dim_count;
     CHECK_STATUS_GOTO(g_ort->GetDimensionsCount(shape_info, &dim_count));
     if (dim_count == 0) {
@@ -245,11 +246,62 @@ CAMLprim value caml_onnx_session_run(value v_session, value v_inputs) {
     }
     CHECK_STATUS_GOTO(g_ort->GetDimensions(shape_info, dims, dim_count));
 
-    size_t total_out = 1;
-    for (size_t i = 0; i < dim_count; i++) total_out *= dims[i];
+    if (!((dim_count == 1 && dims[0] == (int64_t)nrows) ||
+          (dim_count == 2 && dims[0] == (int64_t)nrows && dims[1] == 1))) {
+        snprintf(
+            err_buf,
+            sizeof(err_buf),
+            "ONNX output shape must be [%zu] or [%zu, 1], got rank %zu.",
+            nrows,
+            nrows,
+            dim_count
+        );
+        goto cleanup;
+    }
+
+    size_t total_out = nrows;
     v_result = caml_alloc(total_out * Double_wosize, Double_array_tag);
-    for (size_t i = 0; i < total_out; i++) {
-        Store_double_field(v_result, i, (double)output_data[i]);
+    switch (output_type) {
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT: {
+            float* typed_output = NULL;
+            CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&typed_output));
+            for (size_t i = 0; i < total_out; i++) {
+                Store_double_field(v_result, i, (double)typed_output[i]);
+            }
+            break;
+        }
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE: {
+            double* typed_output = NULL;
+            CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&typed_output));
+            for (size_t i = 0; i < total_out; i++) {
+                Store_double_field(v_result, i, typed_output[i]);
+            }
+            break;
+        }
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64: {
+            int64_t* typed_output = NULL;
+            CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&typed_output));
+            for (size_t i = 0; i < total_out; i++) {
+                Store_double_field(v_result, i, (double)typed_output[i]);
+            }
+            break;
+        }
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32: {
+            int32_t* typed_output = NULL;
+            CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&typed_output));
+            for (size_t i = 0; i < total_out; i++) {
+                Store_double_field(v_result, i, (double)typed_output[i]);
+            }
+            break;
+        }
+        default:
+            snprintf(
+                err_buf,
+                sizeof(err_buf),
+                "Unsupported ONNX output tensor element type: %d.",
+                (int)output_type
+            );
+            goto cleanup;
     }
 
     if (shape_info) g_ort->ReleaseTensorTypeAndShapeInfo(shape_info);

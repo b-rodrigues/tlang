@@ -1,16 +1,20 @@
 name: Unit tests
 
 on:
+  pull_request:
   workflow_run:
     workflows: ["Build and Cache"]
     types:
       - completed
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 
 jobs:
   build:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
     name: Build and Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
