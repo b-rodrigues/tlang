@@ -50,7 +50,7 @@ let register env =
              | Some stats_df ->
                   summary_dict stats_df [("summary_type", VString "fit_stats")]
              | None ->
-                Error.type_error "Function `summary` expects a native model object.")
+                Error.type_error "Function `summary` expects a native model object."))
       | [VError _ as e] -> e
       | _ ->
         Error.type_error "Function `summary` expects a native model object."
