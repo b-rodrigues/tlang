@@ -26,7 +26,11 @@ let docs_path_from_executable_path exe =
     None
 
 let installed_docs_path () =
-  let exe = try Unix.readlink "/proc/self/exe" with _ -> Sys.executable_name in
+  let exe =
+    try Unix.readlink "/proc/self/exe" with
+    | Unix.Unix_error _ -> Sys.executable_name
+    | Sys_error _ -> Sys.executable_name
+  in
   docs_path_from_executable_path exe
 
 let docs_search_paths () =

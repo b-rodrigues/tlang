@@ -155,8 +155,11 @@
               --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json"
 
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}:$LD_LIBRARY_PATH"
+            export DYLD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}:$DYLD_LIBRARY_PATH"
+            export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
             cd $out/share/tlang
-            $out/bin/t doc --parse --generate
+            $out/bin/.t-unwrapped doc --parse --generate
           '';
 
           meta = with pkgs.lib; {
