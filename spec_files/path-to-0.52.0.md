@@ -56,6 +56,7 @@ This document outlines the step-by-step evolution of the T language from the cur
 
 **Objective**: Strengthen the native model evaluator and PMML support beyond linear models.
 
+- [x] ONNX support.
 - [ ] **Advanced PMML Support**:
     - [x] Native evaluation (no external runtime) for **Decision Trees** and **Random Forests**.
     - [ ] Native evaluation for **XGBoost** and **LightGBM** (standard PMML exports).
@@ -65,10 +66,10 @@ This document outlines the step-by-step evolution of the T language from the cur
     - **Expected Syntax**:
       ```t
       clf = read_pmml("forest.pmml")
-      df |> mutate($pred = predict(clf, df))
+      df |> mutate($pred = predict(df, clf))
       ```
 - [ ] **Model Metrics**:
-    - [ ] Expand `glance()` and `tidy()` to return standard statistics for all native model types.
+    - [ ] Expand `fit_stats()` and `summary()` to return standard statistics for all native model types.
 
 ---
  
