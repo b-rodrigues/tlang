@@ -161,6 +161,8 @@
             cd $out/share/tlang
             # Generate installed help/docs.json and reference docs from the
             # source files copied into the final Nix store output.
+            # Use the unwrapped binary here so docs generation does not depend
+            # on the wrapper's TLANG_DOCS_PATH pointing at a file not yet created.
             $out/bin/.t-unwrapped doc --parse --generate
           '';
 

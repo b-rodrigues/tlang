@@ -17,7 +17,7 @@ let docs_path_from_store_root store_root =
 let docs_path_from_executable_path exe =
   let prefix = "/nix/store/" in
   let prefix_len = String.length prefix in
-  if String.length exe > prefix_len && String.sub exe 0 prefix_len = prefix then
+  if String.length exe > prefix_len && String.starts_with ~prefix exe then
     let rest = String.sub exe prefix_len (String.length exe - prefix_len) in
     match String.index_opt rest '/' with
     | Some i -> Some (docs_path_from_store_root (String.sub exe 0 (prefix_len + i)))
