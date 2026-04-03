@@ -11,6 +11,46 @@ type package_info = {
   functions : string list;
 }
 
+let docs_path_from_store_root store_root =
+  Filename.concat store_root "share/tlang/help/docs.json"
+
+let docs_path_from_executable_path exe =
+  let prefix = "/nix/store/" in
+  let prefix_len = String.length prefix in
+  if String.length exe > prefix_len && String.sub exe 0 prefix_len = prefix then
+    let rest = String.sub exe prefix_len (String.length exe - prefix_len) in
+    match String.index_opt rest '/' with
+    | Some i -> Some (docs_path_from_store_root (String.sub exe 0 (prefix_len + i)))
+    | None -> Some (docs_path_from_store_root exe)
+  else
+    None
+
+let installed_docs_path () =
+  let exe = try Unix.readlink "/proc/self/exe" with _ -> Sys.executable_name in
+  docs_path_from_executable_path exe
+
+let docs_search_paths () =
+  let env_paths =
+    match Sys.getenv_opt "TLANG_DOCS_PATH" with
+    | Some path when String.trim path <> "" -> [path]
+    | _ -> []
+  in
+  let repo_root = Sys.getenv_opt "TLANG_REPO_ROOT" in
+  let repo_paths =
+    match repo_root with
+    | Some root -> [
+        Filename.concat root "help/docs.json";
+        Filename.concat root "docs.json"
+      ]
+    | None -> []
+  in
+  let installed_paths =
+    match installed_docs_path () with
+    | Some path -> [path]
+    | None -> []
+  in
+  env_paths @ repo_paths @ installed_paths @ ["help/docs.json"; "docs.json"]
+
 let docs_loaded : unit Lazy.t =
   lazy (
     let rec find_up dir =
@@ -23,23 +63,8 @@ let docs_loaded : unit Lazy.t =
         if parent = dir then None (* Root reached *)
         else find_up parent
     in
-    let repo_root = Sys.getenv_opt "TLANG_REPO_ROOT" in
-    let docs_paths = 
-      let base = 
-        match repo_root with
-        | Some root -> [
-            Filename.concat root "help/docs.json";
-            Filename.concat root "docs.json"
-          ]
-        | None -> []
-      in
-      base @ [
-        "help/docs.json";
-        "docs.json"
-      ]
-    in
     let loaded_path = 
-      match List.find_opt Sys.file_exists docs_paths with
+      match List.find_opt Sys.file_exists (docs_search_paths ()) with
       | Some p -> Some p
       | None -> find_up (Sys.getcwd ())
     in

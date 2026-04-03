@@ -140,16 +140,23 @@
             mkdir -p $out/bin
             cp _build/default/src/repl.exe $out/bin/.t-unwrapped
             cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
+            mkdir -p $out/share/tlang
+            cp -r src $out/share/tlang/
             mkdir -p $out/share/tlang/quarto
             cp -r editors/quarto/tlang/_extensions/tlang $out/share/tlang/quarto/
             makeWrapper $out/bin/.t-unwrapped $out/bin/t \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
+              --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
               --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
-              
+               
             makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
-              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}"
+              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
+              --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json"
+
+            cd $out/share/tlang
+            $out/bin/t doc --parse --generate
           '';
 
           meta = with pkgs.lib; {

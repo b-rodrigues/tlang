@@ -152,6 +152,19 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     (contains warning "<package>_<function>");
   test_message "startup rename warning explains why names change"
     (contains warning "silently overwriting another");
+  test_message "docs path derived from nix executable path"
+    (Packages.docs_path_from_executable_path "/nix/store/abc123-t-lang-0.1.0/bin/t" =
+       Some "/nix/store/abc123-t-lang-0.1.0/share/tlang/help/docs.json");
+  let original_docs_path = Sys.getenv_opt "TLANG_DOCS_PATH" in
+  Unix.putenv "TLANG_DOCS_PATH" "/tmp/custom-docs.json";
+  let docs_search_paths = Packages.docs_search_paths () in
+  (match original_docs_path with
+   | Some value -> Unix.putenv "TLANG_DOCS_PATH" value
+   | None -> Unix.putenv "TLANG_DOCS_PATH" "");
+  test_message "docs search paths prefer TLANG_DOCS_PATH override"
+    (match docs_search_paths with
+     | path :: _ -> path = "/tmp/custom-docs.json"
+     | [] -> false);
   print_newline ();
 
   Printf.printf "Phase 7 — Pretty-print builtin:\n";
