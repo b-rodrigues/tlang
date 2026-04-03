@@ -1,5 +1,6 @@
 # T Orchestration Engine
 
+[![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta%200.51.2%20%22Sangoku%22-blue.svg)](https://tstats-project.org)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
