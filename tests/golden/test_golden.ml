@@ -577,4 +577,44 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|cor([1, NA, 3], [4, 5, 6])|}
     {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
+  Printf.printf "Phase 8 — Golden: ONNX Machine Learning:\n";
+
+  let iris_csv = "tests/golden/data/iris.csv" in
+  let iris_onnx = "tests/golden/data/iris_logreg.onnx" in
+
+  if Sys.file_exists iris_csv && Sys.file_exists iris_onnx then begin
+    let env_ml = Packages.init_env () in
+    let (_, env_ml) = eval_string_env (Printf.sprintf
+      {|df = read_csv("%s")
+        model = t_read_onnx("%s")
+      |} iris_csv iris_onnx) env_ml in
+
+    (* Test: Metadata extraction *)
+    let (v, _) = eval_string_env "model.input_width" env_ml in
+    if Ast.Utils.value_to_string v = "4" then begin
+      incr pass_count; Printf.printf "  ✓ golden onnx: input_width extraction\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ golden onnx: input_width extraction (got %s)\n" (Ast.Utils.value_to_string v)
+    end;
+
+    let (v, _) = eval_string_env "model.inputs" env_ml in
+    if Ast.Utils.value_to_string v = {|["float_input"]|} then begin
+      incr pass_count; Printf.printf "  ✓ golden onnx: input names extraction\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ golden onnx: input names extraction (got %s)\n" (Ast.Utils.value_to_string v)
+    end;
+
+    (* Test: Prediction batch *)
+    (* Since iris_logreg.onnx was trained on (Sepal.Length, Sepal.Width, Petal.Length, Petal.Width),
+       and iris.csv has those columns, predict(df, model) should work. *)
+    let (v, _) = eval_string_env "preds = predict(df, model); length(preds)" env_ml in
+    if Ast.Utils.value_to_string v = "150" then begin
+      incr pass_count; Printf.printf "  ✓ golden onnx: batch prediction successful (150 rows)\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ golden onnx: batch prediction failed (got %s)\n" (Ast.Utils.value_to_string v)
+    end
+  end else begin
+    Printf.printf "  ! skipping ONNX golden tests: baseline files not found\n"
+  end;
+
   print_newline ()

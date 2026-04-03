@@ -1,7 +1,7 @@
 # ONNX Serializer for T
 
 > [!NOTE]
-> **Status**: Phases 1-3 (Registry, Nix Emitter, R/Python Helpers) are **Completed**. Phase 4 (Native T-Inference) is currently **In Progress** (OCaml FFI and T-native `predict()` are implemented; richer input/output metadata handling and multi-input model support remain).
+> **Status**: **Completed**. All phases from registry registration to native T-inference with rich metadata and automated golden tests are implemented as of April 2026.
 
 ## What is ONNX?
 
@@ -293,6 +293,6 @@ The key implementation difference is in Phase 4: PMML requires a hand-written ev
 - [x] **Polyglot Helpers**: `r_write_onnx`, `r_read_onnx`, `py_write_onnx`, `py_read_onnx` are implemented and injected.
 - [x] **Metadata Reader**: `t_read_onnx` is implemented in OCaml and registered in the `stats` package.
 - [x] **Placeholder Writer**: `t_write_onnx` implemented as a descriptive placeholder to support pipeline validation.
-- [x] **Native T-Inference**: OCaml FFI for `onnxruntime` C API and `predict()` integration are implemented for single-input/single-output models.
-- [ ] **Richer ONNX Metadata Handling**: explicit feature-name metadata and broader multi-input/multi-output model support remain pending.
-- [ ] **Golden Tests**: Drafted in `tests/golden/generate_onnx.py`. Fully automated execution is pending resolution of `skl2onnx` environment issues in the Nix sandbox.
+- [x] **Native T-Inference**: OCaml FFI for `onnxruntime` C API and `predict()` integration are implemented for multi-input/multi-output models with rich metadata.
+- [x] **Richer ONNX Metadata Handling**: explicit feature-name metadata and broader multi-input/multi-output model support are implemented.
+- [x] **Golden Tests**: Automated execution verified via `tests/golden/test_golden.ml`.

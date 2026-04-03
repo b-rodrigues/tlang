@@ -19,6 +19,9 @@
     - **Native T Prediction**: Implemented high-performance scoring using OCaml FFI bindings to the `onnxruntime` C API.
         - Supports direct `predict(df, model)` on ONNX model objects within T nodes.
         - Includes automatic 64-bit to 32-bit float conversion for standard tensor inputs.
+        - **Multi-Input/Output support**: Capable of handling models with multiple input and output tensors.
+        - **Metadata Extraction**: Extracts model producer, description, and custom properties (available via the `metadata` dictionary in the model object).
+        - **Auto-Feature Mapping**: Automatically resolves model inputs by matching DataFrame column names against model metadata when available.
         - Persistent session management with automated GC-based lifecycle control via custom blocks.
 - **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
 - **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.

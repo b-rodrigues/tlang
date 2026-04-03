@@ -4,12 +4,19 @@ open Ast
 --# Read an ONNX model file
 --#
 --# Loads an ONNX model file from disk and returns a model dictionary.
---# The resulting dictionary contains the model type identifier (^onnx) and the file path.
+--# The resulting dictionary contains the model type identifier (^onnx),
+--# the file path, input/output names, and model-level metadata.
 --# This model object can be passed to `predict()` for native T-side inference.
 --#
 --# @name t_read_onnx
 --# @param path :: String The file path to the .onnx model.
---# @return :: Dict A model dictionary for native scoring.
+--# @return :: Dict A model dictionary containing:
+--#   - `model_type` :: Symbol (^onnx)
+--#   - `path` :: String
+--#   - `inputs` :: List[String]
+--#   - `outputs` :: List[String]
+--#   - `input_width` :: Int
+--#   - `metadata` :: Dict Model-level custom properties (producer, description, etc.)
 --# @family stats
 --# @export
 *)
@@ -21,11 +28,24 @@ let register env =
         | [VString path] ->
             if not (Sys.file_exists path) then
               Error.make_error FileError (Printf.sprintf "Function `t_read_onnx`: ONNX model file not found: %s" path)
-            else
-              VDict [
-                "model_type", VSymbol "^onnx";
-                "path", VString path;
-              ]
+            else begin
+              try
+                let session = Onnx_ffi.get_session path in
+                let input_names = Onnx_ffi.session_input_names session in
+                let output_names = Onnx_ffi.session_output_names session in
+                let input_width = Onnx_ffi.session_input_width session in
+                let meta = Onnx_ffi.session_metadata session in
+                VDict [
+                  "model_type", VSymbol "^onnx";
+                  "path", VString path;
+                  "inputs", VList (Array.to_list input_names |> List.map (fun s -> (None, VString s)));
+                  "outputs", VList (Array.to_list output_names |> List.map (fun s -> (None, VString s)));
+                  "input_width", VInt input_width;
+                  "metadata", VDict (List.map (fun (k, v) -> (k, VString v)) meta);
+                ]
+              with Failure msg ->
+                Error.make_error RuntimeError (Printf.sprintf "Function `t_read_onnx` failed to load model: %s" msg)
+            end
         | [VError _ as e] -> e
         | _ -> Error.type_error "t_read_onnx expects a single String argument (file path).")
       )

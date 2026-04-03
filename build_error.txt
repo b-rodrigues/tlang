@@ -1,0 +1,21 @@
+warning: Git tree '/home/brodriguesco/projects/tlang' has uncommitted changes
+Using saved setting for 'extra-substituters = https://rstats-on-nix.cachix.org' from ~/.local/share/nix/trusted-settings.json.
+Using saved setting for 'extra-trusted-public-keys = rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=' from ~/.local/share/nix/trusted-settings.json.
+═══════════════════════════════════════════════
+T Language Development Environment
+═══════════════════════════════════════════════
+
+Available commands:
+  dune build           - Build the project (REPL)
+  dune build src/lsp_server.exe - Build the LSP server
+  t                    - Run the language (fast path)
+  t-lsp                - Run the language server
+  dune test            - Run tests
+
+Quick start: dune build && t
+
+File "src/packages/colcraft/nest.ml", line 57, characters 15-128:
+57 |         VError (Error.make_error KeyError (Printf.sprintf "Column(s) not found in DataFrame: %s." (String.concat ", " missing)))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: This expression has type value but an expression was expected of type
+         error_info
