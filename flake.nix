@@ -159,6 +159,8 @@
             export DYLD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}:$DYLD_LIBRARY_PATH"
             export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
             cd $out/share/tlang
+            # Generate installed help/docs.json and reference docs from the
+            # source files copied into the final Nix store output.
             $out/bin/.t-unwrapped doc --parse --generate
           '';
 
