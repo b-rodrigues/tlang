@@ -687,7 +687,6 @@ let predict_onnx_model df model =
                                 Error.make_error ValueError
                                   "DataFrame contains missing values in numeric columns required for ONNX prediction."
                               else
-                              else
                                 let res = Onnx_ffi.session_run_multi session 
                                     [| (match List.assoc_opt "inputs" pairs with
                                         | Some (VList ((_, VString name) :: _)) -> name
