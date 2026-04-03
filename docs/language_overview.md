@@ -688,6 +688,11 @@ Pipelines define named computation nodes with automatic dependency resolution an
 
 Built-in serializer keywords include `"csv"`, `"arrow"`, `"pmml"`, and `"onnx"` (or `^csv`, `^arrow`, `^pmml`, `^onnx` when referencing the first-class serializer values directly).
 
+The **ONNX** system provides full cross-runtime model portability:
+- **`^onnx` Serializer**: Automatically handles model export/import between R, Python, and T nodes.
+- **Native Inference**: Use `t_read_onnx()` to load models and `predict()` for high-performance scoring directly inside T nodes, with no dependency on R or Python at prediction time.
+- **Rich Metadata**: T-native ONNX objects contain input/output schema and custom model properties (producer, description, feature names) extracted directly from the session.
+
 ```t
 p = pipeline {
   -- 1. Load data natively in T (CSV backend)

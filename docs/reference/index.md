@@ -123,7 +123,7 @@
 | [format_date](format_date.html) | Format dates as strings |
 | [format_datetime](format_datetime.html) | Format datetimes as strings |
 | [full_join](full_join.html) | Join all rows from both tables |
-| [get](get.html) | Get element by index |
+| [get](get.html) | Get Value via Lens |
 | [getwd](getwd.html) | Get current working directory |
 | [glimpse](glimpse.html) | Glimpse DataFrame |
 | [greet](greet.html) | Greet someone |
@@ -339,6 +339,7 @@
 | [t_doc](t_doc.html) | Generate Documentation |
 | [t_make](t_make.html) | Build Pipeline Internally |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
+| [t_read_onnx](t_read_onnx.html) | Read an ONNX model file |
 | [t_read_pmml](t_read_pmml.html) | Read a PMML model file |
 | [t_run](t_run.html) | Run a T script |
 | [t_test](t_test.html) | Run tests |
@@ -365,7 +366,6 @@
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
-| [unknown](unknown.html) | Lens Library |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |

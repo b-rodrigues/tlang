@@ -4,12 +4,19 @@ open Ast
 --# Read an ONNX model file
 --#
 --# Loads an ONNX model file from disk and returns a model dictionary.
---# The resulting dictionary contains the model type identifier (^onnx) and the file path.
+--# The resulting dictionary contains the model type identifier (^onnx),
+--# the file path, input/output names, and model-level metadata.
 --# This model object can be passed to `predict()` for native T-side inference.
 --#
 --# @name t_read_onnx
 --# @param path :: String The file path to the .onnx model.
---# @return :: Dict A model dictionary for native scoring.
+--# @return :: Dict A model dictionary containing:
+--#   - `model_type` :: Symbol (^onnx)
+--#   - `path` :: String
+--#   - `inputs` :: List[String]
+--#   - `outputs` :: List[String]
+--#   - `input_width` :: Int
+--#   - `metadata` :: Dict Model-level custom properties (producer, description, etc.)
 --# @family stats
 --# @export
 *)
