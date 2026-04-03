@@ -130,7 +130,7 @@ let pretty_print_summary pairs =
           ("estimate", "Estimate");
           ("std_error", "Std. Error");
           ("statistic", if is_glm then "z value" else "t value");
-          ("p_value", if is_glm then (if is_glm then "Pr(>|z|)" else "Pr(>|t|)") else "Pr(>|t|)")
+          ("p_value", if is_glm then "Pr(>|z|)" else "Pr(>|t|)")
         ] in
         Buffer.add_string buf (pretty_print_dataframe ~headers df)
   | _ -> Buffer.add_string buf "No coefficient data available.\n");

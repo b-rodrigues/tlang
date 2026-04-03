@@ -93,144 +93,144 @@ let extract_stats_row pairs =
     | Some (VDict model) -> Some model
     | _ -> None
   in
-  if Option.is_none model_type && Option.is_none model_data then
-    None
-  else
-  let extra_int =
-    match model_type with
-    | Some "random_forest" ->
-        let n_trees =
-          match List.assoc_opt "n_trees" pairs with
-          | Some (VInt i) -> Some i
-          | _ ->
-              (match List.assoc_opt "forest" pairs with
-               | Some (VDict forest_pairs) ->
-                   (match List.assoc_opt "trees" forest_pairs with
-                    | Some trees -> Some (List.length (value_list trees))
-                    | _ -> None)
-               | _ -> None)
-        in
-        let n_features =
-          match List.assoc_opt "forest" pairs with
-          | Some (VDict forest_pairs) ->
-              (match List.assoc_opt "trees" forest_pairs with
-               | Some trees ->
-                   let fields =
-                     trees
-                     |> value_list
-                     |> List.concat_map (function
-                        | VDict tree_pairs ->
-                            (match List.assoc_opt "root" tree_pairs with
-                             | Some root -> fields_from_node root
-                             | None -> [])
-                        | _ -> [])
-                   in
-                   Some (List.length (unique_fields fields))
-               | _ -> None)
-          | _ -> None
-        in
-        ("n_trees", n_trees, "n_features", n_features)
-    | Some "decision_tree" ->
-        let n_features =
-          match List.assoc_opt "tree" pairs with
-          | Some (VDict tree_pairs) ->
-              (match List.assoc_opt "root" tree_pairs with
-               | Some root ->
-                   let fields = fields_from_node root |> unique_fields in
-                   Some (List.length fields)
-               | None -> None)
-          | _ -> None
-        in
-        ("n_trees", Some 1, "n_features", n_features)
-    | Some ("xgboost" | "lightgbm") ->
-        let n_trees =
-          match List.assoc_opt "boosted_model" pairs with
-          | Some (VDict ensemble_pairs) ->
-              (match List.assoc_opt "models" ensemble_pairs with
-               | Some (VList model_entries) ->
-                   let total =
-                     List.fold_left (fun acc (_, entry) ->
-                       match entry with
-                       | VDict entry_pairs ->
-                           (match List.assoc_opt "forest" entry_pairs with
-                            | Some (VDict forest_pairs) ->
-                                (match List.assoc_opt "trees" forest_pairs with
-                                 | Some trees -> acc + List.length (value_list trees)
-                                 | _ -> acc)
-                            | _ -> acc)
-                       | _ -> acc
-                     ) 0 model_entries
-                   in
-                   Some total
-               | _ -> None)
-          | _ -> None
-        in
-        let n_features =
-          match List.assoc_opt "boosted_model" pairs with
-          | Some (VDict ensemble_pairs) ->
-              (match List.assoc_opt "models" ensemble_pairs with
-               | Some (VList model_entries) ->
-                   let all_fields =
-                     List.concat_map (fun (_, entry) ->
-                       match entry with
-                       | VDict entry_pairs ->
-                           (match List.assoc_opt "forest" entry_pairs with
-                            | Some (VDict forest_pairs) ->
-                                (match List.assoc_opt "trees" forest_pairs with
-                                 | Some trees ->
-                                     trees
-                                     |> value_list
-                                     |> List.concat_map (function
-                                        | VDict tree_pairs ->
-                                            (match List.assoc_opt "root" tree_pairs with
-                                             | Some root -> fields_from_node root
-                                              | None -> [])
-                                        | _ -> [])
-                                 | _ -> [])
+  match model_type, model_data with
+  | None, None -> None
+  | _ ->
+      let extra_int =
+        match model_type with
+        | Some "random_forest" ->
+            let n_trees =
+              match List.assoc_opt "n_trees" pairs with
+              | Some (VInt i) -> Some i
+              | _ ->
+                  (match List.assoc_opt "forest" pairs with
+                   | Some (VDict forest_pairs) ->
+                       (match List.assoc_opt "trees" forest_pairs with
+                        | Some trees -> Some (List.length (value_list trees))
+                        | _ -> None)
+                   | _ -> None)
+            in
+            let n_features =
+              match List.assoc_opt "forest" pairs with
+              | Some (VDict forest_pairs) ->
+                  (match List.assoc_opt "trees" forest_pairs with
+                   | Some trees ->
+                       let fields =
+                         trees
+                         |> value_list
+                         |> List.concat_map (function
+                            | VDict tree_pairs ->
+                                (match List.assoc_opt "root" tree_pairs with
+                                 | Some root -> fields_from_node root
+                                 | None -> [])
                             | _ -> [])
-                       | _ -> []
-                     ) model_entries
-                   in
-                   Some (List.length (unique_fields all_fields))
+                       in
+                       Some (List.length (unique_fields fields))
+                   | _ -> None)
+              | _ -> None
+            in
+            ("n_trees", n_trees, "n_features", n_features)
+        | Some "decision_tree" ->
+            let n_features =
+              match List.assoc_opt "tree" pairs with
+              | Some (VDict tree_pairs) ->
+                  (match List.assoc_opt "root" tree_pairs with
+                   | Some root ->
+                       let fields = fields_from_node root |> unique_fields in
+                       Some (List.length fields)
+                   | None -> None)
+              | _ -> None
+            in
+            ("n_trees", Some 1, "n_features", n_features)
+        | Some ("xgboost" | "lightgbm") ->
+            let n_trees =
+              match List.assoc_opt "boosted_model" pairs with
+              | Some (VDict ensemble_pairs) ->
+                  (match List.assoc_opt "models" ensemble_pairs with
+                   | Some (VList model_entries) ->
+                       let total =
+                         List.fold_left (fun acc (_, entry) ->
+                           match entry with
+                           | VDict entry_pairs ->
+                               (match List.assoc_opt "forest" entry_pairs with
+                                | Some (VDict forest_pairs) ->
+                                    (match List.assoc_opt "trees" forest_pairs with
+                                     | Some trees -> acc + List.length (value_list trees)
+                                     | _ -> acc)
+                                | _ -> acc)
+                           | _ -> acc
+                         ) 0 model_entries
+                       in
+                       Some total
+                   | _ -> None)
+              | _ -> None
+            in
+            let n_features =
+              match List.assoc_opt "boosted_model" pairs with
+              | Some (VDict ensemble_pairs) ->
+                  (match List.assoc_opt "models" ensemble_pairs with
+                   | Some (VList model_entries) ->
+                       let all_fields =
+                         List.concat_map (fun (_, entry) ->
+                           match entry with
+                           | VDict entry_pairs ->
+                               (match List.assoc_opt "forest" entry_pairs with
+                                | Some (VDict forest_pairs) ->
+                                    (match List.assoc_opt "trees" forest_pairs with
+                                     | Some trees ->
+                                         trees
+                                         |> value_list
+                                         |> List.concat_map (function
+                                            | VDict tree_pairs ->
+                                                (match List.assoc_opt "root" tree_pairs with
+                                                 | Some root -> fields_from_node root
+                                                 | None -> [])
+                                            | _ -> [])
+                                     | _ -> [])
+                                | _ -> [])
+                           | _ -> []
+                         ) model_entries
+                       in
+                       Some (List.length (unique_fields all_fields))
+                   | _ -> None)
+              | _ -> None
+            in
+            ("n_trees", n_trees, "n_features", n_features)
+        | _ -> ("n_trees", None, "n_features", None)
+      in
+      let get_float key =
+        match model_data with
+        | Some model ->
+            (match List.assoc_opt key model with
+             | Some (VFloat f) -> Some f
+             | _ -> None)
+        | None -> None
+      in
+      let get_int key =
+        let (trees_key, trees_val, feats_key, feats_val) = extra_int in
+        if key = trees_key then trees_val
+        else if key = feats_key then feats_val
+        else
+          match model_data with
+          | Some model ->
+              (match List.assoc_opt key model with
+               | Some (VInt i) -> Some i
                | _ -> None)
-          | _ -> None
-        in
-        ("n_trees", n_trees, "n_features", n_features)
-    | _ -> ("n_trees", None, "n_features", None)
-  in
-  let get_float key =
-    match model_data with
-    | Some model ->
-        (match List.assoc_opt key model with
-         | Some (VFloat f) -> Some f
-         | _ -> None)
-    | None -> None
-  in
-  let get_int key =
-    let (trees_key, trees_val, feats_key, feats_val) = extra_int in
-    if key = trees_key then trees_val
-    else if key = feats_key then feats_val
-    else
-      match model_data with
-      | Some model ->
-          (match List.assoc_opt key model with
-           | Some (VInt i) -> Some i
-           | _ -> None)
-      | None -> None
-  in
-  let get_string key =
-    match key with
-    | "model_type" -> model_type
-    | "mining_function" -> assoc_string "mining_function" pairs
-    | _ ->
-        (match model_data with
-         | Some model ->
-             (match List.assoc_opt key model with
-              | Some (VString s) -> Some s
-              | _ -> None)
-         | None -> None)
-  in
-  Some { name = None; get_float; get_int; get_string }
+          | None -> None
+      in
+      let get_string key =
+        match key with
+        | "model_type" -> model_type
+        | "mining_function" -> assoc_string "mining_function" pairs
+        | _ ->
+            (match model_data with
+             | Some model ->
+                 (match List.assoc_opt key model with
+                  | Some (VString s) -> Some s
+                  | _ -> None)
+             | None -> None)
+      in
+      Some { name = None; get_float; get_int; get_string }
 
 let build_stats_dataframe rows =
   let n = List.length rows in
