@@ -481,17 +481,6 @@ let cmd_repl mode env =
       Printf.printf "Type :quit or :q to exit, :help for commands.\n\n";
       Printf.printf "%s\n\n" (Import_registry.startup_rename_warning_message ());
 
-      (* Try to load documentation *)
-  let docs_path = "help/docs.json" in
-  if Sys.file_exists docs_path then begin
-    Tdoc_registry.load_from_json docs_path
-  end else begin
-    (* Try alternate path or legacy location *)
-    let docs_path = "docs.json" in
-    if Sys.file_exists docs_path then begin
-      Tdoc_registry.load_from_json docs_path
-    end
-  end;
 
   let scope = Symbol_table.create_scope () in
   Symbol_table.register_keywords scope;

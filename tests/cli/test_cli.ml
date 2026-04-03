@@ -152,6 +152,38 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     (contains warning "<package>_<function>");
   test_message "startup rename warning explains why names change"
     (contains warning "silently overwriting another");
+  test_message "docs path derived from nix executable path"
+    (Packages.docs_path_from_executable_path "/nix/store/abc123-t-lang-0.1.0/bin/t" =
+       Some "/nix/store/abc123-t-lang-0.1.0/share/tlang/help/docs.json");
+  let original_docs_path = Sys.getenv_opt "TLANG_DOCS_PATH" in
+  let docs_search_paths =
+    Fun.protect
+      ~finally:(fun () ->
+        match original_docs_path with
+        | Some value -> Unix.putenv "TLANG_DOCS_PATH" value
+        | None -> Unix.putenv "TLANG_DOCS_PATH" "")
+      (fun () ->
+        Unix.putenv "TLANG_DOCS_PATH" "/tmp/custom-docs.json";
+        Packages.docs_search_paths ())
+  in
+  test_message "docs search paths prefer TLANG_DOCS_PATH override"
+    (match docs_search_paths with
+     | path :: _ -> path = "/tmp/custom-docs.json"
+     | [] -> false);
+
+  let original_repo_root = Sys.getenv_opt "TLANG_REPO_ROOT" in
+  let repo_search_paths =
+    Fun.protect
+      ~finally:(fun () ->
+        match original_repo_root with
+        | Some value -> Unix.putenv "TLANG_REPO_ROOT" value
+        | None -> Unix.putenv "TLANG_REPO_ROOT" "")
+      (fun () ->
+        Unix.putenv "TLANG_REPO_ROOT" "/tmp/repo";
+        Packages.docs_search_paths ())
+  in
+  test_message "docs search paths include TLANG_REPO_ROOT fallback"
+    (List.exists (fun p -> p = "/tmp/repo/help/docs.json") repo_search_paths);
   print_newline ();
 
   Printf.printf "Phase 7 — Pretty-print builtin:\n";
@@ -199,4 +231,6 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "explain: explain available" "type(explain)" {|"BuiltinFunction"|};
   test "packages: packages available" "type(packages)" {|"BuiltinFunction"|};
   test "packages: package_info available" "type(package_info)" {|"BuiltinFunction"|};
+  test "help: help returns null (proving it ran successfully)" "help('mean')" "null";
+  test "help: apropos returns null" "apropos('mean')" "null";
   print_newline ()
