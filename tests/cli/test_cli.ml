@@ -170,6 +170,20 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     (match docs_search_paths with
      | path :: _ -> path = "/tmp/custom-docs.json"
      | [] -> false);
+
+  let original_repo_root = Sys.getenv_opt "TLANG_REPO_ROOT" in
+  let repo_search_paths =
+    Fun.protect
+      ~finally:(fun () ->
+        match original_repo_root with
+        | Some value -> Unix.putenv "TLANG_REPO_ROOT" value
+        | None -> Unix.putenv "TLANG_REPO_ROOT" "")
+      (fun () ->
+        Unix.putenv "TLANG_REPO_ROOT" "/tmp/repo";
+        Packages.docs_search_paths ())
+  in
+  test_message "docs search paths include TLANG_REPO_ROOT fallback"
+    (List.exists (fun p -> p = "/tmp/repo/help/docs.json") repo_search_paths);
   print_newline ();
 
   Printf.printf "Phase 7 — Pretty-print builtin:\n";
@@ -217,4 +231,6 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "explain: explain available" "type(explain)" {|"BuiltinFunction"|};
   test "packages: packages available" "type(packages)" {|"BuiltinFunction"|};
   test "packages: package_info available" "type(package_info)" {|"BuiltinFunction"|};
+  test "help: help returns null (proving it ran successfully)" "help('mean')" "null";
+  test "help: apropos returns null" "apropos('mean')" "null";
   print_newline ()
