@@ -147,15 +147,15 @@ let float_array_of_numeric_column col_name = function
               col_name))
 
 let unique_levels values =
-  let seen = Hashtbl.create 8 in
-  let levels_rev = ref [] in
-  Array.iter (fun value ->
-    if not (Hashtbl.mem seen value) then begin
-      Hashtbl.add seen value ();
-      levels_rev := value :: !levels_rev
-    end
-  ) values;
-  List.rev !levels_rev
+  values
+  |> Array.fold_left (fun (seen, acc) value ->
+       if List.mem value seen then
+         (seen, acc)
+       else
+         (value :: seen, value :: acc)
+     ) ([], [])
+  |> snd
+  |> List.rev
 
 let categorical_design_terms col_name = function
   | Arrow_table.DictionaryColumn (indices, levels, _) ->
@@ -278,12 +278,13 @@ let multiply_design_terms left_terms right_terms =
     ) right_terms
   ) left_terms
 
+let formula_term_parts term =
+  if String.contains term ':'
+  then String.split_on_char ':' term
+  else [ term ]
+
 let predictor_terms_for_formula_term arrow_table term =
-  let parts =
-    if String.contains term ':'
-    then String.split_on_char ':' term
-    else [ term ]
-  in
+  let parts = formula_term_parts term in
   let rec expand acc = function
     | [] ->
         (match acc with
@@ -296,11 +297,6 @@ let predictor_terms_for_formula_term arrow_table term =
          | Ok terms -> expand (acc @ [terms]) rest)
   in
   expand [] parts
-
-let formula_term_parts term =
-  if String.contains term ':'
-  then String.split_on_char ':' term
-  else [ term ]
 
 (*
 --# Linear Model

@@ -29,30 +29,28 @@ let register env =
         let mining_function = List.assoc_opt "mining_function" pairs in
         let family = List.assoc_opt "family" pairs in
         let link = List.assoc_opt "link" pairs in
+        let summary_dict tidy_df_value extra_pairs =
+          VDict (
+            ("_tidy_df", tidy_df_value) ::
+            (match model_class with Some v -> [("model_class", v)] | None -> []) @
+            (match model_type with Some v -> [("model_type", v)] | None -> []) @
+            (match mining_function with Some v -> [("mining_function", v)] | None -> []) @
+            extra_pairs @
+            [("class", VString "summary")]
+          )
+        in
 
         (match tidy_df with
           | Some ((VDataFrame _) as tidy_df_value) ->
-               VDict (
-                ("_tidy_df", tidy_df_value) ::
-                (match model_class with Some v -> [("model_class", v)] | None -> []) @
-                (match model_type with Some v -> [("model_type", v)] | None -> []) @
-                (match mining_function with Some v -> [("mining_function", v)] | None -> []) @
-                (match family with Some v -> [("family", v)] | None -> []) @
-                (match link with Some v -> [("link", v)] | None -> []) @
-                [("class", VString "summary")]
-              )
+              summary_dict tidy_df_value
+                ((match family with Some v -> [("family", v)] | None -> []) @
+                 (match link with Some v -> [("link", v)] | None -> []))
           | _ ->
             (match Fit_stats.summary_metrics_for_model pairs with
              | Some stats_df ->
-                 VDict (
-                   ("_tidy_df", stats_df) ::
-                   (match model_class with Some v -> [("model_class", v)] | None -> []) @
-                   (match model_type with Some v -> [("model_type", v)] | None -> []) @
-                   (match mining_function with Some v -> [("mining_function", v)] | None -> []) @
-                   [("summary_type", VString "fit_stats"); ("class", VString "summary")]
-                 )
+                  summary_dict stats_df [("summary_type", VString "fit_stats")]
              | None ->
-               Error.type_error "Function `summary` expects a native model object.")
+                Error.type_error "Function `summary` expects a native model object.")
       | [VError _ as e] -> e
       | _ ->
         Error.type_error "Function `summary` expects a native model object."
