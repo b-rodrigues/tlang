@@ -90,10 +90,11 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let is_pmml_des = is_fmt_in_des "pmml" in
   let is_onnx_ser = is_ser "onnx" in
   let is_onnx_des = is_fmt_in_des "onnx" in
-
   let ext, extra_input = match runtime with
     | "R" -> 
-        let inputs = if is_pmml_ser || is_pmml_des then "r-env pkgs.jre" else "r-env" in
+        let inputs = if is_pmml_ser || is_pmml_des then "r-env pkgs.jre" 
+                     else if is_onnx_ser || is_onnx_des then "r-env py-env"
+                     else "r-env" in
         "R", inputs
     | "Python" -> 
         let inputs = if is_pmml_ser || is_pmml_des then "py-env pkgs.jre" else "py-env" in
@@ -753,13 +754,24 @@ def py_read_pmml(path):
 r_write_onnx <- function(object, path) {
   if (!requireNamespace("onnx", quietly = TRUE))
     stop("Package 'onnx' is required for ONNX serialization from R.")
-  onnx::onnx_save_model(object, path)
+  # Use the python handle 'onnx' if available, otherwise check exports
+  if (exists("onnx", where="package:onnx") && !is.null(onnx::onnx$save_model)) {
+    onnx::onnx$save_model(object, path)
+  } else if (exists("onnx_save_model", where="package:onnx")) {
+    onnx::onnx_save_model(object, path)
+  } else {
+    stop("Neither 'onnx_save_model' nor 'onnx$save_model' found. Are dependencies missing?")
+  }
 }
 
 r_read_onnx <- function(path) {
   if (!requireNamespace("onnx", quietly = TRUE))
     stop("Package 'onnx' is required for ONNX deserialization in R.")
-  onnx::onnx_load_model(path)
+  if (exists("onnx", where="package:onnx") && !is.null(onnx::onnx$load_model)) {
+    onnx::onnx$load_model(path)
+  } else {
+    onnx::load_from_file(path)
+  }
 }
 |} in
 
