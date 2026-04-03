@@ -246,6 +246,45 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "lm missing formula arg"
     (Printf.sprintf {|df = read_csv("%s"); lm(data = df)|} csv_p5_lm)
     {|Error(ArityError: "Function `lm` missing required argument 'formula'.")|};
+
+  test "lm factor summary has intercept plus dummy terms"
+    {|df = dataframe([
+        [grp: "a", y: 10],
+        [grp: "b", y: 20],
+        [grp: "a", y: 11],
+        [grp: "b", y: 21],
+        [grp: "c", y: 30],
+        [grp: "c", y: 29]
+      ]) |> mutate($grp = factor($grp, levels = ["a", "b", "c"]));
+      model_factor = lm(data = df, formula = y ~ grp);
+      summary(model_factor)._tidy_df.term|}
+    {|Vector["(Intercept)", "grpb", "grpc"]|};
+
+  test "lm factor coefficient for level b"
+    {|df = dataframe([
+        [grp: "a", y: 10],
+        [grp: "b", y: 20],
+        [grp: "a", y: 11],
+        [grp: "b", y: 21],
+        [grp: "c", y: 30],
+        [grp: "c", y: 29]
+      ]) |> mutate($grp = factor($grp, levels = ["a", "b", "c"]));
+      model_factor = lm(data = df, formula = y ~ grp);
+      model_factor.coefficients.grpb|}
+    "10.";
+
+  test "predict native lm with factor terms"
+    {|df = dataframe([
+        [grp: "a", y: 10],
+        [grp: "b", y: 20],
+        [grp: "a", y: 11],
+        [grp: "b", y: 21],
+        [grp: "c", y: 30],
+        [grp: "c", y: 29]
+      ]) |> mutate($grp = factor($grp, levels = ["a", "b", "c"]));
+      model_factor = lm(data = df, formula = y ~ grp);
+      predict(df, model_factor)|}
+    {|Vector\[10.5, 20.5, 10.5, 20.5, 29.5, 29.5\]|};
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: Pipeline integration:\n";

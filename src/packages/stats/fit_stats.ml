@@ -93,6 +93,9 @@ let extract_stats_row pairs =
     | Some (VDict model) -> Some model
     | _ -> None
   in
+  if Option.is_none model_type && Option.is_none model_data then
+    None
+  else
   let extra_int =
     match model_type with
     | Some "random_forest" ->
@@ -229,6 +232,50 @@ let extract_stats_row pairs =
   in
   Some { name = None; get_float; get_int; get_string }
 
+let build_stats_dataframe rows =
+  let n = List.length rows in
+  let mk_float_col getter =
+    Arrow_table.FloatColumn (Array.of_list (List.map (fun row -> row.get_float getter) rows))
+  in
+  let mk_int_col getter =
+    Arrow_table.FloatColumn (Array.of_list (List.map (fun row ->
+      match row.get_int getter with Some v -> Some (float_of_int v) | None -> None
+    ) rows))
+  in
+  let mk_string_col getter =
+    Arrow_table.StringColumn (Array.of_list (List.map (fun row -> row.get_string getter) rows))
+  in
+  let columns = [
+    ("r_squared",     mk_float_col "r_squared");
+    ("adj_r_squared", mk_float_col "adj_r_squared");
+    ("sigma",         mk_float_col "sigma");
+    ("statistic",     mk_float_col "f_statistic");
+    ("p_value",       mk_float_col "f_p_value");
+    ("df",            mk_int_col "df_model");
+    ("logLik",        mk_float_col "log_lik");
+    ("AIC",           mk_float_col "aic");
+    ("BIC",           mk_float_col "bic");
+    ("deviance",      mk_float_col "deviance");
+    ("df_residual",   mk_int_col "df_residual");
+    ("nobs",          mk_int_col "nobs");
+    ("n_trees",       mk_int_col "n_trees");
+    ("n_features",    mk_int_col "n_features");
+    ("model_type",    mk_string_col "model_type");
+    ("mining_function", mk_string_col "mining_function");
+  ] in
+  let columns =
+    if List.exists (fun row -> Option.is_some row.name) rows then
+      ("model", Arrow_table.StringColumn (Array.of_list (List.map (fun row -> row.name) rows))) :: columns
+    else columns
+  in
+  let table = Arrow_table.create columns n in
+  VDataFrame { arrow_table = table; group_keys = [] }
+
+let summary_metrics_for_model pairs =
+  match extract_stats_row pairs with
+  | Some row -> Some (build_stats_dataframe [row])
+  | None -> None
+
 let register env =
   let fit_stats_func args _env =
     match args with
@@ -256,49 +303,9 @@ let register env =
         | _ -> None
       ) models in
       
-      if rows = [] then
-        Error.type_error "Function `fit_stats` found no valid model objects in the input."
-      else
-        let n = List.length rows in
-        let mk_float_col getter =
-          Arrow_table.FloatColumn (Array.of_list (List.map (fun row -> row.get_float getter) rows))
-        in
-        let mk_int_col getter =
-          Arrow_table.FloatColumn (Array.of_list (List.map (fun row ->
-            match row.get_int getter with Some v -> Some (float_of_int v) | None -> None
-          ) rows))
-        in
-        let mk_string_col getter =
-          Arrow_table.StringColumn (Array.of_list (List.map (fun row -> row.get_string getter) rows))
-        in
-        
-        let columns = [
-          ("r_squared",     mk_float_col "r_squared");
-          ("adj_r_squared", mk_float_col "adj_r_squared");
-          ("sigma",         mk_float_col "sigma");
-          ("statistic",     mk_float_col "f_statistic");
-          ("p_value",       mk_float_col "f_p_value");
-          ("df",            mk_int_col "df_model");
-          ("logLik",        mk_float_col "log_lik");
-          ("AIC",           mk_float_col "aic");
-          ("BIC",           mk_float_col "bic");
-          ("deviance",      mk_float_col "deviance");
-          ("df_residual",   mk_int_col "df_residual");
-          ("nobs",          mk_int_col "nobs");
-          ("n_trees",       mk_int_col "n_trees");
-          ("n_features",    mk_int_col "n_features");
-          ("model_type",    mk_string_col "model_type");
-          ("mining_function", mk_string_col "mining_function");
-        ] in
-        
-        (* Add model name column if any models were named in the list *)
-        let columns = 
-          if List.exists (fun row -> Option.is_some row.name) rows then
-            ("model", Arrow_table.StringColumn (Array.of_list (List.map (fun row -> row.name) rows))) :: columns
-          else columns
-        in
-
-        let table = Arrow_table.create columns n in
-        VDataFrame { arrow_table = table; group_keys = [] }
+       if rows = [] then
+         Error.type_error "Function `fit_stats` found no valid model objects in the input."
+       else
+         build_stats_dataframe rows
   in
   Env.add "fit_stats" (make_builtin ~name:"fit_stats" 1 fit_stats_func) env

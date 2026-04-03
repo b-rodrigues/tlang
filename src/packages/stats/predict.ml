@@ -775,9 +775,12 @@ let register env =
           let success = ref true in
           let error_msg = ref "" in
           
-          let string_cols = 
+          let categorical_cols =
             Arrow_table.column_names df.arrow_table 
-            |> List.filter (fun n -> match Arrow_table.column_type df.arrow_table n with Some ArrowString -> true | _ -> false)
+            |> List.filter (fun n ->
+                 match Arrow_table.column_type df.arrow_table n with
+                 | Some ArrowString | Some ArrowDictionary -> true
+                 | _ -> false)
           in
 
           let resolve_part part_name =
@@ -810,7 +813,7 @@ let register env =
                         | None -> find_level rest
                       else find_level rest
                 in
-                find_level string_cols
+                find_level categorical_cols
           in
 
           let resolve_term term_name =
