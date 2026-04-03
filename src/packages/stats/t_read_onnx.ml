@@ -21,11 +21,24 @@ let register env =
         | [VString path] ->
             if not (Sys.file_exists path) then
               Error.make_error FileError (Printf.sprintf "Function `t_read_onnx`: ONNX model file not found: %s" path)
-            else
-              VDict [
-                "model_type", VSymbol "^onnx";
-                "path", VString path;
-              ]
+            else begin
+              try
+                let session = Onnx_ffi.get_session path in
+                let input_names = Onnx_ffi.session_input_names session in
+                let output_names = Onnx_ffi.session_output_names session in
+                let input_width = Onnx_ffi.session_input_width session in
+                let meta = Onnx_ffi.session_metadata session in
+                VDict [
+                  "model_type", VSymbol "^onnx";
+                  "path", VString path;
+                  "inputs", VList (Array.to_list input_names |> List.map (fun s -> (None, VString s)));
+                  "outputs", VList (Array.to_list output_names |> List.map (fun s -> (None, VString s)));
+                  "input_width", VInt input_width;
+                  "metadata", VDict (List.map (fun (k, v) -> (k, VString v)) meta);
+                ]
+              with Failure msg ->
+                Error.make_error RuntimeError (Printf.sprintf "Function `t_read_onnx` failed to load model: %s" msg)
+            end
         | [VError _ as e] -> e
         | _ -> Error.type_error "t_read_onnx expects a single String argument (file path).")
       )

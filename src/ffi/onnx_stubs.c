@@ -104,8 +104,8 @@ CAMLprim value caml_onnx_session_create(value v_path) {
     CHECK_STATUS_GOTO(g_ort->CreateSession(g_env, path, session_options, &session));
     CHECK_STATUS_GOTO(g_ort->SessionGetInputCount(session, &input_count));
     CHECK_STATUS_GOTO(g_ort->SessionGetOutputCount(session, &output_count));
-    if (input_count != 1 || output_count != 1) {
-        SET_ERROR("Function `predict` currently supports ONNX models with exactly one input and one output.");
+    if (input_count == 0 || output_count == 0) {
+        SET_ERROR("ONNX model must have at least one input and one output.");
     }
 
     input_names = calloc(input_count, sizeof(char*));
@@ -136,6 +136,7 @@ CAMLprim value caml_onnx_session_create(value v_path) {
         }
     }
 
+    /* Extract input width for the FIRST input (heuristic for predict()) */
     CHECK_STATUS_GOTO(g_ort->SessionGetInputTypeInfo(session, 0, &input_type_info));
     CHECK_STATUS_GOTO(g_ort->CastTypeInfoToTensorInfo(input_type_info, &tensor_info));
     if (tensor_info != NULL) {
@@ -182,143 +183,136 @@ cleanup:
     caml_failwith(err_buf);
 }
 
-CAMLprim value caml_onnx_session_run(value v_session, value v_inputs) {
-    CAMLparam2(v_session, v_inputs);
-    CAMLlocal1(v_result);
+CAMLprim value caml_onnx_session_run_multi(value v_session, value v_input_names, value v_input_tensors, value v_output_names) {
+    CAMLparam4(v_session, v_input_names, v_input_tensors, v_output_names);
+    CAMLlocal3(v_result, v_temp_out, v_row);
     tlang_onnx_session* s = (tlang_onnx_session*)Data_custom_val(v_session);
     char err_buf[2048] = {0};
-    float* input_data = NULL;
-    OrtMemoryInfo* memory_info = NULL;
-    OrtValue* input_tensor = NULL;
-    OrtValue* output_tensor = NULL;
-    OrtTensorTypeAndShapeInfo* shape_info = NULL;
-    int64_t* dims = NULL;
-    ONNXTensorElementDataType output_type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED;
-    size_t nrows = Wosize_val(v_inputs);
-    if (s->input_count != 1 || s->output_count != 1) {
-        SET_ERROR("Function `predict` currently supports ONNX models with exactly one input and one output.");
-    }
-    if (nrows == 0) SET_ERROR("Empty input for ONNX prediction");
-    size_t ncols = Wosize_val(Field(v_inputs, 0)) / Double_wosize;
+    
+    size_t in_count = Wosize_val(v_input_names);
+    if (in_count == 0) SET_ERROR("No inputs provided for ONNX prediction");
+    if (in_count != Wosize_val(v_input_tensors)) SET_ERROR("Mismatch between input names and tensors count");
+    size_t out_req_count = Wosize_val(v_output_names);
+    if (out_req_count == 0) SET_ERROR("No output names requested for ONNX prediction");
 
-    input_data = malloc(nrows * ncols * sizeof(float));
-    if (input_data == NULL) {
-        SET_ERROR("Failed to allocate ONNX input tensor buffer.");
-    }
-    for (size_t i = 0; i < nrows; i++) {
-        value row = Field(v_inputs, i);
-        size_t row_cols = Wosize_val(row) / Double_wosize;
-        /* Defensive runtime check: malformed or inconsistent matrix input should
-           fail safely here instead of being forwarded to ONNX Runtime. */
-        if (row_cols != ncols) {
-            snprintf(
-                err_buf,
-                sizeof(err_buf),
-                "ONNX prediction input rows must all have the same width: expected %zu but received %zu.",
-                ncols,
-                row_cols
-            );
-            goto cleanup;
-        }
-        for (size_t j = 0; j < ncols; j++) {
-            input_data[i * ncols + j] = (float)Double_field(row, j);
-        }
-    }
+    const char** in_names = calloc(in_count, sizeof(char*));
+    const char** out_names = calloc(out_req_count, sizeof(char*));
+    OrtValue** in_tensors = calloc(in_count, sizeof(OrtValue*));
+    OrtValue** out_tensors = calloc(out_req_count, sizeof(OrtValue*));
+    float** in_data_ptrs = calloc(in_count, sizeof(float*));
+    OrtMemoryInfo* memory_info = NULL;
 
     CHECK_STATUS_GOTO(g_ort->CreateCpuMemoryInfo(OrtDeviceAllocator, OrtMemTypeDefault, &memory_info));
-    int64_t input_shape[] = { (int64_t)nrows, (int64_t)ncols };
-    CHECK_STATUS_GOTO(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_data, nrows * ncols * sizeof(float), input_shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &input_tensor));
 
-    const char* input_names[] = { s->input_names[0] };
-    const char* output_names[] = { s->output_names[0] };
-    CHECK_STATUS_GOTO(g_ort->Run(s->session, NULL, input_names, (const OrtValue* const*)&input_tensor, 1, output_names, 1, &output_tensor));
+    size_t common_nrows = 0;
+    for (size_t i = 0; i < in_count; i++) {
+        in_names[i] = String_val(Field(v_input_names, i));
+        value v_matrix = Field(v_input_tensors, i);
+        size_t nrows = Wosize_val(v_matrix);
+        if (i == 0) common_nrows = nrows;
+        else if (nrows != common_nrows) SET_ERROR("All ONNX input matrices must have the same number of rows (batch size)");
+        
+        if (nrows == 0) SET_ERROR("Empty input matrix for ONNX prediction");
+        size_t ncols = Wosize_val(Field(v_matrix, 0)) / Double_wosize;
+        
+        float* input_data = malloc(nrows * ncols * sizeof(float));
+        if (input_data == NULL) SET_ERROR("Failed to allocate ONNX input tensor buffer.");
+        in_data_ptrs[i] = input_data;
 
-    CHECK_STATUS_GOTO(g_ort->GetTensorTypeAndShape(output_tensor, &shape_info));
-    CHECK_STATUS_GOTO(g_ort->GetTensorElementType(shape_info, &output_type));
-    size_t dim_count;
-    CHECK_STATUS_GOTO(g_ort->GetDimensionsCount(shape_info, &dim_count));
-    if (dim_count == 0) {
-        SET_ERROR("ONNX output tensor has no dimensions.");
-    }
-    dims = malloc(sizeof(int64_t) * dim_count);
-    if (dims == NULL) {
-        SET_ERROR("Failed to allocate ONNX output shape buffer.");
-    }
-    CHECK_STATUS_GOTO(g_ort->GetDimensions(shape_info, dims, dim_count));
-
-    if (!((dim_count == 1 && dims[0] == (int64_t)nrows) ||
-          (dim_count == 2 && dims[0] == (int64_t)nrows && dims[1] == 1))) {
-        snprintf(
-            err_buf,
-            sizeof(err_buf),
-            "ONNX output shape must be [%zu] or [%zu, 1], got rank %zu.",
-            nrows,
-            nrows,
-            dim_count
-        );
-        goto cleanup;
+        for (size_t r = 0; r < nrows; r++) {
+            value row = Field(v_matrix, r);
+            if (Wosize_val(row) / Double_wosize != ncols) SET_ERROR("Inconsistent column width in input matrix");
+            for (size_t c = 0; c < ncols; c++) {
+                input_data[r * ncols + c] = (float)Double_field(row, c);
+            }
+        }
+        int64_t shape[] = { (int64_t)nrows, (int64_t)ncols };
+        CHECK_STATUS_GOTO(g_ort->CreateTensorWithDataAsOrtValue(memory_info, input_data, nrows * ncols * sizeof(float), shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &in_tensors[i]));
     }
 
-    size_t total_out = nrows;
-    v_result = caml_alloc(total_out * Double_wosize, Double_array_tag);
-    switch (output_type) {
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT: {
-            float* typed_output = NULL;
-            CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&typed_output));
-            for (size_t i = 0; i < total_out; i++) {
-                Store_double_field(v_result, i, (double)typed_output[i]);
-            }
-            break;
-        }
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE: {
-            double* typed_output = NULL;
-            CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&typed_output));
-            for (size_t i = 0; i < total_out; i++) {
-                Store_double_field(v_result, i, typed_output[i]);
-            }
-            break;
-        }
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64: {
-            int64_t* typed_output = NULL;
-            CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&typed_output));
-            for (size_t i = 0; i < total_out; i++) {
-                Store_double_field(v_result, i, (double)typed_output[i]);
-            }
-            break;
-        }
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32: {
-            int32_t* typed_output = NULL;
-            CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&typed_output));
-            for (size_t i = 0; i < total_out; i++) {
-                Store_double_field(v_result, i, (double)typed_output[i]);
-            }
-            break;
-        }
-        default:
-            snprintf(
-                err_buf,
-                sizeof(err_buf),
-                "Unsupported ONNX output tensor element type: %d.",
-                (int)output_type
-            );
-            goto cleanup;
+    for (size_t i = 0; i < out_req_count; i++) {
+        out_names[i] = String_val(Field(v_output_names, i));
     }
 
-    if (shape_info) g_ort->ReleaseTensorTypeAndShapeInfo(shape_info);
-    if (output_tensor) g_ort->ReleaseValue(output_tensor);
-    if (input_tensor) g_ort->ReleaseValue(input_tensor);
+    CHECK_STATUS_GOTO(g_ort->Run(s->session, NULL, in_names, (const OrtValue* const*)in_tensors, in_count, out_names, out_req_count, out_tensors));
+
+    v_result = caml_alloc(out_req_count, 0);
+
+    for (size_t k = 0; k < out_req_count; k++) {
+        OrtValue* output_tensor = out_tensors[k];
+        OrtTensorTypeAndShapeInfo* shape_info = NULL;
+        ONNXTensorElementDataType output_type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED;
+        int64_t* dims = NULL;
+
+        CHECK_STATUS_GOTO(g_ort->GetTensorTypeAndShape(output_tensor, &shape_info));
+        CHECK_STATUS_GOTO(g_ort->GetTensorElementType(shape_info, &output_type));
+        size_t dim_count;
+        CHECK_STATUS_GOTO(g_ort->GetDimensionsCount(shape_info, &dim_count));
+        
+        dims = malloc(sizeof(int64_t) * dim_count);
+        CHECK_STATUS_GOTO(g_ort->GetDimensions(shape_info, dims, dim_count));
+
+        size_t total_elements = 1;
+        for(size_t i=0; i<dim_count; i++) total_elements *= dims[i];
+
+        size_t out_len = total_elements;
+        v_temp_out = caml_alloc(out_len * Double_wosize, Double_array_tag);
+
+        switch (output_type) {
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT: {
+                float* data = NULL;
+                CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&data));
+                for(size_t i=0; i<out_len; i++) Store_double_field(v_temp_out, i, (double)data[i]);
+                break;
+            }
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE: {
+                double* data = NULL;
+                CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&data));
+                for(size_t i=0; i<out_len; i++) Store_double_field(v_temp_out, i, data[i]);
+                break;
+            }
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64: {
+                int64_t* data = NULL;
+                CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&data));
+                for(size_t i=0; i<out_len; i++) Store_double_field(v_temp_out, i, (double)data[i]);
+                break;
+            }
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32: {
+                int32_t* data = NULL;
+                CHECK_STATUS_GOTO(g_ort->GetTensorMutableData(output_tensor, (void**)&data));
+                for(size_t i=0; i<out_len; i++) Store_double_field(v_temp_out, i, (double)data[i]);
+                break;
+            }
+            default: SET_ERROR("Unsupported ONNX output tensor element type.");
+        }
+        Store_field(v_result, k, v_temp_out);
+        if (shape_info) g_ort->ReleaseTensorTypeAndShapeInfo(shape_info);
+        free(dims);
+    }
+
+    /* Cleanup */
+    for (size_t i = 0; i < in_count; i++) {
+        if (in_tensors[i]) g_ort->ReleaseValue(in_tensors[i]);
+        free(in_data_ptrs[i]);
+    }
+    for (size_t i = 0; i < out_req_count; i++) {
+        if (out_tensors[i]) g_ort->ReleaseValue(out_tensors[i]);
+    }
+    free(in_names); free(out_names); free(in_tensors); free(out_tensors); free(in_data_ptrs);
     if (memory_info) g_ort->ReleaseMemoryInfo(memory_info);
-    free(input_data);
-    free(dims);
+
     CAMLreturn(v_result);
 
 cleanup:
-    if (shape_info) g_ort->ReleaseTensorTypeAndShapeInfo(shape_info);
-    if (output_tensor) g_ort->ReleaseValue(output_tensor);
-    if (input_tensor) g_ort->ReleaseValue(input_tensor);
     if (memory_info) g_ort->ReleaseMemoryInfo(memory_info);
-    free(input_data);
-    free(dims);
+    for (size_t i = 0; i < in_count; i++) {
+        if (in_tensors[i]) g_ort->ReleaseValue(in_tensors[i]);
+        if (in_data_ptrs[i]) free(in_data_ptrs[i]);
+    }
+    for (size_t i = 0; i < out_req_count; i++) {
+        if (out_tensors[i]) g_ort->ReleaseValue(out_tensors[i]);
+    }
+    free(in_names); free(out_names); free(in_tensors); free(out_tensors); free(in_data_ptrs);
     caml_failwith(err_buf);
 }
 
@@ -326,4 +320,95 @@ CAMLprim value caml_onnx_session_input_width(value v_session) {
     CAMLparam1(v_session);
     tlang_onnx_session* s = (tlang_onnx_session*)Data_custom_val(v_session);
     CAMLreturn(Val_int(s->input_width > 0 ? s->input_width : 0));
+}
+
+CAMLprim value caml_onnx_session_input_names(value v_session) {
+    CAMLparam1(v_session);
+    CAMLlocal1(v_names);
+    tlang_onnx_session* s = (tlang_onnx_session*)Data_custom_val(v_session);
+    v_names = caml_alloc(s->input_count, 0);
+    for (size_t i = 0; i < s->input_count; i++) {
+        Store_field(v_names, i, caml_copy_string(s->input_names[i]));
+    }
+    CAMLreturn(v_names);
+}
+
+CAMLprim value caml_onnx_session_output_names(value v_session) {
+    CAMLparam1(v_session);
+    CAMLlocal1(v_names);
+    tlang_onnx_session* s = (tlang_onnx_session*)Data_custom_val(v_session);
+    v_names = caml_alloc(s->output_count, 0);
+    for (size_t i = 0; i < s->output_count; i++) {
+        Store_field(v_names, i, caml_copy_string(s->output_names[i]));
+    }
+    CAMLreturn(v_names);
+}
+
+CAMLprim value caml_onnx_session_metadata(value v_session) {
+    CAMLparam1(v_session);
+    CAMLlocal3(v_res, v_pair, v_cons);
+    tlang_onnx_session* s = (tlang_onnx_session*)Data_custom_val(v_session);
+    OrtModelMetadata* metadata = NULL;
+    OrtAllocator* allocator = NULL;
+    char** keys = NULL;
+    int64_t num_keys = 0;
+    char err_buf[2048] = {0};
+
+    if (g_ort->SessionGetModelMetadata(s->session, &metadata) != 0) {
+         CAMLreturn(Val_int(0));
+    }
+    
+    CHECK_STATUS_GOTO(g_ort->GetAllocatorWithDefaultOptions(&allocator));
+    CHECK_STATUS_GOTO(g_ort->ModelMetadataGetCustomMetadataMapKeys(metadata, allocator, &keys, &num_keys));
+
+    v_res = Val_int(0); /* Empty list */
+
+    for (int64_t i = num_keys - 1; i >= 0; i--) {
+        char* val_str = NULL;
+        if (g_ort->ModelMetadataLookupCustomMetadataMap(metadata, allocator, keys[i], &val_str) == 0) {
+            v_pair = caml_alloc(2, 0);
+            Store_field(v_pair, 0, caml_copy_string(keys[i]));
+            Store_field(v_pair, 1, caml_copy_string(val_str != NULL ? val_str : ""));
+            
+            v_cons = caml_alloc(2, 0);
+            Store_field(v_cons, 0, v_pair);
+            Store_field(v_cons, 1, v_res);
+            v_res = v_cons;
+            if (val_str) allocator->Free(allocator, val_str);
+        }
+        allocator->Free(allocator, keys[i]);
+    }
+    if (keys) free(keys);
+
+    char *producer = NULL, *description = NULL;
+    g_ort->ModelMetadataGetProducerName(metadata, allocator, &producer);
+    if (producer) {
+        v_pair = caml_alloc(2, 0);
+        Store_field(v_pair, 0, caml_copy_string("producer"));
+        Store_field(v_pair, 1, caml_copy_string(producer));
+        v_cons = caml_alloc(2, 0);
+        Store_field(v_cons, 0, v_pair);
+        Store_field(v_cons, 1, v_res);
+        v_res = v_cons;
+        allocator->Free(allocator, producer);
+    }
+    g_ort->ModelMetadataGetDescription(metadata, allocator, &description);
+    if (description) {
+        v_pair = caml_alloc(2, 0);
+        Store_field(v_pair, 0, caml_copy_string("description"));
+        Store_field(v_pair, 1, caml_copy_string(description));
+        v_cons = caml_alloc(2, 0);
+        Store_field(v_cons, 0, v_pair);
+        Store_field(v_cons, 1, v_res);
+        v_res = v_cons;
+        allocator->Free(allocator, description);
+    }
+
+    g_ort->ReleaseModelMetadata(metadata);
+    CAMLreturn(v_res);
+
+cleanup:
+    if (metadata) g_ort->ReleaseModelMetadata(metadata);
+    if (keys) free(keys);
+    caml_failwith(err_buf);
 }

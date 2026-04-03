@@ -17,7 +17,13 @@ let onnx_string_list_of_value value =
 let onnx_feature_columns pairs numeric_cols =
   match List.assoc_opt "features" pairs with
   | Some feature_value -> onnx_string_list_of_value feature_value
-  | None -> Ok numeric_cols
+  | None ->
+      (match List.assoc_opt "metadata" pairs with
+       | Some (VDict meta_pairs) ->
+           (match List.assoc_opt "feature_names" meta_pairs with
+            | Some (VString s) -> Ok (String.split_on_char ',' s |> List.map String.trim)
+            | _ -> Ok numeric_cols)
+       | _ -> Ok numeric_cols)
 
 (** predict(df, model) — performs native prediction for a linear model.
     Inspired by tidypredict. *)
@@ -681,8 +687,16 @@ let predict_onnx_model df model =
                                 Error.make_error ValueError
                                   "DataFrame contains missing values in numeric columns required for ONNX prediction."
                               else
-                                let res = Onnx_ffi.session_run session data in
-                                VVector (Array.map (fun f -> VFloat f) res))
+                              else
+                                let res = Onnx_ffi.session_run_multi session 
+                                    [| (match List.assoc_opt "inputs" pairs with
+                                        | Some (VList ((_, VString name) :: _)) -> name
+                                        | _ -> "input") |]
+                                    [| data |] 
+                                    [| (match List.assoc_opt "outputs" pairs with
+                                        | Some (VList ((_, VString name) :: _)) -> name
+                                        | _ -> "output") |] in
+                                VVector (Array.map (fun f -> VFloat f) res.(0)))
             with Failure msg -> Error.make_error RuntimeError msg)
         | _ -> Error.type_error "Function `predict` expects an ONNX model with a `path` field.")
    | _ -> Error.type_error "Function `predict` expects an ONNX model Dict."
