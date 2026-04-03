@@ -17,9 +17,9 @@
 
 (rule
  (target version.ml)
- (deps ../VERSION)
+ (deps ../VERSION ../flake.nix)
  (action (with-stdout-to %{target}
-          (bash "v=$(cat ../VERSION | tr -d '\\n'); echo \"let version = \\\"$v\\\"\""))))
+          (bash "v=$(cat ../VERSION | tr -d '\\n'); d=$(grep -o 'nixpkgs/202[0-9]-[0-9][0-9]-[0-9][0-9]' ../flake.nix | cut -d/ -f2); echo \"let version = \\\"$v\\\"\"; echo \"let nixpkgs_date = \\\"$d\\\"\""))))
 
 (library
  (name t_lang)

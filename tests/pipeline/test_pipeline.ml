@@ -123,13 +123,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       Unix.mkdir "_pipeline" 0o755
   with _ -> () in
   test "build_pipeline returns output path"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (true) else (starts_with(out, \"/nix/store/\"))\nok"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\n( \\(out) if (is_error(out)) (true) else (starts_with(out, \"/nix/store/\")) )(build_pipeline(p))"
     "true";
-  test "read_node reads serialized artifact"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(read_node(\"b\")) == \"FileError\") else (read_node(\"b\") == 3)\nok"
+  test "read_node returns artifact when successful or FileError when build fails"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\n( \\(out) if (is_error(out)) (error_code(read_node(\"b\")) == \"FileError\") else (read_node(\"b\") == 3) )(build_pipeline(p))"
     "true";
   test "read_node missing key"
-    "p = pipeline {\n  a = 1\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(read_node(\"missing\")) == \"FileError\") else (error_code(read_node(\"missing\")) == \"KeyError\")\nok"
+    "p = pipeline {\n  a = 1\n}\n( \\(out) if (is_error(out)) (error_code(read_node(\"missing\")) == \"FileError\") else (error_code(read_node(\"missing\")) == \"KeyError\") )(build_pipeline(p))"
     "true";
   print_newline ();
 
