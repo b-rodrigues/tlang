@@ -2,9 +2,30 @@ open Ast
 open Nix_utils
 
 let indent_string s n =
+  let lines = String.split_on_char '\n' s in
+  let non_empty_lines = List.filter (fun l -> String.trim l <> "") lines in
+  let common_indent =
+    match non_empty_lines with
+    | [] -> 0
+    | first :: _ ->
+        let rec count_spaces i =
+          if i < String.length first && first.[i] = ' ' then count_spaces (i + 1) else i
+        in
+        let initial = count_spaces 0 in
+        List.fold_left (fun acc line ->
+          let rec count i =
+            if i < String.length line && line.[i] = ' ' && (i < acc) then count (i + 1) else i
+          in
+          if String.trim line = "" then acc else count 0
+        ) initial non_empty_lines
+  in
   let indent = String.make n ' ' in
-  String.split_on_char '\n' s
-  |> List.map (fun line -> if line = "" then "" else indent ^ line)
+  lines
+  |> List.map (fun line ->
+       if String.trim line = "" then ""
+       else
+         let stripped = if String.length line >= common_indent then String.sub line common_indent (String.length line - common_indent) else line in
+         indent ^ stripped)
   |> String.concat "\n"
 
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args =
