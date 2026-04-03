@@ -115,26 +115,26 @@ let pretty_print_summary pairs =
   let family = match List.assoc_opt "family" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "Gaussian" in
   let link = match List.assoc_opt "link" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "identity" in
   let buf = Buffer.create 256 in
-   if is_glm then begin
-     Buffer.add_string buf (Printf.sprintf "Family:   %s\n" family);
-     Buffer.add_string buf (Printf.sprintf "Link:     %s\n\n" link)
-   end;
-   Buffer.add_string buf (if summary_type = "fit_stats" then "Model metrics:\n" else "Coefficients:\n");
-   (match List.assoc_opt "_tidy_df" pairs with
-   | Some (VDataFrame df) ->
-       if summary_type = "fit_stats" then
-         Buffer.add_string buf (pretty_print_dataframe df)
-       else
-         let headers = [
-           ("term", "");
-           ("estimate", "Estimate");
-           ("std_error", "Std. Error");
-           ("statistic", if is_glm then "z value" else "t value");
-           ("p_value", if is_glm then (if is_glm then "Pr(>|z|)" else "Pr(>|t|)") else "Pr(>|t|)")
-         ] in
-         Buffer.add_string buf (pretty_print_dataframe ~headers df)
-   | _ -> Buffer.add_string buf "No coefficient data available.\n");
-   Buffer.contents buf
+  if is_glm then begin
+    Buffer.add_string buf (Printf.sprintf "Family:   %s\n" family);
+    Buffer.add_string buf (Printf.sprintf "Link:     %s\n\n" link)
+  end;
+  Buffer.add_string buf (if summary_type = "fit_stats" then "Model metrics:\n" else "Coefficients:\n");
+  (match List.assoc_opt "_tidy_df" pairs with
+  | Some (VDataFrame df) ->
+      if summary_type = "fit_stats" then
+        Buffer.add_string buf (pretty_print_dataframe df)
+      else
+        let headers = [
+          ("term", "");
+          ("estimate", "Estimate");
+          ("std_error", "Std. Error");
+          ("statistic", if is_glm then "z value" else "t value");
+          ("p_value", if is_glm then (if is_glm then "Pr(>|z|)" else "Pr(>|t|)") else "Pr(>|t|)")
+        ] in
+        Buffer.add_string buf (pretty_print_dataframe ~headers df)
+  | _ -> Buffer.add_string buf "No coefficient data available.\n");
+  Buffer.contents buf
 
 
 (** Internal helper for recursive pretty formatting with indentation *)

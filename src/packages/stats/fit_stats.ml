@@ -302,10 +302,10 @@ let register env =
              | None -> None)
         | _ -> None
       ) models in
-      
-       if rows = [] then
-         Error.type_error "Function `fit_stats` found no valid model objects in the input."
-       else
-         build_stats_dataframe rows
+
+      if rows = [] then
+        Error.type_error "Function `fit_stats` found no valid model objects in the input."
+      else
+        build_stats_dataframe rows
   in
   Env.add "fit_stats" (make_builtin ~name:"fit_stats" 1 fit_stats_func) env

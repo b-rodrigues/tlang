@@ -31,9 +31,9 @@ let register env =
         let link = List.assoc_opt "link" pairs in
 
         (match tidy_df with
-          | Some (VDataFrame _) ->
-              VDict (
-                ("_tidy_df", (match tidy_df with Some v -> v | None -> VNull)) ::
+          | Some ((VDataFrame _) as tidy_df_value) ->
+               VDict (
+                ("_tidy_df", tidy_df_value) ::
                 (match model_class with Some v -> [("model_class", v)] | None -> []) @
                 (match model_type with Some v -> [("model_type", v)] | None -> []) @
                 (match mining_function with Some v -> [("mining_function", v)] | None -> []) @

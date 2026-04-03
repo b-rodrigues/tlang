@@ -351,66 +351,66 @@ let register env =
                Error.value_error "Function `lm` right side of formula is empty."
              else begin
                (* Verify response column exists *)
-               (match Arrow_table.get_column df.arrow_table y_col with
-                | None ->
-                    Error.make_error KeyError
-                      (Printf.sprintf "Column `%s` not found in DataFrame." y_col)
+                (match Arrow_table.get_column df.arrow_table y_col with
+                 | None ->
+                     Error.make_error KeyError
+                       (Printf.sprintf "Column `%s` not found in DataFrame." y_col)
                  | Some _ ->
-                  (* Verify all base columns exist, including those referenced by interaction terms. *)
-                   let missing =
-                     predictors
-                     |> List.find_map (fun term ->
-                         formula_term_parts term
-                         |> List.find_opt (fun col -> not (Arrow_table.has_column df.arrow_table col)))
-                  in
-                  (match missing with
-                   | Some col ->
-                        Error.make_error KeyError
-                         (Printf.sprintf "Column `%s` not found in DataFrame." col)
-                   | None ->
-                      let nrows = Arrow_table.num_rows df.arrow_table in
-                      if nrows < 2 then
-                        Error.value_error "Function `lm` requires at least 2 observations."
-                     else
-                       (* Extract numeric columns *)
-                       (match Arrow_owl_bridge.numeric_column_to_owl df.arrow_table y_col with
-                        | None ->
-                          Error.type_error
-                            "Function `lm` requires numeric columns without NA values."
-                         | Some y_view ->
-                           let xs_result = List.fold_left (fun acc term ->
-                             match acc with
-                             | Error e -> Error e
-                             | Ok xs_terms ->
-                                 (match predictor_terms_for_formula_term df.arrow_table term with
-                                  | Error e -> Error e
-                                  | Ok predictor_terms -> Ok (List.rev_append predictor_terms xs_terms))
-                           ) (Ok []) predictors in
-                           let xs_result = Result.map List.rev xs_result in
-                           (match xs_result with
-                            | Error e -> e
-                             | Ok xs_terms ->
-                                 if xs_terms = [] then
-                                   Error.value_error
-                                     "Function `lm` requires at least one varying predictor term after factor encoding."
-                                 else
-                                 (match Arrow_owl_bridge.detect_collinearity
-                                          (List.map (fun term -> (term.name, term.values)) xs_terms) with
-                                  | Some detail ->
-                                       Error.value_error
-                                         (Printf.sprintf
-                                          "Function `lm` detected collinearity: %s."
-                                          detail)
-                                  | None ->
-                                      let xs_arrays = List.map (fun term -> term.values) xs_terms in
-                                      let predictor_names = List.map (fun term -> term.name) xs_terms in
-                                      let ys = y_view.arr in
-                                      (match Arrow_owl_bridge.linreg_multi xs_arrays ys predictor_names with
-                                      | None ->
-                                          Error.value_error
-                                            "Function `lm` detected collinearity: design matrix is singular."
-                                     | Some result ->
-                                         build_model_value result formula_v data_v))))))
+                     (* Verify all base columns exist, including those referenced by interaction terms. *)
+                     let missing =
+                       predictors
+                       |> List.find_map (fun term ->
+                           formula_term_parts term
+                           |> List.find_opt (fun col -> not (Arrow_table.has_column df.arrow_table col)))
+                     in
+                     (match missing with
+                      | Some col ->
+                          Error.make_error KeyError
+                            (Printf.sprintf "Column `%s` not found in DataFrame." col)
+                      | None ->
+                          let nrows = Arrow_table.num_rows df.arrow_table in
+                          if nrows < 2 then
+                            Error.value_error "Function `lm` requires at least 2 observations."
+                          else
+                            (* Extract numeric columns *)
+                            (match Arrow_owl_bridge.numeric_column_to_owl df.arrow_table y_col with
+                             | None ->
+                                 Error.type_error
+                                   "Function `lm` requires numeric columns without NA values."
+                             | Some y_view ->
+                                 let xs_result = List.fold_left (fun acc term ->
+                                   match acc with
+                                   | Error e -> Error e
+                                   | Ok xs_terms ->
+                                       (match predictor_terms_for_formula_term df.arrow_table term with
+                                        | Error e -> Error e
+                                        | Ok predictor_terms -> Ok (List.rev_append predictor_terms xs_terms))
+                                 ) (Ok []) predictors in
+                                 let xs_result = Result.map List.rev xs_result in
+                                 (match xs_result with
+                                  | Error e -> e
+                                  | Ok xs_terms ->
+                                      if xs_terms = [] then
+                                        Error.value_error
+                                          "Function `lm` requires at least one varying predictor term after factor encoding."
+                                      else
+                                        (match Arrow_owl_bridge.detect_collinearity
+                                                 (List.map (fun term -> (term.name, term.values)) xs_terms) with
+                                         | Some detail ->
+                                             Error.value_error
+                                               (Printf.sprintf
+                                                  "Function `lm` detected collinearity: %s."
+                                                  detail)
+                                         | None ->
+                                             let xs_arrays = List.map (fun term -> term.values) xs_terms in
+                                             let predictor_names = List.map (fun term -> term.name) xs_terms in
+                                             let ys = y_view.arr in
+                                             (match Arrow_owl_bridge.linreg_multi xs_arrays ys predictor_names with
+                                              | None ->
+                                                  Error.value_error
+                                                    "Function `lm` detected collinearity: design matrix is singular."
+                                              | Some result ->
+                                                  build_model_value result formula_v data_v))))))
               end
            | [] ->
                Error.value_error "Function `lm` left side of formula is empty."
