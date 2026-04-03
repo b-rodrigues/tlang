@@ -5,6 +5,8 @@ type design_term = {
   values : float array;
 }
 
+module StringSet = Set.Make (String)
+
 (** Build a tidy DataFrame from an lm_result and return it as the model VDict *)
 let build_model_value (result : Arrow_owl_bridge.lm_result)
     (formula_v : value) (data_v : value) : value =
@@ -149,11 +151,11 @@ let float_array_of_numeric_column col_name = function
 let unique_levels values =
   values
   |> Array.fold_left (fun (seen, acc) value ->
-       if List.mem value seen then
+       if StringSet.mem value seen then
          (seen, acc)
        else
-         (value :: seen, value :: acc)
-     ) ([], [])
+         (StringSet.add value seen, value :: acc)
+     ) (StringSet.empty, [])
   |> snd
   |> List.rev
 

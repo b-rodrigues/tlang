@@ -93,6 +93,8 @@ let extract_stats_row pairs =
     | Some (VDict model) -> Some model
     | _ -> None
   in
+  (* Tree/ensemble PMML models may expose only model_type-derived metrics,
+     while regression models may expose only _model_data-derived metrics. *)
   match model_type, model_data with
   | None, None -> None
   | _ ->
