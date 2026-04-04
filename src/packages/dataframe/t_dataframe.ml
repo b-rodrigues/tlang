@@ -4,32 +4,65 @@ let register env =
   (*
   --# Create a DataFrame
   --#
-  --# Constructs a DataFrame from a list of dictionaries (rows).
+  --# Constructs a DataFrame from either a list of rows (Dicts) or a Dictionary of columns (Vectors/Lists).
   --#
   --# @name dataframe
-  --# @param rows :: List[Dict] The data rows.
+  --# @param data :: List[Dict]|Dict The data rows or columns.
   --# @return :: DataFrame The created DataFrame.
   --# @example
+  --#   # Row-wise construction:
   --#   df = dataframe([
   --#     {"a": 1, "b": 2},
   --#     {"a": 3, "b": 4}
   --#   ])
+  --#
+  --#   # Column-wise construction (supported for VDict):
+  --#   df2 = dataframe([a: [1, 3], b: [2, 4]])
+  --#
+  --#   # Scalar values are recycled to match other column lengths:
+  --#   df3 = dataframe([x: [1, 2, 3], constant: 0])
   --# @family dataframe
   --# @seealso read_csv
   --# @export
   *)
   let env = Env.add "dataframe"
     (make_builtin ~name:"dataframe" 1 (fun args _env ->
-      let rows = match args with
-        | [VList l] -> l
-        | [VVector a] -> List.init (Array.length a) (fun i -> (None, a.(i)))
-        | _ -> []
-      in
-      if rows = [] && args <> [VList []] && args <> [VVector [||]] then
-        Error.type_error "Function `dataframe` expects a single argument (List or Vector of rows)."
-      else
-        (match rows with
-           | [] -> VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
+      match args with
+      | [VDict d] ->
+          (* Column-wise construction from a Dictionary: dataframe([x: [1,2], y: [3,4]]) *)
+          (try
+            let raw_columns = List.map (fun (name, v) ->
+              match v with
+              | VVector vec -> (name, vec)
+              | VList l -> (name, Array.of_list (List.map snd l))
+              | scalar -> (name, [| scalar |])
+            ) d in
+            if raw_columns = [] then
+              VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
+            else
+              let nrows = List.fold_left (fun acc (_, vec) -> max acc (Array.length vec)) 0 raw_columns in
+              let columns = List.map (fun (name, vec) ->
+                if Array.length vec = 1 && nrows > 1 then
+                  (name, Array.make nrows vec.(0))
+                else if Array.length vec <> nrows && (nrows > 0 || Array.length vec > 0) then
+                  raise (Failure (Printf.sprintf "column `%s` length %d does not match max length %d" name (Array.length vec) nrows))
+                else
+                  (name, vec)
+              ) raw_columns in
+              let arrow_table = Arrow_bridge.table_from_value_columns columns nrows in
+              VDataFrame { arrow_table; group_keys = [] }
+          with Failure msg -> Error.value_error ("dataframe: " ^ msg))
+      | _ ->
+        let rows = match args with
+          | [VList l] -> l
+          | [VVector a] -> List.init (Array.length a) (fun i -> (None, a.(i)))
+          | _ -> []
+        in
+        if rows = [] && args <> [VList []] && args <> [VVector [||]] then
+          Error.type_error "Function `dataframe` expects a single argument (List or Vector of rows, or a Dict of columns)."
+        else
+          (match rows with
+             | [] -> VDataFrame { arrow_table = Arrow_table.empty; group_keys = [] }
            | (_first_row_name, first_row_val) :: _ ->
                (* Inspect first row to determine columns *)
                (match first_row_val with
