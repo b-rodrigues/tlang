@@ -179,7 +179,7 @@ let repl_display_value v =
     | _ -> None
   in
   match v with
-  | Ast.VNull -> ()
+  | Ast.(VNA NAGeneric) -> ()
   | Ast.VError { context; _ } ->
       Printf.printf "%s%s%s\n" color_red (Ast.Utils.value_to_string v) color_reset;
       if context <> [] then begin
@@ -311,7 +311,7 @@ let cmd_run ?(unsafe=false) mode filename env =
   match result with
   | Ast.VError _ ->
       Printf.eprintf "%s\n" (Ast.Utils.value_to_string result); exit 1
-  | Ast.VNull -> ()
+  | Ast.(VNA NAGeneric) -> ()
   | v -> print_endline (Ast.Utils.value_to_string v)
 
 let cmd_run_expr mode expr env =
@@ -320,7 +320,7 @@ let cmd_run_expr mode expr env =
   match result with
   | Ast.VError _ ->
       Printf.eprintf "%s\n" (Ast.Utils.value_to_string result); exit 1
-  | Ast.VNull -> ()
+  | Ast.(VNA NAGeneric) -> ()
   | v -> print_endline (Ast.Utils.value_to_string v)
 
 let cmd_init_package args =
@@ -696,7 +696,7 @@ let () =
                  | Ast.VError _ -> v
                  | _ -> 
                      env_ref := new_env;
-                     Printf.printf "Ran %s successfully.\n" filename; flush stdout; Ast.VNull)
+                     Printf.printf "Ran %s successfully.\n" filename; flush stdout; Ast.(VNA NAGeneric))
                with
                | Lexer.SyntaxError msg ->
                    let pos = Lexing.lexeme_start_p lexbuf in
@@ -717,120 +717,14 @@ let () =
 --# Build Pipeline Internally
 --#
 --# Builds a pipeline, defaulting to `src/pipeline.t`. This command can also
---# pass arguments to the underlying Nix build, such as `--max-jobs`.
+--# be used with positional or named arguments for other build nodes.
 --#
 --# @name t_make
---# @param filename :: String The path to the pipeline file (defaults to "src/pipeline.t").
---# @param max_jobs :: Int The maximum number of jobs for Nix to run in parallel.
---# @param max_cores :: Int The maximum number of cores per job for Nix to use.
---# @param verbose :: Int The Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
---# @return :: Null
---# @example
---#   t_make()
---#   t_make(filename="src/pipeline2.t", max_jobs=2)
---#   t_make("src/pipeline2.t", 2, 0, 2)
---#   t_make(filename="src/pipeline2.t", verbose=2)
+--# @param filename :: String (Optional) The pipeline build script path.
 --# @family repl
 --# @export
 *)
-  let env = Ast.Env.add "t_make"
-    (Ast.VBuiltin { b_name = Some "t_make"; b_arity = 0; b_variadic = true;
-      b_func = (fun named_args env_ref ->
-        let filename = ref "src/pipeline.t" in
-        let nix_args = ref [] in
-        let verbose = ref !Builder_internal.default_nix_build_verbose in
-        let arg_error_opt = ref None in
-        (* Separate named and positional arguments so that positional indices are
-           computed only within the positional-only list, regardless of how many
-           named arguments appear before them. *)
-        let named_only, positional_only =
-          List.partition (fun (k_opt, _) -> k_opt <> None) named_args
-        in
-        List.iter
-          (function
-            | (Some "filename", Ast.VString s) -> filename := s
-            | (Some "filename", _) ->
-                arg_error_opt := Some (Ast.TypeError, "t_make: 'filename' must be a String")
-            | (Some "max_jobs", Ast.VInt i) ->
-                nix_args := string_of_int i :: "--max-jobs" :: !nix_args
-            | (Some "max_jobs", _) ->
-                arg_error_opt := Some (Ast.TypeError, "t_make: 'max_jobs' must be an Int")
-            | (Some "max_cores", Ast.VInt i) ->
-                nix_args := string_of_int i :: "--cores" :: !nix_args
-            | (Some "max_cores", _) ->
-                arg_error_opt := Some (Ast.TypeError, "t_make: 'max_cores' must be an Int")
-            | (Some "verbose", Ast.VInt i) when i >= 0 ->
-                verbose := i
-            | (Some "verbose", Ast.VInt _) ->
-                arg_error_opt := Some (Ast.ValueError, "t_make: 'verbose' must be a non-negative Int")
-            | (Some "verbose", _) ->
-                arg_error_opt := Some (Ast.TypeError, "t_make: 'verbose' must be an Int")
-            | (Some k, _) ->
-                arg_error_opt := Some (Ast.TypeError, Printf.sprintf "t_make: unknown argument '%s'" k)
-            | (None, _) -> ())
-          named_only;
-        (* Positional arguments by index: 0=filename, 1=max_jobs,
-           2=max_cores, 3=verbose. *)
-        let _ = List.fold_left (fun idx (_, v) ->
-          (match idx, v with
-          | 0, Ast.VString s -> filename := s
-           | 1, Ast.VInt i ->
-               nix_args := string_of_int i :: "--max-jobs" :: !nix_args
-           | 2, Ast.VInt i ->
-               nix_args := string_of_int i :: "--cores" :: !nix_args
-           | 3, Ast.VInt i when i >= 0 ->
-               verbose := i
-           | 3, Ast.VInt _ ->
-               arg_error_opt := Some (Ast.ValueError, "t_make: 'verbose' must be a non-negative Int")
-           | n, _ ->
-               arg_error_opt := Some (Ast.TypeError, Printf.sprintf "t_make: unexpected argument at position %d" n));
-          idx + 1
-        ) 0 positional_only in
-        match !arg_error_opt with
-        | Some (code, msg) ->
-            Ast.VError { code; message = msg; context = []; location = None }
-        | None ->
-        let prev_nix_build_args = !Builder_internal.nix_build_args in
-        let prev_nix_build_verbose = !Builder_internal.default_nix_build_verbose in
-        Fun.protect
-          ~finally:(fun () ->
-            Builder_internal.nix_build_args := prev_nix_build_args;
-            Builder_internal.default_nix_build_verbose := prev_nix_build_verbose)
-          (fun () ->
-            Builder_internal.nix_build_args := List.rev !nix_args;
-            Builder_internal.default_nix_build_verbose := !verbose;
-            (try
-              let content =
-                let ch = open_in !filename in
-                Fun.protect
-                  ~finally:(fun () -> close_in_noerr ch)
-                  (fun () -> really_input_string ch (in_channel_length ch))
-              in
-              let lexbuf = Lexing.from_string content in
-               (try
-                let program = Parser.program Lexer.token lexbuf in
-                let (v, new_env) = Eval.eval_program program !env_ref in
-                (match v with
-                 | Ast.VError _ -> v
-                 | _ ->
-                     env_ref := new_env;
-                     Printf.printf "Pipeline %s evaluated successfully.\n" !filename; flush stdout; Ast.VNull)
-               with
-               | Lexer.SyntaxError msg ->
-                   let pos = Lexing.lexeme_start_p lexbuf in
-                   make_located_error ~file:!filename Ast.SyntaxError ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
-               | Parser.Error ->
-                   let pos = Lexing.lexeme_start_p lexbuf in
-                   make_located_error ~file:!filename Ast.SyntaxError (Printf.sprintf "Parse error in '%s'" !filename) pos
-               | Sys.Break ->
-                   interrupt_error ())
-             with
-             | Sys_error msg ->
-                 Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_make failed: %s" msg; context = []; location = None }))
-      )
-    })
-    env
-  in
+  let env = T_make_mod.register env in
 (*
 --# Run tests
 --#
@@ -852,7 +746,7 @@ let () =
         else begin
           Printf.printf "All %d test(s) passed.\n" suite_result.passed;
           flush stdout;
-          Ast.VNull
+          Ast.(VNA NAGeneric)
         end)
     })
     env
@@ -890,7 +784,7 @@ let () =
             Tdoc_registry.to_json_file (Filename.concat help_dir "docs.json");
             Printf.printf "Parsed %d functions.\n" (List.length (Tdoc_registry.get_all ()));
             flush stdout;
-            Ast.VNull
+            Ast.(VNA NAGeneric)
         | [Ast.VString "generate"] ->
             let dir = Sys.getcwd () in
             Printf.printf "Generating Markdown in docs/reference...\n";
@@ -921,7 +815,7 @@ let () =
             close_out ch;
             Printf.printf "Documentation generated in %s\n" out_dir;
             flush stdout;
-            Ast.VNull
+            Ast.(VNA NAGeneric)
         | [Ast.VString other] ->
             Ast.VError { code = Ast.ValueError; message = Printf.sprintf "t_doc expects \"parse\" or \"generate\", got \"%s\"." other; context = []; location = None }
         | _ -> Ast.VError { code = Ast.TypeError; message = "t_doc expects a string argument: \"parse\" or \"generate\"."; context = []; location = None })

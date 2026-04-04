@@ -139,10 +139,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       Unix.mkdir "_pipeline" 0o755
   with _ -> () in
   test "build_pipeline returns output path"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (true) else (starts_with(out, \"/nix/store/\"))\nok"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p)) {\n  v => if (is_error(v)) (true) else (starts_with(v, \"/nix/store/\"))\n}\nok"
     "true";
   test "build_pipeline accepts verbose option"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p, verbose=1)\nok = if (is_error(out)) (error_code(out) == \"FileError\") else (starts_with(out, \"/nix/store/\"))\nok"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (starts_with(v, \"/nix/store/\"))\n}\nok"
     "true";
   test "build_pipeline rejects non-int verbose"
     "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, verbose=\"loud\")) == \"TypeError\""
@@ -160,7 +160,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, verbose=-1)) == \"ValueError\""
     "true";
   test "t_make accepts verbose option"
-    (Printf.sprintf "is_null(t_make(filename=\"%s\", verbose=2))" t_make_pipeline_path)
+    (Printf.sprintf "is_na(t_make(filename=\"%s\", verbose=2))" t_make_pipeline_path)
     "true";
   test "t_make rejects non-int verbose"
     (Printf.sprintf "error_code(t_make(filename=\"%s\", verbose=\"loud\")) == \"TypeError\"" t_make_pipeline_path)
@@ -170,10 +170,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "true";
   let _ = try Sys.remove t_make_pipeline_path with _ -> () in
   test "read_node reads serialized artifact"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(read_node(\"b\")) == \"FileError\") else (read_node(\"b\") == 3)\nok"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (read_node(p, \"b\") == 3)\n}\nok"
     "true";
   test "read_node missing key"
-    "p = pipeline {\n  a = 1\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(read_node(\"missing\")) == \"FileError\") else (error_code(read_node(\"missing\")) == \"KeyError\")\nok"
+    "p = pipeline {\n  a = 1\n}\nok = match (build_pipeline(p)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (error_code(read_node(p, \"missing\")) == \"KeyError\")\n}\nok"
     "true";
   print_newline ();
 

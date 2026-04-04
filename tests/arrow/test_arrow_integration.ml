@@ -1282,7 +1282,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: Bridge values_to_column for VFactor → DictionaryColumn *)
   let factor_input = [| Ast.VFactor (0, ["A"; "B"; "C"], true);
-                        Ast.VNA Ast.NAGeneric;
+                        Ast.(VNA Ast.NAGeneric);
                         Ast.VFactor (2, ["A"; "B"; "C"], true) |] in
   (match Arrow_bridge.values_to_column factor_input with
    | Arrow_table.DictionaryColumn (idx, levels, ordered) ->
@@ -1330,7 +1330,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (* Test: Ordered factor round-trip through bridge *)
   let ordered_input = [| Ast.VFactor (1, ["low"; "med"; "high"], true);
-                         Ast.VNA Ast.NAGeneric;
+                         Ast.(VNA Ast.NAGeneric);
                          Ast.VFactor (0, ["low"; "med"; "high"], true) |] in
   (match Arrow_bridge.values_to_column ordered_input with
    | Arrow_table.DictionaryColumn (idx, levels, ordered) ->
