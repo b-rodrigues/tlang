@@ -158,7 +158,7 @@ let validate_git_remote () =
 (** Run the test suite *)
 let validate_tests_pass () =
   Printf.printf "Running tests...\n";
-  match Sys.command "dune test" with
+  match Sys.command "nix develop --accept-flake-config -c dune runtest" with
   | 0 -> Ok ()
   | n -> Error (Printf.sprintf "Tests failed (exit code %d). Fix tests before publishing." n)
 
