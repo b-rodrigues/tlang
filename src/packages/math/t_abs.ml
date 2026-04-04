@@ -21,7 +21,7 @@ let register env =
       | [VInt n] -> VInt (Int.abs n)
       | [VFloat f] -> VFloat (Float.abs f)
       | [VVector arr] ->
-          let result = Array.make (Array.length arr) VNull in
+          let result = Array.make (Array.length arr) (VNA NAGeneric) in
           let had_error = ref None in
           Array.iteri (fun i v ->
             if !had_error = None then

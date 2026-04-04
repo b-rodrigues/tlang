@@ -26,7 +26,7 @@ let register env =
           if f <= 0.0 then Error.value_error "Function `log` is undefined for non-positive numbers."
           else VFloat (Float.log f)
       | [VVector arr] ->
-          let result = Array.make (Array.length arr) VNull in
+          let result = Array.make (Array.length arr) (VNA NAGeneric) in
           let had_error = ref None in
           Array.iteri (fun i v ->
             if !had_error = None then
