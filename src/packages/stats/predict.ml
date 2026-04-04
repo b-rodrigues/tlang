@@ -448,7 +448,7 @@ let predict_tree_model df model =
                  | Error msg -> Error.make_error KeyError msg
                  | Ok () ->
                      let nrows = Arrow_table.num_rows df.arrow_table in
-                     let out = Array.make nrows VNull in
+                     let out = Array.make nrows (VNA NAGeneric) in
                      for i = 0 to nrows - 1 do
                        match tree.function_name with
                        | "regression" ->
@@ -495,7 +495,7 @@ let predict_forest_model df model =
                  | Error msg -> Error.make_error KeyError msg
                  | Ok () ->
                      let nrows = Arrow_table.num_rows df.arrow_table in
-                     let out = Array.make nrows VNull in
+                     let out = Array.make nrows (VNA NAGeneric) in
                      for i = 0 to nrows - 1 do
                        let scores =
                          forest.trees
@@ -601,7 +601,7 @@ let predict_boosted_model df model =
                  | Error msg -> Error.make_error KeyError msg
                  | Ok () ->
                      let nrows = Arrow_table.num_rows df.arrow_table in
-                     let out = Array.make nrows VNull in
+                     let out = Array.make nrows (VNA NAGeneric) in
                      for i = 0 to nrows - 1 do
                        let scores =
                          ensemble.models

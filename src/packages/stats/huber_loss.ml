@@ -27,10 +27,10 @@ let register env =
               | VInt n -> VFloat (huber (float_of_int n) delta)
               | VFloat f -> VFloat (huber f delta)
               | VVector arr ->
-                  let out = Array.map (fun v -> Option.value ~default:VNull (map_val delta v)) arr in
-                  if Array.exists (fun v -> v = VNull) out then Error.type_error "Function `huber_loss` requires numeric values." else VVector out
+                  let out = Array.map (fun v -> Option.value ~default:(VNA NAGeneric) (map_val delta v)) arr in
+                  if Array.exists (fun v -> v = (VNA NAGeneric)) out then Error.type_error "Function `huber_loss` requires numeric values." else VVector out
               | VList items ->
-                  let out = List.map (fun (_, v) -> Option.value ~default:VNull (map_val delta v)) items in
-                  if List.exists (fun v -> v = VNull) out then Error.type_error "Function `huber_loss` requires numeric values." else VVector (Array.of_list out)
+                  let out = List.map (fun (_, v) -> Option.value ~default:(VNA NAGeneric) (map_val delta v)) items in
+                  if List.exists (fun v -> v = (VNA NAGeneric)) out then Error.type_error "Function `huber_loss` requires numeric values." else VVector (Array.of_list out)
               | _ -> Error.type_error "Function `huber_loss` expects numeric input."))
     | _ -> Error.arity_error_named "huber_loss" 2 (List.length args))) env
