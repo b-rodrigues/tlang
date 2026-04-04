@@ -117,7 +117,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let verbose_args_ok =
     Builder_internal.nix_verbosity_args 0 = ["--quiet"]
     && Builder_internal.nix_verbosity_args 1 = []
+    && Builder_internal.nix_verbosity_args 2 = ["--verbose"]
     && Builder_internal.nix_verbosity_args 3 = ["--verbose"; "--verbose"]
+    && Builder_internal.nix_verbosity_args 5 = ["--verbose"; "--verbose"; "--verbose"; "--verbose"]
   in
   if verbose_args_ok then begin
     incr pass_count; Printf.printf "  ✓ nix verbosity args are derived correctly\n"

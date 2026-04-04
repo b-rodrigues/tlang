@@ -21,6 +21,16 @@ let nix_verbosity_args verbose =
   if verbose <= 0 then ["--quiet"]
   else List.init (max 0 (verbose - 1)) (fun _ -> "--verbose")
 
+(*
+--# Print Failed Node Logs
+--#
+--# Prints stderr log sections for each failed node by resolving its
+--# derivation path through `nix log`.
+--#
+--# @param drv_paths :: Hashtbl Captured derivation paths keyed by node name.
+--# @param errored :: List[String] Node names that failed during the build.
+--# @family pipeline
+*)
 let print_failed_node_logs drv_paths errored =
   List.iter
     (fun name ->
