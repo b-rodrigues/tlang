@@ -49,7 +49,7 @@ poisson_py = sm.GLM(y, X, family=sm.families.Poisson()).fit()
 }
 
 print("Building Discoveries (Count Response) pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 
 if (is_error(res)) {
     print("Pipeline build failed:")

@@ -44,5 +44,5 @@ p = pipeline {
 }
 
 -- Build the pipeline
-build_pipeline(p)
+build_pipeline(p, verbose=1)
 

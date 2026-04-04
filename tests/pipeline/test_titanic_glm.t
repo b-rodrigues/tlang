@@ -42,7 +42,7 @@ t_write_pmml(py_model_node, os.path.expandvars("$out/artifact"))
 }
 
 print("Building Titanic GLM pipeline (R + Python)...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 
 if (is_error(res)) {
     print("Pipeline build failed:")

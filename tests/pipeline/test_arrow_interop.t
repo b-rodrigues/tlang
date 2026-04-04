@@ -45,7 +45,7 @@ p = pipeline {
 }
 
 print("Building pipeline...")
-build_pipeline(p)
+build_pipeline(p, verbose=1)
 
 print("Reading df_py from Arrow file in T:")
 df_res = read_node("df_py")
