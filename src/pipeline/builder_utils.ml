@@ -203,6 +203,8 @@ let run_command_stream_argv (argv : string array) callback =
     Ok status
   with exn ->
     Error (Printexc.to_string exn)
+
+let run_command_capture cmd =
   let b = Buffer.create 256 in
   match run_command_stream cmd (fun line -> Buffer.add_string b line; Buffer.add_char b '\n') with
   | Ok status -> Ok (status, String.trim (Buffer.contents b))
