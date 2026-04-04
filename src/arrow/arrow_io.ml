@@ -321,7 +321,6 @@ let value_to_csv_field ~sep = function
   | Ast.VBool b -> if b then "true" else "false"
   | Ast.VString s -> csv_quote_string ~sep s
   | Ast.VNA _ -> "NA"
-  | Ast.VNull -> ""
   | Ast.VFactor (idx, levels, _) ->
       (match List.nth_opt levels idx with
        | Some s -> csv_quote_string ~sep s
