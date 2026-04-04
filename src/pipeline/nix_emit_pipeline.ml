@@ -41,6 +41,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   ) in
 
   let is_pmml_ser_or_des name = check_strategy name "pmml" in
+  let is_onnx_ser_or_des name = check_strategy name "onnx" in
   let needs_r_pmml = p.p_exprs |> List.exists (fun (name, _) ->
     let runtime = List.assoc name p.p_runtimes in
     runtime = "R" && is_pmml_ser_or_des name
@@ -87,15 +88,25 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let runtime = List.assoc name p.p_runtimes in
     runtime = "Quarto"
   ) in
+  let needs_py_onnx = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "Python" && is_onnx_ser_or_des name
+  ) in
+  let needs_r_onnx = p.p_exprs |> List.exists (fun (name, _) ->
+    let runtime = List.assoc name p.p_runtimes in
+    runtime = "R" && is_onnx_ser_or_des name
+  ) in
   let r_extra_pkgs = 
     (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
     (if needs_r_pmml then " pkgs.rPackages.r2pmml pkgs.rPackages.XML" else "") ^
+    (if needs_r_onnx then " pkgs.rPackages.onnx" else "") ^
     (if needs_r_csv then " pkgs.rPackages.readr pkgs.rPackages.dplyr" else "") ^
     (if needs_quarto then " pkgs.rPackages.knitr pkgs.rPackages.rmarkdown" else "")
   in
   let py_extra_pkgs = 
     (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^
     (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ps.statsmodels ]" else "") ^
+    (if needs_py_onnx then " ++ [ ps.onnx ps.onnxruntime ps.skl2onnx ps.scikit-learn ps.pandas ps.numpy ]" else "") ^
     (if needs_py_csv then " ++ [ ps.pandas ps.pyarrow ]" else "") ^
     (if needs_quarto then " ++ [ ps.ipykernel ps.pyyaml ps.nbformat ps.nbclient ]" else "")
   in

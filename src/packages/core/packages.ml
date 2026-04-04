@@ -137,7 +137,7 @@ let stats_package = {
   description = "Statistical summaries and models";
   functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
                "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "augment"; "score";
-               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"];
+               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"; "t_read_pmml"; "t_read_onnx"];
 }
 
 let colcraft_package = {
@@ -185,7 +185,7 @@ let chrono_package = {
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
-  functions = ["dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"];
+  functions = ["dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"; "t_read_pmml"; "t_read_onnx"];
 }
 
 let pipeline_package = {
@@ -867,11 +867,11 @@ let init_env () =
   let env = Cor.register env in
   let env = Lm.register env in
   let env = Predict.register env in
+  let env = Summary.register env in
   let env = T_read_pmml.register env in
   let env = T_read_onnx.register env in
   let env = Fit_stats.register env in
   let env = Add_diagnostics.register env in
-  let env = Summary.register env in
   let env = Min.register env in
   let env = Max.register env in
   let env = Median.register env in
