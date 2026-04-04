@@ -2,9 +2,30 @@ open Ast
 open Nix_utils
 
 let indent_string s n =
+  let lines = String.split_on_char '\n' s in
+  let non_empty_lines = List.filter (fun l -> String.trim l <> "") lines in
+  let common_indent =
+    match non_empty_lines with
+    | [] -> 0
+    | first :: _ ->
+        let rec count_spaces i =
+          if i < String.length first && first.[i] = ' ' then count_spaces (i + 1) else i
+        in
+        let initial = count_spaces 0 in
+        List.fold_left (fun acc line ->
+          let rec count i =
+            if i < String.length line && line.[i] = ' ' && (i < acc) then count (i + 1) else i
+          in
+          if String.trim line = "" then acc else count 0
+        ) initial non_empty_lines
+  in
   let indent = String.make n ' ' in
-  String.split_on_char '\n' s
-  |> List.map (fun line -> if line = "" then "" else indent ^ line)
+  lines
+  |> List.map (fun line ->
+       if String.trim line = "" then ""
+       else
+         let stripped = if String.length line >= common_indent then String.sub line common_indent (String.length line - common_indent) else line in
+         indent ^ stripped)
   |> String.concat "\n"
 
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args =
@@ -90,10 +111,11 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let is_pmml_des = is_fmt_in_des "pmml" in
   let is_onnx_ser = is_ser "onnx" in
   let is_onnx_des = is_fmt_in_des "onnx" in
-
   let ext, extra_input = match runtime with
     | "R" -> 
-        let inputs = if is_pmml_ser || is_pmml_des then "r-env pkgs.jre" else "r-env" in
+        let inputs = if is_pmml_ser || is_pmml_des then "r-env pkgs.jre" 
+                     else if is_onnx_ser || is_onnx_des then "r-env py-env"
+                     else "r-env" in
         "R", inputs
     | "Python" -> 
         let inputs = if is_pmml_ser || is_pmml_des then "py-env pkgs.jre" else "py-env" in
@@ -751,15 +773,18 @@ def py_read_pmml(path):
 
   let t_onnx_r_code = {|
 r_write_onnx <- function(object, path) {
-  if (!requireNamespace("onnx", quietly = TRUE))
-    stop("Package 'onnx' is required for ONNX serialization from R.")
-  onnx::onnx_save_model(object, path)
+  # The 'onnx' R package provides Protobuf bindings but no direct model-to-onnx conversion for arbitrary R models (like lm, xgbtree).
+  stop("ONNX serialization is not currently supported for R models in T. Consider using PMML (^pmml) for model interchange or training/exporting your model from Python.")
 }
 
 r_read_onnx <- function(path) {
   if (!requireNamespace("onnx", quietly = TRUE))
     stop("Package 'onnx' is required for ONNX deserialization in R.")
-  onnx::onnx_load_model(path)
+  if (exists("onnx", where="package:onnx") && !is.null(onnx::onnx$load_model)) {
+    onnx::onnx$load_model(path)
+  } else {
+    onnx::load_from_file(path)
+  }
 }
 |} in
 

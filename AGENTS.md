@@ -109,6 +109,8 @@ These rules are **mandatory** and apply to every line of OCaml code added or mod
 
 6. **Strict Variable Lookup & Known Symbols.** Unbound variables evaluate strictly to a `NameError`. They do not silently fall back to symbols. However, to support convenient "bare word" syntax in pipeline configurations, certain names (like `R`, `Python`, `T`, `write_rds`, `default`) are explicitly pre-registered as `VSymbol` in `src/packages/core/packages.ml` via the `known_symbols` list. **If you introduce a new runtime or a new standard serializer, you MUST add its name to `known_symbols`** so users can write `runtime = Julia` instead of `runtime = "Julia"`.
 
+7. **No Silent Magic.** Never implement "placeholders" that appear to work by secretly substituting requested behavior with a fallback (e.g., never silently use JSON if ONNX serialization is requested but unsupported). If an operation cannot be performed natively and correctly as requested, always return an explicit `VError` with a helpful message. Transparency and developer predictability are prioritized over "magical" implicit success.
+
 **Pattern to follow** (from `src/packages/stats/mean.ml`):
 ```ocaml
 (* Good: return VError, never raise *)

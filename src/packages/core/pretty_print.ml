@@ -110,6 +110,7 @@ let pretty_print_pipeline { p_nodes; p_deps; p_runtimes; _ } =
 (** Pretty-print a model summary *)
 let pretty_print_summary pairs =
   let model_class = match List.assoc_opt "model_class" pairs with Some (VString s) -> s | _ -> "lm" in
+  let summary_type = match List.assoc_opt "summary_type" pairs with Some (VString s) -> s | _ -> "coefficients" in
   let is_glm = model_class = "glm" in
   let family = match List.assoc_opt "family" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "Gaussian" in
   let link = match List.assoc_opt "link" pairs with Some (VString s) -> s | Some v -> Utils.value_to_string v | None -> "identity" in
@@ -118,17 +119,20 @@ let pretty_print_summary pairs =
     Buffer.add_string buf (Printf.sprintf "Family:   %s\n" family);
     Buffer.add_string buf (Printf.sprintf "Link:     %s\n\n" link)
   end;
-  Buffer.add_string buf "Coefficients:\n";
+  Buffer.add_string buf (if summary_type = "fit_stats" then "Model metrics:\n" else "Coefficients:\n");
   (match List.assoc_opt "_tidy_df" pairs with
   | Some (VDataFrame df) ->
-      let headers = [
-        ("term", "");
-        ("estimate", "Estimate");
-        ("std_error", "Std. Error");
-        ("statistic", if is_glm then "z value" else "t value");
-        ("p_value", if is_glm then (if is_glm then "Pr(>|z|)" else "Pr(>|t|)") else "Pr(>|t|)")
-      ] in
-      Buffer.add_string buf (pretty_print_dataframe ~headers df)
+      if summary_type = "fit_stats" then
+        Buffer.add_string buf (pretty_print_dataframe df)
+      else
+        let headers = [
+          ("term", "");
+          ("estimate", "Estimate");
+          ("std_error", "Std. Error");
+          ("statistic", if is_glm then "z value" else "t value");
+          ("p_value", if is_glm then "Pr(>|z|)" else "Pr(>|t|)")
+        ] in
+        Buffer.add_string buf (pretty_print_dataframe ~headers df)
   | _ -> Buffer.add_string buf "No coefficient data available.\n");
   Buffer.contents buf
 

@@ -607,7 +607,7 @@ let interactive_init ?(placeholder="my_package") default_name =
   let name = if default_name = "" then prompt_string "Name" placeholder else default_name in
   let author = prompt_string "Author" (try Sys.getenv "USER" with Not_found -> "Anonymous") in
   let license = prompt_string "License [EUPL-1.2, GPL-3.0-or-later, MIT] (visit https://spdx.org/licenses/ for all licenses)" "EUPL-1.2" in
-  let nixpkgs_date = prompt_string "Nixpkgs date (rstats-on-nix branch)" Nixpkgs_date.date in
+  let nixpkgs_date = prompt_string "Nixpkgs date (rstats-on-nix branch)" Version.nixpkgs_date in
   Printf.printf "\n";
   {
     target_name = name;
@@ -694,7 +694,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   let name = ref None in
   let author = ref "Your Name <email@example.com>" in
   let license = ref "EUPL-1.2" in
-  let nixpkgs_date = ref Nixpkgs_date.date in
+  let nixpkgs_date = ref Version.nixpkgs_date in
   let no_git = ref false in
   let force = ref false in
   let show_help = ref false in
@@ -724,7 +724,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
            Options:\n\
            \  --author <name>    Author name and email (default: \"Your Name <email@example.com>\")\n\
            \  --license <id>     License identifier (default: EUPL-1.2)\n\
-           \  --nixpkgs-date <YYYY-MM-DD>  Nixpkgs branch date (default: " ^ Nixpkgs_date.date ^ ")\n\
+           \  --nixpkgs-date <YYYY-MM-DD>  Nixpkgs branch date (default: " ^ Version.nixpkgs_date ^ ")\n\
            \  --no-git           Skip git init\n\
            \  --force            Overwrite existing directory\n\
            \  --help             Show this help\n\

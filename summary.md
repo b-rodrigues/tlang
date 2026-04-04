@@ -19,6 +19,7 @@ This file is an **LLM-oriented operating manual** for the repository. It is inte
 - **Data-first APIs matter.** Standard-library APIs are designed so the data argument comes first, making them pipe-friendly.
 - **Standard packages are auto-loaded.** You usually `import` user packages or local `.t` files; the built-in packages are already available in every session.
 - **Intent blocks are part of the language design.** T is explicitly designed to support auditable human/LLM collaboration via `intent { ... }` metadata.
+- **No Silent Magic.** Never implement "placeholders" that appear to work by secretly substituting requested behavior with a fallback (e.g., never silently use JSON if ONNX is requested but unsupported). If an operation cannot be performed natively and correctly as requested, always throw an explicit error with a helpful message. Transparency and predictability are prioritized over "magical" implicit success.
 - **Death to Null.** Under no circumstances should `null` be implemented or used. Missingness is handled via `NA` and optionality via `Error` or explicit missing values.
 
 ## Required Workflows

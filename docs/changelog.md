@@ -52,6 +52,10 @@
     - Updated `fit_stats()` to provide tree counts and feature counts for all supported boosted ensembles.
     - Fixed `flake.nix` build issues for LightGBM/Boost by disabling GPU support and adjusting CMake flags for CPU-only builds.
     - Added full golden test coverage for both XGBoost and LightGBM using real artifacts from R and Python.
+- **Categorical Modeling Interop**:
+    - **Dummy/One-Hot Expansion**: Implemented automatic categorical expansion for the native `lm()` implementation. T now correctly handles factor columns by generating dummy variables during model fitting, ensuring compatibility with R's `lm()` behavior.
+    - **Advanced `predict()`**: Refactored the internal prediction engine to support interaction terms (`:`) and factor level mapping.
+    - **No Silent Magic**: Enforced strict error handling for unsupported interop operations. The R-ONNX writer and other experimental serializers now return explicit `VError` values instead of silent fallbacks or broken artifacts.
 
 ## Version 0.51.2 — Current Stable Release
 

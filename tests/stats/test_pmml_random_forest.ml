@@ -63,4 +63,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Printf.printf "  ✗ randomForest fit_stats includes n_trees\n    Expected: column n_trees\n    Got: %s\n" stats_cols
   end;
 
+  test "summary random forest returns a Dict"
+    (Printf.sprintf {|m = t_read_pmml("%s"); type(summary(m))|} (String.escaped pmml_path))
+    {|"Dict"|};
+
+  let (summary_cols_v, _) = eval_string_env {|summary(m)._tidy_df |> colnames()|} env in
+  let summary_cols = Ast.Utils.value_to_string summary_cols_v |> String.trim in
+  let has_summary_trees =
+    try
+      let _ = Str.search_forward (Str.regexp "n_trees") summary_cols 0 in
+      true
+    with _ -> false
+  in
+  if has_summary_trees then begin
+    incr pass_count; Printf.printf "  ✓ randomForest summary exposes model metrics\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ randomForest summary exposes model metrics\n    Expected: column n_trees\n    Got: %s\n" summary_cols
+  end;
+
   print_newline ()

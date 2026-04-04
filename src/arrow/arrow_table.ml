@@ -340,6 +340,11 @@ let has_column (t : t) (name : string) : bool =
 let get_string_column (t : t) (name : string) : string option array =
   match get_column t name with
   | Some (StringColumn a) -> a
+  | Some (DictionaryColumn (indices, levels, _)) ->
+      Array.map (function
+        | Some idx -> List.nth_opt levels idx
+        | None -> None
+      ) indices
   | _ -> Array.make (num_rows t) None
 
 let get_float_column (t : t) (name : string) : float option array =
@@ -377,6 +382,12 @@ let get_bool (col : column_data) (row : int) : bool option =
 let get_string (col : column_data) (row : int) : string option =
   match col with
   | StringColumn a -> if row < Array.length a then a.(row) else None
+  | DictionaryColumn (indices, levels, _) ->
+      if row < Array.length indices then
+        (match indices.(row) with
+         | Some idx -> List.nth_opt levels idx
+         | None -> None)
+      else None
   | _ -> None
 
 (* --- Native materialization --- *)

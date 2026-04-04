@@ -55,4 +55,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf {|m = t_read_pmml("%s"); fs = fit_stats(m); fs.n_trees|} (String.escaped mtcars_pmml))
     "Vector[20.]";
 
+  test "summary lightgbm returns a Dict"
+    (Printf.sprintf {|m = t_read_pmml("%s"); type(summary(m))|} (String.escaped pmml_path))
+    {|"Dict"|};
+
+  test "summary lightgbm exposes n_trees"
+    (Printf.sprintf {|m = t_read_pmml("%s"); summary(m)._tidy_df.n_trees|} (String.escaped pmml_path))
+    "Vector[10.]";
+
   print_newline ()
