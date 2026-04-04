@@ -25,36 +25,42 @@ Before the next release, these are the main issues I found during a static revie
 
 ### Additional issues (most serious → least serious)
 
-4. Medium-High: shell injection in pipeline builder via user-controlled paths
+4. ~~Medium-High: shell injection in pipeline builder via user-controlled paths~~
    - Files:
      - `src/pipeline/builder_internal.ml` (lines 40, 69-70)
      - `src/pipeline/builder_copy.ml` (lines 33-42, 68)
+     - `src/pipeline/builder_inspect.ml` (line 58)
      - `src/pipeline/builder_utils.ml` (line 26)
-   - `nix-build`, `nix log`, `cp`, and `rm -rf` commands are constructed via `Printf.sprintf` with `Filename.quote` and executed through `Sys.command` / `open_process_full`. While `Filename.quote` mitigates basic injection, it is not robust on all platforms (especially Windows). These should be converted to argv-based execution (`Unix.open_process_args_full`) like the publish flow was.
+   - ~~`nix-build`, `nix log`, `cp`, and `rm -rf` commands are constructed via `Printf.sprintf` with `Filename.quote` and executed through `Sys.command` / `open_process_full`. While `Filename.quote` mitigates basic injection, it is not robust on all platforms (especially Windows). These should be converted to argv-based execution (`Unix.open_process_args_full`) like the publish flow was.~~
+   - **Fixed:** Added `run_command_stream_argv`, `run_command_argv_exit`, and `run_command_argv_capture` to `builder_utils.ml`. Converted `nix-build`, `nix log`, `cp -RP`, `rm -rf`, and `find … -exec chmod` calls in `builder_internal.ml`, `builder_copy.ml`, and `builder_inspect.ml` to argv-based execution.
 
-5. Medium: `curl` invocation in `arrow_io.ml` lacks safety flags
+5. ~~Medium: `curl` invocation in `arrow_io.ml` lacks safety flags~~
    - File: `src/arrow/arrow_io.ml` (line 206)
-   - URL downloads shell out to `curl -s -L` without `--fail`, `--max-time`, or `--max-filesize`. HTTP errors (4xx/5xx) are silently treated as success and the error page is written to the temp file. No timeout means a hung server can block the process indefinitely.
+   - ~~URL downloads shell out to `curl -s -L` without `--fail`, `--max-time`, or `--max-filesize`. HTTP errors (4xx/5xx) are silently treated as success and the error page is written to the temp file. No timeout means a hung server can block the process indefinitely.~~
+   - **Fixed:** Added `--fail` (reject HTTP errors), `--max-time 120` (2-minute timeout), and `--max-filesize 536870912` (512 MB limit).
 
 6. Medium: `shell()` in eval.ml executes arbitrary user strings via shell
    - File: `src/eval.ml` (line 477)
    - The `shell()` builtin passes user-provided strings directly to `Unix.open_process_full`, which invokes `/bin/sh -c`. This is by design (it's a shell command), but there is no sandboxing, no PATH restriction, and no opt-in security gate. Consider at minimum documenting the risk and potentially adding a `--allow-shell` flag or environment variable guard.
 
-7. Medium-Low: `Option.get` and `failwith` in user-facing stats functions
+7. ~~Medium-Low: `Option.get` and `failwith` in user-facing stats functions~~
    - Files:
      - `src/packages/stats/skewness.ml` (line 72)
      - `src/packages/stats/cv.ml` (line 72)
      - `src/packages/stats/winsorize.ml` (lines 77-78)
      - `src/packages/stats/mad.ml` (lines 70, 72)
-   - These use `Option.get` on results of `mean` / `quantile` which can return `None` on empty input. An empty vector will raise an uncaught OCaml exception instead of returning a structured `VError`. Each should pattern-match on the `None` case.
+   - ~~These use `Option.get` on results of `mean` / `quantile` which can return `None` on empty input. An empty vector will raise an uncaught OCaml exception instead of returning a structured `VError`. Each should pattern-match on the `None` case.~~
+   - **Fixed:** Replaced all `Option.get` calls with explicit `match` expressions.
 
-8. Low: `failwith` in PMML parsing for missing attributes
+8. ~~Low: `failwith` in PMML parsing for missing attributes~~
    - File: `src/pmml_utils.ml` (lines 662, 666, 706)
-   - PMML XML attribute lookups use `failwith` when required attributes are missing. These should return `VError` or `Error` values rather than raising OCaml exceptions, per the project's error handling conventions.
+   - ~~PMML XML attribute lookups use `failwith` when required attributes are missing. These should return `VError` or `Error` values rather than raising OCaml exceptions, per the project's error handling conventions.~~
+   - **Fixed:** Replaced `failwith` with `raise (Invalid_argument ...)` for consistency; these are caught by the outer `try...with exn ->` handler that wraps the result in `Error`.
 
-9. Low: `List.hd` on potentially-empty list in PMML parser
+9. ~~Low: `List.hd` on potentially-empty list in PMML parser~~
    - File: `src/pmml_utils.ml` (line 787)
-   - `List.hd ints` on a list that is only conditionally non-empty. Should use pattern matching.
+   - ~~`List.hd ints` on a list that is only conditionally non-empty. Should use pattern matching.~~
+   - **Fixed:** Replaced with `match ints with p :: _ -> ... | [] -> ()` pattern match.
 
 10. Low: `dune test` vs Nix workflow mismatch in publish
     - File: `src/package_manager/release_manager.ml`
@@ -70,9 +76,9 @@ Release recommendation:
 
 - Strongly recommended before release:
   - ~~tighten publish validation flow~~ ✅ (partially — Nix-workflow mismatch remains)
-  - harden remote download handling (item 5)
-  - convert pipeline builder shell calls to argv-based execution (item 4)
+  - ~~harden remote download handling (item 5)~~ ✅
+  - ~~convert pipeline builder shell calls to argv-based execution (item 4)~~ ✅
 
 - Cleanup / robustness:
-  - ~~remove remaining partial-function and raw exception patterns from user-facing paths~~ (items 7-9)
+  - ~~remove remaining partial-function and raw exception patterns from user-facing paths (items 7-9)~~ ✅
   - document or gate `shell()` security model (item 6)
