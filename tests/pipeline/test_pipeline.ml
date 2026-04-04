@@ -164,7 +164,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "error_code(t_make(filename=\"test_t_make_verbose_pipeline.t\", verbose=\"loud\")) == \"TypeError\""
     "true";
   test "t_make rejects negative verbose"
-    "error_code(t_make(filename=\"test_t_make_verbose_pipeline.t\", verbose=-1)) == \"TypeError\""
+    "error_code(t_make(filename=\"test_t_make_verbose_pipeline.t\", verbose=-1)) == \"ValueError\""
     "true";
   test "read_node reads serialized artifact"
     "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(read_node(\"b\")) == \"FileError\") else (read_node(\"b\") == 3)\nok"

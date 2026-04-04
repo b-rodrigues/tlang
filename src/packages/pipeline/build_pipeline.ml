@@ -60,7 +60,7 @@ let register ~rerun_pipeline env =
               | VError _ as err -> err
               | other ->
                   Error.make_error RuntimeError
-                    ("build_pipeline failed to resolve the pipeline before building: "
+                    ("build_pipeline encountered an internal pipeline resolution invariant violation before building: "
                      ^ Utils.value_to_string other)))
       | _ -> Error.type_error "Function `build_pipeline` expects a Pipeline."
   in
