@@ -1,5 +1,8 @@
 name: Deploy Documentation
 
+env:
+  TLANG_SKIP_PKG_CHECK: "1"
+
 on:
   workflow_run:
     workflows: ["Build and Cache"]

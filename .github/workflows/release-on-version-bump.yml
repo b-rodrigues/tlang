@@ -1,5 +1,8 @@
 name: Release on Version Bump
 
+env:
+  TLANG_SKIP_PKG_CHECK: "1"
+
 on:
   workflow_run:
     workflows: ["golden-test"]

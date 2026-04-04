@@ -1,5 +1,8 @@
 name: Golden Tests (T vs R)
 
+env:
+  TLANG_SKIP_PKG_CHECK: "1"
+
 on:
   pull_request:
   workflow_run:

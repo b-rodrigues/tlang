@@ -1,4 +1,7 @@
 name: Build and Cache
+
+env:
+  TLANG_SKIP_PKG_CHECK: "1"
 on:
   push:
     branches:
