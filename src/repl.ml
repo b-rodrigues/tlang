@@ -723,10 +723,12 @@ let () =
 --# @param filename :: String The path to the pipeline file (defaults to "src/pipeline.t").
 --# @param max_jobs :: Int The maximum number of jobs for Nix to run in parallel.
 --# @param max_cores :: Int The maximum number of cores per job for Nix to use.
+--# @param verbose :: Int The Nix build verbosity level. `0` keeps build failures quiet; values above `0` print failed node logs.
 --# @return :: Null
 --# @example
 --#   t_make()
 --#   t_make(filename="src/pipeline2.t", max_jobs=2)
+--#   t_make(filename="src/pipeline2.t", verbose=2)
 --# @family repl
 --# @export
 *)
@@ -735,6 +737,7 @@ let () =
       b_func = (fun named_args env_ref ->
         let filename = ref "src/pipeline.t" in
         let nix_args = ref [] in
+        let verbose = ref !Builder_internal.default_nix_build_verbose in
         let arg_error = ref None in
         (* Separate named and positional arguments so that positional indices are
            computed only within the positional-only list, regardless of how many
@@ -755,6 +758,12 @@ let () =
                 nix_args := string_of_int i :: "--cores" :: !nix_args
             | (Some "max_cores", _) ->
                 arg_error := Some "t_make: 'max_cores' must be an Int"
+            | (Some "verbose", Ast.VInt i) when i >= 0 ->
+                verbose := i
+            | (Some "verbose", Ast.VInt _) ->
+                arg_error := Some "t_make: 'verbose' must be a non-negative Int"
+            | (Some "verbose", _) ->
+                arg_error := Some "t_make: 'verbose' must be an Int"
             | (Some k, _) ->
                 arg_error := Some (Printf.sprintf "t_make: unknown argument '%s'" k)
             | (None, _) -> ())
@@ -762,12 +771,16 @@ let () =
         let _ = List.fold_left (fun idx (_, v) ->
           (match idx, v with
           | 0, Ast.VString s -> filename := s
-          | 1, Ast.VInt i ->
-              nix_args := string_of_int i :: "--max-jobs" :: !nix_args
-          | 2, Ast.VInt i ->
-              nix_args := string_of_int i :: "--cores" :: !nix_args
-          | n, _ ->
-              arg_error := Some (Printf.sprintf "t_make: unexpected argument at position %d" n));
+           | 1, Ast.VInt i ->
+               nix_args := string_of_int i :: "--max-jobs" :: !nix_args
+           | 2, Ast.VInt i ->
+               nix_args := string_of_int i :: "--cores" :: !nix_args
+           | 3, Ast.VInt i when i >= 0 ->
+               verbose := i
+           | 3, Ast.VInt _ ->
+               arg_error := Some "t_make: 'verbose' must be a non-negative Int"
+           | n, _ ->
+               arg_error := Some (Printf.sprintf "t_make: unexpected argument at position %d" n));
           idx + 1
         ) 0 positional_only in
         match !arg_error with
@@ -775,11 +788,14 @@ let () =
             Ast.VError { code = Ast.TypeError; message = msg; context = []; location = None }
         | None ->
         let prev_nix_build_args = !Builder_internal.nix_build_args in
+        let prev_nix_build_verbose = !Builder_internal.default_nix_build_verbose in
         Fun.protect
           ~finally:(fun () ->
-            Builder_internal.nix_build_args := prev_nix_build_args)
+            Builder_internal.nix_build_args := prev_nix_build_args;
+            Builder_internal.default_nix_build_verbose := prev_nix_build_verbose)
           (fun () ->
             Builder_internal.nix_build_args := List.rev !nix_args;
+            Builder_internal.default_nix_build_verbose := !verbose;
             (try
               let content =
                 let ch = open_in !filename in
