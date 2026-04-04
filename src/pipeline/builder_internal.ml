@@ -251,6 +251,8 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                if errored <> [] then
                  print_failed_node_logs drv_paths errored
                else
+                 (* Fallback for general Nix failures that were not attributed to a
+                    specific node while streaming the build output. *)
                  let output = String.trim (Buffer.contents captured_output) in
                  if output <> "" then
                    Printf.eprintf "\n--- nix-build failure output ---\n%s\n%!" output

@@ -768,6 +768,8 @@ let () =
                 arg_error_opt := Some (Ast.TypeError, Printf.sprintf "t_make: unknown argument '%s'" k)
             | (None, _) -> ())
           named_only;
+        (* Positional arguments are zero-indexed here: filename, max_jobs,
+           max_cores, then verbose. *)
         let _ = List.fold_left (fun idx (_, v) ->
           (match idx, v with
           | 0, Ast.VString s -> filename := s
