@@ -18,4 +18,3 @@ Retrieves the value of an environment variable.
 ```t
 env("HOME")
 ```
-
