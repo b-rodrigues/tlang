@@ -1,6 +1,14 @@
 # Changelog
 
-## [0.51.3] - 2026-04-xx (Upcoming)
+## [0.51.3] - 2026-04-04
+
+- **Standardized Nixpkgs Pinning**: Decoupled the Nixpkgs date from the system date during project initialization to ensure reproducible and cached environments.
+    - Added `RSTATS-NIX-DATE` as the single source of truth for the project-wide Nixpkgs snapshot date.
+    - Updated `t init` to dynamically use this canonical date, preventing accidental resource-intensive source builds (like Deno/Quarto) on architectures like `aarch64-linux`.
+- **Column-wise DataFrame Construction**: Enhanced the `dataframe()` builtin to support construction from a Dictionary of columns.
+    - Added support for the intuitive `dataframe([x: [1,2], y: [3,4]])` syntax.
+    - **Scalar Recycling**: Implemented automatic recycling of single values to match the length of other columns (e.g., `dataframe([x: 1:5, y: 0])`).
+    - Improved error messaging for mismatched column lengths.
 
 - **"Death to Null" Initiative**: Complete removal of `null` and `VNull` from the language in favor of a strict, explicit missingness model.
     - **Grammar Cleanup**: Removed the `null` keyword from the lexer and parser. The language now exclusively uses `NA` (generic or typed) for missing data.
