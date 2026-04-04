@@ -115,7 +115,8 @@ let deserialize_from_file path =
                Error "Serialized value is missing the integrity digest. Re-serialize this artifact with the current version of T."
            | Some hex_line ->
                let hex = String.trim hex_line in
-               (* Validate hex digest format: must be exactly 32 hex chars (MD5) *)
+               (* Validate hex digest format: 32 hex chars for MD5 (OCaml Digest module).
+                  If the digest algorithm changes, update this length accordingly. *)
                let valid_hex =
                  String.length hex = 32 &&
                  String.for_all (fun c ->

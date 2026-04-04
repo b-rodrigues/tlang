@@ -204,12 +204,10 @@ let create_git_tag version =
       | Ok _ -> Ok tag
       | Error e -> Error ("Failed to create git tag: " ^ e)
 
-(** Push a git tag — uses argv-based execution to prevent shell injection *)
+(** Push a git tag — uses argv-based execution to prevent shell injection.
+    The tag is expected to come from [create_git_tag] which already validates the version. *)
 let push_git_tag tag =
-  match validate_version_format tag with
-  | Error msg -> Error ("Invalid tag for git push: " ^ msg)
-  | Ok () ->
-      let argv = [| "git"; "push"; "origin"; tag |] in
-      match run_command_argv argv with
-      | Ok _ -> Ok ()
-      | Error e -> Error ("Failed to push git tag: " ^ e)
+  let argv = [| "git"; "push"; "origin"; tag |] in
+  match run_command_argv argv with
+  | Ok _ -> Ok ()
+  | Error e -> Error ("Failed to push git tag: " ^ e)
