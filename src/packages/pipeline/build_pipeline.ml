@@ -48,14 +48,20 @@ let register ~rerun_pipeline env =
          | Error e -> e
          | Ok verbose ->
              (* Trigger a final resolution pass to catch typos or unresolved cross-pipeline deps *)
-             let p_resolved = (match rerun_pipeline ?strict:(Some true) env p with VPipeline p' -> p' | other -> failwith (Utils.value_to_string other)) in
-             let has_errors = List.exists (fun (_, v) -> is_error_value v) p_resolved.p_nodes in
-             if has_errors then
-               Error.value_error ("Cannot build pipeline with errors: " ^ (Utils.value_to_string (VPipeline p_resolved)))
-             else
-               (match Builder.populate_pipeline ~build:true ?verbose p_resolved with
-               | Ok out_path -> VString out_path
-               | Error msg -> Error.make_error FileError msg))
+             (match rerun_pipeline ?strict:(Some true) env p with
+              | VPipeline p_resolved ->
+                  let has_errors = List.exists (fun (_, v) -> is_error_value v) p_resolved.p_nodes in
+                  if has_errors then
+                    Error.value_error ("Cannot build pipeline with errors: " ^ (Utils.value_to_string (VPipeline p_resolved)))
+                  else
+                    (match Builder.populate_pipeline ~build:true ?verbose p_resolved with
+                     | Ok out_path -> VString out_path
+                     | Error msg -> Error.make_error FileError msg)
+              | VError _ as err -> err
+              | other ->
+                  Error.make_error RuntimeError
+                    ("build_pipeline failed to resolve the pipeline before building: "
+                     ^ Utils.value_to_string other)))
       | _ -> Error.type_error "Function `build_pipeline` expects a Pipeline."
   in
   Env.add "build_pipeline" (make_builtin_named ~name:"build_pipeline" ~variadic:true 1 build_fn) env

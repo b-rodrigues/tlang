@@ -32,7 +32,7 @@ let print_failed_node_logs drv_paths errored =
            | Ok (_, output) ->
                let output = String.trim output in
                if output = "" then
-                 Printf.eprintf "(No log output returned for `%s`.)\n%!" name
+                 Printf.eprintf "(No log output returned for `%s`).\n%!" name
                else
                  Printf.eprintf "%s\n%!" output
            | Error msg ->
