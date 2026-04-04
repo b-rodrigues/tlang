@@ -73,12 +73,12 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
     let get_ser name = 
       match List.assoc_opt name p.p_serializers with
       | Some e -> eval_expr e
-      | None -> Ast.VNull
+      | None -> Ast.(VNA NAGeneric)
     in
     let get_des name = 
       match List.assoc_opt name p.p_deserializers with
       | Some e -> eval_expr e
-      | None -> Ast.VNull
+      | None -> Ast.(VNA NAGeneric)
     in
     let extract_format = function
       | Ast.VSerializer s -> Some s.s_format

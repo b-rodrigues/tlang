@@ -67,12 +67,12 @@ let zero_copy_view (col : column_view) : numeric_view option =
   | _ -> None
 
 (** Access a single element from a column view without copying.
-    Returns the T value at the given index, or VNull if out of bounds.
+    Returns the T value at the given index, or (VNA NAGeneric) if out of bounds.
     For numeric columns backed by a zero-copy view, reads directly from
     the Arrow buffer. Otherwise, falls back to column_data indexing. *)
 let get_value_at (view : column_view) (idx : int) : Ast.value =
   let len = column_length view in
-  if idx < 0 || idx >= len then Ast.VNull
+  if idx < 0 || idx >= len then Ast.(VNA NAGeneric)
   else
     match view.data with
     | Arrow_table.IntColumn a ->

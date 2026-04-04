@@ -141,8 +141,8 @@ let eval_scalar_binop op v1 v2 =
   (* Propagate errors first *)
   | (_, VError _, _) -> v1
   | (_, _, VError _) -> v2
-  | ((Plus | Minus), (VDate _ | VDatetime _), VNA _) -> VNA NAGeneric
-  | ((Plus | Minus), VNA _, (VDate _ | VDatetime _ | VPeriod _)) -> VNA NAGeneric
+  | ((Plus | Minus), (VDate _ | VDatetime _), VNA _) -> (VNA NAGeneric)
+  | ((Plus | Minus), VNA _, (VDate _ | VDatetime _ | VPeriod _)) -> (VNA NAGeneric)
   | ((Plus | Minus), (VDate _ | VDatetime _), VPeriod p) ->
       if op = Plus then Chrono.add_period_to_value v1 p
       else Chrono.add_period_to_value v1 (Chrono.negate_period p)
@@ -732,7 +732,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         in
         let lookup_env_vars () =
           let is_env_value = function
-            | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
+            | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNA _ -> true
             | _ -> false
           in
           let is_valid_env_var_name key =
@@ -769,13 +769,13 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       | Some (key, _) ->
                           Error (Error.type_error
                                    (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." fn_name key))))
-                | VNull -> Ok []
+                | VNA _ -> Ok []
                 | _ ->
                     Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
         in
         let lookup_runtime_args () =
           let rec is_arg_value ~allow_list = function
-            | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNull -> true
+            | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNA _ -> true
             | VList items when allow_list ->
                 List.for_all (fun (_, v) -> is_arg_value ~allow_list:false v) items
             | _ -> false
@@ -796,7 +796,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                      | Some _ ->
                          Error (Error.type_error
                                   (Printf.sprintf "Function `%s` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values." fn_name)))
-               | VNull -> Ok []
+               | VNA _ -> Ok []
                | _ ->
                    Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict or List." fn_name)))
         in
@@ -830,7 +830,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         | None -> None
       in
       let shell_args = lookup_list "shell_args" in
-      let command = lookup_arg "command" (vexpr VNull) in
+      let command = lookup_arg "command" (vexpr ((VNA NAGeneric))) in
       (match lookup_env_vars (), lookup_runtime_args () with
       | Error err, _ | _, Error err -> err
       | Ok un_env_vars, Ok un_args ->
@@ -843,7 +843,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
             in
             List.find_map find_path [ "path"; "file"; "qmd_file"; "input" ]
           in
-          let has_command = match command.node with Value VNull -> false | _ -> true in
+          let has_command = match command.node with Value ((VNA NAGeneric)) -> false | _ -> true in
           let execution_path_opt =
             match explicit_script_path_opt with
             | Some _ as s -> s
@@ -911,7 +911,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_includes;
                       un_noop = eval_bool "noop" false;
                     }
-                | Value (VString _) | Value (VSymbol _) | Value VNull when runtime = "sh" ->
+                | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
                       un_serializer = lookup_serializer_arg "serializer" (varexpr "text");
@@ -972,7 +972,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
 
 and eval_block env_ref stmts =
   let rec loop () = function
-    | [] -> VNull
+    | [] -> (VNA NAGeneric)
     | [stmt] -> 
         let (v, new_env) = eval_statement !env_ref stmt in
         env_ref := new_env;
@@ -1772,13 +1772,13 @@ and eval_dot_access env_ref target_expr field =
   | VNode un ->
       (match field with
       | "command" -> VString (Nix_unparse.unparse_expr un.un_command)
-      | "script" -> (match un.un_script with Some p -> VString p | None -> VNull)
+      | "script" -> (match un.un_script with Some p -> VString p | None -> (VNA NAGeneric))
       | "runtime" -> VString un.un_runtime
       | "path" -> VString "<unbuilt>"
       | "serializer" -> VString (Nix_unparse.unparse_expr un.un_serializer)
       | "deserializer" -> VString (Nix_unparse.unparse_expr un.un_deserializer)
       | "args" -> VDict un.un_args
-      | "shell" -> (match un.un_shell with Some s -> VString s | None -> VNull)
+      | "shell" -> (match un.un_shell with Some s -> VString s | None -> (VNA NAGeneric))
       | "shell_args" -> VList (List.map (fun e -> (None, VString (Nix_unparse.unparse_expr e))) un.un_shell_args)
       | "noop" -> VBool un.un_noop
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
@@ -1787,10 +1787,10 @@ and eval_dot_access env_ref target_expr field =
       | "writer" -> s.s_writer
       | "reader" -> s.s_reader
       | "format" -> VString s.s_format
-      | "r_writer" -> (match s.s_r_writer with Some sw -> VRawCode sw | None -> VNull)
-      | "r_reader" -> (match s.s_r_reader with Some sr -> VRawCode sr | None -> VNull)
-      | "py_writer" -> (match s.s_py_writer with Some sw -> VRawCode sw | None -> VNull)
-      | "py_reader" -> (match s.s_py_reader with Some sr -> VRawCode sr | None -> VNull)
+      | "r_writer" -> (match s.s_r_writer with Some sw -> VRawCode sw | None -> (VNA NAGeneric))
+      | "r_reader" -> (match s.s_r_reader with Some sr -> VRawCode sr | None -> (VNA NAGeneric))
+      | "py_writer" -> (match s.s_py_writer with Some sw -> VRawCode sw | None -> (VNA NAGeneric))
+      | "py_reader" -> (match s.s_py_reader with Some sr -> VRawCode sr | None -> (VNA NAGeneric))
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Serializer has no field `%s`" field))
   | VShellResult sr ->
       (match field with
@@ -1891,7 +1891,7 @@ and eval_call env_ref fn_val raw_args =
                | Some s -> env_ref := Env.remove s !env_ref
                | None -> ())
     ) raw_args;
-    VNull
+    (VNA NAGeneric)
   ) else begin
 
   let rec process_args_spliced acc = function
@@ -2235,7 +2235,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
         (match e.node with
          | ShellExpr _ ->
              (match v with
-              | VShellResult sr -> print_string sr.sr_stdout; flush stdout; (VNull, !env_ref)
+              | VShellResult sr -> print_string sr.sr_stdout; flush stdout; ((VNA NAGeneric), !env_ref)
               | _ -> (v, !env_ref))
          | _ -> (v, !env_ref))
     | Assignment { name; expr; _ } ->
@@ -2248,7 +2248,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
           let new_env = Env.add name v !env_ref in
           (match v with
            | VError _ -> (v, new_env)
-           | _ -> (VNull, new_env))
+           | _ -> ((VNA NAGeneric), new_env))
     | Reassignment { name; expr } ->
         if not (Env.mem name env) then
           let msg = Printf.sprintf "Cannot overwrite '%s': variable not defined. Use '=' for first assignment." name in
@@ -2263,7 +2263,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
           let new_env = Env.add name v !env_ref in
           (match v with
            | VError _ -> (v, new_env)
-           | _ -> (VNull, new_env))
+           | _ -> ((VNA NAGeneric), new_env))
     | Import filename ->
         (try
           let ch = open_in filename in
@@ -2275,7 +2275,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
             let program = Parser.program Lexer.token lexbuf in
             let (_v, new_env) = eval_program program env in
             current_imports := !current_imports @ [Ast.mk_stmt (Import filename)];
-            (VNull, new_env)
+            ((VNA NAGeneric), new_env)
           with
           | Lexer.SyntaxError msg ->
               let pos = Lexing.lexeme_start_p lexbuf in
@@ -2297,18 +2297,18 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
     | ImportPackage pkg_name ->
         if is_standard_package pkg_name then begin
           current_imports := !current_imports @ [Ast.mk_stmt (ImportPackage pkg_name)];
-          (VNull, env)
+          ((VNA NAGeneric), env)
         end else
         (match Package_loader.load_package ~do_eval_program:eval_program pkg_name env with
          | Ok new_env ->
               current_imports := !current_imports @ [Ast.mk_stmt (ImportPackage pkg_name)];
-              (VNull, new_env)
+              ((VNA NAGeneric), new_env)
           | Error msg -> (make_error FileError msg, env))
     | ImportFrom { package; names } ->
         (match Package_loader.load_package_selective ~do_eval_program:eval_program package names env with
          | Ok new_env ->
              current_imports := !current_imports @ [Ast.mk_stmt (ImportFrom { package; names })];
-             (VNull, new_env)
+             ((VNA NAGeneric), new_env)
          | Error msg -> (make_error FileError msg, env))
     | ImportFileFrom { filename; names } ->
         (try
@@ -2346,7 +2346,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
               (make_error NameError msg, env)
             else begin
               current_imports := !current_imports @ [Ast.mk_stmt (ImportFileFrom { filename; names })];
-              (VNull, !result_env_ref)
+              ((VNA NAGeneric), !result_env_ref)
             end
           with
           | Lexer.SyntaxError msg ->
@@ -2371,7 +2371,7 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
 
 and eval_program (program : program) (env : environment) : value * environment =
   let rec go env = function
-    | [] -> (VNull, env)
+    | [] -> ((VNA NAGeneric), env)
     | [stmt] -> eval_statement env stmt
     | stmt :: rest ->
         let (v, new_env) = eval_statement env stmt in
