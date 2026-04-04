@@ -160,7 +160,7 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
                   if fmt = "onnx" then add_missing name runtime "R" "onnx"
               | "Python" ->
                   if fmt = "arrow" then (add_missing name runtime "Python" "pyarrow"; add_missing name runtime "Python" "pandas");
-                  if fmt = "pmml" then (add_missing name runtime "Python" "pypmml"; add_missing name runtime "Python" "sklearn2pmml");
+                  if fmt = "pmml" then add_missing name runtime "Python" "sklearn2pmml";
                   if fmt = "onnx" then (add_missing name runtime "Python" "onnx"; add_missing name runtime "Python" "onnxruntime")
               | _ -> ()
             ) formats

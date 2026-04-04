@@ -765,14 +765,17 @@ def _enrich_sm_model_pmml(results, path):
 
 def py_read_pmml(path):
     try:
-        from pypmml import Model
+        import sklearn2pmml
     except ImportError:
-        raise RuntimeError(
-            "PMML deserialization requires 'pypmml'. "
-            "Add 'pypmml' to your [py-dependencies] in tproject.toml "
+        raise ImportError(
+            "PMML interop in Python requires the 'sklearn2pmml' package. "
+            "Please add 'sklearn2pmml' to your [py-dependencies] in tproject.toml "
             "and run 't init --update'."
         )
-    return Model.load(path)
+    # The artifact is the PMML XML file path. 
+    # Subsequent calls to predict() in Python scripts should use an evaluator 
+    # or the T-native scorer via ^pmml.
+    return path
 |} in
 
   let t_onnx_r_code = {|
