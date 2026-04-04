@@ -184,7 +184,13 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
             Some (Buffer.contents msg)
   in
 
-  match check_package_dependencies () with
+  let skip_check =
+    match Sys.getenv_opt "TLANG_SKIP_PKG_CHECK" with
+    | Some "1" | Some "true" -> true
+    | _ -> false
+  in
+
+  match (if skip_check then None else check_package_dependencies ()) with
   | Some err -> Error (err)
   | None ->
   match check_multi_dep_strategies () with
