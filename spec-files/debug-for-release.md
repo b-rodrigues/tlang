@@ -40,8 +40,35 @@ Before the next release, these are the main issues I found during a static revie
    - **Fixed:** Added `--fail` (reject HTTP errors), `--max-time 120` (2-minute timeout), and `--max-filesize 536870912` (512 MB limit).
 
 6. Medium: `shell()` in eval.ml executes arbitrary user strings via shell
-   - File: `src/eval.ml` (line 477)
-   - The `shell()` builtin passes user-provided strings directly to `Unix.open_process_full`, which invokes `/bin/sh -c`. This is by design (it's a shell command), but there is no sandboxing, no PATH restriction, and no opt-in security gate. Consider at minimum documenting the risk and potentially adding a `--allow-shell` flag or environment variable guard.
+   - File: `src/eval.ml` (lines 460-500)
+   - **Description:** The `shell()` builtin (evaluating `ShellExpr` AST nodes) passes user-provided strings verbatim to `Unix.open_process_full cmd (Unix.environment ())`, which invokes `/bin/sh -c <cmd>`. The environment is fully inherited (all env vars, full PATH). This is intentional — `shell()` is a power-user escape hatch — but it is currently completely ungated.
+
+   **Risk surface:**
+   - Any T script that calls `shell()` can execute arbitrary host commands, exfiltrate files, or modify system state.
+   - In multi-user or pipeline-runner contexts (e.g. a shared CI node running untrusted `.t` scripts), this is equivalent to unrestricted code execution.
+   - There is no audit log, no deny-list, and no way for an operator to disable the builtin without patching the binary.
+
+   **Design options (not yet implemented — needs a decision):**
+
+   1. **Environment-variable opt-in (recommended minimum).** `shell()` checks for `TLANG_ALLOW_SHELL=1` at call time. If the variable is absent or set to `0`, `shell()` returns a `VError` with a message explaining how to enable it. This requires zero code change to existing scripts that run in environments where the operator sets the variable; scripts that forget the variable get a clear diagnostic instead of silent injection.
+
+      ```ocaml
+      (* In eval_shell_expr, before the Unix.open_process_full call: *)
+      (match Sys.getenv_opt "TLANG_ALLOW_SHELL" with
+       | Some "1" -> (* proceed *)
+       | _ -> Error.make_error ShellError
+           "shell() is disabled. Set TLANG_ALLOW_SHELL=1 to enable arbitrary shell execution.")
+      ```
+
+   2. **CLI flag `--allow-shell`.** The REPL/runner sets a global flag when invoked with `t run --allow-shell myfile.t`. `eval_shell_expr` checks the flag. This gives per-invocation control and makes the capability visible in `ps` output / shell history.
+
+   3. **`secure_mode` interpreter flag.** A broader `--secure` flag (or `TLANG_SECURE=1`) that disables `shell()`, filesystem writes from T code, and any other privileged builtins. Useful for running untrusted T scripts in a sandbox.
+
+   **Recommendation:** Implement option 1 (env-var guard) as the minimal safe default. Add a note to the documentation for `shell()` explaining the security model regardless of which option is chosen. Option 2 can be layered on top later.
+
+   **Files to change if implementing option 1:**
+   - `src/eval.ml` — add env-var check in `eval_shell_expr` before `Unix.open_process_full`
+   - `docs/` — document the `TLANG_ALLOW_SHELL` variable and its implications
 
 7. ~~Medium-Low: `Option.get` and `failwith` in user-facing stats functions~~
    - Files:
@@ -63,8 +90,41 @@ Before the next release, these are the main issues I found during a static revie
    - **Fixed:** Replaced with `match ints with p :: _ -> ... | [] -> ()` pattern match.
 
 10. Low: `dune test` vs Nix workflow mismatch in publish
-    - File: `src/package_manager/release_manager.ml`
-    - `validate_tests_pass` runs `dune test` directly, but the project's CI and documented workflow uses `nix develop -c dune runtest`. This means publish-time test validation may use a different toolchain/environment than CI.
+    - File: `src/package_manager/release_manager.ml` (line 161), `src/repl.ml` (line 384)
+    - **Description:** `validate_tests_pass()` runs `Sys.command "dune test"` directly. The project's CI pipeline and AGENTS.md both document that tests must run under `nix develop -c dune runtest` to get the pinned toolchain, correct C library paths (Arrow, ONNX), and the full Nix environment. Running bare `dune test` at publish time:
+      1. Uses whatever `dune` and OCaml are on `$PATH`, which may differ from the Nix-pinned versions.
+      2. Will fail on a developer machine that has no bare `dune` installed (only the Nix-wrapped one).
+      3. May silently pass if the test binary links against different shared libraries than the ones tested in CI.
+
+   **Design options (not yet implemented — needs a decision):**
+
+   1. **Check for Nix environment and branch.** Detect whether we are already inside a Nix shell by checking `$IN_NIX_SHELL`. If yes, run `dune runtest`. If no, prefix with `nix develop --accept-flake-config -c`:
+
+      ```ocaml
+      let cmd =
+        match Sys.getenv_opt "IN_NIX_SHELL" with
+        | Some _ -> "dune runtest"
+        | None   -> "nix develop --accept-flake-config -c dune runtest"
+      in
+      match Sys.command cmd with ...
+      ```
+
+      This correctly handles both the "developer is already in `nix develop`" case and the "developer ran `t publish` from outside the shell" case.
+
+   2. **Always use the Nix invocation.** Simply replace `"dune test"` with `"nix develop --accept-flake-config -c dune runtest"`. This is always correct but is slower (Nix environment setup overhead) and requires `nix` to be on `$PATH`.
+
+   3. **Make test command configurable.** Read a `TLANG_TEST_CMD` environment variable, defaulting to the Nix invocation. This lets packagers or CI override the command without patching the binary:
+
+      ```ocaml
+      let cmd = Sys.getenv_opt "TLANG_TEST_CMD"
+                |> Option.value ~default:"nix develop --accept-flake-config -c dune runtest"
+      in
+      ```
+
+   **Recommendation:** Option 1 is the most ergonomic. Option 3 is the most portable. Both are small, safe changes. The current `"dune test"` string should not ship as-is since it gives false confidence at publish time on the typical Nix-based developer workstation where bare `dune` is unavailable.
+
+   **Files to change:**
+   - `src/package_manager/release_manager.ml` — update `validate_tests_pass`
 
 ---
 
@@ -81,4 +141,5 @@ Release recommendation:
 
 - Cleanup / robustness:
   - ~~remove remaining partial-function and raw exception patterns from user-facing paths (items 7-9)~~ ✅
-  - document or gate `shell()` security model (item 6)
+  - document or gate `shell()` security model (item 6) — see design options above; env-var guard recommended
+  - fix `dune test` vs Nix workflow mismatch in publish (item 10) — see design options above; option 1 or 3 recommended
