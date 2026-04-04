@@ -81,7 +81,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
      && Arrow_table.arrow_type_of_tag 2 = Arrow_table.ArrowBoolean
      && Arrow_table.arrow_type_of_tag 3 = Arrow_table.ArrowString
      && Arrow_table.arrow_type_of_tag 8 = Arrow_table.ArrowTimestamp None
-     && Arrow_table.arrow_type_of_tag 99 = Arrow_table.ArrowNull then begin
+     && Arrow_table.arrow_type_of_tag 99 = Arrow_table.ArrowNA then begin
     incr pass_count; Printf.printf "  ✓ arrow_type_of_tag works\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ arrow_type_of_tag failed\n"
@@ -639,7 +639,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
            | Arrow_table.StringColumn _ -> "StringColumn"
            | Arrow_table.DateColumn _ -> "DateColumn"
            | Arrow_table.DatetimeColumn _ -> "DatetimeColumn"
-           | Arrow_table.NullColumn _ -> "NullColumn"
+           | Arrow_table.NAColumn _ -> "NAColumn"
            | Arrow_table.DictionaryColumn _ -> "DictionaryColumn"
            | Arrow_table.ListColumn _ -> "ListColumn"
          in
@@ -1851,23 +1851,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
 
     let null_ipc_tbl = Arrow_table.create [
-      ("missing", Arrow_table.NullColumn 3);
+      ("missing", Arrow_table.NAColumn 3);
     ] 3 in
     (match Arrow_io.write_ipc null_ipc_tbl null_ipc_path with
      | Ok () ->
           (match Arrow_io.read_ipc null_ipc_path with
            | Ok null_tbl ->
                (match Arrow_table.get_column null_tbl "missing" with
-               | Some (Arrow_table.NullColumn 3) ->
-                   incr pass_count; Printf.printf "  ✓ NullColumn IPC round-trip preserves NA-only columns\n"
+               | Some (Arrow_table.NAColumn 3) ->
+                   incr pass_count; Printf.printf "  ✓ NAColumn IPC round-trip preserves NA-only columns\n"
                | Some _ ->
-                   incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back returned wrong type or row count\n"
+                   incr fail_count; Printf.printf "  ✗ NAColumn IPC read-back returned wrong type or row count\n"
                | None ->
-                   incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back lost the NA-only column\n")
+                   incr fail_count; Printf.printf "  ✗ NAColumn IPC read-back lost the NA-only column\n")
            | Error msg ->
-               incr fail_count; Printf.printf "  ✗ NullColumn IPC read failed: %s\n" msg)
+               incr fail_count; Printf.printf "  ✗ NAColumn IPC read failed: %s\n" msg)
      | Error msg ->
-          incr fail_count; Printf.printf "  ✗ NullColumn IPC write failed: %s\n" msg);
+          incr fail_count; Printf.printf "  ✗ NAColumn IPC write failed: %s\n" msg);
 
     let dt_ipc_tbl = Arrow_table.create [
       ("ts", Arrow_table.DatetimeColumn (
@@ -1937,7 +1937,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "ListColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "NullColumn IPC round-trip";
+      "NAColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "DatetimeColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count

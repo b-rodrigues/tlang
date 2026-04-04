@@ -208,7 +208,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* A DataFrame whose only column is NA in every row can now stay on the
-     native Arrow path via the NullColumn builder path. *)
+     native Arrow path via the NAColumn builder path. *)
   let (v, _) = eval_string_env "df_na_only = dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.storage_backend" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = {|"native_arrow"|} then begin
