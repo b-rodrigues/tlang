@@ -2,6 +2,18 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
+- **"Death to Null" Initiative**: Complete removal of `null` and `VNull` from the language in favor of a strict, explicit missingness model.
+    - **Grammar Cleanup**: Removed the `null` keyword from the lexer and parser. The language now exclusively uses `NA` (generic or typed) for missing data.
+    - **Non-Nullable Core**: Refactored the AST to eliminate `VNull` and `TNull`. All previous "nullable" expressions (e.g., `ifelse` without `else`, empty `read_node` results, missing environment variables) now return `NA`.
+    - **Unified Predicates**: Replaced `is_null()` with `is_na()` as the standard builtin for checking missingness across all types.
+    - **Error Visibility**: Standardized all `TypeError` messages to use `NA` instead of `Null` when describing expected types for builtins and data verbs.
+    - **Internal Architecture**: Renamed `NullColumn` to `NAColumn` and `ArrowNull` to `ArrowNA` in the Arrow-backed DataFrame implementation for total consistency.
+- **Pipeline Build Observability**:
+    - Added a `verbose` argument to `build_pipeline()`, `populate_pipeline()`, and `t_make()`.
+    - Level `verbose=1` or higher automatically maps to Nix `--verbose` flags and prints the full Nix build logs for any failed nodes directly to the console.
+    - Standardized all internal pipeline tests to use `verbose=1` for better CI debugging.
+- **`read_node()` Enhancements**: Improved `read_node()` to support a `Pipeline` object as its first argument, enabling convenient retrieval of artifacts from a specific pipeline instance alongside existing string-based node name lookups.
+- **REPL Fixes**: Corrected a documentation comment collision in `repl.ml` that was causing compilation errors during the scale-wide refactor.
 - **Lazy Pipeline Evaluation**: Implemented lazy cross-pipeline dependency resolution. 
     - Pipelines now support referencing nodes from other pipelines by name during definition without triggering immediate `NameError`.
     - Evaluation of T-runtime nodes is automatically deferred to the build phase if dependencies are unresolved, enabling intuitive and ergonomic pipeline composition.
