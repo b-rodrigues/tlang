@@ -555,7 +555,7 @@ let register env =
       | [VBuiltin { b_name = Some name; _ }] ->
           (match Tdoc_registry.lookup name with
            | Some doc -> VString (Printf.sprintf "Built-in function implemented in %s:%d" doc.source_path doc.line_number)
-           | None -> VNA NAGeneric)
+           | None -> (VNA NAGeneric))
       | [v] -> Error.type_error (Printf.sprintf "body: expected a Function, got %s." (Utils.type_name v))
       | _ -> Error.arity_error_named "body" 1 (List.length args)
     ))
@@ -794,6 +794,7 @@ let init_env () =
   let env = Pipeline_dag_ops.register env in
   (* Phase 4 — Composition & inspection utilities *)
   let env = Pipeline_composition.register ~rerun_pipeline:rerun_pipeline_fn env in
+  let env = T_make_mod.register env in
   let env = Pipeline_inspect2.register env in
   (* Colcraft package *)
   let env = T_select.register env in

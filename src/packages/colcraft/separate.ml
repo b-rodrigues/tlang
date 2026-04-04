@@ -71,7 +71,7 @@ let register env =
                   let micros_per_day = 86_400_000_000L in
                   Some (Chrono.format_datetime_value (Int64.mul (Int64.of_int d) micros_per_day) None "%Y-%m-%d")
               | VDatetime (dt, tz) -> Some (Chrono.format_datetime_value dt tz "%Y-%m-%dT%H:%M:%S")
-              | VNA _ | VNull -> None
+              | VNA _ -> None
               | other -> Some (Utils.value_to_raw_string other)
             in
 

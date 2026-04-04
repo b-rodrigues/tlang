@@ -16,7 +16,7 @@ let common_type values =
   else if List.mem "Int" distinctive_types then "Int"
   else if List.mem "Bool" distinctive_types then "Bool"
   else match distinctive_types with
-       | [] -> "Null" (* Should not happen for non-empty lists *)
+       | [] -> "NA" (* Should not happen for non-empty lists *)
        | [t] -> t
        | _ -> "Generic" (* Fallback *)
 
@@ -25,7 +25,6 @@ let common_type values =
 let cast_value target_type v =
   match target_type, v with
   | _, VNA _ -> v (* Preserve NA *)
-  | _, VNull -> v
   | "String", VString _ -> v
   | "String", _ -> VString (Utils.value_to_raw_string v)
   | "Float", VFloat _ -> v
@@ -103,7 +102,7 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
                       let missing_val =
                         match positional_missing with
                         | Some v -> v
-                        | None -> (match named_value "missing" with Some v -> v | None -> VNA NAGeneric)
+                        | None -> (match named_value "missing" with Some v -> v | None -> (VNA NAGeneric))
                       in
                       let out_type_arg = match positional_out_type with Some v -> Some v | None -> named_value "out_type" in
 
@@ -118,14 +117,14 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
                         match v with
                         | VVector arr ->
                             let n = Array.length arr in
-                            if n = 0 then VNull else arr.(i mod n)
+                            if n = 0 then (VNA NAGeneric) else arr.(i mod n)
                         | VList l ->
                             let arr = Array.of_list (List.map snd l) in
                             let n = Array.length arr in
-                            if n = 0 then VNull else arr.(i mod n)
+                            if n = 0 then (VNA NAGeneric) else arr.(i mod n)
                         | VNDArray { data; _ } ->
                             let n = Array.length data in
-                            if n = 0 then VNull else VFloat data.(i mod n)
+                            if n = 0 then (VNA NAGeneric) else VFloat data.(i mod n)
                         | _ -> v
                       in
 
@@ -153,7 +152,6 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
                             | VBool true -> cast_value target_type (get_at true_val i)
                             | VBool false -> cast_value target_type (get_at false_val i)
                             | VNA _ -> cast_value target_type (get_at missing_val i)
-                            | VNull -> cast_value target_type (get_at missing_val i)
                             | _ -> VError { code = TypeError; message = "Condition must be logical"; context = []; location = None }
                           ) in
                           (match Array.find_opt Error.is_error_value result with
@@ -193,7 +191,7 @@ let casewhen eval_func args env =
 
   in
   
-  let (formulas, default_val) = parse_args [] (VNA NAGeneric) args in
+  let (formulas, default_val) = parse_args [] ((VNA NAGeneric)) args in
   
   match formulas with
   | [] -> VVector [||] (* Empty casewhen *)
@@ -238,8 +236,8 @@ let casewhen eval_func args env =
      (* We need to peek into vectors if they are vectors *)
      let get_rep_value v = 
        match v with 
-       | VVector arr -> if Array.length arr > 0 then arr.(0) else VNull
-       | VList l -> if List.length l > 0 then snd (List.nth l 0) else VNull
+       | VVector arr -> if Array.length arr > 0 then arr.(0) else (VNA NAGeneric)
+       | VList l -> if List.length l > 0 then snd (List.nth l 0) else (VNA NAGeneric)
        | _ -> v 
      in
      let rep_values = List.map get_rep_value potential_values in
@@ -271,30 +269,29 @@ let casewhen eval_func args env =
              (* No match found, use default *)
              (* Handle recycling for default value *)
              let def = match indexed_default with
-               | (`Array arr, n) -> if n = 0 then VNull else arr.(i mod n)
-               | (`Vector arr, n) -> if n = 0 then VNull else arr.(i mod n)
+               | (`Array arr, n) -> if n = 0 then (VNA NAGeneric) else arr.(i mod n)
+               | (`Vector arr, n) -> if n = 0 then (VNA NAGeneric) else arr.(i mod n)
                | (`Scalar v, _) -> v
              in
              def
          | ((cond_idx, cond_len), (value_idx, value_len)) :: rest ->
              (* Get condition value at i *)
              let c = match cond_idx with
-               | `Array arr -> if cond_len = 0 then VNull else arr.(i mod cond_len)
-               | `Vector arr -> if cond_len = 0 then VNull else arr.(i mod cond_len)
+               | `Array arr -> if cond_len = 0 then (VNA NAGeneric) else arr.(i mod cond_len)
+               | `Vector arr -> if cond_len = 0 then (VNA NAGeneric) else arr.(i mod cond_len)
                | `Scalar v -> v
              in
              match c with
              | VBool true ->
                  (* Get result value at i *)
                  let v = match value_idx with
-                   | `Array arr -> if value_len = 0 then VNull else arr.(i mod value_len)
-                   | `Vector arr -> if value_len = 0 then VNull else arr.(i mod value_len)
+                   | `Array arr -> if value_len = 0 then (VNA NAGeneric) else arr.(i mod value_len)
+                   | `Vector arr -> if value_len = 0 then (VNA NAGeneric) else arr.(i mod value_len)
                    | `Scalar v -> v
                  in
                  v
              | VBool false -> find_match rest
              | VNA _ -> find_match rest
-             | VNull -> find_match rest
              | VError e -> VError e
              | other -> VError { code = TypeError; message = "Condition must be logical, got " ^ Utils.type_name other; context = []; location = None }
        
