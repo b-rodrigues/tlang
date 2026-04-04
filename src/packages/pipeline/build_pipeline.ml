@@ -29,7 +29,8 @@ let register ~rerun_pipeline env =
     | Some k ->
         Error.type_error (Printf.sprintf "build_pipeline: unknown argument '%s'" k)
     | None when positional_count > 2 ->
-        Error.arity_error_named "build_pipeline" 2 positional_count
+        Error.make_error ArityError
+          (Printf.sprintf "Function `build_pipeline` accepts at most 2 positional arguments but received %d." positional_count)
     | None ->
       match get_arg "p" 1 VNull named_args with
       | (_, VPipeline p) ->
@@ -60,7 +61,7 @@ let register ~rerun_pipeline env =
               | VError _ as err -> err
               | other ->
                   Error.make_error RuntimeError
-                    ("build_pipeline expected pipeline resolution to return a Pipeline or Error before building, but got: "
+                    ("build_pipeline expected pipeline resolution to return a Pipeline or Error, but got: "
                      ^ Utils.value_to_string other)))
       | _ -> Error.type_error "Function `build_pipeline` expects a Pipeline."
   in

@@ -33,7 +33,8 @@ let register env =
     | Some k ->
         Error.type_error (Printf.sprintf "populate_pipeline: unknown argument '%s'" k)
     | None when positional_count > 3 ->
-        Error.arity_error_named "populate_pipeline" 3 positional_count
+        Error.make_error ArityError
+          (Printf.sprintf "Function `populate_pipeline` accepts at most 3 positional arguments but received %d." positional_count)
     | None ->
       match get_arg "p" 1 VNull named_args with
       | (_, VPipeline p) ->

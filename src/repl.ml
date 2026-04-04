@@ -728,6 +728,7 @@ let () =
 --# @example
 --#   t_make()
 --#   t_make(filename="src/pipeline2.t", max_jobs=2)
+--#   t_make("src/pipeline2.t", 2, 0, 2)
 --#   t_make(filename="src/pipeline2.t", verbose=2)
 --# @family repl
 --# @export
