@@ -6,5 +6,5 @@ Runs the test suite for the current package. Wraps the CLI `t test` command for 
 
 ## Returns
 
-Returns Null on success, or an Error if tests fail.
+Returns NA on success, or an Error if tests fail.
 

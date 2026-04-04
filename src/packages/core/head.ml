@@ -46,7 +46,7 @@ let register env =
       | [VList items] ->
           (match n_named with
            | Some n -> VList (Utils.list_take n items)
-           | None -> (match items with h :: _ -> snd h | [] -> VNA NAGeneric))
+           | None -> (match items with h :: _ -> snd h | [] -> (VNA NAGeneric)))
       | [VList items; VInt n] when n >= 0 ->
           VList (Utils.list_take n items)
       | [VVector arr] ->
@@ -56,7 +56,7 @@ let register env =
                let take_n = min n (Array.length arr) in
                VVector (Array.sub arr 0 take_n)
            | None -> 
-               if Array.length arr > 0 then arr.(0) else VNA NAGeneric)
+               if Array.length arr > 0 then arr.(0) else (VNA NAGeneric))
       | [VVector arr; VInt n] when n >= 0 ->
           let take_n = min n (Array.length arr) in
           VVector (Array.sub arr 0 take_n)

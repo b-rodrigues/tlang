@@ -76,10 +76,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let (_, env_sh2) = eval_string_env {|sh_n2 = node(runtime = sh)|} (Packages.init_env ()) in
   let (v_shell2, _) = eval_string_env "sh_n2.shell" env_sh2 in
-  if Ast.Utils.value_to_string v_shell2 = "null" then
-    (incr pass_count; Printf.printf "  ✓ sh node .shell returns null when unset\n")
+  if Ast.Utils.value_to_string v_shell2 = "NA" then
+    (incr pass_count; Printf.printf "  ✓ sh node .shell returns NA when unset\n")
   else
-    (incr fail_count; Printf.printf "  ✗ sh node .shell returns null when unset\n    Expected: null\n    Got:      %s\n" (Ast.Utils.value_to_string v_shell2));
+    (incr fail_count; Printf.printf "  ✗ sh node .shell returns NA when unset\n    Expected: NA\n    Got:      %s\n" (Ast.Utils.value_to_string v_shell2));
 
   (* Test: auto-detect runtime as sh for .sh script *)
   let (v_sh_auto, _) = eval_string_env
@@ -266,7 +266,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Test: nested list args rejected *)
   test "sh node rejects nested list args"
     {|node(runtime = sh, args = [["a"]])|}
-    {|Error(TypeError: "Function `node` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values.")|};
+    {|Error(TypeError: "Function `node` expects `args` list items to be String, Symbol, Int, Float, Bool, or NA values.")|};
 
   test "node args must be a dict or list"
     {|node(command = 1, args = 1)|}

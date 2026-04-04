@@ -41,14 +41,14 @@ let cat named_args _env =
     first := false
   ) args;
   flush stdout;
-  VNull
+  (VNA NAGeneric)
 
 let register env =
   let env = Env.add "print"
     (make_builtin ~name:"print" ~variadic:true 1 (fun args _env ->
       List.iter (fun v -> print_string (value_to_print_string v); print_char ' ') args;
       print_newline ();
-      VNull
+      (VNA NAGeneric)
     ))
     env
   in

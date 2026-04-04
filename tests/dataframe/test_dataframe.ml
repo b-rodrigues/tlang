@@ -307,10 +307,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_w) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_w in
   let (v, _) = eval_string_env (Printf.sprintf {|write_csv(df, "%s", separator = ";")|} csv_out_sep) env_w in
   let result = Ast.Utils.value_to_string v in
-  if result = "null" then begin
-    incr pass_count; Printf.printf "  ✓ write_csv with separator=\";\" returns null\n"
+  if result = "NA" then begin
+    incr pass_count; Printf.printf "  ✓ write_csv with separator=\";\" returns NA\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ write_csv with separator=\";\" returns null\n    Expected: null\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ write_csv with separator=\";\" returns NA\n    Expected: NA\n    Got: %s\n" result
   end;
 
   (* Roundtrip: read back the semicolon-separated file *)
@@ -507,10 +507,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (_, env_wsa) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_wsa in
   let (v, _) = eval_string_env (Printf.sprintf {|write_csv(df, "%s", separator = ";")|} csv_out_sep_alias) env_wsa in
   let result = Ast.Utils.value_to_string v in
-  if result = "null" then begin
-    incr pass_count; Printf.printf "  \xe2\x9c\x93 write_csv with separator=\";\" returns null\n"
+  if result = "NA" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 write_csv with separator=\";\" returns NA\n"
   end else begin
-    incr fail_count; Printf.printf "  \xe2\x9c\x97 write_csv with separator=\";\" returns null\n    Expected: null\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 write_csv with separator=\";\" returns NA\n    Expected: NA\n    Got: %s\n" result
   end;
 
   (* Roundtrip: read back the semicolon-separated file written with separator alias *)
@@ -661,10 +661,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let (v, _) = eval_string_env "g = glimpse(df)" env_gl in
   let result = Ast.Utils.value_to_string v in
-  if result = "null" then begin
-    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse returns null (prints to stdout)\n"
+  if result = "NA" then begin
+    incr pass_count; Printf.printf "  \xe2\x9c\x93 glimpse returns NA (prints to stdout)\n"
   end else begin
-    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse returns null\n    Expected: null\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  \xe2\x9c\x97 glimpse returns NA\n    Expected: NA\n    Got: %s\n" result
   end;
 
   test "glimpse on non-DataFrame"

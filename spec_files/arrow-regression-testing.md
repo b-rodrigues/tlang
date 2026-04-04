@@ -8,7 +8,7 @@ These tests aim to ensure that Arrow objects are not prematurely freed or leaked
 
 ### 1.1 "The Pressure Cooker" (Native Loop Stress)
 **Description**: Run a high-frequency loop that creates, materializes, and discards small Arrow tables.
-**Goal**: Trigger GLib/Arrow memory management frequently to catch dangling pointers in buffers (like offsets or null bitmaps).
+**Goal**: Trigger GLib/Arrow memory management frequently to catch dangling pointers in buffers (like offsets or NA bitmaps).
 **Implementation**:
 - Loop 10,000 times.
 - Each iteration:
@@ -54,7 +54,7 @@ Specific tests for the raw memory buffers.
 
 ### 3.1 Sparse ListColumn (Heavy Nulls)
 **Description**: A large `ListColumn` where 90% of entries are `None`.
-**Goal**: Verify that the null bitmap construction correctly offsets bits and doesn't read out of bounds.
+**Goal**: Verify that the NA bitmap construction correctly offsets bits and doesn't read out of bounds.
 **Implementation**:
 - Create a 100-row `ListColumn` with data only at index 0 and 99.
 - Materialize and read back index 50 (should be `None`).

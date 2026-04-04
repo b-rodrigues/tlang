@@ -25,10 +25,10 @@ let register env =
   in
 
   let read_fn named_args _env =
-    match get_arg "node" 1 (VNull) named_args with
+    match get_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VString name ->
-        (match get_arg "which_log" 2 VNull named_args with
-         | VNull -> Builder.read_node name
+        (match get_arg "which_log" 2 (VNA NAGeneric) named_args with
+         | VNA _ -> Builder.read_node name
          | VString s -> Builder.read_node ~which_log:s name
          | _ -> Error.type_error "read_node: expected String for 'which_log'")
     | VComputedNode cn ->
@@ -46,7 +46,7 @@ let register env =
            | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read Arrow node `%s`: %s" cn.cn_name msg))
         else
           Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer)
-    | VNull -> Error.make_error ValueError "read_node: requires a node name or a ComputedNode object."
+    | VNA _ -> Error.make_error ValueError "read_node: requires a node name or a ComputedNode object."
     | _ -> Error.type_error "read_node: expected String or ComputedNode for argument 'node'"
   in
 
@@ -64,7 +64,7 @@ let register env =
 --# @export
 *)
   let inspect_fn named_args _env =
-    match get_arg "node" 1 VNull named_args with
+    match get_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         VDict [
           ("name", VString cn.cn_name);
@@ -91,7 +91,7 @@ let register env =
 --# @export
 *)
   let rebuild_fn named_args _env =
-    match get_arg "node" 1 VNull named_args with
+    match get_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         let quoted_name = Filename.quote cn.cn_name in
         let cmd = Printf.sprintf "nix-build --impure _pipeline/pipeline.nix -A %s --no-out-link 2>&1" quoted_name in

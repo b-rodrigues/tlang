@@ -66,7 +66,7 @@ let parse_csv_line ?(sep=',') (line : string) : string list =
 let parse_csv_value (s : string) : value =
   let trimmed = String.trim s in
   if trimmed = "" || trimmed = "NA" || trimmed = "na" || trimmed = "N/A" then
-    VNA NAGeneric
+    (VNA NAGeneric)
   else
     match int_of_string_opt trimmed with
     | Some n -> VInt n

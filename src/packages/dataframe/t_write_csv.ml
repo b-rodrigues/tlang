@@ -34,7 +34,7 @@ let register ~write_csv_fn env =
       match args with
       | [VDataFrame df; VString path] ->
           (match write_csv_fn ~sep df.arrow_table path with
-          | Ok () -> VNull
+          | Ok () -> (VNA NAGeneric)
           | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
       | [_; VString _] -> Error.type_error "Function `write_csv` expects a DataFrame as first argument."
       | [VDataFrame _; _] -> Error.type_error "Function `write_csv` expects a String path as second argument."

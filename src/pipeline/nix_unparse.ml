@@ -112,26 +112,32 @@ and unparse_expr expr =
   | Unquote e -> "!!" ^ unparse_expr e
   | UnquoteSplice e -> "!!!" ^ unparse_expr e
   | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"
-  | PipelineDef _ | IntentDef _ | ListComp _ | Block _ ->
-      "null"
+  | PipelineDef nodes ->
+      "pipeline { " ^ String.concat "; " (List.map (fun (n, e) -> n ^ " = " ^ unparse_expr e) nodes) ^ " }"
+  | Block stmts -> "{ " ^ (List.map unparse_stmt stmts |> String.concat "; ") ^ " }"
+  | ListComp _ -> "[...]"
+  | IntentDef _ -> "intent { ... }"
 
-let unparse_import_stmt = function
-  | { Ast.node = Ast.Import filename; _ } -> Printf.sprintf "import \"%s\"" filename
-  | { Ast.node = Ast.ImportPackage pkg; _ } -> Printf.sprintf "import %s" pkg
-  | { Ast.node = Ast.ImportFrom { package; names }; _ } ->
+and unparse_stmt stmt =
+  match stmt.node with
+  | Expression e -> unparse_expr e
+  | Assignment { name; expr; _ } -> name ^ " = " ^ unparse_expr expr
+  | Reassignment { name; expr } -> name ^ " := " ^ unparse_expr expr
+  | Import filename -> Printf.sprintf "import \"%s\"" filename
+  | ImportPackage pkg -> Printf.sprintf "import %s" pkg
+  | ImportFrom { package; names } -> 
       let name_strs = List.map (fun (s : Ast.import_spec) ->
         match s.import_alias with
         | Some alias -> Printf.sprintf "%s=%s" alias s.import_name
         | None -> s.import_name
       ) names in
       Printf.sprintf "import %s[%s]" package (String.concat ", " name_strs)
-  | { Ast.node = Ast.ImportFileFrom { filename; names }; _ } ->
+  | ImportFileFrom { filename; names } -> 
       let name_strs = List.map (fun (s : Ast.import_spec) ->
         match s.import_alias with
         | Some alias -> Printf.sprintf "%s=%s" alias s.import_name
         | None -> s.import_name
       ) names in
       Printf.sprintf "import \"%s\"[%s]" filename (String.concat ", " name_strs)
-  | { Ast.node = Ast.Assignment { name; expr; _ }; _ } ->
-      Printf.sprintf "%s = %s" name (unparse_expr expr)
-  | _ -> ""
+
+let unparse_import_stmt = unparse_stmt

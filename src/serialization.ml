@@ -263,11 +263,10 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
   | VRawCode s -> `String s
   | VDate days -> `String (json_date_string days)
   | VDatetime (micros, tz) -> `String (json_datetime_string micros tz)
-  | VNull -> `Null
+  | VNA _ -> `Null
   | VList items -> `List (List.map (fun (_, v) -> value_to_yojson v) items)
   | VDict pairs -> `Assoc (List.map (fun (k, v) -> (k, value_to_yojson v)) pairs)
   | VVector arr -> `List (Array.to_list arr |> List.map value_to_yojson)
-  | VNA _ -> `Null
   | VSymbol _ as sym -> `String (Ast.Utils.value_to_string sym)
   | VDataFrame _ ->
       invalid_arg "value_to_yojson: VDataFrame is not supported for JSON serialization"
@@ -326,7 +325,7 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `Float f -> VFloat f
   | `Bool b -> VBool b
   | `String s -> VString s
-  | `Null -> VNull
+  | `Null -> (VNA NAGeneric)
   | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
   | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
   | _ ->

@@ -160,7 +160,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VFloat f -> Some (Printf.sprintf "%.15g" f)
     | Ast.VBool true -> Some "true"
     | Ast.VBool false -> Some "false"
-    | Ast.VNull -> None
+    | Ast.(VNA NAGeneric) -> None
     | _ -> None
   in
   let arg_value_to_strings = function
@@ -283,7 +283,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
             let tokens =
               match value with
               | Ast.VBool true -> [ flag ]
-              | Ast.VBool false | Ast.VNull -> []
+              | Ast.VBool false | Ast.(VNA NAGeneric) -> []
               | Ast.VList items ->
                   items
                   |> List.map snd
@@ -773,16 +773,8 @@ def py_read_pmml(path):
 
   let t_onnx_r_code = {|
 r_write_onnx <- function(object, path) {
-  if (!requireNamespace("onnx", quietly = TRUE))
-    stop("Package 'onnx' is required for ONNX serialization from R.")
-  # Use the python handle 'onnx' if available, otherwise check exports
-  if (exists("onnx", where="package:onnx") && !is.null(onnx::onnx$save_model)) {
-    onnx::onnx$save_model(object, path)
-  } else if (exists("onnx_save_model", where="package:onnx")) {
-    onnx::onnx_save_model(object, path)
-  } else {
-    stop("Neither 'onnx_save_model' nor 'onnx$save_model' found. Are dependencies missing?")
-  }
+  # The 'onnx' R package provides Protobuf bindings but no direct model-to-onnx conversion for arbitrary R models (like lm, xgbtree).
+  stop("ONNX serialization is not currently supported for R models in T. Consider using PMML (^pmml) for model interchange or training/exporting your model from Python.")
 }
 
 r_read_onnx <- function(path) {

@@ -3,7 +3,7 @@ open Builder_utils
 open Builder_write_dag
 open Builder_internal
 
-let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
+let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
   let eval_string_list lst =
     lst
     |> List.map (Eval.eval_expr (ref (Ast.Env.empty)))
@@ -73,12 +73,12 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
     let get_ser name = 
       match List.assoc_opt name p.p_serializers with
       | Some e -> eval_expr e
-      | None -> Ast.VNull
+      | None -> Ast.(VNA NAGeneric)
     in
     let get_des name = 
       match List.assoc_opt name p.p_deserializers with
       | Some e -> eval_expr e
-      | None -> Ast.VNull
+      | None -> Ast.(VNA NAGeneric)
     in
     let extract_format = function
       | Ast.VSerializer s -> Some s.s_format
@@ -127,5 +127,5 @@ let populate_pipeline ?(build=false) (p : Ast.pipeline_result) =
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
       | Ok () ->
-          if build then build_pipeline_internal p
+          if build then build_pipeline_internal ?verbose p
           else Ok (Printf.sprintf "Pipeline populated in `%s`" pipeline_dir)

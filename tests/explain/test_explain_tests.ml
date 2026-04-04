@@ -54,9 +54,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "explain float"
     {|e = explain(3.14); e.type|}
     {|"Float"|};
-  test "explain null"
-    {|e = explain(null); e.type|}
-    {|"Null"|};
+  test "explain NA"
+    {|e = explain(NA); e.type|}
+    {|"NA"|};
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: NA:\n";
@@ -208,21 +208,21 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end;
 
   (* A DataFrame whose only column is NA in every row can now stay on the
-     native Arrow path via the NullColumn builder path. *)
+     native Arrow path via the NAColumn builder path. *)
   let (v, _) = eval_string_env "df_na_only = dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.storage_backend" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = {|"native_arrow"|} then begin
-    incr pass_count; Printf.printf "  ✓ explain null-only DataFrame storage_backend\n"
+    incr pass_count; Printf.printf "  ✓ explain NA-only DataFrame storage_backend\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain null-only DataFrame storage_backend\n    Expected: \"native_arrow\"\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ explain NA-only DataFrame storage_backend\n    Expected: \"native_arrow\"\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "df_na_only = dataframe([[missing: NA], [missing: NA]]); e3 = explain(df_na_only); e3.native_path_active" env_p6 in
   let result = Ast.Utils.value_to_string v in
   if result = "true" then begin
-    incr pass_count; Printf.printf "  ✓ explain null-only DataFrame native_path_active\n"
+    incr pass_count; Printf.printf "  ✓ explain NA-only DataFrame native_path_active\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ explain null-only DataFrame native_path_active\n    Expected: true\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  ✗ explain NA-only DataFrame native_path_active\n    Expected: true\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p6 with _ -> ());
   print_newline ();

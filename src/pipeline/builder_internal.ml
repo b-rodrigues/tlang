@@ -15,8 +15,48 @@ open Builder_utils
 --# @export
 *)
 let nix_build_args = ref []
+let default_nix_build_verbose = ref 0
 
-let build_pipeline_internal (p : Ast.pipeline_result) =
+let nix_verbosity_args verbose =
+  if verbose <= 0 then ["--quiet"]
+  else List.init (max 0 (verbose - 1)) (fun _ -> "--verbose")
+
+(*
+--# Print Failed Node Logs
+--#
+--# Prints stderr log sections for each failed node by resolving its
+--# derivation path through `nix log`.
+--#
+--# @param drv_paths :: Hashtbl Captured derivation paths keyed by node name.
+--# @param errored :: List[String] Node names that failed during the build.
+--# @family pipeline
+*)
+let print_failed_node_logs drv_paths errored =
+  List.iter
+    (fun name ->
+      match Hashtbl.find_opt drv_paths name with
+      | Some drv_path ->
+          Printf.eprintf "\n--- Logs for failed node `%s` ---\n%!" name;
+          let cmd = Printf.sprintf "nix log %s 2>&1" (Filename.quote drv_path) in
+          (match run_command_capture cmd with
+           | Ok (_, output) ->
+               let output = String.trim output in
+               if output = "" then
+                 Printf.eprintf "(No log output returned for `%s`).\n%!" name
+               else
+                 Printf.eprintf "%s\n%!" output
+           | Error msg ->
+               Printf.eprintf "Failed to fetch logs for `%s`: %s\n%!" name msg)
+      | None ->
+          Printf.eprintf "\n--- Logs for failed node `%s` ---\nNo derivation path was captured for this node.\n%!" name)
+    errored
+
+let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
+  let verbose =
+    match verbose with
+    | Some level -> level
+    | None -> !default_nix_build_verbose
+  in
   if not (command_exists "nix-build") then
     Error "build_pipeline requires `nix-build` to be available."
   else begin
@@ -25,7 +65,8 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
     List.iter (fun n -> Hashtbl.add statuses n "Pending") node_names;
     
     let captured_output = Buffer.create 1024 in
-    let extra_args = String.concat " " (List.map Filename.quote !nix_build_args) in
+    let all_args = !nix_build_args @ (nix_verbosity_args verbose) in
+    let extra_args = String.concat " " (List.map Filename.quote all_args) in
     let cmd = Printf.sprintf "nix-build --impure %s -A pipeline_output --no-out-link %s" (Filename.quote pipeline_nix_path) extra_args in
     
     Printf.printf "\nStarting pipeline build...\n";
@@ -207,17 +248,27 @@ let build_pipeline_internal (p : Ast.pipeline_result) =
                 (match write_file log_path log_json with
                 | Ok () -> Ok out_path
                 | Error msg -> Error ("Failed to write build log: " ^ msg)))
-         | Unix.WEXITED 0 ->
-            Error "nix-build succeeded but did not return an output path."
-         | _ ->
-            let errored = List.filter (fun n -> Hashtbl.find statuses n = "Errored") node_names in
-            let error_summary = 
-              if List.length errored > 0 then
-                Printf.sprintf "%d nodes errored: %s" (List.length errored) (String.concat ", " errored)
-              else "General Nix build failure (check dependencies or environment)."
-            in
-            Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary;
-            Error (Printf.sprintf "nix-build failed. See details above."))
+          | Unix.WEXITED 0 ->
+             Error "nix-build succeeded but did not return an output path."
+          | _ ->
+             let errored = List.filter (fun n -> Hashtbl.find statuses n = "Errored") node_names in
+             let error_summary =
+               if List.length errored > 0 then
+                 Printf.sprintf "%d nodes errored: %s" (List.length errored) (String.concat ", " errored)
+               else "General Nix build failure (check dependencies or environment)."
+             in
+             if verbose > 0 then (
+               if errored <> [] then
+                 print_failed_node_logs drv_paths errored
+               else
+                 (* Fallback for general Nix failures that were not attributed to a
+                    specific node while streaming the build output. *)
+                 let output = String.trim (Buffer.contents captured_output) in
+                 if output <> "" then
+                   Printf.eprintf "\n--- nix-build failure output ---\n%s\n%!" output
+             );
+             Printf.eprintf "\n✖ Pipeline build failed [%s]\n%!" error_summary;
+             Error (Printf.sprintf "nix-build failed. See details above."))
     | Error msg ->
         Error (Printf.sprintf "Failed to run nix-build: %s" msg)
   end

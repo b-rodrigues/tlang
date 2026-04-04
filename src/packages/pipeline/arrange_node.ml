@@ -31,7 +31,7 @@ let register env =
           let meta = Pipeline_to_frame.node_metadata_dict name p depths in
           match List.assoc_opt field_name meta with
           | Some v -> v
-          | None -> VNull
+          | None -> (VNA NAGeneric)
         in
         let compare_values a b =
           match (a, b) with
@@ -39,8 +39,8 @@ let register env =
           | (VFloat x,  VFloat y)  -> compare x y
           | (VString x, VString y) -> String.compare x y
           | (VBool x,   VBool y)   -> compare x y
-          | (VNull, _)             -> 1
-          | (_, VNull)             -> -1
+          | ((VNA NAGeneric), _)             -> 1
+          | (_, (VNA NAGeneric))             -> -1
           | _                      -> 0
         in
         let sorted_names =

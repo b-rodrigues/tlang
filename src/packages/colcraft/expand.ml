@@ -28,11 +28,11 @@ let unique_sorted vals =
 
 let get_col_vals df col_name =
   match Arrow_table.get_column df.arrow_table col_name with
-  | Some (IntColumn a) -> Array.to_list a |> List.map (function Some i -> VInt i | None -> VNA NAGeneric) |> unique_sorted
-  | Some (FloatColumn a) -> Array.to_list a |> List.map (function Some f -> VFloat f | None -> VNA NAGeneric) |> unique_sorted
-  | Some (StringColumn a) -> Array.to_list a |> List.map (function Some s -> VString s | None -> VNA NAGeneric) |> unique_sorted
-  | Some (BoolColumn a) -> Array.to_list a |> List.map (function Some b -> VBool b | None -> VNA NAGeneric) |> unique_sorted
-  | _ -> [VNA NAGeneric]
+  | Some (IntColumn a) -> Array.to_list a |> List.map (function Some i -> VInt i | None -> (VNA NAGeneric)) |> unique_sorted
+  | Some (FloatColumn a) -> Array.to_list a |> List.map (function Some f -> VFloat f | None -> (VNA NAGeneric)) |> unique_sorted
+  | Some (StringColumn a) -> Array.to_list a |> List.map (function Some s -> VString s | None -> (VNA NAGeneric)) |> unique_sorted
+  | Some (BoolColumn a) -> Array.to_list a |> List.map (function Some b -> VBool b | None -> (VNA NAGeneric)) |> unique_sorted
+  | _ -> [(VNA NAGeneric)]
 
 let get_nested_vals df col_names =
   let nrows = Arrow_table.num_rows df.arrow_table in
@@ -41,11 +41,11 @@ let get_nested_vals df col_names =
     | [] -> []
     | n :: ns ->
         let v = match Arrow_table.get_column df.arrow_table n with
-          | Some (IntColumn a) -> (match a.(i) with Some x -> VInt x | None -> VNA NAGeneric)
-          | Some (FloatColumn a) -> (match a.(i) with Some x -> VFloat x | None -> VNA NAGeneric)
-          | Some (StringColumn a) -> (match a.(i) with Some x -> VString x | None -> VNA NAGeneric)
-          | Some (BoolColumn a) -> (match a.(i) with Some x -> VBool x | None -> VNA NAGeneric)
-          | _ -> VNA NAGeneric
+          | Some (IntColumn a) -> (match a.(i) with Some x -> VInt x | None -> (VNA NAGeneric))
+          | Some (FloatColumn a) -> (match a.(i) with Some x -> VFloat x | None -> (VNA NAGeneric))
+          | Some (StringColumn a) -> (match a.(i) with Some x -> VString x | None -> (VNA NAGeneric))
+          | Some (BoolColumn a) -> (match a.(i) with Some x -> VBool x | None -> (VNA NAGeneric))
+          | _ -> (VNA NAGeneric)
         in v :: get_row i ns
   in
   let all_combos = ref [] in
@@ -124,13 +124,13 @@ let expand_impl named_args _env =
           | _ -> None
         ) in
         (* Inference for output column type *)
-        let first_v = if nrows > 0 then List.nth combos_arr.(0) i else VNA NAGeneric in
+        let first_v = if nrows > 0 then List.nth combos_arr.(0) i else (VNA NAGeneric) in
         let col = match first_v with
           | VInt _ -> IntColumn (Array.map (function Some (VInt x) -> Some x | _ -> None) data)
           | VFloat _ -> FloatColumn (Array.map (function Some (VFloat x) -> Some x | Some (VInt x) -> Some (float_of_int x) | _ -> None) data)
           | VString _ -> StringColumn (Array.map (function Some (VString x) -> Some x | _ -> None) data)
           | VBool _ -> BoolColumn (Array.map (function Some (VBool x) -> Some x | _ -> None) data)
-          | _ -> NullColumn nrows
+          | _ -> NAColumn nrows
         in
         (name, col)
       ) column_names in
@@ -168,13 +168,13 @@ let crossing_impl named_args _env =
   (* Handle the case where any input has zero values: return empty DataFrame *)
   if List.exists (fun (_, vals) -> vals = []) inputs then begin
     let columns = List.map (fun (name, vals) ->
-      (* Infer type from first element if available; empty inputs fall through to NullColumn *)
+      (* Infer type from first element if available; empty inputs fall through to NAColumn *)
       let col = match vals with
         | (VInt _) :: _ -> IntColumn (Array.make 0 None)
         | (VFloat _) :: _ -> FloatColumn (Array.make 0 None)
         | (VString _) :: _ -> StringColumn (Array.make 0 None)
         | (VBool _) :: _ -> BoolColumn (Array.make 0 None)
-        | _ -> NullColumn 0  (* empty list or unrecognised type *)
+        | _ -> NAColumn 0  (* empty list or unrecognised type *)
       in (name, col)
     ) inputs in
     let schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) columns in
@@ -186,13 +186,13 @@ let crossing_impl named_args _env =
     let combos_arr = Array.of_list final_combos in
     
     let columns = List.mapi (fun i (name, _) ->
-      let data = Array.init nrows (fun row_idx -> match List.nth_opt combos_arr.(row_idx) i with Some v -> v | None -> VNA NAGeneric) in
+      let data = Array.init nrows (fun row_idx -> match List.nth_opt combos_arr.(row_idx) i with Some v -> v | None -> (VNA NAGeneric)) in
       let col = match data.(0) with
         | VInt _ -> IntColumn (Array.map (function VInt x -> Some x | _ -> None) data)
         | VFloat _ -> FloatColumn (Array.map (function VFloat x -> Some x | VInt x -> Some (float_of_int x) | _ -> None) data)
         | VString _ -> StringColumn (Array.map (function VString x -> Some x | _ -> None) data)
         | VBool _ -> BoolColumn (Array.map (function VBool x -> Some x | _ -> None) data)
-        | _ -> NullColumn nrows
+        | _ -> NAColumn nrows
       in (name, col)
     ) inputs in
     

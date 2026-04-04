@@ -553,7 +553,7 @@ final = validate.processed ?|> \(x)
   if (is_error(x)) {
     print("Validation failed: " + error_message(x))
     -- Return empty placeholder or default
-    null
+    NA
   } else {
     x
   }

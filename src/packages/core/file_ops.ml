@@ -188,7 +188,7 @@ let register env =
   --#
   --# @name env
   --# @param name :: String The name of the environment variable.
-  --# @return :: String | Null The value of the variable, or null if not set.
+  --# @return :: String | NA The value of the variable, or null if not set.
   --# @example
   --#   env("HOME")
   --# @family core
@@ -200,7 +200,7 @@ let register env =
       | [(_, VString name)] | [(_, VSymbol name)] ->
           (match Sys.getenv_opt name with
            | Some value -> VString value
-           | None -> VNull)
+           | None -> (VNA NAGeneric))
       | [(_, other)] ->
           Error.type_error (Printf.sprintf "Function `env` expects a String, got %s." (Utils.type_name other))
       | _ -> Error.arity_error_named "env" 1 (List.length args)

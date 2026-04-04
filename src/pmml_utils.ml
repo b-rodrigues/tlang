@@ -298,7 +298,7 @@ let tree_to_value (tree : pmml_tree) =
       match n.score with
       | Some (ScoreFloat f) -> VFloat f
       | Some (ScoreString s) -> VString s
-      | None -> VNull
+      | None -> (VNA NAGeneric)
     in
     VDict [
       ("predicate", predicate_to_value n.predicate);
@@ -308,14 +308,14 @@ let tree_to_value (tree : pmml_tree) =
   in
   VDict [
     ("function_name", VString tree.function_name);
-    ("target", (match tree.target with Some t -> VString t | None -> VNull));
+    ("target", (match tree.target with Some t -> VString t | None -> (VNA NAGeneric)));
     ("root", node_to_value tree.root);
   ]
 
 let forest_to_value (forest : pmml_forest) =
   VDict [
     ("function_name", VString forest.function_name);
-    ("target", (match forest.target with Some t -> VString t | None -> VNull));
+    ("target", (match forest.target with Some t -> VString t | None -> (VNA NAGeneric)));
     ("method", VString forest.method_);
     ("trees", VList (List.map (fun t -> (None, tree_to_value t)) forest.trees));
   ]
@@ -333,7 +333,7 @@ let boosted_ensemble_to_value (model : pmml_boosted_ensemble) =
   in
   VDict [
     ("function_name", VString model.function_name);
-    ("target", (match model.target with Some t -> VString t | None -> VNull));
+    ("target", (match model.target with Some t -> VString t | None -> (VNA NAGeneric)));
     ("classes", VList (List.map (fun v -> (None, VString v)) model.classes));
     ("models", VList model_values);
   ]
@@ -468,12 +468,12 @@ let read_tree_pmml path =
                        ("_model_data", VDict [
                          ("model_type", VString model_type);
                          ("mining_function", VString ensemble.function_name);
-                         ("target", (match ensemble.target with Some t -> VString t | None -> VNull));
+                         ("target", (match ensemble.target with Some t -> VString t | None -> (VNA NAGeneric)));
                        ]);
                        ("class", VString model_type);
                        ("model_type", VString model_type);
                        ("mining_function", VString ensemble.function_name);
-                       ("target", (match ensemble.target with Some t -> VString t | None -> VNull));
+                       ("target", (match ensemble.target with Some t -> VString t | None -> (VNA NAGeneric)));
                        ("boosted_model", boosted_ensemble_to_value ensemble);
                        ("_display_keys", VList [
                          (None, VString "class");
@@ -518,7 +518,7 @@ let read_tree_pmml path =
                             VDict [
                               ("model_type", VString "random_forest");
                               ("mining_function", VString function_name);
-                              ("target", (match target with Some t -> VString t | None -> VNull));
+                              ("target", (match target with Some t -> VString t | None -> (VNA NAGeneric)));
                               ("n_trees", VInt (List.length trees));
                             ]
                           in
@@ -527,7 +527,7 @@ let read_tree_pmml path =
                             ("class", VString "random_forest");
                             ("model_type", VString "random_forest");
                             ("mining_function", VString function_name);
-                            ("target", (match target with Some t -> VString t | None -> VNull));
+                            ("target", (match target with Some t -> VString t | None -> (VNA NAGeneric)));
                             ("n_trees", VInt (List.length trees));
                             ("forest", forest_to_value forest);
                             ("_display_keys", VList [
@@ -550,7 +550,7 @@ let read_tree_pmml path =
                        VDict [
                          ("model_type", VString "decision_tree");
                          ("mining_function", VString tree.function_name);
-                         ("target", (match tree.target with Some t -> VString t | None -> VNull));
+                         ("target", (match tree.target with Some t -> VString t | None -> (VNA NAGeneric)));
                          ("n_trees", VInt 1);
                        ]
                      in
@@ -559,7 +559,7 @@ let read_tree_pmml path =
                        ("class", VString "decision_tree");
                        ("model_type", VString "decision_tree");
                        ("mining_function", VString tree.function_name);
-                       ("target", (match tree.target with Some t -> VString t | None -> VNull));
+                       ("target", (match tree.target with Some t -> VString t | None -> (VNA NAGeneric)));
                        ("tree", tree_to_value tree);
                        ("_display_keys", VList [
                          (None, VString "class");
@@ -814,18 +814,18 @@ let read_pmml path =
 
         (* 2. Build Model Data (broom::glance) *)
         let base_model_data = [
-          ("r_squared", (match !r2 with Some v -> VFloat v | None -> VNull));
-          ("adj_r_squared", (match !adj_r2 with Some v -> VFloat v | None -> VNull));
-          ("aic", (match !aic with Some v -> VFloat v | None -> VNull));
-          ("bic", (match !bic with Some v -> VFloat v | None -> VNull));
-          ("sigma", (match !sigma with Some v -> VFloat v | None -> VNull));
-          ("nobs", (match !nobs with Some v -> VInt v | None -> VNull));
+          ("r_squared", (match !r2 with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("adj_r_squared", (match !adj_r2 with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("aic", (match !aic with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("bic", (match !bic with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("sigma", (match !sigma with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("nobs", (match !nobs with Some v -> VInt v | None -> (VNA NAGeneric)));
           ("df_model", VInt (max 0 (num_preds - 1)));
-          ("f_statistic", (match !f_statistic with Some v -> VFloat v | None -> VNull));
-          ("f_p_value", (match !f_p_value with Some v -> VFloat v | None -> VNull));
-          ("log_lik", (match !log_lik with Some v -> VFloat v | None -> VNull));
-          ("deviance", (match !deviance_ with Some v -> VFloat v | None -> VNull));
-          ("df_residual", (match !df_residual with Some v -> VInt v | None -> VNull));
+          ("f_statistic", (match !f_statistic with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("f_p_value", (match !f_p_value with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("log_lik", (match !log_lik with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("deviance", (match !deviance_ with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("df_residual", (match !df_residual with Some v -> VInt v | None -> (VNA NAGeneric)));
         ] in
 
         let model_data_list = match !glm_stats with
@@ -837,7 +837,7 @@ let read_pmml path =
                 | `String s -> (try VFloat (float_of_string s) with _ -> VString s)
                 | `Int n -> VInt n
                 | `Float f -> VFloat f
-                | _ -> VNull
+                | _ -> (VNA NAGeneric)
               in
               base_model_data @ [
                 ("family", get_field "family");
@@ -852,7 +852,7 @@ let read_pmml path =
         let model_data = VDict model_data_list in
 
         let coefficients_dict = VDict (List.map (fun p -> (p.name, VFloat p.estimate)) all_preds) in
-        let std_errors_dict = VDict (List.map (fun p -> (p.name, match p.std_error with Some v -> VFloat v | None -> VNull)) all_preds) in
+        let std_errors_dict = VDict (List.map (fun p -> (p.name, match p.std_error with Some v -> VFloat v | None -> (VNA NAGeneric))) all_preds) in
 
         let display_keys = [
           (None, VString "coefficients");
@@ -871,15 +871,15 @@ let read_pmml path =
           ("std_errors", std_errors_dict);
           ("class", VString model_class);
           ("model_type", VString "regression");
-          ("r_squared", (match !r2 with Some v -> VFloat v | None -> VNull));
-          ("adj_r_squared", (match !adj_r2 with Some v -> VFloat v | None -> VNull));
-          ("sigma", (match !sigma with Some v -> VFloat v | None -> VNull));
-          ("nobs", (match !nobs with Some v -> VInt v | None -> VNull));
-          ("family", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "family" j with `String s -> VString s | _ -> VNull) | None -> VNull));
-          ("link", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "link" j with `String s -> VString s | _ -> VNull) | None -> VNull));
+          ("r_squared", (match !r2 with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("adj_r_squared", (match !adj_r2 with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("sigma", (match !sigma with Some v -> VFloat v | None -> (VNA NAGeneric)));
+          ("nobs", (match !nobs with Some v -> VInt v | None -> (VNA NAGeneric)));
+          ("family", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "family" j with `String s -> VString s | _ -> (VNA NAGeneric)) | None -> (VNA NAGeneric)));
+          ("link", (match !glm_stats with Some j -> (match Yojson.Safe.Util.member "link" j with `String s -> VString s | _ -> (VNA NAGeneric)) | None -> (VNA NAGeneric)));
           ("formula", (match !response_name with
-            | Some r -> VFormula { response = [r]; predictors = List.rev !predictors; raw_lhs = Ast.mk_expr (Value VNull); raw_rhs = Ast.mk_expr (Value VNull) }
-            | None -> VNull));
+            | Some r -> VFormula { response = [r]; predictors = List.rev !predictors; raw_lhs = Ast.mk_expr (Value (VNA NAGeneric)); raw_rhs = Ast.mk_expr (Value (VNA NAGeneric)) }
+            | None -> (VNA NAGeneric)));
           ("_display_keys", VList display_keys);
         ])
     ) (* end Fun.protect *)

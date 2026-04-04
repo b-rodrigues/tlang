@@ -310,7 +310,7 @@ p = pipeline {
       assumes: [colnames($in) |> includes(["amount", "customer_id"])]
       ensures: [all($amount >= 10), !any(is_na($customer_id)), nrow($out) <= nrow($in)]
       constraints: "The $10 threshold is a business rule from finance — do not modify without finance sign-off."
-      llm_hint: "Preserve both filters independently. If new null-check columns are added, append rather than replace."
+      llm_hint: "Preserve both filters independently. If new NA-check columns are added, append rather than replace."
       open_questions: []
       tags: ["etl", "business-rule"]
     }

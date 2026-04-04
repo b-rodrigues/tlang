@@ -191,7 +191,7 @@ let pretty_print_value v =
       else
         Utils.value_to_string v ^ "\n"
   | VList _ -> pretty_format v ^ "\n"
-  | VNull -> ""
+  | VNA _ -> ""
   | other -> Utils.value_to_string other ^ "\n"
 
 (** Register pretty_print as a builtin function *)
@@ -215,7 +215,7 @@ let register env =
       match args with
       | [v] ->
           print_string (pretty_print_value v);
-          VNull
+          (VNA NAGeneric)
       | _ -> Error.arity_error_named "pretty_print" 1 (List.length args)
     ))
     env

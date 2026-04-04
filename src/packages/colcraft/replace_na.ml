@@ -40,7 +40,7 @@ let register env =
           let all_cols = Arrow_table.column_names df.arrow_table in
           
           let new_columns = List.map (fun col_name ->
-            let col_data = match Arrow_table.get_column df.arrow_table col_name with Some d -> d | None -> NullColumn orig_nrows in
+            let col_data = match Arrow_table.get_column df.arrow_table col_name with Some d -> d | None -> NAColumn orig_nrows in
             match List.assoc_opt col_name replace_dict with
             | Some replace_val ->
               begin
@@ -66,7 +66,7 @@ let register env =
                       | _ -> None
                     in
                     (col_name, DatetimeColumn (Array.init orig_nrows (fun i -> match a.(i) with Some x -> Some x | None -> fill_dt), tz))
-                | NullColumn n -> (col_name, NullColumn n)
+                | NAColumn n -> (col_name, NAColumn n)
                 | DictionaryColumn (a, levels, ordered) ->
                     let fill_i = match replace_val with
                       | VFactor (i, factor_levels, factor_ordered)

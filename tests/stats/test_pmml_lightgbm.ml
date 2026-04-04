@@ -29,7 +29,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|predict(df, m)|} env in
   (match v with
    | Ast.VVector arr ->
-       let first = if Array.length arr > 0 then arr.(0) else Ast.VNull in
+       let first = if Array.length arr > 0 then arr.(0) else Ast.(VNA Ast.NAGeneric) in
        let result = Ast.Utils.value_to_string first |> String.trim in
        if result = "1" then begin
          incr pass_count; Printf.printf "  ✓ lightgbm predict first label\n"

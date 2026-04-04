@@ -67,12 +67,12 @@ let zero_copy_view (col : column_view) : numeric_view option =
   | _ -> None
 
 (** Access a single element from a column view without copying.
-    Returns the T value at the given index, or VNull if out of bounds.
+    Returns the T value at the given index, or (VNA NAGeneric) if out of bounds.
     For numeric columns backed by a zero-copy view, reads directly from
     the Arrow buffer. Otherwise, falls back to column_data indexing. *)
 let get_value_at (view : column_view) (idx : int) : Ast.value =
   let len = column_length view in
-  if idx < 0 || idx >= len then Ast.VNull
+  if idx < 0 || idx >= len then Ast.(VNA NAGeneric)
   else
     match view.data with
     | Arrow_table.IntColumn a ->
@@ -87,7 +87,7 @@ let get_value_at (view : column_view) (idx : int) : Ast.value =
       (match a.(idx) with Some d -> Ast.VDate d | None -> Ast.VNA Ast.NADate)
     | Arrow_table.DatetimeColumn (a, tz) ->
       (match a.(idx) with Some ts -> Ast.VDatetime (ts, tz) | None -> Ast.VNA Ast.NADate)
-    | Arrow_table.NullColumn _ -> Ast.VNA Ast.NAGeneric
+    | Arrow_table.NAColumn _ -> Ast.VNA Ast.NAGeneric
     | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       (match a.(idx) with Some i -> Ast.VFactor (i, levels, ordered) | None -> Ast.VNA Ast.NAGeneric)
     | Arrow_table.ListColumn a ->
@@ -113,8 +113,8 @@ let get_slice (view : column_view) (start : int) (len : int) : column_view =
       Arrow_table.DateColumn (Array.sub a actual_start actual_len)
     | Arrow_table.DatetimeColumn (a, tz) ->
       Arrow_table.DatetimeColumn (Array.sub a actual_start actual_len, tz)
-    | Arrow_table.NullColumn _ ->
-      Arrow_table.NullColumn actual_len
+    | Arrow_table.NAColumn _ ->
+      Arrow_table.NAColumn actual_len
     | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       Arrow_table.DictionaryColumn (Array.sub a actual_start actual_len, levels, ordered)
     | Arrow_table.ListColumn a ->

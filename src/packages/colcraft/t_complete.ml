@@ -59,13 +59,13 @@ let register env =
           (* Gather a single value from a column at a given row index *)
            let get_val col i =
              match Arrow_table.get_column df.arrow_table col with
-              | Some (StringColumn a) -> (match a.(i) with Some x -> VString x | None -> VNA NAGeneric)
-              | Some (IntColumn a) -> (match a.(i) with Some x -> VInt x | None -> VNA NAGeneric)
-              | Some (FloatColumn a) -> (match a.(i) with Some x -> VFloat x | None -> VNA NAGeneric)
-              | Some (BoolColumn a) -> (match a.(i) with Some x -> VBool x | None -> VNA NAGeneric)
+              | Some (StringColumn a) -> (match a.(i) with Some x -> VString x | None -> (VNA NAGeneric))
+              | Some (IntColumn a) -> (match a.(i) with Some x -> VInt x | None -> (VNA NAGeneric))
+              | Some (FloatColumn a) -> (match a.(i) with Some x -> VFloat x | None -> (VNA NAGeneric))
+              | Some (BoolColumn a) -> (match a.(i) with Some x -> VBool x | None -> (VNA NAGeneric))
               | Some (DateColumn a) -> (match a.(i) with Some x -> VDate x | None -> VNA NADate)
               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some x -> VDatetime (x, tz) | None -> VNA NADate)
-              | _ -> VNA NAGeneric
+              | _ -> (VNA NAGeneric)
            in
 
           (* Get unique values for a single column (insertion-order preserved) *)
@@ -185,7 +185,7 @@ let register env =
 
             let col_data = match Arrow_table.get_column df.arrow_table col_name with
               | Some d -> d
-              | None -> NullColumn orig_nrows
+              | None -> NAColumn orig_nrows
             in
 
             let new_col_data = 
@@ -198,7 +198,7 @@ let register env =
                   | BoolColumn _ -> BoolColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VBool x -> Some x | _ -> None))
                   | DateColumn _ -> DateColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VDate x -> Some x | _ -> None))
                   | DatetimeColumn (_, tz) -> DatetimeColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VDatetime (x, _) -> Some x | _ -> None), tz)
-                  | NullColumn _ -> NullColumn final_nrows
+                  | NAColumn _ -> NAColumn final_nrows
                   | DictionaryColumn (_, levels, ordered) -> DictionaryColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VFactor (x, _, _) -> Some x | _ -> None), levels, ordered)
                   | ListColumn _ -> ListColumn (Array.init final_nrows (fun i -> match extract_combo_val i with VDataFrame df -> Some df.arrow_table | _ -> None))
                else
@@ -243,7 +243,7 @@ let register env =
                         match final_out_row_indices_arr.(i) with
                         | Some r -> (match a.(r) with Some x -> Some x | None -> if explicit_val then fill_dt else None)
                         | None -> fill_dt), tz)
-                  | NullColumn _ -> NullColumn final_nrows
+                  | NAColumn _ -> NAColumn final_nrows
                   | DictionaryColumn (a, levels, ordered) ->
                       let fill_i = match fill_val with
                         | Some (VFactor (i, factor_levels, factor_ordered))

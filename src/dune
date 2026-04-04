@@ -21,6 +21,12 @@
  (action (with-stdout-to %{target}
           (bash "v=$(cat ../VERSION | tr -d '\\n'); d=$(grep -o 'nixpkgs/202[0-9]-[0-9][0-9]-[0-9][0-9]' ../flake.nix | cut -d/ -f2); echo \"let version = \\\"$v\\\"\"; echo \"let nixpkgs_date = \\\"$d\\\"\""))))
 
+(rule
+ (target nixpkgs_date.ml)
+ (deps ../RSTATS-NIX-DATE)
+ (action (with-stdout-to %{target}
+          (bash "v=$(cat ../RSTATS-NIX-DATE | tr -d '\\n'); echo \"let date = \\\"$v\\\"\""))))
+
 (library
  (name t_lang)
  (wrapped false)
@@ -51,7 +57,7 @@
     ; packages/pipeline
     pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node pipeline_copy
      pipeline_to_frame filter_node mutate_node rename_node select_node arrange_node
-     pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2
+     pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_inspect2 t_make_mod
     ; packages/colcraft
     t_select t_filter mutate arrange group_by ungroup summarize n n_distinct
     window_rank window_offset window_cumulative pivot_longer pivot_wider t_complete
@@ -65,7 +71,7 @@
     ; packages/explain
     intent_fields intent_get t_explain explain_json
    ; package_manager
-   version package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager package_loader
+   version nixpkgs_date package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager package_loader
    ; tdoc
    tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )

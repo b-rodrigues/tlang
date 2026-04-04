@@ -185,7 +185,6 @@ and value =
   (* Special Values *)
   | VNA of na_type
   | VError of error_info
-  | VNull
   | VFactor of int * string list * bool
   | VPeriod of period
   | VDuration of float
@@ -286,7 +285,6 @@ and typ =
   | TFloat
   | TBool
   | TString
-  | TNull
   | TList of typ option
   | TDict of typ option * typ option
   | TTuple of typ list
@@ -331,7 +329,7 @@ type environment = value Env.t
 
 module Utils = struct
   let is_truthy = function
-    | VBool false | VNull | VInt 0 -> false
+    | VBool false | VInt 0 -> false
     | VError _ -> false
     | VNA _ -> false
     | _ -> true
@@ -389,7 +387,7 @@ module Utils = struct
     | TFloat -> "Float"
     | TBool -> "Bool"
     | TString -> "String"
-    | TNull -> "Null"
+    | TCustom "NA" -> "NA"
     | TList None -> "List"
     | TList (Some t) -> "List[" ^ typ_to_string t ^ "]"
     | TDict (None, None) -> "Dict"
@@ -413,7 +411,7 @@ module Utils = struct
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
     | VPipeline _ -> "Pipeline"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
-    | VNA _ -> "NA" | VError _ -> "Error" | VNull -> "Null"
+    | VNA _ -> "NA" | VError _ -> "Error"
     | VFactor _ -> "Factor"
     | VPeriod _ -> "Period"
     | VDuration _ -> "Duration"
@@ -616,7 +614,6 @@ module Utils = struct
           | None -> message
         in
         "Error(" ^ error_code_to_string code ^ ": \"" ^ rendered_message ^ "\")"
-    | VNull -> "null"
     | VFactor (idx, levels, ordered) ->
         let level_str = match List.nth_opt levels idx with Some s -> "\"" ^ String.escaped s ^ "\"" | None -> "NA" in
         let ord_str = if ordered then ", ordered=true" else "" in
@@ -755,7 +752,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VBool _, TBool -> true
   | VString _, TString -> true
   | VRawCode _, TString -> true
-  | VNull, TNull -> true
+  | VNA _, TCustom "NA" -> true
   | VNA _, _ -> true (* NA is compatible with any type (it's a special bottom/missing value) *)
   
   | VList _, TList None -> true

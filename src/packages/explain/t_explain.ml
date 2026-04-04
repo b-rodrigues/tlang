@@ -155,11 +155,6 @@ let register env =
             ("length", VInt (List.length pairs));
             ("keys", VList (List.map (fun (k, _) -> (None, VString k)) pairs));
           ]
-      | [VNull] ->
-          VDict [
-            ("kind", VString "value");
-            ("type", VString "Null");
-          ]
       | [VError { code; message; context; location }] ->
           let base = [
             ("kind", VString "value");
@@ -170,7 +165,7 @@ let register env =
           let loc_fields = 
             match location with
             | Some { file; line; column } ->
-                [("file", match file with Some f -> VString f | None -> VNull);
+                [("file", match file with Some f -> VString f | None -> (VNA NAGeneric));
                  ("line", VInt line);
                  ("column", VInt column)]
             | None -> []

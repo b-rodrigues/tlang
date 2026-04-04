@@ -41,7 +41,7 @@ A serializer is a first-class object in T. You can inspect its properties or eve
 ```t
 type serializer = {
   format: string,
-  writer: function(path: string, value: any) -> result[null, string],
+  writer: function(path: string, value: any) -> result[NA, string],
   reader: function(path: string) -> result[any, string]
 }
 ```
@@ -55,7 +55,7 @@ my_log_serializer = {
   format: "log",
   writer: \(path, val) {
     -- custom logic to write log
-    Ok(null)
+    Ok(NA)
   },
   reader: \(path) {
     -- custom logic to read log
@@ -105,7 +105,7 @@ my_custom_ser = [
   format: "custom",
   
   -- T implementation
-  writer: \(path, val) { Ok(null) },
+  writer: \(path, val) { Ok(NA) },
   reader: \(path) { Ok(42) },
   
   -- R snippets (using foreign code blocks)

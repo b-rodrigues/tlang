@@ -90,7 +90,7 @@ let table_rows table =
 let assoc_value row name =
   match List.assoc_opt name row with
   | Some value -> value
-  | None -> VNA NAGeneric
+  | None -> (VNA NAGeneric)
 
 let key_of_row by row =
   by
@@ -129,7 +129,7 @@ let merge_left_right ~left_names ~right_projection ~by left_row right_row_opt =
   let right_lookup name =
     match right_row_opt with
     | Some row -> assoc_value row name
-    | None -> VNA NAGeneric
+    | None -> (VNA NAGeneric)
   in
   let left_pairs =
     List.map (fun name -> (name, assoc_value left_row name)) left_names
@@ -145,7 +145,7 @@ let merge_left_right ~left_names ~right_projection ~by left_row right_row_opt =
   in
   left_pairs
   |> List.map (fun (name, value) ->
-         if value = VNA NAGeneric && List.mem_assoc name key_backfill then
+         if value = (VNA NAGeneric) && List.mem_assoc name key_backfill then
            (name, List.assoc name key_backfill)
          else
            (name, value))
@@ -160,7 +160,7 @@ let rows_to_dataframe ?(group_keys=[]) column_order rows =
           (List.map (fun row ->
                match List.assoc_opt name row with
                | Some value -> value
-               | None -> VNA NAGeneric) rows)
+               | None -> (VNA NAGeneric)) rows)
       in
        (name, values)
      ) column_order
@@ -242,7 +242,7 @@ let join_impl kind named_args _env =
                               if List.mem name by then
                                 (name, assoc_value row name)
                               else
-                                (name, VNA NAGeneric)) left_names
+                                (name, (VNA NAGeneric))) left_names
                           in
                            Some (merge_left_right ~left_names ~right_projection ~by left_stub (Some row)))
                   in

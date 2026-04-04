@@ -14,7 +14,7 @@ T's DataFrame operations are backed by [Apache Arrow](https://arrow.apache.org/)
 - **Hash-based grouping**: `group_by()` operations use Arrow's hash-based grouping when a native handle is present
 
 > [!IMPORTANT]
-> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. Primitive, dictionary/factor, date, datetime/timestamp, null-only, and several list-column shapes can now stay native; users should still inspect the active backend explicitly for more complex nested schemas.
+> **Current beta improvement**: T now tries to keep DataFrames on the **native Arrow path** after supported structural changes by rebuilding a native Arrow table when the resulting schema is Arrow-builder-compatible. Primitive, dictionary/factor, date, datetime/timestamp, NA-only, and several list-column shapes can now stay native; users should still inspect the active backend explicitly for more complex nested schemas.
 
 ### Dual-Path Architecture
 
@@ -39,7 +39,7 @@ explain(df2).storage_backend     -- often still "native_arrow" for supported sch
 explain(df2).native_path_active  -- true when native backing was preserved
 
 df3 = dataframe([[missing: NA], [missing: NA]])
-explain(df3).storage_backend     -- "native_arrow" for null-only schemas
+explain(df3).storage_backend     -- "native_arrow" for NA-only schemas
 explain(df3).native_path_active  -- true
 ```
 
@@ -119,7 +119,7 @@ Performance scales approximately linearly with row count for columnar operations
 
 4. **Large group counts**: Group-by with very high cardinality (>10,000 unique groups) uses O(n × g) operations in the OCaml fallback path, where n is row count and g is group count.
 
-5. **Memory usage**: Pure OCaml fallback stores data as `option array` (boxed), using more memory than Arrow's compact nullable representation. For 1M-row datasets, expect ~2× memory overhead compared to native Arrow storage.
+5. **Memory usage**: Pure OCaml fallback stores data as `option array` (boxed), using more memory than Arrow's compact NAable representation. For 1M-row datasets, expect ~2× memory overhead compared to native Arrow storage.
 
 ---
 

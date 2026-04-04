@@ -35,7 +35,7 @@ p = pipeline {
 }
 
 print("Building GLM (R) pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 print("Build Result:")
 print(res)
 print("----------------")

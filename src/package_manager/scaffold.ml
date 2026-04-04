@@ -720,15 +720,15 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   in
   parse args;
   if !show_help then
-    Error "Usage: t init --package|--project <name> [options]\n\n\
+    Error ("Usage: t init --package|--project <name> [options]\n\n\
            Options:\n\
            \  --author <name>    Author name and email (default: \"Your Name <email@example.com>\")\n\
            \  --license <id>     License identifier (default: EUPL-1.2)\n\
-           \  --nixpkgs-date <YYYY-MM-DD>  Nixpkgs branch date (default: \" ^ Version.nixpkgs_date ^ \")\n\
+           \  --nixpkgs-date <YYYY-MM-DD>  Nixpkgs branch date (default: " ^ Version.nixpkgs_date ^ ")\n\
            \  --no-git           Skip git init\n\
            \  --force            Overwrite existing directory\n\
            \  --help             Show this help\n\
-           \  --interactive      Prompt for options"
+           \  --interactive      Prompt for options")
   else match !error with
   | Some msg -> Error msg
   | None ->

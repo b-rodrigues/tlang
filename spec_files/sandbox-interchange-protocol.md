@@ -489,7 +489,7 @@ T provides:
 
 ```r
 t_write_json <- function(object, path) {
-  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
+  jsonlite::write_json(object, path, auto_unbox = TRUE, na = "string")
 }
 
 t_read_json <- function(path) {
@@ -946,7 +946,7 @@ Since standard PMML sometimes omits statistical metadata (like standard errors i
 ### 4. Strict Symmetry Between Runtime and Parser
 The logic used to inject XML attributes in the runtime (R/Python) and the logic used to parse them in T (`pmml_utils.ml`) must be updated in lockstep.
 *   Always use `fmt <- function(x) sprintf("%.15g", x)` in R to preserve precision during interchange.
-*   Ensure T parser handles both standard attributes and our custom extensions gracefully (returning `VNull` if missing).
+*   Ensure T parser handles both standard attributes and our custom extensions gracefully (returning `NA` if missing).
 
 ---
 

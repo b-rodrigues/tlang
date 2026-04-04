@@ -41,7 +41,7 @@ let unnest_impl (named_args : (string option * value) list) _env =
                      | ArrowFloat64 -> FloatColumn [||]
                      | ArrowBoolean -> BoolColumn [||]
                      | ArrowString -> StringColumn [||]
-                     | _ -> NullColumn 0
+                     | _ -> NAColumn 0
                    in
                    (name, col)
                  in
@@ -76,12 +76,12 @@ let unnest_impl (named_args : (string option * value) list) _env =
                  let other_cols = List.map (fun name ->
                    match Arrow_table.get_column df.arrow_table name with
                    | Some col -> (name, Arrow_table.take_col col expansion_indices !final_nrows)
-                   | None -> (name, Arrow_table.NullColumn !final_nrows)
+                   | None -> (name, Arrow_table.NAColumn !final_nrows)
                  ) other_names in
                  
                  (* 4. Combine nested tables *)
                  let nested_cols = List.map (fun (n, _) ->
-                   let combined_data = Array.make !final_nrows VNull in
+                   let combined_data = Array.make !final_nrows (VNA NAGeneric) in
                    let curr = ref 0 in
                    Array.iter (function
                      | Some t_sub ->
@@ -97,7 +97,7 @@ let unnest_impl (named_args : (string option * value) list) _env =
                  ) nested_schema in
                  
                  let final_table = {
-                   Arrow_table.schema = (List.map (fun (n, _) -> (n, match Arrow_table.column_type df.arrow_table n with Some t -> t | None -> ArrowNull)) other_cols) @ nested_schema;
+                   Arrow_table.schema = (List.map (fun (n, _) -> (n, match Arrow_table.column_type df.arrow_table n with Some t -> t | None -> ArrowNA)) other_cols) @ nested_schema;
                    columns = other_cols @ nested_cols;
                    nrows = !final_nrows;
                    native_handle = None;

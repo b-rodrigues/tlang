@@ -16,7 +16,7 @@ let map_numeric_unary ~fname f = function
   | [VInt n] -> VFloat (f (float_of_int n))
   | [VFloat x] -> VFloat (f x)
   | [VVector arr] ->
-      let out = Array.make (Array.length arr) VNull in
+      let out = Array.make (Array.length arr) (VNA NAGeneric) in
       let err = ref None in
       Array.iteri (fun i v ->
         if !err = None then

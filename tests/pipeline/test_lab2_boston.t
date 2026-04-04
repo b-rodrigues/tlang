@@ -45,7 +45,7 @@ py_model = sm.OLS(y, X).fit()
 }
 
 print("Building Lab 2 (Boston Linear Regression) pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 
 if (is_error(res)) {
     print("Pipeline build failed:")

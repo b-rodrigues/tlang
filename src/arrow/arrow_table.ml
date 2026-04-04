@@ -12,7 +12,7 @@ type arrow_type =
   | ArrowString
   | ArrowDate
   | ArrowTimestamp of string option
-  | ArrowNull
+  | ArrowNA
   | ArrowDictionary
   | ArrowList of arrow_type
   | ArrowStruct of arrow_schema
@@ -69,7 +69,7 @@ type column_data =
   | StringColumn of string option array
   | DateColumn of int option array
   | DatetimeColumn of int64 option array * string option
-  | NullColumn of int
+  | NAColumn of int
   | DictionaryColumn of int option array * string list * bool
   | ListColumn of t option array
 
@@ -92,7 +92,7 @@ let column_length = function
   | StringColumn a -> Array.length a
   | DateColumn a -> Array.length a
   | DatetimeColumn (a, _) -> Array.length a
-  | NullColumn n -> n
+  | NAColumn n -> n
   | DictionaryColumn (a, _, _) -> Array.length a
   | ListColumn a -> Array.length a
 
@@ -103,12 +103,12 @@ let column_type_of = function
   | StringColumn _ -> ArrowString
   | DateColumn _ -> ArrowDate
   | DatetimeColumn (_, tz) -> ArrowTimestamp tz
-  | NullColumn _ -> ArrowNull
+  | NAColumn _ -> ArrowNA
   | DictionaryColumn _ -> ArrowDictionary
   | ListColumn a ->
       (match Array.find_opt Option.is_some a with
        | Some (Some t) -> ArrowList (ArrowStruct t.schema)
-       | _ -> ArrowList ArrowNull)
+       | _ -> ArrowList ArrowNA)
 
 let arrow_type_to_string = function
   | ArrowInt64 -> "Int64"
@@ -118,7 +118,7 @@ let arrow_type_to_string = function
   | ArrowDate -> "Date"
   | ArrowTimestamp None -> "Datetime(UTC)"
   | ArrowTimestamp (Some tz) -> "Datetime(" ^ tz ^ ")"
-  | ArrowNull -> "Null"
+  | ArrowNA -> "NA"
   | ArrowDictionary -> "Dictionary"
   | ArrowList _ -> "List"
   | ArrowStruct _ -> "Struct"
@@ -130,10 +130,10 @@ let arrow_type_of_tag = function
   | 2 -> ArrowBoolean
   | 3 -> ArrowString
   | 4 -> ArrowDictionary
-  | 5 -> ArrowList ArrowNull
+  | 5 -> ArrowList ArrowNA
   | 7 -> ArrowDate
   | 8 -> ArrowTimestamp None
-  | _ -> ArrowNull
+  | _ -> ArrowNA
 
 let arrow_type_of_schema_tag tag tz =
   match tag with
@@ -211,7 +211,7 @@ let slice_column (col : column_data) (offset : int) (len : int) : column_data =
   | StringColumn a -> StringColumn (Array.sub a offset len)
   | DateColumn a -> DateColumn (Array.sub a offset len)
   | DatetimeColumn (a, tz) -> DatetimeColumn (Array.sub a offset len, tz)
-  | NullColumn _ -> NullColumn len
+  | NAColumn _ -> NAColumn len
   | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.sub a offset len, levels, ordered)
   | ListColumn a -> ListColumn (Array.sub a offset len)
 
@@ -228,7 +228,7 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
       (* Read each field using the appropriate column reader *)
       let field_cols = List.mapi (fun i (fname, ftag) ->
         match Arrow_ffi.arrow_read_struct_field child_ptr i with
-        | None -> (fname, ftag, NullColumn 0)
+        | None -> (fname, ftag, NAColumn 0)
         | Some fptr ->
             let col = match ftag with
               | 0 -> IntColumn (Arrow_ffi.arrow_read_int64_column fptr)
@@ -239,7 +239,7 @@ let read_native_list_column_from_ptr (array_ptr : nativeint) (nrows : int) : col
                   let (idx, lvl, ord) = Arrow_ffi.arrow_read_dictionary_column fptr in
                   DictionaryColumn (idx, lvl, ord)
               | 7 -> DateColumn (Arrow_ffi.arrow_read_date32_column fptr)
-              | _ -> Arrow_ffi.arrow_unref fptr; NullColumn 0
+              | _ -> Arrow_ffi.arrow_unref fptr; NAColumn 0
             in
             (fname, ftag, col)
       ) field_infos in
@@ -293,10 +293,10 @@ let get_column (t : t) (name : string) : column_data option =
                 | ArrowString -> Some (StringColumn [||])
                 | ArrowDate -> Some (DateColumn [||])
                 | ArrowTimestamp tz -> Some (DatetimeColumn ([||], tz))
-                | ArrowNull -> Some (NullColumn 0)
+                | ArrowNA -> Some (NAColumn 0)
                 | ArrowDictionary -> Some (DictionaryColumn ([||], [], false))
                 | ArrowList _ -> Some (ListColumn [||])
-                | ArrowStruct _ -> Some (NullColumn 0))
+                | ArrowStruct _ -> Some (NAColumn 0))
              else None
           | Some array_ptr ->
             match col_type with
@@ -312,9 +312,9 @@ let get_column (t : t) (name : string) : column_data option =
                 Some (DateColumn (Arrow_ffi.arrow_read_date32_column array_ptr))
             | ArrowTimestamp tz ->
                 Some (DatetimeColumn (Arrow_ffi.arrow_read_timestamp_column array_ptr, tz))
-            | ArrowNull ->
+            | ArrowNA ->
                 Arrow_ffi.arrow_unref array_ptr;
-                Some (NullColumn t.nrows)
+                Some (NAColumn t.nrows)
            | ArrowDictionary ->
                let (indices, levels, ordered) =
                  Arrow_ffi.arrow_read_dictionary_column array_ptr in
@@ -402,7 +402,7 @@ let is_primitive_tag_supported = function
      columns, and list-of-struct columns with all-primitive fields
      are supported. *)
 let is_arrow_table_new_supported = function
-  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DateColumn _ | NullColumn _ | DictionaryColumn _ -> true
+  | IntColumn _ | FloatColumn _ | BoolColumn _ | StringColumn _ | DateColumn _ | NAColumn _ | DictionaryColumn _ -> true
   | ListColumn a ->
       (* All non-None sub-tables must have same schema of only primitive types.
          At least one non-None sub-table must exist to determine the struct schema. *)
@@ -508,7 +508,7 @@ let materialize (t : t) : t =
           | ArrowString -> arrow_string_tag
           | ArrowDictionary -> arrow_dictionary_tag
           | ArrowList _ -> arrow_list_tag
-          | ArrowNull -> arrow_null_tag
+          | ArrowNA -> arrow_null_tag
           | ArrowDate -> arrow_date_tag
           | ArrowTimestamp _ -> arrow_timestamp_tag
           | ArrowStruct _ -> arrow_unsupported_tag
@@ -536,7 +536,7 @@ let materialize (t : t) : t =
             | Some (StringColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (DateColumn a) -> Obj.repr (Array.map (Option.map Obj.repr) a)
             | Some (DatetimeColumn (a, _)) -> Obj.repr (Array.map (Option.map Obj.repr) a)
-            | Some (NullColumn n) -> Obj.repr (Array.make n None)
+            | Some (NAColumn n) -> Obj.repr (Array.make n None)
             | None -> Obj.repr (Array.make t.nrows None)
           in
           (name, tag, timezone, (Obj.obj raw_data : Obj.t array))
@@ -559,7 +559,7 @@ let rec prepare_for_serialization (t : t) : t =
       let columns = List.map (fun (name, _) ->
         let col = match get_column t name with
           | Some data -> data
-          | None -> NullColumn t.nrows
+          | None -> NAColumn t.nrows
         in
         (name, prepare_column_for_serialization col)
       ) t.schema in
@@ -586,12 +586,12 @@ and prepare_column_for_serialization (col : column_data) : column_data =
 
 (** Project (select) columns by name — zero-copy in native Arrow backend.
     Pure OCaml fallback uses O(n*m) list lookup; acceptable for typical column counts.
-    Unknown column names are mapped to NullColumn to avoid raising Not_found. *)
+    Unknown column names are mapped to NAColumn to avoid raising Not_found. *)
 let project (t : t) (names : string list) : t =
   let safe_assoc_schema n =
     match List.assoc_opt n t.schema with
     | Some ty -> (n, ty)
-    | None -> (n, ArrowNull)
+    | None -> (n, ArrowNA)
   in
   match t.native_handle with
   | Some handle when not handle.freed ->
@@ -606,7 +606,7 @@ let project (t : t) (names : string list) : t =
             let columns = List.map (fun n ->
               match get_column t n with
               | Some col -> (n, col)
-              | None -> (n, NullColumn t.nrows)
+              | None -> (n, NAColumn t.nrows)
             ) names in
             { schema; columns; nrows = t.nrows; native_handle = None } |> materialize)
   | _ ->
@@ -614,7 +614,7 @@ let project (t : t) (names : string list) : t =
       let columns = List.map (fun n ->
         match List.assoc_opt n t.columns with
         | Some col -> (n, col)
-        | None -> (n, NullColumn t.nrows)
+        | None -> (n, NAColumn t.nrows)
       ) names in
       { schema; columns; nrows = t.nrows; native_handle = None } |> materialize
 
@@ -629,7 +629,7 @@ let add_column (t : t) (name : string) (col : column_data) : t =
         List.map (fun (n, _) ->
           match get_column t n with
           | Some data -> (n, data)
-          | None -> (n, NullColumn t.nrows)
+          | None -> (n, NAColumn t.nrows)
         ) t.schema
     | _ -> t.columns
   in
@@ -684,7 +684,7 @@ let _filter_column_pure (col : column_data) (mask : bool array) (new_nrows : int
   | StringColumn a -> StringColumn (pick a)
   | DateColumn a -> DateColumn (pick a)
   | DatetimeColumn (a, tz) -> DatetimeColumn (pick a, tz)
-  | NullColumn _ -> NullColumn new_nrows
+  | NAColumn _ -> NAColumn new_nrows
   | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (pick a, levels, ordered)
   | ListColumn a -> ListColumn (pick a)
 
@@ -697,7 +697,7 @@ let take_col (col : column_data) (idx_arr : int array) (new_nrows : int) : colum
   | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
   | DateColumn a -> DateColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
   | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))), tz)
-  | NullColumn _ -> NullColumn new_nrows
+  | NAColumn _ -> NAColumn new_nrows
   | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))), levels, ordered)
   | ListColumn a -> ListColumn (Array.init new_nrows (fun i -> a.(idx_arr.(i))))
 
@@ -717,7 +717,7 @@ let filter_rows (t : t) (mask : bool array) : t =
            let columns = List.map (fun (name, _) ->
              match get_column t name with
              | Some col -> (name, filter_col col)
-             | None -> (name, NullColumn new_nrows)
+             | None -> (name, NAColumn new_nrows)
            ) t.schema in
            { schema = t.schema; columns; nrows = new_nrows; native_handle = None } |> materialize)
   | _ ->
@@ -735,7 +735,7 @@ let slice (t : t) (offset : int) (len : int) : t =
            create_from_native new_ptr schema len
        | None ->
            let columns = List.map (fun (name, _) ->
-             let col = match get_column t name with Some c -> c | None -> NullColumn t.nrows in
+             let col = match get_column t name with Some c -> c | None -> NAColumn t.nrows in
              (name, slice_column col offset len)
            ) t.schema in
            { schema = t.schema; columns; nrows = len; native_handle = None } |> materialize)
@@ -759,7 +759,7 @@ let take_rows (t : t) (indices : int list) : t =
            let source_columns = List.map (fun (n, _) ->
              match get_column t n with
              | Some data -> (n, data)
-             | None -> (n, NullColumn t.nrows)
+             | None -> (n, NAColumn t.nrows)
            ) t.schema in
            let idx_arr = Array.of_list indices in
            let new_nrows = List.length indices in
@@ -785,7 +785,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
              List.map (fun (n, _) ->
                match get_column t n with
                | Some data -> (n, data)
-               | None -> (n, NullColumn t.nrows)
+               | None -> (n, NAColumn t.nrows)
              ) t.schema
            in
            let n = Array.length indices in
@@ -796,7 +796,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
              | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
              | DateColumn a -> DateColumn (Array.init n (fun i -> a.(indices.(i))))
              | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(indices.(i))), tz)
-             | NullColumn _ -> NullColumn n
+             | NAColumn _ -> NAColumn n
              | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
              | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
            in
@@ -811,7 +811,7 @@ let sort_by_indices (t : t) (indices : int array) : t =
       | StringColumn a -> StringColumn (Array.init n (fun i -> a.(indices.(i))))
       | DateColumn a -> DateColumn (Array.init n (fun i -> a.(indices.(i))))
       | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init n (fun i -> a.(indices.(i))), tz)
-      | NullColumn _ -> NullColumn n
+      | NAColumn _ -> NAColumn n
       | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init n (fun i -> a.(indices.(i))), levels, ordered)
       | ListColumn a -> ListColumn (Array.init n (fun i -> a.(indices.(i))))
     in
@@ -842,7 +842,7 @@ let rename_columns (t : t) (mapping : (string * string) list) : t =
              match List.assoc_opt name old_to_new with
              | Some new_name -> (new_name, ty) | None -> (name, ty)) t.schema in
            let columns = List.map (fun (name, _) ->
-             let col = match get_column t name with Some c -> c | None -> NullColumn t.nrows in
+             let col = match get_column t name with Some c -> c | None -> NAColumn t.nrows in
              match List.assoc_opt name old_to_new with
              | Some new_name -> (new_name, col) | None -> (name, col)) t.schema in
            { schema = new_schema; columns; nrows = t.nrows; native_handle = None } |> materialize)

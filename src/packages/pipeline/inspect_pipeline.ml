@@ -21,13 +21,13 @@ let register env =
           if List.length positionals >= pos then List.nth positionals (pos - 1)
           else default
     in
-    match get_arg "which_log" 1 VNull named_args with
-    | VNull ->
+    match get_arg "which_log" 1 (VNA NAGeneric) named_args with
+    | VNA _ ->
         Builder.inspect_pipeline ()
     | VString s ->
         Builder.inspect_pipeline ~which_log:s ()
     | _ ->
-        Error.type_error "inspect_pipeline: expected String or Null for argument 'which_log'"
+        Error.type_error "inspect_pipeline: expected String or NA for argument 'which_log'"
   in
   let env = Env.add "inspect_pipeline" (make_builtin_named ~name:"inspect_pipeline" ~variadic:true 0 inspect_fn) env in
 

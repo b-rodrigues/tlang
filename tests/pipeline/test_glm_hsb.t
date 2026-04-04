@@ -53,7 +53,7 @@ py_model_node = sm.GLM(y, X, family=sm.families.Binomial()).fit()
 }
 
 print("Building HSB (Binary Logistic) pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 
 if (is_error(res)) {
     print("Pipeline build failed:")

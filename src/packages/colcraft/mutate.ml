@@ -238,7 +238,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
         if df.group_keys <> [] then
           let grouped = Arrow_compute.group_by_optimized df.arrow_table df.group_keys in
           let groups = Arrow_compute.get_ocaml_groups grouped in
-          let new_col = Array.make nrows VNull in
+          let new_col = Array.make nrows (VNA NAGeneric) in
           let had_error = ref None in
           List.iter (fun (_, row_indices) ->
             if !had_error = None then begin

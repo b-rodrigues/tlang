@@ -33,7 +33,7 @@ let register env =
           (match exp_f with
            | None -> Error.make_error TypeError "Function `pow` expects a numeric exponent."
            | Some e ->
-             let result = Array.make (Array.length arr) VNull in
+             let result = Array.make (Array.length arr) (VNA NAGeneric) in
              let had_error = ref None in
              Array.iteri (fun i v ->
                if !had_error = None then

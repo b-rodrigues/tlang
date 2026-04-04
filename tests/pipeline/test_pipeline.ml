@@ -114,6 +114,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   print_newline ();
 
   Printf.printf "Pipeline Build and Artifact I/O:\n";
+  let verbose_args_ok =
+    Builder_internal.nix_verbosity_args 0 = ["--quiet"]
+    && Builder_internal.nix_verbosity_args 1 = []
+    && Builder_internal.nix_verbosity_args 2 = ["--verbose"]
+    && Builder_internal.nix_verbosity_args 3 = ["--verbose"; "--verbose"]
+    && Builder_internal.nix_verbosity_args 5 = ["--verbose"; "--verbose"; "--verbose"; "--verbose"]
+  in
+  if verbose_args_ok then begin
+    incr pass_count; Printf.printf "  ✓ nix verbosity args are derived correctly\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ nix verbosity args are derived correctly\n"
+  end;
+  let t_make_pipeline_path = Filename.temp_file "tlang_t_make_verbose_" ".t" in
+  let oc_t_make = open_out t_make_pipeline_path in
+  output_string oc_t_make "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n";
+  close_out oc_t_make;
   (* Clean up any stale logs from previous runs to avoid picking up mock logs *)
   let _ = try
     if Sys.file_exists "_pipeline" then
@@ -123,13 +139,41 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       Unix.mkdir "_pipeline" 0o755
   with _ -> () in
   test "build_pipeline returns output path"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\n( \\(out) if (is_error(out)) (true) else (starts_with(out, \"/nix/store/\")) )(build_pipeline(p))"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (true) else (starts_with(v, \"/nix/store/\"))\n}\nok"
     "true";
-  test "read_node returns artifact when successful or FileError when build fails"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\n( \\(out) if (is_error(out)) (error_code(read_node(\"b\")) == \"FileError\") else (read_node(\"b\") == 3) )(build_pipeline(p))"
+  test "build_pipeline accepts verbose option"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (starts_with(v, \"/nix/store/\"))\n}\nok"
+    "true";
+  test "build_pipeline rejects non-int verbose"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, verbose=\"loud\")) == \"TypeError\""
+    "true";
+  test "build_pipeline rejects negative verbose"
+    "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, verbose=-1)) == \"ValueError\""
+    "true";
+  test "populate_pipeline accepts verbose option without building"
+    "p = pipeline {\n  a = 1\n}\nout = populate_pipeline(p, build=false, verbose=2)\nstarts_with(out, \"Pipeline populated in\")"
+    "true";
+  test "populate_pipeline rejects non-int verbose"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, verbose=\"loud\")) == \"TypeError\""
+    "true";
+  test "populate_pipeline rejects negative verbose"
+    "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, verbose=-1)) == \"ValueError\""
+    "true";
+  test "t_make accepts verbose option"
+    (Printf.sprintf "is_na(t_make(filename=\"%s\", verbose=2))" t_make_pipeline_path)
+    "true";
+  test "t_make rejects non-int verbose"
+    (Printf.sprintf "error_code(t_make(filename=\"%s\", verbose=\"loud\")) == \"TypeError\"" t_make_pipeline_path)
+    "true";
+  test "t_make rejects negative verbose"
+    (Printf.sprintf "error_code(t_make(filename=\"%s\", verbose=-1)) == \"ValueError\"" t_make_pipeline_path)
+    "true";
+  let _ = try Sys.remove t_make_pipeline_path with _ -> () in
+  test "read_node reads serialized artifact"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (read_node(\"b\") == 3)\n}\nok"
     "true";
   test "read_node missing key"
-    "p = pipeline {\n  a = 1\n}\n( \\(out) if (is_error(out)) (error_code(read_node(\"missing\")) == \"FileError\") else (error_code(read_node(\"missing\")) == \"KeyError\") )(build_pipeline(p))"
+    "p = pipeline {\n  a = 1\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (error_code(read_node(\"missing\")) == \"KeyError\")\n}\nok"
     "true";
   print_newline ();
 
@@ -369,7 +413,7 @@ p_cross = pipeline {
 
   test "node args values must stay shallow"
     {|node(runtime = Quarto, args = [path: "report.qmd", extra: [nested: [too_deep: 1]]])|}
-    {|Error(TypeError: "Function `node` expects runtime arg `extra` to be a String, Symbol, Int, Float, Bool, Null, or List of those values.")|};
+    {|Error(TypeError: "Function `node` expects runtime arg `extra` to be a String, Symbol, Int, Float, Bool, NA, or List of those values.")|};
 
   test "quarto node requires qmd path"
     {|node(runtime = Quarto, args = [subcommand: "render"])|}
@@ -548,7 +592,7 @@ p_cross = pipeline {
 
   test "pipeline_copy validates node type"
     {|pipeline_copy(node = 1)|}
-    {|Error(TypeError: "Function `pipeline_copy` expects `node` to be a String, Symbol, or Null.")|};
+    {|Error(TypeError: "Function `pipeline_copy` expects `node` to be a String, Symbol, or NA.")|};
 
   test "pipeline_copy validates target_dir type"
     {|pipeline_copy(target_dir = 1)|}
@@ -609,14 +653,14 @@ p_cross = pipeline {
     incr fail_count; Printf.printf "  ✗ node.script dot access\n    Expected: \"fit.R\"\n    Got: %s\n" dot_script_s
   end;
 
-  (* Test: script=null node returns null for .script *)
+  (* Test: script=NA node returns NA for .script *)
   let (v_no_script, _) = eval_string_env
     {|node_obj = node(command = <{ 42 }>, runtime = R); node_obj.script|}
     (Packages.init_env ()) in
-  if Ast.Utils.value_to_string v_no_script = "null" then begin
-    incr pass_count; Printf.printf "  ✓ node without script returns null for .script\n"
+  if Ast.Utils.value_to_string v_no_script = "NA" then begin
+    incr pass_count; Printf.printf "  ✓ node without script returns NA for .script\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ node without script .script field\n    Expected: null\n    Got: %s\n"
+    incr fail_count; Printf.printf "  ✗ node without script .script field\n    Expected: NA\n    Got: %s\n"
       (Ast.Utils.value_to_string v_no_script)
   end;
 

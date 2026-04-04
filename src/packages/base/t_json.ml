@@ -20,7 +20,7 @@ let register env =
         match args with
         | [value; VString path] ->
             (match Serialization.write_json path value with
-            | Ok () -> VNull
+            | Ok () -> (VNA NAGeneric)
             | Error msg -> Error.make_error FileError (Printf.sprintf "t_write_json failed: %s" msg))
         | [_; _] -> Error.type_error "Function `t_write_json` expects (Any, String)."
         | _ -> Error.arity_error_named "t_write_json" 2 (List.length args)

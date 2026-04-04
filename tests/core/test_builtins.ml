@@ -53,7 +53,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|list_files("/tmp", pattern = 42)|}
     {|Error(TypeError: "Argument `pattern` of `list_files` must be a String, got Int.")|};
   test "env HOME exists" {|type(env("HOME"))|} {|"String"|};
-  test "env nonexistent returns null" {|env("NONEXISTENT_VAR_ABC_XYZ_123")|} "null";
+  test "env nonexistent returns NA" {|env("NONEXISTENT_VAR_ABC_XYZ_123")|} "NA";
   test "env wrong type" {|env(42)|} {|Error(TypeError: "Function `env` expects a String, got Int.")|};
   print_newline ();
 
@@ -72,8 +72,8 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "path_dirname root" {|path_dirname("/")|} {|"/"|};
   test "path_dirname wrong type" {|path_dirname(42)|} {|Error(TypeError: "Function `path_dirname` expects a String path, got Int.")|};
   test "path_ext with extension" {|path_ext("data.csv")|} {|".csv"|};
-  test "path_ext no extension" {|path_ext("Makefile")|} "null";
-  test "path_ext dotfile" {|path_ext(".hidden")|} "null";
+  test "path_ext no extension" {|path_ext("Makefile")|} "NA";
+  test "path_ext dotfile" {|path_ext(".hidden")|} "NA";
   test "path_ext last extension only" {|path_ext("archive.tar.gz")|} {|".gz"|};
   test "path_ext wrong type" {|path_ext(42)|} {|Error(TypeError: "Function `path_ext` expects a String path, got Int.")|};
   test "path_stem removes extension" {|path_stem("data.csv")|} {|"data"|};

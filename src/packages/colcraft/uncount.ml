@@ -63,7 +63,7 @@ let uncount_impl (named_args : (string option * value) list) _env =
                     let new_columns = List.map (fun name ->
                       match Arrow_table.get_column df.arrow_table name with
                       | Some c -> (name, Arrow_table.take_col c expansion_indices final_nrows)
-                      | None -> (name, Arrow_table.NullColumn final_nrows)
+                      | None -> (name, Arrow_table.NAColumn final_nrows)
                     ) base_names in
 
                     let new_schema = List.filter_map (fun (n, t) ->

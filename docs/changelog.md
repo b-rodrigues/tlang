@@ -2,6 +2,26 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
+- **Standardized Nixpkgs Pinning**: Decoupled the Nixpkgs date from the system date during project initialization to ensure reproducible and cached environments.
+    - Added `RSTATS-NIX-DATE` as the single source of truth for the project-wide Nixpkgs snapshot date.
+    - Updated `t init` to dynamically use this canonical date, preventing accidental resource-intensive source builds (like Deno/Quarto) on architectures like `aarch64-linux`.
+- **Column-wise DataFrame Construction**: Enhanced the `dataframe()` builtin to support construction from a Dictionary of columns.
+    - Added support for the intuitive `dataframe([x: [1,2], y: [3,4]])` syntax.
+    - **Scalar Recycling**: Implemented automatic recycling of single values to match the length of other columns (e.g., `dataframe([x: 1:5, y: 0])`).
+    - Improved error messaging for mismatched column lengths.
+
+- **"Death to Null" Initiative**: Complete removal of `null` and `VNull` from the language in favor of a strict, explicit missingness model.
+    - **Grammar Cleanup**: Removed the `null` keyword from the lexer and parser. The language now exclusively uses `NA` (generic or typed) for missing data.
+    - **Non-Nullable Core**: Refactored the AST to eliminate `VNull` and `TNull`. All previous "nullable" expressions (e.g., `ifelse` without `else`, empty `read_node` results, missing environment variables) now return `NA`.
+    - **Unified Predicates**: Replaced `is_null()` with `is_na()` as the standard builtin for checking missingness across all types.
+    - **Error Visibility**: Standardized all `TypeError` messages to use `NA` instead of `Null` when describing expected types for builtins and data verbs.
+    - **Internal Architecture**: Renamed `NullColumn` to `NAColumn` and `ArrowNull` to `ArrowNA` in the Arrow-backed DataFrame implementation for total consistency.
+- **Pipeline Build Observability**:
+    - Added a `verbose` argument to `build_pipeline()`, `populate_pipeline()`, and `t_make()`.
+    - Level `verbose=1` or higher automatically maps to Nix `--verbose` flags and prints the full Nix build logs for any failed nodes directly to the console.
+    - Standardized all internal pipeline tests to use `verbose=1` for better CI debugging.
+- **`read_node()` Enhancements**: Improved `read_node()` to support a `Pipeline` object as its first argument, enabling convenient retrieval of artifacts from a specific pipeline instance alongside existing string-based node name lookups.
+- **REPL Fixes**: Corrected a documentation comment collision in `repl.ml` that was causing compilation errors during the scale-wide refactor.
 - **Lazy Pipeline Evaluation**: Implemented lazy cross-pipeline dependency resolution. 
     - Pipelines now support referencing nodes from other pipelines by name during definition without triggering immediate `NameError`.
     - Evaluation of T-runtime nodes is automatically deferred to the build phase if dependencies are unresolved, enabling intuitive and ergonomic pipeline composition.
@@ -32,6 +52,10 @@
     - Updated `fit_stats()` to provide tree counts and feature counts for all supported boosted ensembles.
     - Fixed `flake.nix` build issues for LightGBM/Boost by disabling GPU support and adjusting CMake flags for CPU-only builds.
     - Added full golden test coverage for both XGBoost and LightGBM using real artifacts from R and Python.
+- **Categorical Modeling Interop**:
+    - **Dummy/One-Hot Expansion**: Implemented automatic categorical expansion for the native `lm()` implementation. T now correctly handles factor columns by generating dummy variables during model fitting, ensuring compatibility with R's `lm()` behavior.
+    - **Advanced `predict()`**: Refactored the internal prediction engine to support interaction terms (`:`) and factor level mapping.
+    - **No Silent Magic**: Enforced strict error handling for unsupported interop operations. The R-ONNX writer and other experimental serializers now return explicit `VError` values instead of silent fallbacks or broken artifacts.
 
 ## Version 0.51.2 — Current Stable Release
 
@@ -142,7 +166,7 @@ Version history and roadmap for the T programming language.
 - Pipeline (DAG execution)
 - Intent (LLM metadata)
 - Formula (statistical modeling)
-- Null
+- NA
 
 ### Operators
 
@@ -248,7 +272,7 @@ Version history and roadmap for the T programming language.
 - Dual-path operations (native + fallback)
 - `explain(df)` surfaces whether a DataFrame is still on the native Arrow path (`storage_backend`, `native_path_active`)
 - Supported structural rebuilds now try to stay Arrow-backed by rematerializing into a fresh native table
-- **Current limitation**: unsupported builder paths (for example null-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
+- **Current limitation**: unsupported builder paths (for example NA-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
 
 ✅ **Reproducibility**:
 

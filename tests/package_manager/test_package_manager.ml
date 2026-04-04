@@ -870,7 +870,7 @@ min_version = "0.51.0"
     let (import_result, env_after_import) = eval_string_env "import stats" env in
     let (after_mean, _) = eval_string_env "type(mean)" env_after_import in
     Ast.Utils.value_to_string before_mean = {|"BuiltinFunction"|}
-    && Ast.Utils.value_to_string import_result = "null"
+    && Ast.Utils.value_to_string import_result = "NA"
     && Ast.Utils.value_to_string after_mean = {|"BuiltinFunction"|});
 
   test_pm "full import keeps builtin name and prefixes conflicting package binding" (fun () ->

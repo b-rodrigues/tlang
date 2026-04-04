@@ -61,7 +61,6 @@ T supports the following value types:
 | `Function`  | `\(x) x + 1`            | First-class functions               |
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
-| `Null`      | `null`                   | Absence of value                    |
 | `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
 | `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
@@ -633,7 +632,7 @@ The shell escape syntax allows you to execute arbitrary shell commands directly 
 
 ### As a Statement
 
-When used as a standalone statement, the command is executed and its output is printed directly to `stdout`. The return value of the expression is `null`.
+When used as a standalone statement, the command is executed and its output is printed directly to `stdout`. The return value of the expression is `NA`.
 
 ```t
 ?<{ls -la}>
@@ -818,7 +817,7 @@ These signatures provide a compact map of the most commonly used functions:
 
 #### Core, Base, and Math
 
-- `print(value :: Any) :: Null`
+- `print(value :: Any) :: NA`
 - `type(value :: Any) :: String`
 - `length(list :: List) :: Int`
 - `head(x :: DataFrame | List | Vector, n = 6) :: DataFrame | List | Vector`
@@ -833,7 +832,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `pow(base :: Number, exp :: Number) :: Float`
 - `sqrt(value :: Number) :: Float`
 - `abs(value :: Number) :: Number`
-- `rm(...) :: Null`
+- `rm(...) :: NA`
 
 #### Stats and DataFrames
 
@@ -844,7 +843,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `lm(data :: DataFrame, formula :: Formula) :: Model`
 - `predict(model :: Model, data :: DataFrame) :: Vector`
 - `read_csv(path :: String, clean_colnames = false) :: DataFrame`
-- `write_csv(df :: DataFrame, path :: String) :: Null`
+- `write_csv(df :: DataFrame, path :: String) :: NA`
 - `nrow(df :: DataFrame) :: Int`
 - `ncol(df :: DataFrame) :: Int`
 - `colnames(df :: DataFrame) :: List[String]`
@@ -872,7 +871,7 @@ These signatures provide a compact map of the most commonly used functions:
 - `node(command :: Any, script :: String, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
 - `pyn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
 - `rn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
-- `build_pipeline(pipeline :: Pipeline) :: Null`
+- `build_pipeline(pipeline :: Pipeline) :: NA`
 - `pipeline_run(pipeline :: Pipeline) :: Pipeline`
 - `pipeline_nodes(p :: Pipeline) :: List[String]`
 - `pipeline_deps(p :: Pipeline) :: Dict`
@@ -1002,7 +1001,7 @@ type([1, 2])         -- "List"
 type({x: 1})         -- "Dict"
 type(NA)             -- "NA"
 type(1 / 0)          -- "Error"
-type(null)           -- "Null"
+type(NA)           -- "NA"
 ```
 
 ---

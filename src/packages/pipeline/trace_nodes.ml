@@ -9,7 +9,7 @@ open Ast
 --# @param p :: Pipeline The pipeline to inspect.
 --# @param name :: String (Optional) A specific node's name to trace.
 --# @param transitive :: Bool (Optional) If true, mark transitive dependencies with '*'.
---# @return :: Null Returns invisibly. Prints to the console.
+--# @return :: NA Returns invisibly. Prints to the console.
 --# @example
 --#   p = pipeline { x = 1; y = x + 1 }
 --#   trace_nodes(p)
@@ -27,19 +27,19 @@ let register env =
           if List.length positionals >= pos then (true, List.nth positionals (pos - 1))
           else (false, default)
     in
-    match get_arg "p" 1 VNull with
+    match get_arg "p" 1 (VNA NAGeneric) with
     | (_, VPipeline p) ->
-        let (_, target_val) = get_arg "name" 2 VNull in
+        let (_, target_val) = get_arg "name" 2 (VNA NAGeneric) in
         let (_, trans_val) = get_arg "transitive" 3 (VBool true) in
         
         let target_res = match target_val with 
           | VString s -> Ok (Some s) 
-          | VNull -> Ok None 
+          | VNA _ -> Ok None 
           | v -> Error (Error.type_error (Printf.sprintf "Function `trace_nodes` expects a String for 'name', got %s." (Utils.type_name v))) 
         in
         let trans_res = match trans_val with 
           | VBool b -> Ok b 
-          | VNull -> Ok true 
+          | VNA _ -> Ok true 
           | v -> Error (Error.type_error (Printf.sprintf "Function `trace_nodes` expects a Bool for 'transitive', got %s." (Utils.type_name v))) 
         in
         
@@ -142,7 +142,7 @@ let register env =
             end
         end;
         flush stdout;
-        VNull
+        (VNA NAGeneric)
         end
     | _ -> Error.type_error "Function `trace_nodes` expects a Pipeline as its first argument."
   in

@@ -61,7 +61,7 @@ p = pipeline {
 }
 
 print("Building Lab 12 (Polynomial Regression) pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 
 if (is_error(res)) {
     print("Build failed:")

@@ -645,7 +645,7 @@ No `left_join()`, `inner_join()`, or other merge operations.
 - [x] Booleans (true, false)
 - [x] Strings ("hello")
 - [x] NA values (NA, na_int, na_float, etc.)
-- [x] Null (null)
+- [x] Null (NA)
 - [x] Lists ([1, 2, 3])
 - [x] Named Lists ([name: "Alice", age: 30])
 - [x] Dictionaries ({key: value})
