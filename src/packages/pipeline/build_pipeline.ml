@@ -62,7 +62,7 @@ let register ~rerun_pipeline env =
                   (* Strict reruns should resolve to a Pipeline or return a VError;
                      any other value indicates an internal invariant violation. *)
                   Error.make_error RuntimeError
-                    ("build_pipeline encountered an internal pipeline resolution invariant violation before building: "
+                    ("build_pipeline expected pipeline resolution to return a Pipeline or Error before building, but got: "
                      ^ Utils.value_to_string other)))
       | _ -> Error.type_error "Function `build_pipeline` expects a Pipeline."
   in

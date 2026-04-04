@@ -738,7 +738,7 @@ let () =
         let filename = ref "src/pipeline.t" in
         let nix_args = ref [] in
         let verbose = ref !Builder_internal.default_nix_build_verbose in
-        let arg_error = ref None in
+        let arg_error_opt = ref None in
         (* Separate named and positional arguments so that positional indices are
            computed only within the positional-only list, regardless of how many
            named arguments appear before them. *)
@@ -749,23 +749,23 @@ let () =
           (function
             | (Some "filename", Ast.VString s) -> filename := s
             | (Some "filename", _) ->
-                arg_error := Some (Ast.TypeError, "t_make: 'filename' must be a String")
+                arg_error_opt := Some (Ast.TypeError, "t_make: 'filename' must be a String")
             | (Some "max_jobs", Ast.VInt i) ->
                 nix_args := string_of_int i :: "--max-jobs" :: !nix_args
             | (Some "max_jobs", _) ->
-                arg_error := Some (Ast.TypeError, "t_make: 'max_jobs' must be an Int")
+                arg_error_opt := Some (Ast.TypeError, "t_make: 'max_jobs' must be an Int")
             | (Some "max_cores", Ast.VInt i) ->
                 nix_args := string_of_int i :: "--cores" :: !nix_args
             | (Some "max_cores", _) ->
-                arg_error := Some (Ast.TypeError, "t_make: 'max_cores' must be an Int")
+                arg_error_opt := Some (Ast.TypeError, "t_make: 'max_cores' must be an Int")
             | (Some "verbose", Ast.VInt i) when i >= 0 ->
                 verbose := i
             | (Some "verbose", Ast.VInt _) ->
-                arg_error := Some (Ast.ValueError, "t_make: 'verbose' must be a non-negative Int")
+                arg_error_opt := Some (Ast.ValueError, "t_make: 'verbose' must be a non-negative Int")
             | (Some "verbose", _) ->
-                arg_error := Some (Ast.TypeError, "t_make: 'verbose' must be an Int")
+                arg_error_opt := Some (Ast.TypeError, "t_make: 'verbose' must be an Int")
             | (Some k, _) ->
-                arg_error := Some (Ast.TypeError, Printf.sprintf "t_make: unknown argument '%s'" k)
+                arg_error_opt := Some (Ast.TypeError, Printf.sprintf "t_make: unknown argument '%s'" k)
             | (None, _) -> ())
           named_only;
         let _ = List.fold_left (fun idx (_, v) ->
@@ -778,12 +778,12 @@ let () =
            | 3, Ast.VInt i when i >= 0 ->
                verbose := i
            | 3, Ast.VInt _ ->
-               arg_error := Some (Ast.ValueError, "t_make: 'verbose' must be a non-negative Int")
+               arg_error_opt := Some (Ast.ValueError, "t_make: 'verbose' must be a non-negative Int")
            | n, _ ->
-               arg_error := Some (Ast.TypeError, Printf.sprintf "t_make: unexpected argument at position %d" n));
+               arg_error_opt := Some (Ast.TypeError, Printf.sprintf "t_make: unexpected argument at position %d" n));
           idx + 1
         ) 0 positional_only in
-        match !arg_error with
+        match !arg_error_opt with
         | Some (code, msg) ->
             Ast.VError { code; message = msg; context = []; location = None }
         | None ->
