@@ -112,6 +112,81 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
     ) p.p_exprs
   in
 
+  let check_package_dependencies () =
+    let root = get_project_root () in
+    let toml_path = Filename.concat root "tproject.toml" in
+    if not (Sys.file_exists toml_path) then None
+    else
+      let content =
+        let ch = open_in toml_path in
+        let s = really_input_string ch (in_channel_length ch) in
+        close_in ch;
+        s
+      in
+      match Toml_parser.parse_tproject_toml content with
+      | Error _ -> None (* Ignore malformed TOML for now, let other checks handle it *)
+      | Ok cfg ->
+          let eval_expr e = Eval.eval_expr (ref Ast.Env.empty) e in
+          let extract_format = function
+            | Ast.VSerializer s -> Some s.s_format
+            | Ast.VString s | Ast.VSymbol s -> Some (let s = if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s in String.lowercase_ascii s)
+            | Ast.VDict pairs -> (match List.assoc_opt "format" pairs with Some (VString s) | Some (VSymbol s) -> Some (String.lowercase_ascii s) | _ -> None)
+            | _ -> None
+          in
+          let missing = ref [] in
+          let add_missing node_name runtime lang_target pkg =
+            let pkgs = match lang_target with "R" -> cfg.proj_r_dependencies | "Python" -> cfg.proj_py_dependencies | _ -> [] in
+            let is_missing = not (List.exists (fun p -> String.lowercase_ascii p = String.lowercase_ascii pkg) pkgs) in
+            if is_missing then
+              missing := (node_name, runtime, lang_target, pkg) :: !missing
+          in
+          List.iter (fun (name, _) ->
+            let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+            let ser_val = match List.assoc_opt name p.p_serializers with Some e -> eval_expr e | None -> Ast.(VNA NAGeneric) in
+            let des_val = match List.assoc_opt name p.p_deserializers with Some e -> eval_expr e | None -> Ast.(VNA NAGeneric) in
+            let ser_fmt = extract_format ser_val in
+            let des_fmts = match des_val with
+              | Ast.VDict pairs -> List.filter_map (fun (k, v) -> match extract_format v with Some f -> Some (k,f) | None -> None) pairs
+              | _ -> (match extract_format des_val with Some f -> [("", f)] | None -> [])
+            in
+            let formats = (match ser_fmt with Some f -> [f] | None -> []) @ (List.map snd des_fmts) in
+            List.iter (fun fmt ->
+              match runtime with
+              | "R" ->
+                  if fmt = "arrow" then add_missing name runtime "R" "arrow";
+                  if fmt = "pmml" then (add_missing name runtime "R" "pmml"; add_missing name runtime "R" "XML");
+                  if fmt = "json" then add_missing name runtime "R" "jsonlite";
+                  if fmt = "csv" then add_missing name runtime "R" "dplyr"; (* Encouraged *)
+                  if fmt = "onnx" then add_missing name runtime "R" "onnx"
+              | "Python" ->
+                  if fmt = "arrow" then (add_missing name runtime "Python" "pyarrow"; add_missing name runtime "Python" "pandas");
+                  if fmt = "pmml" then (add_missing name runtime "Python" "pypmml"; add_missing name runtime "Python" "sklearn2pmml");
+                  if fmt = "onnx" then (add_missing name runtime "Python" "onnx"; add_missing name runtime "Python" "onnxruntime")
+              | _ -> ()
+            ) formats
+          ) p.p_exprs;
+          if !missing = [] then None
+          else
+            let grouped = List.fold_left (fun acc (name, runtime, lang, pkg) ->
+              let key = (lang, pkg) in
+              if List.mem_assoc key acc then
+                let (nodes, p) = List.assoc key acc in
+                (if List.mem name nodes then acc else (key, (name :: nodes, p)) :: List.remove_assoc key acc)
+              else (key, ([name], pkg)) :: acc
+            ) [] !missing in
+            let msg = Buffer.create 256 in
+            Buffer.add_string msg "Dependency Check Failure: Missing required packages in tproject.toml for used serializers/deserializers:\n\n";
+            List.iter (fun ((lang, _), (nodes, pkg)) ->
+              Printf.bprintf msg "  - [%s] Add `%s` for node%s: %s\n"
+                lang pkg (if List.length nodes > 1 then "s" else "") (String.concat ", " (List.rev nodes))
+            ) grouped;
+            Buffer.add_string msg "\nUpdate your tproject.toml and run `t init --update` to fetch the new dependencies.";
+            Some (Buffer.contents msg)
+  in
+
+  match check_package_dependencies () with
+  | Some err -> Error (err)
+  | None ->
   match check_multi_dep_strategies () with
   | Some err -> Error (err)
   | None ->

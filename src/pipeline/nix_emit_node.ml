@@ -767,7 +767,11 @@ def py_read_pmml(path):
     try:
         from pypmml import Model
     except ImportError:
-        return path # Fallback to path
+        raise RuntimeError(
+            "PMML deserialization requires 'pypmml'. "
+            "Add 'pypmml' to your [py-dependencies] in tproject.toml "
+            "and run 't init --update'."
+        )
     return Model.load(path)
 |} in
 
@@ -779,7 +783,7 @@ r_write_onnx <- function(object, path) {
 
 r_read_onnx <- function(path) {
   if (!requireNamespace("onnx", quietly = TRUE))
-    stop("Package 'onnx' is required for ONNX deserialization in R.")
+    stop("ONNX deserialization requires the 'onnx' R package. Add 'onnx' to your [r-dependencies] in tproject.toml and run 't init --update'.")
   if (exists("onnx", where="package:onnx") && !is.null(onnx::onnx$load_model)) {
     onnx::onnx$load_model(path)
   } else {
@@ -846,7 +850,8 @@ def py_read_onnx(path):
     except ImportError:
         raise RuntimeError(
             "ONNX deserialization requires 'onnxruntime'. "
-            "Install it with: pip install onnxruntime"
+            "Add 'onnxruntime' to your [py-dependencies] in tproject.toml "
+            "and run 't init --update'."
         )
 |} in
 

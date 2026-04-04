@@ -95,7 +95,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   in
   let py_extra_pkgs = 
     (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^
-    (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ps.statsmodels ]" else "") ^
+    (if needs_py_pmml then " ++ [ ps.pypmml ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ps.statsmodels ]" else "") ^
     (if needs_py_csv then " ++ [ ps.pandas ps.pyarrow ]" else "") ^
     (if needs_quarto then " ++ [ ps.ipykernel ps.pyyaml ps.nbformat ps.nbclient ]" else "")
   in
