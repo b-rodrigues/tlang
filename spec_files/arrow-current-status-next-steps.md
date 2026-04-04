@@ -90,7 +90,7 @@ Taken together, these files provide:
 - Arrow IPC read/write,
 - native list-column and dictionary-column support,
 - date support,
-- null-only native materialization support,
+- NA-only native materialization support,
 - zero-copy numeric column views via Bigarray,
 - conversion between Arrow storage and T runtime values,
 - bridge utilities for statistical work via `Arrow_owl_bridge`.
@@ -137,7 +137,7 @@ Based on the code currently in the repository, the following are present:
 - list columns with nested DataFrame reconstruction
 - date columns
 - datetime/timestamp columns, including native materialization and IPC round-trips
-- null-only columns
+- NA-only columns
 - zero-copy views for native numeric columns
 - Arrow-to-Owl bridge for numeric/statistical workflows
 - serialization hardening for native-backed DataFrames crossing process boundaries
@@ -181,7 +181,7 @@ The code also shows some areas that are either intentionally constrained or stil
   - date/datetime,
   - dictionary/factor,
   - list/nested columns,
-  - null-only columns,
+  - NA-only columns,
   - zero-copy views,
   - IPC read/write
 - Explicit documentation of the difference between:
@@ -242,9 +242,9 @@ This file covers a lot of backend behavior already:
 - dictionary/factor support, including ordered-factor round-trips
 - list-column support, including:
   - native materialization
-  - null entries
-  - empty/all-null fallback behavior
-  - sparse null-heavy cases
+  - NA entries
+  - empty/all-NA fallback behavior
+  - sparse NA-heavy cases
   - repeated lifecycle queries
   - GC stress loops
   - T-level `nest`, `unnest`, and `slice` regressions
@@ -304,7 +304,7 @@ The current tests are strong, but there are still some obvious gaps.
      - primitive tables,
      - dictionary/factor tables,
      - list-column tables where supported,
-     - null-only columns,
+     - NA-only columns,
      - datetime/timestamp columns.
    - The remaining useful additions are edge cases such as empty structures and more exotic nested datetime/list shapes.
 
@@ -362,7 +362,7 @@ The current tests are strong, but there are still some obvious gaps.
 ### Recently closed gap
 
 - **Null-only native rebuild/materialization**
-  - `NullColumn` can now be materialized back into a native Arrow table, which means null-only DataFrames can remain on the native Arrow path and participate in Arrow IPC round-trips.
+  - `NullColumn` can now be materialized back into a native Arrow table, which means NA-only DataFrames can remain on the native Arrow path and participate in Arrow IPC round-trips.
 
 - **Datetime/timestamp native rebuild/materialization**
   - `DatetimeColumn` can now be materialized back into a native Arrow table, and top-level Arrow schema extraction/IPC round-trips preserve timestamp timezone metadata.
@@ -394,11 +394,11 @@ If the goal is to make Arrow status clear and reduce confusion, the best next st
    - or document why the current split exists.
 
 2. **Expand Arrow IPC round-trip tests further**
-   - the core round-trip story is now covered for primitives, dictionary/list/null-only, and top-level datetime/timestamp columns.
+   - the core round-trip story is now covered for primitives, dictionary/list/NA-only, and top-level datetime/timestamp columns.
    - the clearest remaining gaps are empties and more exotic nested shapes.
 
 3. **Document the current support matrix**
-   - especially for dictionary, list, date, datetime, and null-only columns.
+   - especially for dictionary, list, date, datetime, and NA-only columns.
 
 4. **Refresh stale docs/spec language**
    - so readers can distinguish:

@@ -67,7 +67,7 @@ let register env =
                     ) in
                     let res = Array.map (fun v ->
                       let rec find_bin i =
-                        if i >= Array.length b_floats - 1 then VNA NAGeneric
+                        if i >= Array.length b_floats - 1 then (VNA NAGeneric)
                         else if (if i = 0 then v >= b_floats.(i) else v > b_floats.(i)) && v <= b_floats.(i+1) then VString labels.(i)
                         else find_bin (i + 1)
                       in

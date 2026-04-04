@@ -8,7 +8,7 @@ A `serializer` is a built-in structure (or a specific record type) that provides
 
 ```t
 type serializer = {
-  writer: function(path: string, value: any) -> result[null, string],
+  writer: function(path: string, value: any) -> result[NA, string],
   reader: function(path: string) -> result[any, string],
   format: string -- e.g., "csv", "arrow", "json"
 }
@@ -29,7 +29,7 @@ and value =
 
 ### Proposed Interface
 The `writer` and `reader` functions are the core of the system.
-- `writer(path, value)`: Takes a filesystem path and the value to be stored. Returns `Ok(null)` on success or `Error(msg)` on failure.
+- `writer(path, value)`: Takes a filesystem path and the value to be stored. Returns `Ok(NA)` on success or `Error(msg)` on failure.
 - `reader(path)`: Takes a filesystem path and returns `Ok(value)` or `Error(msg)`.
 
 ## 2. The `^` Identifier Prefix
@@ -126,7 +126,7 @@ Users should be able to define their own serializers by creating a record that m
 my_custom_serializer = {
   writer: function(path, val) { 
     -- custom logic to write val to path
-    Ok(null)
+    Ok(NA)
   },
   reader: function(path) {
     -- custom logic to read from path
@@ -158,7 +158,7 @@ type serializer = {
   format: string,
   
   -- T implementations (first-class functions)
-  writer: function(path: string, value: any) -> result[null, string],
+  writer: function(path: string, value: any) -> result[NA, string],
   reader: function(path: string) -> result[any, string],
   
   -- R implementation (code snippets - MUST use <{ ... }>)

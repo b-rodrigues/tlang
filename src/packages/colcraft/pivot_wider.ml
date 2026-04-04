@@ -67,13 +67,13 @@ let register env =
           let get_row_key i =
              List.map (fun c ->
                match Arrow_table.get_column df.arrow_table c with
-               | Some (StringColumn a) -> (match a.(i) with Some s -> VString s | None -> VNull)
-               | Some (FloatColumn a) -> (match a.(i) with Some f -> VFloat f | None -> VNull)
-               | Some (IntColumn a) -> (match a.(i) with Some v -> VInt v | None -> VNull)
-               | Some (BoolColumn a) -> (match a.(i) with Some b -> VBool b | None -> VNull)
-               | Some (DateColumn a) -> (match a.(i) with Some d -> VDate d | None -> VNull)
-               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some ts -> VDatetime (ts, tz) | None -> VNull)
-               | _ -> VNull
+               | Some (StringColumn a) -> (match a.(i) with Some s -> VString s | None -> (VNA NAGeneric))
+               | Some (FloatColumn a) -> (match a.(i) with Some f -> VFloat f | None -> (VNA NAGeneric))
+               | Some (IntColumn a) -> (match a.(i) with Some v -> VInt v | None -> (VNA NAGeneric))
+               | Some (BoolColumn a) -> (match a.(i) with Some b -> VBool b | None -> (VNA NAGeneric))
+               | Some (DateColumn a) -> (match a.(i) with Some d -> VDate d | None -> (VNA NAGeneric))
+               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some ts -> VDatetime (ts, tz) | None -> (VNA NAGeneric))
+               | _ -> (VNA NAGeneric)
              ) id_cols
            in
           
@@ -106,7 +106,7 @@ let register env =
           let new_id_columns = List.map (fun col_name ->
             let col_data = match Arrow_table.get_column df.arrow_table col_name with
               | Some d -> d
-              | None -> NullColumn orig_nrows
+              | None -> NAColumn orig_nrows
             in
             let first_idx key = Hashtbl.find first_index_tbl key in
              let rep_col = match col_data with
@@ -116,7 +116,7 @@ let register env =
                | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
                | DateColumn a -> DateColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
                | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))), tz)
-               | NullColumn _ -> NullColumn new_nrows
+               | NAColumn _ -> NAColumn new_nrows
                | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))), levels, ordered)
                | ListColumn a -> ListColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
              in
@@ -144,7 +144,7 @@ let register env =
                    let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
-             | _ -> NullColumn new_nrows
+             | _ -> NAColumn new_nrows
            in
            
            let new_pivot_columns = List.map (fun name_val -> (name_val, build_new_col name_val)) pvt_names in

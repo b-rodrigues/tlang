@@ -225,7 +225,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|"Formula"|};
   test "formula to string"
     "f = y ~ x; print(type(f))"
-    "null";
+    "NA";
   test "multi-variable formula"
     "f = mpg ~ hp + wt; type(f)"
     {|"Formula"|};

@@ -5,7 +5,7 @@ let slice_generic ~desc (named_args : (string option * value) list) _env =
   | (_, VDataFrame df) :: rest ->
       let n_limit = match List.assoc_opt (Some "n") rest with Some (VInt i) -> i | _ -> 1 in
       let order_by_val = match List.assoc_opt (Some "order_by") rest with Some v -> v | None -> 
-        (match List.filter (fun (k, _) -> k = None) rest with [(_, v)] -> v | _ -> VNull) in
+        (match List.filter (fun (k, _) -> k = None) rest with [(_, v)] -> v | _ -> (VNA NAGeneric)) in
       
       (match Utils.extract_column_name order_by_val with
        | None -> Error.type_error "slice_max/min expects `order_by = $column`."

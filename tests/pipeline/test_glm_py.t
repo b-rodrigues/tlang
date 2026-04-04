@@ -35,7 +35,7 @@ p = pipeline {
 }
 
 print("Building GLM (Python) pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 print("Pipeline build successful.")
 
 model = read_node("model_node")

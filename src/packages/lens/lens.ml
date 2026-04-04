@@ -35,11 +35,11 @@ let rec col_lens_get_impl col_name ~eval_call args env =
   | [(_, VDataFrame df)] -> 
       (match Arrow_table.get_column df.arrow_table col_name with
        | Some col -> VVector (Arrow_bridge.column_to_values col)
-       | None -> VNA NAGeneric)
+       | None -> (VNA NAGeneric))
   | [(_, VDict items)] ->
       (match List.assoc_opt col_name items with
        | Some v -> v
-       | None -> VNA NAGeneric)
+       | None -> (VNA NAGeneric))
   | [(_, VVector arr)] ->
       VVector (Array.map (fun v -> col_lens_get_impl col_name ~eval_call [(None, v)] env) arr)
   | [(_, VList items)] ->
@@ -56,7 +56,7 @@ let rec col_lens_set_impl col_name ~eval_call args env =
       let new_col = match val_v with
         | VVector vals when Array.length vals = nrows -> Arrow_bridge.values_to_column vals
         | VVector vals -> 
-            if Array.length vals = 0 then Arrow_table.NullColumn nrows
+            if Array.length vals = 0 then Arrow_table.NAColumn nrows
             else Arrow_bridge.values_to_column (Array.init nrows (fun i -> vals.(i mod Array.length vals)))
         | v -> 
             let vals = Array.make nrows v in
@@ -66,7 +66,7 @@ let rec col_lens_set_impl col_name ~eval_call args env =
         if name = col_name then (name, new_col)
         else match Arrow_table.get_column df.arrow_table name with
              | Some col -> (name, col)
-             | None -> (name, Arrow_table.NullColumn nrows)
+             | None -> (name, Arrow_table.NAColumn nrows)
       ) names in
       let final_cols = 
         if List.mem col_name names then columns
@@ -209,12 +209,12 @@ let row_lens_set_impl i ~eval_call:_ args _env =
         let updated_cols = List.map (fun name ->
           let col = match Arrow_table.get_column df.arrow_table name with
             | Some c -> c
-            | None -> Arrow_table.NullColumn nrows
+            | None -> Arrow_table.NAColumn nrows
           in
           let vals = Arrow_bridge.column_to_values col in
           let new_val = match List.assoc_opt name row_items with
             | Some v -> v
-            | None -> VNA NAGeneric
+            | None -> (VNA NAGeneric)
           in
           if i < Array.length vals then vals.(i) <- new_val;
           (name, Arrow_bridge.values_to_column vals)
@@ -225,7 +225,7 @@ let row_lens_set_impl i ~eval_call:_ args _env =
         let extra_cols = List.filter_map (fun (name, v) ->
           if Hashtbl.mem names_tbl name then None
           else
-            let vals = Array.make nrows (VNA NAGeneric) in
+            let vals = Array.make nrows ((VNA NAGeneric)) in
             vals.(i) <- v;
             Some (name, Arrow_bridge.values_to_column vals)
         ) row_items in
@@ -413,11 +413,11 @@ let filter_lens_set_impl p ~eval_call args env =
                 else
                   let updated_cols = List.map (fun name ->
                     let col = match Arrow_table.get_column df.arrow_table name with
-                      | Some c -> c | None -> Arrow_table.NullColumn nrows
+                      | Some c -> c | None -> Arrow_table.NAColumn nrows
                     in
                     let vals = Arrow_bridge.column_to_values col in
                     let repl_col = match Arrow_table.get_column df_repl.arrow_table name with
-                      | Some c -> c | None -> Arrow_table.NullColumn match_count
+                      | Some c -> c | None -> Arrow_table.NAColumn match_count
                     in
                     let repl_vals = Arrow_bridge.column_to_values repl_col in
                     let repl_idx = ref 0 in
@@ -434,11 +434,11 @@ let filter_lens_set_impl p ~eval_call args env =
                 (* scalar broadcast: apply the same Dict to every matched row *)
                 let updated_cols = List.map (fun name ->
                   let col = match Arrow_table.get_column df.arrow_table name with
-                    | Some c -> c | None -> Arrow_table.NullColumn nrows
+                    | Some c -> c | None -> Arrow_table.NAColumn nrows
                   in
                   let vals = Arrow_bridge.column_to_values col in
                   let new_val = match List.assoc_opt name row_items with
-                    | Some v -> v | None -> VNA NAGeneric
+                    | Some v -> v | None -> (VNA NAGeneric)
                   in
                   for i = 0 to nrows - 1 do
                     if mask.(i) then vals.(i) <- new_val
@@ -677,7 +677,7 @@ let node_lens_impl ~eval_call:_ args _env =
           | [(_, VPipeline p)] ->
               (match List.assoc_opt node_name p.p_nodes with
                | Some v -> v
-               | None -> VNA NAGeneric)
+               | None -> (VNA NAGeneric))
           | _ -> Error.type_error "node_lens get expects a Pipeline")
       } in
       let set_fn = VBuiltin {
@@ -717,8 +717,8 @@ let env_var_lens_impl ~eval_call:_ args _env =
                | Some vars ->
                    (match List.assoc_opt var_name vars with
                     | Some v -> v
-                    | None -> VNA NAGeneric)
-               | None -> VNA NAGeneric)
+                    | None -> (VNA NAGeneric))
+               | None -> (VNA NAGeneric))
           | _ -> Error.type_error "env_var_lens get expects a Pipeline")
       } in
       let set_fn = VBuiltin {

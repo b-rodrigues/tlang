@@ -138,7 +138,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VFloat f -> Some (Printf.sprintf "%.15g" f)
     | Ast.VBool true -> Some "true"
     | Ast.VBool false -> Some "false"
-    | Ast.VNull -> None
+    | Ast.(VNA NAGeneric) -> None
     | _ -> None
   in
   let arg_value_to_strings = function
@@ -261,7 +261,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
             let tokens =
               match value with
               | Ast.VBool true -> [ flag ]
-              | Ast.VBool false | Ast.VNull -> []
+              | Ast.VBool false | Ast.(VNA NAGeneric) -> []
               | Ast.VList items ->
                   items
                   |> List.map snd

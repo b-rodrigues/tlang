@@ -19,6 +19,7 @@ This file is an **LLM-oriented operating manual** for the repository. It is inte
 - **Data-first APIs matter.** Standard-library APIs are designed so the data argument comes first, making them pipe-friendly.
 - **Standard packages are auto-loaded.** You usually `import` user packages or local `.t` files; the built-in packages are already available in every session.
 - **Intent blocks are part of the language design.** T is explicitly designed to support auditable human/LLM collaboration via `intent { ... }` metadata.
+- **Death to Null.** Under no circumstances should `null` be implemented or used. Missingness is handled via `NA` and optionality via `Error` or explicit missing values.
 
 ## Required Workflows
 
@@ -250,9 +251,9 @@ All standard packages are auto-loaded. Each package lives under `src/packages/<p
 
 Purpose: assertions, missing values, error values, serialization, JSON.
 
-- Assertions and missingness: `assert(condition, message = null)`, `is_na(x)`, `na()`, `na_int()`, `na_float()`, `na_bool()`, `na_string()`
+- Assertions and missingness: `assert(condition, message = NA)`, `is_na(x)`, `na()`, `na_int()`, `na_float()`, `na_bool()`, `na_string()`
 - Error values: `error(message)`, `error(code, message)`, `error_code(err)`, `error_message(err)`, `error_context(err)`
-- Serialization: `serialize(value, path = null)`, `deserialize(path_or_bytes)`, `t_write_json(value, path)`, `t_read_json(path)`
+- Serialization: `serialize(value, path = na())`, `deserialize(path_or_bytes)`, `t_write_json(value, path)`, `t_read_json(path)`
 
 ### `core`
 
@@ -265,21 +266,21 @@ Purpose: printing, introspection, collections, metaprogramming, filesystem/path 
 - Converters: `to_integer(x)`, `to_float(x)`, `to_numeric(x)`
 - Execution and shell/file helpers: `run(command, ...)`, `exit(code = 0)`, `getwd()`, `file_exists(path)`, `dir_exists(path)`, `read_file(path)`, `list_files(path = ".")`, `env(name)`
 - Path helpers: `path_join(...)`, `path_basename(path)`, `path_dirname(path)`, `path_ext(path)`, `path_stem(path)`, `path_abs(path)`
-- Tooling wrappers discussed in the docs/reference: `t_run(path)`, `t_test(path = null)`, `t_doc(...)`
+- Tooling wrappers discussed in the docs/reference: `t_run(path)`, `t_test(path = na())`, `t_doc(...)`
 
 ### `dataframe`
 
 Purpose: DataFrame construction, I/O, shape/column introspection, Arrow interop.
 
 - Constructors and I/O: `dataframe(...)`, `read_csv(path, separator = ",", skip_header = false, skip_lines = 0, clean_colnames = false)`, `read_parquet(path)`, `read_arrow(path)`, `write_csv(df, path)`, `write_arrow(df, path)`
-- Introspection and extraction: `colnames(df)`, `nrow(df)`, `ncol(df)`, `glimpse(df)`, `pull(df, col)`, `to_array(df, cols = null)`
+- Introspection and extraction: `colnames(df)`, `nrow(df)`, `ncol(df)`, `glimpse(df)`, `pull(df, col)`, `to_array(df, cols = na())`
 - Column name cleaning: `clean_colnames(df)` and the documented normalization helper `clean_names(df)`
 
 ### `colcraft`
 
 Purpose: dplyr/tidyr-style tabular verbs, joins, missing-value helpers, factors, and window functions. In these verbs, LLMs should prefer NSE column references such as `$col`.
 
-- Core verbs: `select(df, ...)`, `filter(df, predicate_or_nse)`, `mutate(df, ...)`, `arrange(df, ..., direction = "asc")`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ..., .before = null, .after = null)`, `distinct(df, ..., .keep_all = false)`, `count(df, ..., name = "n")`
+- Core verbs: `select(df, ...)`, `filter(df, predicate_or_nse)`, `mutate(df, ...)`, `arrange(df, ..., direction = "asc")`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ..., .before = na(), .after = na())`, `distinct(df, ..., .keep_all = false)`, `count(df, ..., name = "n")`
 - Aggregation helpers: `n()`, `n_distinct(x)`
 - Row helpers: `slice(df, indices)`, `slice_min(df, order_by, n = 1)`, `slice_max(df, order_by, n = 1)`
 - Window/ranking helpers: `row_number(x)`, `min_rank(x)`, `dense_rank(x)`, `percent_rank(x)`, `cume_dist(x)`, `ntile(x, n)`, `lag(x, n = 1)`, `lead(x, n = 1)`, `cumsum(x)`, `cummin(x)`, `cummax(x)`, `cummean(x, na_rm = false)`, `cumall(x)`, `cumany(x)`
@@ -298,8 +299,8 @@ Purpose: parsing, constructing, formatting, extracting, and reasoning about date
 - Extractors: `year(x)`, `month(x, label = false)`, `day(x)`, `mday(x)`, `yday(x)`, `wday(x, label = false)`, `week(x)`, `isoweek(x)`, `isoyear(x)`, `quarter(x)`, `semester(x)`, `hour(x)`, `minute(x)`, `second(x)`, `tz(x)`, `am(x)`, `pm(x)`
 - Period and duration constructors: `years(n)`, `months(n)`, `weeks(n)`, `days(n)`, `hours(n)`, `minutes(n)`, `seconds(n)`, `milliseconds(n)`, `microseconds(n)`, `nanoseconds(n)`
 - Period accessors: `period_years(p)`, `period_months(p)`, `period_days(p)`, `period_hours(p)`, `period_minutes(p)`, `period_seconds(p)`
-- Coercion and formatting: `as_date(x)`, `as_datetime(x)`, `format_date(x, format = null)`, `format_datetime(x, format = null)`
-- Predicates and interval logic: `is_date(x)`, `is_datetime(x)`, `is_period(x)`, `is_duration(x)`, `is_interval(x)`, `interval(start, end)`, `%within%(x, interval)`, `is_leap_year(x)`, `days_in_month(year_or_date, month = null)`
+- Coercion and formatting: `as_date(x)`, `as_datetime(x)`, `format_date(x, format = na())`, `format_datetime(x, format = na())`
+- Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
 - Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
 
 Current implementation note: timezone relabeling should be treated as a **current implementation limitation**; `with_tz()` and `force_tz()` are presently label-oriented rather than full offset-conversion logic.
@@ -328,10 +329,10 @@ Purpose: descriptive statistics, scaling/normalization, linear models, diagnosti
 
 Purpose: node construction, pipeline execution, graph inspection, graph rewriting, validation, artifact access, and composition.
 
-- Node constructors: `node(command = ..., script = null, runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `shn(command = ..., script = null, serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
-- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name, which_log = null)`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`
+- Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
+- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
-- Node-level transforms: `filter_node(p, predicate)`, `mutate_node(p, ..., where = null)`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`, `arrange_node(p, field, direction = "asc")`
+- Node-level transforms: `filter_node(p, predicate)`, `mutate_node(p, ..., where = na())`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`, `arrange_node(p, field, direction = "asc")`
 - Set and DAG operations: `union(p1, p2)`, `difference(p1, p2)`, `intersect(p1, p2)`, `patch(p1, p2)`, `swap(p, name, new_node)`, `rewire(p, name, replace = [])`, `prune(p)`, `upstream_of(p, name)`, `downstream_of(p, name)`, `subgraph(p, name)`, `chain(p1, p2)`, `parallel(p1, p2)`
 
 Important LLM rule: when the goal is reproducible execution, prefer generating or editing pipeline nodes rather than a monolithic script.

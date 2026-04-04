@@ -254,14 +254,14 @@ let register env =
                            end
                       end;
                     DictionaryColumn (b, levels, ordered)
-                | NullColumn n -> NullColumn n
+                | NAColumn n -> NAColumn n
                 | ListColumn a -> ListColumn a
               in
               (col_name, new_arr)
             in
 
             let new_columns = List.map (fun col_name ->
-              let col_data = match Arrow_table.get_column df.arrow_table col_name with Some d -> d | None -> NullColumn orig_nrows in
+              let col_data = match Arrow_table.get_column df.arrow_table col_name with Some d -> d | None -> NAColumn orig_nrows in
               if List.mem col_name cols_to_fill then
                 fill_col col_name col_data
               else

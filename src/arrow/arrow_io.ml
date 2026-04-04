@@ -65,7 +65,7 @@ let is_na_string (s : string) : bool =
 (** Column type inference — determines the best Arrow type for a column *)
 let infer_column_type (values : string list) : Arrow_table.arrow_type =
   let non_na = List.filter (fun s -> not (is_na_string s)) values in
-  if non_na = [] then Arrow_table.ArrowNull
+  if non_na = [] then Arrow_table.ArrowNA
   else
     let all_int = List.for_all (fun s ->
       match int_of_string_opt (String.trim s) with Some _ -> true | None -> false
@@ -138,8 +138,8 @@ let build_column (values : string array) (col_type : Arrow_table.arrow_type) : A
         if is_na_string s then None
         else parse_datetime_value s tz
       ) values, tz)
-  | Arrow_table.ArrowNull ->
-      Arrow_table.NullColumn (Array.length values)
+  | Arrow_table.ArrowNA ->
+      Arrow_table.NAColumn (Array.length values)
   | Arrow_table.ArrowDictionary | Arrow_table.ArrowList _ | Arrow_table.ArrowStruct _ ->
       (* FFI loading of complex types not fully mapped in IO yet *)
       Arrow_table.StringColumn (Array.map (fun s -> if is_na_string s then None else Some s) values)
@@ -321,7 +321,6 @@ let value_to_csv_field ~sep = function
   | Ast.VBool b -> if b then "true" else "false"
   | Ast.VString s -> csv_quote_string ~sep s
   | Ast.VNA _ -> "NA"
-  | Ast.VNull -> ""
   | Ast.VFactor (idx, levels, _) ->
       (match List.nth_opt levels idx with
        | Some s -> csv_quote_string ~sep s

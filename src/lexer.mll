@@ -48,7 +48,6 @@ rule token = parse
   | "intent"    { INTENT }
   | "true"      { TRUE }
   | "false"     { FALSE }
-  | "null"      { NULL }
   | "NA"        { NA }
   | "in"        { IN }
 

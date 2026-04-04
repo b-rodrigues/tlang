@@ -35,7 +35,7 @@ external arrow_table_num_columns : nativeint -> int
 
 (** Returns list of (column_name, type_tag, timezone) triples.
     type_tag: 0=ArrowInt64, 1=ArrowFloat64, 2=ArrowBoolean, 3=ArrowString,
-              4=ArrowDictionary, 5=ArrowList, 6=ArrowNull, 7=ArrowDate,
+              4=ArrowDictionary, 5=ArrowList, 6=ArrowNA, 7=ArrowDate,
               8=ArrowTimestamp. timezone is only populated for timestamps. *)
 external arrow_table_get_schema : nativeint -> (string * int * string option) list
   = "caml_arrow_table_get_schema"
@@ -322,7 +322,7 @@ external arrow_column_null_mask : nativeint -> string -> bool array option
 (* ===================================================================== *)
 
 (** Return sorted 0-based row indices for a named numeric column.
-    Null values are placed last. ascending=true for ascending sort. *)
+    NA values are placed last. ascending=true for ascending sort. *)
 external arrow_compute_sort_indices : nativeint -> string -> bool -> int array option
   = "caml_arrow_compute_sort_indices"
 

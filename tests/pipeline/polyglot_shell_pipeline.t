@@ -42,4 +42,4 @@ cat "$T_NODE_summary_py/artifact"
     )
 }
 
-build_pipeline(p)
+build_pipeline(p, verbose=1)

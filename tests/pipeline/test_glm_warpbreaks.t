@@ -58,7 +58,7 @@ py_poisson = sm.GLM(y, X, family=sm.families.Poisson()).fit()
 }
 
 print("Building Warpbreaks Pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 
 if (is_error(res)) {
     print("Pipeline build failed.")

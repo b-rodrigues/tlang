@@ -332,7 +332,7 @@ let register env =
             Printf.printf "  %-20s  runtime=%-8s  depth=%d  noop=%-5b  deps=[%s]\n"
               name runtime depth noop (String.concat ", " deps)
           ) node_names;
-          VNull
+          (VNA NAGeneric)
       | [_] -> Error.type_error "Function `pipeline_print` expects a Pipeline."
       | _ -> Error.arity_error_named "pipeline_print" 1 (List.length args)
     ))

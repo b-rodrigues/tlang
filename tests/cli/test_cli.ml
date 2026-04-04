@@ -189,13 +189,13 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 7 — Pretty-print builtin:\n";
   test "pretty_print int"
     "pretty_print(42)"
-    "null";
+    "NA";
   test "pretty_print list"
     "pretty_print([1, 2, 3])"
-    "null";
+    "NA";
   test "pretty_print error"
     "pretty_print(1 / 0)"
-    "null";
+    "NA";
   print_newline ();
 
   Printf.printf "Phase 7 — Multi-line: Parser newline tolerance:\n";
@@ -231,6 +231,6 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "explain: explain available" "type(explain)" {|"BuiltinFunction"|};
   test "packages: packages available" "type(packages)" {|"BuiltinFunction"|};
   test "packages: package_info available" "type(package_info)" {|"BuiltinFunction"|};
-  test "help: help returns null (proving it ran successfully)" "help('mean')" "null";
-  test "help: apropos returns null" "apropos('mean')" "null";
+  test "help: help returns NA (proving it ran successfully)" "help('mean')" "NA";
+  test "help: apropos returns NA" "apropos('mean')" "NA";
   print_newline ()

@@ -94,7 +94,7 @@ type ffi_column_spec =
 *   **C FFI** (`arrow_stubs.c`):
     *   Schema extraction detects `GArrowDictionaryDataType` → tag 4 (`ArrowDictionary`).
     *   `caml_arrow_table_new` case 4 builds `GArrowDictionaryArray` from OCaml `(int option array * string list * bool)`.
-    *   `caml_arrow_read_dictionary_column` extracts indices, levels, and ordered flag from a native dictionary column. Non-string dictionary values are explicitly rejected (returns empty result). All integer index widths including `UINT64` are supported, with unsupported types treated as null.
+    *   `caml_arrow_read_dictionary_column` extracts indices, levels, and ordered flag from a native dictionary column. Non-string dictionary values are explicitly rejected (returns empty result). All integer index widths including `UINT64` are supported, with unsupported types treated as NA.
 *   **OCaml** (`arrow_table.ml`, `arrow_ffi.ml`):
     *   `arrow_type_of_tag 4` → `ArrowDictionary`.
     *   `is_arrow_table_new_supported` returns `true` for `DictionaryColumn`.
@@ -112,7 +112,7 @@ type ffi_column_spec =
     *   Builder (case 5) in `caml_arrow_table_new` builds `GArrowListArray` from:
         - Flattened struct child arrays (built per-field using same builder logic as cases 0–3)
         - Int32 offsets buffer marking sub-table boundaries
-        - Null bitmap for tracking which list entries are null (None)
+        - Null bitmap for tracking which list entries are NA (None)
 *   **OCaml** (`arrow_table.ml`, `arrow_ffi.ml`):
     *   `arrow_type_of_tag 5` → `ArrowList ArrowNull`.
     *   `is_arrow_table_new_supported` returns `true` for `ListColumn` when all sub-tables have same schema of primitive-only fields.
@@ -120,4 +120,4 @@ type ffi_column_spec =
     *   `materialize` packs `ListColumn` data as `(offsets, present, sub_cols)` tuple for FFI case 5.
     *   `read_native_list_column_from_ptr` reconstructs `ListColumn` from native Arrow by composing `arrow_read_list_column`, `arrow_read_struct_fields`, and per-field column readers, then slicing flattened data into sub-tables.
     *   `get_column` calls `read_native_list_column_from_ptr` for native-backed list columns.
-*   **Tests**: ListColumn creation, schema type, pure OCaml read-back, materialization to native, native round-trip (including sub-table data verification), null entry handling, empty list column support, T-language nest/unnest round-trip.
+*   **Tests**: ListColumn creation, schema type, pure OCaml read-back, materialization to native, native round-trip (including sub-table data verification), NA entry handling, empty list column support, T-language nest/unnest round-trip.

@@ -109,13 +109,13 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
    | None ->
      incr fail_count; Printf.printf "  ✗ get_column failed\n");
 
-  (* Test 3: get_value_at out-of-bounds returns VNull *)
+  (* Test 3: get_value_at out-of-bounds returns VNA NAGeneric *)
   (match Arrow_column.get_column tbl_10k "value" with
    | Some col_view ->
      let v = Arrow_column.get_value_at col_view 99999 in
      (match v with
-      | Ast.VNull ->
-        incr pass_count; Printf.printf "  ✓ get_value_at out-of-bounds returns VNull\n"
+      | Ast.(VNA Ast.NAGeneric) ->
+        incr pass_count; Printf.printf "  ✓ get_value_at out-of-bounds returns VNA NAGeneric\n"
       | _ ->
         incr fail_count; Printf.printf "  ✗ get_value_at out-of-bounds returned: %s\n"
           (Ast.Utils.value_to_string v))

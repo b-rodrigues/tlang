@@ -34,8 +34,8 @@ p = pipeline {
 print("Pipeline object:")
 print(p)
 
-print("Running build_pipeline(p)...")
-p_store_path = build_pipeline(p)
+print("Running build_pipeline(p, verbose=1)...")
+p_store_path = build_pipeline(p, verbose=1)
 print(str_join(["Pipeline built at: ", p_store_path], sep=""))
 
 print("Verifying individual nodes via read_node:")

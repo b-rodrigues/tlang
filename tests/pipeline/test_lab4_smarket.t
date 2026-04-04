@@ -50,7 +50,7 @@ py_model = sm.GLM(y, X, family=sm.families.Binomial()).fit()
 }
 
 print("Building Lab 4 (Smarket Logistic Regression) pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 
 if (is_error(res)) {
     print("Pipeline build failed:")

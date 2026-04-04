@@ -58,7 +58,7 @@ p = pipeline {
 }
 
 print("Populating and building multi-deserializer pipeline...")
-res = build_pipeline(p)
+res = build_pipeline(p, verbose=1)
 
 if (is_error(res)) {
     print("FATAL: Pipeline build failed!")

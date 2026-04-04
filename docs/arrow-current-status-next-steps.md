@@ -90,7 +90,7 @@ Taken together, these files provide:
 - Arrow IPC read/write,
 - native list-column and dictionary-column support,
 - date support,
-- null-only native materialization support,
+- NA-only native materialization support,
 - zero-copy numeric column views via Bigarray,
 - conversion between Arrow storage and T runtime values,
 - bridge utilities for statistical work via `Arrow_owl_bridge`.
@@ -136,7 +136,7 @@ Based on the code currently in the repository, the following are present:
 - dictionary/factor columns
 - list columns with nested DataFrame reconstruction
 - date columns
-- null-only columns
+- NA-only columns
 - zero-copy views for native numeric columns
 - Arrow-to-Owl bridge for numeric/statistical workflows
 - serialization hardening for native-backed DataFrames crossing process boundaries
@@ -179,7 +179,7 @@ The code also shows some areas that are either incomplete or intentionally const
   - date/datetime,
   - dictionary/factor,
   - list/nested columns,
-  - null-only columns,
+  - NA-only columns,
   - zero-copy views,
   - IPC read/write
 - Explicit documentation of the difference between:
@@ -242,9 +242,9 @@ This file covers a lot of backend behavior already:
 - dictionary/factor support, including ordered-factor round-trips
 - list-column support, including:
   - native materialization
-  - null entries
-  - empty/all-null fallback behavior
-  - sparse null-heavy cases
+  - NA entries
+  - empty/all-NA fallback behavior
+  - sparse NA-heavy cases
   - repeated lifecycle queries
   - GC stress loops
   - T-level `nest`, `unnest`, and `slice` regressions
@@ -304,7 +304,7 @@ The current tests are strong, but there are still some obvious gaps.
      - primitive tables,
      - dictionary/factor tables,
      - list-column tables where supported,
-     - null-only columns.
+     - NA-only columns.
    - The remaining useful additions are edge cases such as empty structures and future datetime/timestamp coverage.
 
 2. **Public `read_csv()` path tests that distinguish implementation path**
@@ -335,7 +335,7 @@ The current tests are strong, but there are still some obvious gaps.
 7. **Multi-chunk Arrow array tests**
    - The FFI explicitly combines chunked arrays, but there is no obvious dedicated regression test for multi-chunk column recombination.
 
-8. **Null-only and empty-structure IPC tests**
+8. **NA-only and empty-structure IPC tests**
    - Current tests cover some fallback behavior, but dedicated IPC round-trip checks would be valuable.
 
 9. **Tests that assert docs-visible behavior**
@@ -360,8 +360,8 @@ The current tests are strong, but there are still some obvious gaps.
 
 ### Recently closed gap
 
-- **Null-only native rebuild/materialization**
-  - `NullColumn` can now be materialized back into a native Arrow table, which means null-only DataFrames can remain on the native Arrow path and participate in Arrow IPC round-trips.
+- **NA-only native rebuild/materialization**
+  - `NAColumn` can now be materialized back into a native Arrow table, which means NA-only DataFrames can remain on the native Arrow path and participate in Arrow IPC round-trips.
 
 ### Update
 
@@ -393,7 +393,7 @@ If the goal is to make Arrow status clear and reduce confusion, the best next st
    - this is the clearest missing test area.
 
 3. **Document the current support matrix**
-   - especially for dictionary, list, date, datetime, and null-only columns.
+   - especially for dictionary, list, date, datetime, and NA-only columns.
 
 4. **Refresh stale docs/spec language**
    - so readers can distinguish:

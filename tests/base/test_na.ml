@@ -9,7 +9,6 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "is_na on NA" "is_na(NA)" "true";
   test "is_na on typed NA" "is_na(na_int())" "true";
   test "is_na on value" "is_na(42)" "false";
-  test "is_na on null" "is_na(null)" "false";
   test "type of NA" "type(NA)" {|"NA"|};
   test "NA is falsy" "if (NA) 1 else 2" {|Error(TypeError: "Cannot use NA as a condition")|};
   test "NA equality is error" "NA == NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};

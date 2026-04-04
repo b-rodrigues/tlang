@@ -137,7 +137,7 @@ OCaml linked via `.so`, use `ctypes` or direct stub.
 ## ✅ Next steps & refinements
 
 * Handle chunked arrays across multiple chunks
-* Deal with nulls and type-specific key comparison
+* Deal with NAs and type-specific key comparison
 * SWITCH to Arrow C++ `TableGroupBy` for aggregation when summarizing
 * Implement additional verbs (`summarize`, `mean`, `sum`, `join`) backed by C++ kernel wrappers
 * Wrap errors into OCaml exceptions and return Arrow schemas/metadata from grouped tables

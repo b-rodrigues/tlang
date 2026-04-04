@@ -39,8 +39,8 @@ let register_integer env =
         | VString s ->
             (match parse_numeric_string s with
              | Some f -> VInt (int_of_float f)
-             | None -> VNA NAGeneric)
-        | VNA _ -> VNA NAGeneric
+             | None -> (VNA NAGeneric))
+        | VNA _ -> (VNA NAGeneric)
         | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to integer" (Utils.type_name v))
       in
       match args with
@@ -91,8 +91,8 @@ let register_float env =
         | VString s ->
             (match parse_numeric_string s with
              | Some f -> VFloat f
-             | None -> VNA NAGeneric)
-        | VNA _ -> VNA NAGeneric
+             | None -> (VNA NAGeneric))
+        | VNA _ -> (VNA NAGeneric)
         | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to float" (Utils.type_name v))
       in
       match args with
@@ -138,8 +138,8 @@ let register_numeric env =
         | VString s ->
             (match parse_numeric_string s with
              | Some f -> VFloat f
-             | None -> VNA NAGeneric)
-        | VNA _ -> VNA NAGeneric
+             | None -> (VNA NAGeneric))
+        | VNA _ -> (VNA NAGeneric)
         | _ -> Error.type_error (Printf.sprintf "Cannot coerce %s to numeric" (Utils.type_name v))
       in
       match args with

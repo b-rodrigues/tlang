@@ -51,7 +51,7 @@ T's numerical stack consists of three specialized layers, each optimized for dif
 - Basic reductions: `sum`, `mean`, `count`, `min`, `max`
 
 **Why Arrow:** 
-- Designed for heterogeneous data (strings, mixed types, nulls)
+- Designed for heterogeneous data (strings, mixed types, NAs)
 - Efficient columnar layout for analytical queries
 - Industry-standard format (interop with Python, R, Spark)
 - Built-in compute kernels for common operations
@@ -275,7 +275,7 @@ let numeric_column_view (table : Arrow_table.t) (col_name : string) : owl_view o
 
 Copy data when:
 1. **Type conversion required** (Int32 → Float64)
-2. **Layout incompatible** (Arrow nullable column → Owl dense array)
+2. **Layout incompatible** (Arrow NAable column → Owl dense array)
 3. **Missing values present** (must be handled explicitly)
 
 ```ocaml
@@ -606,7 +606,7 @@ let eval_summarize grouped_df agg_exprs =
 | Float64 | `float Bigarray.t` | ✅ Yes | Direct memory view |
 | Int64 | `float Bigarray.t` | ❌ No | Must convert int→float |
 | Int32 | `float Bigarray.t` | ❌ No | Must convert + widen |
-| Float64 (with nulls) | - | ❌ No | Must handle NAs explicitly |
+| Float64 (with NAs) | - | ❌ No | Must handle NAs explicitly |
 
 ### Owl → Arrow (Return Values)
 
@@ -623,15 +623,15 @@ Most Owl operations return small results (scalars, small matrices):
 
 ### NA Handling at Boundaries
 
-**Rule:** Arrow supports nulls natively. Owl does not.
+**Rule:** Arrow supports NAs natively. Owl does not.
 
 ```ocaml
 (* When extracting column for Owl *)
 let extract_numeric_column df col =
   let arrow_col = Arrow_table.get_column df col in
   
-  (* Check for nulls *)
-  if Arrow_column.has_nulls arrow_col then
+  (* Check for NAs *)
+  if Arrow_column.has_NAs arrow_col then
     Error (make_error TypeError 
       "Cannot convert column with NAs to Owl. Use filter() or fill_na() first.")
   else

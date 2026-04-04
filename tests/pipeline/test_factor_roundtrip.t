@@ -98,7 +98,7 @@ p = pipeline {
 }
 
 print("Building Factor Roundtrip Pipeline...")
-build_res = build_pipeline(p)
+build_res = build_pipeline(p, verbose=1)
 if (is_error(build_res)) {
     print("FATAL: Pipeline build failed:")
     print(build_res)

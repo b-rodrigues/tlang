@@ -35,7 +35,7 @@ let register env =
            let n = Array.length arr in
            if n = 0 then VVector [||]
            else
-             let result = Array.make n (VNA NAGeneric) in
+             let result = Array.make n ((VNA NAGeneric)) in
              for i = 1 to n - 1 do
                result.(i) <- arr.(i - 1)
              done;
@@ -47,7 +47,7 @@ let register env =
            let n = Array.length arr in
            if n = 0 then VVector [||]
            else
-             let result = Array.make n (VNA NAGeneric) in
+             let result = Array.make n ((VNA NAGeneric)) in
              for i = offset to n - 1 do
                result.(i) <- arr.(i - offset)
              done;
@@ -85,7 +85,7 @@ let register env =
            let n = Array.length arr in
            if n = 0 then VVector [||]
            else
-             let result = Array.make n (VNA NAGeneric) in
+             let result = Array.make n ((VNA NAGeneric)) in
              for i = 0 to n - 2 do
                result.(i) <- arr.(i + 1)
              done;
@@ -97,7 +97,7 @@ let register env =
            let n = Array.length arr in
            if n = 0 then VVector [||]
            else
-             let result = Array.make n (VNA NAGeneric) in
+             let result = Array.make n ((VNA NAGeneric)) in
              for i = 0 to n - 1 - offset do
                result.(i) <- arr.(i + offset)
              done;

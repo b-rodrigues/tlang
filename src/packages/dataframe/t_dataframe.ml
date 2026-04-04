@@ -46,8 +46,8 @@ let register env =
                         | VDict row_pairs ->
                             (match List.assoc_opt col_name row_pairs with
                              | Some v -> v
-                             | None -> VNA NAGeneric) (* Missing key = NA *)
-                        | _ -> VNA NAGeneric (* Invalid row structure handling *)
+                             | None -> (VNA NAGeneric)) (* Missing key = NA *)
+                        | _ -> (VNA NAGeneric) (* Invalid row structure handling *)
                       ) in
                       (col_name, col_values)
                     ) headers in
@@ -70,8 +70,8 @@ let register env =
                             (* For VList, find the item with the matching name *)
                             (match List.find_opt (fun (n, _) -> n = Some col_name) row_pairs with
                              | Some (_, v) -> v
-                             | None -> VNA NAGeneric)
-                        | _ -> VNA NAGeneric (* Invalid row structure handling *)
+                             | None -> (VNA NAGeneric))
+                        | _ -> (VNA NAGeneric) (* Invalid row structure handling *)
                       ) in
                       (col_name, col_values)
                     ) headers in
@@ -109,23 +109,23 @@ let register env =
                  | Some col ->
                      match col with
                      | Arrow_table.FloatColumn data ->
-                         VVector (Array.map (function Some f -> VFloat f | None -> VNA NAGeneric) data)
+                         VVector (Array.map (function Some f -> VFloat f | None -> (VNA NAGeneric)) data)
                      | Arrow_table.IntColumn data ->
-                         VVector (Array.map (function Some i -> VInt i | None -> VNA NAGeneric) data)
+                         VVector (Array.map (function Some i -> VInt i | None -> (VNA NAGeneric)) data)
                      | Arrow_table.StringColumn data ->
-                         VVector (Array.map (function Some s -> VString s | None -> VNA NAGeneric) data)
+                         VVector (Array.map (function Some s -> VString s | None -> (VNA NAGeneric)) data)
                       | Arrow_table.BoolColumn data ->
-                          VVector (Array.map (function Some b -> VBool b | None -> VNA NAGeneric) data)
+                          VVector (Array.map (function Some b -> VBool b | None -> (VNA NAGeneric)) data)
                       | Arrow_table.DateColumn data ->
                           VVector (Array.map (function Some d -> VDate d | None -> VNA NADate) data)
                       | Arrow_table.DatetimeColumn (data, tz) ->
                           VVector (Array.map (function Some ts -> VDatetime (ts, tz) | None -> VNA NADate) data)
-                      | Arrow_table.NullColumn n ->
-                          VVector (Array.make n (VNA NAGeneric))
+                      | Arrow_table.NAColumn n ->
+                          VVector (Array.make n ((VNA NAGeneric)))
                      | Arrow_table.DictionaryColumn (data, levels, ordered) ->
-                         VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> VNA NAGeneric) data)
+                         VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric)) data)
                      | Arrow_table.ListColumn data ->
-                         VVector (Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> VNA NAGeneric) data))
+                         VVector (Array.map (function Some t -> VDataFrame { arrow_table = t; group_keys = [] } | None -> (VNA NAGeneric)) data))
              | None -> Error.type_error "pull: second argument must be a column name ($col or \"col\").")
         | _ -> Error.type_error "pull expects (DataFrame, column_name)."
       )) env in

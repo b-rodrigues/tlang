@@ -15,7 +15,7 @@ let distinct_impl (named_args : (string option * value) list) _env =
       let key_col_values = List.map (fun k ->
         match Arrow_table.get_column df.arrow_table k with
         | Some col -> Arrow_bridge.column_to_values col
-        | None -> Array.make nrows VNull
+        | None -> Array.make nrows (VNA NAGeneric)
       ) keys in
       
       let seen = Hashtbl.create nrows in

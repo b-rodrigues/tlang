@@ -54,11 +54,11 @@ let rec help_impl args _env =
 
           print_endline output;
           flush stdout;
-          VNull
+          (VNA NAGeneric)
       | None ->
           Printf.printf "No documentation found for '%s'.\n" name;
           flush stdout;
-          VNull)
+          (VNA NAGeneric))
   | [VSymbol name] ->
       (* Support help(mean) as well as help("mean") *)
       help_impl [VString name] _env
@@ -68,7 +68,7 @@ let rec help_impl args _env =
       | None ->
           Printf.printf "This builtin function is unnamed and has no documentation.\n";
           flush stdout;
-          VNull)
+          (VNA NAGeneric))
   | [VLambda _ as lam] ->
       let found_name =
         Ast.Env.fold (fun k k_val acc ->
@@ -80,7 +80,7 @@ let rec help_impl args _env =
       | None ->
           Printf.printf "No documentation found for this anonymous function.\n";
           flush stdout;
-          VNull)
+          (VNA NAGeneric))
   | [v] ->
       Error.type_error (Printf.sprintf "help expects a function name or value, got %s" (Utils.type_name v))
   | _ ->
@@ -136,7 +136,7 @@ let apropos_impl args _env =
         ) matches;
         flush stdout
       end;
-      VNull
+      (VNA NAGeneric)
   | _ ->
       Error.type_error "apropos expects a query string."
 

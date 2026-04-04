@@ -36,7 +36,7 @@ The following syntax is frozen for the alpha release and will not change:
 true / false    -- Bool
 "hello"         -- String
 NA              -- Missing value
-null            -- Null
+NA            -- Null
 ```
 
 ### Operators
