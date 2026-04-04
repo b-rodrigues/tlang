@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.51.3] - 2026-04-04
+## [0.51.3] - 2026-04-xx (Upcoming)
 
 - **Standardized Nixpkgs Pinning**: Decoupled the Nixpkgs date from the system date during project initialization to ensure reproducible and cached environments.
     - Added `RSTATS-NIX-DATE` as the single source of truth for the project-wide Nixpkgs snapshot date.
