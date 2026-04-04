@@ -24,7 +24,7 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
                let final_nrows = Array.fold_left (fun acc t -> acc + List.length t) 0 tokens in
                
                let expansion_indices = Array.make final_nrows 0 in
-               let sep_values = Array.make final_nrows VNull in
+               let sep_values = Array.make final_nrows (VNA NAGeneric) in
                let curr = ref 0 in
                Array.iteri (fun i t_list ->
                  List.iter (fun t ->

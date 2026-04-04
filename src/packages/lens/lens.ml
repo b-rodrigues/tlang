@@ -35,11 +35,11 @@ let rec col_lens_get_impl col_name ~eval_call args env =
   | [(_, VDataFrame df)] -> 
       (match Arrow_table.get_column df.arrow_table col_name with
        | Some col -> VVector (Arrow_bridge.column_to_values col)
-       | None -> VNA NAGeneric)
+       | None -> (VNA NAGeneric))
   | [(_, VDict items)] ->
       (match List.assoc_opt col_name items with
        | Some v -> v
-       | None -> VNA NAGeneric)
+       | None -> (VNA NAGeneric))
   | [(_, VVector arr)] ->
       VVector (Array.map (fun v -> col_lens_get_impl col_name ~eval_call [(None, v)] env) arr)
   | [(_, VList items)] ->
@@ -214,7 +214,7 @@ let row_lens_set_impl i ~eval_call:_ args _env =
           let vals = Arrow_bridge.column_to_values col in
           let new_val = match List.assoc_opt name row_items with
             | Some v -> v
-            | None -> VNA NAGeneric
+            | None -> (VNA NAGeneric)
           in
           if i < Array.length vals then vals.(i) <- new_val;
           (name, Arrow_bridge.values_to_column vals)
@@ -225,7 +225,7 @@ let row_lens_set_impl i ~eval_call:_ args _env =
         let extra_cols = List.filter_map (fun (name, v) ->
           if Hashtbl.mem names_tbl name then None
           else
-            let vals = Array.make nrows (VNA NAGeneric) in
+            let vals = Array.make nrows ((VNA NAGeneric)) in
             vals.(i) <- v;
             Some (name, Arrow_bridge.values_to_column vals)
         ) row_items in
@@ -438,7 +438,7 @@ let filter_lens_set_impl p ~eval_call args env =
                   in
                   let vals = Arrow_bridge.column_to_values col in
                   let new_val = match List.assoc_opt name row_items with
-                    | Some v -> v | None -> VNA NAGeneric
+                    | Some v -> v | None -> (VNA NAGeneric)
                   in
                   for i = 0 to nrows - 1 do
                     if mask.(i) then vals.(i) <- new_val
@@ -677,7 +677,7 @@ let node_lens_impl ~eval_call:_ args _env =
           | [(_, VPipeline p)] ->
               (match List.assoc_opt node_name p.p_nodes with
                | Some v -> v
-               | None -> VNA NAGeneric)
+               | None -> (VNA NAGeneric))
           | _ -> Error.type_error "node_lens get expects a Pipeline")
       } in
       let set_fn = VBuiltin {
@@ -717,8 +717,8 @@ let env_var_lens_impl ~eval_call:_ args _env =
                | Some vars ->
                    (match List.assoc_opt var_name vars with
                     | Some v -> v
-                    | None -> VNA NAGeneric)
-               | None -> VNA NAGeneric)
+                    | None -> (VNA NAGeneric))
+               | None -> (VNA NAGeneric))
           | _ -> Error.type_error "env_var_lens get expects a Pipeline")
       } in
       let set_fn = VBuiltin {

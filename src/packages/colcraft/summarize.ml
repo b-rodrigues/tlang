@@ -228,8 +228,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                       match indices with
                       | first :: _ ->
                         let (_, key_vals) = List.find (fun (kn, _) -> kn = k) key_col_values in
-                        if first < Array.length key_vals then key_vals.(first) else VNull
-                      | [] -> VNull
+                        if first < Array.length key_vals then key_vals.(first) else (VNA NAGeneric)
+                      | [] -> (VNA NAGeneric)
                     ) in
                     (k, col)
                   ) df.group_keys in
@@ -257,7 +257,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                   in
                   let had_error = ref None in
                   let summary_result_cols = List.map (fun (name, fn) ->
-                    if !had_error <> None then (name, Array.make n_groups VNull)
+                    if !had_error <> None then (name, Array.make n_groups (VNA NAGeneric))
                     else
                       match detect_vectorizable_agg fn with
                       | Some (agg_name, col_name, na_rm) ->
@@ -304,7 +304,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                         else
                           (* Column has NAs — fall back to per-group for correct error *)
                           let col = Array.init n_groups (fun g_idx ->
-                            if !had_error <> None then VNull
+                            if !had_error <> None then (VNA NAGeneric)
                             else begin
                               let (_, row_indices) = groups_array.(g_idx) in
                               let sub_table = Arrow_compute.take_rows df.arrow_table row_indices in
@@ -319,7 +319,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                       | None ->
                         (* Non-vectorizable — per-group evaluation *)
                         let col = Array.init n_groups (fun g_idx ->
-                          if !had_error <> None then VNull
+                          if !had_error <> None then (VNA NAGeneric)
                           else begin
                             let (_, row_indices) = groups_array.(g_idx) in
                             let sub_table = Arrow_compute.take_rows df.arrow_table row_indices in

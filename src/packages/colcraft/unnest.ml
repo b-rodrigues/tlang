@@ -81,7 +81,7 @@ let unnest_impl (named_args : (string option * value) list) _env =
                  
                  (* 4. Combine nested tables *)
                  let nested_cols = List.map (fun (n, _) ->
-                   let combined_data = Array.make !final_nrows VNull in
+                   let combined_data = Array.make !final_nrows (VNA NAGeneric) in
                    let curr = ref 0 in
                    Array.iter (function
                      | Some t_sub ->

@@ -367,7 +367,7 @@ and build_ocaml_groups (t : Arrow_table.t) (keys : string list) : (string * int 
   let key_col_values = List.map (fun k ->
     match Arrow_table.get_column t k with
     | Some col -> Arrow_bridge.column_to_values col
-    | None -> Array.make nrows Ast.VNull
+    | None -> Array.make nrows Ast.(VNA NAGeneric)
   ) keys in
   let group_map = Hashtbl.create 16 in
   let group_order = ref [] in
@@ -468,7 +468,7 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
   let key_col_values = List.map (fun k ->
     match Arrow_table.get_column t k with
     | Some col -> Arrow_bridge.column_to_values col
-    | None -> Array.make (Arrow_table.num_rows t) Ast.VNull
+    | None -> Array.make (Arrow_table.num_rows t) Ast.(VNA NAGeneric)
   ) grouped.group_keys in
   let key_col_array = Array.of_list key_col_values in
   let key_result_cols = List.mapi (fun ki k ->
@@ -477,14 +477,14 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
       let (_, indices) = groups_array.(g_idx) in
       match indices with
       | first :: _ -> key_vals.(first)
-      | [] -> Ast.VNull
+      | [] -> Ast.(VNA NAGeneric)
     ) in
     (k, col)
   ) grouped.group_keys in
   (* Get target column values for aggregation *)
   let target_vals = match Arrow_table.get_column t col_name with
     | Some col -> Arrow_bridge.column_to_values col
-    | None -> Array.make (Arrow_table.num_rows t) Ast.VNull
+    | None -> Array.make (Arrow_table.num_rows t) Ast.(VNA NAGeneric)
   in
   (* Compute aggregation per group *)
   let agg_col_name =
@@ -548,7 +548,7 @@ and group_aggregate_ocaml (grouped : grouped_table) (agg_name : string) (col_nam
           | _ -> ()
         ) indices;
         (match !m with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat)
-    | _ -> Ast.VNull
+    | _ -> Ast.(VNA NAGeneric)
   ) in
   let all_columns = key_result_cols @ [(agg_col_name, agg_col)] in
   Arrow_bridge.table_from_value_columns all_columns n_groups

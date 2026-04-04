@@ -59,13 +59,13 @@ let register env =
           (* Gather a single value from a column at a given row index *)
            let get_val col i =
              match Arrow_table.get_column df.arrow_table col with
-              | Some (StringColumn a) -> (match a.(i) with Some x -> VString x | None -> VNA NAGeneric)
-              | Some (IntColumn a) -> (match a.(i) with Some x -> VInt x | None -> VNA NAGeneric)
-              | Some (FloatColumn a) -> (match a.(i) with Some x -> VFloat x | None -> VNA NAGeneric)
-              | Some (BoolColumn a) -> (match a.(i) with Some x -> VBool x | None -> VNA NAGeneric)
+              | Some (StringColumn a) -> (match a.(i) with Some x -> VString x | None -> (VNA NAGeneric))
+              | Some (IntColumn a) -> (match a.(i) with Some x -> VInt x | None -> (VNA NAGeneric))
+              | Some (FloatColumn a) -> (match a.(i) with Some x -> VFloat x | None -> (VNA NAGeneric))
+              | Some (BoolColumn a) -> (match a.(i) with Some x -> VBool x | None -> (VNA NAGeneric))
               | Some (DateColumn a) -> (match a.(i) with Some x -> VDate x | None -> VNA NADate)
               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some x -> VDatetime (x, tz) | None -> VNA NADate)
-              | _ -> VNA NAGeneric
+              | _ -> (VNA NAGeneric)
            in
 
           (* Get unique values for a single column (insertion-order preserved) *)

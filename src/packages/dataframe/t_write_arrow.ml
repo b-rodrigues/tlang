@@ -22,7 +22,7 @@ let register env =
       match args with
       | [VDataFrame df; VString path] ->
           (match Arrow_io.write_ipc df.arrow_table path with
-          | Ok () -> VNull
+          | Ok () -> (VNA NAGeneric)
           | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
       | [_; VString _] -> Error.type_error "Function `write_arrow` expects a DataFrame as first argument."
       | [VDataFrame _; _] -> Error.type_error "Function `write_arrow` expects a String path as second argument."

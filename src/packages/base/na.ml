@@ -13,7 +13,7 @@ let register env =
   --# @export
   *)
   let env = Env.add "na"
-    (make_builtin ~name:"na" 0 (fun _args _env -> VNA NAGeneric))
+    (make_builtin ~name:"na" 0 (fun _args _env -> (VNA NAGeneric)))
     env in
   (*
   --# Boolean NA

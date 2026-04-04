@@ -52,7 +52,7 @@ let register env =
           ) value_columns;
           
           flush stdout;
-          VNull
+          (VNA NAGeneric)
       | [VNA _] -> Error.type_error "Function `glimpse` expects a DataFrame, got NA."
       | [_] -> Error.type_error "Function `glimpse` expects a DataFrame."
       | _ -> Error.arity_error_named "glimpse" 1 (List.length args)

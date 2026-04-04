@@ -377,23 +377,23 @@ let string_named_arg name default named_args =
   match find_named_arg name named_args with
   | None -> Ok default
   | Some (VString s) -> Ok (Some s)
-  | Some VNull -> Ok None
+  | Some (VNA NAGeneric) -> Ok None
   | Some v -> Error (Error.type_error (Printf.sprintf "Argument `%s` must be String, got %s." name (Utils.type_name v)))
 
 let parse_scalar_string function_name parse_fn = function
   | VString s -> (match parse_fn s with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `%s` could not parse %S." function_name s))
-  | VNA _ -> VNA NAGeneric
+  | VNA _ -> (VNA NAGeneric)
   | _ -> Error.type_error (Printf.sprintf "Function `%s` expects a String or Vector[String]." function_name)
 
 let parse_scalar_string_vectorized parse_fn = function
-  | VString s -> (match parse_fn s with Some v -> v | None -> VNA NAGeneric)
-  | VNA _ -> VNA NAGeneric
-  | _ -> VNA NAGeneric
+  | VString s -> (match parse_fn s with Some v -> v | None -> (VNA NAGeneric))
+  | VNA _ -> (VNA NAGeneric)
+  | _ -> (VNA NAGeneric)
 
 let scalar_component function_name fn value =
   let rec apply = function
     | VVector arr -> VVector (Array.map apply arr)
-    | VNA _ -> VNA NAGeneric
+    | VNA _ -> (VNA NAGeneric)
     | value ->
         (match fn value with
          | Some out -> out
@@ -593,7 +593,7 @@ let rec floor_temporal function_name unit = function
   | VDate days -> floor_date_unit unit days
   | VDatetime (micros, tz) -> floor_datetime_unit unit micros tz
   | VVector arr -> VVector (Array.map (floor_temporal function_name unit) arr)
-  | VNA _ -> VNA NAGeneric
+  | VNA _ -> (VNA NAGeneric)
   | _ ->
       Error.type_error
         (Printf.sprintf
@@ -612,7 +612,7 @@ and ceiling_temporal function_name unit = function
       if compare_temporal floored value = 0 then floored
       else next_datetime_boundary unit micros tz
   | VVector arr -> VVector (Array.map (ceiling_temporal function_name unit) arr)
-  | VNA _ -> VNA NAGeneric
+  | VNA _ -> (VNA NAGeneric)
   | _ ->
       Error.type_error
         (Printf.sprintf
@@ -632,7 +632,7 @@ and round_temporal function_name unit = function
             else
              ceiled)
   | VVector arr -> VVector (Array.map (round_temporal function_name unit) arr)
-  | VNA _ -> VNA NAGeneric
+  | VNA _ -> (VNA NAGeneric)
   | _ ->
       Error.type_error
         (Printf.sprintf
@@ -657,7 +657,7 @@ let round_date_impl function_name kind args _env =
 let rec relabel_timezone function_name timezone = function
   | VDatetime (micros, _) -> VDatetime (micros, Some timezone)
   | VVector arr -> VVector (Array.map (relabel_timezone function_name timezone) arr)
-  | VNA _ -> VNA NAGeneric
+  | VNA _ -> (VNA NAGeneric)
   | _ ->
       Error.type_error
         (Printf.sprintf
@@ -1098,9 +1098,9 @@ let register env =
     | VString s ->
         (match parse_custom_format `Date s fmt None with
          | Some v -> v
-         | None -> VNA NAGeneric)
-    | VNA _ -> VNA NAGeneric
-    | _ -> VNA NAGeneric
+         | None -> (VNA NAGeneric))
+    | VNA _ -> (VNA NAGeneric)
+    | _ -> (VNA NAGeneric)
   in
   let parse_datetime_result tz s fmt =
     match parse_custom_format `Datetime s fmt tz with
@@ -1115,9 +1115,9 @@ let register env =
     | VString s ->
         (match parse_custom_format `Datetime s fmt tz with
          | Some v -> v
-         | None -> VNA NAGeneric)
-    | VNA _ -> VNA NAGeneric
-    | _ -> VNA NAGeneric
+         | None -> (VNA NAGeneric))
+    | VNA _ -> (VNA NAGeneric)
+    | _ -> (VNA NAGeneric)
   in
   let scalar_date_component name fn =
     make_builtin ~name 1 (fun args _env ->
@@ -1146,7 +1146,7 @@ let register env =
     Env.add name (make_builtin ~name 1 (fun args _env ->
       match args with
       | [VInt n] -> VPeriod (f n)
-      | [VNA _] -> VNA NAGeneric
+      | [VNA _] -> (VNA NAGeneric)
       | [_] -> Error.type_error (Printf.sprintf "Function `%s` expects an Int." name)
       | _ -> Error.arity_error_named name 1 (List.length args))) env
   in
@@ -1410,7 +1410,7 @@ let register env =
          | [VString s] -> (match parse_shorthand_date `YMD s with Some v -> v | None -> Error.value_error (Printf.sprintf "Function `as_date` could not parse %S as a date." s))
          | [VInt n] -> VDate (origin_days + n)
          | [VFloat f] -> VDate (origin_days + int_of_float f)
-         | [VNA _] -> VNA NAGeneric
+         | [VNA _] -> (VNA NAGeneric)
          | [_] -> Error.type_error "Function `as_date` expects a String, Date, Datetime, Int, or Float."
          | values -> Error.arity_error_named "as_date" 1 (List.length values)))) env in
   let env = Env.add "as_datetime" (make_builtin_named ~name:"as_datetime" ~variadic:true 1 (fun named_args _env ->
@@ -1445,7 +1445,7 @@ let register env =
                  (Int64.mul (Int64.of_int origin_days) micros_per_day)
                  (Int64.of_float (f *. 1_000_000.0)),
                tz)
-         | [VNA _] -> VNA NAGeneric
+         | [VNA _] -> (VNA NAGeneric)
          | [_] -> Error.type_error "Function `as_datetime` expects a String, Date, Datetime, Int, or Float."
          | values -> Error.arity_error_named "as_datetime" 1 (List.length values)))) env in
   let env = add_predicate env "is_date" (function VDate _ -> true | _ -> false) in

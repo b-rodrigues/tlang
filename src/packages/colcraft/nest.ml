@@ -111,7 +111,7 @@ let nest_impl (named_args : (string option * value) list) _env =
                 (k, Array.init n_groups (fun i ->
                   let (_, indices) = List.nth groups i in
                   vals.(List.hd indices)))
-            | None -> (k, Array.make n_groups (VNA NAGeneric))
+            | None -> (k, Array.make n_groups ((VNA NAGeneric)))
           ) group_cols in
 
           let nested_data = Array.init n_groups (fun i ->

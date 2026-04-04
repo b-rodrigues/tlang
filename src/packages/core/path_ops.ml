@@ -117,7 +117,7 @@ let builtin_path_ext =
     | Error msg -> Error.make_error TypeError msg
     | Ok path ->
         (match Filename.extension path with
-        | "" -> VNull
+        | "" -> (VNA NAGeneric)
         | ext -> VString ext)
   )
 

@@ -20,7 +20,7 @@ let register env =
       | [value; VString path] ->
           let value = Arrow_bridge.prepare_value_for_serialization value in
           (match Serialization.serialize_to_file path value with
-          | Ok () -> VNull
+          | Ok () -> (VNA NAGeneric)
           | Error msg -> Error.make_error FileError (Printf.sprintf "serialize failed: %s" msg))
       | [_; _] -> Error.type_error "Function `serialize` expects (Any, String)."
       | _ -> Error.arity_error_named "serialize" 2 (List.length args)

@@ -67,13 +67,13 @@ let register env =
           let get_row_key i =
              List.map (fun c ->
                match Arrow_table.get_column df.arrow_table c with
-               | Some (StringColumn a) -> (match a.(i) with Some s -> VString s | None -> VNull)
-               | Some (FloatColumn a) -> (match a.(i) with Some f -> VFloat f | None -> VNull)
-               | Some (IntColumn a) -> (match a.(i) with Some v -> VInt v | None -> VNull)
-               | Some (BoolColumn a) -> (match a.(i) with Some b -> VBool b | None -> VNull)
-               | Some (DateColumn a) -> (match a.(i) with Some d -> VDate d | None -> VNull)
-               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some ts -> VDatetime (ts, tz) | None -> VNull)
-               | _ -> VNull
+               | Some (StringColumn a) -> (match a.(i) with Some s -> VString s | None -> (VNA NAGeneric))
+               | Some (FloatColumn a) -> (match a.(i) with Some f -> VFloat f | None -> (VNA NAGeneric))
+               | Some (IntColumn a) -> (match a.(i) with Some v -> VInt v | None -> (VNA NAGeneric))
+               | Some (BoolColumn a) -> (match a.(i) with Some b -> VBool b | None -> (VNA NAGeneric))
+               | Some (DateColumn a) -> (match a.(i) with Some d -> VDate d | None -> (VNA NAGeneric))
+               | Some (DatetimeColumn (a, tz)) -> (match a.(i) with Some ts -> VDatetime (ts, tz) | None -> (VNA NAGeneric))
+               | _ -> (VNA NAGeneric)
              ) id_cols
            in
           
