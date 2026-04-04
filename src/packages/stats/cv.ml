@@ -69,7 +69,7 @@ let register env =
              let n = List.length xs in
              if n < 2 then Error.value_error "Function `cv` requires at least 2 values."
              else
-               let m = Option.get (mean xs) in
+               let m = match mean xs with Some v -> v | None -> 0.0 (* unreachable: n >= 2 *) in
                if m = 0.0 then Error.value_error "Function `cv` undefined when mean is zero."
                else
                  let s = Float.sqrt (List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int (n - 1)) in

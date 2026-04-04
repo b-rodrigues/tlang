@@ -74,7 +74,7 @@ let register env =
          | _, None -> Error.value_error "Function `winsorize` expects limits in [0, 0.5)."
          | Ok [], _ -> VNA NAFloat
          | Ok xs, Some (lo, hi) ->
-             let lq = Option.get (quantile xs lo) in
-             let uq = Option.get (quantile xs (1.0 -. hi)) in
+             let lq = match quantile xs lo with Some v -> v | None -> 0.0 (* unreachable: xs non-empty *) in
+             let uq = match quantile xs (1.0 -. hi) with Some v -> v | None -> 0.0 (* unreachable: xs non-empty *) in
              vecf (List.map (fun v -> if v < lq then lq else if v > uq then uq else v) xs))
     | _ -> Error.arity_error_named "winsorize" 2 (List.length args))) env

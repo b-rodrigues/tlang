@@ -659,11 +659,11 @@ let read_pmml path =
           | `El_start ((_, "NumericPredictor"), attrs) ->
               let name = match find_attr "name" attrs with
                 | Some s -> s
-                | None -> failwith "Required PMML attribute 'name' missing in <NumericPredictor>"
+                | None -> raise (Invalid_argument "Required PMML attribute 'name' missing in <NumericPredictor>")
               in
               let coef = match get_float_attr "coefficient" attrs with
                 | Some v -> v
-                | None -> failwith "Required PMML attribute 'coefficient' missing in <NumericPredictor>"
+                | None -> raise (Invalid_argument "Required PMML attribute 'coefficient' missing in <NumericPredictor>")
               in
               let p = { name; estimate = coef; 
                         std_error = get_float_attr "stdError" attrs; 
@@ -703,7 +703,7 @@ let read_pmml path =
                 found_table := true;
                 let intercept_val = match get_float_attr "intercept" attrs with
                   | Some v -> v
-                  | None -> failwith "Required PMML attribute 'intercept' missing in <RegressionTable>"
+                  | None -> raise (Invalid_argument "Required PMML attribute 'intercept' missing in <RegressionTable>")
                 in
                 let p = { name = "(Intercept)"; estimate = intercept_val; 
                           std_error = get_float_attr "stdError" attrs;
@@ -784,7 +784,7 @@ let read_pmml path =
                    let json_coeffs = List.map (fun (name, obj) -> extract_p name obj) c_map in
                    let (ints, others) = List.partition (fun p -> p.name = "(Intercept)" || p.name = "(intercept)") json_coeffs in
                    coeffs := List.rev others;
-                   if ints <> [] then intercept := Some (List.hd ints)
+                   (match ints with p :: _ -> intercept := Some p | [] -> ())
                | _ -> ())
           | _ -> ()
         end;

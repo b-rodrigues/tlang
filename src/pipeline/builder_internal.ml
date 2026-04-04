@@ -37,9 +37,9 @@ let print_failed_node_logs drv_paths errored =
       match Hashtbl.find_opt drv_paths name with
       | Some drv_path ->
           Printf.eprintf "\n--- Logs for failed node `%s` ---\n%!" name;
-          let cmd = Printf.sprintf "nix log %s 2>&1" (Filename.quote drv_path) in
-          (match run_command_capture cmd with
-           | Ok (_, output) ->
+          let argv = [| "nix"; "log"; drv_path |] in
+          (match run_command_argv_capture argv with
+           | Ok output ->
                let output = String.trim output in
                if output = "" then
                  Printf.eprintf "(No log output returned for `%s`).\n%!" name
@@ -66,8 +66,9 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
     
     let captured_output = Buffer.create 1024 in
     let all_args = !nix_build_args @ (nix_verbosity_args verbose) in
-    let extra_args = String.concat " " (List.map Filename.quote all_args) in
-    let cmd = Printf.sprintf "nix-build --impure %s -A pipeline_output --no-out-link %s" (Filename.quote pipeline_nix_path) extra_args in
+    let argv = Array.of_list
+      (["nix-build"; "--impure"; pipeline_nix_path; "-A"; "pipeline_output"; "--no-out-link"] @ all_args)
+    in
     
     Printf.printf "\nStarting pipeline build...\n";
     
@@ -172,7 +173,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
       )
     in
     
-    match run_command_stream cmd callback with
+    match run_command_stream_argv argv callback with
     | Ok status ->
         (* Save drv_paths for later tool use (e.g. read_log) *)
         let drv_entries = Hashtbl.fold (fun k v acc -> 

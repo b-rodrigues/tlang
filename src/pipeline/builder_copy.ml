@@ -30,16 +30,16 @@ let pipeline_copy ?(node_name=None) ?(target_dir="pipeline-output") ?(dir_mode="
             let () = if not (Sys.file_exists target_dir) then Unix.mkdir target_dir 0o755 in
 
             let copy_item src dest =
-               let cmd = Printf.sprintf "cp -RP %s %s" (Filename.quote src) (Filename.quote dest) in
-               Sys.command cmd
+               let argv = [| "cp"; "-RP"; src; dest |] in
+               match run_command_argv_exit argv with
+               | Ok code -> code
+               | Error _ -> 1
             in
 
             let apply_perms path =
-               let quoted_path = Filename.quote path in
-               let dcmd = Printf.sprintf "find %s -type d -exec chmod %s {} +" quoted_path dir_mode in
-               let fcmd = Printf.sprintf "find %s -type f -exec chmod %s {} +" quoted_path file_mode in
-               ignore (Sys.command dcmd);
-               ignore (Sys.command fcmd)
+               (* Use argv-based find+chmod to avoid shell injection via path *)
+               ignore (run_command_argv_exit [| "find"; path; "-type"; "d"; "-exec"; "chmod"; dir_mode; "{}"; "+" |]);
+               ignore (run_command_argv_exit [| "find"; path; "-type"; "f"; "-exec"; "chmod"; file_mode; "{}"; "+" |])
             in
 
             let nodes_to_copy = match node_name with
@@ -65,7 +65,7 @@ let pipeline_copy ?(node_name=None) ?(target_dir="pipeline-output") ?(dir_mode="
                   errors := (Printf.sprintf "Source path `%s` for node `%s` does not exist." src_node_dir name) :: !errors
                 else begin
                   if Sys.file_exists dest_node_dir then begin
-                    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dest_node_dir)))
+                    ignore (run_command_argv_exit [| "rm"; "-rf"; dest_node_dir |])
                   end;
                   let exit_code = copy_item src_node_dir dest_node_dir in
                   if exit_code <> 0 then
