@@ -57,7 +57,7 @@ let with_stmt_loc node pos =
 
 /* TOKENS */
 /* Keywords */
-%token IF ELSE IMPORT FUNCTION PIPELINE INTENT MATCH TRUE FALSE NULL NA
+%token IF ELSE IMPORT FUNCTION PIPELINE INTENT MATCH TRUE FALSE NA
 /* Literals */
 %token <int> INT
 %token <float> FLOAT
@@ -305,7 +305,6 @@ primary_expr:
   | s = STRING { with_loc (Value (VString s)) $startpos }
   | TRUE { with_loc (Value (VBool true)) $startpos }
   | FALSE { with_loc (Value (VBool false)) $startpos }
-  | NULL { with_loc (Value VNull) $startpos }
   | NA { with_loc (Value (VNA NAGeneric)) $startpos }
   | col = COLUMN_REF { with_loc (ColumnRef col) $startpos }
   | s = SERIALIZER_ID { with_loc (Value (VSymbol ("^" ^ s))) $startpos }
@@ -406,7 +405,7 @@ param:
 
 if_expr:
   | IF LPAREN cond = expr RPAREN then_ = primary_expr %prec IF_WITHOUT_ELSE
-    { with_loc (IfElse { cond; then_; else_ = with_loc (Value VNull) $startpos }) $startpos }
+    { with_loc (IfElse { cond; then_; else_ = with_loc (Value (VNA NAGeneric)) $startpos }) $startpos }
   | IF LPAREN cond = expr RPAREN then_ = primary_expr ELSE else_ = primary_expr
     { with_loc (IfElse { cond; then_; else_ }) $startpos }
   ;
@@ -532,7 +531,6 @@ typ:
     | "Float" -> TFloat
     | "Bool" -> TBool
     | "String" -> TString
-    | "Null" -> TNull
     | "List" -> TList None
     | "Dict" -> TDict (None, None)
     | "Tuple" -> TTuple []
