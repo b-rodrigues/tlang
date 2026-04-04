@@ -124,7 +124,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end else begin
     incr fail_count; Printf.printf "  ✗ nix verbosity args are derived correctly\n"
   end;
-  let t_make_pipeline_path = "test_t_make_verbose_pipeline.t" in
+  let t_make_pipeline_path = Filename.temp_file "tlang_t_make_verbose_" ".t" in
   let oc_t_make = open_out t_make_pipeline_path in
   output_string oc_t_make "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n";
   close_out oc_t_make;
@@ -158,14 +158,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, verbose=-1)) == \"ValueError\""
     "true";
   test "t_make accepts verbose option"
-    "is_null(t_make(filename=\"test_t_make_verbose_pipeline.t\", verbose=2))"
+    (Printf.sprintf "is_null(t_make(filename=\"%s\", verbose=2))" t_make_pipeline_path)
     "true";
   test "t_make rejects non-int verbose"
-    "error_code(t_make(filename=\"test_t_make_verbose_pipeline.t\", verbose=\"loud\")) == \"TypeError\""
+    (Printf.sprintf "error_code(t_make(filename=\"%s\", verbose=\"loud\")) == \"TypeError\"" t_make_pipeline_path)
     "true";
   test "t_make rejects negative verbose"
-    "error_code(t_make(filename=\"test_t_make_verbose_pipeline.t\", verbose=-1)) == \"ValueError\""
+    (Printf.sprintf "error_code(t_make(filename=\"%s\", verbose=-1)) == \"ValueError\"" t_make_pipeline_path)
     "true";
+  let _ = try Sys.remove t_make_pipeline_path with _ -> () in
   test "read_node reads serialized artifact"
     "p = pipeline {\n  a = 1\n  b = a + 2\n}\nout = build_pipeline(p)\nok = if (is_error(out)) (error_code(read_node(\"b\")) == \"FileError\") else (read_node(\"b\") == 3)\nok"
     "true";

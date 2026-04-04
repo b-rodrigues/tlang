@@ -59,6 +59,8 @@ let register ~rerun_pipeline env =
                      | Error msg -> Error.make_error FileError msg)
               | VError _ as err -> err
               | other ->
+                  (* Strict reruns should resolve to a Pipeline or return a VError;
+                     any other value indicates an internal invariant violation. *)
                   Error.make_error RuntimeError
                     ("build_pipeline encountered an internal pipeline resolution invariant violation before building: "
                      ^ Utils.value_to_string other)))
