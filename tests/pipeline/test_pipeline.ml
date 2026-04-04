@@ -413,7 +413,7 @@ p_cross = pipeline {
 
   test "node args values must stay shallow"
     {|node(runtime = Quarto, args = [path: "report.qmd", extra: [nested: [too_deep: 1]]])|}
-    {|Error(TypeError: "Function `node` expects runtime arg `extra` to be a String, Symbol, Int, Float, Bool, Null, or List of those values.")|};
+    {|Error(TypeError: "Function `node` expects runtime arg `extra` to be a String, Symbol, Int, Float, Bool, NA, or List of those values.")|};
 
   test "quarto node requires qmd path"
     {|node(runtime = Quarto, args = [subcommand: "render"])|}
@@ -592,7 +592,7 @@ p_cross = pipeline {
 
   test "pipeline_copy validates node type"
     {|pipeline_copy(node = 1)|}
-    {|Error(TypeError: "Function `pipeline_copy` expects `node` to be a String, Symbol, or Null.")|};
+    {|Error(TypeError: "Function `pipeline_copy` expects `node` to be a String, Symbol, or NA.")|};
 
   test "pipeline_copy validates target_dir type"
     {|pipeline_copy(target_dir = 1)|}
@@ -653,14 +653,14 @@ p_cross = pipeline {
     incr fail_count; Printf.printf "  ✗ node.script dot access\n    Expected: \"fit.R\"\n    Got: %s\n" dot_script_s
   end;
 
-  (* Test: script=null node returns null for .script *)
+  (* Test: script=NA node returns NA for .script *)
   let (v_no_script, _) = eval_string_env
     {|node_obj = node(command = <{ 42 }>, runtime = R); node_obj.script|}
     (Packages.init_env ()) in
-  if Ast.Utils.value_to_string v_no_script = "null" then begin
-    incr pass_count; Printf.printf "  ✓ node without script returns null for .script\n"
+  if Ast.Utils.value_to_string v_no_script = "NA" then begin
+    incr pass_count; Printf.printf "  ✓ node without script returns NA for .script\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ node without script .script field\n    Expected: null\n    Got: %s\n"
+    incr fail_count; Printf.printf "  ✗ node without script .script field\n    Expected: NA\n    Got: %s\n"
       (Ast.Utils.value_to_string v_no_script)
   end;
 

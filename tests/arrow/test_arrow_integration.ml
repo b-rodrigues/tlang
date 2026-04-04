@@ -761,7 +761,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (match Arrow_table.get_column distinct_result "city" with
      | Some (Arrow_table.IntColumn data) ->
          (* Distinct counting matches the current T fallback semantics:
-            repeated null values count as one distinct value. *)
+            repeated NA values count as one distinct value. *)
          if data.(0) = Some 1 && data.(1) = Some 3 then begin
            incr pass_count; Printf.printf "  ✓ group_aggregate count_distinct is correct\n"
          end else begin
@@ -1497,7 +1497,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "ListColumn table materializes to native Arrow"
   end;
 
-  (* Test: ListColumn with null entries *)
+  (* Test: ListColumn with NA entries *)
   let list_col_null = Arrow_table.ListColumn [| Some sub_table_a; None; Some sub_table_b |] in
   let list_tbl_null = Arrow_table.create [
     ("key", Arrow_table.StringColumn [| Some "g1"; None; Some "g3" |]);
@@ -1508,15 +1508,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (match Arrow_table.get_column mat_null_tbl "data" with
      | Some (Arrow_table.ListColumn nested) ->
          if Array.length nested = 3 && nested.(1) = None then begin
-           incr pass_count; Printf.printf "  ✓ ListColumn with null entry round-trip correct\n"
+           incr pass_count; Printf.printf "  ✓ ListColumn with NA entry round-trip correct\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ ListColumn with null entry data mismatch\n"
+           incr fail_count; Printf.printf "  ✗ ListColumn with NA entry data mismatch\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ ListColumn with null entry read-back returned wrong type\n")
+         incr fail_count; Printf.printf "  ✗ ListColumn with NA entry read-back returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "ListColumn with null entries materializes to native Arrow"
+      "ListColumn with NA entries materializes to native Arrow"
   end;
 
   (* Test: Empty ListColumn — falls back to pure OCaml (no struct schema to build) *)
@@ -1580,7 +1580,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "ListColumn with Float+Bool sub-fields materializes"
   end;
 
-  (* Test: All-null ListColumn stays in pure OCaml fallback while preserving shape *)
+  (* Test: All-NA ListColumn stays in pure OCaml fallback while preserving shape *)
   let list_col_all_null = Arrow_table.ListColumn [| None; None |] in
   let list_tbl_all_null = Arrow_table.create [
     ("id", Arrow_table.IntColumn [| Some 1; Some 2 |]);
@@ -1599,11 +1599,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
                                              && Array.length nested = 2
                                              && nested.(0) = None
                                              && nested.(1) = None ->
-         incr pass_count; Printf.printf "  ✓ All-null ListColumn preserves null entries in pure fallback\n"
+         incr pass_count; Printf.printf "  ✓ All-NA ListColumn preserves NA entries in pure fallback\n"
      | _ ->
-         incr fail_count; Printf.printf "  ✗ All-null ListColumn fallback data mismatch\n")
+         incr fail_count; Printf.printf "  ✗ All-NA ListColumn fallback data mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ All-null ListColumn should fall back to pure OCaml\n"
+    incr fail_count; Printf.printf "  ✗ All-NA ListColumn should fall back to pure OCaml\n"
   end;
 
   (* Test: Sparse ListColumn with heavy nulls round-trips without bitmap corruption *)
@@ -1859,11 +1859,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
            | Ok null_tbl ->
                (match Arrow_table.get_column null_tbl "missing" with
                | Some (Arrow_table.NullColumn 3) ->
-                   incr pass_count; Printf.printf "  ✓ NullColumn IPC round-trip preserves null-only columns\n"
+                   incr pass_count; Printf.printf "  ✓ NullColumn IPC round-trip preserves NA-only columns\n"
                | Some _ ->
                    incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back returned wrong type or row count\n"
                | None ->
-                   incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back lost the null-only column\n")
+                   incr fail_count; Printf.printf "  ✗ NullColumn IPC read-back lost the NA-only column\n")
            | Error msg ->
                incr fail_count; Printf.printf "  ✗ NullColumn IPC read failed: %s\n" msg)
      | Error msg ->
@@ -1962,7 +1962,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
             parquet_path))
   in
   let parquet_pyarrow_check_cmd =
-    Printf.sprintf "python3 -c %s >/dev/null 2>&1"
+    Printf.sprintf "python3 -c %s >/dev/NA 2>&1"
       (Filename.quote "import pyarrow")
   in
   if Arrow_ffi.arrow_available then begin

@@ -74,7 +74,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Phase 8 — Core Semantics: List edge cases:\n";
 
   test "nested list" "[[1, 2], [3, 4]]" "[[1, 2], [3, 4]]";
-  test "mixed type list" {|[1, "two", true, null]|} {|[1, "two", true, null]|};
+  test "mixed type list" {|[1, "two", true, NA]|} {|[1, "two", true, NA]|};
   test "empty list length" "length([])" "0";
   test "head of single element" "head([42])" "42";
   test "tail of single element" "tail([42])" "[]";
@@ -128,7 +128,7 @@ Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to bran
   test "type of builtin" "type(print)" {|"BuiltinFunction"|};
   test "type of vector" {|type(seq(1, 3))|} {|"List"|};
   test "type of error" "type(1 / 0)" {|"Error"|};
-  test "type of null" "type(null)" {|"Null"|};
+  test "type of NA" "type(NA)" {|"NA"|};
   test "type of NA" "type(NA)" {|"NA"|};
   test "type of pipeline" "type(pipeline { x = 1 })" {|"Pipeline"|};
   test "type of intent" {|type(intent { a: "1" })|} {|"Intent"|};

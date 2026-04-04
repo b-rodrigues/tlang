@@ -56,7 +56,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let (_, env) = eval_string_env {|
     my_ser = [
       format: "custom",
-      writer: \(path, val) { print("writing"); Ok(null) },
+      writer: \(path, val) { print("writing"); Ok(NA) },
       reader: \(path) { Ok(42) },
       r_writer: <{ function(obj, path) { saveRDS(obj, path) } }>,
       py_writer: <{ lambda obj, path: pickle.dump(obj, open(path, 'wb')) }>
