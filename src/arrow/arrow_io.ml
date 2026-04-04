@@ -203,7 +203,7 @@ let is_url path =
 
 let download_url ?(suffix=".csv") (url : string) : (string, string) result =
   let temp_file = Filename.temp_file "tlang_" suffix in
-  let cmd = Printf.sprintf "curl -s -L -o %s %s" (Filename.quote temp_file) (Filename.quote url) in
+  let cmd = Printf.sprintf "curl -s -L --fail --max-time 120 --max-filesize 536870912 -o %s %s" (Filename.quote temp_file) (Filename.quote url) in
   match Sys.command cmd with
   | 0 -> Ok temp_file
   | n -> 

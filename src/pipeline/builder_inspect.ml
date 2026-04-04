@@ -55,9 +55,9 @@ let read_node_log node_name =
       | None ->
           Error.make_error ValueError (Printf.sprintf "Node `%s` not found in the last build attempt." node_name)
       | Some drv ->
-          let cmd = Printf.sprintf "nix log %s" (Filename.quote drv) in
-          (match run_command_capture cmd with
-           | Ok (_status, output) -> VString output
+          let argv = [| "nix"; "log"; drv |] in
+          (match run_command_argv_capture argv with
+           | Ok output -> VString output
            | Error msg -> Error.make_error ShellError (Printf.sprintf "Failed to fetch nix log: %s" msg))
     with exn ->
       Error.make_error FileError (Printf.sprintf "Failed to parse `%s`: %s" drv_path_file (Printexc.to_string exn))

@@ -380,22 +380,34 @@ let cmd_doctor () = Package_doctor.run_doctor ()
 
 let cmd_publish () =
   let dir = Sys.getcwd () in
+  let tag_and_push v =
+    match Release_manager.validate_tests_pass () with
+    | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+    | Ok () ->
+        match Release_manager.create_git_tag v with
+        | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+        | Ok tag ->
+            match Release_manager.push_git_tag tag with
+            | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
+            | Ok () -> Printf.printf "Successfully published %s\n" tag
+  in
   match Release_manager.get_package_version dir with
   | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
   | Ok v ->
       Printf.printf "Publishing v%s...\n" v;
-      match Release_manager.validate_clean_git () with
+      match Release_manager.validate_version_format v with
       | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
       | Ok () ->
-          match Release_manager.validate_tests_pass () with
+          match Release_manager.validate_clean_git () with
           | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
           | Ok () ->
-              match Release_manager.create_git_tag v with
+              match Release_manager.validate_git_remote () with
               | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
-              | Ok tag ->
-                  match Release_manager.push_git_tag tag with
-                  | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
-                  | Ok () -> Printf.printf "Successfully published %s\n" tag
+              | Ok () ->
+                  (match Release_manager.validate_changelog dir v with
+                   | Error msg -> Printf.eprintf "Warning: %s\n" msg
+                   | Ok () -> ());
+                  tag_and_push v
 
 let cmd_docs () = Documentation_manager.open_docs (Sys.getcwd ())
 

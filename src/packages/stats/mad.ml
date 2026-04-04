@@ -67,7 +67,11 @@ let register env =
          | Error e -> e
          | Ok [] -> VNA NAFloat
          | Ok xs ->
-             let med = Option.get (quantile xs 0.5) in
-             let ad = List.map (fun v -> Float.abs (v -. med)) xs in
-             VFloat (1.4826 *. Option.get (quantile ad 0.5)))
+             (match quantile xs 0.5 with
+              | None -> Error.value_error "Function `mad` could not compute median for the given input."
+              | Some med ->
+              let ad = List.map (fun v -> Float.abs (v -. med)) xs in
+              match quantile ad 0.5 with
+              | None -> Error.value_error "Function `mad` could not compute median absolute deviation."
+              | Some mad_med -> VFloat (1.4826 *. mad_med)))
     | args -> Error.arity_error_named "mad" 1 (List.length args))) env
