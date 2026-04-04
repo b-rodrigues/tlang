@@ -109,10 +109,13 @@ let deserialize_from_file path =
       match read_serialized_value_header ic with
       | Error _ as err -> err
       | Ok () ->
-          (* Read the hex digest line *)
+          (* Remember position right after the version header so we can fall
+             back to legacy (digest-less) deserialization if needed. *)
+          let pos_after_header = pos_in ic in
+          (* Try to read the hex digest line *)
           (match (try Some (input_line ic) with End_of_file -> None) with
            | None ->
-               Error "Serialized value is missing the integrity digest. Re-serialize this artifact with the current version of T."
+               Error "Serialized value is truncated: no data after the format header."
            | Some hex_line ->
                let hex = String.trim hex_line in
                (* Validate hex digest format: 32 hex chars for MD5 (OCaml Digest module).
@@ -123,10 +126,8 @@ let deserialize_from_file path =
                    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
                  ) hex
                in
-               if not valid_hex then
-                 Error "Serialized value has an invalid integrity digest. Re-serialize this artifact with the current version of T."
-               else
-                 (* Read all remaining bytes *)
+               if valid_hex then
+                 (* New format: verify digest then unmarshal *)
                  let pos = pos_in ic in
                  let total = in_channel_length ic in
                  let remaining = total - pos in
@@ -141,7 +142,18 @@ let deserialize_from_file path =
                      Error "Integrity check failed: the serialized value has been modified or corrupted. Re-serialize this artifact with the current version of T."
                    else
                      let value = (Marshal.from_bytes payload 0 : Ast.value) in
-                     Ok value)
+                     Ok value
+               else begin
+                 (* Legacy format (no digest): seek back to right after the
+                    version header and unmarshal directly. Emit a warning so
+                    the user knows to re-serialize. *)
+                 Printf.eprintf
+                   "Warning: %s was serialized without an integrity digest (legacy format). Re-serialize this artifact with the current version of T for full integrity checking.\n%!"
+                   path;
+                 seek_in ic pos_after_header;
+                 let value = (Marshal.from_channel ic : Ast.value) in
+                 Ok value
+               end)
     in
     close_in_noerr ic;
     result
