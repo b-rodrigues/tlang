@@ -131,10 +131,10 @@ let register env =
                         inserted := true
                       end;
                     if not remove then
-                      final_columns := (name, match Arrow_table.get_column df.arrow_table name with Some d -> d | None -> NullColumn orig_nrows) :: !final_columns
+                      final_columns := (name, match Arrow_table.get_column df.arrow_table name with Some d -> d | None -> NAColumn orig_nrows) :: !final_columns
                   end
                 else
-                  final_columns := (name, match Arrow_table.get_column df.arrow_table name with Some d -> d | None -> NullColumn orig_nrows) :: !final_columns
+                  final_columns := (name, match Arrow_table.get_column df.arrow_table name with Some d -> d | None -> NAColumn orig_nrows) :: !final_columns
               ) all_names;
               
               let final_columns = List.rev !final_columns in

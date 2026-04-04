@@ -73,15 +73,15 @@ let register env =
              - Mixed int/float    → FloatColumn (ints promoted)
              - Anything else      → StringColumn (all values coerced to string) *)
            
-          let pivot_types = List.map (fun c -> Arrow_table.get_column df.arrow_table c |> function Some col -> Arrow_table.column_type_of col | None -> ArrowNull) cols_to_pivot in
-          let is_all_int = List.for_all (function ArrowInt64 | ArrowNull -> true | _ -> false) pivot_types in
-          let is_numeric = List.for_all (function ArrowInt64 | ArrowFloat64 | ArrowNull -> true | _ -> false) pivot_types in
+          let pivot_types = List.map (fun c -> Arrow_table.get_column df.arrow_table c |> function Some col -> Arrow_table.column_type_of col | None -> ArrowNA) cols_to_pivot in
+          let is_all_int = List.for_all (function ArrowInt64 | ArrowNA -> true | _ -> false) pivot_types in
+          let is_numeric = List.for_all (function ArrowInt64 | ArrowFloat64 | ArrowNA -> true | _ -> false) pivot_types in
           
           (* Create the ID columns by repeating rows *)
           let new_id_columns = List.map (fun col_name ->
             let col_data = match Arrow_table.get_column df.arrow_table col_name with
               | Some d -> d
-              | None -> NullColumn orig_nrows
+              | None -> NAColumn orig_nrows
             in
             let rep_col = match col_data with
               | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)))
@@ -90,7 +90,7 @@ let register env =
               | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)))
               | DateColumn a -> DateColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)))
               | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)), tz)
-              | NullColumn _ -> NullColumn new_nrows
+              | NAColumn _ -> NAColumn new_nrows
               | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)), levels, ordered)
               | ListColumn a -> ListColumn (Array.init new_nrows (fun i -> a.(i / n_pivot_cols)))
             in

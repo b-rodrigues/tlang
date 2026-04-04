@@ -732,7 +732,7 @@ let () =
 --# Wraps the CLI `t test` command for use within the REPL.
 --#
 --# @name t_test
---# @return :: Null Returns Null on success, or an Error if tests fail.
+--# @return :: NA Returns NA on success, or an Error if tests fail.
 --# @family repl
 --# @export
 *)

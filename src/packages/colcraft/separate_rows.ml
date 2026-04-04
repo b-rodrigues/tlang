@@ -40,7 +40,7 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
                  else
                    match Arrow_table.get_column df.arrow_table name with
                    | Some col -> (name, Arrow_table.take_col col expansion_indices final_nrows)
-                   | None -> (name, Arrow_table.NullColumn final_nrows)
+                   | None -> (name, Arrow_table.NAColumn final_nrows)
                ) df.arrow_table.schema in
                
                VDataFrame { df with arrow_table = { df.arrow_table with columns = new_columns; nrows = final_nrows; native_handle = None } }

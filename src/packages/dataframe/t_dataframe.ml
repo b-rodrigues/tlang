@@ -120,7 +120,7 @@ let register env =
                           VVector (Array.map (function Some d -> VDate d | None -> VNA NADate) data)
                       | Arrow_table.DatetimeColumn (data, tz) ->
                           VVector (Array.map (function Some ts -> VDatetime (ts, tz) | None -> VNA NADate) data)
-                      | Arrow_table.NullColumn n ->
+                      | Arrow_table.NAColumn n ->
                           VVector (Array.make n ((VNA NAGeneric)))
                      | Arrow_table.DictionaryColumn (data, levels, ordered) ->
                          VVector (Array.map (function Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric)) data)

@@ -47,7 +47,7 @@ let column_has_nulls (table : Arrow_table.t) (col_name : string) : bool =
     let rec check i = if i >= n then false
       else match a.(i) with None -> true | Some _ -> check (i + 1)
     in check 0
-  | Some (Arrow_table.NullColumn _) -> true
+  | Some (Arrow_table.NAColumn _) -> true
   | None -> true
   | _ -> true
 

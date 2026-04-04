@@ -9,7 +9,7 @@ open Ast
 --# @param p :: Pipeline The pipeline to inspect.
 --# @param name :: String (Optional) A specific node's name to trace.
 --# @param transitive :: Bool (Optional) If true, mark transitive dependencies with '*'.
---# @return :: Null Returns invisibly. Prints to the console.
+--# @return :: NA Returns invisibly. Prints to the console.
 --# @example
 --#   p = pipeline { x = 1; y = x + 1 }
 --#   trace_nodes(p)

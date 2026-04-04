@@ -27,7 +27,7 @@ let register env =
     | VString s ->
         Builder.inspect_pipeline ~which_log:s ()
     | _ ->
-        Error.type_error "inspect_pipeline: expected String or Null for argument 'which_log'"
+        Error.type_error "inspect_pipeline: expected String or NA for argument 'which_log'"
   in
   let env = Env.add "inspect_pipeline" (make_builtin_named ~name:"inspect_pipeline" ~variadic:true 0 inspect_fn) env in
 

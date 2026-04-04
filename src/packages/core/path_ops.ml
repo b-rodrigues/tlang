@@ -104,7 +104,7 @@ let builtin_path_dirname =
 --#
 --# @name path_ext
 --# @param path :: String A file path.
---# @return :: String | Null The file extension including the leading dot, or null if none.
+--# @return :: String | NA The file extension including the leading dot, or null if none.
 --# @example
 --#   path_ext("data.csv")    # => ".csv"
 --#   path_ext("Makefile")    # => null

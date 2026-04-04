@@ -768,7 +768,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       | None -> Ok pairs
                       | Some (key, _) ->
                           Error (Error.type_error
-                                   (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or Null." fn_name key))))
+                                   (Printf.sprintf "Function `%s` expects environment variable `%s` to be a String, Symbol, Int, Float, Bool, or NA." fn_name key))))
                 | VNA _ -> Ok []
                 | _ ->
                     Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
@@ -789,13 +789,13 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                      | None -> Ok pairs
                      | Some (key, _) ->
                          Error (Error.type_error
-                                  (Printf.sprintf "Function `%s` expects runtime arg `%s` to be a String, Symbol, Int, Float, Bool, Null, or List of those values." fn_name key)))
+                                  (Printf.sprintf "Function `%s` expects runtime arg `%s` to be a String, Symbol, Int, Float, Bool, NA, or List of those values." fn_name key)))
                | VList items ->
                     (match List.find_opt (fun (_, v) -> not (is_arg_value ~allow_list:false v)) items with
                      | None -> Ok (List.mapi (fun i (_, v) -> (string_of_int i, v)) items)
                      | Some _ ->
                          Error (Error.type_error
-                                  (Printf.sprintf "Function `%s` expects `args` list items to be String, Symbol, Int, Float, Bool, or Null values." fn_name)))
+                                  (Printf.sprintf "Function `%s` expects `args` list items to be String, Symbol, Int, Float, Bool, or NA values." fn_name)))
                | VNA _ -> Ok []
                | _ ->
                    Error (Error.type_error (Printf.sprintf "Function `%s` expects `args` to be a Dict or List." fn_name)))

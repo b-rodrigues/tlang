@@ -19,7 +19,7 @@ let column_to_values (col : Arrow_table.column_data) : value array =
       Array.map (fun v -> match v with Some d -> VDate d | None -> VNA NADate) a
   | Arrow_table.DatetimeColumn (a, tz) ->
       Array.map (fun v -> match v with Some ts -> VDatetime (ts, tz) | None -> VNA NADate) a
-  | Arrow_table.NullColumn n ->
+  | Arrow_table.NAColumn n ->
       Array.make n ((VNA NAGeneric))
   | Arrow_table.DictionaryColumn (a, levels, ordered) ->
       Array.map (fun v -> match v with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric)) a
@@ -67,7 +67,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
     | _ -> has_string := true; all_na := false  (* fallback to string *)
   ) values;
   if !all_na then
-    Arrow_table.NullColumn (Array.length values)
+    Arrow_table.NAColumn (Array.length values)
   else if !has_dataframe then
     if !has_int || !has_float || !has_bool || !has_string || !has_date || !has_datetime || !has_factor || !factor_inconsistent then
       failwith "values_to_column: mixed DataFrame and non-DataFrame values cannot be stored in a single column"
@@ -131,7 +131,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
       | _ -> None
     ) values)
   else
-    Arrow_table.NullColumn (Array.length values)
+    Arrow_table.NAColumn (Array.length values)
 
 (** Extract a row from an Arrow table as a T Dict (list of name-value pairs).
     For native-backed tables, extracts column data via FFI as needed. *)
@@ -139,7 +139,7 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
   let get_col_data name =
     match Arrow_table.get_column table name with
     | Some col -> col
-    | None -> Arrow_table.NullColumn table.nrows
+    | None -> Arrow_table.NAColumn table.nrows
   in
   List.map (fun (name, _) ->
     let col = get_col_data name in
@@ -156,7 +156,7 @@ let row_to_dict (table : Arrow_table.t) (row_idx : int) : (string * value) list 
           (match a.(row_idx) with Some d -> VDate d | None -> VNA NADate)
       | Arrow_table.DatetimeColumn (a, tz) ->
           (match a.(row_idx) with Some ts -> VDatetime (ts, tz) | None -> VNA NADate)
-      | Arrow_table.NullColumn _ -> (VNA NAGeneric)
+      | Arrow_table.NAColumn _ -> (VNA NAGeneric)
       | Arrow_table.DictionaryColumn (a, levels, ordered) ->
           (match a.(row_idx) with Some i -> VFactor (i, levels, ordered) | None -> (VNA NAGeneric))
       | Arrow_table.ListColumn a ->
@@ -178,7 +178,7 @@ let table_to_value_columns (table : Arrow_table.t) : (string * value array) list
   List.map (fun (name, _) ->
     let col = match Arrow_table.get_column table name with
       | Some c -> c
-      | None -> Arrow_table.NullColumn table.nrows
+      | None -> Arrow_table.NAColumn table.nrows
     in
     (name, column_to_values col)
   ) table.schema

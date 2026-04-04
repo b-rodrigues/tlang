@@ -56,7 +56,7 @@ let rec col_lens_set_impl col_name ~eval_call args env =
       let new_col = match val_v with
         | VVector vals when Array.length vals = nrows -> Arrow_bridge.values_to_column vals
         | VVector vals -> 
-            if Array.length vals = 0 then Arrow_table.NullColumn nrows
+            if Array.length vals = 0 then Arrow_table.NAColumn nrows
             else Arrow_bridge.values_to_column (Array.init nrows (fun i -> vals.(i mod Array.length vals)))
         | v -> 
             let vals = Array.make nrows v in
@@ -66,7 +66,7 @@ let rec col_lens_set_impl col_name ~eval_call args env =
         if name = col_name then (name, new_col)
         else match Arrow_table.get_column df.arrow_table name with
              | Some col -> (name, col)
-             | None -> (name, Arrow_table.NullColumn nrows)
+             | None -> (name, Arrow_table.NAColumn nrows)
       ) names in
       let final_cols = 
         if List.mem col_name names then columns
@@ -209,7 +209,7 @@ let row_lens_set_impl i ~eval_call:_ args _env =
         let updated_cols = List.map (fun name ->
           let col = match Arrow_table.get_column df.arrow_table name with
             | Some c -> c
-            | None -> Arrow_table.NullColumn nrows
+            | None -> Arrow_table.NAColumn nrows
           in
           let vals = Arrow_bridge.column_to_values col in
           let new_val = match List.assoc_opt name row_items with
@@ -413,11 +413,11 @@ let filter_lens_set_impl p ~eval_call args env =
                 else
                   let updated_cols = List.map (fun name ->
                     let col = match Arrow_table.get_column df.arrow_table name with
-                      | Some c -> c | None -> Arrow_table.NullColumn nrows
+                      | Some c -> c | None -> Arrow_table.NAColumn nrows
                     in
                     let vals = Arrow_bridge.column_to_values col in
                     let repl_col = match Arrow_table.get_column df_repl.arrow_table name with
-                      | Some c -> c | None -> Arrow_table.NullColumn match_count
+                      | Some c -> c | None -> Arrow_table.NAColumn match_count
                     in
                     let repl_vals = Arrow_bridge.column_to_values repl_col in
                     let repl_idx = ref 0 in
@@ -434,7 +434,7 @@ let filter_lens_set_impl p ~eval_call args env =
                 (* scalar broadcast: apply the same Dict to every matched row *)
                 let updated_cols = List.map (fun name ->
                   let col = match Arrow_table.get_column df.arrow_table name with
-                    | Some c -> c | None -> Arrow_table.NullColumn nrows
+                    | Some c -> c | None -> Arrow_table.NAColumn nrows
                   in
                   let vals = Arrow_bridge.column_to_values col in
                   let new_val = match List.assoc_opt name row_items with

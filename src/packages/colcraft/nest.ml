@@ -80,7 +80,7 @@ let nest_impl (named_args : (string option * value) list) _env =
             (* Fast-path for empty input: no groups, produce correct empty schema. *)
             let sub_table = Arrow_compute.project df.arrow_table to_nest in
             let key_schema = List.map (fun k ->
-              (k, match Arrow_table.column_type df.arrow_table k with Some t -> t | None -> ArrowNull)
+              (k, match Arrow_table.column_type df.arrow_table k with Some t -> t | None -> ArrowNA)
             ) group_cols in
             let key_zero_cols = List.map (fun (k, t) ->
               let col = match t with
@@ -88,7 +88,7 @@ let nest_impl (named_args : (string option * value) list) _env =
                 | ArrowFloat64 -> FloatColumn [||]
                 | ArrowBoolean -> BoolColumn [||]
                 | ArrowString -> StringColumn [||]
-                | _ -> NullColumn 0
+                | _ -> NAColumn 0
               in
               (k, col)
             ) key_schema in
@@ -127,7 +127,7 @@ let nest_impl (named_args : (string option * value) list) _env =
 
           let final_cols = all_cols @ [nested_col] in
           let final_schema = List.map (fun (k, _) ->
-            (k, match Arrow_table.column_type df.arrow_table k with Some t -> t | None -> ArrowNull)
+            (k, match Arrow_table.column_type df.arrow_table k with Some t -> t | None -> ArrowNA)
           ) key_cols @ [(new_col_name, ArrowList (ArrowStruct first_sub.schema))] in
 
           VDataFrame {

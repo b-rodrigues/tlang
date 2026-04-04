@@ -57,8 +57,8 @@ let register env =
             in
             
             let new_cols = [
-              ("fitted", match fitted with Some c -> c | None -> Arrow_table.NullColumn 0);
-              ("resid",  match resid with Some c -> c | None -> Arrow_table.NullColumn 0);
+              ("fitted", match fitted with Some c -> c | None -> Arrow_table.NAColumn 0);
+              ("resid",  match resid with Some c -> c | None -> Arrow_table.NAColumn 0);
             ] in
             let new_cols = match std_resid with
               | Some c -> new_cols @ [("std_resid", c)]
@@ -68,7 +68,7 @@ let register env =
             (* Combine with original columns *)
             let orig_names = Arrow_table.column_names df.arrow_table in
             let combined_cols = List.map (fun name ->
-              (name, match Arrow_table.get_column df.arrow_table name with Some c -> c | None -> Arrow_table.NullColumn 0)
+              (name, match Arrow_table.get_column df.arrow_table name with Some c -> c | None -> Arrow_table.NAColumn 0)
             ) orig_names in
             
             let final_table = Arrow_table.create (combined_cols @ new_cols) (Arrow_table.num_rows df.arrow_table) in

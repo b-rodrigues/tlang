@@ -130,7 +130,7 @@ let expand_impl named_args _env =
           | VFloat _ -> FloatColumn (Array.map (function Some (VFloat x) -> Some x | Some (VInt x) -> Some (float_of_int x) | _ -> None) data)
           | VString _ -> StringColumn (Array.map (function Some (VString x) -> Some x | _ -> None) data)
           | VBool _ -> BoolColumn (Array.map (function Some (VBool x) -> Some x | _ -> None) data)
-          | _ -> NullColumn nrows
+          | _ -> NAColumn nrows
         in
         (name, col)
       ) column_names in
@@ -168,13 +168,13 @@ let crossing_impl named_args _env =
   (* Handle the case where any input has zero values: return empty DataFrame *)
   if List.exists (fun (_, vals) -> vals = []) inputs then begin
     let columns = List.map (fun (name, vals) ->
-      (* Infer type from first element if available; empty inputs fall through to NullColumn *)
+      (* Infer type from first element if available; empty inputs fall through to NAColumn *)
       let col = match vals with
         | (VInt _) :: _ -> IntColumn (Array.make 0 None)
         | (VFloat _) :: _ -> FloatColumn (Array.make 0 None)
         | (VString _) :: _ -> StringColumn (Array.make 0 None)
         | (VBool _) :: _ -> BoolColumn (Array.make 0 None)
-        | _ -> NullColumn 0  (* empty list or unrecognised type *)
+        | _ -> NAColumn 0  (* empty list or unrecognised type *)
       in (name, col)
     ) inputs in
     let schema = List.map (fun (n, c) -> (n, Arrow_table.column_type_of c)) columns in
@@ -192,7 +192,7 @@ let crossing_impl named_args _env =
         | VFloat _ -> FloatColumn (Array.map (function VFloat x -> Some x | VInt x -> Some (float_of_int x) | _ -> None) data)
         | VString _ -> StringColumn (Array.map (function VString x -> Some x | _ -> None) data)
         | VBool _ -> BoolColumn (Array.map (function VBool x -> Some x | _ -> None) data)
-        | _ -> NullColumn nrows
+        | _ -> NAColumn nrows
       in (name, col)
     ) inputs in
     

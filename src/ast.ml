@@ -387,7 +387,7 @@ module Utils = struct
     | TFloat -> "Float"
     | TBool -> "Bool"
     | TString -> "String"
-    | TCustom "NA" -> "Null"
+    | TCustom "NA" -> "NA"
     | TList None -> "List"
     | TList (Some t) -> "List[" ^ typ_to_string t ^ "]"
     | TDict (None, None) -> "Dict"

@@ -188,7 +188,7 @@ let register env =
   --#
   --# @name env
   --# @param name :: String The name of the environment variable.
-  --# @return :: String | Null The value of the variable, or null if not set.
+  --# @return :: String | NA The value of the variable, or null if not set.
   --# @example
   --#   env("HOME")
   --# @family core

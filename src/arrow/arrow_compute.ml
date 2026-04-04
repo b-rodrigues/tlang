@@ -14,7 +14,7 @@ let project (t : Arrow_table.t) (names : string list) : Arrow_table.t =
            let new_schema = List.map (fun n ->
              match List.assoc_opt n t.schema with
              | Some ty -> (n, ty)
-             | None -> (n, Arrow_table.ArrowNull)
+             | None -> (n, Arrow_table.ArrowNA)
            ) names in
            Arrow_table.create_from_native new_ptr new_schema t.nrows
        | None ->
@@ -782,7 +782,7 @@ let column_null_mask (t : Arrow_table.t) (col_name : string) : bool array option
         Some (Array.map is_none a)
     | Some (Arrow_table.ListColumn a) ->
         Some (Array.map is_none a)
-    | Some (Arrow_table.NullColumn n) ->
+    | Some (Arrow_table.NAColumn n) ->
         Some (Array.make n true)
     | None -> None
   in

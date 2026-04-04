@@ -57,7 +57,7 @@ let register env =
     | VNA _ -> run_copy None
     | VString node_name | VSymbol node_name -> run_copy (Some node_name)
     | _ ->
-        Error.type_error "Function `pipeline_copy` expects `node` to be a String, Symbol, or Null."
+        Error.type_error "Function `pipeline_copy` expects `node` to be a String, Symbol, or NA."
   in
 
   env

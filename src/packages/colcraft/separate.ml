@@ -113,7 +113,7 @@ let register env =
                       List.iter (fun (n, d) -> final_columns := (n, d) :: !final_columns) new_cols_data
                     end
                   else
-                    final_columns := (name, match Arrow_table.get_column df.arrow_table name with Some d -> d | None -> NullColumn orig_nrows) :: !final_columns
+                    final_columns := (name, match Arrow_table.get_column df.arrow_table name with Some d -> d | None -> NAColumn orig_nrows) :: !final_columns
                 ) all_names;
                 let final_columns = List.rev !final_columns in
                 

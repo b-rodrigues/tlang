@@ -754,7 +754,7 @@ let init_env () =
           let columns = List.map2 (fun old_name new_name ->
             match Arrow_table.get_column arrow_table old_name with
             | Some col -> (new_name, col)
-            | None -> (new_name, Arrow_table.NullColumn (Arrow_table.num_rows arrow_table))
+            | None -> (new_name, Arrow_table.NAColumn (Arrow_table.num_rows arrow_table))
           ) old_names new_names in
           let nrows = Arrow_table.num_rows arrow_table in
           let new_table = Arrow_table.create columns nrows in
