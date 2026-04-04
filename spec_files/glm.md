@@ -78,6 +78,10 @@ type regression_model = {
 
 The `glm_stats` field is `None` for a plain `lm`, so existing linear model paths are unaffected.
 
+The exported JSON extension uses snake_case field names such as
+`null_deviance` and `null_deviance_df`; the dotted R summary members
+`null.deviance` and `df.null` are only the source fields used to populate them.
+
 ---
 
 ## 4. Runtime Enrichment (R)
