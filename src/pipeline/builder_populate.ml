@@ -167,7 +167,7 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
           ) p.p_exprs;
           if !missing = [] then None
           else
-            let grouped = List.fold_left (fun acc (name, runtime, lang, pkg) ->
+            let grouped = List.fold_left (fun acc (name, _runtime, lang, pkg) ->
               let key = (lang, pkg) in
               if List.mem_assoc key acc then
                 let (nodes, p) = List.assoc key acc in
