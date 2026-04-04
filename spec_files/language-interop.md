@@ -134,7 +134,7 @@ Same ingestion path in T.
 T must enforce:
 
 * Stable column order
-* Explicit nullability
+* Explicit NAability
 * Stable type mapping:
 
   * int → Int64

@@ -63,7 +63,7 @@ pair = \<A, B>(x: A, y: B -> Tuple[A, B]) [x, y]
 - `Float`
 - `Bool`
 - `String`
-- `Null`
+- `NA`
 
 ### Composite forms
 

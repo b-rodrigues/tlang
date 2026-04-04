@@ -270,7 +270,7 @@ for t_file in tests/golden/*.t; do
   dune exec src/repl.exe < "$t_file" > /tmp/t_${base}.txt
   Rscript "$r_file" > /tmp/r_${base}.txt
   
-  if diff /tmp/t_${base}.txt /tmp/r_${base}.txt > /dev/null; then
+  if diff /tmp/t_${base}.txt /tmp/r_${base}.txt > /dev/NA; then
     echo "✓ $base"
   else
     echo "✗ $base (output differs)"

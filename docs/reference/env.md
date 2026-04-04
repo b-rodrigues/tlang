@@ -11,7 +11,7 @@ Retrieves the value of an environment variable.
 
 ## Returns
 
-| Null The value of the variable, or null if not set.
+| NA The value of the variable, or NA if not set.
 
 ## Examples
 

@@ -142,7 +142,7 @@ Version history and roadmap for the T programming language.
 - Pipeline (DAG execution)
 - Intent (LLM metadata)
 - Formula (statistical modeling)
-- Null
+- NA
 
 ### Operators
 
@@ -248,7 +248,7 @@ Version history and roadmap for the T programming language.
 - Dual-path operations (native + fallback)
 - `explain(df)` surfaces whether a DataFrame is still on the native Arrow path (`storage_backend`, `native_path_active`)
 - Supported structural rebuilds now try to stay Arrow-backed by rematerializing into a fresh native table
-- **Current limitation**: unsupported builder paths (for example null-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
+- **Current limitation**: unsupported builder paths (for example NA-only, factor, list, date, or datetime columns) still fall back to pure OCaml/T storage
 
 ✅ **Reproducibility**:
 

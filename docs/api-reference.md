@@ -68,7 +68,7 @@ A single bracket literal cannot mix dictionary entries and plain expressions:
 `{ ... }` is reserved for block syntax (e.g., in control flow and pipeline/intent constructs).
 It is not used for general dictionary literals.
 
-An empty brace block `{}` parses as an empty block (`Block []`) and evaluates to `null` at runtime.
+An empty brace block `{}` parses as an empty block (`Block []`) and evaluates to `NA` at runtime.
 Braces are never used for dictionary literals; dictionaries always use the bracket (`[...]`) syntax described above.
 
 ---
@@ -489,7 +489,7 @@ Get the value of an environment variable.
 
 **Returns:**
 
-`String` or `null` if not found
+`String` or `NA` if not found
 
 ---
 
@@ -551,7 +551,7 @@ Get the directory portion of a path.
 
 ### `path_ext(path)`
 
-Get the file extension (including the dot). Returns `null` if no extension is found.
+Get the file extension (including the dot). Returns `NA` if no extension is found.
 
 **Parameters:**
 
@@ -560,7 +560,7 @@ Get the file extension (including the dot). Returns `null` if no extension is fo
 
 **Returns:**
 
-`String` or `null`
+`String` or `NA`
 
 ---
 
@@ -606,7 +606,7 @@ Remove one or more variables from the environment by name. Supports bare symbols
 
 **Returns:**
 
-`null`
+`NA`
 
 **Examples:**
 
@@ -798,7 +798,7 @@ Check if a value is NA.
 is_na(NA)           -- true
 is_na(na_int())     -- true
 is_na(42)           -- false
-is_na(null)         -- false (null ≠ NA)
+is_na(NA)         -- false (NA ≠ NA)
 ```
 
 ---
@@ -1240,7 +1240,7 @@ Write a DataFrame to an Arrow IPC file.
 
 **Returns:**
 
-`null`
+`NA`
 
 **Examples:**
 ```t
@@ -1262,7 +1262,7 @@ Write a DataFrame to a CSV file.
 
 **Returns:**
 
-`null`
+`NA`
 
 **Examples:**
 ```t
@@ -1959,7 +1959,7 @@ str_glue("Hello {name}")  -- "Hello Alice"
 
 Pipeline introspection and management.
 
-### `node(command, script = null, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = null, shell_args = [], functions = [], include = [], noop = false)`
+### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -1997,9 +1997,9 @@ include = "config.yml"
 
 ---
 
-### `py(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
-### `pyn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
@@ -2020,7 +2020,7 @@ The evaluated return value of the command.
 
 ---
 
-### `rn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
+### `rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)`
 
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
@@ -2041,7 +2041,7 @@ The evaluated return value of the command.
 
 ---
 
-### `shn(command, script = null, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
+### `shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
 
 Configure a shell pipeline node. A convenience wrapper around `node()` with `runtime = "sh"`. Use it for CLI tools, inline shell scripts, and `.sh` files inside `pipeline { ... }` blocks.
 
@@ -2186,7 +2186,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 
 ---
 
-### `read_node(name, which_log = null)`
+### `read_node(name, which_log = NA)`
 
 Read a materialized artifact from a previous build.
 
@@ -2208,7 +2208,7 @@ read_node("model_v1", which_log = "20260221")
 
 ---
 
-### `inspect_pipeline(which_log = null)`
+### `inspect_pipeline(which_log = NA)`
 
 View build status and output paths for a pipeline build.
 
@@ -2420,7 +2420,7 @@ Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
 | `Function` | `\(x) x + 1` | First-class functions |
 | `NA` | `NA`, `na_int()` | Explicit missing values (typed) |
 | `Error` | `error("msg")` | Structured errors (not exceptions) |
-| `Null` | `null` | Absence of value |
+| `NA` | `NA` | Absence of value |
 | `Intent` | `intent { ... }` | LLM metadata block |
 | `Pipeline` | `pipeline { ... }` | DAG computation graph |
 | `Formula` | `y ~ x` | Statistical model specification |

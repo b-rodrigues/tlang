@@ -17,7 +17,7 @@ If any non-default options are provided (e.g., `separator = ";"`, `skip_lines = 
 
 ### NULL Value Handling (NA)
 
-The native reader is configured to recognize the following strings as `NA` (null values):
+The native reader is configured to recognize the following strings as `NA` (NA values):
 - `NA`
 - `na`
 - `N/A`

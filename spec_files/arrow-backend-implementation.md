@@ -1228,7 +1228,7 @@ After each phase:
     
     GArrowInt64Array *int_array = GARROW_INT64_ARRAY(array);
     for (gint64 i = 0; i < length; i++) {
-      if (garrow_array_is_null(array, i)) {
+      if (garrow_array_is_NA(array, i)) {
         Store_field(v_result, i, Val_none); // None
       } else {
         gint64 val = garrow_int64_array_get_value(int_array, i);

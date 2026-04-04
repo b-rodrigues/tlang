@@ -55,8 +55,8 @@ type link =
   | Sqrt
 
 type glm_stats = {
-  null_deviance       : float;
-  null_deviance_df    : int;
+  NA_deviance       : float;
+  NA_deviance_df    : int;
   residual_deviance   : float;
   residual_deviance_df: int;
   dispersion          : float;     (* 1.0 for Binomial/Poisson *)
@@ -124,8 +124,8 @@ t_export_glm <- function(fit, path) {
       value = jsonlite::toJSON(list(
         family              = family(fit)$family,
         link                = family(fit)$link,
-        null_deviance       = fmt(s$null.deviance),
-        null_deviance_df    = s$df.null,
+        NA_deviance       = fmt(s$NA.deviance),
+        NA_deviance_df    = s$df.NA,
         residual_deviance   = fmt(s$deviance),
         residual_deviance_df= s$df.residual,
         dispersion          = fmt(s$dispersion),

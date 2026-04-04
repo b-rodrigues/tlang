@@ -42,7 +42,7 @@ Returns a tidy DataFrame of regression coefficients (equivalent to `broom::tidy`
 Returns a one-row DataFrame containing model-level metadata and goodness-of-fit statistics (equivalent to `broom::glance`).
 *   **Columns**: `r_squared`, `adj_r_squared`, `sigma`, `statistic` (F-stat), `p_value`, `df`, `logLik`, `AIC`, `BIC`, `deviance`, `df_residual`, `nobs`.
 
-### **`add_diagnostics(model, data = null)`**
+### **`add_diagnostics(model, data = NA)`**
 Augments a DataFrame with observation-level diagnostic values (equivalent to `broom::augment`). If `data` is omitted, it defaults to the data used to fit the model.
 *   **Added Columns**: `.fitted`, `.resid`, `.hat`, `.sigma`, `.cooksd`, `.std_resid`.
 

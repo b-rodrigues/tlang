@@ -669,14 +669,14 @@ The `env_vars` dictionary supports the following scalar-like values:
 | **Int** | `2` | `"2"` |
 | **Float** | `3.14` | `"3.14"` (up to 15 significant digits) |
 | **Bool** | `true` | `"true"` |
-| **Null** | `null` | (Omitted from derivation) |
+| **NA** | `NA` | (Omitted from derivation) |
 
 ### Validation
 
 T performs early validation on environment variables:
 - `env_vars` must be a dictionary.
 - Unsupported types (like Lists or nested Dicts) trigger a structured type error during pipeline construction.
-- `null` values are silently omitted from the generated Nix derivation instead of being materialized as empty strings.
+- `NA` values are silently omitted from the generated Nix derivation instead of being materialized as empty strings.
 
 These variables are automatically threaded into the generated `stdenv.mkDerivation` and are available via standard system methods (e.g., `Sys.getenv()` in R or `os.environ` in Python) during the Nix build step.
 
