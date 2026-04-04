@@ -53,8 +53,8 @@ let register env =
                 | Ok file_mode ->
                     Builder.pipeline_copy ~node_name ~target_dir ~dir_mode ~file_mode ()))
     in
-    match get_arg "node" 1 VNull named_args with
-    | VNull -> run_copy None
+    match get_arg "node" 1 (VNA NAGeneric) named_args with
+    | VNA _ -> run_copy None
     | VString node_name | VSymbol node_name -> run_copy (Some node_name)
     | _ ->
         Error.type_error "Function `pipeline_copy` expects `node` to be a String, Symbol, or Null."

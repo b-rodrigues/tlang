@@ -32,9 +32,9 @@ let register ~rerun_pipeline env =
         Error.make_error ArityError
           (Printf.sprintf "Function `build_pipeline` accepts at most 2 positional arguments but received %d." positional_count)
     | None ->
-      match get_arg "p" 1 VNull named_args with
+      match get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
-        let (verbose_provided, verbose_val) = get_arg "verbose" 2 VNull named_args in
+        let (verbose_provided, verbose_val) = get_arg "verbose" 2 (VNA NAGeneric) named_args in
         let verbose_result =
           match verbose_val with
           | VInt i when i >= 0 -> Ok (Some i)

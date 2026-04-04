@@ -36,10 +36,10 @@ let register env =
         Error.make_error ArityError
           (Printf.sprintf "Function `populate_pipeline` accepts at most 3 positional arguments but received %d." positional_count)
     | None ->
-      match get_arg "p" 1 VNull named_args with
+      match get_arg "p" 1 (VNA NAGeneric) named_args with
       | (_, VPipeline p) ->
         let (build_provided, build_val) = get_arg "build" 2 (VBool false) named_args in
-        let (verbose_provided, verbose_val) = get_arg "verbose" 3 VNull named_args in
+        let (verbose_provided, verbose_val) = get_arg "verbose" 3 (VNA NAGeneric) named_args in
         let build_result =
           match build_val with
           | VBool b -> Ok b
