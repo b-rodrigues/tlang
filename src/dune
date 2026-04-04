@@ -21,6 +21,12 @@
  (action (with-stdout-to %{target}
           (bash "v=$(cat ../VERSION | tr -d '\\n'); echo \"let version = \\\"$v\\\"\""))))
 
+(rule
+ (target nixpkgs_date.ml)
+ (deps ../RSTATS-NIX-DATE)
+ (action (with-stdout-to %{target}
+          (bash "v=$(cat ../RSTATS-NIX-DATE | tr -d '\\n'); echo \"let date = \\\"$v\\\"\""))))
+
 (library
  (name t_lang)
  (wrapped false)
@@ -65,7 +71,7 @@
     ; packages/explain
     intent_fields intent_get t_explain explain_json
    ; package_manager
-   version package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager package_loader
+   version nixpkgs_date package_types toml_parser template_engine scaffold nix_generator test_discovery package_doctor release_manager documentation_manager update_manager package_loader
    ; tdoc
    tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )
