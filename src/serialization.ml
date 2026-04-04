@@ -93,9 +93,9 @@ let serialize_to_file path value =
 --# before unmarshalling to reject tampered or externally-supplied artifacts.
 --#
 --# SECURITY NOTE: OCaml Marshal is not safe for fully untrusted input.
---# The digest check prevents accidental corruption and casual tampering
---# but does not provide cryptographic authentication. Only load .tobj
---# files produced by your own T installation.
+--# The MD5 digest check detects accidental corruption only — MD5 is not
+--# cryptographically secure and provides no protection against intentional
+--# tampering. Only load .tobj files produced by your own T installation.
 --#
 --# @name deserialize_from_file
 --# @param path :: String Source file path.
