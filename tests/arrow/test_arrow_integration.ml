@@ -1962,7 +1962,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
             parquet_path))
   in
   let parquet_pyarrow_check_cmd =
-    Printf.sprintf "python3 -c %s >/dev/NA 2>&1"
+    Printf.sprintf "python3 -c %s >/dev/null 2>&1"
       (Filename.quote "import pyarrow")
   in
   if Arrow_ffi.arrow_available then begin

@@ -31,18 +31,6 @@ let register env =
          | VNA _ -> Builder.read_node name
          | VString s -> Builder.read_node ~which_log:s name
          | _ -> Error.type_error "read_node: expected String for 'which_log'")
-    | VPipeline _ ->
-        let node_name = match get_arg "name" 2 (VNA NAGeneric) named_args with
-          | VString s -> s
-          | _ -> ""
-        in
-        if node_name = "" then 
-          Error.make_error ValueError "read_node: when first argument is a Pipeline, the second argument must be a node name String."
-        else
-          (match get_arg "which_log" 3 (VNA NAGeneric) named_args with
-           | VNA _ -> Builder.read_node node_name
-           | VString s -> Builder.read_node ~which_log:s node_name
-           | _ -> Error.type_error "read_node: expected String for 'which_log'")
     | VComputedNode cn ->
         if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
           (match Serialization.deserialize_from_file cn.cn_path with

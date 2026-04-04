@@ -798,7 +798,7 @@ Check if a value is NA.
 is_na(NA)           -- true
 is_na(na_int())     -- true
 is_na(42)           -- false
-is_na(NA)         -- false (NA ≠ NA)
+is_na("hello")      -- false
 ```
 
 ---
@@ -2420,7 +2420,6 @@ Standard operators can be broadcasted over lists/vectors by prefixing with `.`.
 | `Function` | `\(x) x + 1` | First-class functions |
 | `NA` | `NA`, `na_int()` | Explicit missing values (typed) |
 | `Error` | `error("msg")` | Structured errors (not exceptions) |
-| `NA` | `NA` | Absence of value |
 | `Intent` | `intent { ... }` | LLM metadata block |
 | `Pipeline` | `pipeline { ... }` | DAG computation graph |
 | `Formula` | `y ~ x` | Statistical model specification |

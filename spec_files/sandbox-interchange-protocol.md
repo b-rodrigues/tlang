@@ -489,7 +489,7 @@ T provides:
 
 ```r
 t_write_json <- function(object, path) {
-  jsonlite::write_json(object, path, auto_unbox = TRUE, NA = "NA")
+  jsonlite::write_json(object, path, auto_unbox = TRUE, na = "string")
 }
 
 t_read_json <- function(path) {

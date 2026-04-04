@@ -61,7 +61,6 @@ T supports the following value types:
 | `Function`  | `\(x) x + 1`            | First-class functions               |
 | `NA`        | `NA`                     | Explicit missing value              |
 | `Error`     | `error("msg")`           | Structured error value              |
-| `NA`      | `NA`                   | Absence of value                    |
 | `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
 | `Expression`| `expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |

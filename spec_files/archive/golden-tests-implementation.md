@@ -739,7 +739,7 @@ for script in "$SCRIPT_DIR"/*.t; do
   test_name=$(basename "$script" .t)
   echo -n "Running: $test_name ... "
   
-  if $T_REPL run "$script" > /dev/NA 2>&1; then
+  if $T_REPL run "$script" > /dev/null 2>&1; then
     echo "✓"
     ((passed++))
   else
