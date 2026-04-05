@@ -1,6 +1,4 @@
 name: REPL Hello Test
-env:
-  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
 on:
   workflow_run:

@@ -1,6 +1,4 @@
 name: Build and Cache
-env:
-  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 on:
   push:
     branches:
