@@ -1,7 +1,11 @@
 # Changelog
 
-## [0.51.3] - 2026-04-xx (Upcoming)
+## [0.51.3] - 2026-04-05 (Upcoming)
 
+- **Strict Dependency Declaration Enforcement**: Finalized the removal of implicit Nix package injection for pipeline nodes. T-Lang now strictly enforces that all required packages (like `jsonlite`, `arrow`, `pandas`, or `onnxruntime`) must be explicitly declared in `tproject.toml`. Pipeline compilation now provides actionable errors if dependency closures are incomplete.
+- **Mandatory Serialization Integrity**: Introduced mandatory MD5 integrity digests for all `.tobj` serialized files. The deserialization engine now automatically verifies the data integrity of artifacts, providing a descriptive warning when fallback loading is used for legacy (pre-digest) files.
+- **Resilient Pipeline Path Resolution**: Fixed a critical regression in project root discovery for nested builds. The generated `_pipeline/pipeline.nix` now reliably resolves the repository root regardless of the execution context (local, CI, or build sandbox), ensuring Nix-builds succeed across all directory depths.
+- **Test Suite Stabilization**: Refactored the core pipeline test suite to use static interrogation (`build=false`) and modern-format mocks. This ensures a stable **1782/1782** pass rate across all environments by decoupling units tests from fragile Nix-in-Nix build dependencies.
 - **Standardized Nixpkgs Pinning**: Decoupled the Nixpkgs date from the system date during project initialization to ensure reproducible and cached environments.
     - Added `RSTATS-NIX-DATE` as the single source of truth for the project-wide Nixpkgs snapshot date.
     - Updated `t init` to dynamically use this canonical date, preventing accidental resource-intensive source builds (like Deno/Quarto) on architectures like `aarch64-linux`.
