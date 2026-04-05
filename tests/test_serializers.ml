@@ -141,9 +141,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   (match v with
    | VError { code; message; _ }
      when code = FileError
-       && contains_all message
-             ["tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically"] ->
-        incr pass_count; Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
+        && contains_all message
+              ["tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically"] ->
+       incr pass_count; Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
    | other ->
         incr fail_count;
         Printf.printf "  ✗ Explicit dependency check failed for ONNX pipeline. Got: %s\n"
@@ -190,9 +190,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
          incr fail_count; Printf.printf "  ✗ Pipeline Nix emission still injects serializer dependencies implicitly\n"
        end
    | other ->
-        incr fail_count;
-        Printf.printf "  ✗ Failed to build pipeline for Nix emission test. Got: %s\n"
-          (Ast.Utils.value_to_string other));
+       incr fail_count;
+       Printf.printf "  ✗ Failed to build pipeline for Nix emission test. Got: %s\n"
+         (Ast.Utils.value_to_string other));
 
   (* 4d. Python PMML reader surfaces a descriptive dependency error *)
   let env_pmml = Packages.init_env () in
