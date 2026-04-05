@@ -181,7 +181,7 @@ min_version = "0.51.0"
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
         analysis.missing_py_deps = ["onnxruntime"; "skl2onnx"]
         && analysis.missing_additional_tools = []
-        && List.exists (fun reason -> String.contains reason '`') analysis.reasons
+        && analysis.reasons = ["node `model` uses `onnx` with runtime `Python`"]
     | _ -> false);
 
   test_pm "apply missing Quarto dependencies updates explicit sections" (fun () ->

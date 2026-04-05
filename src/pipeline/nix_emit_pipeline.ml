@@ -8,6 +8,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     if s = "" then None else Some s
   ) p.p_imports in
   let node_names = List.map fst p.p_exprs in
+
   let check_strategy name target =
     let ser_expr = List.assoc name p.p_serializers in
     let des_expr = List.assoc name p.p_deserializers in
@@ -48,6 +49,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let runtime = List.assoc name p.p_runtimes in
     runtime = "Python" && is_pmml_ser_or_des name
   ) in
+
   let nodes =
     p.p_exprs
     |> List.map (fun (name, expr) ->
@@ -80,6 +82,7 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let runtime = List.assoc name p.p_runtimes in
     runtime = "R" && is_csv_ser_or_des name
   ) in
+
   let r_extra_pkgs = 
     (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
     (if needs_r_pmml then " pkgs.rPackages.r2pmml pkgs.rPackages.XML" else "") ^

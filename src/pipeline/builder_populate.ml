@@ -26,7 +26,7 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
     Error (Printf.sprintf "The following required files are missing from the file system: %s" (String.concat ", " missing_files))
   else
   match Pipeline_dependency_requirements.ensure_project_requirements p with
-  | Error msg -> Error msg
+  | Error msg -> Error ("Pipeline dependency check failed: " ^ msg)
   | Ok () ->
   let () =
     List.iter (fun (name, _) ->

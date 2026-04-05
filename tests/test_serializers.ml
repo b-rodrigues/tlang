@@ -8,6 +8,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
     with Not_found -> false
   in
+  let contains_all s needles =
+    List.for_all (fun needle -> contains s needle) needles
+  in
+  let omits_all s needles =
+    List.for_all (fun needle -> not (contains s needle)) needles
+  in
 
   (* 1. Built-in Registry Resolution *)
   let (v, _) = eval_string_env {| ^csv |} (Packages.init_env ()) in
@@ -98,9 +104,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   (match v with
    | VString _ -> 
        incr pass_count; Printf.printf "  ✓ Static coherence check accepts matching formats\n"
-    | other -> 
-        incr fail_count; Printf.printf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
-          (Ast.Utils.value_to_string other));
+   | other -> 
+       incr fail_count; Printf.printf "  ✗ Static coherence check failed on matching formats. Got: %s\n" 
+         (Ast.Utils.value_to_string other));
 
   (* 4b. Explicit dependency checks happen before pipeline emission/build *)
   let env_onnx = Packages.init_env () in
@@ -111,11 +117,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
     populate_pipeline(p)
   |} env_onnx in
   (match v with
-   | VError { message; _ }
-     when contains message "tproject.toml"
-       && contains message "onnxruntime"
-       && contains message "skl2onnx"
-       && contains message "cannot add these dependencies automatically" ->
+   | VError { code; message; _ }
+     when code = FileError
+       && contains_all message
+            ["tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically"] ->
        incr pass_count; Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
    | other ->
        incr fail_count;
@@ -134,11 +139,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   (match v with
    | VPipeline p ->
        let nix = Nix_emitter.emit_pipeline p in
-       if not (contains nix "ps.skl2onnx")
-          && not (contains nix "ps.onnxruntime")
-          && not (contains nix "pkgs.quarto")
-          && not (contains nix "pkgs.which")
-          && not (contains nix "pkgs.rPackages.knitr")
+       if omits_all nix
+            ["ps.skl2onnx"; "ps.onnxruntime"; "pkgs.quarto"; "pkgs.which"; "pkgs.rPackages.knitr"]
        then begin
          incr pass_count; Printf.printf "  ✓ Pipeline Nix emission keeps project dependencies explicit\n"
        end else begin

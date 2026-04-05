@@ -42,6 +42,9 @@ let merge_requirements a b = {
 }
 
 let normalize_format s =
+  if s = "" then
+    ""
+  else
   let s =
     if String.length s > 0 && s.[0] = '^' then
       String.sub s 1 (String.length s - 1)
@@ -78,7 +81,8 @@ let rec formats_of_expr expr =
       List.fold_left
         (fun acc (_, value) -> formats_of_expr value @ acc)
         [] items
-  | _ -> formats_of_value (Eval.eval_expr (ref Ast.Env.empty) expr)
+  | DotAccess _ | RawCode _ -> []
+  | _ -> []
 
 let add_feature_requirement ~node_name ~runtime ~feature =
   let reason =
@@ -161,7 +165,9 @@ let analysis_is_empty analysis =
   && analysis.missing_latex_pkgs = []
 
 let append_missing existing missing =
-  existing @ List.filter (fun item -> not (List.mem item existing)) missing
+  let existing_set = add_list String_set.empty existing in
+  existing
+  @ List.filter (fun item -> not (String_set.mem item existing_set)) missing
 
 let apply_missing_requirements (cfg : project_config) analysis =
   {
@@ -205,28 +211,37 @@ let format_analysis analysis =
      @ sections)
 
 let is_interactive () =
-  Unix.isatty Unix.stdin && Unix.isatty Unix.stdout
+  try Unix.isatty Unix.stdin && Unix.isatty Unix.stdout with _ -> false
 
 let read_file path =
   try
     let ch = open_in path in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
+    let content =
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> really_input_string ch (in_channel_length ch))
+    in
     Ok content
-  with Sys_error msg -> Error msg
+  with Sys_error msg -> Error (Printf.sprintf "%s (%s)" msg path)
 
 let write_file path content =
   try
     let ch = open_out path in
-    output_string ch content;
-    close_out ch;
+    Fun.protect
+      ~finally:(fun () -> close_out_noerr ch)
+      (fun () -> output_string ch content);
     Ok ()
-  with Sys_error msg -> Error msg
+  with Sys_error msg -> Error (Printf.sprintf "%s (%s)" msg path)
 
 let prompt_to_update ~tproject_path analysis =
   Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
     (format_analysis analysis) tproject_path;
-  let answer = try read_line () with End_of_file -> "" in
+  let answer =
+    try read_line () with
+    | End_of_file ->
+        Printf.printf "\nNo input received; leaving `tproject.toml` unchanged.\n%!";
+        ""
+  in
   let answer = String.lowercase_ascii (String.trim answer) in
   answer = "y" || answer = "yes"
 
