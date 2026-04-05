@@ -1,4 +1,6 @@
 name: Pipeline JSON Interchange E2E
+env:
+  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
 on:
   workflow_run:

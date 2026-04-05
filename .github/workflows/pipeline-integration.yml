@@ -1,4 +1,6 @@
 name: Pipeline Integration Test
+env:
+  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
 on:
   workflow_run:
@@ -15,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
     steps:
     - name: Checkout repository

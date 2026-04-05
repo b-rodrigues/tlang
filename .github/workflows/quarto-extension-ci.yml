@@ -1,4 +1,6 @@
 name: Quarto Extension CI
+env:
+  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
 on:
   workflow_run:
@@ -38,7 +40,6 @@ jobs:
 
 
       - name: Render Quarto Document with T Filter
-        env:
           # Point generated project flakes at this checkout so `t update`
           # tests the current branch's Quarto-extension provisioning logic.
           TLANG_FLAKE_URL: git+file://${{ github.workspace }}

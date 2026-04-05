@@ -1,4 +1,6 @@
 name: Quarto Runtime E2E
+env:
+  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
 on:
   workflow_run:
@@ -41,6 +43,7 @@ jobs:
     - name: Initialize and Run Quarto Pipeline
       env:
         TLANG_FLAKE_URL: git+file://${{ github.workspace }}
+        TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
       run: |
         # 1. Build T from current commit
         nix build .#default --accept-flake-config

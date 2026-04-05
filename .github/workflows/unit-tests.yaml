@@ -1,4 +1,6 @@
 name: Unit tests
+env:
+  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
 on:
   pull_request:

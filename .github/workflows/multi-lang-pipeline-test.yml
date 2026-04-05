@@ -1,4 +1,6 @@
 name: Multi-Language Pipeline E2E
+env:
+  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
 on:
   workflow_run:
@@ -41,6 +43,7 @@ jobs:
     - name: Initialize and Run Multi-Language Pipeline
       env:
         TLANG_FLAKE_URL: git+file://${{ github.workspace }}
+        TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
       run: |
         # 1. Build T from current commit first (we need the binary with our fix)
         nix build .#default --accept-flake-config

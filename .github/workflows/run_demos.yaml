@@ -1,4 +1,6 @@
 name: Trigger Demo Actions
+env:
+  TLANG_AUTO_ADD_PIPELINE_DEPS: "1"
 
 on:
   workflow_run:
@@ -15,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch event to t_demos
-        env:
           GH_TOKEN: ${{ secrets.TRIGGER_DEMOS }}
           REPO: ${{ github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name || github.repository }}
           SHA: ${{ github.event.pull_request.head.sha != '' && github.event.pull_request.head.sha || github.sha }}
