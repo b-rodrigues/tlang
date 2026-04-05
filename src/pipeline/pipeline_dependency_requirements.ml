@@ -98,7 +98,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   | "Python", "json" ->
       empty_requirements
   | "R", "csv" ->
-      empty_requirements
+      { req with r_deps = add_list req.r_deps [ "readr"; "dplyr" ] }
   | "Python", "csv" ->
       { req with py_deps = add_list req.py_deps [ "pandas" ] }
   | "R", "arrow" ->
