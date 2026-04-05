@@ -88,6 +88,21 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
     {|Error(KeyError: "Node `b` not found in Pipeline.")|};
+
+  Printf.printf "Phase 3 — Static Interrogations (Roots/Leaves/Cycles):\n";
+  test "pipeline_roots"
+    "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_roots(p)"
+    {|["a", "c"]|};
+  test "pipeline_leaves"
+    "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_leaves(p)"
+    {|["b", "c"]|};
+  test "pipeline_summary"
+    "p = pipeline { a = 1; b = a + 1 }; summary = pipeline_summary(p); summary.node_count"
+    "2";
+  test "pipeline_summary edge_count"
+    "p = pipeline { a = 1; b = a + 1 }; summary = pipeline_summary(p); summary.edge_count"
+    "1";
+
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Re-run (Caching):\n";
