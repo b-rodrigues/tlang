@@ -98,7 +98,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   | "Python", "json" ->
       empty_requirements
   | "R", "csv" ->
-      { req with r_deps = add_list req.r_deps [ "readr"; "dplyr" ] }
+      empty_requirements (* base R write.csv/read.csv; no extra packages needed *)
   | "Python", "csv" ->
       { req with py_deps = add_list req.py_deps [ "pandas" ] }
   | "R", "arrow" ->
@@ -298,7 +298,21 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
     Ok ()
   else if not (Sys.file_exists tproject_path) then
     if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" then
-      Ok ()
+      let analysis =
+        {
+          missing_r_deps = String_set.elements required.r_deps;
+          missing_py_deps = String_set.elements required.py_deps;
+          missing_additional_tools = String_set.elements required.additional_tools;
+          missing_latex_pkgs = String_set.elements required.latex_pkgs;
+          reasons = String_set.elements required.reasons;
+        }
+      in
+      let cfg = Package_types.default_project_config (Filename.basename project_root) in
+      let updated_cfg = update_config_with_missing_requirements cfg analysis in
+      let updated_content = Toml_parser.serialize_tproject_toml updated_cfg in
+      (match write_file tproject_path updated_content with
+       | Error msg -> Error (Printf.sprintf "Failed to create tproject.toml: %s" msg)
+       | Ok () -> Error (rebuild_message tproject_path))
     else
       let analysis =
         {
@@ -311,7 +325,7 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
       in
       Error
         (Printf.sprintf
-           "%s\n\n`tproject.toml` was not found at %s, so T cannot add these dependencies automatically."
+           "%s\n\n`tproject.toml` was not found at %s, so T cannot add these dependencies automatically.\nSet `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to create it automatically."
            (format_analysis analysis) tproject_path)
   else
     match read_file tproject_path with

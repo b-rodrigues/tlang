@@ -35,8 +35,6 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     |> String.concat "\n"
   in
 
-  let r_extra_pkgs = "" in
-  let py_extra_pkgs = "" in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
 let
@@ -64,13 +62,13 @@ let
   
   rPackagesList = (toml.r-dependencies or {}).packages or [];
   r-env = pkgs.rWrapper.override {
-    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList)%s;
+    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList);
   };
 
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
-  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList)%s);
+  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList));
 
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];
@@ -93,4 +91,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root r_extra_pkgs py_extra_pkgs nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root nodes (String.concat " " node_names) final_copy
