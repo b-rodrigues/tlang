@@ -125,7 +125,11 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
   match write_dag p with
   | Error msg -> Error ("Failed to write dag.json: " ^ msg)
   | Ok () ->
-      let rel_root = get_relative_path_to_root () in
+      let rel_root = 
+        match get_relative_path_to_root () with
+        | "." -> ".."
+        | r -> "../" ^ r
+      in
       let nix_content = Nix_emitter.emit_pipeline ~rel_root p in
       match write_file pipeline_nix_path nix_content with
       | Error msg -> Error ("Failed to write pipeline.nix: " ^ msg)
