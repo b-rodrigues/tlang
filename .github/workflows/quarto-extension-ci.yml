@@ -36,8 +36,8 @@ jobs:
       - name: Build T Binary
         run: nix build .#default --accept-flake-config
 
-
       - name: Render Quarto Document with T Filter
+        env:
           # Point generated project flakes at this checkout so `t update`
           # tests the current branch's Quarto-extension provisioning logic.
           TLANG_FLAKE_URL: git+file://${{ github.workspace }}
