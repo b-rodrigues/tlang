@@ -107,15 +107,11 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | _ -> get_format des_val = Some f
   in
 
-  let is_pmml_ser = is_ser "pmml" in
-  let is_pmml_des = is_fmt_in_des "pmml" in
   let ext, extra_input = match runtime with
     | "R" -> 
-        let inputs = if is_pmml_ser || is_pmml_des then "r-env pkgs.jre" else "r-env" in
-        "R", inputs
+        "R", "r-env"
     | "Python" -> 
-        let inputs = if is_pmml_ser || is_pmml_des then "py-env pkgs.jre" else "py-env" in
-        "py", inputs
+        "py", "py-env"
     | "Quarto" ->
         "sh", "r-env py-env"
     | "sh" ->

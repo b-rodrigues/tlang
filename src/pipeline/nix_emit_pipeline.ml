@@ -9,47 +9,6 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
   ) p.p_imports in
   let node_names = List.map fst p.p_exprs in
 
-  let check_strategy name target =
-    let ser_expr = List.assoc name p.p_serializers in
-    let des_expr = List.assoc name p.p_deserializers in
-    let eval_expr e = Eval.eval_expr (ref Ast.Env.empty) e in
-    let ser = eval_expr ser_expr in
-    let des = eval_expr des_expr in
-    let has_fmt v =
-      let get_fmt = function
-        | Ast.VSerializer s -> Some s.s_format
-        | Ast.VString s | Ast.VSymbol s -> Some (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s)
-        | Ast.VDict pairs -> (match List.assoc_opt "format" pairs with Some (VString s) | Some (VSymbol s) -> Some s | _ -> None)
-        | _ -> None
-      in
-      match get_fmt v with
-      | Some s ->
-          let s = String.lowercase_ascii s in
-          s = target || (target = "arrow" && (s = "write_parquet" || s = "read_parquet" || s = "write_feather" || s = "read_feather"))
-      | None -> false
-    in
-    has_fmt ser || has_fmt des
-  in
-  let is_arrow_ser_or_des name = check_strategy name "arrow" in
-  let needs_r_arrow = p.p_exprs |> List.exists (fun (name, _) ->
-    let runtime = List.assoc name p.p_runtimes in
-    runtime = "R" && is_arrow_ser_or_des name
-  ) in
-  let needs_py_arrow = p.p_exprs |> List.exists (fun (name, _) ->
-    let runtime = List.assoc name p.p_runtimes in
-    runtime = "Python" && is_arrow_ser_or_des name
-  ) in
-
-  let is_pmml_ser_or_des name = check_strategy name "pmml" in
-  let needs_r_pmml = p.p_exprs |> List.exists (fun (name, _) ->
-    let runtime = List.assoc name p.p_runtimes in
-    runtime = "R" && is_pmml_ser_or_des name
-  ) in
-  let needs_py_pmml = p.p_exprs |> List.exists (fun (name, _) ->
-    let runtime = List.assoc name p.p_runtimes in
-    runtime = "Python" && is_pmml_ser_or_des name
-  ) in
-
   let nodes =
     p.p_exprs
     |> List.map (fun (name, expr) ->
@@ -72,26 +31,6 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     node_names
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
-  in
-  let is_csv_ser_or_des name = check_strategy name "csv" in
-  let needs_py_csv = p.p_exprs |> List.exists (fun (name, _) ->
-    let runtime = List.assoc name p.p_runtimes in
-    runtime = "Python" && is_csv_ser_or_des name
-  ) in
-  let needs_r_csv = p.p_exprs |> List.exists (fun (name, _) ->
-    let runtime = List.assoc name p.p_runtimes in
-    runtime = "R" && is_csv_ser_or_des name
-  ) in
-
-  let r_extra_pkgs = 
-    (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
-    (if needs_r_pmml then " pkgs.rPackages.r2pmml pkgs.rPackages.XML" else "") ^
-    (if needs_r_csv then " pkgs.rPackages.readr pkgs.rPackages.dplyr" else "")
-  in
-  let py_extra_pkgs = 
-    (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^
-    (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ps.statsmodels ]" else "") ^
-    (if needs_py_csv then " ++ [ ps.pandas ps.pyarrow ]" else "")
   in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
@@ -120,13 +59,13 @@ let
   
   rPackagesList = (toml.r-dependencies or {}).packages or [];
   r-env = pkgs.rWrapper.override {
-    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList) ++ [ pkgs.rPackages.jsonlite%s ];
+    packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList);
   };
 
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
-  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList)%s);
+  py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList));
 
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];
@@ -149,4 +88,4 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root r_extra_pkgs py_extra_pkgs nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root nodes (String.concat " " node_names) final_copy

@@ -14,6 +14,27 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let omits_all s needles =
     List.for_all (fun needle -> not (contains s needle)) needles
   in
+  let has_no_implicit_serializer_pkgs s =
+    omits_all s
+      [
+        "pkgs.rPackages.jsonlite";
+        "pkgs.rPackages.arrow";
+        "pkgs.rPackages.r2pmml";
+        "pkgs.rPackages.XML";
+        "ps.pandas";
+        "ps.pyarrow";
+        "ps.sklearn2pmml";
+        "ps.scikit-learn";
+        "ps.scipy";
+        "ps.numpy";
+        "ps.statsmodels";
+        "pkgs.jre";
+        "pkgs.quarto";
+        "pkgs.which";
+        "pkgs.rPackages.knitr";
+        "pkgs.rPackages.rmarkdown";
+      ]
+  in
 
   (* 1. Built-in Registry Resolution *)
   let (v, _) = eval_string_env {| ^csv |} (Packages.init_env ()) in
@@ -131,6 +152,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   let env_emit = Packages.init_env () in
   let (v, _) = eval_string_env {|
     p = pipeline {
+       json_r = node(command = <{ 1 }>, runtime = R, serializer = ^json)
+       csv_py = node(command = <{ 1 }>, runtime = Python, serializer = ^csv)
+       arrow_py = node(command = <{ 1 }>, runtime = Python, serializer = ^arrow)
+       pmml_py = node(command = <{ 1 }>, runtime = Python, serializer = ^pmml)
        model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
        report = node(script = "report.qmd")
     }
@@ -139,12 +164,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   (match v with
    | VPipeline p ->
        let nix = Nix_emitter.emit_pipeline p in
-       if omits_all nix
-            ["ps.skl2onnx"; "ps.onnxruntime"; "pkgs.quarto"; "pkgs.which"; "pkgs.rPackages.knitr"]
+       if has_no_implicit_serializer_pkgs nix
        then begin
-         incr pass_count; Printf.printf "  ✓ Pipeline Nix emission keeps project dependencies explicit\n"
+         incr pass_count; Printf.printf "  ✓ Pipeline Nix emission keeps built-in serializer dependencies explicit\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Pipeline Nix emission still injects dependencies implicitly\n"
+         incr fail_count; Printf.printf "  ✗ Pipeline Nix emission still injects serializer dependencies implicitly\n"
        end
    | other ->
        incr fail_count;

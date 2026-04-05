@@ -42,9 +42,6 @@ let merge_requirements a b = {
 }
 
 let normalize_format s =
-  if s = "" then
-    ""
-  else
   let s =
     if String.length s > 0 && s.[0] = '^' then
       String.sub s 1 (String.length s - 1)
@@ -53,9 +50,14 @@ let normalize_format s =
   in
   String.lowercase_ascii s
 
+let canonical_feature_name feature =
+  match normalize_format feature with
+  | "write_parquet" | "read_parquet" | "write_feather" | "read_feather" -> "arrow"
+  | other -> other
+
 let rec formats_of_value = function
-  | VSerializer s -> [ normalize_format s.s_format ]
-  | VString s | VSymbol s -> [ normalize_format s ]
+  | VSerializer s -> [ canonical_feature_name s.s_format ]
+  | VString s | VSymbol s -> [ canonical_feature_name s ]
   | VDict pairs ->
       (match List.assoc_opt "format" pairs with
        | Some value -> formats_of_value value
@@ -72,7 +74,7 @@ let rec formats_of_value = function
 let rec formats_of_expr expr =
   match expr.node with
   | Value value -> formats_of_value value
-  | Var name -> [ normalize_format name ]
+  | Var name -> [ canonical_feature_name name ]
   | DictLit pairs ->
       List.fold_left
         (fun acc (_, value) -> formats_of_expr value @ acc)
@@ -85,11 +87,38 @@ let rec formats_of_expr expr =
   | _ -> []
 
 let add_feature_requirement ~node_name ~runtime ~feature =
+  let feature = canonical_feature_name feature in
   let reason =
     Printf.sprintf "node `%s` uses `%s` with runtime `%s`" node_name feature runtime
   in
   let req = with_reason empty_requirements reason in
   match runtime, feature with
+  | "R", "json" ->
+      { req with r_deps = add_list req.r_deps [ "jsonlite" ] }
+  | "Python", "json" ->
+      empty_requirements
+  | "R", "csv" ->
+      empty_requirements
+  | "Python", "csv" ->
+      { req with py_deps = add_list req.py_deps [ "pandas" ] }
+  | "R", "arrow" ->
+      { req with r_deps = add_list req.r_deps [ "arrow" ] }
+  | "Python", "arrow" ->
+      { req with py_deps = add_list req.py_deps [ "pandas"; "pyarrow" ] }
+  | "R", "pmml" ->
+      {
+        req with
+        r_deps = add_list req.r_deps [ "XML"; "jsonlite"; "r2pmml" ];
+        additional_tools = add_list req.additional_tools [ "jre" ];
+      }
+  | "Python", "pmml" ->
+      {
+        req with
+        py_deps =
+          add_list req.py_deps
+            [ "numpy"; "pandas"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ];
+        additional_tools = add_list req.additional_tools [ "jre" ];
+      }
   | "R", "onnx" ->
       { req with r_deps = add_list req.r_deps [ "onnx" ] }
   | "Python", "onnx" ->
@@ -169,7 +198,7 @@ let append_missing existing missing =
   existing
   @ List.filter (fun item -> not (String_set.mem item existing_set)) missing
 
-let apply_missing_requirements (cfg : project_config) analysis =
+let update_config_with_missing_requirements (cfg : project_config) analysis =
   {
     cfg with
     proj_r_dependencies = append_missing cfg.proj_r_dependencies analysis.missing_r_deps;
@@ -245,6 +274,16 @@ let prompt_to_update ~tproject_path analysis =
   let answer = String.lowercase_ascii (String.trim answer) in
   answer = "y" || answer = "yes"
 
+let env_flag name =
+  match Sys.getenv_opt name with
+  | Some ("1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON") -> true
+  | _ -> false
+
+let rebuild_message tproject_path =
+  Printf.sprintf
+    "Updated %s with explicit pipeline dependencies.\nPlease leave the current shell, run `t update`, re-enter with `nix develop`, and then retry building the pipeline."
+    tproject_path
+
 let ensure_project_requirements (p : Ast.pipeline_result) =
   let project_root = Builder_utils.get_project_root () in
   let tproject_path = Filename.concat project_root "tproject.toml" in
@@ -281,20 +320,24 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
              let analysis = analyze_missing_requirements p cfg in
              if analysis_is_empty analysis then
                Ok ()
+             else if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" then
+               let updated_cfg = update_config_with_missing_requirements cfg analysis in
+               let updated_content = Toml_parser.serialize_tproject_toml updated_cfg in
+               (match write_file tproject_path updated_content with
+                | Error msg -> Error (Printf.sprintf "Failed to update tproject.toml: %s" msg)
+                | Ok () -> Error (rebuild_message tproject_path))
              else if not (is_interactive ()) then
                Error
-                 (format_analysis analysis
-                  ^ "\n\nThis session is non-interactive, so T cannot update `tproject.toml` automatically.")
+                  (format_analysis analysis
+                  ^ "\n\nThis session is non-interactive, so T cannot update `tproject.toml` automatically."
+                  ^ "\nSet `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to auto-add the missing entries in CI or other unattended environments.")
              else if not (prompt_to_update ~tproject_path analysis) then
                Error
-                 (format_analysis analysis
+                  (format_analysis analysis
                   ^ "\n\nUser declined to update `tproject.toml`.")
              else
-               let updated_cfg = apply_missing_requirements cfg analysis in
-               let updated_content = Toml_parser.serialize_tproject_toml updated_cfg in
-               match write_file tproject_path updated_content with
-               | Error msg -> Error (Printf.sprintf "Failed to update tproject.toml: %s" msg)
-               | Ok () ->
-                   Printf.printf "Updated %s with explicit pipeline dependencies.\n%!"
-                     tproject_path;
-                   Ok ())
+                let updated_cfg = update_config_with_missing_requirements cfg analysis in
+                let updated_content = Toml_parser.serialize_tproject_toml updated_cfg in
+                match write_file tproject_path updated_content with
+                | Error msg -> Error (Printf.sprintf "Failed to update tproject.toml: %s" msg)
+                | Ok () -> Error (rebuild_message tproject_path))
