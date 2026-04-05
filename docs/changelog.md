@@ -16,6 +16,11 @@
     - **Unified Predicates**: Replaced `is_null()` with `is_na()` as the standard builtin for checking missingness across all types.
     - **Error Visibility**: Standardized all `TypeError` messages to use `NA` instead of `Null` when describing expected types for builtins and data verbs.
     - **Internal Architecture**: Renamed `NullColumn` to `NAColumn` and `ArrowNull` to `ArrowNA` in the Arrow-backed DataFrame implementation for total consistency.
+- **Strict Dependency Declaration**: Built-in serializers (`^json`, `^csv`, `^arrow`, `^pmml`, `^onnx`) no longer implicitly inject dependencies during Nix pipeline emission.
+    - All requirements (like `pandas`, `pyarrow`, `onnxruntime`, etc.) must now be fully and explicitly declared in `tproject.toml`.
+    - Pipeline compilation halts with a descriptive error if expected dependencies are unlisted, ensuring complete transparency for the project's dependency closures.
+    - **Interactive Fixes**: In interactive sessions, T will prompt you to automatically inject the missing entries into `tproject.toml`.
+    - **CI Integration**: For headless environments and bots, this prompt can be automatically bypassed to update the files by setting `TLANG_AUTO_ADD_PIPELINE_DEPS=1`.
 - **Pipeline Build Observability**:
     - Added a `verbose` argument to `build_pipeline()`, `populate_pipeline()`, and `t_make()`.
     - Level `verbose=1` or higher automatically maps to Nix `--verbose` flags and prints the full Nix build logs for any failed nodes directly to the console.

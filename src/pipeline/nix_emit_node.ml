@@ -328,6 +328,10 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let is_arrow_des  = is_fmt_in_des "arrow" in
   let is_csv_ser    = is_ser "csv" in
   let is_csv_des    = is_fmt_in_des "csv" in
+  let is_pmml_ser   = is_ser "pmml" in
+  let is_pmml_des   = is_fmt_in_des "pmml" in
+  let is_onnx_ser   = is_ser "onnx" in
+  let is_onnx_des   = is_fmt_in_des "onnx" in
 
   (* Helper: inject runtime-specific helper code into the node script. *)
   let make_injection ~enabled ~r_code ~py_code =

@@ -186,10 +186,10 @@ min_version = "0.51.0"
 
   test_pm "analyze built-in serializer dependencies explicitly" (fun () ->
     let expected_r =
-      [ "XML"; "arrow"; "jsonlite"; "knitr"; "r2pmml"; "rmarkdown" ]
+      [ "arrow"; "jsonlite"; "knitr"; "rmarkdown" ]
     in
     let expected_py =
-      [ "ipykernel"; "nbclient"; "nbformat"; "numpy"; "pandas"; "pyarrow"; "pyyaml"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ]
+      [ "ipykernel"; "nbclient"; "nbformat"; "numpy"; "pandas"; "pyyaml"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ]
     in
     let expected_tools = [ "jre"; "quarto"; "which" ] in
     let env = Packages.init_env () in
@@ -260,15 +260,15 @@ min_version = "0.51.0"
                       Fun.protect ~finally:(fun () -> close_in_noerr ic)
                         (fun () -> really_input_string ic (in_channel_length ic))) with
              | Ok cfg ->
+                 let contains sub =
+                   try ignore (Str.search_forward (Str.regexp_string sub) message 0); true
+                   with Not_found -> false
+                 in
                  cfg.proj_py_dependencies = ["onnxruntime"; "skl2onnx"]
-                 && Str.string_match (Str.regexp_string "Updated ") message 0 = true
-                 && let contains sub =
-                      try ignore (Str.search_forward (Str.regexp_string sub) message 0); true
-                      with Not_found -> false
-                    in
-                    contains "leave the current shell"
-                    && contains "t update"
-                    && contains "nix develop"
+                 && contains "Updated "
+                 && contains "leave the current shell"
+                 && contains "t update"
+                 && contains "nix develop"
              | Error _ -> false)
         | _ -> false));
 

@@ -30,7 +30,7 @@ let empty_requirements = {
 let add_list set items =
   List.fold_left (fun acc item -> String_set.add item acc) set items
 
-let with_reason req reason =
+let with_reason (req: requirements) reason =
   { req with reasons = String_set.add reason req.reasons }
 
 let merge_requirements a b = {
