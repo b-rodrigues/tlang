@@ -311,10 +311,10 @@ If tests fail during development, follow this guide to identify and fix common i
 
 ### 3. Dependency Check Failures
 **Symptoms**: `Error(FileError: "Dependency Check Failure: Missing R package 'jsonlite' in tproject.toml")`
-**Cause**: The project enforces **Explicit Dependency Declaration**. Automatic dependency injection is disabled in the Nix emitter and the `TLANG_AUTO_ADD_PIPELINE_DEPS=1` flag is no longer used in the test suite.
+**Cause**: The project enforces **Explicit Dependency Declaration**. Automatic dependency injection is disabled by default in the Nix emitter. Some CI workflows may still set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` for compatibility, but tests and local runs should not rely on that flag being present.
 **Fix**: 
 - If the test is intended to fail without dependencies, update the expectation to match the `FileError`.
-- If the test should succeed, ensure a `tproject.toml` is present in the test environment or use `build=false` in `populate_pipeline` if only static analysis is being tested.
+- If the test should succeed, ensure a `tproject.toml` is present in the test environment. Do not rely on `TLANG_AUTO_ADD_PIPELINE_DEPS=1` being set; use `build=false` in `populate_pipeline` if only static analysis is being tested.
 
 ### 4. Nix Build Failures in Tests
 **Symptoms**: `✖ Pipeline build failed [General Nix build failure]` during `dune runtest`.
