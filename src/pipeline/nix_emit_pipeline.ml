@@ -32,6 +32,18 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     |> List.map (fun n -> Printf.sprintf "      cp -r ${%s} $out/%s" n n)
     |> String.concat "\n"
   in
+  let required = Pipeline_dependency_requirements.required_for_pipeline p in
+  let auto_add =
+    match Sys.getenv_opt "TLANG_AUTO_ADD_PIPELINE_DEPS" with
+    | Some "1" | Some "true" | Some "TRUE" | Some "yes" | Some "YES" | Some "on" | Some "ON" -> true
+    | _ -> false
+  in
+  let extra_r = if auto_add then Pipeline_dependency_requirements.String_set.elements required.r_deps else [] in
+  let extra_py = if auto_add then Pipeline_dependency_requirements.String_set.elements required.py_deps else [] in
+  let extra_tools = if auto_add then Pipeline_dependency_requirements.String_set.elements required.additional_tools else [] in
+  let extra_latex = if auto_add then Pipeline_dependency_requirements.String_set.elements required.latex_pkgs else [] in
+
+  let to_nix_list lst = "[" ^ (String.concat " " (List.map (Printf.sprintf "\"%s\"") lst)) ^ "]" in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
 let
@@ -57,19 +69,24 @@ let
 
   toml = if builtins.pathExists %s/tproject.toml then builtins.fromTOML (builtins.readFile %s/tproject.toml) else {};
   
-  rPackagesList = (toml.r-dependencies or {}).packages or [];
+  extraR = %s;
+  extraPy = %s;
+  extraTools = %s;
+  extraLatex = %s;
+
+  rPackagesList = ((toml.r-dependencies or {}).packages or []) ++ extraR;
   r-env = pkgs.rWrapper.override {
     packages = (builtins.map (p: pkgs.rPackages.${p}) rPackagesList);
   };
 
   pyDeps = toml.py-dependencies or toml.python-dependencies or {};
   pyVersion = pyDeps.version or "python3";
-  pyPackagesList = pyDeps.packages or [];
+  pyPackagesList = (pyDeps.packages or []) ++ extraPy;
   py-env = pkgs.${pyVersion}.withPackages (ps: (builtins.map (p: ps.${p}) pyPackagesList));
 
   # Additional Tools & LaTeX
-  additionalTools = (toml.additional-tools or {}).packages or [];
-  latexPkgs = (toml.latex or {}).packages or [];
+  additionalTools = ((toml.additional-tools or {}).packages or []) ++ extraTools;
+  latexPkgs = ((toml.latex or {}).packages or []) ++ extraLatex;
   
   latexCombined = if latexPkgs == [] then null 
                   else pkgs.texlive.combine (builtins.listToAttrs (builtins.map (name: { name = name; value = pkgs.texlive.${name}; }) (["scheme-small"] ++ latexPkgs)));
@@ -88,4 +105,6 @@ rec {
     '';
   };
 }
-|} rel_root rel_root rel_root rel_root rel_root nodes (String.concat " " node_names) final_copy
+|} rel_root rel_root rel_root rel_root rel_root 
+   (to_nix_list extra_r) (to_nix_list extra_py) (to_nix_list extra_tools) (to_nix_list extra_latex)
+   nodes (String.concat " " node_names) final_copy
