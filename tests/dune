@@ -37,6 +37,7 @@
    test_sh_node
     test_lens
     test_serializers
+    test_pipeline_comments
  )
  (libraries t_lang menhirLib otoml unix str)
 )

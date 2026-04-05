@@ -5,6 +5,7 @@
 
 (** Environment module — immutable string map *)
 module Env = Map.Make(String)
+module String_set = Set.Make(String)
 
 type symbol = string
 
@@ -310,19 +311,60 @@ let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
-    Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results. *)
+    Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results.
+    Strips lines starting with # or -- to avoid false positives from comments.
+    Supports explicit dependency declarations via '--# @deps node1, node2'. *)
 let extract_identifiers text =
+  let lines = String.split_on_char '\n' text in
+  let explicit_deps = ref String_set.empty in
+  let filtered_lines =
+    lines
+    |> List.filter_map (fun line ->
+        let trimmed = String.trim line in
+        let deps_prefix = "--# @deps" in
+        let deps_prefix_len = String.length deps_prefix in
+        if String.starts_with ~prefix:deps_prefix trimmed then
+          let deps_str =
+            if String.length trimmed > deps_prefix_len then
+              String.sub trimmed deps_prefix_len (String.length trimmed - deps_prefix_len)
+              |> String.trim
+            else ""
+          in
+          let deps = String.split_on_char ',' deps_str
+                     |> List.map String.trim
+                     |> List.filter (fun s -> s <> "") in
+          explicit_deps := List.fold_left (fun acc d -> String_set.add d acc) !explicit_deps deps;
+          None
+        else if String.starts_with ~prefix:"--" trimmed then
+          None
+        else if String.starts_with ~prefix:"#" trimmed && not (String.starts_with ~prefix:"#!" trimmed) then
+          None
+        else
+          Some line)
+  in
+  let filtered_text = String.concat "\n" filtered_lines in
   let re = Str.regexp {|[a-zA-Z_][a-zA-Z0-9_]*|} in
   let rec find acc pos =
-    match (try Some (Str.search_forward re text pos) with Not_found -> None) with
+    match (try Some (Str.search_forward re filtered_text pos) with Not_found -> None) with
     | None -> List.rev acc
     | Some _ ->
-        let word = Str.matched_string text in
+        let word = Str.matched_string filtered_text in
         let next_pos = Str.match_end () in
         find (word :: acc) next_pos
   in
-  let all = find [] 0 in
-  List.sort_uniq String.compare all
+  let inferred = find [] 0 in
+  let all_set = List.fold_left (fun acc d -> String_set.add d acc) !explicit_deps inferred in
+  String_set.elements all_set
+
+(** Strip T-specific pipeline annotations from raw code before emission. 
+    This prevents '--# @deps' lines from causing syntax errors in guests. *)
+let strip_pipeline_annotations text =
+  let lines = String.split_on_char '\n' text in
+  lines
+  |> List.filter (fun line ->
+      let trimmed = String.trim line in
+      not (String.starts_with ~prefix:"--# @deps" trimmed))
+  |> String.concat "\n"
 
 (** Convenience type alias *)
 type environment = value Env.t
