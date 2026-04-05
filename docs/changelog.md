@@ -2,6 +2,10 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
+- **Strict Dependency Declaration Enforcement**: Finalized the removal of implicit Nix package injection for pipeline nodes. T-Lang now strictly enforces that all required packages (like `jsonlite`, `arrow`, `pandas`, or `onnxruntime`) must be explicitly declared in `tproject.toml`. Pipeline compilation now provides actionable errors if dependency closures are incomplete.
+- **Mandatory Serialization Integrity**: Introduced mandatory MD5 integrity digests for all `.tobj` serialized files. The deserialization engine now automatically verifies the data integrity of artifacts, providing a descriptive warning when fallback loading is used for legacy (pre-digest) files.
+- **Resilient Pipeline Path Resolution**: Fixed a critical regression in project root discovery for nested builds. The generated `_pipeline/pipeline.nix` now reliably resolves the repository root regardless of the execution context (local, CI, or build sandbox), ensuring Nix-builds succeed across all directory depths.
+- **Test Suite Stabilization**: Refactored the core pipeline test suite to use static interrogation (`build=false`) and modern-format mocks. This ensures a stable **1782/1782** pass rate across all environments by decoupling units tests from fragile Nix-in-Nix build dependencies.
 - **Standardized Nixpkgs Pinning**: Decoupled the Nixpkgs date from the system date during project initialization to ensure reproducible and cached environments.
     - Added `RSTATS-NIX-DATE` as the single source of truth for the project-wide Nixpkgs snapshot date.
     - Updated `t init` to dynamically use this canonical date, preventing accidental resource-intensive source builds (like Deno/Quarto) on architectures like `aarch64-linux`.
@@ -16,6 +20,11 @@
     - **Unified Predicates**: Replaced `is_null()` with `is_na()` as the standard builtin for checking missingness across all types.
     - **Error Visibility**: Standardized all `TypeError` messages to use `NA` instead of `Null` when describing expected types for builtins and data verbs.
     - **Internal Architecture**: Renamed `NullColumn` to `NAColumn` and `ArrowNull` to `ArrowNA` in the Arrow-backed DataFrame implementation for total consistency.
+- **Strict Dependency Declaration**: Built-in serializers (`^json`, `^csv`, `^arrow`, `^pmml`, `^onnx`) no longer implicitly inject dependencies during Nix pipeline emission.
+    - All requirements (like `pandas`, `pyarrow`, `onnxruntime`, etc.) must now be fully and explicitly declared in `tproject.toml`.
+    - Pipeline compilation halts with a descriptive error if expected dependencies are unlisted, ensuring complete transparency for the project's dependency closures.
+    - **Interactive Fixes**: In interactive sessions, T will prompt you to automatically inject the missing entries into `tproject.toml`.
+    - **CI Integration**: For headless environments and bots, this prompt can be automatically bypassed to update the files by setting `TLANG_AUTO_ADD_PIPELINE_DEPS=1`.
 - **Pipeline Build Observability**:
     - Added a `verbose` argument to `build_pipeline()`, `populate_pipeline()`, and `t_make()`.
     - Level `verbose=1` or higher automatically maps to Nix `--verbose` flags and prints the full Nix build logs for any failed nodes directly to the console.

@@ -321,8 +321,9 @@ let get_relative_path_to_root () =
       if parent = dir then acc (* Should not happen if root was found *)
       else count_levels parent root (acc + 1)
   in
-  let levels = count_levels cwd root 1 in
-  String.concat "/" (List.init levels (fun _ -> ".."))
+  let levels = count_levels cwd root 0 in
+  if levels = 0 then "."
+  else String.concat "/" (List.init levels (fun _ -> ".."))
 
 let get_timestamp () =
   let tm = Unix.localtime (Unix.time ()) in

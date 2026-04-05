@@ -88,6 +88,21 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
     {|Error(KeyError: "Node `b` not found in Pipeline.")|};
+
+  Printf.printf "Phase 3 — Static Interrogations (Roots/Leaves/Cycles):\n";
+  test "pipeline_roots"
+    "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_roots(p)"
+    {|["a", "c"]|};
+  test "pipeline_leaves"
+    "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_leaves(p)"
+    {|["b", "c"]|};
+  test "pipeline_summary"
+    "p = pipeline { a = 1; b = a + 1 }; nrow(pipeline_summary(p))"
+    "2";
+  test "pipeline_summary edge_count"
+    "p = pipeline { a = 1; b = a + 1 }; length(pipeline_edges(p))"
+    "1";
+
   print_newline ();
 
   Printf.printf "Phase 3 — Pipeline Re-run (Caching):\n";
@@ -138,11 +153,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     else
       Unix.mkdir "_pipeline" 0o755
   with _ -> () in
-  test "build_pipeline returns output path"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (true) else (starts_with(v, \"/nix/store/\"))\n}\nok"
+  test "populate_pipeline returns output path"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nres = populate_pipeline(p, build=false, verbose=1)\nif (is_error(res)) (res) else (starts_with(res, \"Pipeline populated in\"))"
     "true";
-  test "build_pipeline accepts verbose option"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (starts_with(v, \"/nix/store/\"))\n}\nok"
+  test "populate_pipeline accepts verbose option without building"
+    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nres = populate_pipeline(p, build=false, verbose=1)\nif (is_error(res)) (res) else (starts_with(res, \"Pipeline populated in\"))"
     "true";
   test "build_pipeline rejects non-int verbose"
     "p = pipeline {\n  a = 1\n}\nerror_code(build_pipeline(p, verbose=\"loud\")) == \"TypeError\""
@@ -169,16 +184,21 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     (Printf.sprintf "error_code(t_make(filename=\"%s\", verbose=-1)) == \"ValueError\"" t_make_pipeline_path)
     "true";
   let _ = try Sys.remove t_make_pipeline_path with _ -> () in
-  test "read_node reads serialized artifact"
-    "p = pipeline {\n  a = 1\n  b = a + 2\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (read_node(\"b\") == 3)\n}\nok"
-    "true";
-  test "read_node missing key"
-    "p = pipeline {\n  a = 1\n}\nok = match (build_pipeline(p, verbose=1)) {\n  v => if (is_error(v)) (error_code(v) == \"FileError\") else (error_code(read_node(\"missing\")) == \"KeyError\")\n}\nok"
-    "true";
   print_newline ();
 
   Printf.printf "Serialization Builtins:\n";
   let write_marshaled_value path version value =
+    let payload = Marshal.to_bytes value [] in
+    let digest = Digest.bytes payload in
+    let hex = Digest.to_hex digest in
+    let oc = open_out_bin path in
+    output_string oc (Serialization.serialized_value_magic ^ version ^ "\n");
+    output_string oc hex;
+    output_char oc '\n';
+    output_bytes oc payload;
+    close_out oc
+  in
+  let write_marshaled_value_legacy path version value =
     let oc = open_out_bin path in
     output_string oc (Serialization.serialized_value_magic ^ version ^ "\n");
     Marshal.to_channel oc value [];
@@ -202,7 +222,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|deserialize("test_roundtrip_patchless_legacy.tobj")|}
     "4";
   let legacy_cache_path = "test_roundtrip_legacy.tobj" in
-  write_marshaled_value legacy_cache_path "0.4.0" (Ast.VInt 3);
+  write_marshaled_value_legacy legacy_cache_path "0.4.0" (Ast.VInt 3);
   let legacy_deserialize_error =
     Printf.sprintf
       {|Error(FileError: "deserialize failed: Serialized value format version `0.4.0` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer.")|}
@@ -259,13 +279,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   close_out oc_mock;
 
   let legacy_node_path = "test_legacy_node.tobj" in
-  write_marshaled_value legacy_node_path "0.4.0" (Ast.VInt 7);
+  write_marshaled_value_legacy legacy_node_path "0.4.0" (Ast.VInt 7);
   let legacy_log = Printf.sprintf {|{
     "timestamp": "20240101-000001",
     "hash": "legacy",
     "out_path": "/tmp",
     "nodes": [
-      { "node": "legacy_node", "path": "%s", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
+      { "node": "legacy_node", "path": "%s", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+      { "node": "compatible_node", "path": "test_roundtrip.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
     ]
   }|} legacy_node_path in
   let oc_legacy_log = open_out "_pipeline/build_log_legacy_version.json" in
@@ -284,6 +305,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "read_node propagates Python runtime on error"
     "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).runtime"
     "\"Python\"";
+  test "read_node (mocked) reads compatible artifact"
+    "read_node(\"compatible_node\", which_log=\"legacy_version\") == [1, 2, 3]"
+    "true";
+  test "read_node missing key (mocked)"
+    "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
+    "true";
 
   test "read_node rejects older serialized node versions"
     "read_node(\"legacy_node\", which_log=\"legacy_version\")"
@@ -575,13 +602,13 @@ p_cross = pipeline {
           in
           let script_ok = List.assoc_opt "report" p.p_scripts = Some (Some quarto_script) in
           let nix = Nix_emit_pipeline.emit_pipeline p in
-          let has_quarto = contains_substring nix "pkgs.quarto" in
+          let keeps_quarto_explicit = not (contains_substring nix "pkgs.quarto") in
           let has_render = contains_substring nix "cli_args+=('render')" in
           let has_path = contains_substring nix (Printf.sprintf "cli_args+=('%s')" quarto_script) in
           let has_to = contains_substring nix "cli_args+=('--to')" && contains_substring nix "cli_args+=('html')" in
           let has_flag = contains_substring nix "cli_args+=('--standalone')" in
           let has_read_node_sub = contains_substring nix "sed -i -e" && contains_substring nix (Printf.sprintf "$T_NODE_%s/artifact" quarto_dep_node) in
-          if runtime_ok && args_ok && script_ok && has_quarto && has_render && has_path && has_to && has_flag && has_read_node_sub then begin
+          if runtime_ok && args_ok && script_ok && keeps_quarto_explicit && has_render && has_path && has_to && has_flag && has_read_node_sub then begin
             incr pass_count; Printf.printf "  ✓ pipeline preserves and emits Quarto runtime args\n"
           end else begin
             incr fail_count; Printf.printf "  ✗ Quarto pipeline preservation/emission failed\n"

@@ -168,6 +168,127 @@ min_version = "0.51.0"
                  && cfg2.proj_py_dependencies = ["bar"]
     | Error _ -> false);
 
+  test_pm "analyze missing ONNX pipeline dependencies" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "onnx-proj" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_py_deps = ["onnxruntime"; "skl2onnx"]
+        && analysis.missing_additional_tools = []
+        && analysis.reasons = ["node `model` uses `onnx` with runtime `Python`"]
+    | _ -> false);
+
+  test_pm "analyze built-in serializer dependencies explicitly" (fun () ->
+    let expected_r =
+      [ "arrow"; "jsonlite"; "knitr"; "rmarkdown" ]
+    in
+    let expected_py =
+      [ "ipykernel"; "nbclient"; "nbformat"; "numpy"; "pandas"; "pyyaml"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ]
+    in
+    let expected_tools = [ "jre"; "quarto"; "which" ] in
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = node(command = <{ 1 }>, runtime = R, serializer = ^json)
+        b = node(command = <{ 1 }>, runtime = Python, serializer = ^csv)
+        c = node(command = <{ 1 }>, runtime = R, serializer = ^arrow)
+        d = node(command = <{ 1 }>, runtime = Python, serializer = ^pmml)
+        e = node(script = "report.qmd")
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "serializer-proj" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = expected_r
+        && analysis.missing_py_deps = expected_py
+        && analysis.missing_additional_tools = expected_tools
+    | _ -> false);
+
+  test_pm "auto-add pipeline dependencies via env var" (fun () ->
+    Random.self_init ();
+    let base_dir =
+      Filename.concat
+        (Filename.get_temp_dir_name ())
+        (Printf.sprintf "tlang-pipeline-auto-add-%d-%06d" (Unix.getpid ()) (Random.int 1_000_000))
+    in
+    let old_cwd = Sys.getcwd () in
+    let old_env = Sys.getenv_opt "TLANG_AUTO_ADD_PIPELINE_DEPS" in
+    let restore_env () =
+      match old_env with
+      | Some v -> Unix.putenv "TLANG_AUTO_ADD_PIPELINE_DEPS" v
+      | None -> Unix.putenv "TLANG_AUTO_ADD_PIPELINE_DEPS" ""
+    in
+    let cleanup () =
+      restore_env ();
+      Sys.chdir old_cwd;
+      let rec remove_path path =
+        if Sys.file_exists path then
+          if Sys.is_directory path then begin
+            Sys.readdir path |> Array.iter (fun name -> remove_path (Filename.concat path name));
+            Unix.rmdir path
+          end else
+            Sys.remove path
+      in
+      remove_path base_dir
+    in
+    Fun.protect
+      ~finally:cleanup
+      (fun () ->
+        Unix.mkdir base_dir 0o755;
+        let tproject_path = Filename.concat base_dir "tproject.toml" in
+        let oc = open_out tproject_path in
+        output_string oc (Toml_parser.serialize_tproject_toml (Package_types.default_project_config "auto-add-proj"));
+        close_out oc;
+        Sys.chdir base_dir;
+        Unix.putenv "TLANG_AUTO_ADD_PIPELINE_DEPS" "1";
+        match fst (eval_string_env {|
+          p = pipeline {
+            model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
+          }
+          populate_pipeline(p)
+        |} (Packages.init_env ())) with
+        | Ast.VError { code = FileError; message; _ } ->
+            (match Toml_parser.parse_tproject_toml
+                     (let ic = open_in tproject_path in
+                      Fun.protect ~finally:(fun () -> close_in_noerr ic)
+                        (fun () -> really_input_string ic (in_channel_length ic))) with
+             | Ok cfg ->
+                 let contains sub =
+                   try ignore (Str.search_forward (Str.regexp_string sub) message 0); true
+                   with Not_found -> false
+                 in
+                 cfg.proj_py_dependencies = ["onnxruntime"; "skl2onnx"]
+                 && contains "Updated "
+                 && contains "leave the current shell"
+                 && contains "t update"
+                 && contains "nix develop"
+             | Error _ -> false)
+        | _ -> false));
+
+  test_pm "apply missing Quarto dependencies updates explicit sections" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        report = node(script = "report.qmd")
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "quarto-proj" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        let updated = Pipeline_dependency_requirements.update_config_with_missing_requirements cfg analysis in
+        updated.proj_additional_tools = ["quarto"; "which"]
+        && updated.proj_r_dependencies = ["knitr"; "rmarkdown"]
+        && updated.proj_py_dependencies = ["ipykernel"; "nbclient"; "nbformat"; "pyyaml"]
+    | _ -> false);
+
   print_newline ();
 
   (* ===================================================== *)

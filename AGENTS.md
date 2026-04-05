@@ -12,6 +12,7 @@ This file provides instructions for AI agents (and human contributors) working o
 - [Function Conventions](#function-conventions)
 - [Adding New Features](#adding-new-features)
 - [Testing Requirements](#testing-requirements)
+- [Troubleshooting and Fixing Tests](#troubleshooting-and-fixing-tests)
 - [Documentation Requirements](#documentation-requirements)
 - [Syntax and Behaviour Changes](#syntax-and-behaviour-changes)
 - [Commit and PR Workflow](#commit-and-pr-workflow)
@@ -291,6 +292,34 @@ Or just re-run T scripts and compare (when data already exists):
 ```bash
 make golden-quick
 ```
+
+---
+
+## Troubleshooting and Fixing Tests
+
+If tests fail during development, follow this guide to identify and fix common issues:
+
+### 1. NameError: Variable Shadowing
+**Symptoms**: `Error(NameError: "[L1:C1] Variable 'x' is immutable and cannot be reassigned.")`
+**Cause**: You are attempting to assign a value to a variable name that is already a reserved built-in function (e.g., `summary`, `mean`, `print`). 
+**Fix**: Rename the variable in your test script (e.g., use `res` or `val` instead of `summary`).
+
+### 2. KeyError: Column not found in DataFrame
+**Symptoms**: `Error(KeyError: "[L1:C50] Column 'node_count' not found in DataFrame.")`
+**Cause**: Many introspection functions like `pipeline_summary(p)` return a **DataFrame** (one row per node) rather than a **Dict**.
+**Fix**: Use `nrow(res)` to check the node count, or `length(pipeline_edges(p))` for the edge count. Do not attempt to access `.node_count` or `.edge_count` as if they were record fields on the result.
+
+### 3. Dependency Check Failures
+**Symptoms**: `Error(FileError: "Dependency Check Failure: Missing R package 'jsonlite' in tproject.toml")`
+**Cause**: The project enforces **Explicit Dependency Declaration**. Automatic dependency injection is disabled by default in the Nix emitter. CI workflows do not set `TLANG_AUTO_ADD_PIPELINE_DEPS=1`; tests and local runs must not rely on that flag being present.
+**Fix**: 
+- If the test is intended to fail without dependencies, update the expectation to match the `FileError`.
+- If the test should succeed, ensure a `tproject.toml` is present in the test environment. Do not rely on `TLANG_AUTO_ADD_PIPELINE_DEPS=1` being set; use `build=false` in `populate_pipeline` if only static analysis is being tested.
+
+### 4. Nix Build Failures in Tests
+**Symptoms**: `✖ Pipeline build failed [General Nix build failure]` during `dune runtest`.
+**Cause**: Tests calling `build_pipeline(p)` trigger a real Nix build. This may fail in sandboxed environments if the local `t-lang` source cannot be resolved.
+**Fix**: Prefer `populate_pipeline(p, build=false)` for unit tests that only verify Nix emission or dependency analysis. Reserve `build_pipeline` for full integration tests in `tests/integration/`.
 
 ---
 

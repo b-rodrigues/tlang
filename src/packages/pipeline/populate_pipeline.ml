@@ -14,6 +14,7 @@ open Ast
 --# @note `populate_pipeline` performs several validation checks before generating the Nix files:
 --#   - **File Existence**: Verifies that all files specified in `functions` or `include` arguments of any node actually exist on the file system.
 --#   - **Custom Function Warning**: Issues a warning to `stderr` if a node uses a custom `serializer` or `deserializer` but does not provide any companion `functions` files.
+--#   - **Explicit Dependency Declaration**: Checks serializer/runtime requirements up front and asks to add missing entries to `tproject.toml` instead of injecting packages implicitly.
 --# @family pipeline
 --# @export
 *)

@@ -514,13 +514,19 @@ let update_flake_lock () =
     | Ok content ->
       (match extract_nixpkgs_date content with
        | Some date -> date
-       | None ->
-         let t = Unix.gmtime (Unix.gettimeofday ()) in
-         Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday)
-     | Error _ ->
-       let t = Unix.gmtime (Unix.gettimeofday ()) in
-       Printf.sprintf "%04d-%02d-%02d" (1900 + t.Unix.tm_year) (t.Unix.tm_mon + 1) t.Unix.tm_mday
+       | None -> Nixpkgs_date.date) (* Changed fallback to static rstats-on-nix date *)
+     | Error _ -> Nixpkgs_date.date
    in
+  let in_ci = (match Sys.getenv_opt "CI" with Some s when String.trim s <> "" -> true | _ -> false) in
+  (* On CI, we want to pinned to the versions being tested: specifically the nixpkgs date
+     from the current T source, and the T-lang flake pointing to the repo/SHA under test. *)
+  let nixpkgs_date = if in_ci then Nixpkgs_date.date else nixpkgs_date in
+  (if in_ci then (
+     match Sys.getenv_opt "TLANG_REPO", Sys.getenv_opt "TLANG_SHA" with
+     | Some repo, Some sha ->
+         Unix.putenv "TLANG_FLAKE_URL" (Printf.sprintf "github:%s/%s" repo sha)
+     | _ -> ()
+  ));
   let flake_lock_before =
     if Sys.file_exists flake_lock_path then
       match read_file flake_lock_path with
@@ -599,11 +605,10 @@ let update_flake_lock () =
           | Ok () ->
               Printf.printf "Running nix flake update...\n";
               flush stdout;
-              (* On CI, any generated flake.nix must be added to Git (intent-to-add)
-                 otherwise nix flake update will fail with "not tracked by Git" error. *)
               let in_ci = (match Sys.getenv_opt "CI" with Some s when String.trim s <> "" -> true | _ -> false) in
               (if in_ci then ignore (run_command "git add -N flake.nix 2>/dev/null || true"));
-              match run_command "nix flake update --accept-flake-config" with
+              let update_cmd = if in_ci then "nix flake lock --accept-flake-config" else "nix flake update --accept-flake-config" in
+              match run_command update_cmd with
               | Ok _ ->
                   let flake_lock_after =
                     if Sys.file_exists flake_lock_path then
