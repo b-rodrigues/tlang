@@ -297,19 +297,22 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
   if not has_any_requirements then
     Ok ()
   else if not (Sys.file_exists tproject_path) then
-    let analysis =
-      {
-        missing_r_deps = String_set.elements required.r_deps;
-        missing_py_deps = String_set.elements required.py_deps;
-        missing_additional_tools = String_set.elements required.additional_tools;
-        missing_latex_pkgs = String_set.elements required.latex_pkgs;
-        reasons = String_set.elements required.reasons;
-      }
-    in
-    Error
-      (Printf.sprintf
-         "%s\n\n`tproject.toml` was not found at %s, so T cannot add these dependencies automatically."
-         (format_analysis analysis) tproject_path)
+    if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" then
+      Ok ()
+    else
+      let analysis =
+        {
+          missing_r_deps = String_set.elements required.r_deps;
+          missing_py_deps = String_set.elements required.py_deps;
+          missing_additional_tools = String_set.elements required.additional_tools;
+          missing_latex_pkgs = String_set.elements required.latex_pkgs;
+          reasons = String_set.elements required.reasons;
+        }
+      in
+      Error
+        (Printf.sprintf
+           "%s\n\n`tproject.toml` was not found at %s, so T cannot add these dependencies automatically."
+           (format_analysis analysis) tproject_path)
   else
     match read_file tproject_path with
     | Error msg -> Error (Printf.sprintf "Cannot read tproject.toml: %s" msg)

@@ -1,6 +1,11 @@
 (include_subdirs unqualified)
 (cram (enabled_if false))
 
+(env
+ (_
+  (env-vars
+   (TLANG_AUTO_ADD_PIPELINE_DEPS 1))))
+
 (executable
  (name test_runner)
  (modules
@@ -60,5 +65,5 @@
 (rule
  (alias runtest)
  (deps docs.json)
- (action (run ./test_runner.exe))
+ (action (setenv TLANG_AUTO_ADD_PIPELINE_DEPS 1 (run ./test_runner.exe)))
 )
