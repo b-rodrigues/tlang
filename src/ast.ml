@@ -321,14 +321,17 @@ let extract_identifiers text =
     lines
     |> List.filter_map (fun line ->
         let trimmed = String.trim line in
-        if String.starts_with ~prefix:"--# @deps" trimmed then
-          let deps_str = 
-            if String.length trimmed > 10 then 
-              String.sub trimmed 10 (String.length trimmed - 10)
-            else "" 
+        let deps_prefix = "--# @deps" in
+        let deps_prefix_len = String.length deps_prefix in
+        if String.starts_with ~prefix:deps_prefix trimmed then
+          let deps_str =
+            if String.length trimmed > deps_prefix_len then
+              String.sub trimmed deps_prefix_len (String.length trimmed - deps_prefix_len)
+              |> String.trim
+            else ""
           in
-          let deps = String.split_on_char ',' deps_str 
-                     |> List.map String.trim 
+          let deps = String.split_on_char ',' deps_str
+                     |> List.map String.trim
                      |> List.filter (fun s -> s <> "") in
           explicit_deps := List.fold_left (fun acc d -> String_set.add d acc) !explicit_deps deps;
           None

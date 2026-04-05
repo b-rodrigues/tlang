@@ -21,9 +21,8 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let program1 = Parser.program Lexer.token lexbuf1 in
   let (_, env1) = eval_program program1 env_init in
   
-  let res_val = Env.find "res" env1 in
-  (match res_val with
-  | VNode un ->
+  (match Env.find_opt "res" env1 with
+  | Some (VNode un) ->
       let deps = match un.un_command.node with RawCode { raw_identifiers; _ } -> raw_identifiers | _ -> [] in
       if List.mem "results" deps then (
         incr fail_count;
@@ -32,7 +31,12 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
         incr pass_count;
         Printf.printf "  ✓ comment stripping: 'results' correctly ignored in comment\n"
       )
-  | _ -> Printf.printf "  ✗ Error: 'res' not found as a node\n");
+  | Some _ ->
+      incr fail_count;
+      Printf.printf "  ✗ Error: 'res' not bound as a node\n"
+  | None ->
+      incr fail_count;
+      Printf.printf "  ✗ Error: 'res' not found in environment\n");
 
   (* Test 2: explicit @deps *)
   let code2 = {|
@@ -47,9 +51,9 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let program2 = Parser.program Lexer.token lexbuf2 in
   let (_, env2) = eval_program program2 env_init in
   
-  let n2_val = Env.find "n2" env2 in
-  (match n2_val with
-  | VNode un ->
+  let n2_val_opt = Env.find_opt "n2" env2 in
+  (match n2_val_opt with
+  | Some (VNode un) ->
       let deps = match un.un_command.node with RawCode { raw_identifiers; _ } -> raw_identifiers | _ -> [] in
       if List.mem "n1" deps then (
         incr pass_count;
@@ -58,15 +62,32 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
         incr fail_count;
         Printf.printf "  ✗ Error: 'n1' NOT found in dependencies via @deps\n"
       )
-  | _ -> Printf.printf "  ✗ Error: 'n2' not found as a node\n");
+  | Some _ ->
+      incr fail_count;
+      Printf.printf "  ✗ Error: 'n2' not bound as a node\n"
+  | None ->
+      incr fail_count;
+      Printf.printf "  ✗ Error: 'n2' not found in environment\n");
 
   (* Test 3: stripping from emitted script *)
-  let n2_command = match n2_val with VNode un -> un.un_command | _ -> failwith "unreachable" in
-  let emitted = Nix_unparse.unparse_expr n2_command in
-  if String.contains emitted '@' then (
-    incr fail_count;
-    Printf.printf "  ✗ Error: annotation line found in emitted script\n"
-  ) else (
-    incr pass_count;
-    Printf.printf "  ✓ emission: @deps line correctly stripped from guest script\n"
-  )
+  (match n2_val_opt with
+  | Some (VNode un) ->
+      let emitted = Nix_unparse.unparse_expr un.un_command in
+      let deps_annotation = "--# @deps" in
+      let has_deps_annotation =
+        try ignore (Str.search_forward (Str.regexp_string deps_annotation) emitted 0); true
+        with Not_found -> false
+      in
+      if has_deps_annotation then (
+        incr fail_count;
+        Printf.printf "  ✗ Error: '--# @deps' annotation line found in emitted script\n"
+      ) else (
+        incr pass_count;
+        Printf.printf "  ✓ emission: @deps line correctly stripped from guest script\n"
+      )
+  | Some _ ->
+      incr fail_count;
+      Printf.printf "  ✗ Error: cannot check emission - 'n2' not bound as a node\n"
+  | None ->
+      incr fail_count;
+      Printf.printf "  ✗ Error: cannot check emission - 'n2' not found in environment\n")
