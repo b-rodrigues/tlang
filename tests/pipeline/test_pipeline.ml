@@ -97,10 +97,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "p = pipeline { a = 1; b = a + 1; c = 10 }; pipeline_leaves(p)"
     {|["b", "c"]|};
   test "pipeline_summary"
-    "p = pipeline { a = 1; b = a + 1 }; summary = pipeline_summary(p); summary.node_count"
+    "p = pipeline { a = 1; b = a + 1 }; nrow(pipeline_summary(p))"
     "2";
   test "pipeline_summary edge_count"
-    "p = pipeline { a = 1; b = a + 1 }; summary = pipeline_summary(p); summary.edge_count"
+    "p = pipeline { a = 1; b = a + 1 }; length(pipeline_edges(p))"
     "1";
 
   print_newline ();
