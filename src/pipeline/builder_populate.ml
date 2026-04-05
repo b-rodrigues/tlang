@@ -25,6 +25,9 @@ let populate_pipeline ?(build=false) ?verbose (p : Ast.pipeline_result) =
   if missing_files <> [] then
     Error (Printf.sprintf "The following required files are missing from the file system: %s" (String.concat ", " missing_files))
   else
+  match Pipeline_dependency_requirements.ensure_project_requirements p with
+  | Error msg -> Error msg
+  | Ok () ->
   let () =
     List.iter (fun (name, _) ->
       let ser = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in

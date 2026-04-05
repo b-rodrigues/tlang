@@ -168,6 +168,39 @@ min_version = "0.51.0"
                  && cfg2.proj_py_dependencies = ["bar"]
     | Error _ -> false);
 
+  test_pm "analyze missing ONNX pipeline dependencies" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "onnx-proj" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_py_deps = ["onnxruntime"; "skl2onnx"]
+        && analysis.missing_additional_tools = []
+        && List.exists (fun reason -> String.contains reason '`') analysis.reasons
+    | _ -> false);
+
+  test_pm "apply missing Quarto dependencies updates explicit sections" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        report = node(script = "report.qmd")
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "quarto-proj" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        let updated = Pipeline_dependency_requirements.apply_missing_requirements cfg analysis in
+        updated.proj_additional_tools = ["quarto"; "which"]
+        && updated.proj_r_dependencies = ["knitr"; "rmarkdown"]
+        && updated.proj_py_dependencies = ["ipykernel"; "nbclient"; "nbformat"; "pyyaml"]
+    | _ -> false);
+
   print_newline ();
 
   (* ===================================================== *)

@@ -575,13 +575,13 @@ p_cross = pipeline {
           in
           let script_ok = List.assoc_opt "report" p.p_scripts = Some (Some quarto_script) in
           let nix = Nix_emit_pipeline.emit_pipeline p in
-          let has_quarto = contains_substring nix "pkgs.quarto" in
+          let keeps_quarto_explicit = not (contains_substring nix "pkgs.quarto") in
           let has_render = contains_substring nix "cli_args+=('render')" in
           let has_path = contains_substring nix (Printf.sprintf "cli_args+=('%s')" quarto_script) in
           let has_to = contains_substring nix "cli_args+=('--to')" && contains_substring nix "cli_args+=('html')" in
           let has_flag = contains_substring nix "cli_args+=('--standalone')" in
           let has_read_node_sub = contains_substring nix "sed -i -e" && contains_substring nix (Printf.sprintf "$T_NODE_%s/artifact" quarto_dep_node) in
-          if runtime_ok && args_ok && script_ok && has_quarto && has_render && has_path && has_to && has_flag && has_read_node_sub then begin
+          if runtime_ok && args_ok && script_ok && keeps_quarto_explicit && has_render && has_path && has_to && has_flag && has_read_node_sub then begin
             incr pass_count; Printf.printf "  ✓ pipeline preserves and emits Quarto runtime args\n"
           end else begin
             incr fail_count; Printf.printf "  ✗ Quarto pipeline preservation/emission failed\n"

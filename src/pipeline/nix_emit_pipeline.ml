@@ -8,7 +8,6 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     if s = "" then None else Some s
   ) p.p_imports in
   let node_names = List.map fst p.p_exprs in
-
   let check_strategy name target =
     let ser_expr = List.assoc name p.p_serializers in
     let des_expr = List.assoc name p.p_deserializers in
@@ -49,7 +48,6 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let runtime = List.assoc name p.p_runtimes in
     runtime = "Python" && is_pmml_ser_or_des name
   ) in
-
   let nodes =
     p.p_exprs
     |> List.map (fun (name, expr) ->
@@ -82,22 +80,15 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     let runtime = List.assoc name p.p_runtimes in
     runtime = "R" && is_csv_ser_or_des name
   ) in
-
-  let needs_quarto = p.p_exprs |> List.exists (fun (name, _) ->
-    let runtime = List.assoc name p.p_runtimes in
-    runtime = "Quarto"
-  ) in
   let r_extra_pkgs = 
     (if needs_r_arrow then " pkgs.rPackages.arrow" else "") ^
     (if needs_r_pmml then " pkgs.rPackages.r2pmml pkgs.rPackages.XML" else "") ^
-    (if needs_r_csv then " pkgs.rPackages.readr pkgs.rPackages.dplyr" else "") ^
-    (if needs_quarto then " pkgs.rPackages.knitr pkgs.rPackages.rmarkdown" else "")
+    (if needs_r_csv then " pkgs.rPackages.readr pkgs.rPackages.dplyr" else "")
   in
   let py_extra_pkgs = 
     (if needs_py_arrow then " ++ [ ps.pyarrow ps.pandas ]" else "") ^
     (if needs_py_pmml then " ++ [ ps.sklearn2pmml ps.scikit-learn ps.pandas ps.scipy ps.numpy ps.statsmodels ]" else "") ^
-    (if needs_py_csv then " ++ [ ps.pandas ps.pyarrow ]" else "") ^
-    (if needs_quarto then " ++ [ ps.ipykernel ps.pyyaml ps.nbformat ps.nbclient ]" else "")
+    (if needs_py_csv then " ++ [ ps.pandas ps.pyarrow ]" else "")
   in
   Printf.sprintf {|
 { system ? builtins.currentSystem }:
