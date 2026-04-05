@@ -141,13 +141,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   (match v with
    | VError { code; message; _ }
      when code = FileError
-        && contains_all message
-              ["tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically"] ->
-       incr pass_count; Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
+       && contains_all message
+            [ "tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically" ] ->
+       incr pass_count;
+       Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
    | other ->
-        incr fail_count;
-        Printf.printf "  ✗ Explicit dependency check failed for ONNX pipeline. Got: %s\n"
-          (Ast.Utils.value_to_string other));
+       incr fail_count;
+       Printf.printf "  ✗ Explicit dependency check failed for ONNX pipeline. Got: %s\n"
+         (Ast.Utils.value_to_string other));
 
   let env_pmml_deps = Packages.init_env () in
   let (v, _) = eval_string_env {|
@@ -160,8 +161,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VError { code; message; _ }
      when code = FileError
        && contains_all message
-            ["tproject.toml"; "pypmml"; "sklearn2pmml"; "cannot add these dependencies automatically"] ->
-       incr pass_count; Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pypmml guidance\n"
+            [ "tproject.toml"; "pypmml"; "sklearn2pmml"; "cannot add these dependencies automatically" ] ->
+       incr pass_count;
+       Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pypmml guidance\n"
    | other ->
        incr fail_count;
        Printf.printf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
