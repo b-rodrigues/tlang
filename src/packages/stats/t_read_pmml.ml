@@ -3,12 +3,12 @@ open Ast
 let copy_pmml_file src dst =
   match (try Ok (open_in_bin src) with Sys_error msg -> Error msg) with
   | Error msg ->
-      Error (Printf.sprintf "Function `t_write_pmml`: could not open source PMML path `%s`: %s" src msg)
+      Error (Printf.sprintf "could not open source PMML path `%s`: %s" src msg)
   | Ok ic ->
       Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
         match (try Ok (open_out_bin dst) with Sys_error msg -> Error msg) with
         | Error msg ->
-            Error (Printf.sprintf "Function `t_write_pmml`: could not open destination PMML path `%s`: %s" dst msg)
+            Error (Printf.sprintf "could not open destination PMML path `%s`: %s" dst msg)
         | Ok oc ->
             Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
               let buffer = Bytes.create 65536 in
@@ -23,7 +23,7 @@ let copy_pmml_file src dst =
                 | Sys_error msg ->
                     Error
                       (Printf.sprintf
-                         "Function `t_write_pmml`: failed while copying `%s` to `%s`: %s"
+                         "failed while copying `%s` to `%s`: %s"
                          src dst msg)
               in
               loop ()))

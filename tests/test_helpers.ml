@@ -13,7 +13,11 @@ let find_repo_root () =
 
 (* Check whether `sub` appears anywhere inside `s`. *)
 let contains s sub =
-  try
-    ignore (Str.search_forward (Str.regexp_string sub) s 0);
-    true
-  with Not_found -> false
+  let s_len = String.length s in
+  let sub_len = String.length sub in
+  let rec loop idx =
+    if idx + sub_len > s_len then false
+    else if String.sub s idx sub_len = sub then true
+    else loop (idx + 1)
+  in
+  sub_len = 0 || loop 0
