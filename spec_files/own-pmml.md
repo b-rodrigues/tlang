@@ -93,6 +93,7 @@ In other words, T should own the **developer experience**, not the PMML engine.
 The product stance should be:
 
 > T supports PMML interchange through the JPMML ecosystem. If you want reliable R/Python transfer, use the JPMML-backed path. Other PMML stacks are not the compatibility target.
+
 This is a cleaner promise than saying "PMML is supported" while allowing multiple incompatible readers/writers underneath.
 
 ## Implementation shape
