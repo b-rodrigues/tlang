@@ -1,27 +1,32 @@
 open Ast
 
 let copy_file src dst =
-  try
-    let ic = open_in_bin src in
-    Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
-      try
-        let oc = open_out_bin dst in
-        Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
-          let buffer = Bytes.create 65536 in
-          let rec loop () =
-            match input ic buffer 0 (Bytes.length buffer) with
-            | 0 -> Ok ()
-            | read ->
-                output oc buffer 0 read;
-                loop ()
-          in
-          loop ())
-      with
-      | Sys_error msg ->
-          Error (Printf.sprintf "Function `t_write_pmml`: could not open destination PMML path `%s`: %s" dst msg))
-  with
-  | Sys_error msg ->
+  match (try Ok (open_in_bin src) with Sys_error msg -> Error msg) with
+  | Error msg ->
       Error (Printf.sprintf "Function `t_write_pmml`: could not open source PMML path `%s`: %s" src msg)
+  | Ok ic ->
+      Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
+        match (try Ok (open_out_bin dst) with Sys_error msg -> Error msg) with
+        | Error msg ->
+            Error (Printf.sprintf "Function `t_write_pmml`: could not open destination PMML path `%s`: %s" dst msg)
+        | Ok oc ->
+            Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
+              let buffer = Bytes.create 65536 in
+              let rec loop () =
+                try
+                  match input ic buffer 0 (Bytes.length buffer) with
+                  | 0 -> Ok ()
+                  | read ->
+                      output oc buffer 0 read;
+                      loop ()
+                with
+                | Sys_error msg ->
+                    Error
+                      (Printf.sprintf
+                         "Function `t_write_pmml`: failed while copying `%s` to `%s`: %s"
+                         src dst msg)
+              in
+              loop ()))
 
 let pmml_source_path = function
   | VDict pairs ->
