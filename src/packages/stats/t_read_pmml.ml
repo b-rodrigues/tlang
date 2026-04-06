@@ -1,6 +1,6 @@
 open Ast
 
-let copy_file src dst =
+let copy_pmml_file src dst =
   match (try Ok (open_in_bin src) with Sys_error msg -> Error msg) with
   | Error msg ->
       Error (Printf.sprintf "Function `t_write_pmml`: could not open source PMML path `%s`: %s" src msg)
@@ -76,10 +76,12 @@ let register env =
           (match pmml_source_path model with
            | Some src_path ->
                if not (Sys.file_exists src_path) then
-                 Error.make_error FileError
-                   (Printf.sprintf "Function `t_write_pmml`: original PMML source file not found: %s" src_path)
-               else
-                 (match copy_file src_path path with
+                  Error.make_error FileError
+                    (Printf.sprintf
+                       "Function `t_write_pmml`: source PMML artifact `%s` no longer exists, so the pass-through copy cannot be written."
+                       src_path)
+                else
+                  (match copy_pmml_file src_path path with
                   | Ok () -> VString path
                   | Error msg ->
                       Error.make_error FileError

@@ -54,6 +54,6 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
          "  ✗ t_write_pmml rejects PMML Dicts without source artifacts\n    Got: %s\n"
          (Ast.Utils.value_to_string other));
 
-  if Sys.file_exists tmp_path then Sys.remove tmp_path;
-  if Sys.file_exists invalid_tmp_path then Sys.remove invalid_tmp_path;
+  (try if Sys.file_exists tmp_path then Sys.remove tmp_path with _ -> ());
+  (try if Sys.file_exists invalid_tmp_path then Sys.remove invalid_tmp_path with _ -> ());
   print_newline ()
