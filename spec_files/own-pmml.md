@@ -26,7 +26,7 @@ The repository already leans in this direction:
 - R PMML support is already wired around **`r2pmml`** and a required **`jre`**
 - Python PMML support already expects **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
 - the flake already provisions **`r2pmml`**, **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
-- a JPMML-backed Python evaluator such as **`jpmml-evaluator`** is the natural additional reading/scoring companion if T standardizes on one JVM-based PMML story, even if that tool still needs to be added to the flake explicitly
+- a JPMML-backed Python evaluator such as **`jpmml-evaluator`** is the natural additional reading/scoring companion if T standardizes on one JVM-based PMML story, and should be treated as a planned required addition to the flake rather than an optional extra
 
 So this is not a greenfield idea. It is mostly a question of **standardizing the boundary contract** and making T's API opinionated about which PMML stack is supported.
 
@@ -136,7 +136,7 @@ Recommended wrapper behavior:
 - avoid introducing additional non-JPMML PMML readers as first-class supported paths
 - register the reader/writer combination as the PMML serializer contract used by pipelines
 
-`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export. It is the clearest candidate for a dedicated JVM-backed Python-side PMML reader/scorer. It should be treated as a Java-bridged Python integration point rather than as a pure-Python parser.
+`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export. It is the clearest candidate for a dedicated JVM-backed Python-side PMML reader/scorer. It should be treated as a Java-bridged Python integration point rather than as a pure-Python parser. The main alternative would be pure-Python PMML readers, but those are a worse fit for T's goals because they reintroduce mixed scoring stacks and make semantic drift more likely.
 
 ### Supported surface
 
