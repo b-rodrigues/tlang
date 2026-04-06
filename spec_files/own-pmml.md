@@ -1,6 +1,6 @@
 # Feasibility of Owning the PMML R/Python Boundary via JPMML
 
-This note evaluates whether T should provide its **own PMML-facing functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly into White and back out again without parser mismatches.
+This note evaluates whether T should provide its **own PMML-facing functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly between **R and Python** without parser mismatches.
 
 ## Executive summary
 
@@ -10,7 +10,7 @@ The cleanest design is:
 
 - **R export/import boundary:** `r2pmml` / JVM-backed JPMML tooling
 - **Python scoring/import boundary:** JPMML-backed evaluator tooling
-- **T-facing API:** small T-owned wrapper functions that hide the Java details
+- **T-facing API:** small T-owned wrapper functions, ideally exposed as a **custom serializer** pair in the pipeline system
 - **Nix/runtime contract:** always provision a JRE for PMML workflows
 
 This is better than mixing unrelated PMML stacks because it keeps both sides on the same reference implementation family.
@@ -38,7 +38,7 @@ That means:
 
 ## Feasibility by use case
 
-### 1. R model -> PMML -> Python / White
+### 1. R model -> PMML -> Python
 
 **Feasibility: High**
 
@@ -48,9 +48,9 @@ This is the strongest case.
 - it is JVM-backed and aligned with the broader JPMML ecosystem
 - it avoids the class of compatibility issues caused by weaker downstream PMML readers
 
-If White can consume standards-compliant JPMML-style PMML, this should be the default path.
+If Python consumes the artifact through the same JPMML family, this should be the default path.
 
-### 2. Python model -> PMML -> R / White
+### 2. Python model -> PMML -> R
 
 **Feasibility: Medium to High**
 
@@ -62,16 +62,19 @@ This is also viable, but it depends on the model family:
 
 So "own PMML functions for Python" is realistic if the API is explicit that PMML export is supported for **specific model classes**, not for all Python objects.
 
-### 3. White -> PMML -> T / R / Python
+### 3. T-owned custom serializer for PMML interchange
 
-**Feasibility: Unknown to Medium**
+**Feasibility: High**
 
-This depends less on T and more on **what White emits**:
+This is a natural fit for the direction described in `spec_files/custom-serializers.md`.
 
-- if White exports standards-compliant PMML that stays within commonly-supported JPMML features, this is promising
-- if White emits vendor extensions or partial PMML, compatibility still needs to be tested
+A PMML serializer should be treated as a first-class serializer pair:
 
-So bidirectional interchange is feasible **only if White is part of the compatibility test matrix**.
+- writer side: emit PMML through `r2pmml`, `sklearn2pmml`, or `jpmml-statsmodels`
+- reader side: load/score through a JPMML-backed Python evaluator
+- pipeline contract: one serializer identifier, one supported compatibility story
+
+This would make PMML interchange consistent with the broader plan to group readers and writers into a single T-level serializer object rather than scattering separate function references through nodes.
 
 ## Why owning the wrapper layer still makes sense
 
@@ -81,7 +84,7 @@ Even if the implementation is delegated to JPMML tools, T still benefits from ow
 - T can fail explicitly when a model family is unsupported
 - T can hide package/JAR wiring from users
 - T can keep the "No Silent Magic" rule intact by rejecting unsupported paths clearly
-- T can test White/T round-trips as a product feature
+- T can make PMML a coherent custom serializer instead of an ad hoc set of helpers
 
 In other words, T should own the **developer experience**, not the PMML engine.
 
@@ -89,8 +92,7 @@ In other words, T should own the **developer experience**, not the PMML engine.
 
 The product stance should be:
 
-> T supports PMML interchange through the JPMML ecosystem. If you want reliable R/Python/White transfer, use the JPMML-backed path. Other PMML stacks are not the compatibility target.
-
+> T supports PMML interchange through the JPMML ecosystem. If you want reliable R/Python transfer, use the JPMML-backed path. Other PMML stacks are not the compatibility target.
 This is a cleaner promise than saying "PMML is supported" while allowing multiple incompatible readers/writers underneath.
 
 ## Implementation shape
@@ -102,6 +104,7 @@ Recommended wrapper behavior:
 - export via `r2pmml`
 - optionally add T-owned validation of the resulting artifact
 - keep model-family support explicit in documentation
+- expose the pair through a T-owned serializer abstraction rather than a one-off PMML path
 
 ### Python side
 
@@ -110,6 +113,7 @@ Recommended wrapper behavior:
 - prefer a JPMML-backed evaluator path for loading/scoring
 - keep `sklearn2pmml` / `jpmml-statsmodels` as the exporter story where applicable
 - avoid introducing additional non-JPMML PMML readers as first-class supported paths
+- register the reader/writer combination as the PMML serializer contract used by pipelines
 
 If `jpmml-evaluator` is adopted directly, it is a good fit with the stated goal because it keeps scoring on the same implementation family as export.
 
@@ -123,9 +127,9 @@ This is acceptable, but it must be explicit. PMML in T should be treated like Ar
 
 Python users often expect pure-Python tooling. A JVM-backed evaluator is operationally heavier, but it is still the better trade-off if correctness and interoperability matter more than minimal setup.
 
-### 3. White compatibility is still empirical
+### 3. Interop still has to be tested across real R/Python flows
 
-The strategy reduces compatibility risk, but it does not remove the need for round-trip tests with actual White-produced artifacts.
+The strategy reduces compatibility risk, but it does not remove the need for round-trip tests with actual R-produced and Python-produced artifacts.
 
 ### 4. Feature coverage is model-family dependent
 
@@ -139,7 +143,7 @@ The recommended direction is:
 
 - **standardize on JPMML-compatible PMML end-to-end**
 - **provide T-owned wrapper functions for R and Python**
-- **treat White interoperability as an explicit acceptance criterion**
+- **make PMML a first-class custom serializer/read-write pair**
 - **document supported model families narrowly and honestly**
 - **avoid mixed PMML parser stacks as the primary supported path**
 
@@ -149,7 +153,7 @@ Before calling the design complete, verify:
 
 1. **R -> PMML -> Python** works on representative linear, tree, and ensemble models
 2. **Python -> PMML -> R** works for supported sklearn/statsmodels cases
-3. **T/White round-trips** succeed on at least one real artifact in each supported family
+3. the PMML reader/writer pair is exposed coherently as a serializer contract in T
 4. failures for unsupported models are explicit and descriptive
 5. the Nix environment provisions the required Java runtime automatically for PMML workflows
 
@@ -157,4 +161,4 @@ Before calling the design complete, verify:
 
 **Feasibility: High for a JPMML-first wrapper strategy.**
 
-If the objective is reliable interchange with White, the right move is not to invent a new PMML engine. It is to make T's own PMML functions a **thin, explicit, well-tested façade over the JPMML ecosystem** and to declare that stack as the only compatibility target that T promises to support.
+If the objective is reliable interchange between R and Python, the right move is not to invent a new PMML engine. It is to make T's own PMML functions a **thin, explicit, well-tested façade over the JPMML ecosystem**, and ideally surface that façade as the PMML custom serializer that T pipelines use by default.
