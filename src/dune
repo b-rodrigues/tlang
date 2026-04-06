@@ -17,9 +17,9 @@
 
 (rule
  (target version.ml)
- (deps ../VERSION ../flake.nix)
+ (deps ../VERSION ../RSTATS-NIX-DATE)
  (action (with-stdout-to %{target}
-          (bash "v=$(cat ../VERSION | tr -d '\\n'); d=$(grep -o 'nixpkgs/202[0-9]-[0-9][0-9]-[0-9][0-9]' ../flake.nix | cut -d/ -f2); echo \"let version = \\\"$v\\\"\"; echo \"let nixpkgs_date = \\\"$d\\\"\""))))
+          (bash "v=$(cat ../VERSION | tr -d '\\n'); d=$(cat ../RSTATS-NIX-DATE | tr -d '\\n'); echo \"let version = \\\"$v\\\"\"; echo \"let nixpkgs_date = \\\"$d\\\"\""))))
 
 (rule
  (target nixpkgs_date.ml)
@@ -89,6 +89,7 @@
 )
 
 (ocamllex lexer)
+
 (executable
  (name lsp_server)
  (modules lsp_server)
