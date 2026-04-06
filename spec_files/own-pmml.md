@@ -92,7 +92,7 @@ This would make PMML interchange consistent with the broader plan to group reade
 
 It also gives T a clean place to enforce a stricter artifact contract, for example:
 
-- one deterministic `.pmml` artifact as the canonical payload, for example `<artifact_id>.pmml`
+- one deterministic `.pmml` artifact as the canonical payload, for example `customer_churn_model.pmml`
 - optional sidecar metadata such as `metadata.json`
 - deterministic serializer output suitable for caching and Nix-style reproducibility
 
@@ -159,7 +159,7 @@ PMML is a strong fit when transformations can be represented by PMML primitives 
 
 ### Validation mode
 
-T should add a validation mode for PMML workflows, ideally as a utility such as `compare_pmml_scores(data, model)`.
+T should add a validation mode for PMML workflows, ideally as a utility such as `compare_native_vs_pmml_scores(data, model)`.
 
 That mode would:
 
