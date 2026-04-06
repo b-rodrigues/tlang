@@ -1,5 +1,6 @@
 (* Walk up from the current working directory until the repository marker
-   `summary.md` is found; if not found, return the filesystem root. *)
+   `summary.md` is found; if it is absent, the search falls back to the
+   filesystem root so tests fail via missing fixture paths instead. *)
 let find_repo_root () =
   let rec loop dir =
     let marker = Filename.concat dir "summary.md" in
