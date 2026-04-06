@@ -59,13 +59,59 @@ let score_pmml_jpmml (df : dataframe) model_dict =
                  | Error msg ->
                      Error.make_error RuntimeError (Printf.sprintf "JPMML bridge: failed to launch JVM: %s" msg))))
 
+let t_score_pmml =
+  make_builtin ~name:"t_score_pmml" 2 (fun args _env ->
+    match args with
+    | [VDataFrame df; VDict pairs] -> score_pmml_jpmml df (VDict pairs)
+    | [VError _ as e; _] | [_; VError _ as e] -> e
+    | [_; _] -> Error.type_error "t_score_pmml expects (DataFrame, Dict)."
+    | _ -> Error.arity_error_named "t_score_pmml" 2 (List.length args)
+  )
+
+let t_compare_scores_pmml =
+  make_builtin ~name:"compare_native_vs_pmml_scores" 2 (fun args _env ->
+    match args with
+    | [VDataFrame df; VDict model_pairs] ->
+        (match Pmml_utils.pmml_source_path (VDict model_pairs) with
+         | None -> Error.make_error ValueError "compare_native_vs_pmml_scores: Model does not have a PMML source path."
+         | Some _ ->
+             let native_res =
+               match List.assoc_opt "model_type" model_pairs with
+               | Some (VString ("random_forest" | "forest")) -> Predict.predict_forest_model df (VDict model_pairs)
+               | Some (VString ("decision_tree" | "tree")) -> Predict.predict_tree_model df (VDict model_pairs)
+               | Some (VString ("xgboost" | "lightgbm")) -> Predict.predict_boosted_model df (VDict model_pairs)
+               | _ -> Error.make_error TypeError "compare_native_vs_pmml_scores: Model type not supported for native scoring comparison."
+             in
+             (match native_res with
+              | VError _ as e -> e
+              | VVector native_vec ->
+                  (match score_pmml_jpmml df (VDict model_pairs) with
+                   | VError _ as e -> e
+                   | VVector pmml_vec ->
+                       if Array.length native_vec <> Array.length pmml_vec then
+                         Error.make_error RuntimeError "Vector length mismatch between native and PMML scoring."
+                       else
+                         let diffs = ref 0 in
+                         for i = 0 to Array.length native_vec - 1 do
+                           match native_vec.(i), pmml_vec.(i) with
+                           | VFloat f1, VFloat f2 ->
+                               if abs_float (f1 -. f2) > 1e-7 then incr diffs
+                           | VString s1, VString s2 ->
+                               if s1 <> s2 then incr diffs
+                           | VNA _, VNA _ -> ()
+                           | VNA _, _ | _, VNA _ -> incr diffs
+                           | _ -> ()
+                         done;
+                         VDict [
+                           ("n_diffs", VInt !diffs);
+                           ("match", VBool (!diffs = 0));
+                           ("n_rows", VInt (Array.length native_vec));
+                         ]
+                   | _ -> Error.make_error RuntimeError "Expected Vector from JPMML bridge.")
+              | _ -> Error.make_error RuntimeError "Expected Vector from native scorer."))
+    | _ -> Error.arity_error_named "compare_native_vs_pmml_scores" 2 (List.length args))
+
 let register env =
-  Env.add "t_score_pmml"
-    (make_builtin ~name:"t_score_pmml" 2 (fun args _env ->
-      match args with
-      | [VDataFrame df; VDict pairs] -> score_pmml_jpmml df (VDict pairs)
-      | [VError _ as e; _] | [_; VError _ as e] -> e
-      | [_; _] -> Error.type_error "t_score_pmml expects (DataFrame, Dict)."
-      | _ -> Error.arity_error_named "t_score_pmml" 2 (List.length args)
-    ))
-    env
+  let env = Env.add "t_score_pmml" t_score_pmml env in
+  let env = Env.add "compare_native_vs_pmml_scores" t_compare_scores_pmml env in
+  env

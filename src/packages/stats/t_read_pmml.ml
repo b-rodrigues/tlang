@@ -44,58 +44,49 @@ let pmml_source_path = function
 --# @family stats
 --# @export
 *)
+let t_read_pmml_builtin =
+  make_builtin ~name:"t_read_pmml" 1 (fun args _env ->
+    match args with
+    | [VString path] ->
+        (match Pmml_utils.read_pmml path with
+         | Ok v -> Pmml_utils.attach_source_path path v
+         | Error msg -> Error.make_error FileError msg)
+    | [VError _ as e] -> e
+    | _ -> Error.type_error "t_read_pmml expects a single String argument.")
+
+let t_write_pmml_builtin =
+  make_builtin ~name:"t_write_pmml" 2 (fun args _env ->
+    match args with
+    | [VError _ as e; _] | [_; VError _ as e] -> e
+    | [VDict _ as model; VString path] ->
+        (match pmml_source_path model with
+         | Some src_path ->
+             if not (Sys.file_exists src_path) then
+                Error.make_error FileError
+                  (Printf.sprintf
+                     "Function `t_write_pmml`: source PMML artifact `%s` no longer exists, so the pass-through copy cannot be written."
+                     src_path)
+              else
+                (match copy_pmml_file src_path path with
+                | Ok () -> VString path
+                | Error msg ->
+                    Error.make_error FileError
+                      (Printf.sprintf "Function `t_write_pmml` failed to write `%s`: %s" path msg))
+         | None ->
+             Error.make_error RuntimeError
+               "Function `t_write_pmml` currently supports only PMML models loaded via `t_read_pmml()` or `read_node()`. Exporting native T models to PMML is not implemented yet.")
+    | [_; VString _] ->
+        Error.type_error "Function `t_write_pmml` expects a PMML model Dict as first argument."
+    | [VDict _; _] ->
+        Error.type_error "Function `t_write_pmml` expects a String path as second argument."
+    | [_; _] ->
+        Error.type_error "Function `t_write_pmml` expects (Dict, String)."
+    | _ ->
+        Error.arity_error_named "t_write_pmml" 2 (List.length args)
+  )
+
 let register env =
-  let env = 
-    Env.add "t_read_pmml"
-      (make_builtin ~name:"t_read_pmml" 1 (fun args _env ->
-        match args with
-        | [VString path] ->
-            (match Pmml_utils.read_pmml path with
-             | Ok v -> Pmml_utils.attach_source_path path v
-             | Error msg -> Error.make_error FileError msg)
-        | [VError _ as e] -> e
-        | _ -> Error.type_error "t_read_pmml expects a single String argument.")
-      )
-      env
-  in
-  (*
-  --# Write a PMML model file
-  --#
-  --# Copies a PMML artifact previously loaded with `t_read_pmml()` or `read_node()`
-  --# to a new path. Native T-to-PMML export is not implemented yet.
-  --#
-  --# @name t_write_pmml
-  --# @family stats
-  --# @export
-  *)
-  Env.add "t_write_pmml"
-    (make_builtin ~name:"t_write_pmml" 2 (fun args _env ->
-      match args with
-      | [VError _ as e; _] | [_; VError _ as e] -> e
-      | [VDict _ as model; VString path] ->
-          (match pmml_source_path model with
-           | Some src_path ->
-               if not (Sys.file_exists src_path) then
-                  Error.make_error FileError
-                    (Printf.sprintf
-                       "Function `t_write_pmml`: source PMML artifact `%s` no longer exists, so the pass-through copy cannot be written."
-                       src_path)
-                else
-                  (match copy_pmml_file src_path path with
-                  | Ok () -> VString path
-                  | Error msg ->
-                      Error.make_error FileError
-                        (Printf.sprintf "Function `t_write_pmml` failed to write `%s`: %s" path msg))
-           | None ->
-               Error.make_error RuntimeError
-                 "Function `t_write_pmml` currently supports only PMML models loaded via `t_read_pmml()` or `read_node()`. Exporting native T models to PMML is not implemented yet.")
-      | [_; VString _] ->
-          Error.type_error "Function `t_write_pmml` expects a PMML model Dict as first argument."
-      | [VDict _; _] ->
-          Error.type_error "Function `t_write_pmml` expects a String path as second argument."
-      | [_; _] ->
-          Error.type_error "Function `t_write_pmml` expects (Dict, String)."
-      | _ ->
-          Error.arity_error_named "t_write_pmml" 2 (List.length args)
-    ))
-    env
+  Serialization_registry.update_native "pmml" ~writer:t_write_pmml_builtin ~reader:t_read_pmml_builtin ();
+  let env = Env.add "t_read_pmml" t_read_pmml_builtin env in
+  let env = Env.add "t_write_pmml" t_write_pmml_builtin env in
+  env
