@@ -17,7 +17,7 @@ The cleanest design is:
 - **Execution model:** PMML workflows run on a JVM-backed scoring runtime
 - **Nix/runtime contract:** always provision the JVM-backed PMML runtime for PMML workflows
 
-This is better than mixing unrelated PMML stacks because it keeps both sides on the same semantic engine instead of letting export and scoring drift apart over time.
+This is better than mixing unrelated PMML stacks because it keeps both sides on the same semantic engine instead of letting export and scoring drift into different edge-case behavior, transformation handling, or model-evaluation results over time.
 
 ## Why this is attractive
 
@@ -159,7 +159,7 @@ PMML is a strong fit when transformations can be represented by PMML primitives 
 
 ### Validation mode
 
-T should add a validation mode for PMML workflows, ideally as a utility such as `validate_pmml(model, data)`.
+T should add a validation mode for PMML workflows, ideally as a utility such as `compare_pmml_scores(model, data)`.
 
 That mode would:
 
@@ -173,7 +173,9 @@ This would serve as a debugging tool, a test primitive, and a way to make the se
 
 ### 1. JVM dependency becomes mandatory for PMML workflows
 
-This is acceptable, but it must be explicit. PMML in T should be treated like Arrow native support: a real capability with clear runtime requirements. More importantly, users should understand that PMML execution is not "still just Python" or "still just R"; it is a JVM-backed execution mode that those runtimes hand off to.
+This is acceptable, but it must be explicit. PMML in T should be treated like Arrow native support: a real capability with clear runtime requirements.
+
+More importantly, users should understand that PMML execution is not "still just Python" or "still just R"; it is a JVM-backed execution mode that those runtimes hand off to.
 
 ### 2. Python ecosystem ergonomics
 
