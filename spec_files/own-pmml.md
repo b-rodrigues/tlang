@@ -1,6 +1,6 @@
 # Feasibility of PMML-Based R/Python Model Interchange via JPMML
 
-This note evaluates whether T should provide its **own PMML read/write and scoring functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly between **R and Python** with consistent cross-language behavior.
+This note recommends that T provide its **own PMML read/write and scoring functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly between **R and Python** with consistent cross-language behavior.
 
 For brevity, the rest of this note treats this as the **R/Python PMML boundary**.
 
@@ -26,7 +26,7 @@ The repository already leans in this direction:
 - R PMML support is already wired around **`r2pmml`** and a required **`jre`**
 - Python PMML support already expects **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
 - the flake already provisions **`r2pmml`**, **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
-- a JPMML-backed Python evaluator such as **`jpmml-evaluator`** is the natural additional reading/scoring companion if T standardizes on one JVM-based PMML story
+- **`jpmml-evaluator`** is the natural additional reading/scoring companion if T standardizes on one JVM-based PMML story
 - that evaluator should be treated as a planned required addition to the flake rather than an optional extra
 
 So this is not a greenfield idea. It is mostly a question of **standardizing the boundary contract** and making T's API opinionated about which PMML stack is supported.
@@ -138,7 +138,7 @@ Recommended wrapper behavior:
 - avoid introducing additional non-JPMML PMML readers as first-class supported paths
 - register the reader/writer combination as the PMML serializer contract used by pipelines
 
-`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export. It is the clearest candidate for a dedicated JVM-backed Python-side PMML reader/scorer. It should be treated as a Java-bridged Python integration point rather than as a pure-Python parser.
+`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export. It is the clearest candidate for a dedicated JVM-backed Python-side PMML reader/scorer, and it should be added to the flake as part of the supported PMML execution path. It should be treated as a Java-bridged Python integration point rather than as a pure-Python parser.
 
 ### Supported surface
 
@@ -159,7 +159,7 @@ PMML is a strong fit when transformations can be represented by PMML primitives 
 
 ### Validation mode
 
-T should add a validation mode for PMML workflows, ideally as a utility such as `compare_pmml_scores(model, data)`.
+T should add a validation mode for PMML workflows, ideally as a utility such as `compare_pmml_scores(data, model)`.
 
 That mode would:
 
