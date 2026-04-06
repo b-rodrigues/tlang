@@ -128,4 +128,4 @@ When T processes a node with an `R` runtime and the above serializer:
 
 If you use a custom format name (e.g., `format: "myformat"`), you should ensure that your R or Python scripts have the necessary libraries loaded to handle that format. You can do this by adding the libraries to your `tproject.toml` or using the `functions` / `includes` parameters in the node definition.
 
-For more information on how pipelines use these serializers, see the [Pipeline Tutorial](pipeline_tutorial.md).
+For more information on how pipelines use these serializers, see the [Pipeline Tutorial](pipeline_tutorial.md). For a model-focused walkthrough of `^pmml`, see the [PMML Tutorial](pmml_tutorial.md).
