@@ -23,6 +23,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
         "pkgs.rPackages.XML";
         "ps.pandas";
         "ps.pyarrow";
+        "ps.pypmml";
         "ps.sklearn2pmml";
         "ps.scikit-learn";
         "ps.scipy";
@@ -141,11 +142,31 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VError { code; message; _ }
      when code = FileError
        && contains_all message
-            ["tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically"] ->
-       incr pass_count; Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
+            [ "tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically" ] ->
+       incr pass_count;
+       Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
    | other ->
        incr fail_count;
        Printf.printf "  ✗ Explicit dependency check failed for ONNX pipeline. Got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  let env_pmml_deps = Packages.init_env () in
+  let (v, _) = eval_string_env {|
+    p = pipeline {
+       model = node(command = <{ 1 }>, runtime = Python, deserializer = ^pmml)
+    }
+    populate_pipeline(p)
+  |} env_pmml_deps in
+  (match v with
+   | VError { code; message; _ }
+     when code = FileError
+       && contains_all message
+            [ "tproject.toml"; "pypmml"; "sklearn2pmml"; "cannot add these dependencies automatically" ] ->
+       incr pass_count;
+       Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pypmml guidance\n"
+   | other ->
+       incr fail_count;
+       Printf.printf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* 4c. Nix emission no longer injects serializer/quarto packages implicitly *)
@@ -173,6 +194,35 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | other ->
        incr fail_count;
        Printf.printf "  ✗ Failed to build pipeline for Nix emission test. Got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  (* 4d. Python PMML reader surfaces a descriptive dependency error *)
+  let env_pmml = Packages.init_env () in
+  let (v, _) = eval_string_env {|
+    p = pipeline {
+       pmml_py = node(command = <{ 1 }>, runtime = Python, deserializer = ^pmml)
+    }
+    p
+  |} env_pmml in
+  (match v with
+   | VPipeline p ->
+       let nix = Nix_emitter.emit_pipeline p in
+       if contains_all nix
+            [
+              "from pypmml import Model";
+              "raise RuntimeError(";
+              "PMML deserialization in Python requires the 'pypmml' package.";
+              "Add 'pypmml' to [py-dependencies] in tproject.toml and rebuild the pipeline environment.";
+            ]
+          && not (contains nix "return path # Fallback to path")
+       then begin
+         incr pass_count; Printf.printf "  ✓ Python PMML reader raises a descriptive error when pypmml is unavailable\n"
+       end else begin
+         incr fail_count; Printf.printf "  ✗ Python PMML reader still falls back silently when pypmml is unavailable\n"
+       end
+   | other ->
+       incr fail_count;
+       Printf.printf "  ✗ Failed to build PMML pipeline for reader emission test. Got: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* 5. Robustness: Placeholder error *)

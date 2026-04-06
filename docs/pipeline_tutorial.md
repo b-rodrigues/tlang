@@ -1192,6 +1192,57 @@ p_broken |> pipeline_assert
 
 ---
 
+## 29. Handling Ambiguous Dependencies
+
+T-Lang uses a lexical analyzer to automatically detect dependencies between nodes by scanning the code for variable names that match other node names. While this is convenient, there are cases where automatic detection is insufficient or may produce false positives.
+
+### Excluding False Positives
+
+Sometimes, a node's code may contain a word that matches another node name but is intended to be a comment or a string, not a dependency. To prevent these from causing unwanted dependency cycles, T automatically **strips standard comments** starting with `--` or `#` within foreign code blocks (`<{ ... }>`) before analyzing the code.
+
+```t
+p = pipeline {
+  data = read_csv("input.csv")
+  
+  -- The analyzer will IGNORE the string 'results' because it's in a comment.
+  -- This prevents an accidental dependency on the 'results' node.
+  process = pyn(command = <{
+    # We will save the processed results to a file
+    import pandas as pd
+    df = data.dropna()
+    df
+  }>)
+
+  results = node(command = process |> head)
+}
+```
+
+### Forcing Detection with `@deps`
+
+In some runtimes, like `sh` (shell), T cannot always reliably infer dependencies from the command string. Similarly, you may want to explicitly declare a dependency that isn't directly referenced in the code (e.g., a file produced by another node that your script reads via a hardcoded path).
+
+For these cases, you can use the `--# @deps` decorator to manually declare one or more dependencies:
+
+```t
+p = pipeline {
+  raw_file = shn(command = <{ curl -o data.csv https://example.com/data.csv }>)
+
+  -- This shell node reads data.csv, which is created by raw_file.
+  -- We use @deps to ensure raw_file executes first.
+  summary = shn(command = <{
+    --# @deps raw_file
+    cat data.csv | wc -l
+  }>, serializer = "text")
+}
+```
+
+**Key Features of `@deps`**:
+- **Syntax**: `--# @deps node1, node2, ...`
+- **Manual Override**: It adds the specified nodes to the dependency graph even if they aren't parsed from the code.
+- **Clean Emission**: The `--# @deps` line is automatically removed by T before the script is sent to the guest runtime (R, Python, or Shell), so it never interferes with your code's execution.
+
+---
+
 ## Best Practices
 
 1. **Name nodes descriptively**: Use names like `raw_data`, `filtered_sales`, `summary_stats`

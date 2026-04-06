@@ -763,7 +763,10 @@ def py_read_pmml(path):
     try:
         from pypmml import Model
     except ImportError:
-        return path # Fallback to path
+        raise RuntimeError(
+            "PMML deserialization in Python requires the 'pypmml' package. "
+            "Add 'pypmml' to [py-dependencies] in tproject.toml and rebuild the pipeline environment."
+        )
     return Model.load(path)
 |} in
 

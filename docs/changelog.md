@@ -2,6 +2,10 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
+- **Stabilized Pipeline Dependency Detection**: Refactored the lexical analyzer to prevent false-positive dependencies in polyglot pipelines.
+    - **Strict Comment Stripping**: The pipeline resolver now automatically strips lines starting with `--` or `#` within foreign code blocks (`<{ ... }>`) before extraction. This prevents node names mentioned in comments from being incorrectly identified as dependencies, resolving common `ValueError` cycles.
+    - **Explicit Dependency Annotations**: Introduced a new metadata decorator `--# @deps node1, node2` for manual dependency declaration. This is particularly useful for shell nodes or complex scripts where automatic lexical inference may be insufficient or blocked.
+    - **Clean Script Emission**: These annotations are automatically stripped by the Nix emitter before generating the final guest scripts, ensuring zero runtime overhead or syntax interference in R, Python, or Shell environments.
 - **Strict Dependency Declaration Enforcement**: Finalized the removal of implicit Nix package injection for pipeline nodes. T-Lang now strictly enforces that all required packages (like `jsonlite`, `arrow`, `pandas`, or `onnxruntime`) must be explicitly declared in `tproject.toml`. Pipeline compilation now provides actionable errors if dependency closures are incomplete.
 - **Mandatory Serialization Integrity**: Introduced mandatory MD5 integrity digests for all `.tobj` serialized files. The deserialization engine now automatically verifies the data integrity of artifacts, providing a descriptive warning when fallback loading is used for legacy (pre-digest) files.
 - **Resilient Pipeline Path Resolution**: Fixed a critical regression in project root discovery for nested builds. The generated `_pipeline/pipeline.nix` now reliably resolves the repository root regardless of the execution context (local, CI, or build sandbox), ensuring Nix-builds succeed across all directory depths.
@@ -13,6 +17,10 @@
     - Added support for the intuitive `dataframe([x: [1,2], y: [3,4]])` syntax.
     - **Scalar Recycling**: Implemented automatic recycling of single values to match the length of other columns (e.g., `dataframe([x: 1:5, y: 0])`).
     - Improved error messaging for mismatched column lengths.
+- **PMML Serialization Hardening**:
+    - **Python Reader Guard**: Implemented an explicit runtime check in emitted Python scripts that raises a descriptive `RuntimeError` if `pypmml` is missing, preventing silent data-type mismatches and improving "No Silent Magic" compliance.
+    - **Static Requirement Checks**: Added compiler-level validation to ensure `pypmml` and `sklearn2pmml` are declared in `tproject.toml` whenever PMML serialization is requested for Python nodes.
+    - **Comprehensive Testing**: Added detailed verification in `tests/test_serializers.ml` for both static dependency detection and emitted code safety.
 
 - **"Death to Null" Initiative**: Complete removal of `null` and `VNull` from the language in favor of a strict, explicit missingness model.
     - **Grammar Cleanup**: Removed the `null` keyword from the lexer and parser. The language now exclusively uses `NA` (generic or typed) for missing data.
