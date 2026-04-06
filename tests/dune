@@ -12,6 +12,7 @@
    test_dataframe test_pipeline test_colcraft test_window
    test_math test_stats test_broom_golden test_explain_tests
    test_pmml_random_forest
+   test_pmml_io
    test_pmml_xgboost
    test_pmml_lightgbm
    test_onnx_native

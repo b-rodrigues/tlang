@@ -1296,7 +1296,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
                      acc)
             | Some (VComputedNode cn) when strategy = "pmml" && cn.cn_serializer = "pmml" ->
                 (match Pmml_utils.read_pmml cn.cn_path with
-                 | Ok v -> Env.add dname v acc
+                 | Ok v -> Env.add dname (Pmml_utils.attach_source_path cn.cn_path v) acc
                  | Error msg -> 
                      Printf.eprintf "Warning: Automatic PMML deserialization failed for dependency `%s` of node `%s`: %s\n%!" dname name msg;
                      acc)

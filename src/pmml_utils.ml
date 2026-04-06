@@ -51,6 +51,12 @@ type pmml_boosted_ensemble = {
   models: (float * float * pmml_forest) list; (* rescale_constant, rescale_factor, forest *)
 }
 
+let attach_source_path path = function
+  | VDict pairs ->
+      let pairs = List.remove_assoc "_pmml_path" pairs in
+      VDict (("_pmml_path", VString path) :: pairs)
+  | value -> value
+
 let parse_xml path =
   let ic = open_in path in
   Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
