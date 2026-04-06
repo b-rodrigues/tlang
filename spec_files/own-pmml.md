@@ -26,7 +26,7 @@ The repository already leans in this direction:
 - R PMML support is already wired around **`r2pmml`** and a required **`jre`**
 - Python PMML support already expects **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
 - the flake already provisions **`r2pmml`**, **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
-- a JPMML-backed Python evaluator such as **`jpmml-evaluator`** is the natural additional read/score companion if T standardizes on one JVM-based PMML story
+- a JPMML-backed Python evaluator such as **`jpmml-evaluator`** is the natural additional reading/scoring companion if T standardizes on one JVM-based PMML story, even if that tool still needs to be added to the flake explicitly
 
 So this is not a greenfield idea. It is mostly a question of **standardizing the boundary contract** and making T's API opinionated about which PMML stack is supported.
 
@@ -150,7 +150,7 @@ PMML is a strong fit when transformations can be represented by PMML primitives 
 
 ### Validation mode
 
-T should add a validation mode for PMML workflows, ideally as a utility such as `pmml_validate(model, data)`.
+T should add a validation mode for PMML workflows, ideally as a utility such as `validate_pmml(model, data)`.
 
 That mode would:
 
