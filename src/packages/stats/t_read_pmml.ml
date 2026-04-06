@@ -18,10 +18,10 @@ let copy_file src dst =
           loop ())
       with
       | Sys_error msg ->
-          Error (Printf.sprintf "could not open destination PMML path `%s`: %s" dst msg))
+          Error (Printf.sprintf "Function `t_write_pmml`: could not open destination PMML path `%s`: %s" dst msg))
   with
   | Sys_error msg ->
-      Error (Printf.sprintf "could not open source PMML path `%s`: %s" src msg)
+      Error (Printf.sprintf "Function `t_write_pmml`: could not open source PMML path `%s`: %s" src msg)
 
 let pmml_source_path = function
   | VDict pairs ->
@@ -53,6 +53,16 @@ let register env =
       )
       env
   in
+  (*
+  --# Write a PMML model file
+  --#
+  --# Copies a PMML artifact previously loaded with `t_read_pmml()` or `read_node()`
+  --# to a new path. Native T-to-PMML export is not implemented yet.
+  --#
+  --# @name t_write_pmml
+  --# @family stats
+  --# @export
+  *)
   Env.add "t_write_pmml"
     (make_builtin ~name:"t_write_pmml" 2 (fun args _env ->
       match args with

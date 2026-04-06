@@ -1,3 +1,5 @@
+(* Walk up from the current working directory until the repository marker
+   `summary.md` is found; if not found, return the filesystem root. *)
 let find_repo_root () =
   let rec loop dir =
     let marker = Filename.concat dir "summary.md" in
@@ -8,6 +10,7 @@ let find_repo_root () =
   in
   loop (Sys.getcwd ())
 
+(* Check whether `sub` appears anywhere inside `s`. *)
 let contains s sub =
   try
     ignore (Str.search_forward (Str.regexp_string sub) s 0);
