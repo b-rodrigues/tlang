@@ -24,6 +24,7 @@ The repository already leans in this direction:
 - R PMML support is already wired around **`r2pmml`** and a required **`jre`**
 - Python PMML support already expects **`pypmml`**, **`sklearn2pmml`**, and **`statsmodels`**
 - the flake already provisions **`r2pmml`**, **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
+- a JPMML-backed Python evaluator such as **`jpmml-evaluator`** is the natural read/score companion if T standardizes on one JVM-based PMML story
 
 So this is not a greenfield idea. It is mostly a question of **standardizing the boundary contract** and making T's API opinionated about which PMML stack is supported.
 
@@ -96,7 +97,7 @@ The product stance should be:
 
 > T supports PMML interchange through the JPMML ecosystem. If you want reliable R/Python transfer, use the JPMML-backed path. Other PMML stacks are not the compatibility target.
 
-This is a cleaner promise than saying "PMML is supported" while allowing multiple incompatible readers/writers underneath. In practice, T should reject unsupported non-JPMML PMML paths explicitly with a descriptive error rather than silently accepting them.
+This is a cleaner promise than saying "PMML is supported" while allowing multiple incompatible readers/writers underneath. In practice, T should reject unsupported non-JPMML PMML paths explicitly with a descriptive error rather than silently accepting them, consistent with T's **No Silent Magic** rule.
 
 ## Implementation shape
 
