@@ -2,6 +2,8 @@
 
 This note evaluates whether T should provide its **own PMML read/write and scoring functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly between **R and Python** without parser mismatches.
 
+For brevity, the rest of this note treats this as the **R↔Python PMML boundary**.
+
 ## Executive summary
 
 The approach is **feasible and desirable** if the goal is a **"just works" interchange layer** rather than a pure-Python or pure-R implementation.
@@ -116,7 +118,7 @@ Recommended wrapper behavior:
 - avoid introducing additional non-JPMML PMML readers as first-class supported paths
 - register the reader/writer combination as the PMML serializer contract used by pipelines
 
-`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export.
+`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export. In practice, this is the clearest candidate if T wants a dedicated JVM-backed Python-side PMML reader/scorer rather than a mixed parser story.
 
 ## Main risks
 
@@ -155,8 +157,9 @@ Before calling the design complete, verify:
 1. **R -> PMML -> Python** works on representative linear, tree, and ensemble models
 2. **Python -> PMML -> R** works for supported sklearn/statsmodels cases
 3. the PMML reader/writer pair is exposed coherently as a serializer contract in T
-4. failures for unsupported models are explicit and descriptive
-5. the Nix environment provisions the required Java runtime automatically for PMML workflows
+4. representative R↔Python PMML cases are covered by integration or golden tests in the existing test suites
+5. failures for unsupported models are explicit and descriptive
+6. the Nix environment provisions the required Java runtime automatically for PMML workflows
 
 ## Final assessment
 
