@@ -129,6 +129,7 @@
             # Used by Arrow-Owl bridge for matrix operations in lm(), cor()
             # ocamlVersion.owl
             pkgs.jpmml-statsmodels
+            pkgs.jpmml-evaluator
             pkgs.jre
             pkgs.onnxruntime
           ];
@@ -152,7 +153,8 @@
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
-              --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+              --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" \
+              --set T_JPMML_EVALUATOR_JAR "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
 
             makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
@@ -292,6 +294,7 @@
             pkgs.actionlint
             pkgs.shellcheck
             pkgs.jpmml-statsmodels
+            pkgs.jpmml-evaluator
             pkgs.jre
             pkgs.boost
             pkgs.cmake

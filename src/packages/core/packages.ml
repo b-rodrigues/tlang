@@ -934,7 +934,7 @@ let init_env () =
     (* JSON serializers *)
     "write_json"; "read_json";
     (* PMML *)
-    "pmml";
+    "pmml"; "^pmml"; "^csv"; "^arrow"; "^json"; "^onnx";
   ] in
   let env = List.fold_left (fun acc name ->
     Env.add name (VSymbol name) acc

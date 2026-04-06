@@ -1280,6 +1280,7 @@ EOF
     name = "%s";
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
     T_JPMML_STATSMODELS_JAR = "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar";
+    T_JPMML_EVALUATOR_JAR = "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar";
 %s
 %s
     buildCommand = ''
