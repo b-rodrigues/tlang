@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-04-02";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -21,8 +21,14 @@
     # (x86_64-linux, aarch64-darwin, etc.)
     flake-utils.lib.eachDefaultSystem (system:
       let
+        # Single source of truth for the R-specific Nixpkgs snapshot.
+        rstats-nix-date   = nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./RSTATS-NIX-DATE);
+
         # Use the Nix packages for the specified system
-        pkgs = (import nixpkgs { inherit system; }).extend (self: super: {
+        pkgs = (import (builtins.fetchTarball {
+          url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
+          sha256 = "sha256:118mpzglx1vrli15gki3270wwj291sz3km4nn0cw9szx1znp1f72";
+        }) { inherit system; }).extend (self: super: {
           lightgbm = super.lightgbm.overrideAttrs (old: {
             cudaSupport = false;
             openclSupport = false;
@@ -30,8 +36,6 @@
             buildInputs = (old.buildInputs or []) ++ [ self.boost ];
           });
         });
-
-
 
         # Build R with specific packages
         R-with-packages = pkgs.rWrapper.override {
@@ -79,11 +83,10 @@
         # Pin a specific version of OCaml for reproducibility.
         ocamlVersion = pkgs.ocaml-ng.ocamlPackages_5_4;
 
-
         # Build the T language executable
         t-lang = pkgs.stdenv.mkDerivation {
           pname = "t-lang";
-          version = pkgs.lib.replaceStrings ["\n"] [""] (builtins.readFile ./VERSION);
+          version = nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./VERSION);
 
           src = ./.;
 
@@ -149,7 +152,7 @@
               --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
               --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
-               
+
             makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
@@ -217,7 +220,6 @@
               "-Wl,-rpath,${pkgs.onnxruntime}/lib"
             ]
           );
-
 
           # These are the packages that will be available in your shell.
           buildInputs = [
