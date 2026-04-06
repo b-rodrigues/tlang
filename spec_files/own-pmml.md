@@ -24,9 +24,9 @@ This is better than mixing unrelated PMML stacks because it keeps both sides on 
 The repository already leans in this direction:
 
 - R PMML support is already wired around **`r2pmml`** and a required **`jre`**
-- Python PMML support already expects **`pypmml`**, **`sklearn2pmml`**, and **`statsmodels`**
+- Python PMML support already expects **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
 - the flake already provisions **`r2pmml`**, **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
-- a JPMML-backed Python evaluator such as **`jpmml-evaluator`** is the natural read/score companion if T standardizes on one JVM-based PMML story
+- a JPMML-backed Python evaluator such as **`jpmml-evaluator`** is the natural additional read/score companion if T standardizes on one JVM-based PMML story
 
 So this is not a greenfield idea. It is mostly a question of **standardizing the boundary contract** and making T's API opinionated about which PMML stack is supported.
 
