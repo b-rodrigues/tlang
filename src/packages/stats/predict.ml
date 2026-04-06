@@ -736,9 +736,15 @@ let register env =
                | _ -> None)
         in
          (match model_type with
-          | Some ("random_forest" | "forest") -> predict_forest_model df (VDict pairs)
-          | Some ("decision_tree" | "tree") -> predict_tree_model df (VDict pairs)
-          | Some ("xgboost" | "lightgbm") -> predict_boosted_model df (VDict pairs)
+          | Some ("random_forest" | "forest" | "decision_tree" | "tree" | "xgboost" | "lightgbm") ->
+              (match Pmml_utils.pmml_source_path (VDict pairs) with
+               | Some _ -> T_score_pmml.score_pmml_jpmml df (VDict pairs)
+               | None ->
+                   (match model_type with
+                    | Some ("random_forest" | "forest") -> predict_forest_model df (VDict pairs)
+                    | Some ("decision_tree" | "tree") -> predict_tree_model df (VDict pairs)
+                    | Some ("xgboost" | "lightgbm") -> predict_boosted_model df (VDict pairs)
+                    | _ -> Error.type_error "Unknown model type"))
           | Some "onnx" -> predict_onnx_model df (VDict pairs)
           | _ ->
         (* Extract coefficients and intercept *)
