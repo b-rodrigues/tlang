@@ -1,6 +1,6 @@
 # Feasibility of Owning the PMML R/Python Boundary via JPMML
 
-This note evaluates whether T should provide its **own PMML-facing functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly between **R and Python** without parser mismatches.
+This note evaluates whether T should provide its **own PMML read/write and scoring functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly between **R and Python** without parser mismatches.
 
 ## Executive summary
 
@@ -10,7 +10,7 @@ The cleanest design is:
 
 - **R export/import boundary:** `r2pmml` / JVM-backed JPMML tooling
 - **Python scoring/import boundary:** JPMML-backed evaluator tooling
-- **T-facing API:** small T-owned wrapper functions, ideally exposed as a **custom serializer** pair in the pipeline system
+- **T-facing API:** small T-owned wrapper functions, ideally exposed as a **custom serializer** pair in the pipeline system (one T-level object that owns the matching PMML writer and reader)
 - **Nix/runtime contract:** always provision a JRE for PMML workflows
 
 This is better than mixing unrelated PMML stacks because it keeps both sides on the same reference implementation family.
@@ -116,7 +116,7 @@ Recommended wrapper behavior:
 - avoid introducing additional non-JPMML PMML readers as first-class supported paths
 - register the reader/writer combination as the PMML serializer contract used by pipelines
 
-If `jpmml-evaluator` is adopted directly, it is a good fit with the stated goal because it keeps scoring on the same implementation family as export.
+`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export.
 
 ## Main risks
 
