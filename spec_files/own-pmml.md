@@ -92,7 +92,7 @@ This would make PMML interchange consistent with the broader plan to group reade
 
 It also gives T a clean place to enforce a stricter artifact contract, for example:
 
-- one `model.pmml` artifact as the canonical payload
+- one deterministic `.pmml` artifact as the canonical payload, for example `<artifact_id>.pmml`
 - optional sidecar metadata such as `metadata.json`
 - deterministic serializer output suitable for caching and Nix-style reproducibility
 
