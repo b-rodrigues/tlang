@@ -1,6 +1,6 @@
 # Feasibility of PMML-Based R/Python Model Interchange via JPMML
 
-This note evaluates whether T should provide its **own PMML read/write and scoring functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly between **R and Python** without parser discrepancies.
+This note evaluates whether T should provide its **own PMML read/write and scoring functions for R and Python**, while standardizing on the **JPMML ecosystem** underneath, so that models can move cleanly between **R and Python** with consistent cross-language behavior.
 
 For brevity, the rest of this note treats this as the **R/Python PMML boundary**.
 
@@ -118,7 +118,7 @@ Recommended wrapper behavior:
 - avoid introducing additional non-JPMML PMML readers as first-class supported paths
 - register the reader/writer combination as the PMML serializer contract used by pipelines
 
-`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export. In practice, this is the clearest candidate if T wants a dedicated JVM-backed Python-side PMML reader/scorer rather than a mixed parser story, and it should be treated as a Java-bridged Python integration point rather than as a pure-Python parser.
+`jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export. It is the clearest candidate for a dedicated JVM-backed Python-side PMML reader/scorer. It should be treated as a Java-bridged Python integration point rather than as a pure-Python parser.
 
 ## Main risks
 
