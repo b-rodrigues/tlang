@@ -6,16 +6,18 @@ For brevity, the rest of this note treats this as the **R/Python PMML boundary**
 
 ## Executive summary
 
-The approach is **feasible and desirable** if the goal is a **"just works" interchange layer** rather than a pure-Python or pure-R implementation.
+The approach is **feasible and desirable** if the goal is not generic "PMML support" but a **single cross-language execution boundary around one semantic engine**.
 
 The cleanest design is:
 
 - **R export/import boundary:** `r2pmml` / JVM-backed JPMML tooling
 - **Python scoring/import boundary:** JPMML-backed evaluator tooling
 - **T-facing API:** small T-owned wrapper functions, ideally exposed as a **custom serializer** pair in the pipeline system (one T-level serializer object that owns the matching PMML writer and reader)
-- **Nix/runtime contract:** always provision a JRE for PMML workflows
+- **Execution authority:** JPMML is the scoring authority whenever PMML is involved
+- **Execution model:** PMML workflows run on a JVM-backed scoring runtime
+- **Nix/runtime contract:** always provision the JVM-backed PMML runtime for PMML workflows
 
-This is better than mixing unrelated PMML stacks because it keeps both sides on the same reference implementation family.
+This is better than mixing unrelated PMML stacks because it keeps both sides on the same semantic engine instead of letting export and scoring drift apart over time.
 
 ## Why this is attractive
 
@@ -37,7 +39,8 @@ That means:
 1. **Do not build a custom PMML parser/scorer in R or Python**
 2. **Do not rely on mixed parser stacks** when interchange correctness matters
 3. **Do standardize on JPMML-compatible artifacts and evaluators**
-4. **Do make the JVM requirement explicit and first-class**
+4. **Do treat JPMML as the only scoring authority in cross-language PMML mode**
+5. **Do make the JVM-backed execution model explicit and first-class**
 
 ## Feasibility by use case
 
@@ -63,7 +66,7 @@ This is also viable, but it depends on the model family:
 - **statsmodels:** viable via `jpmml-statsmodels`
 - **arbitrary Python models:** not universally feasible, because PMML support is model-family dependent
 
-So "own PMML functions for Python" is realistic if the API is explicit that PMML export is supported for **specific model classes**, not for all Python objects.
+So "own PMML functions for Python" is realistic only if the API is explicit that PMML export is supported for **specific model classes**, not for all Python objects.
 
 ### 3. T-owned custom serializer for PMML interchange
 
@@ -74,10 +77,16 @@ This is a natural fit for the direction described in the existing `spec_files/cu
 A PMML serializer should be treated as a first-class serializer pair:
 
 - writer side: emit PMML through `r2pmml`, `sklearn2pmml`, or `jpmml-statsmodels`
-- reader side: load/score through a JPMML-backed Python evaluator
-- pipeline contract: one serializer identifier, one supported compatibility story
+- reader side: load/score through the canonical JPMML-backed evaluator
+- pipeline contract: one serializer identifier, one execution engine, one supported compatibility story
 
 This would make PMML interchange consistent with the broader plan to group readers and writers into a single T-level serializer object rather than scattering separate function references through nodes.
+
+It also gives T a clean place to enforce a stricter artifact contract, for example:
+
+- one `model.pmml` artifact as the canonical payload
+- optional sidecar metadata such as `metadata.json`
+- deterministic serializer output suitable for caching and Nix-style reproducibility
 
 ## Why owning the wrapper layer still makes sense
 
@@ -88,6 +97,7 @@ Even if the implementation is delegated to JPMML tools, T still benefits from ow
 - T can hide package/JAR wiring from users
 - T can keep the "No Silent Magic" rule intact by rejecting unsupported paths clearly
 - T can make PMML a coherent custom serializer instead of an ad hoc set of helpers
+- T can ensure that export and scoring both resolve to the same semantic authority
 
 In other words, T should own the **developer experience**, not the PMML engine.
 
@@ -95,7 +105,7 @@ In other words, T should own the **developer experience**, not the PMML engine.
 
 The product stance should be:
 
-> T supports PMML interchange through the JPMML ecosystem. If you want reliable R/Python transfer, use the JPMML-backed path. Other PMML stacks are not the compatibility target.
+> T supports PMML as a strict, JVM-backed interchange format using the JPMML ecosystem as the single execution authority. Only models and pipelines that can be faithfully represented and evaluated within this system are supported. Unsupported cases fail explicitly.
 
 This is a cleaner promise than saying "PMML is supported" while allowing multiple incompatible readers/writers underneath. In practice, T should reject unsupported non-JPMML PMML paths explicitly with a descriptive error rather than silently accepting them, consistent with T's **No Silent Magic** rule.
 
@@ -121,11 +131,40 @@ Recommended wrapper behavior:
 
 `jpmml-evaluator` is the recommended direct Python evaluator because it keeps scoring on the same implementation family as export. It is the clearest candidate for a dedicated JVM-backed Python-side PMML reader/scorer. It should be treated as a Java-bridged Python integration point rather than as a pure-Python parser.
 
+### Supported surface
+
+The supported model surface should stay intentionally narrow:
+
+- linear and GLM-style models
+- tree-based models where the JPMML toolchain already has stable support
+- basic sklearn pipelines without arbitrary user-defined transforms
+- statsmodels cases that already map cleanly through the JPMML bridge
+
+Everything else should fail fast rather than being "best effort".
+
+### Transformation fidelity
+
+The biggest risk is not the model coefficients; it is preprocessing.
+
+PMML is a strong fit when transformations can be represented by PMML primitives such as scaling, encoding, and straightforward pipeline steps. It is a weak fit when preprocessing depends on arbitrary Python or R logic. T should therefore state explicitly that only pipelines whose transformations can be faithfully expressed in PMML are supported.
+
+### Validation mode
+
+T should add a validation mode for PMML workflows, ideally as a utility such as `pmml_validate(model, data)`.
+
+That mode would:
+
+1. score in the originating runtime
+2. score through the JPMML execution path
+3. compare outputs and surface any mismatch clearly
+
+This would serve as a debugging tool, a test primitive, and a way to make the serializer contract more trustworthy.
+
 ## Main risks
 
 ### 1. JVM dependency becomes mandatory for PMML workflows
 
-This is acceptable, but it must be explicit. PMML in T should be treated like Arrow native support: a real capability with clear runtime requirements.
+This is acceptable, but it must be explicit. PMML in T should be treated like Arrow native support: a real capability with clear runtime requirements. More importantly, users should understand that PMML execution is not "still just Python" or "still just R"; it is a JVM-backed execution mode that those runtimes hand off to.
 
 ### 2. Python ecosystem ergonomics
 
@@ -148,6 +187,8 @@ The recommended direction is:
 - **standardize on JPMML-compatible PMML end-to-end**
 - **provide T-owned wrapper functions for R and Python**
 - **make PMML a first-class custom serializer/read-write pair**
+- **treat JPMML as the sole execution authority whenever PMML is active**
+- **support only model families and preprocessing steps that can be represented faithfully**
 - **document supported model families narrowly and honestly**
 - **avoid mixed PMML parser stacks as the primary supported path**
 
@@ -159,11 +200,13 @@ Before calling the design complete, verify:
 2. **Python -> PMML -> R** works for supported sklearn/statsmodels cases
 3. the PMML reader/writer pair is exposed coherently as a serializer contract in T
 4. representative R/Python PMML cases are covered by `tests/golden/` or `tests/integration/` in the existing test suites
-5. failures for unsupported models are explicit and descriptive
-6. the Nix environment provisions the required Java runtime automatically for PMML workflows
+5. PMML scoring goes through the JPMML execution path rather than mixed scoring engines
+6. failures for unsupported models or unsupported preprocessing are explicit and descriptive
+7. the Nix environment provisions the required JVM-backed runtime automatically for PMML workflows
+8. a validation mode exists to compare native-runtime outputs against JPMML outputs
 
 ## Final assessment
 
 **Feasibility: High for a JPMML-first wrapper strategy.**
 
-If the objective is reliable interchange between R and Python, the right move is not to invent a new PMML engine. It is to make T's own PMML functions a **thin, explicit, well-tested facade over the JPMML ecosystem**, and ideally surface that facade as the PMML custom serializer that T pipelines use by default.
+If the objective is reliable interchange between R and Python, the right move is not to invent a new PMML engine. It is to make T's own PMML functions a **thin, explicit, well-tested facade over the JPMML ecosystem**, surface that facade as the PMML custom serializer that T pipelines use by default, and keep the whole feature narrow enough that one semantic engine remains the authority.
