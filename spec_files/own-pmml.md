@@ -6,7 +6,7 @@ For brevity, the rest of this note treats this as the **R/Python PMML boundary**
 
 ## Executive summary
 
-The approach is **feasible and desirable** if the goal is not generic "PMML support" but a **single cross-language execution boundary around one semantic engine**.
+The approach is **feasible and desirable** if the goal is not generic "PMML support" but a **single cross-language execution boundary around one semantic engine**, built by reusing as much mature ecosystem tooling as possible while keeping the T-side experience smooth and transparent.
 
 The cleanest design is:
 
@@ -33,6 +33,12 @@ So this is not a greenfield idea. It is mostly a question of **standardizing the
 ## Core recommendation
 
 T should expose its own higher-level PMML helpers, but they should be **thin wrappers over JPMML-family tools**, not a new PMML implementation.
+
+The guiding principle should be:
+
+- **reuse existing, proven PMML tooling wherever possible**
+- **maximize cross-language compatibility by standardizing on one execution path**
+- **make the user experience smooth and transparent without hiding what runtime is actually doing the scoring**
 
 That means:
 
@@ -98,6 +104,7 @@ Even if the implementation is delegated to JPMML tools, T still benefits from ow
 - T can keep the "No Silent Magic" rule intact by rejecting unsupported paths clearly
 - T can make PMML a coherent custom serializer instead of an ad hoc set of helpers
 - T can ensure that export and scoring both resolve to the same semantic authority
+- T can present a smoother UX while still being transparent about the JVM-backed execution model
 
 In other words, T should own the **developer experience**, not the PMML engine.
 
