@@ -162,4 +162,4 @@ Before calling the design complete, verify:
 
 **Feasibility: High for a JPMML-first wrapper strategy.**
 
-If the objective is reliable interchange between R and Python, the right move is not to invent a new PMML engine. It is to make T's own PMML functions a **thin, explicit, well-tested façade over the JPMML ecosystem**, and ideally surface that façade as the PMML custom serializer that T pipelines use by default.
+If the objective is reliable interchange between R and Python, the right move is not to invent a new PMML engine. It is to make T's own PMML functions a **thin, explicit, well-tested facade over the JPMML ecosystem**, and ideally surface that facade as the PMML custom serializer that T pipelines use by default.
