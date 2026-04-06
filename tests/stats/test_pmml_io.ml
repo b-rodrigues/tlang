@@ -1,23 +1,7 @@
-let find_repo_root () =
-  let rec loop dir =
-    let marker = Filename.concat dir "summary.md" in
-    if Sys.file_exists marker then dir
-    else
-      let parent = Filename.dirname dir in
-      if parent = dir then dir else loop parent
-  in
-  loop (Sys.getcwd ())
-
-let contains s sub =
-  try
-    ignore (Str.search_forward (Str.regexp_string sub) s 0);
-    true
-  with Not_found -> false
-
 let run_tests pass_count fail_count _eval_string eval_string_env _test =
   Printf.printf "PMML IO:\n";
 
-  let root = find_repo_root () in
+  let root = Test_helpers.find_repo_root () in
   let src_path = Filename.concat root "tests/golden/data/iris_random_forest.pmml" in
   let tmp_path = Filename.temp_file "tlang_pmml_" ".pmml" in
   let escaped_src = String.escaped src_path in
@@ -61,7 +45,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   in
   (match invalid_v with
    | Ast.VError { message; _ }
-     when contains message "loaded via `t_read_pmml()` or `read_node()` only" ->
+     when Test_helpers.contains message "loaded via `t_read_pmml()` or `read_node()`" ->
        incr pass_count;
        Printf.printf "  ✓ t_write_pmml rejects PMML Dicts without source artifacts\n"
    | other ->

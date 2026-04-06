@@ -1,19 +1,27 @@
 open Ast
 
 let copy_file src dst =
-  let ic = open_in_bin src in
-  Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
-    let oc = open_out_bin dst in
-    Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
-      let buffer = Bytes.create 65536 in
-      let rec loop () =
-        match input ic buffer 0 (Bytes.length buffer) with
-        | 0 -> ()
-        | read ->
-            output oc buffer 0 read;
-            loop ()
-      in
-      loop ()))
+  try
+    let ic = open_in_bin src in
+    Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () ->
+      try
+        let oc = open_out_bin dst in
+        Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () ->
+          let buffer = Bytes.create 65536 in
+          let rec loop () =
+            match input ic buffer 0 (Bytes.length buffer) with
+            | 0 -> Ok ()
+            | read ->
+                output oc buffer 0 read;
+                loop ()
+          in
+          loop ())
+      with
+      | Sys_error msg ->
+          Error (Printf.sprintf "could not open destination PMML path `%s`: %s" dst msg))
+  with
+  | Sys_error msg ->
+      Error (Printf.sprintf "could not open source PMML path `%s`: %s" src msg)
 
 let pmml_source_path = function
   | VDict pairs ->
@@ -56,16 +64,14 @@ let register env =
                  Error.make_error FileError
                    (Printf.sprintf "Function `t_write_pmml`: original PMML source file not found: %s" src_path)
                else
-                 (try
-                    copy_file src_path path;
-                    VString path
-                  with
-                  | Sys_error msg ->
+                 (match copy_file src_path path with
+                  | Ok () -> VString path
+                  | Error msg ->
                       Error.make_error FileError
                         (Printf.sprintf "Function `t_write_pmml` failed to write `%s`: %s" path msg))
            | None ->
                Error.make_error RuntimeError
-                 "Function `t_write_pmml` currently supports PMML models loaded via `t_read_pmml()` or `read_node()` only. Exporting native T models to PMML is not implemented yet.")
+                 "Function `t_write_pmml` currently supports only PMML models loaded via `t_read_pmml()` or `read_node()`. Exporting native T models to PMML is not implemented yet.")
       | [_; VString _] ->
           Error.type_error "Function `t_write_pmml` expects a PMML model Dict as first argument."
       | [VDict _; _] ->
