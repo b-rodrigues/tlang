@@ -17,52 +17,56 @@ let score_pmml_jpmml (df : dataframe) model_dict =
       (match get_pmml_evaluator_jar () with
        | Error msg -> Error.make_error RuntimeError msg
        | Ok jar_path ->
-            (* 1. Write the DataFrame to a temporary CSV file (standardized bridge format) *)
-            let tmp_in = Filename.temp_file "tlang_jpmml_in_" ".csv" in
-            let tmp_out = Filename.temp_file "tlang_jpmml_out_" ".csv" in
-            
-            (match Arrow_io.write_csv df.arrow_table tmp_in with
-            | Error msg -> 
-                Error.make_error FileError (Printf.sprintf "JPMML bridge: failed to write temporary input file: %s" msg)
-            | Ok () ->
-                (* 2. Invoke JPMML-evaluator. 
-                   Standardized on CSV format for maximum compatibility across JPMML versions. *)
-                let cmd = Printf.sprintf 
-                  "java -jar %s --model %s --input %s --output %s" 
-                  (Filename.quote jar_path)
-                  (Filename.quote pmml_path)
-                  (Filename.quote tmp_in)
-                  (Filename.quote tmp_out) 
-                in
-                (match Builder_utils.run_command_capture cmd with
-                 | Ok (Unix.WEXITED 0, _) ->
-                     (* 3. Read the result back *)
-                     (match Arrow_io.read_csv tmp_out with
-                      | Ok table ->
-                          (* Cleanup *)
-                          (try Sys.remove tmp_in; Sys.remove tmp_out with _ -> ());
-                          (* Extract the first column as a Vector if it has 1 column, 
-                             or return the whole DataFrame if it has more (e.g. classification probabilities). *)
-                          (match Arrow_table.column_names table with
-                           | name :: _ ->
-                               let col_type = Arrow_table.column_type table name in
-                               (match col_type with
-                                | Some (Arrow_table.ArrowFloat64 | Arrow_table.ArrowInt64) ->
-                                    let col = Arrow_table.get_float_column table name in
-                                    VVector (Array.map (fun f -> match f with Some v -> VFloat v | None -> VNA NAFloat) col)
-                                | Some Arrow_table.ArrowBoolean ->
-                                    let col = Arrow_table.get_bool_column table name in
-                                    VVector (Array.map (fun b -> match b with Some v -> VBool v | None -> VNA NABool) col)
-                                | _ ->
-                                    let col = Arrow_table.get_string_column table name in
-                                    VVector (Array.map (fun s -> match s with Some v -> VString v | None -> VNA NAString) col))
-                           | [] -> VNA NAGeneric)
-                      | Error msg ->
-                          Error.make_error FileError (Printf.sprintf "JPMML bridge: failed to read result: %s" msg))
-                 | Ok (_, output) ->
-                     Error.make_error RuntimeError (Printf.sprintf "JPMML bridge: execution failed:\n%s" output)
+             (* 1. Write the DataFrame to a temporary CSV file (standardized bridge format) *)
+             let tmp_in = Filename.temp_file "tlang_jpmml_in_" ".csv" in
+             let tmp_out = Filename.temp_file "tlang_jpmml_out_" ".csv" in
+             let cleanup () =
+               (try Sys.remove tmp_in with _ -> ());
+               (try Sys.remove tmp_out with _ -> ())
+             in
+             Fun.protect
+               ~finally:cleanup
+               (fun () ->
+                 match Arrow_io.write_csv df.arrow_table tmp_in with
                  | Error msg ->
-                     Error.make_error RuntimeError (Printf.sprintf "JPMML bridge: failed to launch JVM: %s" msg))))
+                     Error.make_error FileError (Printf.sprintf "JPMML bridge: failed to write temporary input file: %s" msg)
+                 | Ok () ->
+                     (* 2. Invoke JPMML-evaluator.
+                        Standardized on CSV format for maximum compatibility across JPMML versions. *)
+                     let cmd = Printf.sprintf
+                       "java -jar %s --model %s --input %s --output %s"
+                       (Filename.quote jar_path)
+                       (Filename.quote pmml_path)
+                       (Filename.quote tmp_in)
+                       (Filename.quote tmp_out)
+                     in
+                     (match Builder_utils.run_command_capture cmd with
+                      | Ok (Unix.WEXITED 0, _) ->
+                          (* 3. Read the result back *)
+                          (match Arrow_io.read_csv tmp_out with
+                           | Ok table ->
+                               (* Extract the first column as a Vector if it has 1 column,
+                                  or return the whole DataFrame if it has more (e.g. classification probabilities). *)
+                               (match Arrow_table.column_names table with
+                                | name :: _ ->
+                                    let col_type = Arrow_table.column_type table name in
+                                    (match col_type with
+                                     | Some (Arrow_table.ArrowFloat64 | Arrow_table.ArrowInt64) ->
+                                         let col = Arrow_table.get_float_column table name in
+                                         VVector (Array.map (fun f -> match f with Some v -> VFloat v | None -> VNA NAFloat) col)
+                                     | Some Arrow_table.ArrowBoolean ->
+                                         let col = Arrow_table.get_bool_column table name in
+                                         VVector (Array.map (fun b -> match b with Some v -> VBool v | None -> VNA NABool) col)
+                                     | _ ->
+                                         let col = Arrow_table.get_string_column table name in
+                                         VVector (Array.map (fun s -> match s with Some v -> VString v | None -> VNA NAString) col))
+                                | [] -> VNA NAGeneric)
+                           | Error msg ->
+                               Error.make_error FileError (Printf.sprintf "JPMML bridge: failed to read result: %s" msg))
+                      | Ok (_, output) ->
+                          Error.make_error RuntimeError (Printf.sprintf "JPMML bridge: execution failed:\n%s" output)
+                      | Error msg ->
+                          Error.make_error RuntimeError (Printf.sprintf "JPMML bridge: failed to launch JVM: %s" msg))))
 
 let t_score_pmml =
   make_builtin ~name:"t_score_pmml" 2 (fun args _env ->

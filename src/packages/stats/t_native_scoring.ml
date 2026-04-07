@@ -273,19 +273,21 @@ let rec eval_predicate evals pred row_idx =
   | PredFalse -> Some false
   | PredSimple { field; op; value } ->
       (match Hashtbl.find evals field row_idx with
-       | RowFloat f ->
-           (match value with
-            | Some v ->
-                let f_val = float_of_string v in
-                (match op with
-                 | "lessThan" -> Some (f < f_val)
-                 | "lessOrEqual" -> Some (f <= f_val)
-                 | "greaterThan" -> Some (f > f_val)
-                 | "greaterOrEqual" -> Some (f >= f_val)
-                 | "equal" -> Some (f = f_val)
-                 | "notEqual" -> Some (f <> f_val)
-                 | _ -> None)
-            | None -> None)
+        | RowFloat f ->
+            (match value with
+             | Some v ->
+                (match float_of_string_opt v with
+                 | Some f_val ->
+                     (match op with
+                      | "lessThan" -> Some (f < f_val)
+                      | "lessOrEqual" -> Some (f <= f_val)
+                      | "greaterThan" -> Some (f > f_val)
+                      | "greaterOrEqual" -> Some (f >= f_val)
+                      | "equal" -> Some (f = f_val)
+                      | "notEqual" -> Some (f <> f_val)
+                      | _ -> None)
+                 | None -> None)
+             | None -> None)
        | RowString s ->
            (match value with
             | Some v ->

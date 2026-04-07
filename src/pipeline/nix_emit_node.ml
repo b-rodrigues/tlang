@@ -784,7 +784,7 @@ def py_read_pmml(path):
                 # Execute JPMML
                 subprocess.run([
                     "java", "-jar", jar_path,
-                    "--pmml", self.pmml_path,
+                    "--model", self.pmml_path,
                     "--input", in_path,
                     "--output", out_path
                 ], check=True)

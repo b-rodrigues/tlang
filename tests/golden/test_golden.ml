@@ -645,7 +645,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     end;
 
     (* Test: Cross-Engine Validation (Native vs JPMML) *)
-    let (v, _) = eval_string_env "val = compare_native_vs_pmml_scores(df, model); val.max_abs_diff < 1e-7" env_pmml in
+    let (v, _) = eval_string_env "val = compare_native_vs_pmml_scores(df, model); val.match" env_pmml in
     if Ast.Utils.value_to_string v = "true" then begin
       incr pass_count; Printf.printf "  ✓ golden jpmml: native vs jpmml parity verified\n"
     end else begin
