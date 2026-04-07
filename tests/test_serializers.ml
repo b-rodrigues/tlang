@@ -23,7 +23,6 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
         "pkgs.rPackages.XML";
         "ps.pandas";
         "ps.pyarrow";
-        "ps.pypmml";
         "ps.sklearn2pmml";
         "ps.scikit-learn";
         "ps.scipy";
@@ -161,9 +160,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VError { code; message; _ }
      when code = FileError
        && contains_all message
-            [ "tproject.toml"; "pypmml"; "sklearn2pmml"; "cannot add these dependencies automatically" ] ->
+            [ "tproject.toml"; "pyarrow"; "sklearn2pmml"; "cannot add these dependencies automatically" ] ->
        incr pass_count;
-       Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pypmml guidance\n"
+       Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pyarrow guidance\n"
    | other ->
        incr fail_count;
        Printf.printf "  ✗ Explicit dependency check failed for PMML pipeline. Got: %s\n"
@@ -209,16 +208,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
        let nix = Nix_emitter.emit_pipeline p in
        if contains_all nix
             [
-              "from pypmml import Model";
-              "raise RuntimeError(";
-              "PMML deserialization in Python requires the 'pypmml' package.";
-              "Add 'pypmml' to [py-dependencies] in tproject.toml and rebuild the pipeline environment.";
+              "class JPMMLModel:";
+              "subprocess.run([";
+              "\"java\", \"-jar\", jar_path";
+              "--pmml";
             ]
-          && not (contains nix "return path # Fallback to path")
+          && not (contains nix "from pypmml import Model")
        then begin
-         incr pass_count; Printf.printf "  ✓ Python PMML reader raises a descriptive error when pypmml is unavailable\n"
+         incr pass_count; Printf.printf "  ✓ Python PMML reader uses JPMML-backed implementation\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Python PMML reader still falls back silently when pypmml is unavailable\n"
+         incr fail_count; Printf.printf "  ✗ Python PMML reader failed to use JPMML-backed implementation\n"
        end
    | other ->
        incr fail_count;

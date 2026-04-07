@@ -42,7 +42,7 @@ or consumed.
 |---|---|
 | R writes PMML | `r2pmml`, `XML`, `jsonlite`, `jre` |
 | Python writes PMML | `sklearn2pmml` or `jpmml-statsmodels`, plus `jre` |
-| Python reads PMML | `pypmml` |
+| Python reads PMML | JPMML evaluator via wrapper |
 | T reads and scores PMML | built-in `t_read_pmml()` + native evaluator |
 
 When PMML is used inside pipelines, these dependencies should be declared explicitly in
@@ -257,8 +257,7 @@ packages in project configuration. PMML support is not implicit magic.
 
 ### Python PMML loading fails
 
-Check that `pypmml` is present for Python-side PMML reading and that the JVM-backed PMML
-toolchain is available.
+Check that `jpmml-evaluator` is available in `[additional-tools]` and that `pyarrow` is available in `[py-dependencies]`. Also ensure the JVM-backed PMML toolchain is correctly provisioned.
 
 ### `t_write_pmml()` rejects a model
 

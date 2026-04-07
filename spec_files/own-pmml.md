@@ -24,8 +24,8 @@ This is better than mixing unrelated PMML stacks because it keeps both sides on 
 The repository already leans in this direction:
 
 - R PMML support is already wired around **`r2pmml`** and a required **`jre`**
-- Python PMML support already expects **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
-- the flake already provisions **`r2pmml`**, **`pypmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
+- Python PMML support already uses `pyarrow`, `sklearn2pmml`, and `jpmml-statsmodels` (with `pypmml` removed in favor of JPMML Evaluator)
+- the flake already provisions **`r2pmml`**, **`sklearn2pmml`**, and **`jpmml-statsmodels`**
 - **`jpmml-evaluator`** is the natural additional reading/scoring companion if T standardizes on one JVM-based PMML story
 - that evaluator should be treated as a planned required addition to the flake rather than an optional extra
 

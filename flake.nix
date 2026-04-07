@@ -73,7 +73,6 @@
             buildInputs = (old.buildInputs or []) ++ [ pkgs.boost ];
           }))
           skl2onnx
-          pypmml
           onnxruntime
           sklearn2pmml
           statsmodels
