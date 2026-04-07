@@ -332,10 +332,12 @@
           shellHook = ''
             export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig''${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 
-            if repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-              export TLANG_REPO_ROOT="$repo_root"
-            elif [[ -f "$PWD/dune-project" ]]; then
-              export TLANG_REPO_ROOT="$PWD"
+            if [[ -z "''${TLANG_REPO_ROOT:-}" ]]; then
+              if repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+                export TLANG_REPO_ROOT="$repo_root"
+              elif [[ -f "$PWD/dune-project" ]]; then
+                export TLANG_REPO_ROOT="$PWD"
+              fi
             fi
 
             export T_JPMML_EVALUATOR_JAR="${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
