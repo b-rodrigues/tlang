@@ -768,8 +768,6 @@ def py_read_pmml(path):
             import subprocess
             import tempfile
             import os
-            import pyarrow as pa
-            import pyarrow.ipc as ipc
             import pandas as pd
 
             jar_path = os.environ.get("T_JPMML_EVALUATOR_JAR")
@@ -777,14 +775,11 @@ def py_read_pmml(path):
                 raise RuntimeError("T_JPMML_EVALUATOR_JAR not found in environment.")
 
             with tempfile.TemporaryDirectory() as tmp:
-                in_path = os.path.join(tmp, "input.arrow")
-                out_path = os.path.join(tmp, "output.arrow")
+                in_path = os.path.join(tmp, "input.csv")
+                out_path = os.path.join(tmp, "output.csv")
                 
-                # Write input
-                table = pa.Table.from_pandas(df)
-                with pa.OSFile(in_path, 'wb') as f:
-                    with ipc.new_file(f, table.schema) as writer:
-                        writer.write_table(table)
+                # Write input (CSV standardized bridge)
+                df.to_csv(in_path, index=False)
                 
                 # Execute JPMML
                 subprocess.run([
@@ -795,8 +790,7 @@ def py_read_pmml(path):
                 ], check=True)
                 
                 # Read output
-                with pa.OSFile(out_path, 'rb') as f:
-                    return ipc.open_file(f).read_pandas()
+                return pd.read_csv(out_path)
     
     return JPMMLModel(path)
 |} in

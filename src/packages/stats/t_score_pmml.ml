@@ -17,19 +17,18 @@ let score_pmml_jpmml (df : dataframe) model_dict =
       (match get_pmml_evaluator_jar () with
        | Error msg -> Error.make_error RuntimeError msg
        | Ok jar_path ->
-           (* 1. Write the DataFrame to a temporary Arrow file (for high fidelity) *)
-           let tmp_in = Filename.temp_file "tlang_jpmml_in_" ".arrow" in
-           let tmp_out = Filename.temp_file "tlang_jpmml_out_" ".arrow" in
-           
-           (match Arrow_io.write_ipc df.arrow_table tmp_in with
+            (* 1. Write the DataFrame to a temporary CSV file (standardized bridge format) *)
+            let tmp_in = Filename.temp_file "tlang_jpmml_in_" ".csv" in
+            let tmp_out = Filename.temp_file "tlang_jpmml_out_" ".csv" in
+            
+            (match Arrow_io.write_csv df.arrow_table tmp_in with
             | Error msg -> 
                 Error.make_error FileError (Printf.sprintf "JPMML bridge: failed to write temporary input file: %s" msg)
             | Ok () ->
                 (* 2. Invoke JPMML-evaluator. 
-                   Assuming the evaluator JAR supports --pmml, --input, --output and ARROW format.
-                   If not, we'd use CSV. *)
+                   Standardized on CSV format for maximum compatibility across JPMML versions. *)
                 let cmd = Printf.sprintf 
-                  "java -jar %s --pmml %s --input %s --output %s --format arrow" 
+                  "java -jar %s --pmml %s --input %s --output %s" 
                   (Filename.quote jar_path)
                   (Filename.quote pmml_path)
                   (Filename.quote tmp_in)
@@ -38,7 +37,7 @@ let score_pmml_jpmml (df : dataframe) model_dict =
                 (match Builder_utils.run_command_capture cmd with
                  | Ok (Unix.WEXITED 0, _) ->
                      (* 3. Read the result back *)
-                     (match Arrow_io.read_ipc tmp_out with
+                     (match Arrow_io.read_csv tmp_out with
                       | Ok table ->
                           (* Cleanup *)
                           (try Sys.remove tmp_in; Sys.remove tmp_out with _ -> ());
