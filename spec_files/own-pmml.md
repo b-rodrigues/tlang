@@ -358,22 +358,30 @@ This means that a T binary produced today will execute the exact same scoring lo
 
 To move from the current "mixed authority" implementation to the JPMML-standardized model, the following phases are recommended:
 
-### Phase 1: Bridge Standardization (Current Week)
+### Phase 1: Bridge Standardization (COMPLETED)
 
 - **Switch to CSV Bridge**: Refactor `T_score_pmml.score_pmml_jpmml` to use CSV instead of Arrow IPC for input/output between the T runtime and the JPMML executable. This fulfills the "Minimal Flake Surface" requirement by ensuring compatibility with standard JPMML distributions.
 - **Environment Handshake**: Hard-code the lookup for `jpmml-evaluator` and `jpmml-statsmodels` in the T compiler's Nix emission logic, ensuring they are always available when a node declares a PMML input.
 
-### Phase 2: Deprecating Native OCaml Scorers
+### Implementation Plan (Roadmap)
 
-- **Authority Pivot**: Modify `src/packages/stats/predict.ml` to always route through the JPMML bridge if the model artifact is tagged with `^pmml`. 
-- **Native Scorer Relocation**: Move the current OCaml Tree/Forest/Linear scoring logic into a dedicated validation module used strictly by `compare_native_vs_pmml_scores`.
+Standardizing the interchange will proceed in 4 phases:
 
-### Phase 3: Serializer Lifecycle Completion
+1.  **Phase 1: Nix-Backed Reproducibility (COMPLETED)**
+    *   Package `jpmml-evaluator` and `jpmml-statsmodels` as standard Nixpkgs.
+    *   Define `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR` in `flake.nix`.
+    *   **Goal**: Zero-config model execution in any T environment.
 
-- **Implement `t_write_pmml` (R/Python)**: Create the thin wrappers in the T standard library for `r2pmml` and `sklearn2pmml`.
-- **Register PMML Serializer**: Formally register the PMML custom serializer in `serialization_registry.ml` with its corresponding reader/writer pairs for all supported target languages.
+2.  **Phase 2: Authority Pivot (COMPLETED)**
+    *   Modify `src/packages/stats/predict.ml` to always route through the JPMML bridge if the model artifact is tagged with `^pmml`.
+    *   Move the current OCaml Tree/Forest/Linear scoring logic into a dedicated module (`T_native_scoring`) used only for validation.
+    *   **Goal**: Eliminate silent semantic drift between R/Python and T.
 
-### Phase 4: Validation and Guardrails
+3.  **Phase 3: Serializer Lifecycle Completion (COMPLETED)**
+    *   Implement `t_write_pmml` (R/Python) wrappers in the T standard library for `r2pmml` and `sklearn2pmml`.
+    *   Register PMML custom serializer in `serialization_registry.ml`.
+    *   **Goal**: Full end-to-end model export/import parity.
 
-- **Explicit Failure Modes**: Add guards to detect unsupported PMML features (e.g., non-JPMML transformations) early in the pipeline evaluation phase.
-- **E2E Golden Tests**: Add a suite of `r -> pmml -> py` and `py -> pmml -> r` tests to the `t_demos` repository, verified against the JPMML execution authority.
+4.  **Phase 4: Validation and Guardrails (COMPLETED)**
+    *   Implement a golden test suite in `test_golden.ml`.
+    *   **Goal**: Continuous verification of scoring accuracy across and within nodes.
