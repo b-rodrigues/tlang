@@ -28,7 +28,7 @@ let score_pmml_jpmml (df : dataframe) model_dict =
                 (* 2. Invoke JPMML-evaluator. 
                    Standardized on CSV format for maximum compatibility across JPMML versions. *)
                 let cmd = Printf.sprintf 
-                  "java -jar %s --pmml %s --input %s --output %s" 
+                  "java -jar %s --model %s --input %s --output %s" 
                   (Filename.quote jar_path)
                   (Filename.quote pmml_path)
                   (Filename.quote tmp_in)
@@ -43,14 +43,20 @@ let score_pmml_jpmml (df : dataframe) model_dict =
                           (try Sys.remove tmp_in; Sys.remove tmp_out with _ -> ());
                           (* Extract the first column as a Vector if it has 1 column, 
                              or return the whole DataFrame if it has more (e.g. classification probabilities). *)
-                          if Arrow_table.num_columns table = 1 then
-                            (match Arrow_table.column_names table with
-                             | name :: _ ->
-                                 let col = Arrow_table.get_float_column table name in
-                                 VVector (Array.map (fun f -> match f with Some v -> VFloat v | None -> VNA NAFloat) col)
-                             | [] -> VNA NAGeneric)
-                          else
-                            VDataFrame { arrow_table = table; group_keys = [] }
+                          (match Arrow_table.column_names table with
+                           | name :: _ ->
+                               let col_type = Arrow_table.column_type table name in
+                               (match col_type with
+                                | Some (Arrow_table.ArrowFloat64 | Arrow_table.ArrowInt64) ->
+                                    let col = Arrow_table.get_float_column table name in
+                                    VVector (Array.map (fun f -> match f with Some v -> VFloat v | None -> VNA NAFloat) col)
+                                | Some Arrow_table.ArrowBoolean ->
+                                    let col = Arrow_table.get_bool_column table name in
+                                    VVector (Array.map (fun b -> match b with Some v -> VBool v | None -> VNA NABool) col)
+                                | _ ->
+                                    let col = Arrow_table.get_string_column table name in
+                                    VVector (Array.map (fun s -> match s with Some v -> VString v | None -> VNA NAString) col))
+                           | [] -> VNA NAGeneric)
                       | Error msg ->
                           Error.make_error FileError (Printf.sprintf "JPMML bridge: failed to read result: %s" msg))
                  | Ok (_, output) ->
