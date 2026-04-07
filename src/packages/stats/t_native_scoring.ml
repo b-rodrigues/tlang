@@ -267,7 +267,7 @@ let unique_fields fields =
   in
   loop [] fields
 
-let eval_predicate evals pred row_idx =
+let rec eval_predicate evals pred row_idx =
   match pred with
   | PredTrue -> Some true
   | PredFalse -> Some false
@@ -627,29 +627,147 @@ let predict_onnx_model df model =
    | _ -> Error.type_error "Function `predict` expects an ONNX model Dict."
 
 let predict_linear_model df pairs =
+  (* Extract coefficients and intercept *)
   let coeffs = match List.assoc_opt "coefficients" pairs with
     | Some (VDict c) -> c
     | _ -> []
   in
-  let intercept =
-    match List.assoc_opt "intercept" pairs with
-    | Some (VFloat f) -> f
-    | Some (VDict [("(Intercept)", VFloat f)]) -> f
-    | _ -> 0.0
-  in
-  let nrows = Arrow_table.num_rows df.arrow_table in
-  let out = Array.make nrows (VFloat intercept) in
-  List.iter (fun (name, val_) ->
-    if name <> "(Intercept)" then
-      match val_ with
-      | VFloat weight ->
-          (match Arrow_table.get_float_column df.arrow_table name with
-           | col ->
-               for i = 0 to nrows - 1 do
-                 match col.(i) with
-                 | Some f -> out.(i) <- VFloat ((match out.(i) with VFloat v -> v | _ -> 0.0) +. (f *. weight))
-                 | None -> out.(i) <- VNA NAFloat
-               done)
+  
+  if coeffs = [] then
+    Error.type_error "Function `predict` expects a model with a `coefficients` dictionary."
+  else
+    let intercept = ref 0.0 in
+    let terms = ref [] in
+    
+    List.iter (fun (name, v) ->
+      match v with
+      | VFloat f ->
+          if name = "(Intercept)" || name = "Intercept" || name = "const" then
+            intercept := f
+          else
+            terms := (name, f) :: !terms
       | _ -> ()
-  ) coeffs;
-  VVector out
+    ) coeffs;
+    
+    let nrows = Arrow_table.num_rows df.arrow_table in
+    let out = Array.make nrows !intercept in
+    let na_rows = Array.make nrows false in
+    
+    let categorical_cols =
+      Arrow_table.column_names df.arrow_table 
+      |> List.filter (fun n ->
+           match Arrow_table.column_type df.arrow_table n with
+           | Some ArrowString | Some ArrowDictionary -> true
+           | _ -> false)
+    in
+
+    let resolve_part part_name =
+      match Arrow_table.get_column df.arrow_table part_name with
+      | Some col -> Some (fun row_idx -> Arrow_table.get_float col row_idx)
+      | None ->
+          let rec find_level = function
+            | [] -> None
+            | col_name :: rest ->
+                let prefix_py = col_name ^ "[T." in
+                if String.starts_with ~prefix:prefix_py part_name && String.ends_with ~suffix:"]" part_name then
+                  let level = String.sub part_name (String.length prefix_py) (String.length part_name - String.length prefix_py - 1) in
+                  match Arrow_table.get_column df.arrow_table col_name with
+                  | Some col ->
+                      Some (fun row_idx ->
+                        match Arrow_table.get_string col row_idx with
+                        | Some v -> Some (if String.equal v level then 1.0 else 0.0)
+                        | None -> None
+                      )
+                  | None -> find_level rest
+                else if String.starts_with ~prefix:col_name part_name && String.length part_name > String.length col_name then
+                  let level = String.sub part_name (String.length col_name) (String.length part_name - String.length col_name) in
+                  match Arrow_table.get_column df.arrow_table col_name with
+                  | Some col ->
+                      Some (fun row_idx ->
+                        match Arrow_table.get_string col row_idx with
+                        | Some v -> Some (if String.equal v level then 1.0 else 0.0)
+                        | None -> None
+                      )
+                  | None -> find_level rest
+                else find_level rest
+          in
+          find_level categorical_cols
+    in
+
+    let resolve_term term_name =
+      if String.contains term_name ':' then
+        let parts = String.split_on_char ':' term_name in
+        let resolved = List.map resolve_part parts in
+        let rec collect acc = function
+          | [] -> Some (List.rev acc)
+          | None :: _ -> None
+          | Some eval_fn :: rest -> collect (eval_fn :: acc) rest
+        in
+        (match collect [] resolved with
+         | None -> None
+         | Some evaluators ->
+             Some (fun row_idx ->
+               let rec loop acc = function
+                 | [] -> Some acc
+                 | eval_fn :: rest ->
+                     (match eval_fn row_idx with
+                      | Some v -> loop (acc *. v) rest
+                      | None -> None)
+               in loop 1.0 evaluators))
+      else
+        resolve_part term_name
+    in
+
+    let success = ref true in
+    let error_msg = ref "" in
+    
+    List.iter (fun (name, coef) ->
+      if !success then (
+        match resolve_term name with
+        | None ->
+            success := false;
+            error_msg := Printf.sprintf "Predictor `%s` not found in DataFrame for prediction and could not be resolved as a factor level." name
+        | Some eval_term ->
+            for i = 0 to nrows - 1 do
+              if not na_rows.(i) then
+                match eval_term i with
+                | Some x -> out.(i) <- out.(i) +. (coef *. x)
+                | None -> na_rows.(i) <- true
+            done
+      )
+    ) !terms;
+    
+    if not !success then Error.make_error KeyError !error_msg
+    else 
+      let link = match List.assoc_opt "link" pairs with
+        | Some (VString l) -> String.lowercase_ascii l
+        | _ -> "identity"
+      in
+      
+      let apply_link_inv eta =
+        match link with
+        | "identity" -> eta
+        | "logit" -> 1.0 /. (1.0 +. exp(-. eta))
+        | "log" -> exp eta
+        | "inverse" -> 1.0 /. eta
+        | "sqrt" -> eta *. eta
+        | "cloglog" -> 1.0 -. exp(-. exp eta)
+        | "probit" ->
+            let a1 =  0.254829592 in
+            let a2 = -0.284496736 in
+            let a3 =  1.421413741 in
+            let a4 = -1.453152027 in
+            let a5 =  1.061405429 in
+            let p  =  0.3275911 in
+            let sign = if eta < 0.0 then -1.0 else 1.0 in
+            let x = Float.abs eta /. sqrt 2.0 in
+            let t = 1.0 /. (1.0 +. p *. x) in
+            let y = 1.0 -. (((((a5 *. t +. a4) *. t) +. a3) *. t +. a2) *. t +. a1) *. t *. exp (-. x *. x) in
+            0.5 *. (1.0 +. sign *. y)
+        | _ -> eta (* Default to identity if unknown *)
+      in
+      
+      VVector (Array.mapi (fun i x -> 
+        if na_rows.(i) then VNA NAFloat 
+        else VFloat (apply_link_inv x)
+      ) out)

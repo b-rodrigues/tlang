@@ -338,6 +338,9 @@
               export TLANG_REPO_ROOT="$PWD"
             fi
 
+            export T_JPMML_EVALUATOR_JAR="${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
+            export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"
             echo "═══════════════════════════════════════════════"

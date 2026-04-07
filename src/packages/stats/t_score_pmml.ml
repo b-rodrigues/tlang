@@ -43,7 +43,7 @@ let score_pmml_jpmml (df : dataframe) model_dict =
                           (try Sys.remove tmp_in; Sys.remove tmp_out with _ -> ());
                           (* Extract the first column as a Vector if it has 1 column, 
                              or return the whole DataFrame if it has more (e.g. classification probabilities). *)
-                          if Arrow_table.num_cols table = 1 then
+                          if Arrow_table.num_columns table = 1 then
                             (match Arrow_table.column_names table with
                              | name :: _ ->
                                  let col = Arrow_table.get_float_column table name in
