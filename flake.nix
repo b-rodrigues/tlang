@@ -27,7 +27,7 @@
         # Use the Nix packages for the specified system
         pkgs = (import (builtins.fetchTarball {
           url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:1ggg5kpg37688gv9qy18s0psv965wjbyhvs8ajc4y0vg31zc1dis";
+          sha256 = "sha256:1s15dyjjwy859ym7k2kwa7in24hh9swg4y2cvzggny07jmvvr86g";
         }) { inherit system; }).extend (self: super: {
           lightgbm = super.lightgbm.overrideAttrs (old: {
             cudaSupport = false;
