@@ -76,9 +76,9 @@ let t_compare_scores_pmml =
          | Some _ ->
              let native_res =
                match List.assoc_opt "model_type" model_pairs with
-               | Some (VString ("random_forest" | "forest")) -> Predict.predict_forest_model df (VDict model_pairs)
-               | Some (VString ("decision_tree" | "tree")) -> Predict.predict_tree_model df (VDict model_pairs)
-               | Some (VString ("xgboost" | "lightgbm")) -> Predict.predict_boosted_model df (VDict model_pairs)
+               | Some (VString ("random_forest" | "forest")) -> T_native_scoring.predict_forest_model df (VDict model_pairs)
+               | Some (VString ("decision_tree" | "tree")) -> T_native_scoring.predict_tree_model df (VDict model_pairs)
+               | Some (VString ("xgboost" | "lightgbm")) -> T_native_scoring.predict_boosted_model df (VDict model_pairs)
                | _ -> Error.make_error TypeError "compare_native_vs_pmml_scores: Model type not supported for native scoring comparison."
              in
              (match native_res with
