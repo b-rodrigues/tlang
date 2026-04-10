@@ -786,15 +786,29 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                     else Some s
                 | _ -> None
               in
+              let deps_type_error () =
+                Error (Error.type_error (Printf.sprintf "Function `%s` expects `deps` to be a List of identifiers, Strings or Symbols." fn_name))
+              in
+              let rec extract_dep_names items =
+                match items with
+                | [] -> Ok []
+                | (_, item_e) :: rest ->
+                    (match extract_dep_name item_e with
+                     | Some dep ->
+                         (match extract_dep_names rest with
+                          | Ok deps -> Ok (dep :: deps)
+                          | Error _ as err -> err)
+                     | None -> deps_type_error ())
+              in
               (match e.node with
                | ListLit items ->
-                   let deps = List.filter_map (fun (_, item_e) -> extract_dep_name item_e) items in
-                   Ok (Some deps)
+                   (match extract_dep_names items with
+                    | Ok deps -> Ok (Some deps)
+                    | Error _ as err -> err)
                | _ ->
                    (match extract_dep_name e with
                     | Some s -> Ok (Some [s])
-                    | None ->
-                        Error (Error.type_error (Printf.sprintf "Function `%s` expects `deps` to be a List of identifiers, Strings or Symbols." fn_name))))
+                    | None -> deps_type_error ()))
         in
         let lookup_runtime_args () =
           let rec is_arg_value ~allow_list = function
@@ -1196,7 +1210,11 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   let node_names = List.map fst desugared_nodes in
   let deps = List.map (fun (name, un) ->
     match un.un_dependencies with
-    | Some explicit -> (name, explicit)
+    | Some explicit ->
+        if List.mem name explicit then
+          invalid_arg ("Self-referential node detected in command for node: " ^ name)
+        else
+          (name, explicit)
     | None ->
         let fv = free_vars un.un_command in
         let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in

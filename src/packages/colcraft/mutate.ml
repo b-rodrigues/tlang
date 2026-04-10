@@ -326,8 +326,13 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                  | err -> err)
             | (Some col_name, VDataFrame assigned_df) :: rest_mutations ->
                 (match Arrow_table.column_names assigned_df.arrow_table with
-                 | [] -> apply_named_mutations current_df rest_mutations
-                 | first_col :: _ ->
+                 | [] ->
+                     Error.type_error (Printf.sprintf
+                       "Function `mutate`: assigning `%s` from a DataFrame with no columns." col_name)
+                 | _ :: _ :: _ ->
+                     Error.type_error (Printf.sprintf
+                       "Function `mutate`: assigning `%s` from a DataFrame with multiple columns; expected exactly one column." col_name)
+                 | [first_col] ->
                     let col_type = Arrow_table.column_type assigned_df.arrow_table first_col in
                     let vec =
                       match col_type with

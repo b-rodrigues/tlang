@@ -124,15 +124,16 @@ let register ~eval_call env =
                     let new_pdeps = List.map (fun (n, old) -> if matches n then (n, deps) else (n, old)) p.p_deps in
                     new_explicit, new_pdeps)
             | Some (VNA _) ->
-                (* Clearing explicit deps back to None. p_deps is kept as-is because re-deriving
-                   dependencies from free variables requires the original eval environment and
-                   raw code text, which are not available here. The stale p_deps entry is
-                   intentional: the next pipeline re-run will rebuild deps from scratch. *)
-                let new_explicit = List.map (fun (n, old) -> if matches n then (n, None) else (n, old)) p.p_explicit_deps in
-                new_explicit, p.p_deps
+                (* Clearing explicit deps would leave p_explicit_deps and p_deps inconsistent.
+                   Dependency edges cannot be safely re-derived here because that requires the
+                   original eval environment and raw code text. Reject the operation so callers
+                   don't get a silently stale dependency graph. *)
+                if !first_error = None then
+                  first_error := Some (Error.type_error "Function `mutate_node` cannot clear `deps` with NA because dependency edges cannot be re-derived here; rerun the pipeline to rebuild deps.");
+                p.p_explicit_deps, p.p_deps
             | Some v ->
                 if !first_error = None then
-                  first_error := Some (Error.type_error (check "deps" v "List or NA"));
+                  first_error := Some (Error.type_error (check "deps" v "List of Strings or Symbols"));
                 p.p_explicit_deps, p.p_deps
           in
           (match !first_error with

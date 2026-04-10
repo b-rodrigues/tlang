@@ -34,7 +34,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
        end
    | Ast.VDataFrame { arrow_table = table; _ } ->
-       let col_name = List.hd (Arrow_table.column_names table) in
+       (match Arrow_table.column_names table with
+        | [] ->
+            incr fail_count;
+            Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: prediction DataFrame has no columns\n"
+        | col_name :: _ ->
        let col = Arrow_table.get_string_column table col_name in
        let first_val = if Array.length col > 0 then match col.(0) with Some s -> Ast.VString s | None -> Ast.VNA Ast.NAString else Ast.VNA Ast.NAGeneric in
        let result = Ast.Utils.value_to_string first_val |> String.trim in
@@ -49,7 +53,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
        end else begin
          incr fail_count;
          Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
-       end
+       end)
    | _ ->
        let result = Ast.Utils.value_to_string v |> String.trim in
        incr fail_count;
