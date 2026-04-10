@@ -189,9 +189,9 @@ min_version = "0.51.0"
       [ "arrow"; "jsonlite"; "knitr"; "rmarkdown" ]
     in
     let expected_py =
-      [ "ipykernel"; "nbclient"; "nbformat"; "numpy"; "pandas"; "pypmml"; "pyyaml"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ]
+      [ "ipykernel"; "nbclient"; "nbformat"; "numpy"; "pandas"; "pyarrow"; "pyyaml"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ]
     in
-    let expected_tools = [ "jre"; "quarto"; "which" ] in
+    let expected_tools = [ "jpmml-evaluator"; "jre"; "quarto"; "which" ] in
     let env = Packages.init_env () in
     match fst (eval_string_env {|
       p = pipeline {

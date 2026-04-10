@@ -27,7 +27,7 @@
         # Use the Nix packages for the specified system
         pkgs = (import (builtins.fetchTarball {
           url    = "https://github.com/rstats-on-nix/nixpkgs/archive/${rstats-nix-date}.tar.gz";
-          sha256 = "sha256:1ggg5kpg37688gv9qy18s0psv965wjbyhvs8ajc4y0vg31zc1dis";
+          sha256 = "sha256:1s15dyjjwy859ym7k2kwa7in24hh9swg4y2cvzggny07jmvvr86g";
         }) { inherit system; }).extend (self: super: {
           lightgbm = super.lightgbm.overrideAttrs (old: {
             cudaSupport = false;
@@ -73,7 +73,6 @@
             buildInputs = (old.buildInputs or []) ++ [ pkgs.boost ];
           }))
           skl2onnx
-          pypmml
           onnxruntime
           sklearn2pmml
           statsmodels
@@ -129,6 +128,7 @@
             # Used by Arrow-Owl bridge for matrix operations in lm(), cor()
             # ocamlVersion.owl
             pkgs.jpmml-statsmodels
+            pkgs.jpmml-evaluator
             pkgs.jre
             pkgs.onnxruntime
           ];
@@ -152,7 +152,8 @@
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
-              --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+              --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" \
+              --set T_JPMML_EVALUATOR_JAR "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
 
             makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
@@ -292,6 +293,7 @@
             pkgs.actionlint
             pkgs.shellcheck
             pkgs.jpmml-statsmodels
+            pkgs.jpmml-evaluator
             pkgs.jre
             pkgs.boost
             pkgs.cmake
@@ -330,11 +332,16 @@
           shellHook = ''
             export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig''${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 
-            if repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-              export TLANG_REPO_ROOT="$repo_root"
-            elif [[ -f "$PWD/dune-project" ]]; then
-              export TLANG_REPO_ROOT="$PWD"
+            if [[ -z "''${TLANG_REPO_ROOT:-}" ]]; then
+              if repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+                export TLANG_REPO_ROOT="$repo_root"
+              elif [[ -f "$PWD/dune-project" ]]; then
+                export TLANG_REPO_ROOT="$PWD"
+              fi
             fi
+
+            export T_JPMML_EVALUATOR_JAR="${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
+            export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
 
             echo "═══════════════════════════════════════════════"
             echo "T Language Development Environment"

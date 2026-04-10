@@ -117,6 +117,7 @@ The `path` field is the "escape hatch"—it gives you the absolute path to the n
 - [Pipeline Tutorial](pipeline_tutorial.html) — step-by-step guide to T's pipeline model
 - [Literate Programming with Quarto](literate-programming-quarto.html) — rendering reports from pipelines
 - [Statistical Models](models.html) — linear regression, GLMs, and broom-style output
+- [PMML Tutorial](pmml_tutorial.html) — move supported models between R, Python, and T
 - [Handling Dates](handling_dates.html) — parsing, extraction, and date arithmetic
 - [Error Handling Guide](error-handling.html) — error patterns and recovery strategies
 - [Comprehensive Examples](examples.html) — real-world analysis patterns

@@ -218,6 +218,7 @@ $T$'s statistical evaluator is verified against R's reference implementation. Re
 Now that you can fit and inspect statistical models, explore how to build reproducible data pipelines and manage projects in T:
 
 1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to build reproducible, DAG-based data analysis workflows.
-2. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
-3. **[Package Development](package_development.md)** — Create reusable T libraries.
-4. **[API Reference](api-reference.md)** — Complete function reference by package.
+2. **[PMML Tutorial](pmml_tutorial.md)** — Learn the supported PMML workflows for moving models between R, Python, and T.
+3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
+4. **[Package Development](package_development.md)** — Create reusable T libraries.
+5. **[API Reference](api-reference.md)** — Complete function reference by package.

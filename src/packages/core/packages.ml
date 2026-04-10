@@ -137,7 +137,7 @@ let stats_package = {
   description = "Statistical summaries and models";
   functions = ["mean"; "sd"; "quantile"; "cor"; "lm"; "predict"; "summary"; "fit_stats"; "add_diagnostics"; "min"; "max"; "coef"; "conf_int"; 
                "nobs"; "df_residual"; "sigma"; "dispersion"; "vcov"; "compare"; "residuals"; "augment"; "score";
-               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"];
+               "pnorm"; "pt"; "pf"; "pchisq"; "anova"; "wald_test"; "cut"; "poly"; "compare_native_vs_pmml_scores"];
 }
 
 let colcraft_package = {
@@ -868,6 +868,7 @@ let init_env () =
   let env = Lm.register env in
   let env = Predict.register env in
   let env = T_read_pmml.register env in
+  let env = T_score_pmml.register env in
   let env = T_read_onnx.register env in
   let env = Fit_stats.register env in
   let env = Add_diagnostics.register env in
@@ -933,7 +934,7 @@ let init_env () =
     (* JSON serializers *)
     "write_json"; "read_json";
     (* PMML *)
-    "pmml";
+    "pmml"; "^pmml"; "^csv"; "^arrow"; "^json"; "^onnx";
   ] in
   let env = List.fold_left (fun acc name ->
     Env.add name (VSymbol name) acc

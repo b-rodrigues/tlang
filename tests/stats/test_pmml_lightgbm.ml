@@ -1,17 +1,7 @@
-let find_repo_root () =
-  let rec loop dir =
-    let marker = Filename.concat dir "summary.md" in
-    if Sys.file_exists marker then dir
-    else
-      let parent = Filename.dirname dir in
-      if parent = dir then dir else loop parent
-  in
-  loop (Sys.getcwd ())
-
 let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "PMML LightGBM:\n";
 
-  let root = find_repo_root () in
+  let root = Test_helpers.find_repo_root () in
   let pmml_path = Filename.concat root "tests/golden/data/iris_lgb_bin.pmml" in
   let iris_path = Filename.concat root "tests/golden/data/iris.csv" in
 
@@ -29,12 +19,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|predict(df, m)|} env in
   (match v with
    | Ast.VVector arr ->
-       let first = if Array.length arr > 0 then arr.(0) else Ast.(VNA Ast.NAGeneric) in
-       let result = Ast.Utils.value_to_string first |> String.trim in
-       if result = "1" then begin
+        let first = if Array.length arr > 0 then arr.(0) else Ast.(VNA Ast.NAGeneric) in
+        let result = Ast.Utils.value_to_string first |> String.trim in
+        let matches_expected =
+          (String.equal result "1") || (String.equal result "1.") || (String.equal result "1.0")
+        in
+        if matches_expected then begin
          incr pass_count; Printf.printf "  ✓ lightgbm predict first label\n"
-       end else begin
-         incr fail_count;
+        end else begin
+          incr fail_count;
          Printf.printf "  ✗ lightgbm predict first label\n    Expected: 1\n    Got: %s\n" result
        end
    | _ ->

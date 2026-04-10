@@ -617,4 +617,42 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     Printf.printf "  ! skipping ONNX golden tests: baseline files not found\n"
   end;
 
+  Printf.printf "Phase 8 — Golden: JPMML Bridge Authority:\n";
+  let iris_csv = "tests/golden/data/iris.csv" in
+  let iris_pmml = "tests/golden/data/iris_random_forest.pmml" in
+
+  if Sys.file_exists iris_csv && Sys.file_exists iris_pmml then begin
+    let env_pmml = Packages.init_env () in
+    let (_, env_pmml) = eval_string_env (Printf.sprintf
+      {|df = read_csv("%s")
+        model = t_read_pmml("%s")
+      |} iris_csv iris_pmml) env_pmml in
+
+    (* Test: Metadata check *)
+    let (v, _) = eval_string_env "model.class" env_pmml in
+    if Ast.Utils.value_to_string v = "random_forest" then begin
+      incr pass_count; Printf.printf "  ✓ golden jpmml: model import successful\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ golden jpmml: model import failed (got %s)\n" (Ast.Utils.value_to_string v)
+    end;
+
+    (* Test: JPMML Bridge Prediction (triggered by predict builtin through authority pivot) *)
+    let (v, _) = eval_string_env "preds = predict(df, model); length(preds)" env_pmml in
+    if Ast.Utils.value_to_string v = "150" then begin
+      incr pass_count; Printf.printf "  ✓ golden jpmml: bridge prediction successful (150 rows via JPMML)\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ golden jpmml: bridge prediction failed (got %s)\n" (Ast.Utils.value_to_string v)
+    end;
+
+    (* Test: Cross-Engine Validation (Native vs JPMML) *)
+    let (v, _) = eval_string_env "val = compare_native_vs_pmml_scores(df, model); val.match" env_pmml in
+    if Ast.Utils.value_to_string v = "true" then begin
+      incr pass_count; Printf.printf "  ✓ golden jpmml: native vs jpmml parity verified\n"
+    end else begin
+      incr fail_count; Printf.printf "  ✗ golden jpmml: native vs jpmml parity failure\n"
+    end
+  end else begin
+    Printf.printf "  ! skipping PMML golden tests: baseline files not found\n"
+  end;
+
   print_newline ()

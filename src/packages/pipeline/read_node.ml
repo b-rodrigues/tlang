@@ -32,20 +32,24 @@ let register env =
          | VString s -> Builder.read_node ~which_log:s name
          | _ -> Error.type_error "read_node: expected String for 'which_log'")
     | VComputedNode cn ->
-        if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
-          (match Serialization.deserialize_from_file cn.cn_path with
-           | Ok v -> v
-           | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
-        else if cn.cn_serializer = "json" then
-          (match Serialization.read_json cn.cn_path with
-           | Ok v -> v
-           | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read JSON node `%s`: %s" cn.cn_name msg))
-        else if cn.cn_serializer = "arrow" then
-          (match Arrow_io.read_ipc cn.cn_path with
-           | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
-           | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read Arrow node `%s`: %s" cn.cn_name msg))
-        else
-          Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer)
+        (match Serialization_registry.lookup cn.cn_serializer with
+         | Some ser ->
+              (match ser.s_reader with
+               | VBuiltin { b_func; _ } ->
+                   b_func [(None, VString cn.cn_path)] (ref _env)
+               | _ ->
+                   Error.make_error RuntimeError (Printf.sprintf "read_node: Serializer ^%s has no T-native reader." cn.cn_serializer))
+          | None ->
+             if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
+               (match Serialization.deserialize_from_file cn.cn_path with
+                | Ok v -> v
+                | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
+             else if cn.cn_serializer = "arrow" then
+               (match Arrow_io.read_ipc cn.cn_path with
+                | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
+               | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read Arrow node `%s`: %s" cn.cn_name msg))
+            else
+              Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer))
     | VNA _ -> Error.make_error ValueError "read_node: requires a node name or a ComputedNode object."
     | _ -> Error.type_error "read_node: expected String or ComputedNode for argument 'node'"
   in

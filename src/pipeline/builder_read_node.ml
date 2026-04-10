@@ -42,10 +42,10 @@ let read_node ?which_log name =
            match Arrow_io.read_ipc cn.cn_path with
            | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
            | Error _ -> VComputedNode cn
-        else if cn.cn_serializer = "pmml" then
-           match Pmml_utils.read_pmml cn.cn_path with
-           | Ok v -> v
-           | Error _ -> VComputedNode cn
+         else if cn.cn_serializer = "pmml" then
+            match Pmml_utils.read_pmml cn.cn_path with
+            | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
+            | Error _ -> VComputedNode cn
         else
           VComputedNode cn
       else
@@ -106,9 +106,9 @@ let read_node ?which_log name =
                   T_read_csv.parse_csv_string content
                 with exn ->
                   Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read CSV node `%s` from `%s`: %s" name cn.Ast.cn_path (Printexc.to_string exn)))
-              else if cn.Ast.cn_serializer = "pmml" then
-                (match Pmml_utils.read_pmml cn.Ast.cn_path with
-                 | Ok v -> v
-                 | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+               else if cn.Ast.cn_serializer = "pmml" then
+                 (match Pmml_utils.read_pmml cn.Ast.cn_path with
+                  | Ok v -> Pmml_utils.attach_source_path cn.Ast.cn_path v
+                  | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
               else
                 VComputedNode cn)

@@ -760,14 +760,39 @@ def _enrich_sm_model_pmml(results, path):
         pass
 
 def py_read_pmml(path):
-    try:
-        from pypmml import Model
-    except ImportError:
-        raise RuntimeError(
-            "PMML deserialization in Python requires the 'pypmml' package. "
-            "Add 'pypmml' to [py-dependencies] in tproject.toml and rebuild the pipeline environment."
-        )
-    return Model.load(path)
+    class JPMMLModel:
+        def __init__(self, pmml_path):
+            self.pmml_path = pmml_path
+        
+        def predict(self, df):
+            import subprocess
+            import tempfile
+            import os
+            import pandas as pd
+
+            jar_path = os.environ.get("T_JPMML_EVALUATOR_JAR")
+            if not jar_path or not os.path.exists(jar_path):
+                raise RuntimeError("T_JPMML_EVALUATOR_JAR not found in environment.")
+
+            with tempfile.TemporaryDirectory() as tmp:
+                in_path = os.path.join(tmp, "input.csv")
+                out_path = os.path.join(tmp, "output.csv")
+                
+                # Write input (CSV standardized bridge)
+                df.to_csv(in_path, index=False)
+                
+                # Execute JPMML
+                subprocess.run([
+                    "java", "-jar", jar_path,
+                    "--model", self.pmml_path,
+                    "--input", in_path,
+                    "--output", out_path
+                ], check=True)
+                
+                # Read output
+                return pd.read_csv(out_path)
+    
+    return JPMMLModel(path)
 |} in
 
   let t_onnx_r_code = {|
@@ -1280,6 +1305,7 @@ EOF
     name = "%s";
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
     T_JPMML_STATSMODELS_JAR = "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar";
+    T_JPMML_EVALUATOR_JAR = "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar";
 %s
 %s
     buildCommand = ''

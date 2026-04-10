@@ -2,6 +2,14 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
+- **Standardized PMML Interchange (Authority Pivot)**: Finalized the transition to JPMML as the canonical scoring authority for all PMML models. 
+    - **JPMML Bridge**: Standardized on a CSV-based bridge for the JPMML evaluator, ensuring robust and deterministic cross-language scoring. The `predict()` function now prioritizes the JPMML bridge for any artifact containing a `_pmml_path`.
+    - **Native Scorer Extraction**: Extracted 700+ lines of native OCaml scoring logic (Trees, Forests, Boosted ensembles, and Linear models) into `T_native_scoring.ml` for validation parity.
+    - **Factor Resolution Parity**: Restored and verified sophisticated term resolution (categorical dummies and interaction terms) in native linear model scoring.
+    - **Automatic Environment Configuration**: The Nix `devShell` now automatically exports `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR`, enabling zero-config PMML scoring in development environments.
+- **CI/CD & Demo Infrastructure**:
+    - **Workflow Decoupling**: Refactored the monolithic `t_demos` E2E test suite into 30+ dedicated per-demo workflow files for faster execution and precise failure isolation.
+    - **Adaptive Repositories**: Updated the `pmml_interchange_t` demo to showcase categorical factor handling and multi-lang verification across R, Python, and T.
 - **Stabilized Pipeline Dependency Detection**: Refactored the lexical analyzer to prevent false-positive dependencies in polyglot pipelines.
     - **Strict Comment Stripping**: The pipeline resolver now automatically strips lines starting with `--` or `#` within foreign code blocks (`<{ ... }>`) before extraction. This prevents node names mentioned in comments from being incorrectly identified as dependencies, resolving common `ValueError` cycles.
     - **Explicit Dependency Annotations**: Introduced a new metadata decorator `--# @deps node1, node2` for manual dependency declaration. This is particularly useful for shell nodes or complex scripts where automatic lexical inference may be insufficient or blocked.

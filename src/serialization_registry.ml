@@ -11,6 +11,16 @@ let lookup name =
 let get_builtins () =
   Hashtbl.to_seq registry |> List.of_seq
 
+let update_native name ?writer ?reader () =
+  match lookup name with
+  | Some ser ->
+      let ser = { ser with 
+        s_writer = (match writer with Some w -> w | None -> ser.s_writer);
+        s_reader = (match reader with Some r -> r | None -> ser.s_reader) } 
+      in
+      register name ser
+  | None -> ()
+
 let init_builtins () =
   let not_implemented_builtin name = 
     VBuiltin {

@@ -116,8 +116,8 @@ let add_feature_requirement ~node_name ~runtime ~feature =
         req with
         py_deps =
           add_list req.py_deps
-            [ "numpy"; "pandas"; "pypmml"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ];
-        additional_tools = add_list req.additional_tools [ "jre" ];
+            [ "numpy"; "pandas"; "pyarrow"; "scikit-learn"; "scipy"; "sklearn2pmml"; "statsmodels" ];
+        additional_tools = add_list req.additional_tools [ "jre"; "jpmml-evaluator" ];
       }
   | "R", "onnx" ->
       { req with r_deps = add_list req.r_deps [ "onnx" ] }
