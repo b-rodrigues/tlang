@@ -211,6 +211,12 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "lambda params with newline"
     "f = \\(a,\nb) a * b\nf(4, 5)"
     "20";
+  test "node command pipeline with indented trailing newline"
+    "type(node(command = read_csv(\"data/mtcars.csv\", separator = \"|\") |>\n    mutate($cyl = factor($cyl), $am = factor($am)), serializer = ^csv))"
+    {|"Node"|};
+  test "node command maybe-pipeline with tab-indented trailing newline"
+    "type(node(command = data ?|>\n\ttransform(data), serializer = ^csv))"
+    {|"Node"|};
   print_newline ();
 
   Printf.printf "Phase 7 — Standard packages loaded:\n";
