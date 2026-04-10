@@ -324,6 +324,26 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                 (match apply_vector_mutation current_df col_name vec with
                  | VDataFrame new_df -> apply_named_mutations new_df rest_mutations
                  | err -> err)
+            | (Some col_name, VDataFrame assigned_df) :: rest_mutations ->
+                (match Arrow_table.column_names assigned_df.arrow_table with
+                 | [] -> apply_named_mutations current_df rest_mutations
+                 | first_col :: _ ->
+                    let col_type = Arrow_table.column_type assigned_df.arrow_table first_col in
+                    let vec =
+                      match col_type with
+                      | Some (Arrow_table.ArrowFloat64 | Arrow_table.ArrowInt64) ->
+                          let col = Arrow_table.get_float_column assigned_df.arrow_table first_col in
+                          Array.map (fun f -> match f with Some v -> VFloat v | None -> VNA NAFloat) col
+                      | Some Arrow_table.ArrowBoolean ->
+                          let col = Arrow_table.get_bool_column assigned_df.arrow_table first_col in
+                          Array.map (fun b -> match b with Some v -> VBool v | None -> VNA NABool) col
+                      | _ ->
+                          let col = Arrow_table.get_string_column assigned_df.arrow_table first_col in
+                          Array.map (fun s -> match s with Some v -> VString v | None -> VNA NAString) col
+                    in
+                    (match apply_vector_mutation current_df col_name vec with
+                     | VDataFrame new_df -> apply_named_mutations new_df rest_mutations
+                     | err -> err))
             | (Some col_name, fn) :: rest_mutations ->
                 (match apply_mutation current_df col_name fn with
                  | VDataFrame new_df -> apply_named_mutations new_df rest_mutations
