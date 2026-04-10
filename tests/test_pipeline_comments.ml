@@ -2,7 +2,7 @@ open Ast
 open Eval
 
 let run_tests pass_count fail_count _eval_string _eval_string_env _test =
-  Printf.printf "\nTesting pipeline comment stripping and @deps annotation:\n";
+  Printf.printf "\nTesting pipeline comment stripping:\n";
   
   let env_init = Packages.init_env () in
 
