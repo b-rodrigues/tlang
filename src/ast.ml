@@ -370,6 +370,7 @@ module Utils = struct
     | VSymbol s when String.length s > 0 && s.[0] = '$' ->
         Some (String.sub s 1 (String.length s - 1))
     | VSymbol s -> Some s
+    | VString s -> Some s
     | _ -> None
 
   let rec list_take n = function
