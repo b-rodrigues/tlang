@@ -773,6 +773,29 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | _ ->
                     Error (Error.type_error (Printf.sprintf "Function `%s` expects `env_vars` to be a Dict." fn_name)))
         in
+        let lookup_dependencies () =
+          match List.assoc_opt (Some "deps") args with
+          | None -> Ok None
+          | Some e ->
+              let extract_dep_name expr =
+                match expr.node with
+                | Var s -> Some s
+                | Value (VString s) | Value (VSymbol s) ->
+                    if String.starts_with ~prefix:"^" s then
+                      Some (String.sub s 1 (String.length s - 1))
+                    else Some s
+                | _ -> None
+              in
+              (match e.node with
+               | ListLit items ->
+                   let deps = List.filter_map (fun (_, item_e) -> extract_dep_name item_e) items in
+                   Ok (Some deps)
+               | _ ->
+                   (match extract_dep_name e with
+                    | Some s -> Ok (Some [s])
+                    | None ->
+                        Error (Error.type_error (Printf.sprintf "Function `%s` expects `deps` to be a List of identifiers, Strings or Symbols." fn_name))))
+        in
         let lookup_runtime_args () =
           let rec is_arg_value ~allow_list = function
             | VString _ | VSymbol _ | VInt _ | VFloat _ | VBool _ | VNA _ -> true
@@ -831,9 +854,9 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
       in
       let shell_args = lookup_list "shell_args" in
       let command = lookup_arg "command" (vexpr ((VNA NAGeneric))) in
-      (match lookup_env_vars (), lookup_runtime_args () with
-      | Error err, _ | _, Error err -> err
-      | Ok un_env_vars, Ok un_args ->
+      (match lookup_env_vars (), lookup_runtime_args (), lookup_dependencies () with
+      | Error err, _, _ | _, Error err, _ | _, _, Error err -> err
+      | Ok un_env_vars, Ok un_args, Ok un_dependencies ->
           let arg_path_opt =
             let find_path key =
               match List.assoc_opt key un_args with
@@ -910,6 +933,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
+                      un_dependencies;
                     }
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
@@ -922,6 +946,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
+                      un_dependencies;
                     }
                 | _ when Option.is_some un_script ->
                     VNode {
@@ -934,6 +959,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                       un_functions = lookup_list "functions";
                       un_includes;
                       un_noop = eval_bool "noop" false;
+                      un_dependencies;
                     }
                 | _ ->
                     let msg = Printf.sprintf "Node with runtime `%s` requires command to be wrapped in <{ ... }> blocks (RawCode), or use the 'script' argument to point to a .R, .py, .sh, or .qmd file." runtime in
@@ -949,6 +975,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_functions = lookup_list "functions";
                   un_includes;
                   un_noop = eval_bool "noop" false;
+                  un_dependencies;
                 }
 )
     | Call { fn; args } ->
@@ -1108,6 +1135,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     un_functions = [];
     un_includes = [];
     un_noop = false;
+    un_dependencies = None;
   } in
 
   (* Desugar nodes into enriched structures with defaults.
@@ -1139,6 +1167,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
             un_functions = [];
             un_includes = [];
             un_noop = false;
+            un_dependencies = None;
           })
       | VError { code = NameError; _ } -> Ok (name, default_un node_expr)
       | VError _ as e -> Error e
@@ -1166,23 +1195,26 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
          reference intended to be satisfied by another pipeline via `chain`. *)
   let node_names = List.map fst desugared_nodes in
   let deps = List.map (fun (name, un) ->
-    let fv = free_vars un.un_command in
-    let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
-    let has_self_ref = List.exists (fun v -> v = name) fv in
-    if has_self_ref && not is_raw then
-      invalid_arg ("Self-referential node detected in command for node: " ^ name)
-    else
-      let node_deps = List.filter (fun v ->
-        v <> name && (
-          (* Always: sibling node in the same pipeline *)
-          List.mem v node_names ||
-          (* T expressions only: unresolved names are cross-pipeline deps (chain).
-             For RawCode (R/Python), we can't distinguish foreign identifiers from
-             intended cross-pipeline refs, so we conservatively exclude them. *)
-          (not is_raw && not (Env.mem v !env_ref))
-        )
-      ) fv in
-      (name, node_deps)
+    match un.un_dependencies with
+    | Some explicit -> (name, explicit)
+    | None ->
+        let fv = free_vars un.un_command in
+        let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
+        let has_self_ref = List.exists (fun v -> v = name) fv in
+        if has_self_ref && not is_raw then
+          invalid_arg ("Self-referential node detected in command for node: " ^ name)
+        else
+          let node_deps = List.filter (fun v ->
+            v <> name && (
+              (* Always: sibling node in the same pipeline *)
+              List.mem v node_names ||
+              (* T expressions only: unresolved names are cross-pipeline deps (chain).
+                 For RawCode (R/Python), we can't distinguish foreign identifiers from
+                 intended cross-pipeline refs, so we conservatively exclude them. *)
+              (not is_raw && not (Env.mem v !env_ref))
+            )
+          ) fv in
+          (name, node_deps)
   ) desugared_nodes in
 
   (* No-op propagation: if a node is noop, all its transitive dependents are noop *)
@@ -1354,6 +1386,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       p_includes = List.map (fun (name, un) -> (name, un.un_includes)) desugared_nodes;
       p_noops = List.map (fun (name, un) -> (name, un.un_noop)) desugared_nodes;
       p_scripts = List.map (fun (name, un) -> (name, un.un_script)) desugared_nodes;
+      p_explicit_deps = List.map (fun (name, un) -> (name, un.un_dependencies)) desugared_nodes;
     }
 
 (** Re-run a pipeline *)
@@ -1373,6 +1406,7 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
       un_functions = List.assoc name prev.p_functions;
       un_includes = List.assoc name prev.p_includes;
       un_noop = List.assoc name prev.p_noops;
+      un_dependencies = List.assoc name prev.p_explicit_deps;
     })
   ) prev.p_exprs in
 

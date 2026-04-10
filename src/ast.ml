@@ -91,6 +91,7 @@ and pipeline_result = {
   p_includes : (string * expr list) list;    (* Map node name -> included files *)
   p_noops : (string * bool) list;            (* Map node name -> noop flag *)
   p_scripts : (string * string option) list; (* Map node name -> optional script path *)
+  p_explicit_deps : (string * string list option) list; (* Map node name -> explicit dependencies *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)
@@ -125,6 +126,7 @@ and unbuilt_node = {
   un_functions : expr list;
   un_includes : expr list;
   un_noop : bool;
+  un_dependencies : string list option;
 }
 
 (** Result of a ?<{...}> shell escape — carries stdout, stderr, and exit code.
@@ -316,26 +318,11 @@ let node_resolver : (string -> value option) ref = ref (fun _ -> None)
     Supports explicit dependency declarations via '--# @deps node1, node2'. *)
 let extract_identifiers text =
   let lines = String.split_on_char '\n' text in
-  let explicit_deps = ref String_set.empty in
   let filtered_lines =
     lines
     |> List.filter_map (fun line ->
         let trimmed = String.trim line in
-        let deps_prefix = "--# @deps" in
-        let deps_prefix_len = String.length deps_prefix in
-        if String.starts_with ~prefix:deps_prefix trimmed then
-          let deps_str =
-            if String.length trimmed > deps_prefix_len then
-              String.sub trimmed deps_prefix_len (String.length trimmed - deps_prefix_len)
-              |> String.trim
-            else ""
-          in
-          let deps = String.split_on_char ',' deps_str
-                     |> List.map String.trim
-                     |> List.filter (fun s -> s <> "") in
-          explicit_deps := List.fold_left (fun acc d -> String_set.add d acc) !explicit_deps deps;
-          None
-        else if String.starts_with ~prefix:"--" trimmed then
+        if String.starts_with ~prefix:"--" trimmed then
           None
         else if String.starts_with ~prefix:"#" trimmed && not (String.starts_with ~prefix:"#!" trimmed) then
           None
@@ -353,18 +340,8 @@ let extract_identifiers text =
         find (word :: acc) next_pos
   in
   let inferred = find [] 0 in
-  let all_set = List.fold_left (fun acc d -> String_set.add d acc) !explicit_deps inferred in
+  let all_set = List.fold_left (fun acc d -> String_set.add d acc) String_set.empty inferred in
   String_set.elements all_set
-
-(** Strip T-specific pipeline annotations from raw code before emission. 
-    This prevents '--# @deps' lines from causing syntax errors in guests. *)
-let strip_pipeline_annotations text =
-  let lines = String.split_on_char '\n' text in
-  lines
-  |> List.filter (fun line ->
-      let trimmed = String.trim line in
-      not (String.starts_with ~prefix:"--# @deps" trimmed))
-  |> String.concat "\n"
 
 (** Convenience type alias *)
 type environment = value Env.t

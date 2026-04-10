@@ -95,6 +95,21 @@ let register ~eval_call env =
                   first_error := Some (Error.type_error (check "deserializer" v "String"));
                 p.p_deserializers
           in
+          let new_explicit_deps =
+            match List.assoc_opt (Some "deps") mutations with
+            | None -> p.p_explicit_deps
+            | Some (VList items) ->
+                let deps = List.filter_map (fun (_, v) ->
+                  match v with VString s | VSymbol s -> Some s | _ -> None
+                ) items in
+                List.map (fun (n, old) -> if matches n then (n, Some deps) else (n, old)) p.p_explicit_deps
+            | Some (VNA _) ->
+                List.map (fun (n, old) -> if matches n then (n, None) else (n, old)) p.p_explicit_deps
+            | Some v ->
+                if !first_error = None then
+                  first_error := Some (Error.type_error (check "deps" v "List or NA"));
+                p.p_explicit_deps
+          in
           (match !first_error with
           | Some e -> e
           | None ->
@@ -104,6 +119,7 @@ let register ~eval_call env =
                 p_noops        = new_noops;
                 p_serializers  = new_serializers;
                 p_deserializers = new_deserializers;
+                p_explicit_deps = new_explicit_deps;
               })
       | (_, _) :: _ -> Error.type_error "Function `mutate_node` expects a Pipeline as first argument."
     ))
