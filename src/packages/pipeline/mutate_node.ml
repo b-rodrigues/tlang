@@ -95,20 +95,45 @@ let register ~eval_call env =
                   first_error := Some (Error.type_error (check "deserializer" v "String"));
                 p.p_deserializers
           in
-          let new_explicit_deps =
+          let new_explicit_deps, new_p_deps =
             match List.assoc_opt (Some "deps") mutations with
-            | None -> p.p_explicit_deps
+            | None -> p.p_explicit_deps, p.p_deps
             | Some (VList items) ->
-                let deps = List.filter_map (fun (_, v) ->
-                  match v with VString s | VSymbol s -> Some s | _ -> None
-                ) items in
-                List.map (fun (n, old) -> if matches n then (n, Some deps) else (n, old)) p.p_explicit_deps
+                let invalid_dep =
+                  List.find_map (fun (_, v) ->
+                    match v with
+                    | VString _ | VSymbol _ -> None
+                    | bad -> Some bad
+                  ) items
+                in
+                (match invalid_dep with
+                | Some bad ->
+                    if !first_error = None then
+                      first_error := Some (Error.type_error (check "deps" bad "String or Symbol"));
+                    p.p_explicit_deps, p.p_deps
+                | None ->
+                    let deps =
+                      List.map (fun (_, v) ->
+                        match v with
+                        | VString s | VSymbol s -> s
+                        (* Unreachable: invalid_dep check above guarantees all items are String/Symbol *)
+                        | _ -> failwith "mutate_node: unreachable — non-String/Symbol dep after validation"
+                      ) items
+                    in
+                    let new_explicit = List.map (fun (n, old) -> if matches n then (n, Some deps) else (n, old)) p.p_explicit_deps in
+                    let new_pdeps = List.map (fun (n, old) -> if matches n then (n, deps) else (n, old)) p.p_deps in
+                    new_explicit, new_pdeps)
             | Some (VNA _) ->
-                List.map (fun (n, old) -> if matches n then (n, None) else (n, old)) p.p_explicit_deps
+                (* Clearing explicit deps back to None. p_deps is kept as-is because re-deriving
+                   dependencies from free variables requires the original eval environment and
+                   raw code text, which are not available here. The stale p_deps entry is
+                   intentional: the next pipeline re-run will rebuild deps from scratch. *)
+                let new_explicit = List.map (fun (n, old) -> if matches n then (n, None) else (n, old)) p.p_explicit_deps in
+                new_explicit, p.p_deps
             | Some v ->
                 if !first_error = None then
                   first_error := Some (Error.type_error (check "deps" v "List or NA"));
-                p.p_explicit_deps
+                p.p_explicit_deps, p.p_deps
           in
           (match !first_error with
           | Some e -> e
@@ -120,6 +145,7 @@ let register ~eval_call env =
                 p_serializers  = new_serializers;
                 p_deserializers = new_deserializers;
                 p_explicit_deps = new_explicit_deps;
+                p_deps         = new_p_deps;
               })
       | (_, _) :: _ -> Error.type_error "Function `mutate_node` expects a Pipeline as first argument."
     ))

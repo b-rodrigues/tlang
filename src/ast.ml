@@ -314,8 +314,7 @@ let node_resolver : (string -> value option) ref = ref (fun _ -> None)
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
     Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results.
-    Strips lines starting with # or -- to avoid false positives from comments.
-    Supports explicit dependency declarations via '--# @deps node1, node2'. *)
+    Strips lines starting with # or -- to avoid false positives from comments. *)
 let extract_identifiers text =
   let lines = String.split_on_char '\n' text in
   let filtered_lines =
