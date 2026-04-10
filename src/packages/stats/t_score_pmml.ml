@@ -45,9 +45,11 @@ let score_pmml_jpmml (df : dataframe) model_dict =
                           (* 3. Read the result back *)
                           (match Arrow_io.read_csv tmp_out with
                            | Ok table ->
-                               (* Extract the first column as a Vector if it has 1 column,
-                                  or return the whole DataFrame if it has more (e.g. classification probabilities). *)
-                               (match Arrow_table.column_names table with
+                               let col_names = Arrow_table.column_names table in
+                               if List.length col_names > 1 then
+                                 VDataFrame { arrow_table = table; group_keys = [] }
+                               else
+                               (match col_names with
                                 | name :: _ ->
                                     let col_type = Arrow_table.column_type table name in
                                     (match col_type with

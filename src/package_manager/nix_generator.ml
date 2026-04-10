@@ -242,6 +242,12 @@ let generate_project_flake
     Buffer.add_string buf "            echo \"Quarto is enabled via [additional-tools]. Render {t} chunks with filters: [tlang].\"\n";
     Buffer.add_string buf "            echo \"\"\n";
   end;
+  if List.mem "jpmml-evaluator" additional_tools then begin
+    Buffer.add_string buf "            export T_JPMML_EVALUATOR_JAR=\"${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar\"\n";
+  end;
+  if List.mem "jpmml-statsmodels" additional_tools then begin
+    Buffer.add_string buf "            export T_JPMML_STATSMODELS_JAR=\"${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar\"\n";
+  end;
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";
@@ -367,6 +373,12 @@ let generate_package_flake
   Buffer.add_string buf "            echo \"  * Add them to DESCRIPTION.toml\"\n";
   Buffer.add_string buf "            echo \"  * Run 't update' to sync flake.nix\"\n";
   Buffer.add_string buf "            echo \"\"\n";
+  if List.mem "jpmml-evaluator" additional_tools then begin
+    Buffer.add_string buf "            export T_JPMML_EVALUATOR_JAR=\"${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar\"\n";
+  end;
+  if List.mem "jpmml-statsmodels" additional_tools then begin
+    Buffer.add_string buf "            export T_JPMML_STATSMODELS_JAR=\"${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar\"\n";
+  end;
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";

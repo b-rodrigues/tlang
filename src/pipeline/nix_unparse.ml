@@ -35,6 +35,7 @@ let dedent s =
 let rec expr_to_string expr =
   match expr.node with
   | Ast.Value (Ast.VString s) | Ast.Value (Ast.VSymbol s) -> s
+  | Ast.Value (Ast.VSerializer s) -> s.s_format
   | _ -> unparse_expr expr
 
 and unparse_expr expr =
