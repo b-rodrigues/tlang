@@ -5,8 +5,7 @@ on:
       - main
       - master
   schedule:
-    - cron: '0 3 * * *' # Every night at 03:00 AM
-
+    - cron: '0 3 * * *'
 jobs:
   build:
     strategy:
@@ -18,7 +17,7 @@ jobs:
     runs-on: ${{ contains(matrix.system, 'darwin') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
@@ -31,18 +30,30 @@ jobs:
         with:
           name: rstats-on-nix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      
-      - name: Build T and DevShell, then push to Cachix
+
+      - name: Build default package
+        run: nix build .#default --print-build-logs
+
+      - name: Build devShell profile (materialises all buildInputs)
+        run: nix develop .#default --profile dev-shell-profile --command true
+
+      - name: Push full closures to Cachix
         run: |
-          # Build default package (T executable)
-          nix build .#default --print-build-logs
-          
-          # Build devShell dependencies and create a GC root via profile
-          nix develop .#default --profile dev-shell-profile --command true
-          
-          # Resolve paths for Cachix
-          RESULT_PATH="$(python3 -c 'import os; print(os.path.realpath("result"))')"
-          SHELL_PATH="$(python3 -c 'import os; print(os.path.realpath("dev-shell-profile"))')"
-          
-          echo "Pushing $RESULT_PATH and $SHELL_PATH to Cachix..."
-          cachix push rstats-on-nix "$RESULT_PATH" "$SHELL_PATH"
+          # Resolve the real store paths (not the ./result symlink)
+          RESULT=$(nix path-info .#default)
+          SHELL_DRV=$(nix path-info --derivation .#devShells.$(nix eval --raw --impure --expr 'builtins.currentSystem').default)
+
+          echo "=== Runtime closure of t-lang ==="
+          # Push the runtime closure of the built output
+          nix path-info --recursive "$RESULT" | cachix push rstats-on-nix
+
+          echo "=== Build-time input closure of t-lang ==="
+          # Push everything that was needed to *build* t-lang
+          # (nativeBuildInputs, buildInputs used only at build time, etc.)
+          nix-store --query --requisites "$SHELL_DRV" \
+            | grep -v '\.drv$' \
+            | cachix push rstats-on-nix
+
+          echo "=== DevShell closure ==="
+          nix path-info --recursive ./dev-shell-profile \
+            | cachix push rstats-on-nix
