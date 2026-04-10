@@ -13,7 +13,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "abs of negative int" "abs(0 - 5)" "5";
   test "abs of negative float" "abs(0.0 - 3.14)" "3.14";
   test "abs of zero" "abs(0)" "0";
-  test "abs NA" "abs(NA)" {|Error(TypeError: "Function `abs` encountered NA value. Handle missingness explicitly.")|};
+  test "abs NA" "abs(NA)" "NA";
   print_newline ();
 
   Printf.printf "Phase 5 — Math: log():\n";
