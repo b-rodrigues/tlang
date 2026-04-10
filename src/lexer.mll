@@ -9,23 +9,23 @@ let is_ident_char = function
   | _ -> false
 
 let advance_lines_for_lexeme lexbuf lexeme =
-  let newline_count = ref 0 in
-  let chars_since_last_newline = ref 0 in
-  String.iter
-    (fun c ->
-      if c = '\n' then (
-        incr newline_count;
-        chars_since_last_newline := 0
-      ) else
-        incr chars_since_last_newline)
-    lexeme;
-  if !newline_count > 0 then
+  let newline_count, chars_since_last_newline =
+    String.fold_left
+      (fun (newlines, chars_since_last_newline) c ->
+        if c = '\n' then (newlines + 1, 0)
+        else (newlines, chars_since_last_newline + 1))
+      (0, 0)
+      lexeme
+  in
+  if newline_count > 0 then
     let pos = lexbuf.Lexing.lex_curr_p in
     lexbuf.Lexing.lex_curr_p <-
       {
         pos with
-        Lexing.pos_lnum = pos.Lexing.pos_lnum + !newline_count;
-        pos_bol = pos.Lexing.pos_cnum - !chars_since_last_newline;
+        Lexing.pos_lnum = pos.Lexing.pos_lnum + newline_count;
+        (* [pos_bol] is the absolute offset of the current line start, so
+           rewind from [pos_cnum] by the indentation consumed after the last newline. *)
+        pos_bol = pos.Lexing.pos_cnum - chars_since_last_newline;
       }
 
 }
