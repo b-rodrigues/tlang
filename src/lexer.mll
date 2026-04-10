@@ -8,6 +8,26 @@ let is_ident_char = function
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '$' -> true
   | _ -> false
 
+let advance_lines_for_lexeme lexbuf lexeme =
+  let newline_count = ref 0 in
+  let chars_since_last_newline = ref 0 in
+  String.iter
+    (fun c ->
+      if c = '\n' then (
+        incr newline_count;
+        chars_since_last_newline := 0
+      ) else
+        incr chars_since_last_newline)
+    lexeme;
+  if !newline_count > 0 then
+    let pos = lexbuf.Lexing.lex_curr_p in
+    lexbuf.Lexing.lex_curr_p <-
+      {
+        pos with
+        Lexing.pos_lnum = pos.Lexing.pos_lnum + !newline_count;
+        pos_bol = pos.Lexing.pos_cnum - !chars_since_last_newline;
+      }
+
 }
 
 let digit = ['0'-'9']
@@ -28,12 +48,12 @@ rule token = parse
   | '\n' [' ' '\t']* "|>" { Lexing.new_line lexbuf; PIPE }
   | "?|>" [' ' '\t']* ('\n' [' ' '\t']*)+ {
       let s = Lexing.lexeme lexbuf in
-      String.iter (fun c -> if c = '\n' then Lexing.new_line lexbuf) s;
+      advance_lines_for_lexeme lexbuf s;
       MAYBE_PIPE
     }
   | "|>" [' ' '\t']* ('\n' [' ' '\t']*)+ {
       let s = Lexing.lexeme lexbuf in
-      String.iter (fun c -> if c = '\n' then Lexing.new_line lexbuf) s;
+      advance_lines_for_lexeme lexbuf s;
       PIPE
     }
   | ('\n' [' ' '\t']*)+ '}' {
