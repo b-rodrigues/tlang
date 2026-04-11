@@ -162,6 +162,25 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
 
 
 (*
+--# Deep Equality Check
+--#
+--# Checks if two objects are structurally identical, including nested elements and metadata.
+--# Unlike `==`, this works for all types, including collections (Lists, Vectors, DataFrames).
+--#
+--# @name identical
+--# @param a :: Any First object to compare.
+--# @param b :: Any Second object to compare.
+--# @return :: Bool true if identical, false otherwise.
+--# @family boolean
+--# @export
+*)
+let identical args _env =
+  match args with
+  | [a; b] -> VBool (a = b)
+  | _ -> Error.arity_error_named "identical" 2 (List.length args)
+
+
+(*
 --# Vectorized Case-When
 --#
 --# Evaluates multiple conditions and returns the corresponding value for the first true condition.
