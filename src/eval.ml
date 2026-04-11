@@ -2283,7 +2283,9 @@ and eval_binop env_ref op left right =
   let lval = eval_expr env_ref left in
   let rval = eval_expr env_ref right in
   match (op, lval, rval) with
-  | (Plus | Minus | Mul | Div | Mod | Lt | Gt | LtEq | GtEq | Eq | NEq), _, _ -> 
+  | _, VError _, _ -> lval
+  | _, _, VError _ -> rval
+  | (Plus | Minus | Mul | Div | Mod | Lt | Gt | LtEq | GtEq | Eq | NEq | BitAnd | BitOr), _, _ -> 
       (match lval, rval with
        | VNDArray _, _ | _, VNDArray _
        | Ast.VVector _, _ | _, Ast.VVector _
@@ -2292,6 +2294,7 @@ and eval_binop env_ref op left right =
             | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
             | Lt -> "<" | Gt -> ">" | LtEq -> "<=" | GtEq -> ">="
             | Eq -> "==" | NEq -> "!="
+            | BitAnd -> "&" | BitOr -> "|"
             | _ -> "??"
           in
           let dot_op = "." ^ op_str in
