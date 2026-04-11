@@ -143,6 +143,18 @@ false or true   -- true
 not true        -- false
 ```
 
+### Vectorized Logic
+
+For element-wise logical operations on collections, use the designated broadcasting operators:
+
+| Operator | Description | Scalar Equivalent |
+|----------|-------------|-------------------|
+| `.&`     | Vectorized AND | `and` (or `&&`)  |
+| `.|`     | Vectorized OR  | `or` (or `||`)   |
+
+> [!TIP]
+> **No Silent Magic**: Just like arithmetic and comparison, the bitwise operators `&` and `|` strictly require scalar operands. Attempting to use them with a List or Vector will result in a `TypeError` that directs you to use the vectorized `. &` or `. |` operators.
+
 ---
 
 ## Tooling
