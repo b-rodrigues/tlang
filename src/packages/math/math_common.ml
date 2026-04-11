@@ -1,6 +1,5 @@
 open Ast
 
-(** Return [true] when the named boolean flag is explicitly set to [true]. *)
 let named_flag_true flag named_args =
   List.exists
     (fun (name, value) ->
@@ -10,6 +9,16 @@ let named_flag_true flag named_args =
       | VBool true -> true
       | _ -> false)
     named_args
+
+let get_bool_flag name default named_args =
+  match List.find_opt (fun (n, _) -> n = Some name) named_args with
+  | Some (_, VBool b) -> Ok b
+  | Some (_, v) ->
+      Error
+        (Error.type_error
+           (Printf.sprintf "Flag `%s` must be Bool, but received %s." name
+              (Utils.type_name v)))
+  | None -> Ok default
 
 (** Strip selected named arguments and return the remaining positional values
     in their original order. *)
@@ -58,6 +67,8 @@ let map_numeric_unary ~fname ?(expects = "numeric input") ?(na_ignore = false) f
   | args -> Error.arity_error_named fname 1 (List.length args)
 
 let map_numeric_unary_named ~fname ?expects f named_args =
-  let na_ignore = named_flag_true "na_ignore" named_args in
-  let args = positional_args_without [ "na_ignore" ] named_args in
-  map_numeric_unary ~fname ?expects ~na_ignore f args
+  match get_bool_flag "na_ignore" false named_args with
+  | Error e -> e
+  | Ok na_ignore ->
+      let args = positional_args_without [ "na_ignore" ] named_args in
+      map_numeric_unary ~fname ?expects ~na_ignore f args
