@@ -151,7 +151,9 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                 let right_na = take_bool_array n right_pred.na in
                 let left_false = false_mask left_keep left_na in
                 Some {
-                  keep = Array.init n (fun i -> left_keep.(i) || right_keep.(i));
+                  keep =
+                    Array.init n (fun i ->
+                      left_keep.(i) || (left_false.(i) && right_keep.(i)));
                   na =
                     (* Matches interpreter short-circuit OR: left-side NA always
                        propagates; right-side NA only propagates when the left
