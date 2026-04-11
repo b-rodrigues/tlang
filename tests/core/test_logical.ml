@@ -23,7 +23,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   
   Printf.printf "Broadcasting with NA:\n";
   (* NA does not propagate implicitly, so 1 .+ NA results in Error *)
-  test "vec .+ NA" "[1, 2] .+ NA" "[Error(TypeError: \"Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.\"), Error(TypeError: \"Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.\")]";
+  test "vec .+ NA" "[1, 2] .+ NA" "[Error(NAPredicateError: \"Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.\"), Error(NAPredicateError: \"Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.\")]";
 
 
   print_newline ()

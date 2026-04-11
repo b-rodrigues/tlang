@@ -13,28 +13,10 @@ open Ast
 --# @export
 *)
 
-let map_numeric_unary ~fname f = function
-  | [VInt n] -> VFloat (f (float_of_int n))
-  | [VFloat x] -> VFloat (f x)
-  | [VVector arr] ->
-      let out = Array.make (Array.length arr) (VNA NAGeneric) in
-      let err = ref None in
-      Array.iteri (fun i v ->
-        if !err = None then
-          match v with
-          | VInt n -> out.(i) <- VFloat (f (float_of_int n))
-          | VFloat x -> out.(i) <- VFloat (f x)
-          | VNA _ -> err := Some (Error.na_value_error fname)
-          | _ -> err := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." fname))
-      ) arr;
-      (match !err with Some e -> e | None -> VVector out)
-  | [VNDArray arr] -> VNDArray { shape = arr.shape; data = Array.map f arr.data }
-  | [VNA _] -> Error.na_value_error fname
-  | [_] -> Error.type_error (Printf.sprintf "Function `%s` expects numeric input." fname)
-  | args -> Error.arity_error_named fname 1 (List.length args)
-
 let register env =
-  Env.add "signif" (make_builtin ~name:"signif" 2 (fun args _env ->
+  Env.add "signif" (make_builtin_named ~name:"signif" ~variadic:true 2 (fun named_args _env ->
+    (* signif needs a local helper because the transformation depends on the
+       caller-supplied number of significant digits. *)
     let signif_f x digits =
       if x = 0.0 then 0.0
       else
@@ -42,14 +24,19 @@ let register env =
         let scale = Float.pow 10.0 (d -. 1.0 -. Float.floor (Float.log10 (Float.abs x))) in
         Float.round (x *. scale) /. scale
     in
-    match args with
-    | [x; VInt digits] when digits > 0 -> map_numeric_unary ~fname:"signif" (fun v -> signif_f v digits) [x]
-    | [_; VInt _] -> Error.value_error "Function `signif` expects positive integer digits."
-    | [x; VFloat d] when d > 0.0 ->
-        let digits = int_of_float d in
-        if float_of_int digits = d && digits > 0 then
-          map_numeric_unary ~fname:"signif" (fun v -> signif_f v digits) [x]
-        else
-          Error.value_error "Function `signif` expects positive integer digits."
-    | [_; _] -> Error.value_error "Function `signif` expects positive integer digits."
-    | _ -> Error.arity_error_named "signif" 2 (List.length args))) env
+    match Math_common.get_bool_flag "na_ignore" false named_args with
+    | Error e -> e
+    | Ok na_ignore ->
+        let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
+        match args with
+        | [x; VInt digits] when digits > 0 ->
+            Math_common.map_numeric_unary ~fname:"signif" ~na_ignore (fun v -> signif_f v digits) [x]
+        | [_; VInt _] -> Error.value_error "Function `signif` expects positive integer digits."
+        | [x; VFloat d] when d > 0.0 ->
+            let digits = int_of_float d in
+            if float_of_int digits = d && digits > 0 then
+              Math_common.map_numeric_unary ~fname:"signif" ~na_ignore (fun v -> signif_f v digits) [x]
+            else
+              Error.value_error "Function `signif` expects positive integer digits."
+        | [_; _] -> Error.value_error "Function `signif` expects positive integer digits."
+        | _ -> Error.arity_error_named "signif" 2 (List.length args))) env

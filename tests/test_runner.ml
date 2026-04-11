@@ -82,6 +82,7 @@ let () =
   (* Base tests *)
   Test_converters.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_na.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_na_edge_cases.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_errors.run_tests pass_count fail_count eval_string eval_string_env test;
 
   (* Domain-specific tests *)

@@ -114,8 +114,8 @@ Hint: Booleans and numbers cannot be combined in arithmetic. Use if-else to bran
   Printf.printf "Phase 8 — Core Semantics: NA invariants:\n";
 
   (* NA doesn't propagate *)
-  test "NA + NA is error" "NA + NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
-  test "NA in conditional is error" "if (NA) 1 else 2" {|Error(TypeError: "Cannot use NA as a condition")|};
+  test "NA + NA is error" "NA + NA" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA in conditional is error" "if (NA) 1 else 2" {|Error(NAPredicateError: "Cannot use NA as a condition")|};
   test "is_na identity" "is_na(NA) && !is_na(42)" "true";
 
   (* Typed NA *)

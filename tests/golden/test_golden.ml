@@ -559,23 +559,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "golden na_rm: mean default errors on NA"
     {|mean([1, NA, 3])|}
-    {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "golden na_rm: sum default errors on NA"
     {|sum([1, NA, 3])|}
-    {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "golden na_rm: sd default errors on NA"
     {|sd([1, NA, 3])|}
-    {|Error(TypeError: "Function `sd` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `sd` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "golden na_rm: quantile default errors on NA"
     {|quantile([1, NA, 3], 0.5)|}
-    {|Error(TypeError: "Function `quantile` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `quantile` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "golden na_rm: cor default errors on NA"
     {|cor([1, NA, 3], [4, 5, 6])|}
-    {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   Printf.printf "Phase 8 — Golden: ONNX Machine Learning:\n";
 
@@ -630,27 +630,34 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
     (* Test: Metadata check *)
     let (v, _) = eval_string_env "model.class" env_pmml in
-    if Ast.Utils.value_to_string v = "random_forest" then begin
+    let model_class = Ast.Utils.value_to_string v in
+    if model_class = {|"random_forest"|} then begin
       incr pass_count; Printf.printf "  ✓ golden jpmml: model import successful\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ golden jpmml: model import failed (got %s)\n" (Ast.Utils.value_to_string v)
+      incr fail_count; Printf.printf "  ✗ golden jpmml: model import failed (got %s)\n" model_class
     end;
 
     (* Test: JPMML Bridge Prediction (triggered by predict builtin through authority pivot) *)
-    let (v, _) = eval_string_env "preds = predict(df, model); length(preds)" env_pmml in
-    if Ast.Utils.value_to_string v = "150" then begin
-      incr pass_count; Printf.printf "  ✓ golden jpmml: bridge prediction successful (150 rows via JPMML)\n"
-    end else begin
-      incr fail_count; Printf.printf "  ✗ golden jpmml: bridge prediction failed (got %s)\n" (Ast.Utils.value_to_string v)
-    end;
+    (try
+      let (v, _) = eval_string_env "preds = predict(df, model); length(preds)" env_pmml in
+      if Ast.Utils.value_to_string v = "150" then begin
+        incr pass_count; Printf.printf "  ✓ golden jpmml: bridge prediction successful (150 rows via JPMML)\n"
+      end else begin
+        incr fail_count; Printf.printf "  ✗ golden jpmml: bridge prediction failed (got %s)\n" (Ast.Utils.value_to_string v)
+      end
+    with e ->
+      incr fail_count; Printf.printf "  ✗ golden jpmml: bridge prediction Exception: %s\n" (Printexc.to_string e));
 
     (* Test: Cross-Engine Validation (Native vs JPMML) *)
-    let (v, _) = eval_string_env "val = compare_native_vs_pmml_scores(df, model); val.match" env_pmml in
-    if Ast.Utils.value_to_string v = "true" then begin
-      incr pass_count; Printf.printf "  ✓ golden jpmml: native vs jpmml parity verified\n"
-    end else begin
-      incr fail_count; Printf.printf "  ✗ golden jpmml: native vs jpmml parity failure\n"
-    end
+    (try
+      let (v, _) = eval_string_env "val = compare_native_vs_pmml_scores(df, model); val.`match`" env_pmml in
+      if Ast.Utils.value_to_string v = "true" then begin
+        incr pass_count; Printf.printf "  ✓ golden jpmml: native vs jpmml parity verified\n"
+      end else begin
+        incr fail_count; Printf.printf "  ✗ golden jpmml: native vs jpmml parity failure (got %s)\n" (Ast.Utils.value_to_string v)
+      end
+    with e ->
+      incr fail_count; Printf.printf "  ✗ golden jpmml: native vs jpmml Exception: %s\n" (Printexc.to_string e));
   end else begin
     Printf.printf "  ! skipping PMML golden tests: baseline files not found\n"
   end;

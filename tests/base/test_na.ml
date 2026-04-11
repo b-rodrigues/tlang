@@ -10,14 +10,14 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "is_na on typed NA" "is_na(na_int())" "true";
   test "is_na on value" "is_na(42)" "false";
   test "type of NA" "type(NA)" {|"NA"|};
-  test "NA is falsy" "if (NA) 1 else 2" {|Error(TypeError: "Cannot use NA as a condition")|};
-  test "NA equality is error" "NA == NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
-  test "NA comparison with value is error" "NA == 1" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA is falsy" "if (NA) 1 else 2" {|Error(NAPredicateError: "Cannot use NA as a condition")|};
+  test "NA equality is error" "NA == NA" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA comparison with value is error" "NA == 1" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
   print_newline ();
 
   Printf.printf "Phase 1 — No Implicit NA Propagation:\n";
-  test "NA + int is error" "NA + 1" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
-  test "int + NA is error" "1 + NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
-  test "NA * float is error" "NA * 2.0" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
-  test "negation of NA is error" "x = NA; 0 - x" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA + int is error" "NA + 1" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "int + NA is error" "1 + NA" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA * float is error" "NA * 2.0" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "negation of NA is error" "x = NA; 0 - x" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
   print_newline ()

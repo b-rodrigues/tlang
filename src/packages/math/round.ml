@@ -13,35 +13,15 @@ open Ast
 --# @export
 *)
 
-let map_numeric_unary ~fname f = function
-  | [VInt n] -> VFloat (f (float_of_int n))
-  | [VFloat x] -> VFloat (f x)
-  | [VVector arr] ->
-      let out = Array.make (Array.length arr) (VNA NAGeneric) in
-      let err = ref None in
-      Array.iteri (fun i v ->
-        if !err = None then
-          match v with
-          | VInt n -> out.(i) <- VFloat (f (float_of_int n))
-          | VFloat x -> out.(i) <- VFloat (f x)
-          | VNA _ -> err := Some (Error.na_value_error fname)
-          | _ -> err := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." fname))
-      ) arr;
-      (match !err with Some e -> e | None -> VVector out)
-  | [VNDArray arr] -> VNDArray { shape = arr.shape; data = Array.map f arr.data }
-  | [VNA _] -> Error.na_value_error fname
-  | [_] -> Error.type_error (Printf.sprintf "Function `%s` expects numeric input." fname)
-  | args -> Error.arity_error_named fname 1 (List.length args)
-
 let register env =
   let apply_round digits named_args =
-    let args =
-      List.filter (fun (n, _) -> n <> Some "digits") named_args
-      |> List.map snd
-    in
-    let factor = Float.pow 10.0 (float_of_int digits) in
-    let rf x = Float.round (x *. factor) /. factor in
-    map_numeric_unary ~fname:"round" rf args
+    match Math_common.get_bool_flag "na_ignore" false named_args with
+    | Error e -> e
+    | Ok na_ignore ->
+        let args = Math_common.positional_args_without [ "digits"; "na_ignore" ] named_args in
+        let factor = Float.pow 10.0 (float_of_int digits) in
+        let rf x = Float.round (x *. factor) /. factor in
+        Math_common.map_numeric_unary ~fname:"round" ~na_ignore rf args
   in
   Env.add "round"
     (make_builtin_named ~name:"round" ~variadic:true 1 (fun named_args _env ->
@@ -50,10 +30,11 @@ let register env =
         List.filter
           (fun (n, _) ->
              match n with
-             | None -> false
-             | Some "digits" -> false
-             | Some _ -> true)
-          named_args
+              | None -> false
+              | Some "digits" -> false
+              | Some "na_ignore" -> false
+              | Some _ -> true)
+           named_args
       in
       match unknown_named with
       | (Some arg_name, _) :: _ ->

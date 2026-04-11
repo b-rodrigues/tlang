@@ -21,12 +21,12 @@ open Ast
 let register env =
   Env.add "sum"
     (make_builtin_named ~name:"sum" ~variadic:true 1 (fun named_args _env ->
-      let na_rm = List.exists (fun (name, v) ->
-        name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
-      ) named_args in
-      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
+      match Math_common.get_bool_flag "na_rm" false named_args with
+      | Error e -> e
+      | Ok na_rm ->
+      let args = Math_common.positional_args_without ["na_rm"] named_args in
       let first_arg = match args with a :: _ -> Some a | [] -> None in
-      match first_arg with
+      (match first_arg with
       | Some (VList items) ->
           let rec add_all = function
             | [] -> VInt 0
@@ -73,6 +73,6 @@ let register env =
            | None -> if !is_float then VFloat !total_float else VInt !total_int)
       | Some (VNA _) -> Error.na_value_error ~na_rm:true "sum"
       | Some _ -> Error.type_error "Function `sum` expects a List or Vector argument."
-      | None -> Error.arity_error_named "sum" 1 (List.length args)
+      | None -> Error.arity_error_named "sum" 1 (List.length args))
     ))
     env

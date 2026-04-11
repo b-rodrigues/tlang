@@ -28,11 +28,10 @@ open Ast
 let register env =
   Env.add "mean"
     (make_builtin_named ~name:"mean" ~variadic:true 1 (fun named_args _env ->
-      (* Extract na_rm flag from named arguments *)
-      let na_rm = List.exists (fun (name, v) ->
-        name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
-      ) named_args in
-      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
+      (match Math_common.get_bool_flag "na_rm" false named_args with
+      | Error e -> e
+      | Ok na_rm ->
+      let args = Math_common.positional_args_without ["na_rm"] named_args in
       let extract_nums label vals =
         let rec go acc = function
           | [] -> Ok (List.rev acc)
@@ -99,5 +98,5 @@ let register env =
       | Some (VNA _) -> Error.na_value_error ~na_rm:true "mean"
       | Some _ -> Error.type_error "Function `mean` expects a numeric List or Vector."
       | None -> Error.arity_error_named "mean" 1 (List.length args)
-    ))
+    )))
     env

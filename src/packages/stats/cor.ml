@@ -18,10 +18,10 @@ open Ast
 let register env =
   Env.add "cor"
     (make_builtin_named ~name:"cor" ~variadic:true 2 (fun named_args _env ->
-      let na_rm = List.exists (fun (name, v) ->
-        name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
-      ) named_args in
-      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
+      match Math_common.get_bool_flag "na_rm" false named_args with
+      | Error e -> e
+      | Ok na_rm ->
+      let args = Math_common.positional_args_without ["na_rm"] named_args in
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in
@@ -52,7 +52,7 @@ let register env =
         | VList items -> Some (Array.of_list (List.map snd items))
         | _ -> None
       in
-      match args with
+      (match args with
       | [v1; v2] ->
           (match (to_arr v1, to_arr v2) with
            | (None, _) | (_, None) ->
@@ -85,6 +85,6 @@ let register env =
                   | None ->
                     Error.value_error "Function `cor` undefined: one or both vectors have zero variance."
                   | Some r -> VFloat r))
-      | _ -> Error.arity_error_named "cor" 2 (List.length args)
+      | _ -> Error.arity_error_named "cor" 2 (List.length args))
     ))
     env

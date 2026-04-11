@@ -72,9 +72,9 @@ Left has length 2, right has length 3.")|};
 
   (* --- NA Propagation --- *)
   Printf.printf "  NA Propagation:\n";
-  test "NA Add" "1 + NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
-  test "NA Eq" "1 == NA" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
-  test "NA And" "true && NA" {|Error(TypeError: "Right operand of && must be Bool, got NA")|}; (* Different error path for && *)
-  test "NA Or" "false || NA" {|Error(TypeError: "Right operand of || must be Bool, got NA")|}; (* Different error path for || *)
-  test "NA In" "NA in [1, 2]" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
-  test "Broadcast NA" "[1, NA] .+ 1" {|[2, Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")]|};
+  test "NA Add" "1 + NA" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA Eq" "1 == NA" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA And" "true && NA" {|Error(NAPredicateError: "Cannot use NA as a condition in &&")|};
+  test "NA Or" "false || NA" {|Error(NAPredicateError: "Cannot use NA as a condition in ||")|};
+  test "NA In" "NA in [1, 2]" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "Broadcast NA" "[1, NA] .+ 1" {|[2, Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")]|};

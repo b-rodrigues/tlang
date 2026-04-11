@@ -160,7 +160,7 @@ let eval_scalar_binop op v1 v2 =
       Chrono.date_diff_period v1 v2
   (* Then handle NA *)
   | (_, VNA _, _) | (_, _, VNA _) ->
-      Error.type_error "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
+      Error.na_predicate_error "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
   (* Arithmetic *)
   | (Plus, VInt a, VInt b) -> VInt (a + b)
   | (Plus, VFloat a, VFloat b) -> VFloat (a +. b)
@@ -634,7 +634,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         let cond_val = eval_expr env_ref cond in
         (match cond_val with
          | VError _ as e -> e
-         | VNA _ -> make_error TypeError "Cannot use NA as a condition"
+         | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition"
          | VBool true -> eval_expr env_ref then_
          | VBool false -> eval_expr env_ref else_
          | _ -> make_error TypeError ("If condition must be Bool, got " ^ Utils.type_name cond_val))
@@ -2231,7 +2231,9 @@ and eval_binop env_ref op left right =
            (match rval with
             | VError _ as e -> e
             | VBool b -> VBool b
+            | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition in &&"
             | _ -> make_error TypeError ("Right operand of && must be Bool, got " ^ Utils.type_name rval))
+       | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition in &&"
        | _ -> make_error TypeError ("Left operand of && must be Bool, got " ^ Utils.type_name lval))
   | Or ->
       let lval = eval_expr env_ref left in
@@ -2243,7 +2245,9 @@ and eval_binop env_ref op left right =
            (match rval with
             | VError _ as e -> e
             | VBool b -> VBool b
+            | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition in ||"
             | _ -> make_error TypeError ("Right operand of || must be Bool, got " ^ Utils.type_name rval))
+       | VNA _ -> Error.na_predicate_error "Cannot use NA as a condition in ||"
        | _ -> make_error TypeError ("Left operand of || must be Bool, got " ^ Utils.type_name lval))
   (* Membership Operator *)
   | In ->
@@ -2307,7 +2311,7 @@ and eval_unop env_ref op operand =
   let v = eval_expr env_ref operand in
   match v with VError _ as e -> e | _ ->
   match v with
-  | VNA _ -> make_error TypeError "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
+  | VNA _ -> Error.na_predicate_error "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."
   | _ ->
   match (op, v) with
   | (Not, VBool b) -> VBool (not b)

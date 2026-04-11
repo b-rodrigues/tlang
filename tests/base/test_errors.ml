@@ -64,7 +64,7 @@ let run_tests pass_count fail_count eval_string _eval_string_env test =
   Printf.printf "Phase 1 — Error Values (No Crashes):\n";
   test "name error returns error value" "undefined_func(1)" {|Error(NameError: "Name `undefined_func` is not defined.")|};
   test "calling non-function returns error" "x = 42; x(1)" {|Error(TypeError: "Value of type Int is not callable.")|};
-  test "sum with NA returns error" "sum([1, NA, 3])" {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+  test "sum with NA returns error" "sum([1, NA, 3])" {|Error(AggregationError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   test "head on NA returns error" "head(NA)" {|Error(TypeError: "Function `head` cannot be called on NA.")|};
   test "length on NA returns error" "length(NA)" {|Error(TypeError: "Cannot get length of NA.")|};
   print_newline ();
