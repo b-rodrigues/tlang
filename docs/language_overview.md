@@ -125,6 +125,14 @@ Operator precedence follows standard mathematical conventions. Parentheses overr
 > 1 == [1, 2]    -- Error: Operator '==' is defined for scalars only.
 > 1 .== [1, 2]   -- [true, false]
 > ```
+>
+> **Deep Equality**: To check if two complex objects are structurally identical (including all elements and metadata), use the `identical()` function. This is the recommended way to compare Lists, Vectors, or DataFrames for identity.
+>
+> ```t
+> v1 = [1, 2, 3]
+> v2 = [1, 2, 3]
+> identical(v1, v2)   -- true
+> ```
 
 ### Boolean Logic
 
