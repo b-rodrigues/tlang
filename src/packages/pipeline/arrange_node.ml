@@ -69,6 +69,7 @@ let register env =
           p_includes     = reorder p.p_includes;
           p_noops        = reorder p.p_noops;
           p_scripts      = reorder p.p_scripts;
+          p_explicit_deps = reorder p.p_explicit_deps;
         }
       in
       match args with

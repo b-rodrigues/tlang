@@ -4,6 +4,8 @@ open Ast
 --# Absolute value
 --#
 --# Returns the absolute value of a number or vector/ndarray elements.
+--# Raises a TypeError if an NA value is encountered. Use `filter` or explicit
+--# missingness handling before calling `abs` on data that may contain NAs.
 --#
 --# @name abs
 --# @param x :: Number | Vector | NDArray The input value.
@@ -28,14 +30,14 @@ let register env =
               match v with
               | VInt n -> result.(i) <- VInt (Int.abs n)
               | VFloat f -> result.(i) <- VFloat (Float.abs f)
-              | VNA _ -> had_error := Some (Error.na_value_error "abs")
+              | VNA _ -> had_error := Some (Error.type_error "Function `abs` encountered NA value. Handle missingness explicitly.")
               | _ -> had_error := Some (Error.type_error "Function `abs` requires numeric values.")
           ) arr;
           (match !had_error with Some e -> e | None -> VVector result)
       | [VNDArray arr] ->
           let result = Array.map (fun f -> Float.abs f) arr.data in
           VNDArray { shape = arr.shape; data = result }
-      | [VNA _] -> Error.na_value_error "abs"
+      | [VNA _] -> Error.type_error "Function `abs` encountered NA value. Handle missingness explicitly."
       | [_] -> Error.type_error "Function `abs` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "abs" 1 (List.length args)
     ))

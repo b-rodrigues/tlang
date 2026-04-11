@@ -40,6 +40,7 @@
     test_lens
     test_serializers
     test_pipeline_comments
+    test_explicit_deps
  )
  (libraries t_lang menhirLib otoml unix str)
 )

@@ -10,7 +10,7 @@ let ensure_parent_dir path =
   ensure dir
 
 let serialized_value_magic = "TLANG_SERIALIZED:"
-let serialized_value_format_version = "0.51.0"
+let serialized_value_format_version = "0.52.0"
 
 (* Derive the prior patchless header (for example, "0.51" from "0.51.0")
    so deserialization can continue to accept artifacts written before patch

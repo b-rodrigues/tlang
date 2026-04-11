@@ -15,7 +15,9 @@ open Ast
 --# @name predict
 --# @param data :: DataFrame The new data used for prediction.
 --# @param model :: Model The model object (PMML, ONNX, or T-native).
---# @return :: Vector The predicted values.
+--# @return :: Vector | DataFrame The predicted values. For JPMML-backed PMML models (e.g. classification), 
+--#            this returns a DataFrame including probabilities. For regression or native models, 
+--#            this returns a Vector of labels/values.
 --# @family stats
 --# @seealso lm, t_read_pmml, t_read_onnx
 --# @export

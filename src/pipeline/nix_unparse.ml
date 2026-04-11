@@ -109,7 +109,7 @@ and unparse_expr expr =
       Printf.sprintf "%s%s" tok (unparse_expr operand)
   | DotAccess { target; field } ->
       Printf.sprintf "%s.%s" (unparse_expr target) field
-  | RawCode { raw_text; _ } -> dedent (Ast.strip_pipeline_annotations raw_text)
+  | RawCode { raw_text; _ } -> dedent raw_text
   | Unquote e -> "!!" ^ unparse_expr e
   | UnquoteSplice e -> "!!!" ^ unparse_expr e
   | ShellExpr cmd -> "?<{ " ^ cmd ^ " }>"

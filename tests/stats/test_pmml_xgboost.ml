@@ -19,20 +19,54 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let (v, _) = eval_string_env {|predict(df, m)|} env in
   (match v with
    | Ast.VVector arr ->
-       let first = if Array.length arr > 0 then arr.(0) else Ast.(VNA Ast.NAGeneric) in
-       let result = Ast.Utils.value_to_string first |> String.trim in
-       let match_found =
-         try
-           let _ = Str.search_forward (Str.regexp "1") result 0 in
-           true
-         with _ -> false
+       let first_val = if Array.length arr > 0 then arr.(0) else Ast.(VNA Ast.NAGeneric) in
+       let result = Ast.Utils.value_to_string first_val |> String.trim in
+       let matches_expected =
+          (String.equal result "1") || (String.equal result "1.") || (String.equal result "1.0")
+        in
+        if matches_expected then begin
+          incr pass_count; Printf.printf "  ✓ xgboost predict first label\n"
+        end else begin
+          incr fail_count;
+          Printf.printf "  ✗ xgboost predict first label\n    Expected: 1\n    Got: %s\n" result
+        end
+   | Ast.VDataFrame { arrow_table = table; _ } ->
+       let column_names = Arrow_table.column_names table in
+       let selected_col_name =
+         (* Prefer a column that looks like a label (not a probability column) *)
+         if List.mem "Species" column_names then Some "Species"
+         else
+           List.find_opt
+             (fun name ->
+               let lower = String.lowercase_ascii name in
+               not (String.starts_with ~prefix:"probability" lower))
+             column_names
        in
-       if match_found then begin
-         incr pass_count; Printf.printf "  ✓ xgboost predict first label\n"
-       end else begin
-         incr fail_count;
-         Printf.printf "  ✗ xgboost predict first label\n    Expected: 1\n    Got: %s\n" result
-       end
+       (match selected_col_name with
+        | None ->
+            incr fail_count;
+            Printf.printf "  ✗ xgboost predict first label\n    Expected: 1\n    Got: prediction DataFrame has no suitable label column\n"
+        | Some col_name ->
+        let first_val =
+          match Arrow_table.column_type table col_name with
+          | Some Arrow_table.ArrowString -> 
+              let col = Arrow_table.get_string_column table col_name in
+              (if Array.length col > 0 then match col.(0) with Some s -> Ast.VString s | None -> Ast.VNA Ast.NAString else Ast.VNA Ast.NAGeneric)
+          | Some (Arrow_table.ArrowInt64 | Arrow_table.ArrowFloat64) ->
+              let col = Arrow_table.get_float_column table col_name in
+              (if Array.length col > 0 then match col.(0) with Some f -> Ast.VFloat f | None -> Ast.VNA Ast.NAFloat else Ast.VNA Ast.NAGeneric)
+          | _ -> Ast.VNA Ast.NAGeneric
+        in
+        let result = Ast.Utils.value_to_string first_val |> String.trim in
+        let matches_expected =
+          (String.equal result "1") || (String.equal result "1.") || (String.equal result "1.0")
+        in
+        if matches_expected then begin
+          incr pass_count; Printf.printf "  ✓ xgboost predict first label\n"
+        end else begin
+          incr fail_count;
+          Printf.printf "  ✗ xgboost predict first label\n    Expected: 1\n    Got: %s\n" result
+        end)
    | _ ->
        let result = Ast.Utils.value_to_string v |> String.trim in
        incr fail_count;

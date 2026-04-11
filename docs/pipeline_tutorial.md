@@ -1217,29 +1217,31 @@ p = pipeline {
 }
 ```
 
-### Forcing Detection with `@deps`
+### Forcing Detection with `deps`
 
 In some runtimes, like `sh` (shell), T cannot always reliably infer dependencies from the command string. Similarly, you may want to explicitly declare a dependency that isn't directly referenced in the code (e.g., a file produced by another node that your script reads via a hardcoded path).
 
-For these cases, you can use the `--# @deps` decorator to manually declare one or more dependencies:
+For these cases, you can use the `deps` argument in node definitions to manually declare one or more dependencies:
 
 ```t
 p = pipeline {
   raw_file = shn(command = <{ curl -o data.csv https://example.com/data.csv }>)
 
   -- This shell node reads data.csv, which is created by raw_file.
-  -- We use @deps to ensure raw_file executes first.
-  summary = shn(command = <{
-    --# @deps raw_file
-    cat data.csv | wc -l
-  }>, serializer = "text")
+  -- We use the `deps` argument to ensure raw_file executes first.
+  summary = shn(
+    command = <{ cat data.csv | wc -l }>, 
+    deps = [raw_file],
+    serializer = "text"
+  )
 }
 ```
 
-**Key Features of `@deps`**:
-- **Syntax**: `--# @deps node1, node2, ...`
-- **Manual Override**: It adds the specified nodes to the dependency graph even if they aren't parsed from the code.
-- **Clean Emission**: The `--# @deps` line is automatically removed by T before the script is sent to the guest runtime (R, Python, or Shell), so it never interferes with your code's execution.
+**Key Features of `deps`**:
+- **First-Class Syntax**: `deps` is an optional argument available in `node()`, `rn()`, `pyn()`, and `shn()`.
+- **Bare Identifiers**: You can list direct node names as bare identifiers (e.g., `deps = [node1, node2]`).
+- **Manual Override**: It ensures the specified nodes are added to the dependency graph even if they aren't parsed from the command or script body.
+- **Strict Validation**: T validates that all listed dependencies exist within the same pipeline.
 
 ---
 

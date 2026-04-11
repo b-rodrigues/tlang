@@ -133,6 +133,9 @@ let () =
   (* Pipeline operations tests (Phase 1 & 2) *)
   Test_pipeline_ops.run_tests pass_count fail_count eval_string eval_string_env test;
 
+  (* Explicit deps tests *)
+  Test_explicit_deps.run_tests pass_count fail_count eval_string eval_string_env test;
+
   (* Pipeline comments and annotations *)
   Test_pipeline_comments.run_tests pass_count fail_count eval_string eval_string_env test;
 

@@ -95,6 +95,47 @@ let register ~eval_call env =
                   first_error := Some (Error.type_error (check "deserializer" v "String"));
                 p.p_deserializers
           in
+          let new_explicit_deps, new_p_deps =
+            match List.assoc_opt (Some "deps") mutations with
+            | None -> p.p_explicit_deps, p.p_deps
+            | Some (VList items) ->
+                let invalid_dep =
+                  List.find_map (fun (_, v) ->
+                    match v with
+                    | VString _ | VSymbol _ -> None
+                    | bad -> Some bad
+                  ) items
+                in
+                (match invalid_dep with
+                | Some bad ->
+                    if !first_error = None then
+                      first_error := Some (Error.type_error (check "deps" bad "String or Symbol"));
+                    p.p_explicit_deps, p.p_deps
+                | None ->
+                    let deps =
+                      List.map (fun (_, v) ->
+                        match v with
+                        | VString s | VSymbol s -> s
+                        (* Unreachable: invalid_dep check above guarantees all items are String/Symbol *)
+                        | _ -> failwith "mutate_node: unreachable — non-String/Symbol dep after validation"
+                      ) items
+                    in
+                    let new_explicit = List.map (fun (n, old) -> if matches n then (n, Some deps) else (n, old)) p.p_explicit_deps in
+                    let new_pdeps = List.map (fun (n, old) -> if matches n then (n, deps) else (n, old)) p.p_deps in
+                    new_explicit, new_pdeps)
+            | Some (VNA _) ->
+                (* Clearing explicit deps would leave p_explicit_deps and p_deps inconsistent.
+                   Dependency edges cannot be safely re-derived here because that requires the
+                   original eval environment and raw code text. Reject the operation so callers
+                   don't get a silently stale dependency graph. *)
+                if !first_error = None then
+                  first_error := Some (Error.type_error "Function `mutate_node` cannot clear `deps` with NA because dependency edges cannot be re-derived here; rerun the pipeline to rebuild deps.");
+                p.p_explicit_deps, p.p_deps
+            | Some v ->
+                if !first_error = None then
+                  first_error := Some (Error.type_error (check "deps" v "List of Strings or Symbols"));
+                p.p_explicit_deps, p.p_deps
+          in
           (match !first_error with
           | Some e -> e
           | None ->
@@ -104,6 +145,8 @@ let register ~eval_call env =
                 p_noops        = new_noops;
                 p_serializers  = new_serializers;
                 p_deserializers = new_deserializers;
+                p_explicit_deps = new_explicit_deps;
+                p_deps         = new_p_deps;
               })
       | (_, _) :: _ -> Error.type_error "Function `mutate_node` expects a Pipeline as first argument."
     ))

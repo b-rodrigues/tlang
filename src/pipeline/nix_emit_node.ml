@@ -593,6 +593,13 @@ def py_write_pmml(model, path):
         import statsmodels.base.wrapper as sm_wrapper
         if isinstance(model, sm_wrapper.ResultsWrapper):
             is_sm = True
+        else:
+            # Fallback for different statsmodels versions or types
+            kls = type(model).__name__
+            if "ResultsWrapper" in kls or hasattr(model, 'save'):
+                # Double check it's not a False positive (sklearn models don't have .save)
+                if hasattr(model, 'model') and hasattr(model, 'params'):
+                    is_sm = True
     except ImportError: pass
 
     if is_sm:
@@ -1078,7 +1085,13 @@ def py_read_onnx(path):
   let expr_s_no_imports, _python_was_auto_returned =
     if is_raw_code then
       let lines = String.split_on_char '\n' expr_s in
-      let non_imports = List.filter (fun l -> not (is_import_line l)) lines in
+      let is_comment_line line =
+        let l = String.trim line in
+        if runtime = "Python" then String.starts_with ~prefix:"#" l
+        else if runtime = "R" then String.starts_with ~prefix:"#" l
+        else false
+      in
+      let non_imports = List.filter (fun l -> not (is_import_line l) && not (is_comment_line l)) lines in
       (* Remove leading/trailing blank lines after stripping *)
       let non_imports = List.filter (fun l -> String.trim l <> "") non_imports in
       if runtime = "Python" && not (raw_assigns_to name expr_s) then

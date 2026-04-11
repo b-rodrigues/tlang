@@ -21,6 +21,7 @@ let filter_node_set keep_set p =
     p_includes     = List.filter (fun (n, _) -> keep_set n) p.p_includes;
     p_noops        = List.filter (fun (n, _) -> keep_set n) p.p_noops;
     p_scripts      = List.filter (fun (n, _) -> keep_set n) p.p_scripts;
+    p_explicit_deps = List.filter (fun (n, _) -> keep_set n) p.p_explicit_deps;
   }
 
 let union p1 p2 =
@@ -47,6 +48,7 @@ let union p1 p2 =
       p_includes     = p1.p_includes @ p2.p_includes;
       p_noops        = p1.p_noops @ p2.p_noops;
       p_scripts      = p1.p_scripts @ p2.p_scripts;
+      p_explicit_deps = p1.p_explicit_deps @ p2.p_explicit_deps;
     })
 
 let intersect p1 p2 =
@@ -82,6 +84,7 @@ let patch p1 p2 =
     p_includes     = p1_filtered.p_includes @ p2_filtered.p_includes;
     p_noops        = p1_filtered.p_noops @ p2_filtered.p_noops;
     p_scripts      = p1_filtered.p_scripts @ p2_filtered.p_scripts;
+    p_explicit_deps = p1_filtered.p_explicit_deps @ p2_filtered.p_explicit_deps;
   }
 
 (*

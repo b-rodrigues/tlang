@@ -4,16 +4,18 @@
 
 - **Standardized PMML Interchange (Authority Pivot)**: Finalized the transition to JPMML as the canonical scoring authority for all PMML models. 
     - **JPMML Bridge**: Standardized on a CSV-based bridge for the JPMML evaluator, ensuring robust and deterministic cross-language scoring. The `predict()` function now prioritizes the JPMML bridge for any artifact containing a `_pmml_path`.
+    - **StatsModels PMML Support**: Enhanced `statsmodels` detection in the Python emitter to correctly identify `ResultsWrapper` objects, enabling seamless PMML export via `jpmml-statsmodels`.
     - **Native Scorer Extraction**: Extracted 700+ lines of native OCaml scoring logic (Trees, Forests, Boosted ensembles, and Linear models) into `T_native_scoring.ml` for validation parity.
     - **Factor Resolution Parity**: Restored and verified sophisticated term resolution (categorical dummies and interaction terms) in native linear model scoring.
     - **Automatic Environment Configuration**: The Nix `devShell` now automatically exports `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR`, enabling zero-config PMML scoring in development environments.
+- **Improved Language Robustness & Interop**:
+    - **Refined Python Auto-Return**: Fixed the Python node emitter to ignore trailing comments and blank lines when determining the last expression to auto-return, preventing silent `None` results when nodes end with comments.
+    - **String Column Extraction**: Enhanced the `pull()` builtin and internal `extract_column_name` utility to support `VString` arguments. This enables extraction of column names containing special characters (like `probability(1)`) that are not valid T symbols.
 - **CI/CD & Demo Infrastructure**:
     - **Workflow Decoupling**: Refactored the monolithic `t_demos` E2E test suite into 30+ dedicated per-demo workflow files for faster execution and precise failure isolation.
-    - **Adaptive Repositories**: Updated the `pmml_interchange_t` demo to showcase categorical factor handling and multi-lang verification across R, Python, and T.
+    - **Adaptive Repositories**: Updated the `pmml_interchange_t` and `glm_titanic_t` demos to showcase categorical factor handling and multi-lang verification across R, Python, and T.
 - **Stabilized Pipeline Dependency Detection**: Refactored the lexical analyzer to prevent false-positive dependencies in polyglot pipelines.
-    - **Strict Comment Stripping**: The pipeline resolver now automatically strips lines starting with `--` or `#` within foreign code blocks (`<{ ... }>`) before extraction. This prevents node names mentioned in comments from being incorrectly identified as dependencies, resolving common `ValueError` cycles.
-    - **Explicit Dependency Annotations**: Introduced a new metadata decorator `--# @deps node1, node2` for manual dependency declaration. This is particularly useful for shell nodes or complex scripts where automatic lexical inference may be insufficient or blocked.
-    - **Clean Script Emission**: These annotations are automatically stripped by the Nix emitter before generating the final guest scripts, ensuring zero runtime overhead or syntax interference in R, Python, or Shell environments.
+    - **Explicit `deps` Argument**: Introduced a first-class `deps` argument in node definitions (`node`, `rn`, `pyn`, `shn`). This allows for robust, explicit dependency declaration using bare identifiers.
 - **Strict Dependency Declaration Enforcement**: Finalized the removal of implicit Nix package injection for pipeline nodes. T-Lang now strictly enforces that all required packages (like `jsonlite`, `arrow`, `pandas`, or `onnxruntime`) must be explicitly declared in `tproject.toml`. Pipeline compilation now provides actionable errors if dependency closures are incomplete.
 - **Mandatory Serialization Integrity**: Introduced mandatory MD5 integrity digests for all `.tobj` serialized files. The deserialization engine now automatically verifies the data integrity of artifacts, providing a descriptive warning when fallback loading is used for legacy (pre-digest) files.
 - **Resilient Pipeline Path Resolution**: Fixed a critical regression in project root discovery for nested builds. The generated `_pipeline/pipeline.nix` now reliably resolves the repository root regardless of the execution context (local, CI, or build sandbox), ensuring Nix-builds succeed across all directory depths.
