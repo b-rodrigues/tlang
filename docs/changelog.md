@@ -11,7 +11,6 @@
 - **Improved Language Robustness & Interop**:
     - **Refined Python Auto-Return**: Fixed the Python node emitter to ignore trailing comments and blank lines when determining the last expression to auto-return, preventing silent `None` results when nodes end with comments.
     - **String Column Extraction**: Enhanced the `pull()` builtin and internal `extract_column_name` utility to support `VString` arguments. This enables extraction of column names containing special characters (like `probability(1)`) that are not valid T symbols.
-    - **NA-Safe Absolute Value**: Updated the `abs()` math builtin to correctly propagate `VNA` values instead of returning a `TypeError`. This ensures `mean(abs(diff))` operations behave correctly when NAs are present in the data.
 - **CI/CD & Demo Infrastructure**:
     - **Workflow Decoupling**: Refactored the monolithic `t_demos` E2E test suite into 30+ dedicated per-demo workflow files for faster execution and precise failure isolation.
     - **Adaptive Repositories**: Updated the `pmml_interchange_t` and `glm_titanic_t` demos to showcase categorical factor handling and multi-lang verification across R, Python, and T.

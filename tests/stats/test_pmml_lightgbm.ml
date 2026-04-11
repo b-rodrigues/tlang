@@ -31,11 +31,22 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
          Printf.printf "  ✗ lightgbm predict first label\n    Expected: 1\n    Got: %s\n" result
        end
    | Ast.VDataFrame { arrow_table = table; _ } ->
-       (match Arrow_table.column_names table with
-        | [] ->
+       let column_names = Arrow_table.column_names table in
+       let selected_col_name =
+         (* Prefer a column that looks like a label (not a probability column) *)
+         if List.mem "Species" column_names then Some "Species"
+         else
+           List.find_opt
+             (fun name ->
+               let lower = String.lowercase_ascii name in
+               not (String.starts_with ~prefix:"probability" lower))
+             column_names
+       in
+       (match selected_col_name with
+        | None ->
             incr fail_count;
-            Printf.printf "  ✗ lightgbm predict first label\n    Expected: 1\n    Got: prediction DataFrame has no columns\n"
-        | col_name :: _ ->
+            Printf.printf "  ✗ lightgbm predict first label\n    Expected: 1\n    Got: prediction DataFrame has no suitable label column\n"
+        | Some col_name ->
         let first_val =
           match Arrow_table.column_type table col_name with
           | Some Arrow_table.ArrowString -> 

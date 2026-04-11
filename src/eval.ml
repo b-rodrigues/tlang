@@ -1208,32 +1208,46 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
      (b) NOT bound in the outer environment at all — meaning it is an unresolved
          reference intended to be satisfied by another pipeline via `chain`. *)
   let node_names = List.map fst desugared_nodes in
-  let deps = List.map (fun (name, un) ->
-    match un.un_dependencies with
-    | Some explicit ->
-        if List.mem name explicit then
-          invalid_arg ("Self-referential node detected in command for node: " ^ name)
-        else
-          (name, explicit)
-    | None ->
-        let fv = free_vars un.un_command in
-        let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
-        let has_self_ref = List.exists (fun v -> v = name) fv in
-        if has_self_ref && not is_raw then
-          invalid_arg ("Self-referential node detected in command for node: " ^ name)
-        else
-          let node_deps = List.filter (fun v ->
-            v <> name && (
-              (* Always: sibling node in the same pipeline *)
-              List.mem v node_names ||
-              (* T expressions only: unresolved names are cross-pipeline deps (chain).
-                 For RawCode (R/Python), we can't distinguish foreign identifiers from
-                 intended cross-pipeline refs, so we conservatively exclude them. *)
-              (not is_raw && not (Env.mem v !env_ref))
-            )
-          ) fv in
-          (name, node_deps)
-  ) desugared_nodes in
+  let rec compute_deps acc = function
+    | [] -> Ok (List.rev acc)
+    | (name, un) :: rest ->
+        (match un.un_dependencies with
+         | Some explicit ->
+             if List.mem name explicit then
+               Error (Error.value_error (Printf.sprintf
+                 "Self-referential node: `%s` lists itself in `deps`." name))
+             else
+               (* Validate that all explicit deps are known sibling nodes in this pipeline *)
+               let unknown = List.filter (fun d -> not (List.mem d node_names)) explicit in
+               if unknown <> [] then
+                 Error (Error.value_error (Printf.sprintf
+                   "Node `%s`: explicit `deps` contains unknown node(s): %s. All dependencies must be nodes declared in the same pipeline."
+                   name (String.concat ", " (List.map (fun d -> "`" ^ d ^ "`") unknown))))
+               else
+                 compute_deps ((name, explicit) :: acc) rest
+         | None ->
+             let fv = free_vars un.un_command in
+             let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
+             let has_self_ref = List.exists (fun v -> v = name) fv in
+             if has_self_ref && not is_raw then
+               Error (Error.value_error (Printf.sprintf
+                 "Self-referential node detected in command for node: `%s`." name))
+             else
+               let node_deps = List.filter (fun v ->
+                 v <> name && (
+                   (* Always: sibling node in the same pipeline *)
+                   List.mem v node_names ||
+                   (* T expressions only: unresolved names are cross-pipeline deps (chain).
+                      For RawCode (R/Python), we can't distinguish foreign identifiers from
+                      intended cross-pipeline refs, so we conservatively exclude them. *)
+                   (not is_raw && not (Env.mem v !env_ref))
+                 )
+               ) fv in
+               compute_deps ((name, node_deps) :: acc) rest)
+  in
+  match compute_deps [] desugared_nodes with
+  | Error e -> e
+  | Ok deps ->
 
   (* No-op propagation: if a node is noop, all its transitive dependents are noop *)
   let desugared_nodes =
