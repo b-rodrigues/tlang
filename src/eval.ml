@@ -65,6 +65,8 @@ let emit_node_warning warning =
   | Some emit -> emit warning
   | None -> ()
 
+(** Temporarily capture structured node warnings emitted while evaluating [f].
+    Restores the previous emitter even if [f] raises. *)
 let capture_node_warnings f =
   let warnings = ref [] in
   let previous = !current_node_warning_emitter in
@@ -108,6 +110,8 @@ let annotate_pipeline_error ?runtime node_name = function
       VError { err with message = pipeline_error_message ~node_name ~detail:err.message; context }
   | value -> value
 
+(** Extract the function name from errors shaped like "Function `name` ...".
+    Falls back to [fallback] when the pattern is absent. *)
 let function_name_of_error_message fallback message =
   let prefix = "Function `" in
   let prefix_len = String.length prefix in
@@ -123,6 +127,7 @@ let function_name_of_error_message fallback message =
   in
   find 0
 
+(** Convert a node value into structured node-error metadata when it is a [VError]. *)
 let node_error_of_value node_name = function
   | VError err ->
       Some {
@@ -133,6 +138,8 @@ let node_error_of_value node_name = function
       }
   | _ -> None
 
+(** Mark dependency warnings as inherited from [dep_name] while preserving
+    the original upstream source when one is already recorded. *)
 let inherit_warning dep_name warning =
   let inherited_source =
     match warning.Ast.nw_source with
@@ -141,6 +148,7 @@ let inherit_warning dep_name warning =
   in
   { warning with Ast.nw_source = inherited_source }
 
+(** Remove duplicate warnings while preserving first-seen order. *)
 let dedupe_warnings warnings =
   let seen = Hashtbl.create (List.length warnings) in
   let warning_key warning =
@@ -170,6 +178,8 @@ let dedupe_warnings warnings =
      ) []
   |> List.rev
 
+(** Combine a node's own warnings with inherited dependency warnings and any
+    node-local error metadata. *)
 let build_node_diagnostics node_name node_deps own_warnings diagnostics_so_far value =
   let upstream_warnings =
     node_deps
@@ -184,6 +194,8 @@ let build_node_diagnostics node_name node_deps own_warnings diagnostics_so_far v
     nd_error = node_error_of_value node_name value;
   }
 
+(** Print a compact stderr summary of warning and error diagnostics for a
+    materialized pipeline when warning output is enabled. *)
 let print_pipeline_diagnostics_summary node_diagnostics =
   let warning_nodes =
     node_diagnostics
