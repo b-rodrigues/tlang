@@ -1515,7 +1515,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       current_env_ref := Env.add name v !current_env_ref;
       ((name, v) :: results, (name, node_diagnostics) :: diagnostics, current_env_ref)
     ) ([], [], ref !env_ref) exec_order in
- 
+
     let p_nodes = List.rev results in
     let p_node_diagnostics = List.rev diagnostics in
     print_pipeline_diagnostics_summary p_node_diagnostics;
