@@ -20,10 +20,10 @@ open Ast
 let register env =
   Env.add "quantile"
     (make_builtin_named ~name:"quantile" ~variadic:true 2 (fun named_args _env ->
-      let na_rm = List.exists (fun (name, v) ->
-        name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
-      ) named_args in
-      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
+      match Math_common.get_bool_flag "na_rm" false named_args with
+      | Error e -> e
+      | Ok na_rm ->
+      let args = Math_common.positional_args_without ["na_rm"] named_args in
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in
@@ -70,7 +70,7 @@ let register env =
           VFloat (sorted.(lo) +. frac *. (sorted.(hi) -. sorted.(lo)))
         end
       in
-      match args with
+      (match args with
       | [VVector arr; p_val] ->
           (match get_p p_val with
            | None -> Error.value_error "Function `quantile` expects a probability between 0 and 1."
@@ -100,6 +100,6 @@ let register env =
                 | Ok nums -> compute_quantile nums p))
       | [VNA _; _] | [_; VNA _] -> Error.na_value_error ~na_rm:true "quantile"
       | [_; _] -> Error.type_error "Function `quantile` expects a numeric List or Vector as first argument."
-      | _ -> Error.arity_error_named "quantile" 2 (List.length args)
+      | _ -> Error.arity_error_named "quantile" 2 (List.length args))
     ))
     env

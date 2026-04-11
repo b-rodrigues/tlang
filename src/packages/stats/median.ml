@@ -54,7 +54,10 @@ let quantile xs p =
 
 let register env =
   Env.add "median" (make_builtin_named ~name:"median" ~variadic:true 1 (fun named_args _ ->
-    let na_rm = has_na_rm named_args in
-    match strip_na_rm named_args with
+    match Math_common.get_bool_flag "na_rm" false named_args with
+    | Error e -> e
+    | Ok na_rm ->
+    let args = Math_common.positional_args_without ["na_rm"] named_args in
+    match args with
     | [x] -> (match numeric_values ~label:"median" ~na_rm x with Error e -> e | Ok [] -> VNA NAFloat | Ok xs -> (match quantile xs 0.5 with Some v -> VFloat v | None -> VNA NAFloat))
     | args -> Error.arity_error_named "median" 1 (List.length args))) env

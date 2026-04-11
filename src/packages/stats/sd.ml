@@ -19,10 +19,10 @@ open Ast
 let register env =
   Env.add "sd"
     (make_builtin_named ~name:"sd" ~variadic:true 1 (fun named_args _env ->
-      let na_rm = List.exists (fun (name, v) ->
-        name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
-      ) named_args in
-      let args = List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd in
+      match Math_common.get_bool_flag "na_rm" false named_args with
+      | Error e -> e
+      | Ok na_rm ->
+      let args = Math_common.positional_args_without ["na_rm"] named_args in
       let extract_nums_arr label arr =
         let len = Array.length arr in
         let had_error = ref None in
@@ -58,7 +58,7 @@ let register env =
           VFloat (Float.sqrt (sum_sq /. float_of_int (n - 1)))
       in
       let first_arg = match args with a :: _ -> Some a | [] -> None in
-      match first_arg with
+      (match first_arg with
       | Some (VList items) ->
           let arr = Array.of_list (List.map snd items) in
           if na_rm then
@@ -82,6 +82,6 @@ let register env =
              | Ok nums -> compute_sd nums (Array.length nums))
       | Some (VNA _) -> Error.na_value_error ~na_rm:true "sd"
       | Some _ -> Error.type_error "Function `sd` expects a numeric List or Vector."
-      | None -> Error.arity_error_named "sd" 1 (List.length args)
+      | None -> Error.arity_error_named "sd" 1 (List.length args))
     ))
     env
