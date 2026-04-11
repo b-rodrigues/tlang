@@ -59,6 +59,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "filter non-dataframe"
     {|filter(42, \(x) true)|}
     {|Error(TypeError: "Function `filter` expects a DataFrame as first argument.")|};
+  test "filter excludes rows where predicate sees NA"
+    {|df_na_filter = dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_filter, $x > 1) |> nrow|}
+    "1";
   print_newline ();
 
   Printf.printf "Phase 4 — mutate():\n";

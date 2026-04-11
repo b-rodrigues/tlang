@@ -17,7 +17,9 @@ open Ast
 *)
 let register env =
   Env.add "sqrt"
-    (make_builtin ~name:"sqrt" 1 (fun args _env ->
+    (make_builtin_named ~name:"sqrt" ~variadic:true 1 (fun named_args _env ->
+      let na_ignore = Math_common.named_flag_true "na_ignore" named_args in
+      let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
       match args with
       | [VInt n] ->
           if n < 0 then Error.value_error "Function `sqrt` is undefined for negative numbers."
@@ -37,6 +39,7 @@ let register env =
               | VFloat f ->
                   if f < 0.0 then had_error := Some (Error.value_error "Function `sqrt` is undefined for negative numbers.")
                   else result.(i) <- VFloat (Float.sqrt f)
+              | VNA na_t when na_ignore -> result.(i) <- VNA na_t
               | VNA _ -> had_error := Some (Error.na_value_error "sqrt")
               | _ -> had_error := Some (Error.type_error "Function `sqrt` requires numeric values.")
           ) arr;
@@ -50,6 +53,7 @@ let register env =
              Error.value_error "Function `sqrt` encountered negative values in NDArray."
           else
              VNDArray { shape = arr.shape; data = result }
+      | [VNA na_t] when na_ignore -> VNA na_t
       | [VNA _] -> Error.na_value_error "sqrt"
       | [_] -> Error.type_error "Function `sqrt` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "sqrt" 1 (List.length args)

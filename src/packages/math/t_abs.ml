@@ -18,7 +18,9 @@ open Ast
 *)
 let register env =
   Env.add "abs"
-    (make_builtin ~name:"abs" 1 (fun args _env ->
+    (make_builtin_named ~name:"abs" ~variadic:true 1 (fun named_args _env ->
+      let na_ignore = Math_common.named_flag_true "na_ignore" named_args in
+      let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
       match args with
       | [VInt n] -> VInt (Int.abs n)
       | [VFloat f] -> VFloat (Float.abs f)
@@ -30,13 +32,15 @@ let register env =
               match v with
               | VInt n -> result.(i) <- VInt (Int.abs n)
               | VFloat f -> result.(i) <- VFloat (Float.abs f)
+              | VNA na_t when na_ignore -> result.(i) <- VNA na_t
               | VNA _ -> had_error := Some (Error.type_error "Function `abs` encountered NA value. Handle missingness explicitly.")
               | _ -> had_error := Some (Error.type_error "Function `abs` requires numeric values.")
-          ) arr;
-          (match !had_error with Some e -> e | None -> VVector result)
+           ) arr;
+           (match !had_error with Some e -> e | None -> VVector result)
       | [VNDArray arr] ->
           let result = Array.map (fun f -> Float.abs f) arr.data in
           VNDArray { shape = arr.shape; data = result }
+      | [VNA na_t] when na_ignore -> VNA na_t
       | [VNA _] -> Error.type_error "Function `abs` encountered NA value. Handle missingness explicitly."
       | [_] -> Error.type_error "Function `abs` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "abs" 1 (List.length args)

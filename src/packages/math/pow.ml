@@ -18,7 +18,9 @@ open Ast
 *)
 let register env =
   Env.add "pow"
-    (make_builtin ~name:"pow" 2 (fun args _env ->
+    (make_builtin_named ~name:"pow" ~variadic:true 2 (fun named_args _env ->
+      let na_ignore = Math_common.named_flag_true "na_ignore" named_args in
+      let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
       match args with
       | [VInt b; VInt e] -> VFloat (Float.pow (float_of_int b) (float_of_int e))
       | [VFloat b; VInt e] -> VFloat (Float.pow b (float_of_int e))
@@ -40,10 +42,11 @@ let register env =
                  match v with
                  | VInt n -> result.(i) <- VFloat (Float.pow (float_of_int n) e)
                  | VFloat f -> result.(i) <- VFloat (Float.pow f e)
-                 | VNA _ -> had_error := Some (Error.na_value_error "pow")
-                 | _ -> had_error := Some (Error.make_error TypeError "Function `pow` requires numeric values.")
-             ) arr;
-             (match !had_error with Some e -> e | None -> VVector result))
+                  | VNA na_t when na_ignore -> result.(i) <- VNA na_t
+                  | VNA _ -> had_error := Some (Error.na_value_error "pow")
+                  | _ -> had_error := Some (Error.make_error TypeError "Function `pow` requires numeric values.")
+              ) arr;
+              (match !had_error with Some e -> e | None -> VVector result))
       | [VNDArray arr; exp_val] ->
           let exp_f = match exp_val with
             | VInt n -> Some (float_of_int n)
@@ -55,8 +58,10 @@ let register env =
             | Some e ->
               let result = Array.map (fun f -> Float.pow f e) arr.data in
               VNDArray { shape = arr.shape; data = result })
-      | [VNA _; _] | [_; VNA _] -> Error.na_value_error "pow"
-      | [_; _] -> Error.make_error TypeError "Function `pow` expects numeric arguments (NDArray base supported)."
-      | _ -> Error.make_error ArityError "Function `pow` expects 2 arguments."
+       | [VNA na_t; _] when na_ignore -> VNA na_t
+       | [_; VNA na_t] when na_ignore -> VNA na_t
+       | [VNA _; _] | [_; VNA _] -> Error.na_value_error "pow"
+       | [_; _] -> Error.make_error TypeError "Function `pow` expects numeric arguments (NDArray base supported)."
+       | _ -> Error.make_error ArityError "Function `pow` expects 2 arguments."
     ))
     env

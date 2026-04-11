@@ -22,6 +22,7 @@ type na_type =
 (** Symbolic error codes *)
 type error_code =
   | TypeError
+  | AggregationError
   | ArityError
   | NameError
   | DivisionByZero
@@ -379,6 +380,7 @@ module Utils = struct
 
   let error_code_to_string = function
     | TypeError -> "TypeError"
+    | AggregationError -> "AggregationError"
     | ArityError -> "ArityError"
     | NameError -> "NameError"
     | DivisionByZero -> "DivisionByZero"

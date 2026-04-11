@@ -559,23 +559,23 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "golden na_rm: mean default errors on NA"
     {|mean([1, NA, 3])|}
-    {|Error(TypeError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "golden na_rm: sum default errors on NA"
     {|sum([1, NA, 3])|}
-    {|Error(TypeError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "golden na_rm: sd default errors on NA"
     {|sd([1, NA, 3])|}
-    {|Error(TypeError: "Function `sd` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `sd` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "golden na_rm: quantile default errors on NA"
     {|quantile([1, NA, 3], 0.5)|}
-    {|Error(TypeError: "Function `quantile` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `quantile` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   test "golden na_rm: cor default errors on NA"
     {|cor([1, NA, 3], [4, 5, 6])|}
-    {|Error(TypeError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+    {|Error(AggregationError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
 
   Printf.printf "Phase 8 — Golden: ONNX Machine Learning:\n";
 

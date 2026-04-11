@@ -5,6 +5,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "sqrt of 0" "sqrt(0)" "0.";
   test "sqrt negative" "sqrt(-1)" {|Error(ValueError: "Function `sqrt` is undefined for negative numbers.")|};
   test "sqrt NA" "sqrt(NA)" {|Error(TypeError: "Function `sqrt` encountered NA value. Handle missingness explicitly.")|};
+  test "sqrt NA ignored" "sqrt([4, NA, 9], na_ignore = true)" "Vector[2., NA, 3.]";
   test "sqrt non-numeric" {|sqrt("hello")|} {|Error(TypeError: "Function `sqrt` expects a number, numeric Vector, or NDArray.")|};
   print_newline ();
 
@@ -14,6 +15,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "abs of negative float" "abs(0.0 - 3.14)" "3.14";
   test "abs of zero" "abs(0)" "0";
   test "abs NA" "abs(NA)" {|Error(TypeError: "Function `abs` encountered NA value. Handle missingness explicitly.")|};
+  test "abs NA ignored" "abs([0 - 1, NA, 2], na_ignore = true)" "Vector[1, NA, 2]";
   print_newline ();
 
   Printf.printf "Phase 5 — Math: log():\n";
@@ -22,12 +24,14 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "log of 0" "log(0)" {|Error(ValueError: "Function `log` is undefined for non-positive numbers.")|};
   test "log of negative" "log(0 - 1)" {|Error(ValueError: "Function `log` is undefined for non-positive numbers.")|};
   test "log NA" "log(NA)" {|Error(TypeError: "Function `log` encountered NA value. Handle missingness explicitly.")|};
+  test "log NA ignored" "log([1, NA, 10], na_ignore = true)" "Vector[0., NA, 2.30258509299]";
   print_newline ();
 
   Printf.printf "Phase 5 — Math: exp():\n";
   test "exp of 0" "exp(0)" "1.";
   test "exp of 1" "exp(1)" "2.71828182846";
   test "exp NA" "exp(NA)" {|Error(TypeError: "Function `exp` encountered NA value. Handle missingness explicitly.")|};
+  test "exp NA ignored" "exp([0, NA, 1], na_ignore = true)" "Vector[1., NA, 2.71828182846]";
   print_newline ();
 
   Printf.printf "Phase 5 — Math: pow():\n";
@@ -36,6 +40,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "pow zero exponent" "pow(5, 0)" "1.";
   test "pow NA base" "pow(NA, 2)" {|Error(TypeError: "Function `pow` encountered NA value. Handle missingness explicitly.")|};
   test "pow NA exponent" "pow(2, NA)" {|Error(TypeError: "Function `pow` encountered NA value. Handle missingness explicitly.")|};
+  test "pow NA ignored" "pow([2, NA, 4], 2, na_ignore = true)" "Vector[4., NA, 16.]";
   print_newline ();
 
   Printf.printf "Phase 5 — Math: Vector operations:\n";
@@ -94,6 +99,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "atan2 vectorized x NA"
     "atan2([1, 2], NA)"
     {|Error(TypeError: "Function `atan2` encountered NA value. Handle missingness explicitly.")|};
+  test "atan2 vectorized NA ignored"
+    "atan2([1, NA, 0 - 1], 1, na_ignore = true)"
+    "Vector[0.785398163397, NA, -0.785398163397]";
   test "sinh" "sinh(0)" "0.";
   print_newline ();
 

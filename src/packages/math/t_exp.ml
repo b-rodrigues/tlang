@@ -17,7 +17,9 @@ open Ast
 *)
 let register env =
   Env.add "exp"
-    (make_builtin ~name:"exp" 1 (fun args _env ->
+    (make_builtin_named ~name:"exp" ~variadic:true 1 (fun named_args _env ->
+      let na_ignore = Math_common.named_flag_true "na_ignore" named_args in
+      let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
       match args with
       | [VInt n] -> VFloat (Float.exp (float_of_int n))
       | [VFloat f] -> VFloat (Float.exp f)
@@ -29,6 +31,7 @@ let register env =
               match v with
               | VInt n -> result.(i) <- VFloat (Float.exp (float_of_int n))
               | VFloat f -> result.(i) <- VFloat (Float.exp f)
+              | VNA na_t when na_ignore -> result.(i) <- VNA na_t
               | VNA _ -> had_error := Some (Error.na_value_error "exp")
               | _ -> had_error := Some (Error.type_error "Function `exp` requires numeric values.")
           ) arr;
@@ -36,6 +39,7 @@ let register env =
       | [VNDArray arr] ->
           let result = Array.map Float.exp arr.data in
           VNDArray { shape = arr.shape; data = result }
+      | [VNA na_t] when na_ignore -> VNA na_t
       | [VNA _] -> Error.na_value_error "exp"
       | [_] -> Error.type_error "Function `exp` expects a number, numeric Vector, or NDArray."
       | _ -> Error.arity_error_named "exp" 1 (List.length args)

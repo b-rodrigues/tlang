@@ -15,7 +15,9 @@ open Ast
 
 let register env =
   Env.add "atan2"
-    (make_builtin ~name:"atan2" 2 (fun args _env ->
+    (make_builtin_named ~name:"atan2" ~variadic:true 2 (fun named_args _env ->
+      let na_ignore = Math_common.named_flag_true "na_ignore" named_args in
+      let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
       let scalar_of = function
         | VInt n -> Some (float_of_int n)
         | VFloat f -> Some f
@@ -29,6 +31,7 @@ let register env =
             match v with
             | VInt y -> result.(i) <- VFloat (Float.atan2 (float_of_int y) x)
             | VFloat y -> result.(i) <- VFloat (Float.atan2 y x)
+            | VNA na_t when na_ignore -> result.(i) <- VNA na_t
             | VNA _ -> had_error := Some (Error.na_value_error "atan2")
             | _ -> had_error := Some (Error.type_error "Function `atan2` requires numeric values."))
           arr;
@@ -41,26 +44,32 @@ let register env =
       | [VFloat y; VFloat x] -> VFloat (Float.atan2 y x)
       | [VVector arr; x_val] ->
           (match x_val with
-           | VNA _ -> Error.na_value_error "atan2"
-           | _ ->
-                (match scalar_of x_val with
-                 | None -> Error.type_error "Function `atan2` expects numeric arguments."
+            | VNA na_t when na_ignore -> VNA na_t
+            | VNA _ -> Error.na_value_error "atan2"
+            | _ ->
+                 (match scalar_of x_val with
+                  | None -> Error.type_error "Function `atan2` expects numeric arguments."
                  | Some x -> vectorized_result arr x))
       | [VList items; x_val] ->
           (match x_val with
-           | VNA _ -> Error.na_value_error "atan2"
-           | _ ->
-               (match scalar_of x_val with
-                | None -> Error.type_error "Function `atan2` expects numeric arguments."
+            | VNA na_t when na_ignore -> VNA na_t
+            | VNA _ -> Error.na_value_error "atan2"
+            | _ ->
+                (match scalar_of x_val with
+                 | None -> Error.type_error "Function `atan2` expects numeric arguments."
                 | Some x -> vectorized_result (Array.of_list (List.map snd items)) x))
       | [VNDArray arr; x_val] ->
           (match x_val with
-           | VNA _ -> Error.na_value_error "atan2"
-           | _ ->
-                (match scalar_of x_val with
-                | None -> Error.type_error "Function `atan2` expects numeric arguments."
+            | VNA na_t when na_ignore -> VNA na_t
+            | VNA _ -> Error.na_value_error "atan2"
+            | _ ->
+                 (match scalar_of x_val with
+                 | None -> Error.type_error "Function `atan2` expects numeric arguments."
                 | Some x ->
                     VNDArray { shape = arr.shape; data = Array.map (fun y -> Float.atan2 y x) arr.data }))
+      | [VNA na_t; _] when na_ignore -> VNA na_t
+      | [VInt _; VNA na_t] when na_ignore -> VNA na_t
+      | [VFloat _; VNA na_t] when na_ignore -> VNA na_t
       | [VNA _; _]
       | [VInt _; VNA _]
       | [VFloat _; VNA _] ->

@@ -23,6 +23,9 @@ let is_na_value = function VNA _ -> true | _ -> false
 let type_error ?location msg =
   make_error ?location TypeError msg
 
+let aggregation_error ?location msg =
+  make_error ?location AggregationError msg
+
 let op_type_error ?location op t1 t2 =
   let msg = Printf.sprintf "Operator `%s` expects %s and %s." op t1 t2 in
   make_error ?location TypeError msg
@@ -56,7 +59,10 @@ let na_value_error ?location ?(na_rm=false) function_name =
     if na_rm then "Handle missingness explicitly or set `na_rm` to true."
     else "Handle missingness explicitly."
   in
-  type_error ?location (Printf.sprintf "Function `%s` encountered NA value. %s" function_name guidance)
+  let message =
+    Printf.sprintf "Function `%s` encountered NA value. %s" function_name guidance
+  in
+  if na_rm then aggregation_error ?location message else type_error ?location message
 
 let broadcast_length_error ?location len1 len2 =
   let msg = Printf.sprintf "Broadcast requires lists of equal length.\nLeft has length %d, right has length %d." len1 len2 in
