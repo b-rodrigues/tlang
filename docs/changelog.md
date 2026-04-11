@@ -9,6 +9,10 @@
     - **Factor Resolution Parity**: Restored and verified sophisticated term resolution (categorical dummies and interaction terms) in native linear model scoring.
     - **Automatic Environment Configuration**: The Nix `devShell` now automatically exports `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR`, enabling zero-config PMML scoring in development environments.
 - **Improved Language Robustness & Interop**:
+    - **Guarded NSE Transformation**: Fixed a critical regression where standard functions (like `ifelse`) were receiving unexpected lambdas instead of evaluated values when called inside data verbs. NSE lambda-wrapping is now strictly guarded by a registry of NSE-aware builtins.
+    - **Scalar Mutation Support**: Patched `mutate()` to reliably handle constant column assignments (e.g., `const = 1.0`). The engine now correctly distinguishes between callables and scalars, bypassing unnecessary evaluation overhead.
+    - **Logical Error Propagation**: Enhanced the `And` (`&&`) and `Or` (`||`) operators to explicitly propagate `VError`. This ensures that runtime failures in logical conditions are surfaced cleanly instead of being masked by type-mismatch errors.
+    - **Expanded NSE Registry**: Added `node`, `py`, `rn`, `shn`, and `inspect` to the list of builtins that handle NSE expressions, ensuring correct dependency capture during pipeline definition.
     - **Refined Python Auto-Return**: Fixed the Python node emitter to ignore trailing comments and blank lines when determining the last expression to auto-return, preventing silent `None` results when nodes end with comments.
     - **String Column Extraction**: Enhanced the `pull()` builtin and internal `extract_column_name` utility to support `VString` arguments. This enables extraction of column names containing special characters (like `probability(1)`) that are not valid T symbols.
 - **CI/CD & Demo Infrastructure**:

@@ -264,7 +264,14 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           | Some new_table ->
             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
           | None ->
-            let whole_result = eval_call env fn [(None, Ast.mk_expr (Value (VDataFrame df)))] in
+            let is_callable = match fn with
+              | VLambda _ | VSymbol _ | VBuiltin _ | VExpr _ -> true
+              | _ -> false
+            in
+            let whole_result = 
+              if is_callable then eval_call env fn [(None, Ast.mk_expr (Value (VDataFrame df)))]
+              else fn
+            in
             (match whole_result with
              | VVector vec when Array.length vec = nrows ->
                let arrow_col = Arrow_bridge.values_to_column vec in
