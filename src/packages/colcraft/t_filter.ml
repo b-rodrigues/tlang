@@ -125,7 +125,7 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                 let right_keep = take_bool_array n right_pred.keep in
                 let left_na = take_bool_array n left_pred.na in
                 let right_na = take_bool_array n right_pred.na in
-                let right_needed =
+                let should_evaluate_right =
                   Array.init n (fun i -> left_keep.(i) || left_na.(i))
                 in
                 Some {
@@ -133,11 +133,11 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                   na =
                     (* Matches interpreter short-circuit AND: left-side NA always
                        propagates; right-side NA only propagates when the left
-                       side is not definitively false (so the right predicate
+                      side is not definitively false (so the right predicate
                        would be evaluated). *)
                     Array.init n (fun i ->
                       left_na.(i)
-                      || (right_na.(i) && right_needed.(i)));
+                      || (right_na.(i) && should_evaluate_right.(i)));
                 }
              | _ -> None)
           | Or ->
