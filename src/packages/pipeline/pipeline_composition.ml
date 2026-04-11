@@ -63,6 +63,7 @@ let register ~rerun_pipeline env =
                 p_noops        = merge_new p1.p_noops p2.p_noops;
                 p_scripts      = merge_new p1.p_scripts p2.p_scripts;
                 p_explicit_deps = merge_new p1.p_explicit_deps p2.p_explicit_deps;
+                p_node_diagnostics = merge_new p1.p_node_diagnostics p2.p_node_diagnostics;
               }
           end
       | [_; _] -> Error.type_error "Function `chain` expects two Pipeline arguments."
@@ -118,6 +119,7 @@ let register ~rerun_pipeline env =
               p_noops        = merge_new p1.p_noops p2.p_noops;
               p_scripts      = merge_new p1.p_scripts p2.p_scripts;
               p_explicit_deps = merge_new p1.p_explicit_deps p2.p_explicit_deps;
+              p_node_diagnostics = merge_new p1.p_node_diagnostics p2.p_node_diagnostics;
             }
       | [_; _] -> Error.type_error "Function `parallel` expects two Pipeline arguments."
       | _ -> Error.arity_error_named "parallel" 2 (List.length args)

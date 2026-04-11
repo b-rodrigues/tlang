@@ -46,6 +46,21 @@ let register env =
                 (k, Option.map (List.map (fun d -> if d = old_name then new_name else d)) deps_opt)
               ) lst
             in
+            let rewire_warning warning =
+              let source =
+                match warning.nw_source with
+                | WarningOwn -> WarningOwn
+                | WarningUpstream node when node = old_name -> WarningUpstream new_name
+                | WarningUpstream node -> WarningUpstream node
+              in
+              { warning with nw_source = source }
+            in
+            let rename_diagnostics lst =
+              lst
+              |> rename_key
+              |> List.map (fun (k, diagnostics) ->
+                   (k, { diagnostics with nd_warnings = List.map rewire_warning diagnostics.nd_warnings }))
+            in
             VPipeline {
               p_nodes        = rename_key p.p_nodes;
               p_exprs        = rename_key p.p_exprs;
@@ -63,6 +78,7 @@ let register env =
               p_noops        = rename_key p.p_noops;
               p_scripts      = rename_key p.p_scripts;
               p_explicit_deps = rewire_deps_opt (rename_key p.p_explicit_deps);
+              p_node_diagnostics = rename_diagnostics p.p_node_diagnostics;
             }
       | [VPipeline _; VString _; _] ->
           Error.type_error "Function `rename_node` expects String arguments for old and new names."

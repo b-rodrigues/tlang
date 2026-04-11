@@ -191,7 +191,7 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "pipeline_copy"; "trace_nodes";
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
                "pipeline_to_frame"; "filter_node"; "mutate_node"; "rename_node"; "select_node"; "arrange_node";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";

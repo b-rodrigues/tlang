@@ -11,7 +11,9 @@ Pipeline definition and introspection.
 | `pipeline_node(p, name)` | Get a specific node's value |
 | `pipeline_run(p)` | Re-run a pipeline (with incremental caching) |
 | `build_pipeline(p)` | Emit `pipeline.nix` and materialize node artifacts |
+| `read_node(p, name)` | Read a node value plus diagnostics from an in-memory pipeline |
 | `read_node(name)` | Read a node artifact from the pipeline registry |
+| `read_pipeline(p)` | Read aggregated diagnostics and node metadata from a pipeline |
 
 ## Examples
 

@@ -75,6 +75,31 @@ and intent_block = {
   intent_fields : (string * string) list;  (* Key-value pairs of metadata *)
 }
 
+and node_warning_source =
+  | WarningOwn
+  | WarningUpstream of string
+
+and node_warning = {
+  nw_kind : string;
+  nw_fn : string;
+  nw_na_count : int;
+  nw_na_indices : int list;
+  nw_message : string;
+  nw_source : node_warning_source;
+}
+
+and node_error = {
+  ne_kind : string;
+  ne_fn : string;
+  ne_message : string;
+  ne_na_count : int;
+}
+
+and node_diagnostics = {
+  nd_warnings : node_warning list;
+  nd_error : node_error option;
+}
+
 
 (** Phase 3: Pipeline result with cached values and dependency info *)
 and pipeline_result = {
@@ -94,6 +119,7 @@ and pipeline_result = {
   p_noops : (string * bool) list;            (* Map node name -> noop flag *)
   p_scripts : (string * string option) list; (* Map node name -> optional script path *)
   p_explicit_deps : (string * string list option) list; (* Map node name -> explicit dependencies *)
+  p_node_diagnostics : (string * node_diagnostics) list; (* Map node name -> diagnostics *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)
@@ -348,6 +374,11 @@ let extract_identifiers text =
 type environment = value Env.t
 
 module Utils = struct
+  let empty_node_diagnostics = {
+    nd_warnings = [];
+    nd_error = None;
+  }
+
   let is_truthy = function
     | VBool false | VInt 0 -> false
     | VError _ -> false
@@ -378,6 +409,69 @@ module Utils = struct
   let rec list_take n = function
     | [] -> []
     | h :: t -> if n <= 0 then [] else h :: list_take (n - 1) t
+
+  let node_warning_source_to_value = function
+    | WarningOwn ->
+        VDict [("kind", VString "Own")]
+    | WarningUpstream node ->
+        VDict [("kind", VString "Upstream"); ("node", VString node)]
+
+  let node_warning_to_value warning =
+    VDict [
+      ("kind", VString warning.nw_kind);
+      ("fn", VString warning.nw_fn);
+      ("na_count", VInt warning.nw_na_count);
+      ("na_indices", VList (List.map (fun idx -> (None, VInt idx)) warning.nw_na_indices));
+      ("message", VString warning.nw_message);
+      ("source", node_warning_source_to_value warning.nw_source);
+    ]
+
+  let node_error_to_value error =
+    VDict [
+      ("kind", VString error.ne_kind);
+      ("fn", VString error.ne_fn);
+      ("message", VString error.ne_message);
+      ("na_count", VInt error.ne_na_count);
+    ]
+
+  let node_diagnostics_to_value diagnostics =
+    VDict [
+      ("warnings", VList (List.map (fun warning -> (None, node_warning_to_value warning)) diagnostics.nd_warnings));
+      ("error",
+       match diagnostics.nd_error with
+       | Some error -> node_error_to_value error
+       | None -> VNA NAGeneric);
+    ]
+
+  let node_has_own_warnings diagnostics =
+    List.exists (fun warning ->
+      match warning.nw_source with
+      | WarningOwn -> true
+      | WarningUpstream _ -> false
+    ) diagnostics.nd_warnings
+
+  let pipeline_diagnostics_to_value node_diagnostics =
+    let warning_nodes =
+      node_diagnostics
+      |> List.filter_map (fun (name, diagnostics) ->
+           if node_has_own_warnings diagnostics then Some (None, VString name) else None)
+    in
+    let error_nodes =
+      node_diagnostics
+      |> List.filter_map (fun (name, diagnostics) ->
+           match diagnostics.nd_error with
+           | Some _ -> Some (None, VString name)
+           | None -> None)
+    in
+    let warning_count = List.length warning_nodes in
+    let error_count = List.length error_nodes in
+    VDict [
+      ("warning_nodes", VList warning_nodes);
+      ("error_nodes", VList error_nodes);
+      ("summary",
+       VString
+         (Printf.sprintf "%d nodes with warnings, %d errors" warning_count error_count));
+    ]
 
   let error_code_to_string = function
     | TypeError -> "TypeError"

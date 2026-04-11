@@ -10,12 +10,26 @@ let plural_suffix count =
 let emit_na_filter_warning na_indices =
   match na_indices with
   | [] -> ()
-  | _ when not !Eval.show_warnings -> ()
   | _ ->
       let indices = List.rev na_indices in
       let count = List.length indices in
+      let capped_indices = Utils.list_take 50 indices in
+      Eval.emit_node_warning {
+        nw_kind = "NAExcluded";
+        nw_fn = "filter";
+        nw_na_count = count;
+        nw_na_indices = capped_indices;
+        nw_message =
+          Printf.sprintf
+            "filter() excluded %d row%s because the predicate evaluated to NA."
+            count
+            (plural_suffix count);
+        nw_source = WarningOwn;
+      };
+      if not !Eval.show_warnings then ()
+      else
       let rendered =
-        indices |> List.map string_of_int |> String.concat ", "
+        capped_indices |> List.map string_of_int |> String.concat ", "
       in
       Printf.eprintf
         "Warning: filter() excluded %d row%s because the predicate evaluated to NA at row%s %s. Consider handling NAs explicitly before filtering.\n%!"

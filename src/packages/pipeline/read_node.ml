@@ -1,17 +1,19 @@
 open Ast
 
-(*
+(* 
 --# Read Pipeline Node Artifact
 --#
---# Reads a node artifact from the latest (or specified) build log in `_pipeline/`.
+--# Reads a pipeline node from an in-memory Pipeline or reads a built artifact
+--# from the latest (or specified) build log in `_pipeline/`.
 --# Use `which_log` to read from a specific historical build ("time travel").
 --#
 --# @name read_node
---# @param name :: String The node name.
+--# @param node :: Pipeline | String | ComputedNode The pipeline plus node name, or a node artifact reference.
+--# @param name :: String (Optional) The node name when reading from an in-memory Pipeline.
 --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
---# @return :: Any The deserialized value.
+--# @return :: Any A node record for in-memory pipelines, or the deserialized artifact for built nodes.
 --# @family pipeline
---# @seealso build_pipeline, inspect_pipeline
+--# @seealso read_pipeline, build_pipeline, inspect_pipeline
 --# @export
 *)
 let register env =
@@ -26,6 +28,43 @@ let register env =
 
   let read_fn named_args _env =
     match get_arg "node" 1 ((VNA NAGeneric)) named_args with
+    | VPipeline p ->
+        (match get_arg "name" 2 (VNA NAGeneric) named_args with
+         | VString name ->
+             (match List.assoc_opt name p.p_nodes with
+              | Some value ->
+                  let diagnostics =
+                    match List.assoc_opt name p.p_node_diagnostics with
+                    | Some diagnostics -> diagnostics
+                    | None -> Ast.Utils.empty_node_diagnostics
+                  in
+                  let warnings =
+                    VList
+                      (List.map
+                         (fun warning -> (None, Ast.Utils.node_warning_to_value warning))
+                         diagnostics.nd_warnings)
+                  in
+                  let error =
+                    match diagnostics.nd_error with
+                    | Some error -> Ast.Utils.node_error_to_value error
+                    | None -> VNA NAGeneric
+                  in
+                  VDict [
+                    ("name", VString name);
+                    ("value", value);
+                    ("warnings", warnings);
+                    ("error", error);
+                    ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
+                  ]
+              | None ->
+                  Error.make_error KeyError
+                    (Printf.sprintf "Node `%s` not found in Pipeline." name))
+         | VNA _ ->
+             Error.make_error ValueError
+               "read_node: when the first argument is a Pipeline, a node name is required as the second argument."
+         | _ ->
+             Error.type_error
+               "read_node: expected a String node name as the second argument when reading from a Pipeline.")
     | VString name ->
         (match get_arg "which_log" 2 (VNA NAGeneric) named_args with
          | VNA _ -> Builder.read_node name
@@ -52,6 +91,44 @@ let register env =
               Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer))
     | VNA _ -> Error.make_error ValueError "read_node: requires a node name or a ComputedNode object."
     | _ -> Error.type_error "read_node: expected String or ComputedNode for argument 'node'"
+  in
+
+(*
+--# Read Pipeline Metadata
+--#
+--# Returns a dictionary describing a materialized in-memory pipeline,
+--# including per-node diagnostics and the aggregated diagnostics summary.
+--#
+--# @name read_pipeline
+--# @param p :: Pipeline The pipeline to inspect.
+--# @return :: Dict A dictionary with node metadata and diagnostics.
+--# @family pipeline
+--# @seealso read_node, explain
+--# @export
+*)
+  let read_pipeline_fn named_args _env =
+    match get_arg "p" 1 (VNA NAGeneric) named_args with
+    | VPipeline p ->
+        let nodes =
+          VList
+            (List.map (fun (name, value) ->
+               let diagnostics =
+                 match List.assoc_opt name p.p_node_diagnostics with
+                 | Some diagnostics -> diagnostics
+                 | None -> Ast.Utils.empty_node_diagnostics
+               in
+               (None, VDict [
+                 ("name", VString name);
+                 ("value", value);
+                 ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
+               ]))
+              p.p_nodes)
+        in
+        VDict [
+          ("nodes", nodes);
+          ("diagnostics", Ast.Utils.pipeline_diagnostics_to_value p.p_node_diagnostics);
+        ]
+    | _ -> Error.type_error "read_pipeline: expected a Pipeline."
   in
 
 (*
@@ -117,5 +194,6 @@ let register env =
   in
   env
   |> Env.add "read_node" (make_builtin_named ~name:"read_node" ~variadic:true 1 read_fn)
+  |> Env.add "read_pipeline" (make_builtin_named ~name:"read_pipeline" ~variadic:true 1 read_pipeline_fn)
   |> Env.add "inspect_node" (make_builtin_named ~name:"inspect_node" ~variadic:true 1 inspect_fn)
   |> Env.add "rebuild_node" (make_builtin_named ~name:"rebuild_node" ~variadic:true 1 rebuild_fn)

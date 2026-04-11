@@ -58,6 +58,24 @@ and desugar_nse_stmt stmt =
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
 
+let current_node_warning_emitter : (Ast.node_warning -> unit) option ref = ref None
+
+let emit_node_warning warning =
+  match !current_node_warning_emitter with
+  | Some emit -> emit warning
+  | None -> ()
+
+let capture_node_warnings f =
+  let warnings = ref [] in
+  let previous = !current_node_warning_emitter in
+  current_node_warning_emitter :=
+    Some (fun warning -> warnings := warning :: !warnings);
+  Fun.protect
+    (fun () ->
+      let value = f () in
+      (value, List.rev !warnings))
+    ~finally:(fun () -> current_node_warning_emitter := previous)
+
 let source_location ?file pos : Ast.source_location =
   {
     file;
@@ -89,6 +107,98 @@ let annotate_pipeline_error ?runtime node_name = function
       in
       VError { err with message = pipeline_error_message ~node_name ~detail:err.message; context }
   | value -> value
+
+let function_name_of_error_message fallback message =
+  let prefix = "Function `" in
+  let prefix_len = String.length prefix in
+  let len = String.length message in
+  let rec find idx =
+    if idx + prefix_len > len then fallback
+    else if String.sub message idx prefix_len = prefix then
+      let start = idx + prefix_len in
+      match String.index_from_opt message start '`' with
+      | Some stop when stop > start -> String.sub message start (stop - start)
+      | _ -> fallback
+    else find (idx + 1)
+  in
+  find 0
+
+let node_error_of_value node_name = function
+  | VError err ->
+      Some {
+        Ast.ne_kind = Ast.Utils.error_code_to_string err.code;
+        ne_fn = function_name_of_error_message node_name err.message;
+        ne_message = err.message;
+        ne_na_count = 0;
+      }
+  | _ -> None
+
+let inherit_warning dep_name warning =
+  let inherited_source =
+    match warning.Ast.nw_source with
+    | Ast.WarningOwn -> Ast.WarningUpstream dep_name
+    | Ast.WarningUpstream origin -> Ast.WarningUpstream origin
+  in
+  { warning with Ast.nw_source = inherited_source }
+
+let dedupe_warnings warnings =
+  List.fold_left (fun acc warning ->
+    if List.mem warning acc then acc else acc @ [warning]
+  ) [] warnings
+
+let build_node_diagnostics node_name node_deps own_warnings current_diagnostics value =
+  let upstream_warnings =
+    node_deps
+    |> List.concat_map (fun dep_name ->
+         match List.assoc_opt dep_name current_diagnostics with
+         | Some diagnostics ->
+             List.map (inherit_warning dep_name) diagnostics.Ast.nd_warnings
+         | None -> [])
+  in
+  {
+    Ast.nd_warnings = dedupe_warnings (own_warnings @ upstream_warnings);
+    nd_error = node_error_of_value node_name value;
+  }
+
+let print_pipeline_diagnostics_summary node_diagnostics =
+  let warning_nodes =
+    node_diagnostics
+    |> List.filter_map (fun (name, diagnostics) ->
+         if Ast.Utils.node_has_own_warnings diagnostics then Some (name, diagnostics) else None)
+  in
+  let error_nodes =
+    node_diagnostics
+    |> List.filter_map (fun (name, diagnostics) ->
+         match diagnostics.Ast.nd_error with
+         | Some error -> Some (name, error)
+         | None -> None)
+  in
+  if !show_warnings && (warning_nodes <> [] || error_nodes <> []) then begin
+    Printf.eprintf
+      "Pipeline summary: %d nodes with warnings, %d errors\n%!"
+      (List.length warning_nodes)
+      (List.length error_nodes);
+    List.iter (fun (name, diagnostics) ->
+      let own_warnings =
+        diagnostics.Ast.nd_warnings
+        |> List.filter (fun warning ->
+             match warning.Ast.nw_source with
+             | Ast.WarningOwn -> true
+             | Ast.WarningUpstream _ -> false)
+      in
+      let na_total =
+        List.fold_left (fun acc warning -> acc + warning.Ast.nw_na_count) 0 own_warnings
+      in
+      if own_warnings <> [] then
+        Printf.eprintf "  ⚠  %s — %d warning(s), %d affected NA slot(s)\n%!"
+          name
+          (List.length own_warnings)
+          na_total
+    ) warning_nodes;
+    List.iter (fun (name, error) ->
+      Printf.eprintf "  ✖  %s — %s\n%!" name error.Ast.ne_message
+    ) error_nodes
+  end
 
 (** Check if an expression uses NSE (contains $field references) *)
 let rec uses_nse (expr : Ast.expr) : bool =
@@ -1377,14 +1487,15 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
         cn_dependencies = List.assoc name deps;
       }
     in
-    let (results, _) = List.fold_left (fun (results, current_env_ref) name ->
+    let (results, diagnostics, _) = List.fold_left (fun (results, diagnostics, current_env_ref) name ->
       let un = List.assoc name node_map in
       let node_deps = List.assoc name deps in
       let upstream_err_opt = List.find_opt (fun d ->
          match Env.find_opt d !current_env_ref with
          | Some (VError _) -> true
          | _ -> false) node_deps in
-      let v = match upstream_err_opt with
+      let (v, own_warnings) =
+        match upstream_err_opt with
         | Some failed_dep ->
             (match Env.find_opt failed_dep !current_env_ref with
              | Some (VError err) ->
@@ -1393,15 +1504,21 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
                  else
                      "Upstream error: " ^ err.message
                  in
-                 Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg }
-              | _ -> eval_or_defer name un current_env_ref)
-        | None -> eval_or_defer name un current_env_ref
+                 (Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg }, [])
+              | _ -> capture_node_warnings (fun () -> eval_or_defer name un current_env_ref))
+        | None ->
+            capture_node_warnings (fun () -> eval_or_defer name un current_env_ref)
+      in
+      let node_diagnostics =
+        build_node_diagnostics name node_deps own_warnings diagnostics v
       in
       current_env_ref := Env.add name v !current_env_ref;
-      ((name, v) :: results, current_env_ref)
-    ) ([], ref !env_ref) exec_order in
-
+      ((name, v) :: results, (name, node_diagnostics) :: diagnostics, current_env_ref)
+    ) ([], [], ref !env_ref) exec_order in
+ 
     let p_nodes = List.rev results in
+    let p_node_diagnostics = List.rev diagnostics in
+    print_pipeline_diagnostics_summary p_node_diagnostics;
     VPipeline {
       p_nodes;
       p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes;
@@ -1419,6 +1536,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       p_noops = List.map (fun (name, un) -> (name, un.un_noop)) desugared_nodes;
       p_scripts = List.map (fun (name, un) -> (name, un.un_script)) desugared_nodes;
       p_explicit_deps = List.map (fun (name, un) -> (name, un.un_dependencies)) desugared_nodes;
+      p_node_diagnostics;
     }
 
 (** Re-run a pipeline *)
@@ -1473,7 +1591,7 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
             cn_dependencies = node_deps;
           }
     in
-    let (results, _, _) = List.fold_left (fun (results, current_env_ref, changed) name ->
+    let (results, diagnostics, _, _) = List.fold_left (fun (results, diagnostics, current_env_ref, changed) name ->
       let un = List.assoc name desugared_nodes in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
       let deps_changed = List.exists (fun d -> List.mem d changed) node_deps in
@@ -1489,7 +1607,7 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
            match Env.find_opt d !current_env_ref with
            | Some (VError _) -> true
            | _ -> false) node_deps in
-        let v = match upstream_err_opt with
+        let (v, own_warnings) = match upstream_err_opt with
           | Some failed_dep ->
               (match Env.find_opt failed_dep !current_env_ref with
                | Some (VError err) ->
@@ -1499,20 +1617,30 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
                        "Upstream error: " ^ err.message
                    in
                    let runtime = match List.assoc_opt "runtime" err.context with Some (VString r) -> Some r | _ -> None in
-                  Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg;
-                                        context = (match runtime with Some r -> if List.mem_assoc "runtime" err.context then err.context else ("runtime", VString r) :: err.context | None -> err.context) }
-                | _ -> rerun_eval_or_defer name un current_env_ref)
-          | None -> rerun_eval_or_defer name un current_env_ref
+                   (Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg;
+                                         context = (match runtime with Some r -> if List.mem_assoc "runtime" err.context then err.context else ("runtime", VString r) :: err.context | None -> err.context) }, [])
+                | _ -> capture_node_warnings (fun () -> rerun_eval_or_defer name un current_env_ref))
+          | None -> capture_node_warnings (fun () -> rerun_eval_or_defer name un current_env_ref)
+        in
+        let node_diagnostics =
+          build_node_diagnostics name node_deps own_warnings diagnostics v
         in
         current_env_ref := Env.add name v !current_env_ref;
-        ((name, v) :: results, current_env_ref, name :: changed)
+        ((name, v) :: results, (name, node_diagnostics) :: diagnostics, current_env_ref, name :: changed)
       end else begin
         let cached = List.assoc name prev.p_nodes in
+        let cached_diagnostics =
+          match List.assoc_opt name prev.p_node_diagnostics with
+          | Some diagnostics -> diagnostics
+          | None -> Ast.Utils.empty_node_diagnostics
+        in
         current_env_ref := Env.add name cached !current_env_ref;
-        ((name, cached) :: results, current_env_ref, changed)
+        ((name, cached) :: results, (name, cached_diagnostics) :: diagnostics, current_env_ref, changed)
       end
-    ) ([], ref !env_ref, []) exec_order in
-    VPipeline { prev with p_nodes = List.rev results }
+    ) ([], [], ref !env_ref, []) exec_order in
+    let p_node_diagnostics = List.rev diagnostics in
+    print_pipeline_diagnostics_summary p_node_diagnostics;
+    VPipeline { prev with p_nodes = List.rev results; p_node_diagnostics }
 
 (** Evaluate a splice operand (!!!) and expand its elements as named pairs.
     Used by quote_expr in Call args, ListLit items, and DictLit pairs. *)
