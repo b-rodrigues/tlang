@@ -119,21 +119,20 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
          | And ->
              (* Pattern: predA && predB — intersect boolean masks *)
              (match try_vectorize_expr left, try_vectorize_expr right with
-             | Some left_pred, Some right_pred ->
-               let n = min_array_len left_pred.keep right_pred.keep in
-               let left_keep = take_bool_array n left_pred.keep in
-               let right_keep = take_bool_array n right_pred.keep in
-               let left_na = take_bool_array n left_pred.na in
-               let right_na = take_bool_array n right_pred.na in
-               let left_false = false_mask left_keep left_na in
-               let right_false = false_mask right_keep right_na in
-               Some {
-                 keep = Array.init n (fun i -> left_keep.(i) && right_keep.(i));
-                 na =
-                   Array.init n (fun i ->
-                     (left_na.(i) && not right_false.(i))
-                     || (right_na.(i) && not left_false.(i)));
-               }
+              | Some left_pred, Some right_pred ->
+                let n = min_array_len left_pred.keep right_pred.keep in
+                let left_keep = take_bool_array n left_pred.keep in
+                let right_keep = take_bool_array n right_pred.keep in
+                let left_na = take_bool_array n left_pred.na in
+                let right_na = take_bool_array n right_pred.na in
+                let left_false = false_mask left_keep left_na in
+                Some {
+                  keep = Array.init n (fun i -> left_keep.(i) && right_keep.(i));
+                  na =
+                    Array.init n (fun i ->
+                      left_na.(i)
+                      || (right_na.(i) && not left_false.(i)));
+                }
              | _ -> None)
           | Or ->
             (* Pattern: predA || predB — union boolean masks *)
@@ -144,13 +143,13 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                 let right_keep = take_bool_array n right_pred.keep in
                 let left_na = take_bool_array n left_pred.na in
                 let right_na = take_bool_array n right_pred.na in
+                let left_false = false_mask left_keep left_na in
                 Some {
                   keep = Array.init n (fun i -> left_keep.(i) || right_keep.(i));
                   na =
-                   Array.init n (fun i ->
-                     (left_na.(i) && not right_keep.(i))
-                     || (right_na.(i) && not left_keep.(i)));
-               }
+                    Array.init n (fun i ->
+                      left_na.(i) || (right_na.(i) && left_false.(i)));
+                }
              | _ -> None)
          | _ -> try_cmp op left right)
       | _ -> None

@@ -93,36 +93,48 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "filter excludes rows where predicate sees NA"
     {|df_na_filter = dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_filter, $x > 1) |> nrow|}
     "1";
-  let show_warnings_before = !Eval.show_warnings in
-  let ((v_warn, _), warning_text) =
-    Fun.protect
-      (fun () ->
-        Eval.show_warnings := true;
-        capture_stderr (fun () ->
-          eval_string_env
-            {|df_na_warn = dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_warn, $x > 1) |> nrow|}
-            env_p4))
-      ~finally:(fun () -> Eval.show_warnings := show_warnings_before)
+  let assert_filter_warning label code expected_result warning_pattern =
+    let show_warnings_before = !Eval.show_warnings in
+    let ((v_warn, _), warning_text) =
+      Fun.protect
+        (fun () ->
+          Eval.show_warnings := true;
+          capture_stderr (fun () -> eval_string_env code env_p4))
+        ~finally:(fun () -> Eval.show_warnings := show_warnings_before)
+    in
+    let result_warn = Ast.Utils.value_to_string v_warn in
+    let has_warning =
+      try
+        let _ =
+          Str.search_forward (Str.regexp warning_pattern) warning_text 0
+        in
+        true
+      with Not_found -> false
+    in
+    if result_warn = expected_result && has_warning then begin
+      incr pass_count; Printf.printf "  ✓ %s\n" label
+    end else begin
+      incr fail_count;
+      Printf.printf
+        "  ✗ %s\n    Expected result: %s\n    Got result: %s\n    Warning: %s\n"
+        label expected_result result_warn warning_text
+    end
   in
-  let result_warn = Ast.Utils.value_to_string v_warn in
-  let has_warning =
-    try
-      let _ =
-        Str.search_forward
-          (Str.regexp "Warning: filter() excluded 1 row because the predicate evaluated to NA")
-          warning_text 0
-      in
-      true
-    with Not_found -> false
-  in
-  if result_warn = "1" && has_warning then begin
-    incr pass_count; Printf.printf "  ✓ filter vectorized path warns when NA rows are excluded\n"
-  end else begin
-    incr fail_count;
-    Printf.printf
-      "  ✗ filter vectorized path warns when NA rows are excluded\n    Expected nrow=1 with warning\n    Got result: %s\n    Warning: %s\n"
-      result_warn warning_text
-  end;
+  assert_filter_warning
+    "filter vectorized path warns when NA rows are excluded"
+    {|df_na_warn = dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_warn, $x > 1) |> nrow|}
+    "1"
+    "Warning: filter() excluded 1 row because the predicate evaluated to NA";
+  assert_filter_warning
+    "filter vectorized && preserves left-side NA warnings under short-circuit semantics"
+    {|df_na_and = dataframe([[x: 1, y: 1], [x: NA, y: 0], [x: 2, y: 1]]); filter(df_na_and, $x > 0 && $y > 0) |> nrow|}
+    "2"
+    "Warning: filter() excluded 1 row because the predicate evaluated to NA at row 2";
+  assert_filter_warning
+    "filter vectorized || preserves left-side and right-side NA warnings under short-circuit semantics"
+    {|df_na_or = dataframe([[x: NA, y: 1], [x: 0, y: 1], [x: 0, y: NA], [x: 1, y: 0]]); filter(df_na_or, $x > 0 || $y > 0) |> nrow|}
+    "2"
+    "Warning: filter() excluded 2 rows because the predicate evaluated to NA at rows 1, 3";
   print_newline ();
 
   Printf.printf "Phase 4 — mutate():\n";
