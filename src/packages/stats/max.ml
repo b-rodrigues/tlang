@@ -7,6 +7,7 @@ open Ast
 --#
 --# @name max
 --# @param x :: Vector | List The numeric data.
+--# @param na_rm :: Bool Whether to remove NA values. Default is false.
 --# @return :: Float The maximum value.
 --# @example
 --#   max([1, 2, 3])
@@ -18,60 +19,70 @@ open Ast
 let register env =
   Env.add "max"
     (make_builtin_named ~name:"max" ~variadic:true 1 (fun named_args _env ->
-      let na_rm =
-        List.exists (fun (name, v) ->
-          name = Some "na_rm" && (match v with VBool true -> true | _ -> false)
-        ) named_args
+      let na_rm_res =
+        match List.find_opt (fun (n, _) -> n = Some "na_rm") named_args with
+        | Some (_, VBool b) -> Ok b
+        | Some (_, v) -> Error (Error.type_error (Printf.sprintf "Flag `na_rm` must be Bool, but received %s." (Utils.type_name v)))
+        | None -> Ok false
       in
+      match na_rm_res with
+      | Error e -> e
+      | Ok na_rm ->
       let args =
         List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd
       in
-      let extract_nums_arr label arr =
+      let find_max label items =
+        let max_val = ref Float.neg_infinity in
+        let has_values = ref false in
         let had_error = ref None in
-        let numeric_count = ref 0 in
+        let process_value v =
+          if !had_error = None then
+            match v with
+            | VInt n ->
+                let f = float_of_int n in
+                if f > !max_val then max_val := f;
+                has_values := true
+            | VFloat f ->
+                if f > !max_val then max_val := f;
+                has_values := true
+            | VNA _ when na_rm -> ()
+            | VNA _ -> had_error := Some (Error.na_value_error ~na_rm:true label)
+            | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
+        in
+        List.iter process_value items;
+        match !had_error with
+        | Some e -> e
+        | None -> if !has_values then VFloat !max_val else VNA NAFloat
+      in
+      let find_max_arr label arr =
+        let max_val = ref Float.neg_infinity in
+        let has_values = ref false in
+        let had_error = ref None in
         for i = 0 to Array.length arr - 1 do
           if !had_error = None then
             match arr.(i) with
-            | VInt _ | VFloat _ -> incr numeric_count
+            | VInt n ->
+                let f = float_of_int n in
+                if f > !max_val then max_val := f;
+                has_values := true
+            | VFloat f ->
+                if f > !max_val then max_val := f;
+                has_values := true
             | VNA _ when na_rm -> ()
             | VNA _ -> had_error := Some (Error.na_value_error ~na_rm:true label)
             | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
         match !had_error with
-        | Some e -> Error e
-        | None ->
-            let nums = Array.make !numeric_count 0.0 in
-            let next = ref 0 in
-            for i = 0 to Array.length arr - 1 do
-              match arr.(i) with
-              | VInt n ->
-                  nums.(!next) <- float_of_int n;
-                  incr next
-              | VFloat f ->
-                  nums.(!next) <- f;
-                  incr next
-              | _ -> ()
-            done;
-            Ok nums
+        | Some e -> e
+        | None -> if !has_values then VFloat !max_val else VNA NAFloat
       in
       match args with
       | [VList []] -> Error.value_error "Function `max` called on empty List."
-      | [VList items] ->
-          let arr = Array.of_list (List.map snd items) in
-          (match extract_nums_arr "max" arr with
-            | Error e -> e
-            | Ok nums when Array.length nums = 0 -> VNA NAFloat
-            | Ok nums ->
-              VFloat (Array.fold_left Float.max Float.neg_infinity nums))
+      | [VList items] -> find_max "max" (List.map snd items)
       | [VVector arr] when Array.length arr = 0 -> Error.value_error "Function `max` called on empty Vector."
-      | [VVector arr] ->
-          (match extract_nums_arr "max" arr with
-            | Error e -> e
-            | Ok nums when Array.length nums = 0 -> VNA NAFloat
-            | Ok nums ->
-              VFloat (Array.fold_left Float.max Float.neg_infinity nums))
+      | [VVector arr] -> find_max_arr "max" arr
       | [VNA _] -> Error.na_value_error ~na_rm:true "max"
-      | [_] -> Error.type_error "Function `max` expects a numeric List or Vector."
+      | [val_] -> Error.type_error (Printf.sprintf "Function `max` expects a numeric List or Vector, but received %s." (Utils.type_name val_))
       | _ -> Error.arity_error_named "max" 1 (List.length args)
     ))
     env
