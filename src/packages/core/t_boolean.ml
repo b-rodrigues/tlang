@@ -175,8 +175,41 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
 --# @export
 *)
 let identical args _env =
+  let rec value_equal a b =
+    match a, b with
+    (* Functional values — cannot be compared structurally; always return false *)
+    | VBuiltin _, _ | _, VBuiltin _ -> false
+    | VLambda _, _ | _, VLambda _ -> false
+    | VEnv _, _ | _, VEnv _ -> false
+    | VQuo _, _ | _, VQuo _ -> false
+    | VSerializer _, _ | _, VSerializer _ -> false
+    (* Float: NaN == NaN, consistent with ValueHash.equal *)
+    | VFloat fa, VFloat fb ->
+      if Float.is_nan fa && Float.is_nan fb then true else fa = fb
+    (* Collections: recurse element-wise to handle nested functional values *)
+    | VVector va, VVector vb ->
+      let n = Array.length va in
+      n = Array.length vb &&
+      let rec check i = i >= n || (value_equal va.(i) vb.(i) && check (i + 1)) in
+      check 0
+    | VList la, VList lb ->
+      List.length la = List.length lb &&
+      List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2) la lb
+    | VDict da, VDict db ->
+      List.length da = List.length db &&
+      List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2) da db
+    | VUnquote a', VUnquote b' -> value_equal a' b'
+    | VUnquoteSplice a', VUnquoteSplice b' -> value_equal a' b'
+    | VDynamicArg (k1, v1), VDynamicArg (k2, v2) -> k1 = k2 && value_equal v1 v2
+    | VPipeline pa, VPipeline pb ->
+      List.length pa.p_nodes = List.length pb.p_nodes &&
+      List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2)
+        pa.p_nodes pb.p_nodes
+    (* All other structural types are safe for polymorphic equality *)
+    | _ -> (try a = b with Invalid_argument _ -> false)
+  in
   match args with
-  | [a; b] -> VBool (a = b)
+  | [a; b] -> VBool (value_equal a b)
   | _ -> Error.arity_error_named "identical" 2 (List.length args)
 
 

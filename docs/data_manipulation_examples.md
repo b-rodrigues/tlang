@@ -146,18 +146,18 @@ The NSE syntax auto-transforms `$age > 30` into `\(row) row.age > 30`.
 
 ### Combining Conditions
 
-To combine multiple conditions in `filter()`, use the **vectorized** logical operators `.&` (AND) and `.|` (OR):
+To combine multiple conditions in `filter()`, use the **logical** operators `&&` (AND) and `||` (OR):
 
 ```t
 -- Engineering department AND age > 25
-df |> filter($dept == "eng" .& $age > 25)
+df |> filter($dept == "eng" && $age > 25)
 
 -- Sales department OR high score
-df |> filter($dept == "sales" .| $score > 90)
+df |> filter($dept == "sales" || $score > 90)
 ```
 
 > [!TIP]
-> **No Silent Magic**: Standard bitwise operators `&` and `|` are strictly for scalars. If you accidentally use them in a filter (e.g., `$age > 25 & $dept == "eng"`), T will return a helpful `TypeError` suggesting the use of `.&` and `.|`.
+> **No Silent Magic**: Standard bitwise operators `&` and `|` are strictly for scalars. If you accidentally use them in a filter (e.g., `$age > 25 & $dept == "eng"`), T will return a helpful `TypeError` suggesting the use of `.&` and `.|` for vectorized element-wise operations, or `&&`/`||` for combining filter conditions.
 
 ---
 

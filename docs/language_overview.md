@@ -119,7 +119,7 @@ Operator precedence follows standard mathematical conventions. Parentheses overr
 ```
 
 > [!IMPORTANT]
-> **Strict Scalar Equality**: The equality operators `==` and `!=` are defined for **scalars only**. If either operand is a collection (List, Vector, or NDArray), the operator will return a `TypeError`. To perform element-wise comparisons or check equality against a collection, you **must** use the broadcasting operators `.==` and `.!==`.
+> **Strict Scalar Equality**: The equality operators `==` and `!=` are defined for **scalars only**. If either operand is a collection (List, Vector, or NDArray), the operator will return a `TypeError`. To perform element-wise comparisons or check equality against a collection, you **must** use the broadcasting operators `.==` and `.!=`.
 >
 > ```t
 > 1 == [1, 2]    -- Error: Operator '==' is defined for scalars only.
@@ -153,7 +153,7 @@ For element-wise logical operations on collections, use the designated broadcast
 | `.|`     | Vectorized OR  | `or` (or `||`)   |
 
 > [!TIP]
-> **No Silent Magic**: Just like arithmetic and comparison, the bitwise operators `&` and `|` strictly require scalar operands. Attempting to use them with a List or Vector will result in a `TypeError` that directs you to use the vectorized `. &` or `. |` operators.
+> **No Silent Magic**: Just like arithmetic and comparison, the bitwise operators `&` and `|` strictly require scalar operands. Attempting to use them with a List or Vector will result in a `TypeError` that directs you to use the vectorized `.&` or `.|` operators.
 
 ---
 

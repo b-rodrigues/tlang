@@ -9,7 +9,7 @@
     - **Factor Resolution Parity**: Restored and verified sophisticated term resolution (categorical dummies and interaction terms) in native linear model scoring.
     - **Automatic Environment Configuration**: The Nix `devShell` now automatically exports `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR`, enabling zero-config PMML scoring in development environments.
 - **Improved Language Robustness & Interop**:
-    - **Strict Scalar Equality (No Silent Magic)**: Enforced strict scalarity for `==` and `!=` operators. These operators now return a `TypeError` if either operand is a collection (List, Vector, NDArray), forcing explicit use of broadcasting operators (`.==`, `.!==`) for element-wise comparison.
+    - **Strict Scalar Equality (No Silent Magic)**: Enforced strict scalarity for `==` and `!=` operators. These operators now return a `TypeError` if either operand is a collection (List, Vector, NDArray), forcing explicit use of broadcasting operators (`.==`, `.!=`) for element-wise comparison.
     - **`identical(a, b)`**: Introduced a new core builtin for deep structural equality. Use `identical()` to compare complex objects like Lists or DataFrames, providing a safe alternative to the now scalar-only `==` operator.
     - **Grouped Mutate Support**: Fixed a regression in `mutate()` where assigning a scalar constant to a column in a grouped DataFrame would fail with a "not callable" error.
     - **Improved Bitwise Logic Hints**: Added `&` (BitAnd) and `|` (BitOr) to the scalar-strictly guarded operators. Using these with collections now provides a helpful hint to use vectorized operators (`.&` or `.|`).
