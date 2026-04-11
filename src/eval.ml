@@ -142,15 +142,39 @@ let inherit_warning dep_name warning =
   { warning with Ast.nw_source = inherited_source }
 
 let dedupe_warnings warnings =
-  List.fold_left (fun acc warning ->
-    if List.mem warning acc then acc else acc @ [warning]
-  ) [] warnings
+  let seen = Hashtbl.create (List.length warnings) in
+  let warning_key warning =
+    let source_key =
+      match warning.Ast.nw_source with
+      | Ast.WarningOwn -> "own"
+      | Ast.WarningUpstream node -> "upstream:" ^ node
+    in
+    String.concat "|"
+      [
+        warning.Ast.nw_kind;
+        warning.Ast.nw_fn;
+        string_of_int warning.Ast.nw_na_count;
+        String.concat "," (List.map string_of_int warning.Ast.nw_na_indices);
+        warning.Ast.nw_message;
+        source_key;
+      ]
+  in
+  warnings
+  |> List.fold_left (fun acc warning ->
+       let key = warning_key warning in
+       if Hashtbl.mem seen key then acc
+       else begin
+         Hashtbl.add seen key ();
+         warning :: acc
+       end
+     ) []
+  |> List.rev
 
-let build_node_diagnostics node_name node_deps own_warnings current_diagnostics value =
+let build_node_diagnostics node_name node_deps own_warnings diagnostics_so_far value =
   let upstream_warnings =
     node_deps
     |> List.concat_map (fun dep_name ->
-         match List.assoc_opt dep_name current_diagnostics with
+         match List.assoc_opt dep_name diagnostics_so_far with
          | Some diagnostics ->
              List.map (inherit_warning dep_name) diagnostics.Ast.nd_warnings
          | None -> [])
