@@ -125,6 +125,7 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                 let right_keep = take_bool_array n right_pred.keep in
                 let left_na = take_bool_array n left_pred.na in
                 let right_na = take_bool_array n right_pred.na in
+                let left_false = false_mask left_keep left_na in
                 Some {
                   keep = Array.init n (fun i -> left_keep.(i) && right_keep.(i));
                   na =
