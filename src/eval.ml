@@ -112,7 +112,7 @@ let annotate_pipeline_error ?runtime node_name = function
 
 (** Extract the function name from errors shaped like "Function `name` ...".
     Falls back to [fallback] when the pattern is absent. *)
-let function_name_of_error_message fallback message =
+let extract_function_name_from_error fallback message =
   let prefix = "Function `" in
   let prefix_len = String.length prefix in
   let len = String.length message in
@@ -132,7 +132,7 @@ let node_error_of_value node_name = function
   | VError err ->
       Some {
         Ast.ne_kind = Ast.Utils.error_code_to_string err.code;
-        ne_fn = function_name_of_error_message node_name err.message;
+        ne_fn = extract_function_name_from_error node_name err.message;
         ne_message = err.message;
         ne_na_count = 0;
       }
@@ -151,7 +151,7 @@ let inherit_warning dep_name warning =
 (** Remove duplicate warnings while preserving first-seen order. *)
 let dedupe_warnings warnings =
   let seen = Hashtbl.create (List.length warnings) in
-  let warning_key warning =
+  let warning_dedup_key warning =
     let source_key =
       match warning.Ast.nw_source with
       | Ast.WarningOwn -> "own"
@@ -169,7 +169,7 @@ let dedupe_warnings warnings =
   in
   warnings
   |> List.fold_left (fun acc warning ->
-       let key = warning_key warning in
+       let key = warning_dedup_key warning in
        if Hashtbl.mem seen key then acc
        else begin
          Hashtbl.add seen key ();

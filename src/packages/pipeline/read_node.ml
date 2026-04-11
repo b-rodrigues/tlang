@@ -3,13 +3,14 @@ open Ast
 (* 
 --# Read Pipeline Node Artifact
 --#
---# Reads a pipeline node from an in-memory Pipeline or reads a built artifact
---# from the latest (or specified) build log in `_pipeline/`.
+--# For in-memory Pipelines, returns a node record with the node value and
+--# structured diagnostics. For built pipelines, reads the artifact from the
+--# latest (or specified) build log in `_pipeline/`.
 --# Use `which_log` to read from a specific historical build ("time travel").
 --#
 --# @name read_node
---# @param node :: Pipeline | String | ComputedNode The pipeline plus node name, or a node artifact reference.
---# @param name :: String (Optional) The node name when reading from an in-memory Pipeline.
+--# @param node :: Pipeline | String | ComputedNode The pipeline value or built-node reference.
+--# @param name :: String (Optional) Required when `node` is a Pipeline; ignored otherwise.
 --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
 --# @return :: Any A node record for in-memory pipelines, or the deserialized artifact for built nodes.
 --# @family pipeline
