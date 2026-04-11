@@ -131,6 +131,10 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                 Some {
                   keep = Array.init n (fun i -> left_keep.(i) && right_keep.(i));
                   na =
+                    (* Matches interpreter short-circuit AND: left-side NA always
+                       propagates; right-side NA only propagates when the left
+                       side is not definitively false (so the right predicate
+                       would be evaluated). *)
                     Array.init n (fun i ->
                       left_na.(i)
                       || (right_na.(i) && right_needed.(i)));
