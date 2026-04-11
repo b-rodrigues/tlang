@@ -106,7 +106,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     let has_warning =
       try
         Str.search_forward (Str.regexp warning_pattern) warning_text 0 >= 0
-      with Not_found -> false
+      with Stdlib.Not_found -> false
     in
     if result_warn = expected_result && has_warning then begin
       incr pass_count; Printf.printf "  ✓ %s\n" label

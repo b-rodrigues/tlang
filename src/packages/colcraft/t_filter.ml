@@ -149,8 +149,9 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                 Some {
                   keep = Array.init n (fun i -> left_keep.(i) || right_keep.(i));
                   na =
-                    (* Match short-circuit OR: left-side NA always propagates,
-                       and right-side NA only matters when the left side is false. *)
+                    (* Matches interpreter short-circuit OR: left-side NA always
+                       propagates; right-side NA only propagates when the left
+                       side is false (so the right predicate would be evaluated). *)
                     Array.init n (fun i ->
                       left_na.(i) || (right_na.(i) && left_false.(i)));
                 }
