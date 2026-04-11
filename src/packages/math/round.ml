@@ -15,11 +15,13 @@ open Ast
 
 let register env =
   let apply_round digits named_args =
-    let na_ignore = Math_common.named_flag_true "na_ignore" named_args in
-    let args = Math_common.positional_args_without [ "digits"; "na_ignore" ] named_args in
-    let factor = Float.pow 10.0 (float_of_int digits) in
-    let rf x = Float.round (x *. factor) /. factor in
-    Math_common.map_numeric_unary ~fname:"round" ~na_ignore rf args
+    match Math_common.get_bool_flag "na_ignore" false named_args with
+    | Error e -> e
+    | Ok na_ignore ->
+        let args = Math_common.positional_args_without [ "digits"; "na_ignore" ] named_args in
+        let factor = Float.pow 10.0 (float_of_int digits) in
+        let rf x = Float.round (x *. factor) /. factor in
+        Math_common.map_numeric_unary ~fname:"round" ~na_ignore rf args
   in
   Env.add "round"
     (make_builtin_named ~name:"round" ~variadic:true 1 (fun named_args _env ->

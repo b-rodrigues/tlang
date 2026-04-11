@@ -24,17 +24,19 @@ let register env =
         let scale = Float.pow 10.0 (d -. 1.0 -. Float.floor (Float.log10 (Float.abs x))) in
         Float.round (x *. scale) /. scale
     in
-    let na_ignore = Math_common.named_flag_true "na_ignore" named_args in
-    let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
-    match args with
-    | [x; VInt digits] when digits > 0 ->
-        Math_common.map_numeric_unary ~fname:"signif" ~na_ignore (fun v -> signif_f v digits) [x]
-    | [_; VInt _] -> Error.value_error "Function `signif` expects positive integer digits."
-    | [x; VFloat d] when d > 0.0 ->
-        let digits = int_of_float d in
-        if float_of_int digits = d && digits > 0 then
-          Math_common.map_numeric_unary ~fname:"signif" ~na_ignore (fun v -> signif_f v digits) [x]
-        else
-          Error.value_error "Function `signif` expects positive integer digits."
-    | [_; _] -> Error.value_error "Function `signif` expects positive integer digits."
-    | _ -> Error.arity_error_named "signif" 2 (List.length args))) env
+    match Math_common.get_bool_flag "na_ignore" false named_args with
+    | Error e -> e
+    | Ok na_ignore ->
+        let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
+        match args with
+        | [x; VInt digits] when digits > 0 ->
+            Math_common.map_numeric_unary ~fname:"signif" ~na_ignore (fun v -> signif_f v digits) [x]
+        | [_; VInt _] -> Error.value_error "Function `signif` expects positive integer digits."
+        | [x; VFloat d] when d > 0.0 ->
+            let digits = int_of_float d in
+            if float_of_int digits = d && digits > 0 then
+              Math_common.map_numeric_unary ~fname:"signif" ~na_ignore (fun v -> signif_f v digits) [x]
+            else
+              Error.value_error "Function `signif` expects positive integer digits."
+        | [_; _] -> Error.value_error "Function `signif` expects positive integer digits."
+        | _ -> Error.arity_error_named "signif" 2 (List.length args))) env

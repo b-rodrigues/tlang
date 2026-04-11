@@ -1,9 +1,5 @@
 open Ast
 
-let string_has_prefix prefix s =
-  let prefix_len = String.length prefix in
-  String.length s >= prefix_len && String.sub s 0 prefix_len = prefix
-
 let is_na_predicate_error = function
   | VError { code = NAPredicateError; _ } -> true
   | _ -> false
@@ -28,11 +24,46 @@ let emit_na_filter_warning na_indices =
         (plural_suffix count)
         rendered
 
+type vectorized_predicate = {
+  keep : bool array;
+  na : bool array;
+}
+
+let min_array_len a b =
+  min (Array.length a) (Array.length b)
+
+let take_bool_array len arr =
+  if Array.length arr = len then arr else Array.init len (fun i -> arr.(i))
+
+let false_mask keep na =
+  let len = min_array_len keep na in
+  Array.init len (fun i -> (not keep.(i)) && not na.(i))
+
+let na_indices_of_mask mask =
+  let acc = ref [] in
+  Array.iteri (fun i is_na ->
+    if is_na then acc := (i + 1) :: !acc
+  ) mask;
+  !acc
+
+let vectorized_compare table field scalar op_s =
+  match Arrow_compute.compare_column_scalar table field scalar op_s with
+  | None -> None
+  | Some keep ->
+      let len = Array.length keep in
+      let na =
+        match Arrow_compute.column_null_mask table field with
+        | Some mask -> take_bool_array len mask
+        | None -> Array.make len false
+      in
+      Some { keep; na }
+
 (** Try to vectorize a filter predicate.
     Detects simple patterns like \(row) row.col > scalar and uses
     Arrow_compute.compare_column_scalar for zero-copy filtering.
     Also handles AND/OR combinations of simple comparisons. *)
-let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array option =
+let try_vectorize_filter (table : Arrow_table.t) (fn : value)
+    : vectorized_predicate option =
   match fn with
   | VLambda { params = [param]; body; _ } ->
     let extract_scalar = function
@@ -51,18 +82,18 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
         (* Pattern: row.field op scalar *)
         (match left.node, right.node with
          | DotAccess { target = { node = Var p; _ }; field }, Value scalar when p = param ->
-           (match extract_scalar scalar with
-            | Some sf -> Arrow_compute.compare_column_scalar table field sf op_s
-            | None -> None)
+            (match extract_scalar scalar with
+             | Some sf -> vectorized_compare table field sf op_s
+             | None -> None)
          (* Pattern: scalar op row.field → flip comparison *)
          | Value scalar, DotAccess { target = { node = Var p; _ }; field } when p = param ->
            let flipped_op = match op_s with
              | "gt" -> "lt" | "lt" -> "gt" | "ge" -> "le" | "le" -> "ge"
              | other -> other
-           in
-           (match extract_scalar scalar with
-            | Some sf -> Arrow_compute.compare_column_scalar table field sf flipped_op
-            | None -> None)
+            in
+            (match extract_scalar scalar with
+             | Some sf -> vectorized_compare table field sf flipped_op
+             | None -> None)
          | _ -> None)
     in
     (* Recursively try to vectorize an expression, handling AND/OR *)
@@ -70,30 +101,57 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value) : bool array optio
       match expr.node with
       | UnOp { op = Not; operand } ->
         (match try_vectorize_expr operand with
-         | Some mask ->
-           let n = Array.length mask in
-           Some (Array.init n (fun i -> not mask.(i)))
-         | None -> None)
+         | Some { keep; na } ->
+           let n = min_array_len keep na in
+           Some {
+             keep = Array.init n (fun i -> (not keep.(i)) && not na.(i));
+             na = take_bool_array n na;
+           }
+          | None -> None)
       | Call { fn = { node = Var "is_na"; _ };
                args = [(None, { node = DotAccess { target = { node = Var p; _ }; field }; _ })] }
-          when p = param ->
-        Arrow_compute.column_null_mask table field
+           when p = param ->
+        (match Arrow_compute.column_null_mask table field with
+         | Some keep -> Some { keep; na = Array.make (Array.length keep) false }
+         | None -> None)
       | BinOp { op; left; right } ->
         (match op with
          | And ->
-            (* Pattern: predA && predB — intersect boolean masks *)
+             (* Pattern: predA && predB — intersect boolean masks *)
+             (match try_vectorize_expr left, try_vectorize_expr right with
+             | Some left_pred, Some right_pred ->
+               let n = min_array_len left_pred.keep right_pred.keep in
+               let left_keep = take_bool_array n left_pred.keep in
+               let right_keep = take_bool_array n right_pred.keep in
+               let left_na = take_bool_array n left_pred.na in
+               let right_na = take_bool_array n right_pred.na in
+               let left_false = false_mask left_keep left_na in
+               let right_false = false_mask right_keep right_na in
+               Some {
+                 keep = Array.init n (fun i -> left_keep.(i) && right_keep.(i));
+                 na =
+                   Array.init n (fun i ->
+                     (left_na.(i) && not right_false.(i))
+                     || (right_na.(i) && not left_false.(i)));
+               }
+             | _ -> None)
+          | Or ->
+            (* Pattern: predA || predB — union boolean masks *)
             (match try_vectorize_expr left, try_vectorize_expr right with
-            | Some mask_l, Some mask_r ->
-              let n = min (Array.length mask_l) (Array.length mask_r) in
-              Some (Array.init n (fun i -> mask_l.(i) && mask_r.(i)))
-            | _ -> None)
-         | Or ->
-           (* Pattern: predA || predB — union boolean masks *)
-           (match try_vectorize_expr left, try_vectorize_expr right with
-            | Some mask_l, Some mask_r ->
-              let n = min (Array.length mask_l) (Array.length mask_r) in
-              Some (Array.init n (fun i -> mask_l.(i) || mask_r.(i)))
-            | _ -> None)
+              | Some left_pred, Some right_pred ->
+                let n = min_array_len left_pred.keep right_pred.keep in
+                let left_keep = take_bool_array n left_pred.keep in
+                let right_keep = take_bool_array n right_pred.keep in
+                let left_na = take_bool_array n left_pred.na in
+                let right_na = take_bool_array n right_pred.na in
+                Some {
+                  keep = Array.init n (fun i -> left_keep.(i) || right_keep.(i));
+                  na =
+                   Array.init n (fun i ->
+                     (left_na.(i) && not right_keep.(i))
+                     || (right_na.(i) && not left_keep.(i)));
+               }
+             | _ -> None)
          | _ -> try_cmp op left right)
       | _ -> None
     in
@@ -122,7 +180,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
       | [VDataFrame df; fn] ->
           (* Try vectorized path first for simple predicates *)
           (match try_vectorize_filter df.arrow_table fn with
-           | Some keep ->
+           | Some { keep; na } ->
+             emit_na_filter_warning (na_indices_of_mask na);
              let new_table = Arrow_compute.filter df.arrow_table keep in
              VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
            | None ->

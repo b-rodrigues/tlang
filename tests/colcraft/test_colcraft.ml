@@ -1,3 +1,34 @@
+let capture_stderr f =
+  let stderr_fd = Unix.descr_of_out_channel stderr in
+  let saved_stderr = Unix.dup stderr_fd in
+  let read_fd, write_fd = Unix.pipe () in
+  Unix.dup2 write_fd stderr_fd;
+  Unix.close write_fd;
+  let restore () =
+    flush stderr;
+    Unix.dup2 saved_stderr stderr_fd;
+    Unix.close saved_stderr
+  in
+  try
+    let result = f () in
+    restore ();
+    let buffer = Buffer.create 128 in
+    let chunk = Bytes.create 256 in
+    let rec drain () =
+      match Unix.read read_fd chunk 0 (Bytes.length chunk) with
+      | 0 -> ()
+      | n ->
+          Buffer.add_subbytes buffer chunk 0 n;
+          drain ()
+    in
+    drain ();
+    Unix.close read_fd;
+    (result, Buffer.contents buffer)
+  with exn ->
+    restore ();
+    Unix.close read_fd;
+    raise exn
+
 let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Create test CSV for Phase 4 tests *)
   let csv_p4 = "test_phase4.csv" in
@@ -62,6 +93,36 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "filter excludes rows where predicate sees NA"
     {|df_na_filter = dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_filter, $x > 1) |> nrow|}
     "1";
+  let show_warnings_before = !Eval.show_warnings in
+  let ((v_warn, _), warning_text) =
+    Fun.protect
+      (fun () ->
+        Eval.show_warnings := true;
+        capture_stderr (fun () ->
+          eval_string_env
+            {|df_na_warn = dataframe([[x: 1], [x: NA], [x: 3]]); filter(df_na_warn, $x > 1) |> nrow|}
+            env_p4))
+      ~finally:(fun () -> Eval.show_warnings := show_warnings_before)
+  in
+  let result_warn = Ast.Utils.value_to_string v_warn in
+  let has_warning =
+    try
+      let _ =
+        Str.search_forward
+          (Str.regexp "Warning: filter() excluded 1 row because the predicate evaluated to NA")
+          warning_text 0
+      in
+      true
+    with Not_found -> false
+  in
+  if result_warn = "1" && has_warning then begin
+    incr pass_count; Printf.printf "  ✓ filter vectorized path warns when NA rows are excluded\n"
+  end else begin
+    incr fail_count;
+    Printf.printf
+      "  ✗ filter vectorized path warns when NA rows are excluded\n    Expected nrow=1 with warning\n    Got result: %s\n    Warning: %s\n"
+      result_warn warning_text
+  end;
   print_newline ();
 
   Printf.printf "Phase 4 — mutate():\n";

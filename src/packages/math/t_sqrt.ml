@@ -19,44 +19,46 @@ open Ast
 let register env =
   Env.add "sqrt"
     (make_builtin_named ~name:"sqrt" ~variadic:true 1 (fun named_args _env ->
-      let na_ignore = Math_common.named_flag_true "na_ignore" named_args in
-      let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
-      match args with
-      | [VInt n] ->
-          if n < 0 then Error.value_error "Function `sqrt` is undefined for negative numbers."
-          else VFloat (Float.sqrt (float_of_int n))
-      | [VFloat f] ->
-          if f < 0.0 then Error.value_error "Function `sqrt` is undefined for negative numbers."
-          else VFloat (Float.sqrt f)
-      | [VVector arr] ->
-          let result = Array.make (Array.length arr) (VNA NAGeneric) in
-          let had_error = ref None in
-          Array.iteri (fun i v ->
-            if !had_error = None then
-              match v with
-              | VInt n ->
-                  if n < 0 then had_error := Some (Error.value_error "Function `sqrt` is undefined for negative numbers.")
-                  else result.(i) <- VFloat (Float.sqrt (float_of_int n))
-              | VFloat f ->
-                  if f < 0.0 then had_error := Some (Error.value_error "Function `sqrt` is undefined for negative numbers.")
-                  else result.(i) <- VFloat (Float.sqrt f)
-              | VNA na_t when na_ignore -> result.(i) <- VNA na_t
-              | VNA _ -> had_error := Some (Error.na_value_error "sqrt")
-              | _ -> had_error := Some (Error.type_error "Function `sqrt` requires numeric values.")
-          ) arr;
-          (match !had_error with Some e -> e | None -> VVector result)
-      | [VNDArray arr] ->
-          let result = Array.map (fun f ->
-            if f < 0.0 then nan (* Use NaN for negative sqrt in NDArray to match typical vectorized behavior, or error? *)
-            else Float.sqrt f
-          ) arr.data in
-          if Array.exists Float.is_nan result then
-             Error.value_error "Function `sqrt` encountered negative values in NDArray."
-          else
-             VNDArray { shape = arr.shape; data = result }
-      | [VNA na_t] when na_ignore -> VNA na_t
-      | [VNA _] -> Error.na_value_error "sqrt"
-      | [_] -> Error.type_error "Function `sqrt` expects a number, numeric Vector, or NDArray."
-      | _ -> Error.arity_error_named "sqrt" 1 (List.length args)
+      match Math_common.get_bool_flag "na_ignore" false named_args with
+      | Error e -> e
+      | Ok na_ignore ->
+          let args = Math_common.positional_args_without [ "na_ignore" ] named_args in
+          match args with
+          | [VInt n] ->
+              if n < 0 then Error.value_error "Function `sqrt` is undefined for negative numbers."
+              else VFloat (Float.sqrt (float_of_int n))
+          | [VFloat f] ->
+              if f < 0.0 then Error.value_error "Function `sqrt` is undefined for negative numbers."
+              else VFloat (Float.sqrt f)
+          | [VVector arr] ->
+              let result = Array.make (Array.length arr) (VNA NAGeneric) in
+              let had_error = ref None in
+              Array.iteri (fun i v ->
+                if !had_error = None then
+                  match v with
+                  | VInt n ->
+                      if n < 0 then had_error := Some (Error.value_error "Function `sqrt` is undefined for negative numbers.")
+                      else result.(i) <- VFloat (Float.sqrt (float_of_int n))
+                  | VFloat f ->
+                      if f < 0.0 then had_error := Some (Error.value_error "Function `sqrt` is undefined for negative numbers.")
+                      else result.(i) <- VFloat (Float.sqrt f)
+                  | VNA na_t when na_ignore -> result.(i) <- VNA na_t
+                  | VNA _ -> had_error := Some (Error.na_value_error "sqrt")
+                  | _ -> had_error := Some (Error.type_error "Function `sqrt` requires numeric values.")
+              ) arr;
+              (match !had_error with Some e -> e | None -> VVector result)
+          | [VNDArray arr] ->
+              let result = Array.map (fun f ->
+                if f < 0.0 then nan (* Use NaN for negative sqrt in NDArray to match typical vectorized behavior, or error? *)
+                else Float.sqrt f
+              ) arr.data in
+              if Array.exists Float.is_nan result then
+                 Error.value_error "Function `sqrt` encountered negative values in NDArray."
+              else
+                 VNDArray { shape = arr.shape; data = result }
+          | [VNA na_t] when na_ignore -> VNA na_t
+          | [VNA _] -> Error.na_value_error "sqrt"
+          | [_] -> Error.type_error "Function `sqrt` expects a number, numeric Vector, or NDArray."
+          | _ -> Error.arity_error_named "sqrt" 1 (List.length args)
     ))
     env

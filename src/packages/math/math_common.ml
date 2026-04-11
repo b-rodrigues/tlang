@@ -1,15 +1,5 @@
 open Ast
 
-let named_flag_true flag named_args =
-  List.exists
-    (fun (name, value) ->
-      name = Some flag
-      &&
-      match value with
-      | VBool true -> true
-      | _ -> false)
-    named_args
-
 let get_bool_flag name default named_args =
   match List.find_opt (fun (n, _) -> n = Some name) named_args with
   | Some (_, VBool b) -> Ok b
