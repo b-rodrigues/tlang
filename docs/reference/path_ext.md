@@ -9,12 +9,12 @@ Get file extension
 
 ## Returns
 
-| NA The file extension including the leading dot, or NA if none.
+| NA The file extension including the leading dot, or null if none.
 
 ## Examples
 
 ```t
 path_ext("data.csv")    # => ".csv"
-path_ext("Makefile")    # => NA
+path_ext("Makefile")    # => null
 ```
 

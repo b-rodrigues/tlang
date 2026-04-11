@@ -11,10 +11,11 @@ Retrieves the value of an environment variable.
 
 ## Returns
 
-| NA The value of the variable, or NA if not set.
+| NA The value of the variable, or null if not set.
 
 ## Examples
 
 ```t
 env("HOME")
 ```
+

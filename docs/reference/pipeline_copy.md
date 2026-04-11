@@ -6,7 +6,7 @@ Copies built artifacts from the Nix store to a local directory for easier inspec
 
 ## Parameters
 
-- **node** (`String`): (Optional) The node name to copy. If NA, copies all nodes.
+- **node** (`String`): (Optional) The node name to copy. If null, copies all nodes.
 
 - **target_dir** (`String`): (Optional) The destination directory. Default is "pipeline-output".
 

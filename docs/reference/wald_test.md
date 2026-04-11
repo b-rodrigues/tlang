@@ -22,3 +22,4 @@ A one-row DataFrame with the test statistic and p-value.
 ```t
 wald_test(model, terms = ["wt", "hp"])
 ```
+

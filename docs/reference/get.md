@@ -1,17 +1,24 @@
 # get
 
-Get Value via Lens
+Get element by index
 
-Retrieves a focused value from a data structure using a lens.
+Retrieves an element from a List, Vector, or NDArray at the specified index (0-based).
 
 ## Parameters
 
-- **data** (`Any`): The data structure to focus on.
+- **collection** (`List`): | Vector | NDArray The collection to access.
 
-- **lens** (`Lens`): The lens defining the focus.
+- **index** (`Int`): The index to retrieve.
 
 
 ## Returns
 
-The focused value.
+The element at the index.
+
+## Examples
+
+```t
+get([10, 20, 30], 1)
+-- Returns = 20
+```
 

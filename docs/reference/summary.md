@@ -2,7 +2,7 @@
 
 Model Summary
 
-Returns a tidy DataFrame of regression coefficients and statistics.
+Returns a tidy summary DataFrame for native models.
 
 ## Parameters
 
