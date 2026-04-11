@@ -7,6 +7,7 @@ open Ast
 --#
 --# @name log
 --# @param x :: Number | Vector | NDArray The input value (must be positive).
+--# @param na_ignore :: Bool Whether to preserve NA values in inputs. Default is false.
 --# @return :: Float | Vector | NDArray The natural logarithm.
 --# @example
 --#   log(2.71828)

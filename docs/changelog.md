@@ -2,6 +2,14 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
+- **Standardized Missingness (NA) Handling**: Finalized the implementation of the new NA-handling specification for improved consistency and "No Silent Magic" compliance.
+    - **`NAPredicateError`**: Introduced a dedicated error code for NA values encountered in boolean contexts. This enables `filter()` and other data verbs to distinguish missingness-related failures from general type errors.
+    - **Enhanced `filter()` Logic**: Updated `filter()` to utilize structured `NAPredicateError` detection. Rows where the predicate evaluates to `NA` are now correctly excluded with a clear warning, rather than relying on brittle string-based error matching.
+    - **Strict Condition Guards**: Enhanced `if` expressions, logical operators (`&&`, `||`), and comparison operators (`==`, `!=`, `<`, `>`, etc.) to raise `NAPredicateError` when they encounter `NA` values in boolean contexts.
+    - **Type-Validated Flags**: Added rigorous type validation for `na_ignore` and `na_rm` flags across all math and stats builtins. Passing invalid types (e.g., `na_ignore = 1`) now results in an immediate `TypeError`.
+    - **Optimized Aggregations**: Refactored `min()` and `max()` into high-performance single-pass implementations with validated `na_rm` support.
+    - **Expanded Transform Support**: Added `VList` support to `pow()` and verified `na_ignore` semantics across `abs`, `log`, `sqrt`, `exp`, and `pow`.
+
 - **Standardized PMML Interchange (Authority Pivot)**: Finalized the transition to JPMML as the canonical scoring authority for all PMML models. 
     - **JPMML Bridge**: Standardized on a CSV-based bridge for the JPMML evaluator, ensuring robust and deterministic cross-language scoring. The `predict()` function now prioritizes the JPMML bridge for any artifact containing a `_pmml_path`.
     - **StatsModels PMML Support**: Enhanced `statsmodels` detection in the Python emitter to correctly identify `ResultsWrapper` objects, enabling seamless PMML export via `jpmml-statsmodels`.

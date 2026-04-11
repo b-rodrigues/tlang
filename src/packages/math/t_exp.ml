@@ -6,8 +6,9 @@ open Ast
 --# Calculates e raised to the power of x.
 --#
 --# @name exp
---# @param x :: Number | Vector | NDArray The exponent.
---# @return :: Float | Vector | NDArray The result of e^x.
+--# @param x :: Number | Vector | NDArray The input value.
+--# @param na_ignore :: Bool Whether to preserve NA values in inputs. Default is false.
+--# @return :: Float | Vector | NDArray The exponential.
 --# @example
 --#   exp(1)
 --#   -- Returns = 2.71828...

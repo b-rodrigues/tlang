@@ -9,6 +9,7 @@ open Ast
 --#
 --# @name abs
 --# @param x :: Number | Vector | NDArray The input value.
+--# @param na_ignore :: Bool Whether to preserve NA values in inputs. Default is false.
 --# @return :: Number | Vector | NDArray The absolute value.
 --# @example
 --#   abs(-5)

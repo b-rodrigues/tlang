@@ -7,6 +7,7 @@ open Ast
 --#
 --# @name sqrt
 --# @param x :: Number | Vector | NDArray The input value (must be non-negative).
+--# @param na_ignore :: Bool Whether to preserve NA values in inputs. Default is false.
 --# @return :: Float | Vector | NDArray The square root.
 --# @example
 --#   sqrt(16)
