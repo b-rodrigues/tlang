@@ -105,10 +105,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     let result_warn = Ast.Utils.value_to_string v_warn in
     let has_warning =
       try
-        let _ =
-          Str.search_forward (Str.regexp warning_pattern) warning_text 0
-        in
-        true
+        Str.search_forward (Str.regexp warning_pattern) warning_text 0 >= 0
       with Not_found -> false
     in
     if result_warn = expected_result && has_warning then begin
