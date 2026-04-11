@@ -25,4 +25,4 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   
   (* NA handling *)
   test "find before NA" "1 in [1, NA]" "true"; 
-  test "NA in list error" "2 in [1, NA]" {|Error(TypeError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
+  test "NA in list error" "2 in [1, NA]" {|Error(NAPredicateError: "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.")|};
