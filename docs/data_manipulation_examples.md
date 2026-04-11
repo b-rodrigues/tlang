@@ -157,7 +157,7 @@ df |> filter($dept == "sales" || $score > 90)
 ```
 
 > [!TIP]
-> **No Silent Magic**: Standard bitwise operators `&` and `|` are strictly for scalars. If you accidentally use them in a filter (e.g., `$age > 25 & $dept == "eng"`), T will return a helpful `TypeError` suggesting the use of `.&` and `.|` for vectorized element-wise operations, or `&&`/`||` for combining filter conditions.
+> **No Silent Magic**: Standard bitwise operators `&` and `|` are strictly for scalars. If you accidentally use them in a filter (e.g., `$age > 25 & $dept == "eng"`), T will return a helpful `TypeError` suggesting the use of `&&`/`||` for combining filter conditions, or `.&`/`.|` for vectorized element-wise operations.
 
 ---
 

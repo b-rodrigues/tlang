@@ -201,8 +201,12 @@ let identical args _env =
       List.length la = List.length lb &&
       List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2) la lb
     | VDict da, VDict db ->
-      List.length da = List.length db &&
-      List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2) da db
+      (* Sort both dicts by key to make comparison order-independent *)
+      let cmp_key (k1, _) (k2, _) = String.compare k1 k2 in
+      let da' = List.sort cmp_key da in
+      let db' = List.sort cmp_key db in
+      List.length da' = List.length db' &&
+      List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2) da' db'
     | VUnquote a', VUnquote b' -> value_equal a' b'
     | VUnquoteSplice a', VUnquoteSplice b' -> value_equal a' b'
     | VDynamicArg (k1, v1), VDynamicArg (k2, v2) -> k1 = k2 && value_equal v1 v2
