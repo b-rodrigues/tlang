@@ -214,5 +214,53 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   print_newline ();
 
+  Printf.printf "Edge Cases — Mutate Constant/Scalar Column Assignment:\n";
+
+  (* mutate with numeric constant *)
+  let (v, _) = eval_string_env
+    {|result = mutate(df, $const_num = 1.0); result.const_num|}
+    env0 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[1., 1., 1., 1., 1.]" then begin
+    incr pass_count; Printf.printf "  ✓ mutate constant float replicates across all rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ mutate constant float replicates across all rows\n    Expected: Vector[1., 1., 1., 1., 1.]\n    Got: %s\n" result
+  end;
+
+  (* mutate with string constant *)
+  let (v, _) = eval_string_env
+    {|result = mutate(df, $const_str = "x"); result.const_str|}
+    env0 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|Vector["x", "x", "x", "x", "x"]|} then begin
+    incr pass_count; Printf.printf "  ✓ mutate constant string replicates across all rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ mutate constant string replicates across all rows\n    Expected: Vector[\"x\", \"x\", \"x\", \"x\", \"x\"]\n    Got: %s\n" result
+  end;
+
+  (* mutate with integer constant *)
+  let (v, _) = eval_string_env
+    {|result = mutate(df, $const_int = 42); result.const_int|}
+    env0 in
+  let result = Ast.Utils.value_to_string v in
+  if result = "Vector[42, 42, 42, 42, 42]" then begin
+    incr pass_count; Printf.printf "  ✓ mutate constant integer replicates across all rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ mutate constant integer replicates across all rows\n    Expected: Vector[42, 42, 42, 42, 42]\n    Got: %s\n" result
+  end;
+
+  (* grouped mutate with constant — constant must replicate within each group *)
+  let (v, _) = eval_string_env
+    {|result = df |> group_by($category) |> mutate($label = "fixed"); result.label|}
+    env0 in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|Vector["fixed", "fixed", "fixed", "fixed", "fixed"]|} then begin
+    incr pass_count; Printf.printf "  ✓ grouped mutate constant string replicates across all rows\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ grouped mutate constant string replicates across all rows\n    Expected: Vector[\"fixed\", \"fixed\", \"fixed\", \"fixed\", \"fixed\"]\n    Got: %s\n" result
+  end;
+
+  print_newline ();
+
   (* Clean up *)
   (try Sys.remove csv_edge with _ -> ())

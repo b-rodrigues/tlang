@@ -265,7 +265,7 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
           | None ->
             let is_callable = match fn with
-              | VLambda _ | VSymbol _ | VBuiltin _ | VExpr _ -> true
+              | VLambda _ | VSymbol _ | VBuiltin _ | VExpr _ | VQuo _ -> true
               | _ -> false
             in
             let whole_result = 

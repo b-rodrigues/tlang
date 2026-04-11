@@ -1894,9 +1894,17 @@ and eval_call env_ref fn_val raw_args =
      before evaluation. Bare ColumnRef stays as-is (evaluates to VSymbol). *)
   let uses_nse_builtin name =
     match name with
-    | Some ("mutate" | "summarize" | "filter" | "select" | "arrange" | "group_by" | "count" | "rename" | "pivot_longer" | "pivot_wider"
-           | "node" | "py" | "pyn" | "rn" | "shn" | "inspect"
-           | "filter_node" | "mutate_node" | "select_node" | "arrange_node") -> true
+    | Some ("mutate" | "mutate_node"
+           | "summarize" | "summarize_node"
+           | "filter" | "filter_node"
+           | "select" | "select_node"
+           | "arrange" | "arrange_node"
+           | "group_by" | "group_by_node"
+           | "count" | "count_node"
+           | "rename" | "rename_node"
+           | "pivot_longer" | "pivot_longer_node"
+           | "pivot_wider" | "pivot_wider_node"
+           | "node" | "py" | "pyn" | "rn" | "shn" | "inspect") -> true
     | _ -> false
   in
 
@@ -1969,9 +1977,6 @@ and eval_call env_ref fn_val raw_args =
     ) raw_args;
     (VNA NAGeneric)
   ) else begin
-
-
-
 
   let rec process_args_spliced acc = function
     | [] -> acc
