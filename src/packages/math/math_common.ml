@@ -19,6 +19,9 @@ let positional_args_without names named_args =
     named_args
   |> List.map snd
 
+(** Shared numeric-unary mapper for math builtins.
+    Applies a float-valued transform to scalar/vector/ndarray numeric inputs and,
+    when [na_ignore] is true, preserves NA slots instead of failing on them. *)
 let map_numeric_unary ~fname ?(expects = "numeric input") ?(na_ignore = false) f =
   function
   | [VInt n] -> VFloat (f (float_of_int n))

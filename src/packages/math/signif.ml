@@ -15,6 +15,8 @@ open Ast
 
 let register env =
   Env.add "signif" (make_builtin_named ~name:"signif" ~variadic:true 2 (fun named_args _env ->
+    (* signif needs a local helper because the transformation depends on the
+       caller-supplied number of significant digits. *)
     let signif_f x digits =
       if x = 0.0 then 0.0
       else

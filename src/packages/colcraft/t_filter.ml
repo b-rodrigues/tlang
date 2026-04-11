@@ -4,12 +4,14 @@ let string_has_prefix prefix s =
   let prefix_len = String.length prefix in
   String.length s >= prefix_len && String.sub s 0 prefix_len = prefix
 
-let is_na_predicate_result = function
-  | VNA _ -> true
+let is_na_predicate_error = function
   | VError { code = TypeError; message; _ } ->
       string_has_prefix "Operation on NA:" message
       || string_has_prefix "Cannot use NA as a condition" message
   | _ -> false
+
+let plural_suffix count =
+  if count = 1 then "" else "s"
 
 let emit_na_filter_warning na_indices =
   match na_indices with
@@ -24,8 +26,8 @@ let emit_na_filter_warning na_indices =
       Printf.eprintf
         "Warning: filter() excluded %d row%s because the predicate evaluated to NA at row%s %s. Consider handling NAs explicitly before filtering.\n%!"
         count
-        (if count = 1 then "" else "s")
-        (if count = 1 then "" else "s")
+        (plural_suffix count)
+        (plural_suffix count)
         rendered
 
 (** Try to vectorize a filter predicate.
@@ -138,7 +140,9 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                   match result with
                   | VBool true -> keep.(i) <- true
                   | VBool false -> ()
-                  | _ when is_na_predicate_result result ->
+                  | VNA _ ->
+                      na_indices := (i + 1) :: !na_indices
+                  | VError _ when is_na_predicate_error result ->
                       na_indices := (i + 1) :: !na_indices
                   | VError _ as e -> had_error := Some e
                   | _ -> had_error := Some (make_error TypeError "filter() predicate must return a Bool")
