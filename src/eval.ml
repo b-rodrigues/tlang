@@ -110,8 +110,8 @@ let annotate_pipeline_error ?runtime node_name = function
       VError { err with message = pipeline_error_message ~node_name ~detail:err.message; context }
   | value -> value
 
-(** Extract the function name from errors shaped like "Function `name` ...".
-    Falls back to [fallback] when the pattern is absent. *)
+(** Parse error text shaped like ["Function `name` ..."] and return the
+    extracted function name. Returns [fallback] when no such fragment exists. *)
 let extract_function_name_from_error fallback message =
   let prefix = "Function `" in
   let prefix_len = String.length prefix in
@@ -138,8 +138,9 @@ let node_error_of_value node_name = function
       }
   | _ -> None
 
-(** Mark dependency warnings as inherited from [dep_name] while preserving
-    the original upstream source when one is already recorded. *)
+(** Rewrite a warning so dependency-local warnings become
+    [WarningUpstream dep_name], while warnings already attributed to an
+    upstream origin keep their original source node. *)
 let inherit_warning dep_name warning =
   let inherited_source =
     match warning.Ast.nw_source with
@@ -148,7 +149,8 @@ let inherit_warning dep_name warning =
   in
   { warning with Ast.nw_source = inherited_source }
 
-(** Remove duplicate warnings while preserving first-seen order. *)
+(** Remove duplicate warnings by hashing all warning fields into a composite
+    key and keeping only the first occurrence of each distinct warning. *)
 let dedupe_warnings warnings =
   let seen = Hashtbl.create (List.length warnings) in
   let warning_dedup_key warning =
@@ -178,8 +180,9 @@ let dedupe_warnings warnings =
      ) []
   |> List.rev
 
-(** Combine a node's own warnings with inherited dependency warnings and any
-    node-local error metadata. *)
+(** Build the diagnostics for a node by combining freshly emitted warnings,
+    inherited dependency warnings, and structured error metadata derived from
+    the node value when it is a [VError]. *)
 let build_node_diagnostics node_name node_deps own_warnings diagnostics_so_far value =
   let upstream_warnings =
     node_deps

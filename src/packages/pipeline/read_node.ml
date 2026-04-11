@@ -9,10 +9,10 @@ open Ast
 --# Use `which_log` to read from a specific historical build ("time travel").
 --#
 --# @name read_node
---# @param node :: Pipeline | String | ComputedNode The pipeline value or built-node reference.
---# @param name :: String (Optional) Required when `node` is a Pipeline; ignored otherwise.
+--# @param node :: Pipeline | String | ComputedNode Pass a Pipeline for in-memory node diagnostics, or a String/ComputedNode to load a built artifact.
+--# @param name :: String (Optional) The node name to read when `node` is a Pipeline.
 --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
---# @return :: Any A node record for in-memory pipelines, or the deserialized artifact for built nodes.
+--# @return :: Any A Dict with value+diagnostics for in-memory pipelines, or the deserialized artifact for built nodes.
 --# @family pipeline
 --# @seealso read_pipeline, build_pipeline, inspect_pipeline
 --# @export
