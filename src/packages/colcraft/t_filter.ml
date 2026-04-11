@@ -5,9 +5,7 @@ let string_has_prefix prefix s =
   String.length s >= prefix_len && String.sub s 0 prefix_len = prefix
 
 let is_na_predicate_error = function
-  | VError { code = TypeError; message; _ } ->
-      string_has_prefix "Operation on NA:" message
-      || string_has_prefix "Cannot use NA as a condition" message
+  | VError { code = NAPredicateError; _ } -> true
   | _ -> false
 
 let plural_suffix count =
