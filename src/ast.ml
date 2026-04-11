@@ -36,6 +36,7 @@ type error_code =
   | ShellError
   | RuntimeError
   | GenericError
+  | NAPredicateError
 
 (** Structured source location *)
 type source_location = {
@@ -394,6 +395,7 @@ module Utils = struct
     | ShellError -> "ShellError"
     | RuntimeError -> "RuntimeError"
     | GenericError -> "GenericError"
+    | NAPredicateError -> "NAPredicateError"
 
   let na_type_to_string = function
     | NABool -> "Bool"

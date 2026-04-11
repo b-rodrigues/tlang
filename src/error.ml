@@ -26,6 +26,9 @@ let type_error ?location msg =
 let aggregation_error ?location msg =
   make_error ?location AggregationError msg
 
+let na_predicate_error ?location msg =
+  make_error ?location NAPredicateError msg
+
 let op_type_error ?location op t1 t2 =
   let msg = Printf.sprintf "Operator `%s` expects %s and %s." op t1 t2 in
   make_error ?location TypeError msg
