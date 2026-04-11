@@ -28,7 +28,7 @@ Functions that apply a mapping independently to every element of a collection.
 ```
 log([1, 2, NA])
 -- Error: log() encountered NA at index 3. Use na_ignore=true to skip NA slots,
---        or handle NAs explicitly before this step (e.g. drop_na(), impute()).
+--        or handle NAs explicitly before this step.
 ```
 
 **Opt-in with `na_ignore = true`**: The function skips `NA` slots and returns `NA` in those positions. Output length is always preserved — a 3-element input always produces a 3-element output. This is not a different computation; it is an explicit declaration that the caller is aware of the NAs and accepts that those slots will remain missing.
@@ -41,12 +41,6 @@ log([1, 2, NA], na_ignore=true)
 **Rationale**: A transformation that silently propagates NAs hides data quality issues inside long pipeline chains. Erroring by default forces the decision to be made at the point where missingness is first encountered, not discovered at the end of a report.
 
 **`na_ignore` is not a warning suppressor** — it is a semantic declaration. Even with `na_ignore=true`, the node records how many slots were skipped in its diagnostic metadata (see Part 2: Node Diagnostics).
-
-### Note on Boolean and Comparison Operators
-
-Comparison operators (`==`, `>`, `<`, etc.) are transformations and follow the same rule: `NA == 5` errors by default, `NA == 5` with `na_ignore=true` returns `NA`.
-
-The exception is `filter()`, which has its own behaviour (see Section 4).
 
 ---
 
@@ -121,17 +115,17 @@ The preferred T idiom is to handle NAs as **explicit pipeline nodes** rather tha
 
 ```t
 -- Preferred: explicit node, visible in graph, auditable
-let clean_col = drop_na(raw_col)
-let result    = log(clean_col)
+clean_col = drop_na(raw_col)
+result    = log(clean_col)
 
 -- Also acceptable: declared intent via parameter
-let result = log(raw_col, na_ignore=true)
+result = log(raw_col, na_ignore=true)
 
 -- Avoid: relying on downstream aggregation to surface the issue silently
-let result = mean(raw_col)   -- errors, correctly
+result = mean(raw_col)   -- errors, correctly
 ```
 
-`drop_na()` and `impute()` are first-class pipeline nodes with their own diagnostics. Using them explicitly is preferred because it documents the choice in the pipeline structure, not just in a function argument.
+`drop_na()` is first-class pipeline nodes with their own diagnostics. Using them explicitly is preferred because it documents the choice in the pipeline structure, not just in a function argument.
 
 ---
 
