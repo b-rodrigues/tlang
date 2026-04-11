@@ -27,18 +27,32 @@ let register env =
         List.filter (fun (name, _) -> name <> Some "na_rm") named_args |> List.map snd
       in
       let extract_nums_arr label arr =
-        let nums = ref [] in
         let had_error = ref None in
+        let numeric_count = ref 0 in
         for i = 0 to Array.length arr - 1 do
           if !had_error = None then
             match arr.(i) with
-            | VInt n -> nums := float_of_int n :: !nums
-            | VFloat f -> nums := f :: !nums
+            | VInt _ | VFloat _ -> incr numeric_count
             | VNA _ when na_rm -> ()
             | VNA _ -> had_error := Some (Error.na_value_error ~na_rm:true label)
             | _ -> had_error := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." label))
         done;
-        match !had_error with Some e -> Error e | None -> Ok (Array.of_list (List.rev !nums))
+        match !had_error with
+        | Some e -> Error e
+        | None ->
+            let nums = Array.make !numeric_count 0.0 in
+            let next = ref 0 in
+            for i = 0 to Array.length arr - 1 do
+              match arr.(i) with
+              | VInt n ->
+                  nums.(!next) <- float_of_int n;
+                  incr next
+              | VFloat f ->
+                  nums.(!next) <- f;
+                  incr next
+              | _ -> ()
+            done;
+            Ok nums
       in
       match args with
       | [VList []] -> Error.value_error "Function `max` called on empty List."

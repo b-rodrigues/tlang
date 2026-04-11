@@ -1,5 +1,6 @@
 open Ast
 
+(** Return [true] when the named boolean flag is explicitly set to [true]. *)
 let named_flag_true flag named_args =
   List.exists
     (fun (name, value) ->
@@ -10,6 +11,8 @@ let named_flag_true flag named_args =
       | _ -> false)
     named_args
 
+(** Strip selected named arguments and return the remaining positional values
+    in their original order. *)
 let positional_args_without names named_args =
   List.filter
     (fun (name, _) ->
@@ -20,8 +23,11 @@ let positional_args_without names named_args =
   |> List.map snd
 
 (** Shared numeric-unary mapper for math builtins.
-    Applies a float-valued transform to scalar/vector/ndarray numeric inputs and,
-    when [na_ignore] is true, preserves NA slots instead of failing on them. *)
+    - [fname] is the user-facing function name for error messages.
+    - [expects] describes the accepted input shape in arity/type errors.
+    - [na_ignore] preserves NA inputs/slots instead of failing on them.
+    - [f] is the numeric transform applied to concrete float values.
+    Returns either a transformed scalar/vector/ndarray or a structured error. *)
 let map_numeric_unary ~fname ?(expects = "numeric input") ?(na_ignore = false) f =
   function
   | [VInt n] -> VFloat (f (float_of_int n))
