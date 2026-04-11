@@ -118,6 +118,14 @@ Operator precedence follows standard mathematical conventions. Parentheses overr
 2 <= 2    -- true
 ```
 
+> [!IMPORTANT]
+> **Strict Scalar Equality**: The equality operators `==` and `!=` are defined for **scalars only**. If either operand is a collection (List, Vector, or NDArray), the operator will return a `TypeError`. To perform element-wise comparisons or check equality against a collection, you **must** use the broadcasting operators `.==` and `.!==`.
+>
+> ```t
+> 1 == [1, 2]    -- Error: Operator '==' is defined for scalars only.
+> 1 .== [1, 2]   -- [true, false]
+> ```
+
 ### Boolean Logic
 
 ```t

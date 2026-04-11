@@ -306,8 +306,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).runtime"
     "\"Python\"";
   test "read_node (mocked) reads compatible artifact"
-    "read_node(\"compatible_node\", which_log=\"legacy_version\") == [1, 2, 3]"
-    "true";
+    "read_node(\"compatible_node\", which_log=\"legacy_version\") .== [1, 2, 3]"
+    "[true, true, true]";
   test "read_node missing key (mocked)"
     "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
     "true";

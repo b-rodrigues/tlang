@@ -1895,7 +1895,8 @@ and eval_call env_ref fn_val raw_args =
   let uses_nse_builtin name =
     match name with
     | Some ("mutate" | "summarize" | "filter" | "select" | "arrange" | "group_by" | "count" | "rename" | "pivot_longer" | "pivot_wider"
-           | "node" | "py" | "pyn" | "rn" | "shn" | "inspect") -> true
+           | "node" | "py" | "pyn" | "rn" | "shn" | "inspect"
+           | "filter_node" | "mutate_node" | "select_node" | "arrange_node") -> true
     | _ -> false
   in
 
