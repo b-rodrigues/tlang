@@ -125,7 +125,7 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                 let right_keep = take_bool_array n right_pred.keep in
                 let left_na = take_bool_array n left_pred.na in
                 let right_na = take_bool_array n right_pred.na in
-                let right_evaluated =
+                let right_needed =
                   Array.init n (fun i -> left_keep.(i) || left_na.(i))
                 in
                 Some {
@@ -133,7 +133,7 @@ let try_vectorize_filter (table : Arrow_table.t) (fn : value)
                   na =
                     Array.init n (fun i ->
                       left_na.(i)
-                      || (right_na.(i) && right_evaluated.(i)));
+                      || (right_na.(i) && right_needed.(i)));
                 }
              | _ -> None)
           | Or ->

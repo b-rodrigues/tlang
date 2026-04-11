@@ -123,12 +123,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "1"
     "Warning: filter() excluded 1 row because the predicate evaluated to NA";
   assert_filter_warning
-    "filter vectorized && preserves left-side NA warnings under short-circuit semantics regardless of right-side value"
+    "filter && with left-side NA warns correctly"
     {|df_na_and = dataframe([[x: 1, y: 1], [x: NA, y: 0], [x: NA, y: 1], [x: 2, y: 1]]); filter(df_na_and, $x > 0 && $y > 0) |> nrow|}
     "2"
     "Warning: filter() excluded 2 rows because the predicate evaluated to NA at rows 2, 3";
   assert_filter_warning
-    "filter vectorized || short-circuits: left-side NA always propagates and right-side NA only propagates when left is false"
+    "filter || respects short-circuit NA propagation"
     {|df_na_or = dataframe([[x: NA, y: 1], [x: 0, y: 1], [x: 0, y: NA], [x: 1, y: 0], [x: 2, y: NA]]); filter(df_na_or, $x > 0 || $y > 0) |> nrow|}
     "3"
     "Warning: filter() excluded 2 rows because the predicate evaluated to NA at rows 1, 3";
