@@ -214,12 +214,16 @@ let identical args _env =
       List.length pa.p_nodes = List.length pb.p_nodes &&
       List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2)
         pa.p_nodes pb.p_nodes
-    (* All remaining constructors (VInt, VBool, VString, VFloat already handled above,
-       VNA, VError, VSymbol, VRawCode, VFactor, VPeriod, VDuration, VInterval,
-       VIntent, VFormula, VComputedNode, VNode, VShellResult, VSerializer already
-       handled above, VDataFrame, VNDArray) contain only plain OCaml data — no
-       function values — so polymorphic equality is safe. The exception catch is a
-       belt-and-suspenders guard against any future variant that may slip through. *)
+    (* All remaining constructors contain only plain OCaml data with no embedded
+       function values, so polymorphic equality is safe. This covers:
+       VInt, VBool, VString, VRawCode, VSymbol, VNA, VError, VFactor, VPeriod,
+       VDuration, VInterval, VIntent, VFormula, VComputedNode, VNode,
+       VShellResult, VDataFrame, VNDArray.
+       (VFloat, VVector, VList, VDict, VUnquote, VUnquoteSplice, VDynamicArg,
+        VPipeline are handled by the explicit arms above; VBuiltin, VLambda,
+        VEnv, VQuo, VSerializer always return false above.)
+       The exception catch is a belt-and-suspenders guard against any future
+       variant that may slip through. *)
     | _ -> (try a = b with Invalid_argument _ -> false)
   in
   match args with
