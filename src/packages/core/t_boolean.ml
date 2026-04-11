@@ -162,6 +162,76 @@ let ifelse (named_args : (string option * Ast.value) list) _env =
 
 
 (*
+--# Deep Equality Check
+--#
+--# Checks if two objects are structurally identical, including nested elements and metadata.
+--# Unlike `==`, this works for all types, including collections (Lists, Vectors, DataFrames).
+--#
+--# @name identical
+--# @param a :: Any First object to compare.
+--# @param b :: Any Second object to compare.
+--# @return :: Bool true if identical, false otherwise.
+--# @family boolean
+--# @export
+*)
+let identical args _env =
+  let rec value_equal a b =
+    match a, b with
+    (* Functional values — cannot be compared structurally; always return false *)
+    | VBuiltin _, _ | _, VBuiltin _ -> false
+    | VLambda _, _ | _, VLambda _ -> false
+    | VEnv _, _ | _, VEnv _ -> false
+    | VQuo _, _ | _, VQuo _ -> false
+    | VSerializer _, _ | _, VSerializer _ -> false
+    (* Float: NaN == NaN, consistent with ValueHash.equal *)
+    | VFloat fa, VFloat fb ->
+      if Float.is_nan fa && Float.is_nan fb then true else fa = fb
+    (* Collections: recurse element-wise to handle nested functional values *)
+    | VVector va, VVector vb ->
+      let n = Array.length va in
+      n = Array.length vb &&
+      (* Use an iterative loop to avoid stack overflow on large vectors *)
+      (try
+        for i = 0 to n - 1 do
+          if not (value_equal va.(i) vb.(i)) then raise Exit
+        done;
+        true
+       with Exit -> false)
+    | VList la, VList lb ->
+      List.length la = List.length lb &&
+      List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2) la lb
+    | VDict da, VDict db ->
+      (* Sort both dicts by key to make comparison order-independent *)
+      let cmp_key (k1, _) (k2, _) = String.compare k1 k2 in
+      let da' = List.sort cmp_key da in
+      let db' = List.sort cmp_key db in
+      List.length da' = List.length db' &&
+      List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2) da' db'
+    | VUnquote a', VUnquote b' -> value_equal a' b'
+    | VUnquoteSplice a', VUnquoteSplice b' -> value_equal a' b'
+    | VDynamicArg (k1, v1), VDynamicArg (k2, v2) -> k1 = k2 && value_equal v1 v2
+    | VPipeline pa, VPipeline pb ->
+      List.length pa.p_nodes = List.length pb.p_nodes &&
+      List.for_all2 (fun (k1, v1) (k2, v2) -> k1 = k2 && value_equal v1 v2)
+        pa.p_nodes pb.p_nodes
+    (* All remaining constructors contain only plain OCaml data with no embedded
+       function values, so polymorphic equality is safe. This covers:
+       VInt, VBool, VString, VRawCode, VSymbol, VNA, VError, VFactor, VPeriod,
+       VDuration, VInterval, VIntent, VFormula, VComputedNode, VNode,
+       VShellResult, VDataFrame, VNDArray.
+       (VFloat, VVector, VList, VDict, VUnquote, VUnquoteSplice, VDynamicArg,
+        VPipeline are handled by the explicit arms above; VBuiltin, VLambda,
+        VEnv, VQuo, VSerializer always return false above.)
+       The exception catch is a belt-and-suspenders guard against any future
+       variant that may slip through. *)
+    | _ -> (try a = b with Invalid_argument _ -> false)
+  in
+  match args with
+  | [a; b] -> VBool (value_equal a b)
+  | _ -> Error.arity_error_named "identical" 2 (List.length args)
+
+
+(*
 --# Vectorized Case-When
 --#
 --# Evaluates multiple conditions and returns the corresponding value for the first true condition.

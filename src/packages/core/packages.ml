@@ -119,7 +119,7 @@ let core_package = {
   name = "core";
   description = "Core utilities: printing, type inspection, data structures";
   functions = ["print"; "type"; "args"; "length"; "head"; "tail"; "is_error"; "seq"; "map"; "sum"; "pretty_print"; "get"; "rm";
-               "ifelse"; "case_when"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
+               "ifelse"; "identical"; "case_when"; "run"; "t_run"; "t_make"; "t_test"; "t_doc"; "eval"; "expr"; "exprs"; "quo"; "quos"; "enquo"; "enquos"; "body"; "source"; "cat"; "to_integer"; "to_float"; "to_numeric"; "exit"; "getwd"; "file_exists"; "dir_exists"; "read_file"; "list_files"; "env";
                "path_join"; "path_basename"; "path_dirname"; "path_ext"; "path_stem"; "path_abs"];
 }
 
@@ -331,6 +331,7 @@ let register env =
 --# @export
 *)
   let env = Env.add "ifelse" (make_builtin_named ~name:"ifelse" ~variadic:true 3 T_boolean.ifelse) env in
+  let env = Env.add "identical" (make_builtin ~name:"identical" 2 (fun args env -> T_boolean.identical args env)) env in
 
 (*
 --# Vectorized case-when

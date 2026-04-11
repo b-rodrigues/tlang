@@ -9,6 +9,12 @@
     - **Factor Resolution Parity**: Restored and verified sophisticated term resolution (categorical dummies and interaction terms) in native linear model scoring.
     - **Automatic Environment Configuration**: The Nix `devShell` now automatically exports `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR`, enabling zero-config PMML scoring in development environments.
 - **Improved Language Robustness & Interop**:
+    - **Strict Scalar Equality (No Silent Magic)**: Enforced strict scalarity for `==` and `!=` operators. These operators now return a `TypeError` if either operand is a collection (List, Vector, NDArray), forcing explicit use of broadcasting operators (`.==`, `.!=`) for element-wise comparison.
+    - **`identical(a, b)`**: Introduced a new core builtin for deep structural equality. Use `identical()` to compare complex objects like Lists or DataFrames, providing a safe alternative to the now scalar-only `==` operator.
+    - **Grouped Mutate Support**: Fixed a regression in `mutate()` where assigning a scalar constant to a column in a grouped DataFrame would fail with a "not callable" error.
+    - **Improved Bitwise Logic Hints**: Added `&` (BitAnd) and `|` (BitOr) to the scalar-strictly guarded operators. Using these with collections now provides a helpful hint to use vectorized operators (`.&` or `.|`).
+    - **Guarded NSE Transformation**: Fixed a critical regression where standard functions (like `ifelse` or `build_pipeline`) were receiving unexpected lambdas instead of evaluated values when called inside data verbs. NSE lambda-wrapping is now strictly guarded by a registry of NSE-aware builtins.
+    - **Expanded NSE Registry**: Added `node`, `py`, `rn`, `shn`, `mutate_node`, `filter_node`, `select_node`, and `arrange_node` to the list of builtins that handle NSE expressions, ensuring correct dependency capture and predicate evaluation.
     - **Refined Python Auto-Return**: Fixed the Python node emitter to ignore trailing comments and blank lines when determining the last expression to auto-return, preventing silent `None` results when nodes end with comments.
     - **String Column Extraction**: Enhanced the `pull()` builtin and internal `extract_column_name` utility to support `VString` arguments. This enables extraction of column names containing special characters (like `probability(1)`) that are not valid T symbols.
 - **CI/CD & Demo Infrastructure**:

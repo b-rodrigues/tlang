@@ -118,6 +118,22 @@ Operator precedence follows standard mathematical conventions. Parentheses overr
 2 <= 2    -- true
 ```
 
+> [!IMPORTANT]
+> **Strict Scalar Equality**: The equality operators `==` and `!=` are defined for **scalars only**. If either operand is a collection (List, Vector, or NDArray), the operator will return a `TypeError`. To perform element-wise comparisons or check equality against a collection, you **must** use the broadcasting operators `.==` and `.!=`.
+>
+> ```t
+> 1 == [1, 2]    -- Error: Operator '==' is defined for scalars only.
+> 1 .== [1, 2]   -- [true, false]
+> ```
+>
+> **Deep Equality**: To check if two complex objects are structurally identical (including all elements and metadata), use the `identical()` function. This is the recommended way to compare Lists, Vectors, or DataFrames for identity.
+>
+> ```t
+> v1 = [1, 2, 3]
+> v2 = [1, 2, 3]
+> identical(v1, v2)   -- true
+> ```
+
 ### Boolean Logic
 
 ```t
@@ -126,6 +142,18 @@ true and false  -- false
 false or true   -- true
 not true        -- false
 ```
+
+### Vectorized Logic
+
+For element-wise logical operations on collections, use the designated broadcasting operators:
+
+| Operator | Description | Scalar Equivalent |
+|----------|-------------|-------------------|
+| `.&`     | Vectorized AND | `and` (or `&&`)  |
+| `.|`     | Vectorized OR  | `or` (or `||`)   |
+
+> [!TIP]
+> **No Silent Magic**: Just like arithmetic and comparison, the bitwise operators `&` and `|` strictly require scalar operands. Attempting to use them with a List or Vector will result in a `TypeError` that directs you to use the vectorized `.&` or `.|` operators.
 
 ---
 

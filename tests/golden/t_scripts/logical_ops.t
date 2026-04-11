@@ -12,10 +12,10 @@ v2 = [true, true, false, false]
 print("Checking Vector Logic...")
 v_and = v1 .& v2
 expected_and = [true, false, false, false]
-assert(v_and == expected_and, "Vector .& failed")
+assert(identical(v_and, expected_and), "Vector .& failed")
 
 v_or = v1 .| v2
 expected_or = [true, true, true, false]
-assert(v_or == expected_or, "Vector .| failed")
+assert(identical(v_or, expected_or), "Vector .| failed")
 
 print("✓ logical_ops complete")

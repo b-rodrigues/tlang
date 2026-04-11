@@ -240,11 +240,18 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           let groups = Arrow_compute.get_ocaml_groups grouped in
           let new_col = Array.make nrows (VNA NAGeneric) in
           let had_error = ref None in
+          let is_callable = match fn with
+            | VLambda _ | VSymbol _ | VBuiltin _ | VExpr _ | VQuo _ -> true
+            | _ -> false
+          in
           List.iter (fun (_, row_indices) ->
             if !had_error = None then begin
               let sub_table = Arrow_compute.take_rows df.arrow_table row_indices in
               let sub_df = VDataFrame { arrow_table = sub_table; group_keys = [] } in
-              let result = eval_call env fn [(None, Ast.mk_expr (Value sub_df))] in
+              let result = 
+                if is_callable then eval_call env fn [(None, Ast.mk_expr (Value sub_df))]
+                else fn
+              in
               match result with
               | VError _ -> had_error := Some result
               | VVector vec when Array.length vec = List.length row_indices ->
@@ -264,7 +271,14 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
           | Some new_table ->
             VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
           | None ->
-            let whole_result = eval_call env fn [(None, Ast.mk_expr (Value (VDataFrame df)))] in
+            let is_callable = match fn with
+              | VLambda _ | VSymbol _ | VBuiltin _ | VExpr _ | VQuo _ -> true
+              | _ -> false
+            in
+            let whole_result = 
+              if is_callable then eval_call env fn [(None, Ast.mk_expr (Value (VDataFrame df)))]
+              else fn
+            in
             (match whole_result with
              | VVector vec when Array.length vec = nrows ->
                let arrow_col = Arrow_bridge.values_to_column vec in

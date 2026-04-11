@@ -1892,7 +1892,25 @@ and eval_call env_ref fn_val raw_args =
   (* NSE auto-transformation: if an argument is a complex expression containing
      ColumnRef nodes (not a bare ColumnRef), wrap it in a lambda \(row) <desugared>
      before evaluation. Bare ColumnRef stays as-is (evaluates to VSymbol). *)
+  let uses_nse_builtin name =
+    match name with
+    | Some ("mutate" | "mutate_node"
+           | "summarize" | "summarize_node"
+           | "filter" | "filter_node"
+           | "select" | "select_node"
+           | "arrange" | "arrange_node"
+           | "group_by" | "group_by_node"
+           | "count" | "count_node"
+           | "rename" | "rename_node"
+           | "pivot_longer" | "pivot_longer_node"
+           | "pivot_wider" | "pivot_wider_node"
+           | "node" | "py" | "pyn" | "rn" | "shn" | "inspect") -> true
+    | _ -> false
+  in
+
   let transform_nse_args args =
+    if not (uses_nse_builtin current_builtin_name) then args
+    else
     List.map (fun (name, expr) ->
       let loc = expr.loc in
       match expr.node with
@@ -2206,20 +2224,24 @@ and eval_binop env_ref op left right =
   | And ->
       let lval = eval_expr env_ref left in
       (match lval with
+       | VError _ as e -> e
        | VBool false -> VBool false
        | VBool true ->
            let rval = eval_expr env_ref right in
            (match rval with
+            | VError _ as e -> e
             | VBool b -> VBool b
             | _ -> make_error TypeError ("Right operand of && must be Bool, got " ^ Utils.type_name rval))
        | _ -> make_error TypeError ("Left operand of && must be Bool, got " ^ Utils.type_name lval))
   | Or ->
       let lval = eval_expr env_ref left in
       (match lval with
+       | VError _ as e -> e
        | VBool true -> VBool true
        | VBool false ->
            let rval = eval_expr env_ref right in
            (match rval with
+            | VError _ as e -> e
             | VBool b -> VBool b
             | _ -> make_error TypeError ("Right operand of || must be Bool, got " ^ Utils.type_name rval))
        | _ -> make_error TypeError ("Left operand of || must be Bool, got " ^ Utils.type_name lval))
@@ -2261,7 +2283,9 @@ and eval_binop env_ref op left right =
   let lval = eval_expr env_ref left in
   let rval = eval_expr env_ref right in
   match (op, lval, rval) with
-  | (Plus | Minus | Mul | Div | Mod | Lt | Gt | LtEq | GtEq), _, _ ->
+  | _, VError _, _ -> lval
+  | _, _, VError _ -> rval
+  | (Plus | Minus | Mul | Div | Mod | Lt | Gt | LtEq | GtEq | Eq | NEq | BitAnd | BitOr), _, _ -> 
       (match lval, rval with
        | VNDArray _, _ | _, VNDArray _
        | Ast.VVector _, _ | _, Ast.VVector _
@@ -2269,6 +2293,8 @@ and eval_binop env_ref op left right =
           let op_str = match op with
             | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
             | Lt -> "<" | Gt -> ">" | LtEq -> "<=" | GtEq -> ">="
+            | Eq -> "==" | NEq -> "!="
+            | BitAnd -> "&" | BitOr -> "|"
             | _ -> "??"
           in
           let dot_op = "." ^ op_str in
