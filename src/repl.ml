@@ -30,6 +30,7 @@ let make_located_error ?file code message pos =
     message;
     context = [];
     location = Some (source_location ?file pos);
+    na_count = 0;
   }
 
 let interrupt_error () =
@@ -38,6 +39,7 @@ let interrupt_error () =
     message = "Interrupted.";
     context = [];
     location = None;
+    na_count = 0;
   }
 
 let parse_and_eval ?filename mode env input =
@@ -74,6 +76,7 @@ let run_file mode filename env =
          message = "File Error: " ^ msg;
          context = [];
          location = None;
+         na_count = 0;
        }, env)
 
 (* --- Pipeline Detection --- *)
@@ -720,8 +723,8 @@ let () =
                    interrupt_error ())
              with
              | Sys_error msg ->
-                 Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_run failed: %s" msg; context = []; location = None })
-        | _ -> Ast.VError { code = Ast.TypeError; message = "t_run expects a file path string."; context = []; location = None })
+                 Ast.VError { code = Ast.FileError; message = Printf.sprintf "t_run failed: %s" msg; context = []; location = None; na_count = 0 })
+        | _ -> Ast.VError { code = Ast.TypeError; message = "t_run expects a file path string."; context = []; location = None; na_count = 0 })
     })
     env
   in
@@ -754,7 +757,7 @@ let () =
         let dir = Sys.getcwd () in
         let suite_result = Test_discovery.run_suite ~verbose:false dir in
         if suite_result.failed > 0 then
-          Ast.VError { code = Ast.GenericError; message = Printf.sprintf "%d test(s) failed." suite_result.failed; context = []; location = None }
+          Ast.VError { code = Ast.GenericError; message = Printf.sprintf "%d test(s) failed." suite_result.failed; context = []; location = None; na_count = 0 }
         else begin
           Printf.printf "All %d test(s) passed.\n" suite_result.passed;
           flush stdout;
@@ -829,8 +832,8 @@ let () =
             flush stdout;
             Ast.(VNA NAGeneric)
         | [Ast.VString other] ->
-            Ast.VError { code = Ast.ValueError; message = Printf.sprintf "t_doc expects \"parse\" or \"generate\", got \"%s\"." other; context = []; location = None }
-        | _ -> Ast.VError { code = Ast.TypeError; message = "t_doc expects a string argument: \"parse\" or \"generate\"."; context = []; location = None })
+            Ast.VError { code = Ast.ValueError; message = Printf.sprintf "t_doc expects \"parse\" or \"generate\", got \"%s\"." other; context = []; location = None; na_count = 0 }
+        | _ -> Ast.VError { code = Ast.TypeError; message = "t_doc expects a string argument: \"parse\" or \"generate\"."; context = []; location = None; na_count = 0 })
     })
     env
   in

@@ -162,12 +162,13 @@ let register env =
             ("length", VInt (List.length pairs));
             ("keys", VList (List.map (fun (k, _) -> (None, VString k)) pairs));
           ]
-      | [VError { code; message; context; location }] ->
+      | [VError { code; message; context; location; na_count }] ->
           let base = [
             ("kind", VString "value");
             ("type", VString "Error");
             ("error_code", VString (Utils.error_code_to_string code));
             ("error_message", VString message);
+            ("na_count", VInt na_count);
           ] in
           let loc_fields = 
             match location with

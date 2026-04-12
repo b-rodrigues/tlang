@@ -840,8 +840,8 @@ let type_conversion_hint left_type right_type =
   | _ -> None
 
 (** Create a structured error value *)
-let make_error ?location ?(context=[]) code message =
-  VError { code; message; context; location }
+let make_error ?location ?(context=[]) ?(na_count=0) code message =
+  VError { code; message; context; location; na_count }
 
 (** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?name ?(variadic=false) arity func =

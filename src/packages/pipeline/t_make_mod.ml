@@ -15,6 +15,7 @@ let make_located_error ?file code message pos =
     message;
     context = [];
     location = Some (source_location ?file pos);
+    na_count = 0;
   }
 
 let interrupt_error () =
@@ -23,6 +24,7 @@ let interrupt_error () =
     message = "Interrupted.";
     context = [];
     location = None;
+    na_count = 0;
   }
 
 (*
