@@ -800,6 +800,39 @@ p_model2 = p_model |> rename_node("clean", "clean_model")
 p_etl |> union(p_model2)
 ```
 
+---
+
+## 24. Diagnostic Suppression
+
+Nodes that produce large numbers of non-terminal warnings (like those from `filter()` or complex modeling functions) can be silenced using the `suppress_warnings` combinator. This silences the console output for a node while maintaining the warning records for auditability.
+
+```t
+p = pipeline {
+  -- High-noise node with suppressed warnings
+  filtered = dataframe([[x: 1], [x: NA], [x: 3]]) 
+    |> filter($x > 1) 
+    |> suppress_warnings
+
+  -- Downstream node remains unaffected
+  count = nrow(filtered)
+}
+```
+
+When building or running a pipeline with suppressed nodes, the summary reflects this state:
+
+```
+Pipeline summary: 1 node(s) with warnings, 1 suppressed, 0 error(s)
+  ○  filtered — warnings suppressed by caller (1 NAs ignored)
+```
+
+The `○` symbol indicates a suppressed node. You can still access the underlying warning objects programmatically via `read_node()` or `read_pipeline()`.
+
+```t
+res = read_node(p, "filtered")
+res.diagnostics.warnings_suppressed  -- true
+res.diagnostics.warnings            -- list of captured warnings
+```
+
 ### `difference`
 
 Removes from the first pipeline all nodes whose names appear in the second pipeline. Nodes in the second pipeline that don't exist in the first are silently ignored.

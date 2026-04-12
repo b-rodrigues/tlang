@@ -61,7 +61,7 @@ let pretty_print_dataframe ?(headers) { arrow_table; group_keys } =
     Buffer.contents buf
 
 (** Pretty-print an error value *)
-let pretty_print_error { code; message; context; location } =
+let pretty_print_error { code; message; context; location; na_count = _ } =
   let buf = Buffer.create 128 in
   let rendered_message =
     match location with

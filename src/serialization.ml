@@ -58,107 +58,6 @@ let read_serialized_value_header ic =
            serialized_value_format_version)
   | exn -> Error (Printexc.to_string exn)
 
-(*
---# Binary Serialization
---#
---# Serializes any T value to a file using OCaml's Marshal module.
---# Includes a content digest for integrity verification on deserialization.
---#
---# @name serialize_to_file
---# @param path :: String Destination file path.
---# @param value :: Any The T value to serialize.
---# @return :: Result[Null, String] Ok or error.
---# @private
-*)
-let serialize_to_file path value =
-  try
-    ensure_parent_dir path;
-    let payload = Marshal.to_bytes value [] in
-    let digest = Digest.bytes payload in
-    let hex = Digest.to_hex digest in
-    let oc = open_out_bin path in
-    output_string oc serialized_value_header;
-    output_string oc hex;
-    output_char oc '\n';
-    output_bytes oc payload;
-    close_out oc;
-    Ok ()
-  with exn ->
-    Error (Printexc.to_string exn)
-
-(*
---# Binary Deserialization
---#
---# Reads a serialized T value from a file. Verifies an integrity digest
---# before unmarshalling to reject tampered or externally-supplied artifacts.
---#
---# SECURITY NOTE: OCaml Marshal is not safe for fully untrusted input.
---# The MD5 digest check detects accidental corruption only — MD5 is not
---# cryptographically secure and provides no protection against intentional
---# tampering. Only load .tobj files produced by your own T installation.
---#
---# @name deserialize_from_file
---# @param path :: String Source file path.
---# @return :: Result[Any, String] Value or error.
---# @private
-*)
-let deserialize_from_file path =
-  try
-    let ic = open_in_bin path in
-    let result =
-      match read_serialized_value_header ic with
-      | Error _ as err -> err
-      | Ok () ->
-          (* Remember position right after the version header so we can fall
-             back to legacy (digest-less) deserialization if needed. *)
-          let pos_after_header = pos_in ic in
-          (* Try to read the hex digest line *)
-          (match (try Some (input_line ic) with End_of_file -> None) with
-           | None ->
-               Error "Serialized value is truncated: no data after the format header."
-           | Some hex_line ->
-               let hex = String.trim hex_line in
-               (* Validate hex digest format: 32 hex chars for MD5 (OCaml Digest module).
-                  If the digest algorithm changes, update this length accordingly. *)
-               let valid_hex =
-                 String.length hex = 32 &&
-                 String.for_all (fun c ->
-                   (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
-                 ) hex
-               in
-               if valid_hex then
-                 (* New format: verify digest then unmarshal *)
-                 let pos = pos_in ic in
-                 let total = in_channel_length ic in
-                 let remaining = total - pos in
-                 if remaining <= 0 then
-                   Error "Serialized value has no payload after the integrity digest."
-                 else
-                   let payload = Bytes.create remaining in
-                   really_input ic payload 0 remaining;
-                   let actual_digest = Digest.bytes payload in
-                   let actual_hex = Digest.to_hex actual_digest in
-                   if String.lowercase_ascii actual_hex <> String.lowercase_ascii hex then
-                     Error "Integrity check failed: the serialized value has been modified or corrupted. Re-serialize this artifact with the current version of T."
-                   else
-                     let value = (Marshal.from_bytes payload 0 : Ast.value) in
-                     Ok value
-               else begin
-                 (* Legacy format (no digest): seek back to right after the
-                    version header and unmarshal directly. Emit a warning so
-                    the user knows to re-serialize. *)
-                 Printf.eprintf
-                   "Warning: %s was serialized without an integrity digest (legacy format). Re-serialize this artifact with the current version of T for full integrity checking.\n%!"
-                   path;
-                 seek_in ic pos_after_header;
-                 let value = (Marshal.from_channel ic : Ast.value) in
-                 Ok value
-               end)
-    in
-    close_in_noerr ic;
-    result
-  with exn ->
-    Error (Printexc.to_string exn)
 
 (*
 --# JSON String Escaper
@@ -343,8 +242,21 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       invalid_arg "value_to_yojson: VExpr is not supported for JSON serialization"
   | VComputedNode _ ->
       invalid_arg "value_to_yojson: VComputedNode is not supported for JSON serialization"
-  | VError _ ->
-      invalid_arg "value_to_yojson: VError is not supported for JSON serialization"
+  | VError err ->
+      `Assoc [
+        ("type", `String "VError");
+        ("code", `String (Ast.Utils.error_code_to_string err.code));
+        ("message", `String err.message);
+        ("na_count", `Int err.na_count);
+        ("context", `Assoc (List.map (fun (k, v) -> (k, value_to_yojson v)) err.context));
+        ("location", (match err.location with
+           | Some loc -> `Assoc [
+               ("file", match loc.file with Some f -> `String f | None -> `Null);
+               ("line", `Int loc.line);
+               ("column", `Int loc.column)
+             ]
+           | None -> `Null))
+      ]
   | VShellResult { sr_stdout; _ } ->
       (* Serialize shell result as its stdout string *)
       `String sr_stdout
@@ -373,6 +285,7 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       invalid_arg "value_to_yojson: VFactor/VSerializer is not supported for JSON serialization"
   | VUnquote _ | VUnquoteSplice _ | VDynamicArg _ | VQuo _ | VEnv _ ->
       invalid_arg "value_to_yojson: metaprogramming intermediate values are not serializable"
+  | VNodeResult { v; _ } -> value_to_yojson v
 
 let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   match j with
@@ -385,6 +298,44 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
   | _ ->
       invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
+
+let yojson_to_verror (j : Yojson.Safe.t) : Ast.value =
+  match j with
+  | `Assoc a ->
+      (match List.assoc_opt "type" a with
+       | Some (`String "VError") ->
+           let code = match List.assoc_opt "code" a with
+             | Some (`String s) -> Ast.Utils.error_code_of_string s
+             | _ -> Ast.RuntimeError
+           in
+           let message = match List.assoc_opt "message" a with
+             | Some (`String s) -> s
+             | _ -> "Unknown error"
+           in
+           let na_count = match List.assoc_opt "na_count" a with
+             | Some (`Int i) -> i
+             | _ -> 0
+           in
+           let context = match List.assoc_opt "context" a with
+             | Some (`Assoc ctx) -> List.map (fun (k, v) -> (k, yojson_to_value v)) ctx
+             | _ -> []
+           in
+           let location = match List.assoc_opt "location" a with
+              | Some (`Assoc loc) ->
+                  Some ({
+                    file = (match List.assoc_opt "file" loc with Some (`String f) -> Some f | _ -> None);
+                    line = (match List.assoc_opt "line" loc with Some (`Int i) -> i | _ -> 0);
+                    column = (match List.assoc_opt "column" loc with Some (`Int i) -> i | _ -> 0);
+                  } : Ast.source_location)
+             | _ -> None
+            in
+            Ast.VError { code; message; context; location; na_count }
+       | _ ->
+           invalid_arg
+             ("yojson_to_verror: expected object with type=\"VError\", got: "
+              ^ Yojson.Safe.to_string j))
+  | _ ->
+      invalid_arg ("yojson_to_verror: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 
 let write_json path value =
   try
@@ -401,3 +352,127 @@ let read_json path =
       let j = Yojson.Safe.from_file path in
       Ok (yojson_to_value j)
   with exn -> Error (Printexc.to_string exn)
+
+let read_verror_json path =
+  try
+    if not (Sys.file_exists path) then Error "File not found"
+    else
+      let j = Yojson.Safe.from_file path in
+      Ok (yojson_to_verror j)
+  with exn -> Error (Printexc.to_string exn)
+
+(*
+--# Binary Serialization
+--#
+--# Serializes any T value to a file using OCaml's Marshal module.
+--# Includes a content digest for integrity verification on deserialization.
+--#
+--# @name serialize_to_file
+--# @param path :: String Destination file path.
+--# @param value :: Any The T value to serialize.
+--# @return :: Result[Null, String] Ok or error.
+--# @private
+--# *)
+let serialize_to_file path value =
+  try
+    ensure_parent_dir path;
+    let payload = Marshal.to_bytes value [] in
+    let digest = Digest.bytes payload in
+    let hex = Digest.to_hex digest in
+    let oc = open_out_bin path in
+    output_string oc serialized_value_header;
+    output_string oc hex;
+    output_char oc '\n';
+    output_bytes oc payload;
+    close_out oc;
+    Ok ()
+  with exn ->
+    Error (Printexc.to_string exn)
+
+(*
+--# Binary Deserialization
+--#
+--# Reads a serialized T value from a file. Verifies an integrity digest
+--# before unmarshalling to reject tampered or externally-supplied artifacts.
+--#
+--# SECURITY NOTE: OCaml Marshal is not safe for fully untrusted input.
+--# The MD5 digest check detects accidental corruption only — MD5 is not
+--# cryptographically secure and provides no protection against intentional
+--# tampering. Only load .tobj files produced by your own T installation.
+--#
+--# @name deserialize_from_file
+--# @param path :: String Source file path.
+--# @return :: Result[Any, String] Value or error.
+--# @private
+--# *)
+let deserialize_from_file path =
+  try
+    let ic = open_in_bin path in
+    let result =
+      match read_serialized_value_header ic with
+      | Error original_err ->
+          (* Fallback: is it a JSON-serialized VError?
+             We check for a 'class' file in the same directory. *)
+          let class_path = Filename.concat (Filename.dirname path) "class" in
+          if Sys.file_exists class_path then
+            (close_in ic;
+             let ic2 = open_in class_path in
+             let cls = input_line ic2 |> String.trim in
+             close_in ic2;
+             if cls = "VError" then
+               read_verror_json path
+             else
+               Error (Printf.sprintf "Unknown artifact class `%s`" cls))
+          else
+            (close_in ic; Error original_err)
+      | Ok () ->
+          (* Remember position right after the version header so we can fall
+             back to legacy (digest-less) deserialization if needed. *)
+          let pos_after_header = pos_in ic in
+          (* Try to read the hex digest line *)
+          (match (try Some (input_line ic) with End_of_file -> None) with
+           | None ->
+               Error "Serialized value is truncated: no data after the format header."
+           | Some hex_line ->
+               let hex = String.trim hex_line in
+               (* Validate hex digest format: 32 hex chars for MD5 (OCaml Digest module).
+                  If the digest algorithm changes, update this length accordingly. *)
+               let valid_hex =
+                 String.length hex = 32 &&
+                 String.for_all (fun c ->
+                   (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+                 ) hex
+               in
+               if valid_hex then
+                 (* New format: verify digest then unmarshal *)
+                 let pos = pos_in ic in
+                 let total = in_channel_length ic in
+                 let remaining = total - pos in
+                 if remaining <= 0 then
+                   Error "Serialized value has no payload after the integrity digest."
+                 else
+                   let payload = Bytes.create remaining in
+                   really_input ic payload 0 remaining;
+                   let actual_digest = Digest.bytes payload in
+                   let actual_hex = Digest.to_hex actual_digest in
+                   if String.lowercase_ascii actual_hex <> String.lowercase_ascii hex then
+                     Error "Integrity check failed: the serialized value has been modified or corrupted. Re-serialize this artifact with the current version of T."
+                   else
+                     let value = (Marshal.from_bytes payload 0 : Ast.value) in
+                     Ok value
+               else begin
+                 (* Legacy format (no digest): seek back to right after the
+                    version header and unmarshal directly. Emit a warning so
+                    the user knows to re-serialize. *)
+                 Printf.eprintf
+                   "Warning: %s was serialized without an integrity digest (legacy format). Re-serialize this artifact with the current version of T for full integrity checking.\n%!"
+                   path;
+                 seek_in ic pos_after_header;
+                 let value = (Marshal.from_channel ic : Ast.value) in
+                 Ok value
+               end)
+    in
+    let _ = close_in_noerr ic in
+    result
+  with exn ->
+    Error (Printexc.to_string exn)

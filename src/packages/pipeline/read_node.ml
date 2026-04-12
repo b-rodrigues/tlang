@@ -1,33 +1,77 @@
 open Ast
 
-(*
+(* 
 --# Read Pipeline Node Artifact
 --#
---# Reads a node artifact from the latest (or specified) build log in `_pipeline/`.
+--# For in-memory Pipelines, returns a node record with the node value and
+--# structured diagnostics. For built pipelines, reads the artifact from the
+--# latest (or specified) build log in `_pipeline/`.
 --# Use `which_log` to read from a specific historical build ("time travel").
 --#
 --# @name read_node
---# @param name :: String The node name.
+--# @param node :: Pipeline | String | ComputedNode Pass a Pipeline for in-memory node diagnostics, or a String/ComputedNode to load a built artifact.
+--# @param name :: String (Optional) The node name to read when `node` is a Pipeline.
 --# @param which_log :: String (Optional) A regex pattern to match a specific build log filename.
---# @return :: Any The deserialized value.
+--# @return :: Any A Dict with value+diagnostics for in-memory pipelines, or the deserialized artifact for built nodes.
 --# @family pipeline
---# @seealso build_pipeline, inspect_pipeline
+--# @seealso read_pipeline, build_pipeline, inspect_pipeline
 --# @export
 *)
 let register env =
-  let get_arg name pos default named_args =
-    match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
+  (* Helper to extract an argument from a named/positional list.
+     @param name The name of the argument (for named calls).
+     @param pos The 1-indexed position of the argument (for positional calls).
+     @param default Fallback value if the argument is missing. *)
+  let extract_arg name pos default args =
+    match List.assoc_opt (Some name) args with
     | Some v -> v
     | None ->
-        let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
+        let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
         if List.length positionals >= pos then List.nth positionals (pos - 1)
         else default
   in
 
   let read_fn named_args _env =
-    match get_arg "node" 1 ((VNA NAGeneric)) named_args with
+    match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
+    | VPipeline p ->
+        (match extract_arg "name" 2 (VNA NAGeneric) named_args with
+         | VString name ->
+             (match List.assoc_opt name p.p_nodes with
+              | Some value ->
+                  let diagnostics =
+                    match List.assoc_opt name p.p_node_diagnostics with
+                    | Some diagnostics -> diagnostics
+                    | None -> Ast.Utils.empty_node_diagnostics
+                  in
+                  let warnings =
+                    VList
+                      (List.map
+                         (fun warning -> (None, Ast.Utils.node_warning_to_value warning))
+                         diagnostics.nd_warnings)
+                  in
+                  let error =
+                    match diagnostics.nd_error with
+                    | Some error -> Ast.Utils.node_error_to_value error
+                    | None -> VNA NAGeneric
+                  in
+                  VDict [
+                    ("name", VString name);
+                    ("value", value);
+                    ("warnings", warnings);
+                    ("error", error);
+                    ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
+                  ]
+              | None ->
+                  Error.make_error KeyError
+                    (Printf.sprintf "Node `%s` not found in Pipeline." name))
+         | VNA _ ->
+             Error.make_error ValueError
+               "read_node: when the first argument is a Pipeline, a node name is required as the second argument."
+         | _ ->
+             Error.type_error
+               "read_node: expected a String node name as the second argument when reading from a Pipeline.")
     | VString name ->
-        (match get_arg "which_log" 2 (VNA NAGeneric) named_args with
+        (match extract_arg "which_log" 2 (VNA NAGeneric) named_args with
          | VNA _ -> Builder.read_node name
          | VString s -> Builder.read_node ~which_log:s name
          | _ -> Error.type_error "read_node: expected String for 'which_log'")
@@ -55,6 +99,44 @@ let register env =
   in
 
 (*
+--# Read Pipeline Metadata
+--#
+--# Returns a dictionary describing a materialized in-memory pipeline,
+--# including per-node diagnostics and the aggregated diagnostics summary.
+--#
+--# @name read_pipeline
+--# @param p :: Pipeline The pipeline to inspect.
+--# @return :: Dict A dictionary with node metadata and diagnostics.
+--# @family pipeline
+--# @seealso read_node, explain
+--# @export
+*)
+  let read_pipeline_fn named_args _env =
+    match extract_arg "p" 1 (VNA NAGeneric) named_args with
+    | VPipeline p ->
+        let nodes =
+          VList
+            (List.map (fun (name, value) ->
+               let diagnostics =
+                 match List.assoc_opt name p.p_node_diagnostics with
+                 | Some diagnostics -> diagnostics
+                 | None -> Ast.Utils.empty_node_diagnostics
+               in
+               (None, VDict [
+                 ("name", VString name);
+                 ("value", value);
+                 ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
+               ]))
+              p.p_nodes)
+        in
+        VDict [
+          ("nodes", nodes);
+          ("diagnostics", Ast.Utils.pipeline_diagnostics_to_value p.p_node_diagnostics);
+        ]
+    | _ -> Error.type_error "read_pipeline: expected a Pipeline."
+  in
+
+(*
 --# Inspect Pipeline Node Metadata
 --#
 --# Returns a dictionary with metadata about a computed node, including its
@@ -68,7 +150,7 @@ let register env =
 --# @export
 *)
   let inspect_fn named_args _env =
-    match get_arg "node" 1 (VNA NAGeneric) named_args with
+    match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         VDict [
           ("name", VString cn.cn_name);
@@ -95,7 +177,7 @@ let register env =
 --# @export
 *)
   let rebuild_fn named_args _env =
-    match get_arg "node" 1 (VNA NAGeneric) named_args with
+    match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         let quoted_name = Filename.quote cn.cn_name in
         let cmd = Printf.sprintf "nix-build --impure _pipeline/pipeline.nix -A %s --no-out-link 2>&1" quoted_name in
@@ -115,7 +197,31 @@ let register env =
       | VError _ -> None
       | v -> Some v)
   in
+
+(*
+--# Suppress Diagnostics for a Node
+--#
+--# Silences all captured warnings for the current node in the console summary.
+--# Warnings remain accessible programmatically via `read_node()` or `read_pipeline()`.
+--# Use this to reduce noise from known warnings during data processing (e.g., NAs in filter).
+--#
+--# @name suppress_warnings
+--# @param value :: Any The value or expression to wrap. Usually call it at the end of a node definition.
+--# @return :: Any The original value, signaling the evaluator to suppress diagnostic output.
+--# @family pipeline
+--# @export
+*)
+  let suppress_warnings_fn args _env =
+    match args with
+    | [v] -> 
+        Eval.request_warning_suppression ();
+        v
+    | _ -> Error.arity_error_named "suppress_warnings" 1 (List.length args)
+  in
+
   env
   |> Env.add "read_node" (make_builtin_named ~name:"read_node" ~variadic:true 1 read_fn)
+  |> Env.add "read_pipeline" (make_builtin_named ~name:"read_pipeline" ~variadic:true 1 read_pipeline_fn)
   |> Env.add "inspect_node" (make_builtin_named ~name:"inspect_node" ~variadic:true 1 inspect_fn)
   |> Env.add "rebuild_node" (make_builtin_named ~name:"rebuild_node" ~variadic:true 1 rebuild_fn)
+  |> Env.add "suppress_warnings" (make_builtin ~name:"suppress_warnings" 1 suppress_warnings_fn)

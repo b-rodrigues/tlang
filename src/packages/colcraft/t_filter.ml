@@ -10,19 +10,35 @@ let plural_suffix count =
 let emit_na_filter_warning na_indices =
   match na_indices with
   | [] -> ()
-  | _ when not !Eval.show_warnings -> ()
   | _ ->
       let indices = List.rev na_indices in
       let count = List.length indices in
-      let rendered =
-        indices |> List.map string_of_int |> String.concat ", "
+      let capped_indices = Utils.list_take 50 indices in
+      let message =
+        Printf.sprintf
+          "filter() excluded %d row%s because the predicate evaluated to NA"
+          count
+          (plural_suffix count)
       in
-      Printf.eprintf
-        "Warning: filter() excluded %d row%s because the predicate evaluated to NA at row%s %s. Consider handling NAs explicitly before filtering.\n%!"
-        count
-        (plural_suffix count)
-        (plural_suffix count)
-        rendered
+      (* Emit structured diagnostic for the pipeline engine *)
+      Eval.emit_node_warning {
+        nw_kind = "NAExcluded";
+        nw_fn = "filter";
+        nw_na_count = count;
+        nw_na_indices = capped_indices;
+        nw_message = message;
+        nw_source = WarningOwn;
+      };
+      (* Optional interactive stderr reporting *)
+      if !Eval.show_warnings then
+        let rendered =
+          capped_indices |> List.map string_of_int |> String.concat ", "
+        in
+        Printf.eprintf
+          "Warning: %s at row%s %s\n%!"
+          message
+          (plural_suffix count)
+          rendered
 
 type vectorized_predicate = {
   keep : bool array;

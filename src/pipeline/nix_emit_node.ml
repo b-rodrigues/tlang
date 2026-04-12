@@ -322,8 +322,6 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   in
   
   (* Use is_ser instead of is_builtin for serializer checks *)
-  let is_json_ser   = is_ser "json" in
-  let is_json_des   = is_fmt_in_des "json" in
   let is_arrow_ser  = is_ser "arrow" in
   let is_arrow_des  = is_fmt_in_des "arrow" in
   let is_csv_ser    = is_ser "csv" in
@@ -802,6 +800,76 @@ def py_read_pmml(path):
     return JPMMLModel(path)
 |} in
 
+  let t_error_py_code = {|
+import json
+import os
+import sys
+import traceback
+
+def py_write_error(msg, path):
+    if isinstance(msg, dict) and msg.get("type") == "VError":
+        err_info = msg
+    else:
+        traceback_text = msg if isinstance(msg, str) else str(msg)
+        message_lines = [line for line in traceback_text.splitlines() if line.strip()]
+        err_info = {
+            "type": "VError",
+            "code": "RuntimeError",
+            "message": message_lines[-1].strip() if message_lines else traceback_text,
+            "na_count": 0,
+            "context": {
+                "runtime_traceback": traceback_text,
+                "node_status": "errored"
+            },
+            "location": None
+        }
+    with open(path, "w") as f:
+        json.dump(err_info, f)
+    with open(os.path.join(os.path.dirname(path), "class"), "w") as f:
+        f.write("VError")
+
+def py_is_error(obj):
+    return isinstance(obj, dict) and obj.get("type") == "VError"
+
+def py_write_warnings(warnings_list, path):
+    cleaned = [str(w.message if hasattr(w, "message") else w) for w in warnings_list]
+    if cleaned:
+        with open(path, "w") as f:
+            json.dump(cleaned, f)
+|} in
+
+  let t_error_r_code = {|
+r_write_error <- function(msg, path) {
+  if (is.list(msg) && !is.null(msg$type) && msg$type == "VError") {
+    err_info <- msg
+  } else {
+    err_info <- list(
+      type = "VError",
+      code = "RuntimeError",
+      message = as.character(msg),
+      na_count = 0,
+      context = list(
+        runtime_traceback = as.character(msg),
+        node_status = "errored"
+      ),
+      location = NULL
+    )
+  }
+  jsonlite::write_json(err_info, path, auto_unbox = TRUE)
+  writeLines("VError", file.path(dirname(path), "class"))
+}
+
+r_is_error <- function(obj) {
+  is.list(obj) && !is.null(obj$type) && obj$type == "VError"
+}
+
+r_write_warnings <- function(warns, path) {
+  if (length(warns) > 0) {
+    jsonlite::write_json(as.character(warns), path, auto_unbox = TRUE)
+  }
+}
+|} in
+
   let t_onnx_r_code = {|
 r_write_onnx <- function(object, path) {
   # The 'onnx' R package provides Protobuf bindings but no direct model-to-onnx conversion for arbitrary R models (like lm, xgbtree).
@@ -881,7 +949,7 @@ def py_read_onnx(path):
         )
 |} in
 
-  let json_injection   = make_injection ~enabled:(is_json_ser  || is_json_des)  ~r_code:t_json_r_code  ~py_code:t_json_py_code in
+  let json_injection   = make_injection ~enabled:true  ~r_code:t_json_r_code  ~py_code:t_json_py_code in
   let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code in
   let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code in
   let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code in
@@ -890,6 +958,13 @@ def py_read_onnx(path):
     if runtime = "Python" then
       Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_pickle_py_code
     else ""
+  in
+
+  let error_injection =
+    match runtime with
+    | "R"      -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_error_r_code
+    | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_error_py_code
+    | _        -> ""
   in
 
   (* Logic for deserializing dependencies *)
@@ -927,26 +1002,38 @@ def py_read_onnx(path):
           | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
         in
         let des_node_val = eval_expr_safe strategy_expr in
-        match get_format des_node_val with
-        | Some fmt ->
-            (match get_polyglot_snippet ~lang:runtime ~kind:"reader" des_node_val with
-             | Some snippet -> snippet
-             | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
-        | None ->
-          if strategy = "default" then
-            (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else "deserialize")
-          else if strategy_is_string then
-            (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
-          else
-            strategy
+        let des_fn = match get_format des_node_val with
+          | Some fmt ->
+              (match get_polyglot_snippet ~lang:runtime ~kind:"reader" des_node_val with
+               | Some snippet -> snippet
+               | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
+          | None ->
+            if strategy = "default" then
+              (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else "deserialize")
+            else if strategy_is_string then
+              (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
+            else
+              strategy
+        in
+        
+        let dep_var = dep_env_var_name dep_name in
+        match runtime with
+        | "R" ->
+            Printf.sprintf {|      echo "if (file.exists(file.path(\"$%s\", \"class\")) && readLines(file.path(\"$%s\", \"class\"), 1) == \"VError\") {" >> node_script.R
+      echo "  %s <- r_read_json(file.path(\"$%s\", \"artifact\"))" >> node_script.R
+      echo "} else {" >> node_script.R
+      echo "  %s <- %s(file.path(\"$%s\", \"artifact\"))" >> node_script.R
+      echo "}" >> node_script.R|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+        | "Python" ->
+            Printf.sprintf {|      echo "if os.path.exists(os.path.join(\"$%s\", \"class\")) and open(os.path.join(\"$%s\", \"class\")).read().strip() == \"VError\":" >> node_script.py
+      echo "    %s = py_read_json(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py
+      echo "else:" >> node_script.py
+      echo "    %s = %s(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+        | _ ->
+            Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" dep_name des_fn dep_var ext
       in
       deps
-      |> List.map (fun d ->
-        let des_call = get_des_call d in
-        if runtime = "R" then
-          Printf.sprintf "      echo \"%s <- %s(\\\"$%s/artifact\\\")\" >> node_script.%s" d des_call (dep_env_var_name d) ext
-        else
-          Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" d des_call (dep_env_var_name d) ext)
+      |> List.map get_des_call
       |> String.concat "\n"
   in
   let quarto_read_node_substitutions =
@@ -1096,7 +1183,26 @@ def py_read_onnx(path):
       let non_imports = List.filter (fun l -> String.trim l <> "") non_imports in
       if runtime = "Python" && not (raw_assigns_to name expr_s) then
          match List.rev non_imports with
-         | last :: rest when not (is_assignment_stmt last) && not (String.starts_with ~prefix:"print(" (String.trim last)) ->
+         | last :: rest when
+             let l = String.trim last in
+             not (is_assignment_stmt l) &&
+             not (String.starts_with ~prefix:"print(" l) &&
+             not (String.starts_with ~prefix:"raise " l) &&
+             not (String.starts_with ~prefix:"import " l) &&
+             not (String.starts_with ~prefix:"from " l) &&
+             not (String.starts_with ~prefix:"if " l) &&
+             not (String.starts_with ~prefix:"for " l) &&
+             not (String.starts_with ~prefix:"while " l) &&
+             not (String.starts_with ~prefix:"with " l) &&
+             not (String.starts_with ~prefix:"def " l) &&
+             not (String.starts_with ~prefix:"class " l) &&
+             not (String.starts_with ~prefix:"assert " l) &&
+             not (String.starts_with ~prefix:"yield " l) &&
+             not (String.starts_with ~prefix:"del " l) &&
+             not (String.starts_with ~prefix:"global " l) &&
+             not (String.starts_with ~prefix:"nonlocal " l) &&
+             not (String.starts_with ~prefix:"return " l)
+             ->
              let last_trimmed = String.trim last in
              let spaces = ref 0 in
              while !spaces < String.length last && (last.[!spaces] = ' ' || last.[!spaces] = '\t') do
@@ -1168,28 +1274,71 @@ def py_read_onnx(path):
     | None ->
     if runtime = "R" then
       if is_raw_code then
-        Printf.sprintf {|      echo "%s <- local({" >> node_script.R
+        Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
+      echo "%s <- withCallingHandlers({" >> node_script.R
+      echo "  local({" >> node_script.R
+      echo "    tryCatch({" >> node_script.R
       cat <<'EOF' >> node_script.R
 %s
 EOF
+      echo "    }, error = function(e) {" >> node_script.R
+      echo "      r_write_error(e, \"$out/artifact\")" >> node_script.R
+      echo "      quit(save = 'no', status = 0)" >> node_script.R
+      echo "    })" >> node_script.R
+      echo "  })" >> node_script.R
+      echo "}, warning = function(w) {" >> node_script.R
+      echo "  captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
+      echo "  invokeRestart('muffleWarning')" >> node_script.R
       echo "})" >> node_script.R
-      echo "%s(%s, \"$out/artifact\")" >> node_script.R
-      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s_no_imports ser_call name name
+      echo "if (r_is_error(%s)) {" >> node_script.R
+      echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
+      echo "} else {" >> node_script.R
+      echo "  %s(%s, \"$out/artifact\")" >> node_script.R
+      echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
+      echo "  r_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.R
+      echo "}" >> node_script.R|} name expr_s_no_imports name name ser_call name name
       else
-        Printf.sprintf {|      cat <<'EOF' >> node_script.R
+        Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
+      echo "tryCatch({" >> node_script.R
+      echo "  %s <- withCallingHandlers({" >> node_script.R
+      cat <<'EOF' >> node_script.R
 %s <- %s
 EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.R
-      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
+      echo "  }, warning = function(w) {" >> node_script.R
+      echo "    captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
+      echo "    invokeRestart('muffleWarning')" >> node_script.R
+      echo "  })" >> node_script.R
+      echo "}, error = function(e) {" >> node_script.R
+      echo "  r_write_error(e, \"$out/artifact\")" >> node_script.R
+      echo "  quit(save = 'no', status = 0)" >> node_script.R
+      echo "})" >> node_script.R
+      echo "if (r_is_error(%s)) {" >> node_script.R
+      echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
+      echo "} else {" >> node_script.R
+      echo "  %s(%s, \"$out/artifact\")" >> node_script.R
+      echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
+      echo "  r_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.R
+      echo "}" >> node_script.R|} name name expr_s name name ser_call name name
     else if runtime = "Python" then
       if is_raw_code then
         if raw_assigns_to name expr_s then
-          (* Statement-style: raw code explicitly assigns to node name — use as-is *)
-          Printf.sprintf {|      cat <<'EOF' >> node_script.py
+           (* Statement-style: raw code explicitly assigns to node name — use as-is *)
+           Printf.sprintf {|      echo "import warnings" >> node_script.py
+      echo "try:" >> node_script.py
+      echo "    with warnings.catch_warnings(record=True) as captured_warns:" >> node_script.py
+      echo "        warnings.simplefilter('always')" >> node_script.py
+      cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
+      echo "except Exception as e:" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    sys.exit(0)" >> node_script.py
+      echo "if py_is_error(%s):" >> node_script.py
+      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "else:" >> node_script.py
+      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
+      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|} (indent_string expr_s 8) name name ser_call name name
         else
           let globals_decl =
             if deps = [] then ""
@@ -1199,17 +1348,40 @@ EOF
 %s      cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "%s = __node_runner()" >> node_script.py
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|}
+      echo "    return" >> node_script.py
+      echo "try:" >> node_script.py
+      echo "    import warnings" >> node_script.py
+      echo "    with warnings.catch_warnings(record=True) as captured_warns:" >> node_script.py
+      echo "        warnings.simplefilter('always')" >> node_script.py
+      echo "        %s = __node_runner()" >> node_script.py
+      echo "except Exception as e:" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    sys.exit(0)" >> node_script.py
+      echo "if py_is_error(%s):" >> node_script.py
+      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "else:" >> node_script.py
+      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
+      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|}
             (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
-            (indent_string expr_s_no_imports 4) name ser_call name name
+            (indent_string expr_s_no_imports 4) name name name ser_call name name
       else
-        Printf.sprintf {|      cat <<'EOF' >> node_script.py
-%s = %s
+        Printf.sprintf {|      echo "import warnings" >> node_script.py
+      echo "try:" >> node_script.py
+      echo "    with warnings.catch_warnings(record=True) as captured_warns:" >> node_script.py
+      echo "        warnings.simplefilter('always')" >> node_script.py
+      cat <<'EOF' >> node_script.py
+%s
 EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
+      echo "except Exception as e:" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    sys.exit(0)" >> node_script.py
+      echo "if py_is_error(%s):" >> node_script.py
+      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "else:" >> node_script.py
+      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
+      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name ser_call name name
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
@@ -1310,7 +1482,7 @@ EOF
              @ dep_env @ node_env)
         in
         Printf.sprintf "%s %s > $out/artifact\n      echo ShellOutput > $out/class" hermetic_env launcher
-    | _ -> "t run --unsafe node_script.t"
+    | _ -> "t run --unsafe --mode repl node_script.t"
   in
 
   Printf.sprintf {|
@@ -1339,8 +1511,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_exports ext error_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd

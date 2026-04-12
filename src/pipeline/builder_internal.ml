@@ -97,6 +97,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
     in
 
     let drv_paths = Hashtbl.create (List.length node_names) in
+    let node_has_warnings = Hashtbl.create (List.length node_names) in
     let callback line =
       Buffer.add_string captured_output line;
       Buffer.add_char captured_output '\n';
@@ -134,7 +135,10 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
         (* Completed: nix-build prints the output store path without ".drv" *)
         match List.find_opt (fun name -> contains_substring line ("-" ^ name)) node_names with
         | Some name ->
-            if Hashtbl.find statuses name <> "Completed" && Hashtbl.find statuses name <> "Errored" then (
+            if Hashtbl.find statuses name <> "Completed" && 
+               Hashtbl.find statuses name <> "SoftFailed" &&
+               Hashtbl.find statuses name <> "Errored" then (
+              (* We'll refine this to SoftFailed later if artifact class is VError *)
               Hashtbl.replace statuses name "Completed";
               Printf.printf "  ✓ %s built\n%!" name
             )
@@ -197,11 +201,23 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 
                 (* Reconcile statuses: if nix-build succeeded, check which nodes were built (cached or otherwise) *)
                 List.iter (fun name ->
-                  if Hashtbl.find statuses name <> "Completed" && 
-                     Hashtbl.find statuses name <> "Errored" then (
-                    let node_path = Filename.concat out_path name in
-                    if Sys.file_exists node_path then
-                      Hashtbl.replace statuses name "Completed"
+                  let node_path = Filename.concat out_path name in
+                  if Sys.file_exists node_path then (
+                    let class_path = Filename.concat node_path "class" in
+                    let warnings_path = Filename.concat node_path "warnings" in
+                    if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
+                    
+                    if Hashtbl.find statuses name <> "Completed" && 
+                       Hashtbl.find statuses name <> "SoftFailed" &&
+                       Hashtbl.find statuses name <> "Errored" then (
+                      match read_file_first_line class_path with
+                      | Some "VError" -> Hashtbl.replace statuses name "SoftFailed"
+                      | _ -> Hashtbl.replace statuses name "Completed"
+                    ) else if Hashtbl.find statuses name = "Completed" then (
+                      (* Refine "Completed" from Nix output if it was actually a soft-fail *)
+                      if (match read_file_first_line class_path with Some "VError" -> true | _ -> false) then
+                         Hashtbl.replace statuses name "SoftFailed"
+                    )
                   )
                 ) node_names;
 
@@ -214,8 +230,19 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 
                 (* Success Summary *)
                 let completed = List.filter (fun n -> Hashtbl.find statuses n = "Completed") node_names in
-                Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
-                  (List.length completed) (List.length node_names);
+                let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
+                let with_warnings = List.filter (fun n -> Hashtbl.find_opt node_has_warnings n = Some true) node_names in
+                let total_built = List.length completed + List.length soft_failed in
+                 
+                if List.length soft_failed > 0 || List.length with_warnings > 0 then (
+                  let msg = if List.length soft_failed > 0 then "\n✖ Pipeline build captured node errors" else "\n✓ Pipeline build completed" in
+                  Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings]\n%!" 
+                    msg (List.length completed) (List.length soft_failed) (List.length with_warnings);
+                  List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
+                  List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
+                ) else
+                  Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
+                    total_built (List.length node_names);
                 
                 let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
                 let log_path = Filename.concat pipeline_dir log_name in
@@ -229,6 +256,9 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                     let serializer_expr = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
                     let serializer = Nix_unparse.expr_to_string serializer_expr in
                     let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
+                    let status = Hashtbl.find statuses name in
+                    let success = if status = "SoftFailed" then "false" else "true" in
+                    let has_warns = if Hashtbl.find_opt node_has_warnings name = Some true then "true" else "false" in
                     Serialization.json_dict [
                       ("node", "\"" ^ Serialization.json_escape name ^ "\"");
                       ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
@@ -236,7 +266,8 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                       ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
                       ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
                       ("dependencies", Serialization.json_list deps);
-                      ("success", "true")
+                      ("success", success);
+                      ("warnings", has_warns)
                     ]
                   ) p.p_exprs
                 in
@@ -247,8 +278,16 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                   ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
                 ] in
                 (match write_file log_path log_json with
-                | Ok () -> Ok out_path
-                | Error msg -> Error ("Failed to write build log: " ^ msg)))
+                | Error msg -> Error ("Failed to write build log: " ^ msg)
+                | Ok () ->
+                    if soft_failed <> [] then
+                      Error
+                        (Printf.sprintf
+                           "Pipeline build captured %d node error artifact(s): %s. Inspect the latest build log in `_pipeline/` or use `read_node()` / `read_log()` for details."
+                           (List.length soft_failed)
+                           (String.concat ", " soft_failed))
+                    else
+                      Ok out_path))
           | Unix.WEXITED 0 ->
              Error "nix-build succeeded but did not return an output path."
           | _ ->

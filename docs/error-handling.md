@@ -10,6 +10,8 @@ Comprehensive guide to error handling, recovery patterns, and debugging in T.
 - [Pipe Operators and Errors](#pipe-operators-and-errors)
 - [Pattern Matching and Errors](#pattern-matching-and-errors)
 - [Error Recovery Patterns](#error-recovery-patterns)
+- [Pipeline Diagnostics and Soft-Failures](#pipeline-diagnostics-and-soft-failures)
+- [Polyglot Error Handling (Python/R)](#polyglot-error-handling-pythonr)
 - [Common Errors](#common-errors)
 - [Best Practices](#best-practices)
 
@@ -23,6 +25,7 @@ T treats errors as **first-class values**, not exceptions. This design enables:
 2. **Railway-Oriented Programming**: Success and failure paths are explicit
 3. **Composable Recovery**: Error handling logic can be pipelined like data
 4. **Predictable Behavior**: No hidden control flow from exceptions
+5. **Observability at Scale**: Pipeline builds capture and persist errors as artifacts, preventing build halts while ensuring full traceability.
 
 **Key Principle**: Errors are data, and data can be transformed, inspected, and recovered from.
 
@@ -407,6 +410,64 @@ enhance_error = \(e)
 
 risky_calc() ?|> enhance_error
 ```
+
+---
+
+## Pipeline Diagnostics and Soft-Failures
+
+In T-Lang, the materialization of a pipeline is a separate phase from the logic execution. When a node in a pipeline fails, it doesn't necessarily halt the entire build.
+
+### Hard-Fail vs. Soft-Fail
+
+1.  **Hard-Fail**: Occurs when the environment or system fails (e.g., missing dependencies, Nix build errors, out-of-memory). The build stops immediately and no artifacts are produced.
+2.  **Soft-Fail (Captured Error)**: Occurs when the node's internal code (T, Python, or R) raises an error. The node produces a `VError` artifact instead of the expected data. The pipeline build **continues**, allowing other independent branches to complete.
+
+### The Build Summary
+
+After a build, T provides an iconographic summary:
+
+```text
+✖ Pipeline build captured node errors [5 succeeded, 2 captured errors, 2 had warnings]
+  ! Captured error in node: r_err
+  ! Captured error in node: py_err
+  ? Warnings in node: r_warn
+  ? Warnings in node: py_warn
+```
+
+- **`!` (Captured error)**: The node failed, producing a `VError` artifact.
+- **`?` (Warnings)**: The node succeeded, but issued non-terminal diagnostics.
+
+### Investigating with `explain()`
+
+When you load a node that soft-failed, you receive a T-Lang Error object. You can use the `explain()` builtin to see the exact cause, including tracebacks from other languages.
+
+```t
+hu = read_node("py_err")
+-- Error(RuntimeError: "Critical error in Python logic")
+
+explain(hu)
+-- Output:
+-- Context:
+--   runtime_traceback: "Traceback (most recent call last): ..."
+--   node_name: "py_err"
+--   node_status: "errored"
+```
+
+---
+
+## Polyglot Error Handling (Python/R)
+
+T-Lang provides a "diagnostic bridge" for nodes running in other languages.
+
+### Python Nodes
+- **Exceptions**: All uncaught exceptions are caught by the T-Lang runner. The exception type, message, and full traceback are serialized into the `VError` artifact.
+- **Warnings**: Captured via `warnings.catch_warnings()`. These are listed in the build summary but do not cause the node to return an error state.
+
+### R Nodes
+- **Errors**: Handled via `tryCatch`. R conditions are mapped to `VError` codes.
+- **Warnings**: Handled via `withCallingHandlers`. Warnings are collected into the node's metadata without interrupting the primary data export.
+
+---
 
 ### Pattern 7: Conditional Modeling and Automated Reporting
 

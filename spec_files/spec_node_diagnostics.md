@@ -6,20 +6,18 @@ Date: 2026-04-11
 
 ## Architecture Goal
 
-In a pipeline, warnings and errors are not console noise — they are **data**. They belong to the node that produced them, should be queryable, and must be reproducible: the same inputs always produce the same diagnostic metadata. This spec defines how materialized nodes carry their diagnostics, how those diagnostics propagate through the pipeline graph, and what the user-facing API looks like.
+In a pipeline, warnings and errors are not console noise — they are **data**. They belong to the node that produced them, should be queryable, and must be reproducible. This spec defines how materialized nodes carry their diagnostics, how those diagnostics propagate through the pipeline graph, and how polyglot nodes (Python/R) bridge their native diagnostics into the T-Lang observability system.
+
+Key concept: **Soft-Failure**. A node can "fail" its internal computation but "succeed" at producing a diagnostic artifact (`VError`). This allows a pipeline to complete its build while providing deep, structured error information instead of a generic "build failed" message.
 
 ---
 
-## 1. Diagnostics as Node Attributes
+Every node output in the Nix store contains diagnostic markers:
+- `$out/artifact`: The primary data, or a `VError` JSON object if the node failed.
+- `$out/class`: The T-Lang class of the artifact (e.g., `dataframe` or `VError`).
+- `$out/warnings`: A JSON list of non-terminal messages captured during execution (optional).
 
-Every materialized node carries a `diagnostics` record accessible via `read_node()`:
-
-```t
-read_node(some_node).warnings   -- list of NodeWarning
-read_node(some_node).error      -- NodeError | null
-```
-
-A node has at most one `.error` (the one that halted it) and zero or more `.warnings` (non-halting conditions encountered during execution, e.g. NA slots skipped with `na_ignore=true`, NA rows excluded by `filter()`).
+When `read_node()` loads an artifact where `$out/class` is `VError`, it automatically reconstructs a First-Class Error object.
 
 ### NodeWarning
 
@@ -34,16 +32,19 @@ type NodeWarning = {
 }
 ```
 
-### NodeError
+A captured error is a structured object (serialized as JSON in the build path) containing:
 
 ```t
-type NodeError = {
-  kind    : ErrorKind,          -- AggregationError | TransformError | ...
-  fn      : string,
-  message : string,
-  na_count: int                 -- how many NAs were present when the error was raised
+type VError = {
+  type    : "VError",
+  code    : ErrorCode,          -- RuntimeError | DependencyError | ...
+  message : string,             -- The primary error message
+  context : dict,               -- Key-value metadata (tracebacks, node_name, etc.)
+  location: SourceLoc | null    -- Source file/line if available
 }
 ```
+
+When a node fails, the runner serializes this `VError` to the artifact path and sets the node class to `VError`.
 
 ---
 
@@ -69,23 +70,24 @@ The `source` field distinguishes between a node's own diagnostics and inherited 
 
 ## 3. Pipeline-End Summary
 
-When a pipeline is materialized, T emits a structured summary. This is printed by default but is also accessible programmatically.
+When a pipeline build completes (via `build_pipeline` or the REPL), T emits a structured summary of nodes that had issues.
 
 ### Printed Output
 
-```
-Pipeline summary: 3 nodes with warnings, 0 errors
+If nodes soft-failed or encountered warnings, the summary provides a breakdown:
 
-  ⚠  log(raw.col)           na_ignore=true — 5 NAs skipped (indices 2, 7, 11, 23, 44)
-  ⚠  rolling_mean(cleaned)  na_rm=true     — 2 NAs removed from windows (indices 7, 11)
-  ⚠  filter(df, x == 2)     —              — 1 NA row excluded from predicate (index 19)
+```text
+✖ Pipeline build captured node errors [5 succeeded, 2 captured errors, 2 had warnings]
+  ! Captured error in node: r_err
+  ! Captured error in node: py_err
+  ? Warnings in node: r_warn
+  ? Warnings in node: py_warn
 ```
 
-Upstream-inherited warnings are shown only at their origin node; downstream nodes that inherit them show a back-reference rather than repeating the detail:
+- **`!` (Captured error)**: The node computation failed, but produced a `VError` artifact.
+- **`?` (Warnings)**: The node computation succeeded, but diagnostic messages were captured.
 
-```
-  ⚠  exp(log_result)        — 0 own NAs; inherits warnings from log(raw.col)
-```
+If any `soft-fail` errors occurred, `build_pipeline` returns an `Error` to the REPL, listing the offending nodes.
 
 ### Programmatic Access
 
@@ -94,7 +96,7 @@ read_pipeline(p).diagnostics
 -- {
 --   warning_nodes: [cleaned, rolling_result, filtered],
 --   error_nodes:   [],
---   summary: "3 nodes with warnings, 0 errors"
+--   summary: "3 node(s) with warnings, 0 suppressed, 0 error(s)"
 -- }
 ```
 
@@ -185,3 +187,39 @@ For very large datasets, `na_indices` is capped at the first 50 affected indices
 ### Diagnostic Record Retention
 
 Diagnostic records are retained for the lifetime of the pipeline execution context. They are not persisted to disk unless the user explicitly serializes `read_pipeline(p).diagnostics`. This is consistent with T's reproducibility model: re-running the pipeline with the same inputs will always regenerate the same diagnostic records.
+
+---
+
+## 7. Polyglot Diagnostics Bridge
+
+T-Lang nodes running in Python or R automatically bridge their native diagnostic systems into the pipeline artifacts.
+
+### Python Bridge
+- **Errors**: Uncaught exceptions are caught by the node runner, and the traceback is serialized into a `VError` artifact.
+- **Warnings**: The runner uses `warnings.catch_warnings(record=True)` to intercept `warnings.warn()` calls, persisting them to the `$out/warnings` artifact.
+
+### R Bridge
+- **Errors**: Handled via `tryCatch()`. Errors are converted to `VError` JSON.
+- **Warnings**: Handled via `withCallingHandlers()`. Warnings are collected while allowing execution to continue, then persisted to `$out/warnings`.
+
+---
+
+## 8. Introspection with `explain()`
+
+For nodes that are in an error state (class `VError`), T provides an `explain()` builtin to provide human-readable investigation:
+
+```t
+hu = read_node("failing_node")
+explain(hu)
+```
+
+**Output:**
+```text
+Error(RuntimeError: "[L1:C5] ValueError: Critical error in node logic")
+Context:
+  runtime_traceback: "Traceback (most recent call last): ..."
+  node_name: "failing_node"
+  node_status: "errored"
+```
+
+The system also automatically injects the `node_name` into the error context during `read_node()`, ensuring that even when an error artifact is passed through multiple nodes, its origin is always identifiable.

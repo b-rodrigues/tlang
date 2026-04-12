@@ -3,12 +3,81 @@ open Ast
 open Builder_utils
 open Builder_logs
 
+let parse_node_warnings path =
+  if Sys.file_exists path then
+    match Serialization.read_json path with
+    | Ok (VList items) ->
+        List.filter_map (fun (_, v) ->
+          match v with
+          | VString msg ->
+              Some {
+                nw_kind = "Generic";
+                nw_fn = "unknown";
+                nw_na_count = 0;
+                nw_na_indices = [];
+                nw_message = msg;
+                nw_source = WarningOwn;
+              }
+          | VDict d ->
+              let get_s k = match List.assoc_opt k d with Some (VString s) -> s | _ -> "" in
+              let get_i k = match List.assoc_opt k d with Some (VInt i) -> i | _ -> 0 in
+              Some {
+                nw_kind = get_s "kind" |> (fun s -> if s = "" then "Generic" else s);
+                nw_fn = get_s "fn" |> (fun s -> if s = "" then "unknown" else s);
+                nw_na_count = get_i "na_count";
+                nw_na_indices = (match List.assoc_opt "na_indices" d with Some (VList l) -> List.filter_map (fun (_, v) -> match v with VInt i -> Some i | _ -> None) l | _ -> []);
+                nw_message = get_s "message";
+                nw_source = WarningOwn;
+              }
+          | _ -> None
+        ) items
+    | _ -> []
+  else []
+
+let wrap_with_diagnostics name cn v =
+  let node_dir = Filename.dirname cn.cn_path in
+  let warnings_path = Filename.concat node_dir "warnings" in
+  let warnings = parse_node_warnings warnings_path in
+  let error = if cn.cn_class = "VError" then (
+    match v with
+    | VError e -> Some { ne_kind = Utils.error_code_to_string e.code; ne_fn = "unknown"; ne_message = e.message; ne_na_count = e.na_count }
+    | _ -> None
+  ) else None in
+  VNodeResult { v; node_name = name; diagnostics = { nd_warnings = warnings; nd_error = error; nd_warnings_suppressed = false } }
+
+(* Add node_name to the error context unless it is already present. *)
+let add_node_name_context name context =
+  if List.exists (fun (k, _) -> k = "node_name") context then context
+  else ("node_name", VString name) :: context
+
+(* Best-effort deserialization for nodes exposed through T_NODE_<name> in the
+   Nix sandbox: recover structured VError artifacts when possible and otherwise
+   fall back to the computed node handle. *)
+let read_env_node_value name cn =
+  if cn.cn_class = "VError" then
+    match Serialization.read_verror_json cn.cn_path with
+    | Ok (VError e) -> VError { e with context = add_node_name_context name e.context }
+    | Ok v -> v
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "json" then
+    match Serialization.read_json cn.cn_path with
+    | Ok v -> v
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "arrow" then
+    match Arrow_io.read_ipc cn.cn_path with
+    | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "pmml" then
+    match Pmml_utils.read_pmml cn.cn_path with
+    | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
+    | Error _ -> VComputedNode cn
+  else
+    VComputedNode cn
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
   | Some path when which_log = None ->
-      (* We are likely in a Nix sandbox. The env var points to the node's output directory.
-         We look for 'artifact' and 'class' to reconstruct a partial ComputedNode. *)
       let artifact_path = Filename.concat path "artifact" in
       let class_path = Filename.concat path "class" in
       if Sys.file_exists artifact_path && Sys.file_exists class_path then
@@ -16,8 +85,6 @@ let read_node ?which_log name =
         let cls = try input_line ch |> String.trim with _ -> "unknown" in
         close_in ch;
         
-        (* Reconstruct metadata as best as we can.
-           We'll mark it as 'unknown' runtime/serializer but we have the path. *)
         let cn = {
           cn_name = name;
           cn_runtime = "unknown";
@@ -33,21 +100,8 @@ let read_node ?which_log name =
           cn_dependencies = [];
         } in
         
-        (* Apply auto-loading if we have a known serializer *)
-        if cn.cn_serializer = "json" then
-           match Serialization.read_json cn.cn_path with
-           | Ok v -> v
-           | Error _ -> VComputedNode cn
-        else if cn.cn_serializer = "arrow" then
-           match Arrow_io.read_ipc cn.cn_path with
-           | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
-           | Error _ -> VComputedNode cn
-         else if cn.cn_serializer = "pmml" then
-            match Pmml_utils.read_pmml cn.cn_path with
-            | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
-            | Error _ -> VComputedNode cn
-        else
-          VComputedNode cn
+        let v = read_env_node_value name cn in
+        wrap_with_diagnostics name cn v
       else
         Error.make_error FileError (Printf.sprintf "read_node: node `%s` found in environment as %s, but artifact is missing." name path)
   | _ ->
@@ -84,31 +138,40 @@ let read_node ?which_log name =
           (match List.assoc_opt name entries with
           | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in build log `%s`." name f)
           | Some cn ->
-              if cn.Ast.cn_runtime = "T"
-                 && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
-              then
-                (match Serialization.deserialize_from_file cn.Ast.cn_path with
-                | Ok v -> v
-                | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
-              else if cn.Ast.cn_serializer = "json" then
-                (match Serialization.read_json cn.Ast.cn_path with
-                 | Ok v -> v
-                 | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read JSON node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
-              else if cn.Ast.cn_serializer = "arrow" then
-                (match Arrow_io.read_ipc cn.Ast.cn_path with
-                 | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
-                 | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
-              else if cn.Ast.cn_serializer = "csv" then
-                (try
-                  let ch = open_in cn.Ast.cn_path in
-                  let content = really_input_string ch (in_channel_length ch) in
-                  close_in ch;
-                  T_read_csv.parse_csv_string content
-                with exn ->
-                  Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read CSV node `%s` from `%s`: %s" name cn.Ast.cn_path (Printexc.to_string exn)))
-               else if cn.Ast.cn_serializer = "pmml" then
-                 (match Pmml_utils.read_pmml cn.Ast.cn_path with
-                  | Ok v -> Pmml_utils.attach_source_path cn.Ast.cn_path v
-                  | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
-              else
-                VComputedNode cn)
+              let v =
+                if cn.Ast.cn_class = "VError" then
+                  (match Serialization.read_verror_json cn.Ast.cn_path with
+                   | Ok (VError e) ->
+                        VError { e with context = add_node_name_context name e.context }
+                    | Ok v -> v
+                    | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Error node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                else if cn.Ast.cn_runtime = "T"
+                   && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
+                then
+                  (match Serialization.deserialize_from_file cn.Ast.cn_path with
+                  | Ok v -> v
+                  | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                else if cn.Ast.cn_serializer = "json" then
+                  (match Serialization.read_json cn.Ast.cn_path with
+                   | Ok v -> v
+                   | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read JSON node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                else if cn.Ast.cn_serializer = "arrow" then
+                  (match Arrow_io.read_ipc cn.Ast.cn_path with
+                   | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+                   | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                else if cn.Ast.cn_serializer = "csv" then
+                  (try
+                    let ch = open_in cn.Ast.cn_path in
+                    let content = really_input_string ch (in_channel_length ch) in
+                    close_in ch;
+                    T_read_csv.parse_csv_string content
+                  with exn ->
+                    Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read CSV node `%s` from `%s`: %s" name cn.Ast.cn_path (Printexc.to_string exn)))
+                 else if cn.Ast.cn_serializer = "pmml" then
+                   (match Pmml_utils.read_pmml cn.Ast.cn_path with
+                    | Ok v -> Pmml_utils.attach_source_path cn.Ast.cn_path v
+                    | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                else
+                  VComputedNode cn
+              in
+              wrap_with_diagnostics name cn v)

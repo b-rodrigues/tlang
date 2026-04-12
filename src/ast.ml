@@ -57,6 +57,7 @@ type error_info = {
   message : string;
   context : (string * value) list;
   location : source_location option;
+  na_count : int;
 }
 
 (** DataFrame type — Arrow-backed columnar storage *)
@@ -73,6 +74,32 @@ and ndarray = {
 (** Phase 6: Intent block — structured metadata for LLM-native workflows *)
 and intent_block = {
   intent_fields : (string * string) list;  (* Key-value pairs of metadata *)
+}
+
+and node_warning_source =
+  | WarningOwn
+  | WarningUpstream of string
+
+and node_warning = {
+  nw_kind : string;
+  nw_fn : string;
+  nw_na_count : int;
+  nw_na_indices : int list;
+  nw_message : string;
+  nw_source : node_warning_source;
+}
+
+and node_error = {
+  ne_kind : string;
+  ne_fn : string;
+  ne_message : string;
+  ne_na_count : int;
+}
+
+and node_diagnostics = {
+  nd_warnings : node_warning list;
+  nd_error : node_error option;
+  nd_warnings_suppressed : bool;
 }
 
 
@@ -94,6 +121,7 @@ and pipeline_result = {
   p_noops : (string * bool) list;            (* Map node name -> noop flag *)
   p_scripts : (string * string option) list; (* Map node name -> optional script path *)
   p_explicit_deps : (string * string list option) list; (* Map node name -> explicit dependencies *)
+  p_node_diagnostics : (string * node_diagnostics) list; (* Map node name -> diagnostics *)
 }
 
 (** Formula specification — captures LHS/RHS of ~ expressions *)
@@ -212,6 +240,11 @@ and value =
   (* Internal: environment as a first-class value, used by __q_caller_env__ *)
   | VEnv of value Env.t
   | VSerializer of serializer
+  | VNodeResult of {
+      v : value;
+      node_name : string;
+      diagnostics : node_diagnostics;
+    }
 
 
 
@@ -348,10 +381,21 @@ let extract_identifiers text =
 type environment = value Env.t
 
 module Utils = struct
-  let is_truthy = function
+  let empty_node_diagnostics = {
+    nd_warnings = [];
+    nd_error = None;
+    nd_warnings_suppressed = false;
+  }
+
+  let rec unwrap_value = function
+    | VNodeResult { v; _ } -> unwrap_value v
+    | v -> v
+
+  let rec is_truthy = function
     | VBool false | VInt 0 -> false
     | VError _ -> false
     | VNA _ -> false
+    | VNodeResult { v; _ } -> is_truthy v
     | _ -> true
 
   (** Check if an expression is a column reference and extract the column name.
@@ -379,6 +423,78 @@ module Utils = struct
     | [] -> []
     | h :: t -> if n <= 0 then [] else h :: list_take (n - 1) t
 
+  let node_warning_source_to_value = function
+    | WarningOwn ->
+        VDict [("kind", VString "Own")]
+    | WarningUpstream node ->
+        VDict [("kind", VString "Upstream"); ("node", VString node)]
+
+  let node_warning_to_value warning =
+    VDict [
+      ("kind", VString warning.nw_kind);
+      ("fn", VString warning.nw_fn);
+      ("na_count", VInt warning.nw_na_count);
+      ("na_indices", VList (List.map (fun idx -> (None, VInt idx)) warning.nw_na_indices));
+      ("message", VString warning.nw_message);
+      ("source", node_warning_source_to_value warning.nw_source);
+    ]
+
+  let node_error_to_value error =
+    VDict [
+      ("kind", VString error.ne_kind);
+      ("fn", VString error.ne_fn);
+      ("message", VString error.ne_message);
+      ("na_count", VInt error.ne_na_count);
+    ]
+
+  let node_diagnostics_to_value diagnostics =
+    VDict [
+      ("warnings", VList (List.map (fun warning -> (None, node_warning_to_value warning)) diagnostics.nd_warnings));
+      ("error",
+       match diagnostics.nd_error with
+       | Some error -> node_error_to_value error
+       | None -> VNA NAGeneric);
+      ("warnings_suppressed", VBool diagnostics.nd_warnings_suppressed);
+    ]
+
+  let node_has_own_warnings diagnostics =
+    List.exists (fun warning ->
+      match warning.nw_source with
+      | WarningOwn -> true
+      | WarningUpstream _ -> false
+    ) diagnostics.nd_warnings
+
+  let pipeline_diagnostics_to_value node_diagnostics =
+    let warning_nodes =
+      node_diagnostics
+      |> List.filter_map (fun (name, diagnostics) ->
+           if node_has_own_warnings diagnostics then Some (None, VString name) else None)
+    in
+    let error_nodes =
+      node_diagnostics
+      |> List.filter_map (fun (name, diagnostics) ->
+           match diagnostics.nd_error with
+           | Some _ -> Some (None, VString name)
+           | None -> None)
+    in
+    let suppressed_nodes =
+      node_diagnostics
+      |> List.filter_map (fun (name, diagnostics) ->
+           if diagnostics.nd_warnings_suppressed && node_has_own_warnings diagnostics 
+           then Some (None, VString name) else None)
+    in
+    let warning_count = List.length warning_nodes in
+    let error_count = List.length error_nodes in
+    let suppressed_count = List.length suppressed_nodes in
+    VDict [
+      ("warning_nodes", VList warning_nodes);
+      ("error_nodes", VList error_nodes);
+      ("suppressed_nodes", VList suppressed_nodes);
+      ("summary",
+       VString (Printf.sprintf "%d node(s) with warnings, %d suppressed, %d error(s)" 
+                 warning_count suppressed_count error_count));
+    ]
+
   let error_code_to_string = function
     | TypeError -> "TypeError"
     | AggregationError -> "AggregationError"
@@ -396,6 +512,25 @@ module Utils = struct
     | RuntimeError -> "RuntimeError"
     | GenericError -> "GenericError"
     | NAPredicateError -> "NAPredicateError"
+
+  let error_code_of_string = function
+    | "TypeError" -> TypeError
+    | "AggregationError" -> AggregationError
+    | "ArityError" -> ArityError
+    | "NameError" -> NameError
+    | "DivisionByZero" -> DivisionByZero
+    | "KeyError" -> KeyError
+    | "IndexError" -> IndexError
+    | "AssertionError" -> AssertionError
+    | "FileError" -> FileError
+    | "ValueError" -> ValueError
+    | "MatchError" -> MatchError
+    | "SyntaxError" -> SyntaxError
+    | "ShellError" -> ShellError
+    | "RuntimeError" -> RuntimeError
+    | "GenericError" -> GenericError
+    | "NAPredicateError" -> NAPredicateError
+    | _ -> RuntimeError
 
   let na_type_to_string = function
     | NABool -> "Bool"
@@ -426,7 +561,7 @@ module Utils = struct
     | TSerializer -> "Serializer"
     | TExpr -> "Expression"
 
-  let type_name = function
+  let rec type_name = function
     | VInt _ -> "Int" | VFloat _ -> "Float"
     | VBool _ -> "Bool" | VString _ -> "String" | VRawCode _ -> "Code"
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
@@ -451,6 +586,7 @@ module Utils = struct
     | VUnquoteSplice _ -> "UnquoteSplice"
     | VDynamicArg _ -> "DynamicArg"
     | VEnv _ -> "Environment"
+    | VNodeResult { v; _ } -> type_name v
 
   let rec binop_to_string = function
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
@@ -676,6 +812,7 @@ module Utils = struct
     | VUnquoteSplice v -> "!!!" ^ value_to_string v
     | VDynamicArg (n, v) -> n ^ " := " ^ value_to_string v
     | VEnv _ -> "<environment>"
+    | VNodeResult { v; _ } -> value_to_string v
 
   let value_to_raw_string = function
     | VString s -> s
@@ -745,18 +882,19 @@ let type_conversion_hint left_type right_type =
   | _ -> None
 
 (** Create a structured error value *)
-let make_error ?location ?(context=[]) code message =
-  VError { code; message; context; location }
+let make_error ?location ?(context=[]) ?(na_count=0) code message =
+  VError { code; message; context; location; na_count }
 
 (** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?name ?(variadic=false) arity func =
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env_ref -> func (List.map snd named_args) !env_ref) }
+             b_func = (fun named_args env_ref -> func (List.map (fun (_, v) -> Utils.unwrap_value v) named_args) !env_ref) }
 
 (** Create a builtin function value that receives named args *)
 let make_builtin_named ?name ?(variadic=false) arity func =
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env_ref -> func named_args !env_ref) }
+             b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, Utils.unwrap_value v)) named_args) !env_ref) }
+
 
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false

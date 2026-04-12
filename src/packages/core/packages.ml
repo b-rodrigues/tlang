@@ -191,8 +191,8 @@ let dataframe_package = {
 let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
-  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "pipeline_copy"; "trace_nodes";
-               "pipeline_to_frame"; "filter_node"; "mutate_node"; "rename_node"; "select_node"; "arrange_node";
+  functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "list_logs"; "read_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
+               "pipeline_to_frame"; "filter_node"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings";
                "union"; "difference"; "intersect"; "patch";
                "swap"; "rewire"; "prune"; "upstream_of"; "downstream_of"; "subgraph";
                "chain"; "parallel";
@@ -307,7 +307,8 @@ let register env =
   (* Helper to keep named args *)
   let make_builtin_named ?name ?(variadic=false) arity func =
     VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-               b_func = (fun named_args env_ref -> func named_args !env_ref) }
+               b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, Ast.Utils.unwrap_value v)) named_args) !env_ref) }
+
   in
 
   (* Register Boolean functions *)

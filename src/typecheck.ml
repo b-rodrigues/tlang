@@ -24,7 +24,7 @@ let rec collect_type_vars = function
   | _ -> []
 
 let make_type_error ?location message =
-  { code = Ast.TypeError; message; context = []; location }
+  { code = Ast.TypeError; message; context = []; location; na_count = 0 }
 
 let validate_lambda ?location name (l : lambda) =
   let all_params_annotated = List.for_all Option.is_some l.param_types in

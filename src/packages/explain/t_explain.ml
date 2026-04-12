@@ -20,7 +20,8 @@ let dataframe_hint =
 *)
 let register env =
   Env.add "explain"
-    (make_builtin ~name:"explain" 1 (fun args _env ->
+    (make_builtin ~name:"explain" 1 (fun raw_args _env ->
+      let args = List.map (fun v -> Utils.unwrap_value v) raw_args in
       match args with
       | [VInt _] | [VFloat _] | [VBool _] | [VString _] ->
           let v = List.hd args in
@@ -126,22 +127,29 @@ let register env =
             ("example_rows", example_rows);
             ("_display_keys", VList display_keys);
           ] @ grouped_info)
-      | [VPipeline { p_nodes; p_deps; _ }] ->
+      | [VPipeline { p_nodes; p_deps; p_node_diagnostics; _ }] ->
           let nodes_info = VList (List.map (fun (name, v) ->
             let deps = match List.assoc_opt name p_deps with
               | Some d -> VList (List.map (fun s -> (None, VString s)) d)
               | None -> VList []
             in
+            let diagnostics =
+              match List.assoc_opt name p_node_diagnostics with
+              | Some diagnostics -> Ast.Utils.node_diagnostics_to_value diagnostics
+              | None -> Ast.Utils.node_diagnostics_to_value Ast.Utils.empty_node_diagnostics
+            in
             (None, VDict [
               ("name", VString name);
               ("output_kind", VString (Utils.type_name v));
               ("dependencies", deps);
+              ("diagnostics", diagnostics);
             ])
           ) p_nodes) in
           VDict [
             ("kind", VString "pipeline");
             ("node_count", VInt (List.length p_nodes));
             ("nodes", nodes_info);
+            ("diagnostics", Ast.Utils.pipeline_diagnostics_to_value p_node_diagnostics);
           ]
       | [VIntent { intent_fields }] ->
           VDict [
@@ -155,12 +163,13 @@ let register env =
             ("length", VInt (List.length pairs));
             ("keys", VList (List.map (fun (k, _) -> (None, VString k)) pairs));
           ]
-      | [VError { code; message; context; location }] ->
+      | [VError { code; message; context; location; na_count }] ->
           let base = [
             ("kind", VString "value");
             ("type", VString "Error");
             ("error_code", VString (Utils.error_code_to_string code));
             ("error_message", VString message);
+            ("na_count", VInt na_count);
           ] in
           let loc_fields = 
             match location with

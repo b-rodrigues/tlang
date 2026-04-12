@@ -318,6 +318,49 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   print_newline ();
 
+  Printf.printf "Phase 3 — Pipeline Diagnostics:\n";
+  test "read_node(p, name) exposes warning list"
+    {|p_diag = pipeline {
+  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  filtered = filter(data, $x > 1)
+  count = nrow(filtered)
+}; length(read_node(p_diag, "filtered").warnings)|}
+    "1";
+  test "downstream nodes inherit upstream warnings"
+    {|p_diag = pipeline {
+  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  filtered = filter(data, $x > 1)
+  count = nrow(filtered)
+}; read_node(p_diag, "count").warnings |> map(\(w) w.source.kind)|}
+    {|["Upstream"]|};
+  test "downstream warning source points at origin node"
+    {|p_diag = pipeline {
+  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  filtered = filter(data, $x > 1)
+  count = nrow(filtered)
+}; read_node(p_diag, "count").warnings |> map(\(w) w.source.node)|}
+    {|["filtered"]|};
+  test "read_pipeline summarizes warning origins only once"
+    {|p_diag = pipeline {
+  data = dataframe([[x: 1], [x: NA], [x: 3]])
+  filtered = filter(data, $x > 1)
+  count = nrow(filtered)
+}; read_pipeline(p_diag).diagnostics.summary|}
+    "\"1 node(s) with warnings, 0 suppressed, 0 error(s)\"";
+  test "read_pipeline tracks error nodes"
+    {|p_err = pipeline {
+  bad = 1 / 0
+  downstream = bad + 1
+}; read_pipeline(p_err).diagnostics.summary|}
+    "\"0 node(s) with warnings, 0 suppressed, 2 error(s)\"";
+  test "read_node(p, name) exposes structured node errors"
+    {|p_err = pipeline {
+  bad = 1 / 0
+  downstream = bad + 1
+}; read_node(p_err, "bad").error.kind|}
+    "\"DivisionByZero\"";
+  print_newline ();
+
   Printf.printf "Phase 3 — Pipeline with DataFrame:\n";
   (* Create CSV for pipeline DataFrame tests *)
   let csv_p3 = "test_phase3.csv" in
