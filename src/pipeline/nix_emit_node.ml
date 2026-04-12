@@ -810,13 +810,15 @@ def py_write_error(msg, path):
     if isinstance(msg, dict) and msg.get("type") == "VError":
         err_info = msg
     else:
+        traceback_text = msg if isinstance(msg, str) else str(msg)
+        message_lines = [line.strip() for line in traceback_text.splitlines() if line.strip()]
         err_info = {
             "type": "VError",
             "code": "RuntimeError",
-            "message": msg.split('\n')[-2] if isinstance(msg, str) and '\n' in msg.strip() else str(msg),
+            "message": message_lines[-1] if message_lines else traceback_text,
             "na_count": 0,
             "context": {
-                "runtime_traceback": msg if isinstance(msg, str) else str(msg),
+                "runtime_traceback": traceback_text,
                 "node_status": "errored"
             },
             "location": None

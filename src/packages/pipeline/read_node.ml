@@ -213,8 +213,6 @@ let register env =
 *)
   let suppress_warnings_fn args _env =
     match args with
-    | [VNodeResult nr] ->
-        VNodeResult { nr with diagnostics = { nr.diagnostics with nd_warnings_suppressed = true } }
     | [v] -> 
         Eval.request_warning_suppression ();
         v

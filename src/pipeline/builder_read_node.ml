@@ -45,6 +45,27 @@ let wrap_with_diagnostics name cn v =
   ) else None in
   VNodeResult { v; node_name = name; diagnostics = { nd_warnings = warnings; nd_error = error; nd_warnings_suppressed = false } }
 
+let read_env_node_value name cn =
+  if cn.cn_class = "VError" then
+    match Serialization.read_verror_json cn.cn_path with
+    | Ok (VError e) -> VError { e with context = ("node_name", VString name) :: e.context }
+    | Ok v -> v
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "json" then
+    match Serialization.read_json cn.cn_path with
+    | Ok v -> v
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "arrow" then
+    match Arrow_io.read_ipc cn.cn_path with
+    | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "pmml" then
+    match Pmml_utils.read_pmml cn.cn_path with
+    | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
+    | Error _ -> VComputedNode cn
+  else
+    VComputedNode cn
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
@@ -71,22 +92,7 @@ let read_node ?which_log name =
           cn_dependencies = [];
         } in
         
-        let v = 
-          if cn.cn_serializer = "json" then
-             match Serialization.read_json cn.cn_path with
-             | Ok v -> v
-             | Error _ -> VComputedNode cn
-          else if cn.cn_serializer = "arrow" then
-             match Arrow_io.read_ipc cn.cn_path with
-             | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
-             | Error _ -> VComputedNode cn
-           else if cn.cn_serializer = "pmml" then
-              match Pmml_utils.read_pmml cn.cn_path with
-              | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
-              | Error _ -> VComputedNode cn
-          else
-            VComputedNode cn
-        in
+        let v = read_env_node_value name cn in
         wrap_with_diagnostics name cn v
       else
         Error.make_error FileError (Printf.sprintf "read_node: node `%s` found in environment as %s, but artifact is missing." name path)
