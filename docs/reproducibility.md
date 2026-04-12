@@ -47,7 +47,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.51.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.51.3";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -168,7 +168,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.51.2",
+    t_version: "0.51.3",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -211,7 +211,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.51.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.51.3";
   };
   
   outputs = { self, nixpkgs, tlang }: {

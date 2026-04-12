@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.51.3] - 2026-04-xx (Upcoming)
+## [0.51.3] - 2026-04-12
 
 ### Pipeline Infrastructure & Observability
 - **First-Class Diagnostics Engine**: 
