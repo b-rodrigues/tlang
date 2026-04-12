@@ -51,26 +51,34 @@ let register env =
           let total_float = ref 0.0 in
           let is_float = ref false in
           let had_error = ref None in
+          let na_count = ref 0 in
           for i = 0 to Array.length arr - 1 do
-            if !had_error = None then
-              match arr.(i) with
-              | VInt n ->
+            match arr.(i) with
+            | VInt n ->
+                if !had_error = None then
                   if !is_float then total_float := !total_float +. float_of_int n
                   else total_int := !total_int + n
-              | VFloat f ->
+            | VFloat f ->
+                if !had_error = None then
                   if not !is_float then begin
                     is_float := true;
                     total_float := float_of_int !total_int +. f
                   end else
                     total_float := !total_float +. f
-              | VNA _ when na_rm -> ()
-              | VNA _ -> had_error := Some (Error.na_value_error ~na_rm:true "sum")
-              | VError _ as e -> had_error := Some e
-              | _ -> had_error := Some (Error.type_error "Function `sum` requires numeric values.")
+            | VNA _ ->
+                na_count := !na_count + 1;
+                if not na_rm && !had_error = None then had_error := Some ()
+            | VError _ as e ->
+                if !had_error = None then had_error := Some (VError (match e with VError err -> err | _ -> failwith "unreachable"))
+            | _ ->
+                if !had_error = None then
+                  had_error := Some (Error.type_error "Function `sum` requires numeric values.")
           done;
           (match !had_error with
-           | Some e -> e
-           | None -> if !is_float then VFloat !total_float else VInt !total_int)
+           | Some (VError err) -> VError err
+           | Some () -> Error.na_value_error ~na_rm:false ~na_count:!na_count "sum"
+           | None -> if !is_float then VFloat !total_float else VInt !total_int
+           | Some _ -> Error.internal_error "Unexpected error state in sum")
       | Some (VNA _) -> Error.na_value_error ~na_rm:true "sum"
       | Some _ -> Error.type_error "Function `sum` expects a List or Vector argument."
       | None -> Error.arity_error_named "sum" 1 (List.length args))

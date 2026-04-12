@@ -34,22 +34,25 @@ let map_numeric_unary ~fname ?(expects = "numeric input") ?(na_ignore = false) f
   | [VVector arr] ->
       let out = Array.make (Array.length arr) (VNA NAGeneric) in
       let err = ref None in
+      let na_count = ref 0 in
       Array.iteri
         (fun i v ->
-          if !err = None then
-            match v with
-            | VInt n -> out.(i) <- VFloat (f (float_of_int n))
-            | VFloat x -> out.(i) <- VFloat (f x)
-            | VNA na_t when na_ignore -> out.(i) <- VNA na_t
-            | VNA _ -> err := Some (Error.na_value_error fname)
-            | _ ->
-                err :=
-                  Some
-                    (Error.type_error
-                       (Printf.sprintf "Function `%s` requires numeric values."
-                          fname)))
-        arr;
-      (match !err with Some e -> e | None -> VVector out)
+          match v with
+          | VInt n -> if !err = None then out.(i) <- VFloat (f (float_of_int n))
+          | VFloat x -> if !err = None then out.(i) <- VFloat (f x)
+          | VNA na_t ->
+              na_count := !na_count + 1;
+              if na_ignore then out.(i) <- VNA na_t
+              else if !err = None then err := Some ()
+          | _ ->
+              if !err = None then
+                err := Some (Error.type_error (Printf.sprintf "Function `%s` requires numeric values." fname))
+        ) arr;
+      (match !err with
+       | Some (VError _ as e) -> e
+       | None when !na_count > 0 && not na_ignore -> Error.na_value_error ~na_count:!na_count fname
+       | None -> VVector out
+       | Some _ -> Error.internal_error "Unexpected error state in map_numeric_unary")
   | [VNDArray arr] -> VNDArray { shape = arr.shape; data = Array.map f arr.data }
   | [VNA na_t] when na_ignore -> VNA na_t
   | [VNA _] -> Error.na_value_error fname
