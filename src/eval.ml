@@ -134,7 +134,7 @@ let node_error_of_value node_name = function
         Ast.ne_kind = Ast.Utils.error_code_to_string err.code;
         ne_fn = extract_function_name_from_error node_name err.message;
         ne_message = err.message;
-        ne_na_count = 0;
+        ne_na_count = 0;  (* not yet tracked; populated to 0 until function-level NA counts are wired *)
       }
   | _ -> None
 
