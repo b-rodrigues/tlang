@@ -22,6 +22,8 @@ This file is an **LLM-oriented operating manual** for the repository. It is inte
 - **No Silent Magic.** Never implement "placeholders" that appear to work by secretly substituting requested behavior with a fallback (e.g., never silently use JSON if ONNX is requested but unsupported). If an operation cannot be performed natively and correctly as requested, always throw an explicit error with a helpful message. Transparency and predictability are prioritized over "magical" implicit success.
 - **Absolute Explicitness.** No implicit behavior: all configuration, pipeline dependencies, and environment assumptions must be declared explicitly so that the codebase serves as its own complete documentation.
 - **Death to Null.** Under no circumstances should `null` be implemented or used. Missingness is handled via `NA` and optionality via `Error` or explicit missing values.
+- **Soft-Fail Semantics are first-class.** Pipelines are designed to be resilient. A node computation can "fail" by producing a structured `VError` artifact, which allows the rest of the pipeline to continue and enables programmatic inspection of the failure context.
+- **Transparent Interoperation vs. Explicit Introspection.** The evaluator automatically unwraps `VNodeResult` artifacts for standard data operations (math, joins, filters) to ensure a seamless developer experience. However, introspection built-ins (like `explain` and `suppress_warnings`) can opt-out of this behavior to directly manipulate diagnostic metadata.
 
 ## Required Workflows
 
@@ -143,6 +145,7 @@ Treat `chrono::with_tz()` and `chrono::force_tz()` as **label-oriented in the cu
 - Construct errors with `error("message")` or `error("Code", "message")`.
 - Inspect them with `is_error(x)`, `error_code(x)`, `error_message(x)`, and `error_context(x)`.
 - Missingness is explicit via `na()`, `na_int()`, `na_float()`, `na_bool()`, and `na_string()`.
+- Use `identical(a, b)` for deep structural equality of complex objects (Dictionaries, DataFrames, Models).
 
 ### Imports and visibility
 
@@ -320,19 +323,19 @@ Purpose: scalar math, trigonometry, rounding, and ndarray/matrix operations.
 
 Purpose: descriptive statistics, scaling/normalization, linear models, diagnostics, basis functions, PMML/ONNX model I/O, and distribution helpers.
 
+- Aggregation helpers: `n()`, `n_distinct(x)`
 - Descriptive statistics: `mean(x, na_rm = false)`, `median(x, na_rm = false)`, `min(x, na_rm = false)`, `max(x, na_rm = false)`, `range(x, na_rm = false)`, `var(x, na_rm = false)`, `sd(x, na_rm = false)`, `iqr(x, na_rm = false)`, `mad(x, constant = 1.4826)`, `fivenum(x)`, `quantile(x, probs, na_rm = false)`, `skewness(x)`, `kurtosis(x)`, `trimmed_mean(x, trim = 0.1, na_rm = false)`, `winsorize(x, probs = [0.05, 0.95])`, `cv(x)`, `normalize(x)`, `standardize(x)`, `scale(x)`, `huber_loss(actual, predicted, delta = 1.0)`
 - Relationship helpers and distributions: `cor(x, y, na_rm = false)`, `cov(x, y, na_rm = false)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`
 - Modeling: `lm(data, formula)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `augment(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
-- PMML: native decision tree, random forest, XGBoost, and LightGBM evaluation via `t_read_pmml()` + `predict()`
-- ONNX Support: Native prediction for ONNX models via `t_read_onnx(path)` + `predict()`, plus serializer/deserializer support via `^onnx`. Supports 64-bit to 32-bit float casting for deep learning interchange.
-- Basis/model exchange: `cut(x, breaks, ...)`, `poly(x, degree, ...)`, `t_read_pmml(path)`, `t_read_onnx(path)`
+- PMML & ONNX: Native evaluation for Decision Trees, Random Forests, XGBoost, and LightGBM via `t_read_pmml()`. Native ONNX inference via `t_read_onnx()` and `^onnx` serialization.
+- Basis functions: `cut(x, breaks, ...)`, `poly(x, degree, ...)`
 
 ### `pipeline`
 
 Purpose: node construction, pipeline execution, graph inspection, graph rewriting, validation, artifact access, and composition.
 
 - Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
-- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`
+- Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
 - Node-level transforms: `filter_node(p, predicate)`, `mutate_node(p, ..., where = na())`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`, `arrange_node(p, field, direction = "asc")`
 - Set and DAG operations: `union(p1, p2)`, `difference(p1, p2)`, `intersect(p1, p2)`, `patch(p1, p2)`, `swap(p, name, new_node)`, `rewire(p, name, replace = [])`, `prune(p)`, `upstream_of(p, name)`, `downstream_of(p, name)`, `subgraph(p, name)`, `chain(p1, p2)`, `parallel(p1, p2)`
