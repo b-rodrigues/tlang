@@ -811,11 +811,11 @@ def py_write_error(msg, path):
         err_info = msg
     else:
         traceback_text = msg if isinstance(msg, str) else str(msg)
-        message_lines = [line.strip() for line in traceback_text.splitlines() if line.strip()]
+        message_lines = [line for line in traceback_text.splitlines() if line.strip()]
         err_info = {
             "type": "VError",
             "code": "RuntimeError",
-            "message": message_lines[-1] if message_lines else traceback_text,
+            "message": message_lines[-1].strip() if message_lines else traceback_text,
             "na_count": 0,
             "context": {
                 "runtime_traceback": traceback_text,

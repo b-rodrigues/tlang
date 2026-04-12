@@ -45,10 +45,18 @@ let wrap_with_diagnostics name cn v =
   ) else None in
   VNodeResult { v; node_name = name; diagnostics = { nd_warnings = warnings; nd_error = error; nd_warnings_suppressed = false } }
 
+(* Add node_name to the error context unless it is already present. *)
+let add_node_name_context name context =
+  if List.exists (fun (k, _) -> k = "node_name") context then context
+  else ("node_name", VString name) :: context
+
+(* Best-effort deserialization for nodes exposed through T_NODE_<name> in the
+   Nix sandbox: recover structured VError artifacts when possible and otherwise
+   fall back to the computed node handle. *)
 let read_env_node_value name cn =
   if cn.cn_class = "VError" then
     match Serialization.read_verror_json cn.cn_path with
-    | Ok (VError e) -> VError { e with context = ("node_name", VString name) :: e.context }
+    | Ok (VError e) -> VError { e with context = add_node_name_context name e.context }
     | Ok v -> v
     | Error _ -> VComputedNode cn
   else if cn.cn_serializer = "json" then
@@ -134,9 +142,9 @@ let read_node ?which_log name =
                 if cn.Ast.cn_class = "VError" then
                   (match Serialization.read_verror_json cn.Ast.cn_path with
                    | Ok (VError e) ->
-                       VError { e with context = ("node_name", VString name) :: e.context }
-                   | Ok v -> v
-                   | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Error node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                        VError { e with context = add_node_name_context name e.context }
+                    | Ok v -> v
+                    | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Error node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
                 else if cn.Ast.cn_runtime = "T"
                    && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
                 then
