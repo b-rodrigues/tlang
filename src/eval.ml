@@ -138,9 +138,9 @@ let node_error_of_value node_name = function
       }
   | _ -> None
 
-(** Rewrite a warning so dependency-local warnings become
-    [WarningUpstream dep_name], while warnings already attributed to an
-    upstream origin keep their original source node. *)
+(** Inherit a warning from a dependency and mark its source as upstream.
+    If the warning was already upstream, its original source is preserved
+    to maintain the full provenance of the issue. *)
 let inherit_warning dep_name warning =
   let inherited_source =
     match warning.Ast.nw_source with
@@ -149,8 +149,10 @@ let inherit_warning dep_name warning =
   in
   { warning with Ast.nw_source = inherited_source }
 
-(** Remove duplicate warnings by hashing all warning fields into a composite
-    key and keeping only the first occurrence of each distinct warning. *)
+(** Remove duplicate warnings from a list.
+    Duplicates are identified by comparing all structural fields (kind, function,
+    NA count, affected indices, message, and source). Only the first occurrence
+     of any distinct warning is retained to keep diagnostics reports concise. *)
 let dedupe_warnings warnings =
   let seen = Hashtbl.create (List.length warnings) in
   let warning_dedup_key warning =
@@ -159,15 +161,14 @@ let dedupe_warnings warnings =
       | Ast.WarningOwn -> "own"
       | Ast.WarningUpstream node -> "upstream:" ^ node
     in
-    String.concat "|"
-      [
-        warning.Ast.nw_kind;
-        warning.Ast.nw_fn;
-        string_of_int warning.Ast.nw_na_count;
-        String.concat "," (List.map string_of_int warning.Ast.nw_na_indices);
-        warning.Ast.nw_message;
-        source_key;
-      ]
+    (* Use a record-like string representation for the key to ensure uniqueness *)
+    Printf.sprintf "k:%s|f:%s|n:%d|i:%s|m:%s|s:%s"
+      warning.Ast.nw_kind
+      warning.Ast.nw_fn
+      warning.Ast.nw_na_count
+      (String.concat "," (List.map string_of_int warning.Ast.nw_na_indices))
+      warning.Ast.nw_message
+      source_key
   in
   warnings
   |> List.fold_left (fun acc warning ->
