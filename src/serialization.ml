@@ -327,9 +327,12 @@ let yojson_to_verror (j : Yojson.Safe.t) : Ast.value =
                    column = (match List.assoc_opt "column" loc with Some (`Int i) -> i | _ -> 0);
                  } : Ast.source_location)
              | _ -> None
-           in
-           Ast.VError { code; message; context; location; na_count }
-       | _ -> Ast.VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
+            in
+            Ast.VError { code; message; context; location; na_count }
+       | _ ->
+           invalid_arg
+             ("yojson_to_verror: expected object with type=\"VError\", got: "
+              ^ Yojson.Safe.to_string j))
   | _ ->
       invalid_arg ("yojson_to_verror: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 

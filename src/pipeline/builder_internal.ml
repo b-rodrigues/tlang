@@ -232,7 +232,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 let total_built = List.length completed + List.length soft_failed in
                  
                 if List.length soft_failed > 0 then
-                  Printf.printf "\n✓ Pipeline build completed [%d nodes completed, %d nodes captured errors]\n%!" 
+                  Printf.eprintf "\n✖ Pipeline build captured node errors [%d nodes completed, %d nodes captured errors]\n%!"
                     (List.length completed) (List.length soft_failed)
                 else
                   Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
@@ -270,8 +270,16 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                   ("nodes", "[\n" ^ (String.concat ",\n" log_entries) ^ "\n]")
                 ] in
                 (match write_file log_path log_json with
-                | Ok () -> Ok out_path
-                | Error msg -> Error ("Failed to write build log: " ^ msg)))
+                | Error msg -> Error ("Failed to write build log: " ^ msg)
+                | Ok () ->
+                    if soft_failed <> [] then
+                      Error
+                        (Printf.sprintf
+                           "Pipeline build captured %d node error artifact(s): %s. Inspect the latest build log in `_pipeline/` or use `read_node()` / `read_log()` for details."
+                           (List.length soft_failed)
+                           (String.concat ", " soft_failed))
+                    else
+                      Ok out_path))
           | Unix.WEXITED 0 ->
              Error "nix-build succeeded but did not return an output path."
           | _ ->
