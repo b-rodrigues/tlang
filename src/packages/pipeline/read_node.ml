@@ -18,19 +18,23 @@ open Ast
 --# @export
 *)
 let register env =
-  let get_arg name pos default named_args =
-    match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
+  (** Helper to extract an argument from a named/positional list.
+      @param name The name of the argument (for named calls).
+      @param pos The 1-indexed position of the argument (for positional calls).
+      @param default Fallback value if the argument is missing. *)
+  let extract_arg name pos default args =
+    match List.assoc_opt (Some name) args with
     | Some v -> v
     | None ->
-        let positionals = List.filter_map (fun (k, v) -> match k with None -> Some v | Some _ -> None) named_args in
+        let positionals = List.filter_map (fun (k, v) -> if k = None then Some v else None) args in
         if List.length positionals >= pos then List.nth positionals (pos - 1)
         else default
   in
 
   let read_fn named_args _env =
-    match get_arg "node" 1 ((VNA NAGeneric)) named_args with
+    match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VPipeline p ->
-        (match get_arg "name" 2 (VNA NAGeneric) named_args with
+        (match extract_arg "name" 2 (VNA NAGeneric) named_args with
          | VString name ->
              (match List.assoc_opt name p.p_nodes with
               | Some value ->
@@ -67,7 +71,7 @@ let register env =
              Error.type_error
                "read_node: expected a String node name as the second argument when reading from a Pipeline.")
     | VString name ->
-        (match get_arg "which_log" 2 (VNA NAGeneric) named_args with
+        (match extract_arg "which_log" 2 (VNA NAGeneric) named_args with
          | VNA _ -> Builder.read_node name
          | VString s -> Builder.read_node ~which_log:s name
          | _ -> Error.type_error "read_node: expected String for 'which_log'")
@@ -108,7 +112,7 @@ let register env =
 --# @export
 *)
   let read_pipeline_fn named_args _env =
-    match get_arg "p" 1 (VNA NAGeneric) named_args with
+    match extract_arg "p" 1 (VNA NAGeneric) named_args with
     | VPipeline p ->
         let nodes =
           VList
@@ -146,7 +150,7 @@ let register env =
 --# @export
 *)
   let inspect_fn named_args _env =
-    match get_arg "node" 1 (VNA NAGeneric) named_args with
+    match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         VDict [
           ("name", VString cn.cn_name);
@@ -173,7 +177,7 @@ let register env =
 --# @export
 *)
   let rebuild_fn named_args _env =
-    match get_arg "node" 1 (VNA NAGeneric) named_args with
+    match extract_arg "node" 1 (VNA NAGeneric) named_args with
     | VComputedNode cn ->
         let quoted_name = Filename.quote cn.cn_name in
         let cmd = Printf.sprintf "nix-build --impure _pipeline/pipeline.nix -A %s --no-out-link 2>&1" quoted_name in
