@@ -16,7 +16,7 @@ let emit_na_filter_warning na_indices =
       let capped_indices = Utils.list_take 50 indices in
       let message =
         Printf.sprintf
-          "filter() excluded %d row%s because the predicate evaluated to NA."
+          "filter() excluded %d row%s because the predicate evaluated to NA"
           count
           (plural_suffix count)
       in
@@ -35,7 +35,7 @@ let emit_na_filter_warning na_indices =
           capped_indices |> List.map string_of_int |> String.concat ", "
         in
         Printf.eprintf
-          "Warning: %s at row%s %s. Consider handling NAs explicitly before filtering.\n%!"
+          "Warning: %s at row%s %s\n%!"
           message
           (plural_suffix count)
           rendered
