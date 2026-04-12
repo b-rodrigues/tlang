@@ -806,14 +806,15 @@ let () =
             let ensure_dir path =
               if Sys.file_exists path then
                 (if not (Sys.is_directory path) then
-                  raise (Sys_error (Printf.sprintf "%s exists and is not a directory" path)))
+                  Error (Printf.sprintf "%s exists and is not a directory" path)
+                else Ok ())
               else
-                Unix.mkdir path 0o755
+                (try Unix.mkdir path 0o755; Ok () with Unix.Unix_error (e, _, _) -> Error (Unix.error_message e))
             in
             let docs_dir = Filename.concat dir "docs" in
-            ensure_dir docs_dir;
+            (match ensure_dir docs_dir with Error msg -> Ast.VError { code = Ast.FileError; message = msg; context = []; location = None; na_count = 0 } | Ok () ->
             let out_dir = Filename.concat docs_dir "reference" in
-            ensure_dir out_dir;
+            (match ensure_dir out_dir with Error msg -> Ast.VError { code = Ast.FileError; message = msg; context = []; location = None; na_count = 0 } | Ok () ->
             let entries = Tdoc_registry.get_all () in
             List.iter (fun (e : Tdoc_types.doc_entry) ->
               if e.is_export then begin
@@ -830,7 +831,7 @@ let () =
             close_out ch;
             Printf.printf "Documentation generated in %s\n" out_dir;
             flush stdout;
-            Ast.(VNA NAGeneric)
+            Ast.(VNA NAGeneric)))
         | [Ast.VString other] ->
             Ast.VError { code = Ast.ValueError; message = Printf.sprintf "t_doc expects \"parse\" or \"generate\", got \"%s\"." other; context = []; location = None; na_count = 0 }
         | _ -> Ast.VError { code = Ast.TypeError; message = "t_doc expects a string argument: \"parse\" or \"generate\"."; context = []; location = None; na_count = 0 })

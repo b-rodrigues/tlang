@@ -97,7 +97,8 @@ let register env =
              if n = 0 then VNA NAFloat
              else if n < 2 then Error.value_error "Function `cov` requires at least 2 paired values."
              else
-               let mx = match mean xs with Some v -> v | None -> Float.nan in
-               let my = match mean ys with Some v -> v | None -> Float.nan in
+               match mean xs, mean ys with
+               | None, _ | _, None -> Error.make_error RuntimeError "Function `cov` internal error: mean returned None for non-empty list."
+               | Some mx, Some my ->
                VFloat (List.fold_left2 (fun a xv yv -> a +. (xv -. mx) *. (yv -. my)) 0.0 xs ys /. float_of_int (n - 1)))
     | args -> Error.arity_error_named "cov" 2 (List.length args))) env
