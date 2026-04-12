@@ -828,6 +828,12 @@ def py_write_error(msg, path):
 
 def py_is_error(obj):
     return isinstance(obj, dict) and obj.get("type") == "VError"
+
+def py_write_warnings(warnings_list, path):
+    cleaned = [str(w.message if hasattr(w, "message") else w) for w in warnings_list]
+    if cleaned:
+        with open(path, "w") as f:
+            json.dump(cleaned, f)
 |} in
 
   let t_error_r_code = {|
@@ -853,6 +859,12 @@ r_write_error <- function(msg, path) {
 
 r_is_error <- function(obj) {
   is.list(obj) && !is.null(obj$type) && obj$type == "VError"
+}
+
+r_write_warnings <- function(warns, path) {
+  if (length(warns) > 0) {
+    jsonlite::write_json(as.character(warns), path, auto_unbox = TRUE)
+  }
 }
 |} in
 
@@ -1260,27 +1272,40 @@ def py_read_onnx(path):
     | None ->
     if runtime = "R" then
       if is_raw_code then
-        Printf.sprintf {|      echo "%s <- local({" >> node_script.R
-      echo "  tryCatch({" >> node_script.R
+        Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
+      echo "%s <- withCallingHandlers({" >> node_script.R
+      echo "  local({" >> node_script.R
+      echo "    tryCatch({" >> node_script.R
       cat <<'EOF' >> node_script.R
 %s
 EOF
-      echo "  }, error = function(e) {" >> node_script.R
-      echo "    r_write_error(e, \"$out/artifact\")" >> node_script.R
-      echo "    quit(save = 'no', status = 0)" >> node_script.R
+      echo "    }, error = function(e) {" >> node_script.R
+      echo "      r_write_error(e, \"$out/artifact\")" >> node_script.R
+      echo "      quit(save = 'no', status = 0)" >> node_script.R
+      echo "    })" >> node_script.R
       echo "  })" >> node_script.R
+      echo "}, warning = function(w) {" >> node_script.R
+      echo "  captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
+      echo "  invokeRestart('muffleWarning')" >> node_script.R
       echo "})" >> node_script.R
       echo "if (r_is_error(%s)) {" >> node_script.R
       echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
       echo "} else {" >> node_script.R
       echo "  %s(%s, \"$out/artifact\")" >> node_script.R
       echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
+      echo "  r_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.R
       echo "}" >> node_script.R|} name expr_s_no_imports name name ser_call name name
       else
-        Printf.sprintf {|      echo "tryCatch({" >> node_script.R
+        Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
+      echo "tryCatch({" >> node_script.R
+      echo "  %s <- withCallingHandlers({" >> node_script.R
       cat <<'EOF' >> node_script.R
 %s <- %s
 EOF
+      echo "  }, warning = function(w) {" >> node_script.R
+      echo "    captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
+      echo "    invokeRestart('muffleWarning')" >> node_script.R
+      echo "  })" >> node_script.R
       echo "}, error = function(e) {" >> node_script.R
       echo "  r_write_error(e, \"$out/artifact\")" >> node_script.R
       echo "  quit(save = 'no', status = 0)" >> node_script.R
@@ -1290,13 +1315,17 @@ EOF
       echo "} else {" >> node_script.R
       echo "  %s(%s, \"$out/artifact\")" >> node_script.R
       echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
-      echo "}" >> node_script.R|} name expr_s name name ser_call name name
+      echo "  r_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.R
+      echo "}" >> node_script.R|} name name expr_s name name ser_call name name
     else if runtime = "Python" then
       if is_raw_code then
         if raw_assigns_to name expr_s then
            (* Statement-style: raw code explicitly assigns to node name — use as-is *)
-           Printf.sprintf {|      echo "try:" >> node_script.py
-      cat <<'EOF' | sed 's/^/    /' >> node_script.py
+           Printf.sprintf {|      echo "import warnings" >> node_script.py
+      echo "try:" >> node_script.py
+      echo "    with warnings.catch_warnings(record=True) as captured_warns:" >> node_script.py
+      echo "        warnings.simplefilter('always')" >> node_script.py
+      cat <<'EOF' >> node_script.py
 %s
 EOF
       echo "except Exception as e:" >> node_script.py
@@ -1306,22 +1335,23 @@ EOF
       echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
       echo "else:" >> node_script.py
       echo "    %s(%s, \"$out/artifact\")" >> node_script.py
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s name name ser_call name name
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
+      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|} (indent_string expr_s 8) name name ser_call name name
         else
           let globals_decl =
             if deps = [] then ""
             else Printf.sprintf "    global %s\n" (String.concat ", " deps)
           in
           Printf.sprintf {|      echo "def __node_runner():" >> node_script.py
-%s      echo "    try:" >> node_script.py
-      cat <<'EOF' | sed 's/^/        /' >> node_script.py
+%s      cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "    except Exception as e:" >> node_script.py
-      echo "        py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
-      echo "        sys.exit(0)" >> node_script.py
+      echo "    return" >> node_script.py
       echo "try:" >> node_script.py
-      echo "    %s = __node_runner()" >> node_script.py
+      echo "    import warnings" >> node_script.py
+      echo "    with warnings.catch_warnings(record=True) as captured_warns:" >> node_script.py
+      echo "        warnings.simplefilter('always')" >> node_script.py
+      echo "        %s = __node_runner()" >> node_script.py
       echo "except Exception as e:" >> node_script.py
       echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
@@ -1329,13 +1359,17 @@ EOF
       echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
       echo "else:" >> node_script.py
       echo "    %s(%s, \"$out/artifact\")" >> node_script.py
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|}
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
+      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|}
             (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
             (indent_string expr_s_no_imports 4) name name name ser_call name name
       else
-        Printf.sprintf {|      echo "try:" >> node_script.py
-      cat <<'EOF' | sed 's/^/    /' >> node_script.py
-%s = %s
+        Printf.sprintf {|      echo "import warnings" >> node_script.py
+      echo "try:" >> node_script.py
+      echo "    with warnings.catch_warnings(record=True) as captured_warns:" >> node_script.py
+      echo "        warnings.simplefilter('always')" >> node_script.py
+      cat <<'EOF' >> node_script.py
+%s
 EOF
       echo "except Exception as e:" >> node_script.py
       echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
@@ -1344,7 +1378,8 @@ EOF
       echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
       echo "else:" >> node_script.py
       echo "    %s(%s, \"$out/artifact\")" >> node_script.py
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s name name ser_call name name
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
+      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name ser_call name name
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->

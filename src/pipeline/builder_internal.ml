@@ -97,6 +97,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
     in
 
     let drv_paths = Hashtbl.create (List.length node_names) in
+    let node_has_warnings = Hashtbl.create (List.length node_names) in
     let callback line =
       Buffer.add_string captured_output line;
       Buffer.add_char captured_output '\n';
@@ -200,22 +201,23 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 
                 (* Reconcile statuses: if nix-build succeeded, check which nodes were built (cached or otherwise) *)
                 List.iter (fun name ->
-                  if Hashtbl.find statuses name <> "Completed" && 
-                     Hashtbl.find statuses name <> "SoftFailed" &&
-                     Hashtbl.find statuses name <> "Errored" then (
-                    let node_path = Filename.concat out_path name in
-                    if Sys.file_exists node_path then (
-                      let class_path = Filename.concat node_path "class" in
+                  let node_path = Filename.concat out_path name in
+                  if Sys.file_exists node_path then (
+                    let class_path = Filename.concat node_path "class" in
+                    let warnings_path = Filename.concat node_path "warnings" in
+                    if Sys.file_exists warnings_path then Hashtbl.replace node_has_warnings name true;
+                    
+                    if Hashtbl.find statuses name <> "Completed" && 
+                       Hashtbl.find statuses name <> "SoftFailed" &&
+                       Hashtbl.find statuses name <> "Errored" then (
                       match read_file_first_line class_path with
                       | Some "VError" -> Hashtbl.replace statuses name "SoftFailed"
                       | _ -> Hashtbl.replace statuses name "Completed"
+                    ) else if Hashtbl.find statuses name = "Completed" then (
+                      (* Refine "Completed" from Nix output if it was actually a soft-fail *)
+                      if (match read_file_first_line class_path with Some "VError" -> true | _ -> false) then
+                         Hashtbl.replace statuses name "SoftFailed"
                     )
-                  ) else if Hashtbl.find statuses name = "Completed" then (
-                    (* Refine "Completed" from Nix output if it was actually a soft-fail *)
-                    let node_path = Filename.concat out_path name in
-                    let class_path = Filename.concat node_path "class" in
-                    if (match read_file_first_line class_path with Some "VError" -> true | _ -> false) then
-                       Hashtbl.replace statuses name "SoftFailed"
                   )
                 ) node_names;
 
@@ -229,12 +231,18 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 (* Success Summary *)
                 let completed = List.filter (fun n -> Hashtbl.find statuses n = "Completed") node_names in
                 let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
+                let with_warnings = List.filter (fun n -> Hashtbl.find_opt node_has_warnings n = Some true) node_names in
                 let total_built = List.length completed + List.length soft_failed in
                  
-                if List.length soft_failed > 0 then
-                  Printf.eprintf "\n✖ Pipeline build captured node errors [%d nodes completed, %d nodes captured errors]\n%!"
-                    (List.length completed) (List.length soft_failed)
-                else
+                if List.length soft_failed > 0 || List.length with_warnings > 0 then (
+                  let msg = if List.length soft_failed > 0 then "\n✖ Pipeline build captured node errors" else "\n✓ Pipeline build completed" in
+                  Printf.eprintf "%s [%d succeeded, %d captured errors, %d had warnings]\n%!" 
+                    msg (List.length completed) (List.length soft_failed) (List.length with_warnings);
+                  List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
+                  List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
+                ) else
+                  Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
+                    total_built (List.length node_names);
                   Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
                     total_built (List.length node_names);
                 
@@ -252,6 +260,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                     let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
                     let status = Hashtbl.find statuses name in
                     let success = if status = "SoftFailed" then "false" else "true" in
+                    let has_warns = if Hashtbl.find_opt node_has_warnings name = Some true then "true" else "false" in
                     Serialization.json_dict [
                       ("node", "\"" ^ Serialization.json_escape name ^ "\"");
                       ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
@@ -259,7 +268,8 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                       ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
                       ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
                       ("dependencies", Serialization.json_list deps);
-                      ("success", success)
+                      ("success", success);
+                      ("warnings", has_warns)
                     ]
                   ) p.p_exprs
                 in
