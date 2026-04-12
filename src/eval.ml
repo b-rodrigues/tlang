@@ -1438,7 +1438,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   let runtime_mapping = List.map (fun (name, un) -> (name, un.un_runtime)) desugared_nodes in
   let validation_errors = List.filter_map (fun (name, un) ->
     let my_runtime = un.un_runtime in
-    let my_deps = List.assoc name deps in
+    let my_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
     let offenders = List.filter (fun dname ->
       match List.assoc_opt dname runtime_mapping with
       | Some dep_runtime -> 
@@ -1451,7 +1451,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     ) my_deps in
     if offenders <> [] then
       let offender = List.hd offenders in
-      let offender_runtime = List.assoc offender runtime_mapping in
+      let offender_runtime = match List.assoc_opt offender runtime_mapping with Some r -> r | None -> "Unknown" in
       Some (Printf.sprintf "Node `%s` (%s) depends on `%s` (%s) but has no explicit deserializer."
              name my_runtime offender offender_runtime)
     else None
@@ -1538,12 +1538,16 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
         cn_path = "<unbuilt>";
         cn_serializer = Nix_unparse.expr_to_string un.un_serializer;
         cn_class = "Unknown";
-        cn_dependencies = List.assoc name deps;
+        cn_dependencies = (match List.assoc_opt name deps with Some d -> d | None -> []);
       }
     in
     let (results, diagnostics, _) = List.fold_left (fun (results, diagnostics, current_env_ref) name ->
-      let un = List.assoc name node_map in
-      let node_deps = List.assoc name deps in
+      let un = match List.assoc_opt name node_map with Some u -> u | None ->
+        { Ast.un_command = Ast.mk_expr (Ast.Value (VNA NAGeneric)); un_script = None; un_runtime = "T";
+          un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
+          un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
+          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None } in
+      let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
       let upstream_err_opt = List.find_opt (fun d ->
          match Env.find_opt d !current_env_ref with
          | Some (VError _) -> true
@@ -1600,17 +1604,17 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
     (name, {
       Ast.un_command = expr;
       un_script = (match List.assoc_opt name prev.p_scripts with Some s -> s | None -> None);
-      un_runtime = List.assoc name prev.p_runtimes;
-      un_serializer = List.assoc name prev.p_serializers;
-      un_deserializer = List.assoc name prev.p_deserializers;
+      un_runtime = (match List.assoc_opt name prev.p_runtimes with Some r -> r | None -> "T");
+      un_serializer = (match List.assoc_opt name prev.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default"));
+      un_deserializer = (match List.assoc_opt name prev.p_deserializers with Some d -> d | None -> Ast.mk_expr (Ast.Var "default"));
       un_env_vars = (match List.assoc_opt name prev.p_env_vars with Some vars -> vars | None -> []);
       un_args = (match List.assoc_opt name prev.p_args with Some runtime_args -> runtime_args | None -> []);
       un_shell = (match List.assoc_opt name prev.p_shells with Some s -> s | None -> None);
       un_shell_args = (match List.assoc_opt name prev.p_shell_args with Some s_args -> s_args | None -> []);
-      un_functions = List.assoc name prev.p_functions;
-      un_includes = List.assoc name prev.p_includes;
-      un_noop = List.assoc name prev.p_noops;
-      un_dependencies = List.assoc name prev.p_explicit_deps;
+      un_functions = (match List.assoc_opt name prev.p_functions with Some f -> f | None -> []);
+      un_includes = (match List.assoc_opt name prev.p_includes with Some i -> i | None -> []);
+      un_noop = (match List.assoc_opt name prev.p_noops with Some b -> b | None -> false);
+      un_dependencies = (match List.assoc_opt name prev.p_explicit_deps with Some d -> d | None -> None);
     })
   ) prev.p_exprs in
 
@@ -1646,7 +1650,11 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
           }
     in
     let (results, diagnostics, _, _) = List.fold_left (fun (results, diagnostics, current_env_ref, changed) name ->
-      let un = List.assoc name desugared_nodes in
+      let un = match List.assoc_opt name desugared_nodes with Some u -> u | None ->
+        { Ast.un_command = Ast.mk_expr (Ast.Value (VNA NAGeneric)); un_script = None; un_runtime = "T";
+          un_serializer = Ast.mk_expr (Ast.Var "default"); un_deserializer = Ast.mk_expr (Ast.Var "default");
+          un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
+          un_functions = []; un_includes = []; un_noop = false; un_dependencies = None } in
       let node_deps = match List.assoc_opt name prev.p_deps with Some d -> d | None -> [] in
       let deps_changed = List.exists (fun d -> List.mem d changed) node_deps in
       let fv = free_vars un.un_command in
@@ -1682,7 +1690,10 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
         current_env_ref := Env.add name v !current_env_ref;
         ((name, v) :: results, (name, node_diagnostics) :: diagnostics, current_env_ref, name :: changed)
       end else begin
-        let cached = List.assoc name prev.p_nodes in
+        let cached = match List.assoc_opt name prev.p_nodes with
+          | Some v -> v
+          | None -> VNA NAGeneric
+        in
         let cached_diagnostics =
           match List.assoc_opt name prev.p_node_diagnostics with
           | Some diagnostics -> diagnostics

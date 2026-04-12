@@ -108,7 +108,7 @@ let register env =
               | Some d -> d
               | None -> NAColumn orig_nrows
             in
-            let first_idx key = Hashtbl.find first_index_tbl key in
+            let first_idx key = match Hashtbl.find_opt first_index_tbl key with Some i -> i | None -> 0 in
              let rep_col = match col_data with
                | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
                | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
@@ -129,19 +129,19 @@ let register env =
            let build_new_col name_val =
              match pivot_col_data with
              | Some (FloatColumn a) -> FloatColumn (Array.init new_nrows (fun i ->
-                   let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
+                   let indices = match Hashtbl.find_opt sorted_indices_tbl final_row_keys_arr.(i) with Some l -> l | None -> [] in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | Some (IntColumn a) -> IntColumn (Array.init new_nrows (fun i ->
-                   let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
+                   let indices = match Hashtbl.find_opt sorted_indices_tbl final_row_keys_arr.(i) with Some l -> l | None -> [] in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | Some (StringColumn a) -> StringColumn (Array.init new_nrows (fun i ->
-                   let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
+                   let indices = match Hashtbl.find_opt sorted_indices_tbl final_row_keys_arr.(i) with Some l -> l | None -> [] in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | Some (BoolColumn a) -> BoolColumn (Array.init new_nrows (fun i ->
-                   let indices = Hashtbl.find sorted_indices_tbl final_row_keys_arr.(i) in
+                   let indices = match Hashtbl.find_opt sorted_indices_tbl final_row_keys_arr.(i) with Some l -> l | None -> [] in
                    List.find_map (fun idx -> if pvt_names_col.(idx) = Some name_val then a.(idx) else None) indices
                ))
              | _ -> NAColumn new_nrows

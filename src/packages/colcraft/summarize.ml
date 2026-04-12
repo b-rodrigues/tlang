@@ -228,7 +228,8 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                       let (_, indices) = groups_array.(g_idx) in
                       match indices with
                       | first :: _ ->
-                        let (_, key_vals) = List.find (fun (kn, _) -> kn = k) key_col_values in
+                        let key_vals = match List.find_opt (fun (kn, _) -> kn = k) key_col_values with
+                          | Some (_, v) -> v | None -> [||] in
                         if first < Array.length key_vals then key_vals.(first) else (VNA NAGeneric)
                       | [] -> (VNA NAGeneric)
                     ) in

@@ -15,9 +15,9 @@ let emit_pipeline ?(rel_root="..") (p : Ast.pipeline_result) =
     p.p_exprs
     |> List.map (fun (name, expr) ->
       let deps = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
-      let runtime = List.assoc name p.p_runtimes in
-      let serializer = List.assoc name p.p_serializers in
-      let deserializer = List.assoc name p.p_deserializers in
+      let runtime = match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T" in
+      let serializer = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
+      let deserializer = match List.assoc_opt name p.p_deserializers with Some d -> d | None -> Ast.mk_expr (Ast.Var "default") in
       let env_vars = match List.assoc_opt name p.p_env_vars with Some vars -> vars | None -> [] in
       let runtime_args = match List.assoc_opt name p.p_args with Some args -> args | None -> [] in
       let functions = match List.assoc_opt name p.p_functions with Some f -> f | None -> [] in
