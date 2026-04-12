@@ -2063,6 +2063,29 @@ Configure a shell pipeline node. A convenience wrapper around `node()` with `run
 
 The evaluated return value of the command.
 
+### `suppress_warnings(value)`
+
+Silence diagnostic warnings for a pipeline node while maintaining auditability in the background metadata.
+
+**Parameters:**
+
+- `value` — The expression or value to wrap (usually at the end of a node definition).
+
+**Returns:**
+
+The original `value`, but with a signal to the evaluator to suppress console warnings for the currently executing node.
+
+**Examples:**
+
+```t
+p = pipeline {
+  -- Silence warnings from a high-noise filter
+  filtered = raw 
+    |> filter($amount > 100) 
+    |> suppress_warnings
+}
+```
+
 ---
 
 ### `pipeline_nodes(pipeline)`

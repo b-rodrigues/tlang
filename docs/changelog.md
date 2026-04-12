@@ -11,6 +11,9 @@
 - **Enhanced Build Summary**: New iconographic build summary (`✖` for errors, `✓` for success, `?` for warnings) with line-by-line diagnostic reporting.
 - **`explain()` function**: New builtin for interrogating `VError` artifacts, surfacing tracebacks and context from Python and R.
 - **Metadata Traceability**: Automatic injection of `node_name` into diagnostic artifacts to identify the source of failure in multi-step chains.
+- **Diagnostic Suppression**: Introduced `suppress_warnings` language combinator to silence diagnostic output for specific pipeline nodes while maintaining auditability.
+- **Improved Pipeline Summaries**: Updated the pipeline diagnostic summary to use plural-safe `node(s)` and `error(s)` formatting, and added visibility for suppressed warnings in both CLI and programmatic summaries.
+- **Evaluator Signaling**: Implemented a global signaling mechanism in the evaluator to track suppression requests across complex pipeline node expressions.
 
 - **Standardized Missingness (NA) Handling**: Finalized the implementation of the new NA-handling specification for improved consistency and "No Silent Magic" compliance.
     - **`NAPredicateError`**: Introduced a dedicated error code for NA values encountered in boolean contexts. This enables `filter()` and other data verbs to distinguish missingness-related failures from general type errors.
