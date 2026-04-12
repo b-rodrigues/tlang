@@ -343,8 +343,21 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       invalid_arg "value_to_yojson: VExpr is not supported for JSON serialization"
   | VComputedNode _ ->
       invalid_arg "value_to_yojson: VComputedNode is not supported for JSON serialization"
-  | VError _ ->
-      invalid_arg "value_to_yojson: VError is not supported for JSON serialization"
+  | VError err ->
+      `Assoc [
+        ("type", `String "VError");
+        ("code", `String (Ast.Utils.error_code_to_string err.code));
+        ("message", `String err.message);
+        ("na_count", `Int err.na_count);
+        ("context", `Assoc (List.map (fun (k, v) -> (k, value_to_yojson v)) err.context));
+        ("location", (match err.location with
+           | Some loc -> `Assoc [
+               ("file", match loc.file with Some f -> `String f | None -> `Null);
+               ("line", `Int loc.line);
+               ("column", `Int loc.column)
+             ]
+           | None -> `Null))
+      ]
   | VShellResult { sr_stdout; _ } ->
       (* Serialize shell result as its stdout string *)
       `String sr_stdout
@@ -382,7 +395,36 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `String s -> VString s
   | `Null -> (VNA NAGeneric)
   | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
-  | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
+  | `Assoc a ->
+      (match List.assoc_opt "type" a with
+       | Some (`String "VError") ->
+           let code = match List.assoc_opt "code" a with
+             | Some (`String s) -> Ast.Utils.error_code_of_string s
+             | _ -> RuntimeError
+           in
+           let message = match List.assoc_opt "message" a with
+             | Some (`String s) -> s
+             | _ -> "Unknown error"
+           in
+           let na_count = match List.assoc_opt "na_count" a with
+             | Some (`Int i) -> i
+             | _ -> 0
+           in
+           let context = match List.assoc_opt "context" a with
+             | Some (`Assoc ctx) -> List.map (fun (k, v) -> (k, yojson_to_value v)) ctx
+             | _ -> []
+           in
+           let location = match List.assoc_opt "location" a with
+             | Some (`Assoc loc) ->
+                 Some {
+                   file = (match List.assoc_opt "file" loc with Some (`String f) -> Some f | _ -> None);
+                   line = (match List.assoc_opt "line" loc with Some (`Int i) -> i | _ -> 0);
+                   column = (match List.assoc_opt "column" loc with Some (`Int i) -> i | _ -> 0);
+                 }
+             | _ -> None
+           in
+           VError { code; message; context; location; na_count }
+       | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
   | _ ->
       invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 

@@ -492,6 +492,25 @@ module Utils = struct
     | GenericError -> "GenericError"
     | NAPredicateError -> "NAPredicateError"
 
+  let error_code_of_string = function
+    | "TypeError" -> TypeError
+    | "AggregationError" -> AggregationError
+    | "ArityError" -> ArityError
+    | "NameError" -> NameError
+    | "DivisionByZero" -> DivisionByZero
+    | "KeyError" -> KeyError
+    | "IndexError" -> IndexError
+    | "AssertionError" -> AssertionError
+    | "FileError" -> FileError
+    | "ValueError" -> ValueError
+    | "MatchError" -> MatchError
+    | "SyntaxError" -> SyntaxError
+    | "ShellError" -> ShellError
+    | "RuntimeError" -> RuntimeError
+    | "GenericError" -> GenericError
+    | "NAPredicateError" -> NAPredicateError
+    | _ -> RuntimeError
+
   let na_type_to_string = function
     | NABool -> "Bool"
     | NAInt -> "Int"

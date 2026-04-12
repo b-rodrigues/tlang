@@ -800,6 +800,47 @@ def py_read_pmml(path):
                 return pd.read_csv(out_path)
     
     return JPMMLModel(path)
+
+  let t_error_py_code = {|
+import json
+import os
+import traceback
+
+def py_write_error(msg, path):
+    err_info = {
+        "type": "VError",
+        "code": "RuntimeError",
+        "message": msg,
+        "na_count": 0,
+        "context": {},
+        "location": None
+    }
+    with open(path, "w") as f:
+        json.dump(err_info, f)
+    with open(os.path.join(os.path.dirname(path), "class"), "w") as f:
+        f.write("VError")
+
+def py_is_error(obj):
+    return isinstance(obj, dict) and obj.get("type") == "VError"
+|} in
+
+  let t_error_r_code = {|
+r_write_error <- function(msg, path) {
+  err_info <- list(
+    type = "VError",
+    code = "RuntimeError",
+    message = as.character(msg),
+    na_count = 0,
+    context = list(),
+    location = NULL
+  )
+  jsonlite::write_json(err_info, path, auto_unbox = TRUE)
+  writeLines("VError", file.path(dirname(path), "class"))
+}
+
+r_is_error <- function(obj) {
+  is.list(obj) && !is.null(obj$type) && obj$type == "VError"
+}
 |} in
 
   let t_onnx_r_code = {|
@@ -892,6 +933,13 @@ def py_read_onnx(path):
     else ""
   in
 
+  let error_injection =
+    match runtime with
+    | "R"      -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" t_error_r_code
+    | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" t_error_py_code
+    | _        -> ""
+  in
+
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
     if runtime = "Quarto" || runtime = "sh" then
@@ -927,26 +975,38 @@ def py_read_onnx(path):
           | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
         in
         let des_node_val = eval_expr_safe strategy_expr in
-        match get_format des_node_val with
-        | Some fmt ->
-            (match get_polyglot_snippet ~lang:runtime ~kind:"reader" des_node_val with
-             | Some snippet -> snippet
-             | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
-        | None ->
-          if strategy = "default" then
-            (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else "deserialize")
-          else if strategy_is_string then
-            (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
-          else
-            strategy
+        let des_fn = match get_format des_node_val with
+          | Some fmt ->
+              (match get_polyglot_snippet ~lang:runtime ~kind:"reader" des_node_val with
+               | Some snippet -> snippet
+               | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
+          | None ->
+            if strategy = "default" then
+              (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else "deserialize")
+            else if strategy_is_string then
+              (match List.assoc_opt strategy read_fns with Some fn -> fn | None -> strategy)
+            else
+              strategy
+        in
+        
+        let dep_var = dep_env_var_name dep_name in
+        match runtime with
+        | "R" ->
+            Printf.sprintf {|      echo "if (file.exists(file.path(\"$%s\", \"class\")) && readLines(file.path(\"$%s\", \"class\"), 1) == \"VError\") {" >> node_script.R
+      echo "  %s <- py_read_json(file.path(\"$%s\", \"artifact\"))" >> node_script.R
+      echo "} else {" >> node_script.R
+      echo "  %s <- %s(file.path(\"$%s\", \"artifact\"))" >> node_script.R
+      echo "}" >> node_script.R|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+        | "Python" ->
+            Printf.sprintf {|      echo "if os.path.exists(os.path.join(\"$%s\", \"class\")) and open(os.path.join(\"$%s\", \"class\")).read().strip() == \"VError\":" >> node_script.py
+      echo "    %s = py_read_json(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py
+      echo "else:" >> node_script.py
+      echo "    %s = %s(os.path.join(\"$%s\", \"artifact\"))" >> node_script.py|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
+        | _ ->
+            Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" dep_name des_fn dep_var ext
       in
       deps
-      |> List.map (fun d ->
-        let des_call = get_des_call d in
-        if runtime = "R" then
-          Printf.sprintf "      echo \"%s <- %s(\\\"$%s/artifact\\\")\" >> node_script.%s" d des_call (dep_env_var_name d) ext
-        else
-          Printf.sprintf "      echo \"%s = %s(\\\"$%s/artifact\\\")\" >> node_script.%s" d des_call (dep_env_var_name d) ext)
+      |> List.map get_des_call
       |> String.concat "\n"
   in
   let quarto_read_node_substitutions =
@@ -1187,47 +1247,90 @@ def py_read_onnx(path):
     if runtime = "R" then
       if is_raw_code then
         Printf.sprintf {|      echo "%s <- local({" >> node_script.R
+      echo "  tryCatch({" >> node_script.R
       cat <<'EOF' >> node_script.R
 %s
 EOF
+      echo "  }, error = function(e) {" >> node_script.R
+      echo "    r_write_error(e, \"$out/artifact\")" >> node_script.R
+      echo "    quit(save = 'no', status = 0)" >> node_script.R
+      echo "  })" >> node_script.R
       echo "})" >> node_script.R
-      echo "%s(%s, \"$out/artifact\")" >> node_script.R
-      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s_no_imports ser_call name name
+      echo "if (r_is_error(%s)) {" >> node_script.R
+      echo "  r_write_error(%s$message, \"$out/artifact\")" >> node_script.R
+      echo "} else {" >> node_script.R
+      echo "  %s(%s, \"$out/artifact\")" >> node_script.R
+      echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
+      echo "}" >> node_script.R|} name expr_s_no_imports name name ser_call name name
       else
-        Printf.sprintf {|      cat <<'EOF' >> node_script.R
+        Printf.sprintf {|      echo "tryCatch({" >> node_script.R
+      cat <<'EOF' >> node_script.R
 %s <- %s
 EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.R
-      echo "writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R|} name expr_s ser_call name name
+      echo "}, error = function(e) {" >> node_script.R
+      echo "  r_write_error(e, \"$out/artifact\")" >> node_script.R
+      echo "  quit(save = 'no', status = 0)" >> node_script.R
+      echo "})" >> node_script.R
+      echo "if (r_is_error(%s)) {" >> node_script.R
+      echo "  r_write_error(%s$message, \"$out/artifact\")" >> node_script.R
+      echo "} else {" >> node_script.R
+      echo "  %s(%s, \"$out/artifact\")" >> node_script.R
+      echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
+      echo "}" >> node_script.R|} name expr_s name name ser_call name name
     else if runtime = "Python" then
       if is_raw_code then
         if raw_assigns_to name expr_s then
-          (* Statement-style: raw code explicitly assigns to node name — use as-is *)
-          Printf.sprintf {|      cat <<'EOF' >> node_script.py
+           (* Statement-style: raw code explicitly assigns to node name — use as-is *)
+           Printf.sprintf {|      echo "try:" >> node_script.py
+      cat <<'EOF' | sed 's/^/    /' >> node_script.py
 %s
 EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s ser_call name name
+      echo "except Exception as e:" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    sys.exit(0)" >> node_script.py
+      echo "if py_is_error(%s):" >> node_script.py
+      echo "    py_write_error(%s['message'], \"$out/artifact\")" >> node_script.py
+      echo "else:" >> node_script.py
+      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s name name ser_call name name
         else
           let globals_decl =
             if deps = [] then ""
             else Printf.sprintf "    global %s\n" (String.concat ", " deps)
           in
           Printf.sprintf {|      echo "def __node_runner():" >> node_script.py
-%s      cat <<'EOF' >> node_script.py
+%s      echo "    try:" >> node_script.py
+      cat <<'EOF' | sed 's/^/        /' >> node_script.py
 %s
 EOF
-      echo "%s = __node_runner()" >> node_script.py
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|}
+      echo "    except Exception as e:" >> node_script.py
+      echo "        py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "        sys.exit(0)" >> node_script.py
+      echo "try:" >> node_script.py
+      echo "    %s = __node_runner()" >> node_script.py
+      echo "except Exception as e:" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    sys.exit(0)" >> node_script.py
+      echo "if py_is_error(%s):" >> node_script.py
+      echo "    py_write_error(%s['message'], \"$out/artifact\")" >> node_script.py
+      echo "else:" >> node_script.py
+      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|}
             (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
-            (indent_string expr_s_no_imports 4) name ser_call name name
+            (indent_string expr_s_no_imports 4) name name name ser_call name name
       else
-        Printf.sprintf {|      cat <<'EOF' >> node_script.py
+        Printf.sprintf {|      echo "try:" >> node_script.py
+      cat <<'EOF' | sed 's/^/    /' >> node_script.py
 %s = %s
 EOF
-      echo "%s(%s, \"$out/artifact\")" >> node_script.py
-      echo "with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s ser_call name name
+      echo "except Exception as e:" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    sys.exit(0)" >> node_script.py
+      echo "if py_is_error(%s):" >> node_script.py
+      echo "    py_write_error(%s['message'], \"$out/artifact\")" >> node_script.py
+      echo "else:" >> node_script.py
+      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
+      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s name name ser_call name name
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
@@ -1357,8 +1460,10 @@ EOF
 %s
 %s
 %s
+%s
+%s
       mkdir -p $out
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_exports ext json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_exports ext error_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
