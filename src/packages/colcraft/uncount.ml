@@ -45,6 +45,9 @@ let uncount_impl (named_args : (string option * value) list) _env =
                 | Some e -> e
                 | None ->
                     let final_nrows = Array.fold_left (+) 0 weight_ints in
+                    if final_nrows > 10_000_000 then
+                      Error.value_error (Printf.sprintf "Function `uncount` would produce %d rows, exceeding the safety limit of 10,000,000." final_nrows)
+                    else
                     let expansion_indices = Array.make final_nrows 0 in
                     let curr = ref 0 in
                     Array.iteri (fun i w ->

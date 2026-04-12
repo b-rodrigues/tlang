@@ -187,7 +187,8 @@ let crossing_impl named_args _env =
     
     let columns = List.mapi (fun i (name, _) ->
       let data = Array.init nrows (fun row_idx -> match List.nth_opt combos_arr.(row_idx) i with Some v -> v | None -> (VNA NAGeneric)) in
-      let col = match data.(0) with
+      let col = if Array.length data = 0 then NAColumn 0
+        else match data.(0) with
         | VInt _ -> IntColumn (Array.map (function VInt x -> Some x | _ -> None) data)
         | VFloat _ -> FloatColumn (Array.map (function VFloat x -> Some x | VInt x -> Some (float_of_int x) | _ -> None) data)
         | VString _ -> StringColumn (Array.map (function VString x -> Some x | _ -> None) data)

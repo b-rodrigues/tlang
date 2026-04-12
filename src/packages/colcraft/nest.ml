@@ -110,7 +110,9 @@ let nest_impl (named_args : (string option * value) list) _env =
                 let vals = Arrow_bridge.column_to_values col in
                 (k, Array.init n_groups (fun i ->
                   let (_, indices) = List.nth groups i in
-                  vals.(List.hd indices)))
+                  match indices with
+                  | first :: _ -> vals.(first)
+                  | [] -> (VNA NAGeneric)))
             | None -> (k, Array.make n_groups ((VNA NAGeneric)))
           ) group_cols in
 

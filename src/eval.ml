@@ -628,7 +628,8 @@ let eval_shell_expr _env_ref cmd =
                else String.trim (String.sub stripped 3 (String.length stripped - 3)) in
     let path = if String.starts_with ~prefix:"~" path then
                  let home = Sys.getenv_opt "HOME" |> Option.value ~default:"." in
-                 home ^ String.sub path 1 (String.length path - 1)
+                 if String.length path <= 1 then home
+                 else home ^ String.sub path 1 (String.length path - 1)
                else path in
     (try
       Sys.chdir path;

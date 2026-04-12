@@ -199,16 +199,17 @@ let register ~eval_call ~eval_expr:(_eval_expr : Ast.value Ast.Env.t -> Ast.expr
                        | Some t -> t
                        | None ->
                          (* Fallback: sequential single-aggregate calls *)
-                         let (first_name, _, _first_agg, first_agg_eff, first_col) = List.hd specs in
-                         let rest_specs = List.tl specs in
-                         let first_res = Arrow_compute.group_aggregate grouped first_agg_eff first_col in
-                         let first_col_key = if first_agg_eff = "count" then "n" else first_col in
-                         let base_table = Arrow_table.rename_columns first_res [(first_name, first_col_key)] in
-                         List.fold_left (fun acc (name, _fn, _agg, agg_eff, col) ->
-                           let res_table = Arrow_compute.group_aggregate grouped agg_eff col in
-                           let res_col_key = if agg_eff = "count" then "n" else col in
-                           Arrow_table.add_column_from_table acc name res_table res_col_key
-                         ) base_table rest_specs
+                         (match specs with
+                          | (first_name, _, _first_agg, first_agg_eff, first_col) :: rest_specs ->
+                            let first_res = Arrow_compute.group_aggregate grouped first_agg_eff first_col in
+                            let first_col_key = if first_agg_eff = "count" then "n" else first_col in
+                            let base_table = Arrow_table.rename_columns first_res [(first_name, first_col_key)] in
+                            List.fold_left (fun acc (name, _fn, _agg, agg_eff, col) ->
+                              let res_table = Arrow_compute.group_aggregate grouped agg_eff col in
+                              let res_col_key = if agg_eff = "count" then "n" else col in
+                              Arrow_table.add_column_from_table acc name res_table res_col_key
+                            ) base_table rest_specs
+                          | [] -> Arrow_table.empty)
                      in
                      VDataFrame { arrow_table = result_table; group_keys = [] })
                 | None ->

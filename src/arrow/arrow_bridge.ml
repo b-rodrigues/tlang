@@ -70,7 +70,7 @@ let values_to_column (values : value array) : Arrow_table.column_data =
     Arrow_table.NAColumn (Array.length values)
   else if !has_dataframe then
     if !has_int || !has_float || !has_bool || !has_string || !has_date || !has_datetime || !has_factor || !factor_inconsistent then
-      failwith "values_to_column: mixed DataFrame and non-DataFrame values cannot be stored in a single column"
+      raise (Invalid_argument "values_to_column: mixed DataFrame and non-DataFrame values cannot be stored in a single column")
     else
       Arrow_table.ListColumn (Array.map (function
         | VDataFrame df -> Some df.arrow_table

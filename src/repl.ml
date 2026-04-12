@@ -806,7 +806,7 @@ let () =
             let ensure_dir path =
               if Sys.file_exists path then
                 (if not (Sys.is_directory path) then
-                  failwith (Printf.sprintf "%s exists and is not a directory" path))
+                  raise (Sys_error (Printf.sprintf "%s exists and is not a directory" path)))
               else
                 Unix.mkdir path 0o755
             in

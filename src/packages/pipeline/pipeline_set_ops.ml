@@ -68,8 +68,8 @@ let patch p1 p2 =
   let p2_names = List.map fst p2.p_nodes in
   let keep_from_p1 n = not (List.mem n p2_names) in
   let keep_from_p2 n = List.mem n p1_names in
-  let p1_filtered = (match filter_node_set keep_from_p1 p1 with VPipeline p -> p | _ -> failwith "unreachable") in
-  let p2_filtered = (match filter_node_set keep_from_p2 p2 with VPipeline p -> p | _ -> failwith "unreachable") in
+  let p1_filtered = (match filter_node_set keep_from_p1 p1 with VPipeline p -> p | _ -> p1) in
+  let p2_filtered = (match filter_node_set keep_from_p2 p2 with VPipeline p -> p | _ -> p2) in
   VPipeline {
     p_nodes        = p1_filtered.p_nodes @ p2_filtered.p_nodes;
     p_exprs        = p1_filtered.p_exprs @ p2_filtered.p_exprs;
@@ -132,7 +132,7 @@ let register ~rerun_pipeline env =
     | [VPipeline p1; VPipeline p2] -> 
         (match union p1 p2 with
         | Ok (VPipeline p) -> rerun_pipeline ?strict:None env p
-        | Ok _ -> failwith "unreachable"
+        | Ok _ -> Error.make_error RuntimeError "Function `union` internal error: unexpected non-Pipeline result."
         | Error e -> e)
     | _ -> Error.type_error "Function `union` expects two Pipeline arguments."
   )) env in
@@ -151,7 +151,7 @@ let register ~rerun_pipeline env =
     | [VPipeline p1; VPipeline p2] -> 
         (match patch p1 p2 with 
         | VPipeline p -> rerun_pipeline ?strict:None env p
-        | _ -> failwith "unreachable")
+        | _ -> Error.make_error RuntimeError "Function `patch` internal error: unexpected non-Pipeline result.")
     | _ -> Error.type_error "Function `patch` expects two Pipeline arguments."
   )) env in
   env

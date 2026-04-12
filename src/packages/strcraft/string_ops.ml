@@ -330,8 +330,12 @@ let str_repeat_scalar args _env =
       if n < 0 then
         Error.value_error "str_repeat: count must be non-negative."
       else
-        (* TODO: consider adding an upper bound on n to prevent OOM *)
-        let buf = Buffer.create (String.length s * n) in
+        let slen = String.length s in
+        if slen > 0 && n > 10_000_000 / slen then
+          Error.value_error (Printf.sprintf "str_repeat: result would exceed safety limit of 10,000,000 characters.")
+        else
+        let total_len = slen * n in
+        let buf = Buffer.create total_len in
         for _ = 1 to n do Buffer.add_string buf s done;
         VString (Buffer.contents buf)
   | _ -> Error.type_error "str_repeat expects (String, Int)."

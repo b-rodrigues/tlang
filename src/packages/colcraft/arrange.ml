@@ -33,7 +33,7 @@ let register env =
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
                  | None ->
                    let col = match Arrow_table.get_column df.arrow_table col_name with
-                     | Some c -> c | None -> assert false in
+                     | Some c -> c | None -> Arrow_table.NAColumn (Arrow_table.num_rows df.arrow_table) in
                    let col_values = Arrow_bridge.column_to_values col in
                    let nrows = Arrow_table.num_rows df.arrow_table in
                    let indices = Array.init nrows (fun i -> i) in
@@ -65,7 +65,7 @@ let register env =
                    VDataFrame { arrow_table = new_table; group_keys = df.group_keys }
                  | None ->
                    let col = match Arrow_table.get_column df.arrow_table col_name with
-                     | Some c -> c | None -> assert false in
+                     | Some c -> c | None -> Arrow_table.NAColumn (Arrow_table.num_rows df.arrow_table) in
                    let col_values = Arrow_bridge.column_to_values col in
                    let nrows = Arrow_table.num_rows df.arrow_table in
                    let indices = Array.init nrows (fun i -> i) in

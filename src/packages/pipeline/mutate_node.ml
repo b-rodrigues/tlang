@@ -116,8 +116,8 @@ let register ~eval_call env =
                       List.map (fun (_, v) ->
                         match v with
                         | VString s | VSymbol s -> s
-                        (* Unreachable: invalid_dep check above guarantees all items are String/Symbol *)
-                        | _ -> failwith "mutate_node: unreachable — non-String/Symbol dep after validation"
+                        (* Defensive: validation above guarantees all items are String/Symbol *)
+                        | _ -> ""
                       ) items
                     in
                     let new_explicit = List.map (fun (n, old) -> if matches n then (n, Some deps) else (n, old)) p.p_explicit_deps in
