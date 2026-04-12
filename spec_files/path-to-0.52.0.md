@@ -71,6 +71,18 @@ This document outlines the step-by-step evolution of the T language from the cur
 - [x] **Model Metrics**:
     - [x] Expand `fit_stats()` and `summary()` to return standard statistics for all native model types.
 
+- [x] **Pipeline Infrastructure & Observability**:
+    - [x] **Soft-Fail Semantics**: Captured errors (`VError`) allow pipelines to complete and be inspected.
+    - [x] **Diagnostic Propagation**: Automatic accumulation of warnings across the DAG.
+    - [x] **Selective Unwrapping**: Transparent interop for artifacts while preserving diagnostic access for introspection.
+    - [x] **Enhanced Introspection**: `read_node()`, `read_pipeline()`, and recursive `explain()`.
+    - [x] **Suppression combinators**: `suppress_warnings` for acknowledgeable noise.
+
+- [x] **Standardized Missingness & "Death to Null"**:
+    - [x] **Unified NA Support**: Complete removal of `null`/`VNull` in favor of typed `NA` values.
+    - [x] **Strict NA Enforcement**: Core operators and controls (`if`, `filter`) raise `NAPredicateError` by default.
+    - [x] **Consistent API**: Standardized `na_ignore` (transforms) and `na_rm` (aggregations) parameters.
+
 ---
  
 ## v0.51.4 — Plotting Metadata & REPL Viz 🎨 **VISUALIZATION**
