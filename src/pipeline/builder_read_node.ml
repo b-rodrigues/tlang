@@ -43,7 +43,7 @@ let wrap_with_diagnostics name cn v =
     | VError e -> Some { ne_kind = Utils.error_code_to_string e.code; ne_fn = "unknown"; ne_message = e.message; ne_na_count = e.na_count }
     | _ -> None
   ) else None in
-  VNodeResult { v; node_name = name; diagnostics = { nd_warnings = warnings; nd_error = error } }
+  VNodeResult { v; node_name = name; diagnostics = { nd_warnings = warnings; nd_error = error; nd_warnings_suppressed = false } }
 
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in

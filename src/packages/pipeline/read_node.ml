@@ -197,8 +197,20 @@ let register env =
       | VError _ -> None
       | v -> Some v)
   in
+
+  let suppress_warnings_fn args _env =
+    match args with
+    | [VNodeResult nr] ->
+        VNodeResult { nr with diagnostics = { nr.diagnostics with nd_warnings_suppressed = true } }
+    | [v] -> 
+        Eval.request_warning_suppression ();
+        v
+    | _ -> Error.arity_error_named "suppress_warnings" 1 (List.length args)
+  in
+
   env
   |> Env.add "read_node" (make_builtin_named ~name:"read_node" ~variadic:true 1 read_fn)
   |> Env.add "read_pipeline" (make_builtin_named ~name:"read_pipeline" ~variadic:true 1 read_pipeline_fn)
   |> Env.add "inspect_node" (make_builtin_named ~name:"inspect_node" ~variadic:true 1 inspect_fn)
   |> Env.add "rebuild_node" (make_builtin_named ~name:"rebuild_node" ~variadic:true 1 rebuild_fn)
+  |> Env.add "suppress_warnings" (make_builtin ~name:"suppress_warnings" 1 suppress_warnings_fn)

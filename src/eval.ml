@@ -59,6 +59,10 @@ and desugar_nse_stmt stmt =
 let show_warnings = ref true
 
 let current_node_warning_emitter : (Ast.node_warning -> unit) option ref = ref None
+let current_node_suppression_requested = ref false
+
+let request_warning_suppression () =
+  current_node_suppression_requested := true
 
 let emit_node_warning warning =
   match !current_node_warning_emitter with
@@ -69,6 +73,7 @@ let emit_node_warning warning =
     Restores the previous emitter even if [f] raises. *)
 let capture_node_warnings f =
   let warnings = ref [] in
+  current_node_suppression_requested := false;
   let previous = !current_node_warning_emitter in
   current_node_warning_emitter :=
     Some (fun warning -> warnings := warning :: !warnings);
@@ -193,9 +198,12 @@ let build_node_diagnostics node_name node_deps own_warnings diagnostics_so_far v
              List.map (inherit_warning dep_name) diagnostics.Ast.nd_warnings
          | None -> [])
   in
+  let suppressed = !current_node_suppression_requested in
+  current_node_suppression_requested := false;
   {
     Ast.nd_warnings = dedupe_warnings (own_warnings @ upstream_warnings);
     nd_error = node_error_of_value node_name value;
+    nd_warnings_suppressed = suppressed;
   }
 
 (** Print a compact stderr summary of warning and error diagnostics for a
@@ -230,10 +238,15 @@ let print_pipeline_diagnostics_summary node_diagnostics =
         List.fold_left (fun acc warning -> acc + warning.Ast.nw_na_count) 0 own_warnings
       in
       if own_warnings <> [] then
-        Printf.eprintf "  ⚠  %s — %d warning(s), %d affected NA slot(s)\n%!"
-          name
-          (List.length own_warnings)
-          na_total
+        if diagnostics.Ast.nd_warnings_suppressed then
+          Printf.eprintf "  ○  %s — warnings suppressed by caller (%d NAs ignored)\n%!"
+            name
+            na_total
+        else
+          Printf.eprintf "  ⚠  %s — %d warning(s), %d affected NA slot(s)\n%!"
+            name
+            (List.length own_warnings)
+            na_total
     ) warning_nodes;
     List.iter (fun (name, error) ->
       Printf.eprintf "  ✖  %s — %s\n%!" name error.Ast.ne_message
