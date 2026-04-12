@@ -2677,13 +2677,15 @@ and eval_program (program : program) (env : environment) : value * environment =
 
 (* --- Built-in Functions --- *)
 
-let make_builtin ?name ?(variadic=false) arity func =
+let make_builtin ?name ?(variadic=false) ?(unwrap=true) arity func =
+  let arg_proj = if unwrap then (fun (_, v) -> Ast.Utils.unwrap_value v) else (fun (_, v) -> v) in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env_ref -> func (List.map (fun (_, v) -> Ast.Utils.unwrap_value v) named_args) !env_ref) }
+             b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
-let make_builtin_named ?name ?(variadic=false) arity func =
+let make_builtin_named ?name ?(variadic=false) ?(unwrap=true) arity func =
+  let arg_proj = if unwrap then (fun (n, v) -> (n, Ast.Utils.unwrap_value v)) else (fun (n, v) -> (n, v)) in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, Ast.Utils.unwrap_value v)) named_args) !env_ref) }
+             b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
 let eval_call_immutable env fn_val raw_args =
   eval_call (ref env) fn_val raw_args

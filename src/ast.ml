@@ -886,14 +886,16 @@ let make_error ?location ?(context=[]) ?(na_count=0) code message =
   VError { code; message; context; location; na_count }
 
 (** Create a builtin function value (wraps func to strip arg names) *)
-let make_builtin ?name ?(variadic=false) arity func =
+let make_builtin ?name ?(variadic=false) ?(unwrap=true) arity func =
+  let arg_proj = if unwrap then (fun (_, v) -> Utils.unwrap_value v) else (fun (_, v) -> v) in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env_ref -> func (List.map (fun (_, v) -> Utils.unwrap_value v) named_args) !env_ref) }
+             b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
 (** Create a builtin function value that receives named args *)
-let make_builtin_named ?name ?(variadic=false) arity func =
+let make_builtin_named ?name ?(variadic=false) ?(unwrap=true) arity func =
+  let arg_proj = if unwrap then (fun (n, v) -> (n, Utils.unwrap_value v)) else (fun (n, v) -> (n, v)) in
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, Utils.unwrap_value v)) named_args) !env_ref) }
+             b_func = (fun named_args env_ref -> func (List.map arg_proj named_args) !env_ref) }
 
 
 (** Check if a value is an error *)
