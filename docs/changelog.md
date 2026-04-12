@@ -1,6 +1,18 @@
 # Changelog
 
-## [0.51.3] - 2026-04-xx (Upcoming)
+## [0.53.0-alpha] - 2026-04-12
+
+### Added
+- **First-Class Pipeline Diagnostics**: Pipeline builds now capture and persist non-terminal warnings and terminal errors as node artifacts.
+- **Soft-Fail Semantics**: Internal node failures no longer halt the entire Nix build; instead, they produce `VError` objects, allowing independent pipeline branches to complete.
+- **Cross-Language Warning Capture**: 
+    - Python: Integrated `warnings.catch_warnings()` into the node runner.
+    - R: Integrated `withCallingHandlers()` into the node runner.
+- **Enhanced Build Summary**: New iconographic build summary (`✖` for errors, `✓` for success, `?` for warnings) with line-by-line diagnostic reporting.
+- **`explain()` function**: New builtin for interrogating `VError` artifacts, surfacing tracebacks and context from Python and R.
+- **Metadata Traceability**: Automatic injection of `node_name` into diagnostic artifacts to identify the source of failure in multi-step chains.
+
+## [0.52.0-alpha] - 2026-04-10
 
 - **Standardized Missingness (NA) Handling**: Finalized the implementation of the new NA-handling specification for improved consistency and "No Silent Magic" compliance.
     - **`NAPredicateError`**: Introduced a dedicated error code for NA values encountered in boolean contexts. This enables `filter()` and other data verbs to distinguish missingness-related failures from general type errors.
