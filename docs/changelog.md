@@ -2,6 +2,8 @@
 
 ## [0.51.3] - 2026-04-12
 
+**Status**: Beta  
+
 ### Pipeline Infrastructure & Observability
 - **First-Class Diagnostics Engine**: 
     - Implemented a comprehensive diagnostics system that captures and classifies "own" vs. "upstream" warnings.
@@ -67,10 +69,10 @@
 - **Grouped Mutate**: Fixed a regression where assigning constant scalars to grouped DataFrames would fail.
 - **Interaction Resolution**: Restored and verified interaction term (`:`) resolution in native linear model scoring.
 
-## Version 0.51.2 — Current Stable Release
+## Version 0.51.2
 
 **Status**: Beta  
-**Release Date**: 28th of March 2026
+**Release Date**: 2026-03-28
 
 ### Features & UX
 
