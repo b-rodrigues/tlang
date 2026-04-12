@@ -294,12 +294,18 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `String s -> VString s
   | `Null -> (VNA NAGeneric)
   | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
+  | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
+  | _ ->
+      invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
+
+let yojson_to_verror (j : Yojson.Safe.t) : Ast.value =
+  match j with
   | `Assoc a ->
       (match List.assoc_opt "type" a with
        | Some (`String "VError") ->
            let code = match List.assoc_opt "code" a with
              | Some (`String s) -> Ast.Utils.error_code_of_string s
-             | _ -> RuntimeError
+             | _ -> Ast.RuntimeError
            in
            let message = match List.assoc_opt "message" a with
              | Some (`String s) -> s
@@ -322,10 +328,10 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
                  } : Ast.source_location)
              | _ -> None
            in
-           VError { code; message; context; location; na_count }
-       | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
+           Ast.VError { code; message; context; location; na_count }
+       | _ -> Ast.VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
   | _ ->
-      invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
+      invalid_arg ("yojson_to_verror: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 
 let write_json path value =
   try
@@ -341,6 +347,14 @@ let read_json path =
     else
       let j = Yojson.Safe.from_file path in
       Ok (yojson_to_value j)
+  with exn -> Error (Printexc.to_string exn)
+
+let read_verror_json path =
+  try
+    if not (Sys.file_exists path) then Error "File not found"
+    else
+      let j = Yojson.Safe.from_file path in
+      Ok (yojson_to_verror j)
   with exn -> Error (Printexc.to_string exn)
 
 (*
@@ -402,7 +416,7 @@ let deserialize_from_file path =
              let cls = input_line ic2 |> String.trim in
              close_in ic2;
              if cls = "VError" then
-               read_json path
+               read_verror_json path
              else
                Error (Printf.sprintf "Unknown artifact class `%s`" cls))
           else

@@ -322,8 +322,6 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   in
   
   (* Use is_ser instead of is_builtin for serializer checks *)
-  let is_json_ser   = is_ser "json" in
-  let is_json_des   = is_fmt_in_des "json" in
   let is_arrow_ser  = is_ser "arrow" in
   let is_arrow_des  = is_fmt_in_des "arrow" in
   let is_csv_ser    = is_ser "csv" in
@@ -809,17 +807,20 @@ import sys
 import traceback
 
 def py_write_error(msg, path):
-    err_info = {
-        "type": "VError",
-        "code": "RuntimeError",
-        "message": msg.split('\n')[-2] if '\n' in msg.strip() else msg,
-        "na_count": 0,
-        "context": {
-            "runtime_traceback": msg,
-            "node_status": "errored"
-        },
-        "location": None
-    }
+    if isinstance(msg, dict) and msg.get("type") == "VError":
+        err_info = msg
+    else:
+        err_info = {
+            "type": "VError",
+            "code": "RuntimeError",
+            "message": msg.split('\n')[-2] if isinstance(msg, str) and '\n' in msg.strip() else str(msg),
+            "na_count": 0,
+            "context": {
+                "runtime_traceback": msg if isinstance(msg, str) else str(msg),
+                "node_status": "errored"
+            },
+            "location": None
+        }
     with open(path, "w") as f:
         json.dump(err_info, f)
     with open(os.path.join(os.path.dirname(path), "class"), "w") as f:
@@ -831,17 +832,21 @@ def py_is_error(obj):
 
   let t_error_r_code = {|
 r_write_error <- function(msg, path) {
-  err_info <- list(
-    type = "VError",
-    code = "RuntimeError",
-    message = as.character(msg),
-    na_count = 0,
-    context = list(
-      runtime_traceback = as.character(msg),
-      node_status = "errored"
-    ),
-    location = NULL
-  )
+  if (is.list(msg) && !is.null(msg$type) && msg$type == "VError") {
+    err_info <- msg
+  } else {
+    err_info <- list(
+      type = "VError",
+      code = "RuntimeError",
+      message = as.character(msg),
+      na_count = 0,
+      context = list(
+        runtime_traceback = as.character(msg),
+        node_status = "errored"
+      ),
+      location = NULL
+    )
+  }
   jsonlite::write_json(err_info, path, auto_unbox = TRUE)
   writeLines("VError", file.path(dirname(path), "class"))
 }
@@ -930,7 +935,7 @@ def py_read_onnx(path):
         )
 |} in
 
-  let json_injection   = make_injection ~enabled:(is_json_ser  || is_json_des)  ~r_code:t_json_r_code  ~py_code:t_json_py_code in
+  let json_injection   = make_injection ~enabled:true  ~r_code:t_json_r_code  ~py_code:t_json_py_code in
   let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code in
   let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code in
   let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code in
@@ -1001,7 +1006,7 @@ def py_read_onnx(path):
         match runtime with
         | "R" ->
             Printf.sprintf {|      echo "if (file.exists(file.path(\"$%s\", \"class\")) && readLines(file.path(\"$%s\", \"class\"), 1) == \"VError\") {" >> node_script.R
-      echo "  %s <- py_read_json(file.path(\"$%s\", \"artifact\"))" >> node_script.R
+      echo "  %s <- r_read_json(file.path(\"$%s\", \"artifact\"))" >> node_script.R
       echo "} else {" >> node_script.R
       echo "  %s <- %s(file.path(\"$%s\", \"artifact\"))" >> node_script.R
       echo "}" >> node_script.R|} dep_var dep_var dep_name dep_var dep_name des_fn dep_var
@@ -1266,7 +1271,7 @@ EOF
       echo "  })" >> node_script.R
       echo "})" >> node_script.R
       echo "if (r_is_error(%s)) {" >> node_script.R
-      echo "  r_write_error(%s$message, \"$out/artifact\")" >> node_script.R
+      echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
       echo "} else {" >> node_script.R
       echo "  %s(%s, \"$out/artifact\")" >> node_script.R
       echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
@@ -1281,7 +1286,7 @@ EOF
       echo "  quit(save = 'no', status = 0)" >> node_script.R
       echo "})" >> node_script.R
       echo "if (r_is_error(%s)) {" >> node_script.R
-      echo "  r_write_error(%s$message, \"$out/artifact\")" >> node_script.R
+      echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
       echo "} else {" >> node_script.R
       echo "  %s(%s, \"$out/artifact\")" >> node_script.R
       echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
@@ -1298,7 +1303,7 @@ EOF
       echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s['message'], \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
       echo "else:" >> node_script.py
       echo "    %s(%s, \"$out/artifact\")" >> node_script.py
       echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} expr_s name name ser_call name name
@@ -1321,7 +1326,7 @@ EOF
       echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s['message'], \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
       echo "else:" >> node_script.py
       echo "    %s(%s, \"$out/artifact\")" >> node_script.py
       echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|}
@@ -1336,7 +1341,7 @@ EOF
       echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s['message'], \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
       echo "else:" >> node_script.py
       echo "    %s(%s, \"$out/artifact\")" >> node_script.py
       echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py|} name expr_s name name ser_call name name
