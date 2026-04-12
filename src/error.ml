@@ -5,12 +5,12 @@
 open Ast
 
 (** Create a raw error info record *)
-let make_error_info ?location ?(context=[]) code message =
-  { code; message; context; location }
+let make_error_info ?location ?(context=[]) ?(na_count=0) code message =
+  { code; message; context; location; na_count }
 
 (** Create a raw error value *)
-let make_error ?location ?(context=[]) code message =
-  VError (make_error_info ?location ~context code message)
+let make_error ?location ?(context=[]) ?(na_count=0) code message =
+  VError (make_error_info ?location ~context ~na_count code message)
 
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false
@@ -57,7 +57,7 @@ let arity_error_named ?location name expected received =
 let value_error ?location msg =
   make_error ?location ValueError msg
 
-let na_value_error ?location ?(na_rm=false) function_name =
+let na_value_error ?location ?(na_rm=false) ?(na_count=1) function_name =
   let guidance =
     if na_rm then "Handle missingness explicitly or set `na_rm` to true."
     else "Handle missingness explicitly."
@@ -65,7 +65,8 @@ let na_value_error ?location ?(na_rm=false) function_name =
   let message =
     Printf.sprintf "Function `%s` encountered NA value. %s" function_name guidance
   in
-  if na_rm then aggregation_error ?location message else type_error ?location message
+  if na_rm then make_error ?location ~na_count AggregationError message
+  else make_error ?location ~na_count TypeError message
 
 let broadcast_length_error ?location len1 len2 =
   let msg = Printf.sprintf "Broadcast requires lists of equal length.\nLeft has length %d, right has length %d." len1 len2 in

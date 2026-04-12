@@ -57,6 +57,7 @@ type error_info = {
   message : string;
   context : (string * value) list;
   location : source_location option;
+  na_count : int;
 }
 
 (** DataFrame type — Arrow-backed columnar storage *)
