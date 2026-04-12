@@ -315,11 +315,11 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
            in
            let location = match List.assoc_opt "location" a with
              | Some (`Assoc loc) ->
-                 Some {
-                   file = (match List.assoc_opt "file" loc with Some (`String f) -> Some f | _ -> None);
+                 Some ({
+                   Ast.file = (match List.assoc_opt "file" loc with Some (`String f) -> Some f | _ -> None);
                    line = (match List.assoc_opt "line" loc with Some (`Int i) -> i | _ -> 0);
                    column = (match List.assoc_opt "column" loc with Some (`Int i) -> i | _ -> 0);
-                 }
+                 } : Ast.source_location)
              | _ -> None
            in
            VError { code; message; context; location; na_count }

@@ -800,19 +800,24 @@ def py_read_pmml(path):
                 return pd.read_csv(out_path)
     
     return JPMMLModel(path)
+|} in
 
   let t_error_py_code = {|
 import json
 import os
+import sys
 import traceback
 
 def py_write_error(msg, path):
     err_info = {
         "type": "VError",
         "code": "RuntimeError",
-        "message": msg,
+        "message": msg.split('\n')[-2] if '\n' in msg.strip() else msg,
         "na_count": 0,
-        "context": {},
+        "context": {
+            "runtime_traceback": msg,
+            "node_status": "errored"
+        },
         "location": None
     }
     with open(path, "w") as f:
@@ -831,7 +836,10 @@ r_write_error <- function(msg, path) {
     code = "RuntimeError",
     message = as.character(msg),
     na_count = 0,
-    context = list(),
+    context = list(
+      runtime_traceback = as.character(msg),
+      node_status = "errored"
+    ),
     location = NULL
   )
   jsonlite::write_json(err_info, path, auto_unbox = TRUE)
@@ -1173,7 +1181,8 @@ def py_read_onnx(path):
              not (String.starts_with ~prefix:"yield " l) &&
              not (String.starts_with ~prefix:"del " l) &&
              not (String.starts_with ~prefix:"global " l) &&
-             not (String.starts_with ~prefix:"nonlocal " l)
+             not (String.starts_with ~prefix:"nonlocal " l) &&
+             not (String.starts_with ~prefix:"return " l)
              ->
              let last_trimmed = String.trim last in
              let spaces = ref 0 in
@@ -1431,7 +1440,7 @@ EOF
              @ dep_env @ node_env)
         in
         Printf.sprintf "%s %s > $out/artifact\n      echo ShellOutput > $out/class" hermetic_env launcher
-    | _ -> "t run --unsafe node_script.t"
+    | _ -> "t run --unsafe --mode repl node_script.t"
   in
 
   Printf.sprintf {|
@@ -1448,7 +1457,6 @@ EOF
 %s
       cat << EOF > node_script.%s
 EOF
-%s
 %s
 %s
 %s
