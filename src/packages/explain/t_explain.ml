@@ -20,7 +20,8 @@ let dataframe_hint =
 *)
 let register env =
   Env.add "explain"
-    (make_builtin ~name:"explain" 1 (fun args _env ->
+    (make_builtin ~name:"explain" 1 (fun raw_args _env ->
+      let args = List.map (fun v -> Utils.unwrap_value v) raw_args in
       match args with
       | [VInt _] | [VFloat _] | [VBool _] | [VString _] ->
           let v = List.hd args in
