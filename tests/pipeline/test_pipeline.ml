@@ -346,13 +346,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_pipeline(p_diag).diagnostics.summary|}
-    "\"1 nodes with warnings, 0 errors\"";
+    "\"1 node(s) with warnings, 0 suppressed, 0 error(s)\"";
   test "read_pipeline tracks error nodes"
     {|p_err = pipeline {
   bad = 1 / 0
   downstream = bad + 1
 }; read_pipeline(p_err).diagnostics.summary|}
-    "\"0 nodes with warnings, 2 errors\"";
+    "\"0 node(s) with warnings, 0 suppressed, 2 error(s)\"";
   test "read_node(p, name) exposes structured node errors"
     {|p_err = pipeline {
   bad = 1 / 0
