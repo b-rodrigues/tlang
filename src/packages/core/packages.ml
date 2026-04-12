@@ -307,7 +307,8 @@ let register env =
   (* Helper to keep named args *)
   let make_builtin_named ?name ?(variadic=false) arity func =
     VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-               b_func = (fun named_args env_ref -> func named_args !env_ref) }
+               b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, Ast.Utils.unwrap_value v)) named_args) !env_ref) }
+
   in
 
   (* Register Boolean functions *)

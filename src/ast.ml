@@ -877,12 +877,13 @@ let make_error ?location ?(context=[]) ?(na_count=0) code message =
 (** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?name ?(variadic=false) arity func =
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env_ref -> func (List.map snd named_args) !env_ref) }
+             b_func = (fun named_args env_ref -> func (List.map (fun (_, v) -> Utils.unwrap_value v) named_args) !env_ref) }
 
 (** Create a builtin function value that receives named args *)
 let make_builtin_named ?name ?(variadic=false) arity func =
   VBuiltin { b_name = name; b_arity = arity; b_variadic = variadic;
-             b_func = (fun named_args env_ref -> func named_args !env_ref) }
+             b_func = (fun named_args env_ref -> func (List.map (fun (n, v) -> (n, Utils.unwrap_value v)) named_args) !env_ref) }
+
 
 (** Check if a value is an error *)
 let is_error_value = function VError _ -> true | _ -> false
