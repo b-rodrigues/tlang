@@ -59,7 +59,7 @@ let register env =
              let n = List.length xs in
              if n < 2 then Error.value_error "Function `var` requires at least 2 values."
              else
-               let m = match mean xs with Some v -> v | None -> 0.0 in
+               let m = match mean xs with Some v -> v | None -> Float.nan in
                let ss = List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs in
                VFloat (ss /. float_of_int (n - 1)))
     | args -> Error.arity_error_named "var" 1 (List.length args))) env

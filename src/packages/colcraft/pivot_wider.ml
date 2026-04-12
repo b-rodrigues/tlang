@@ -108,17 +108,20 @@ let register env =
               | Some d -> d
               | None -> NAColumn orig_nrows
             in
-            let first_idx key = match Hashtbl.find_opt first_index_tbl key with Some i -> i | None -> 0 in
+            let first_idx key = match Hashtbl.find_opt first_index_tbl key with Some i -> i | None -> -1 in
+             let safe_get a idx = if idx >= 0 && idx < Array.length a then a.(idx) else None in
              let rep_col = match col_data with
-               | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-               | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-               | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-               | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-               | DateColumn a -> DateColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
-               | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))), tz)
+               | IntColumn a -> IntColumn (Array.init new_nrows (fun i -> safe_get a (first_idx final_row_keys_arr.(i))))
+               | FloatColumn a -> FloatColumn (Array.init new_nrows (fun i -> safe_get a (first_idx final_row_keys_arr.(i))))
+               | StringColumn a -> StringColumn (Array.init new_nrows (fun i -> safe_get a (first_idx final_row_keys_arr.(i))))
+               | BoolColumn a -> BoolColumn (Array.init new_nrows (fun i -> safe_get a (first_idx final_row_keys_arr.(i))))
+               | DateColumn a -> DateColumn (Array.init new_nrows (fun i -> safe_get a (first_idx final_row_keys_arr.(i))))
+               | DatetimeColumn (a, tz) -> DatetimeColumn (Array.init new_nrows (fun i -> safe_get a (first_idx final_row_keys_arr.(i))), tz)
                | NAColumn _ -> NAColumn new_nrows
-               | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))), levels, ordered)
-               | ListColumn a -> ListColumn (Array.init new_nrows (fun i -> a.(first_idx final_row_keys_arr.(i))))
+               | DictionaryColumn (a, levels, ordered) -> DictionaryColumn (Array.init new_nrows (fun i -> safe_get a (first_idx final_row_keys_arr.(i))), levels, ordered)
+               | ListColumn a -> ListColumn (Array.init new_nrows (fun i ->
+                   let idx = first_idx final_row_keys_arr.(i) in
+                   if idx >= 0 && idx < Array.length a then a.(idx) else None))
              in
             (col_name, rep_col)
           ) id_cols in

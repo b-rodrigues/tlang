@@ -67,7 +67,7 @@ let register env =
              let n = List.length xs in
              if n < 2 then Error.value_error "Function `scale` requires at least 2 values."
              else
-               let m = match mean xs with Some v -> v | None -> 0.0 in
+               let m = match mean xs with Some v -> v | None -> Float.nan in
                let s = Float.sqrt (List.fold_left (fun a v -> let d = v -. m in a +. d *. d) 0.0 xs /. float_of_int (n - 1)) in
                if s = 0.0 then Error.value_error "Function `scale` undefined for zero-variance data."
                else vecf (List.map (fun v -> (v -. m) /. s) xs))
