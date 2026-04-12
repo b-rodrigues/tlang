@@ -223,7 +223,7 @@ let print_pipeline_diagnostics_summary node_diagnostics =
   in
   if !show_warnings && (warning_nodes <> [] || error_nodes <> []) then begin
     Printf.eprintf
-      "Pipeline summary: %d nodes with warnings, %d errors\n%!"
+      "Pipeline summary: %d node(s) with warnings, %d error(s)\n%!"
       (List.length warning_nodes)
       (List.length error_nodes);
     List.iter (fun (name, diagnostics) ->

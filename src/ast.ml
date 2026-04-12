@@ -491,7 +491,7 @@ module Utils = struct
       ("error_nodes", VList error_nodes);
       ("suppressed_nodes", VList suppressed_nodes);
       ("summary",
-       VString (Printf.sprintf "%d nodes with warnings, %d suppressed, %d errors" 
+       VString (Printf.sprintf "%d node(s) with warnings, %d suppressed, %d error(s)" 
                  warning_count suppressed_count error_count));
     ]
 

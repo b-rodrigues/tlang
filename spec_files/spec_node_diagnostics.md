@@ -96,7 +96,7 @@ read_pipeline(p).diagnostics
 -- {
 --   warning_nodes: [cleaned, rolling_result, filtered],
 --   error_nodes:   [],
---   summary: "3 nodes with warnings, 0 errors"
+--   summary: "3 node(s) with warnings, 0 suppressed, 0 error(s)"
 -- }
 ```
 
