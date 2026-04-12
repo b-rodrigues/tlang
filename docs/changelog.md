@@ -2,116 +2,70 @@
 
 ## [0.51.3] - 2026-04-xx (Upcoming)
 
-### Added
-- **First-Class Pipeline Diagnostics**: Pipeline builds now capture and persist non-terminal warnings and terminal errors as node artifacts.
-- **Soft-Fail Semantics**: Internal node failures no longer halt the entire Nix build; instead, they produce `VError` objects, allowing independent pipeline branches to complete.
-- **Cross-Language Warning Capture**: 
-    - Python: Integrated `warnings.catch_warnings()` into the node runner.
-    - R: Integrated `withCallingHandlers()` into the node runner.
-- **Enhanced Build Summary**: New iconographic build summary (`✖` for errors, `✓` for success, `?` for warnings) with line-by-line diagnostic reporting.
-- **`explain()` function**: New builtin for interrogating `VError` artifacts, surfacing tracebacks and context from Python and R.
-- **Metadata Traceability**: Automatic injection of `node_name` into diagnostic artifacts to identify the source of failure in multi-step chains.
-- **Diagnostic Suppression**: Introduced `suppress_warnings` language combinator to silence diagnostic output for specific pipeline nodes while maintaining auditability.
-- **Improved Pipeline Summaries**: Updated the pipeline diagnostic summary to use plural-safe `node(s)` and `error(s)` formatting, and added visibility for suppressed warnings in both CLI and programmatic summaries.
-- **Evaluator Signaling**: Implemented a global signaling mechanism in the evaluator to track suppression requests across complex pipeline node expressions.
+### Pipeline Infrastructure & Observability
+- **First-Class Diagnostics Engine**: 
+    - Implemented a comprehensive diagnostics system that captures and classifies "own" vs. "upstream" warnings.
+    - Pipeline builds now persist non-terminal warnings and terminal errors as node artifacts.
+    - **Soft-Fail Semantics**: Internal node failures no longer halt the entire Nix build; they produce `VError` objects, allowing independent branches to complete.
+    - **Diagnostic Suppression**: Introduced `suppress_warnings` combinator to silence high-noise nodes while maintaining background auditability.
+    - **Improved Summaries**: Updated build summaries to use plural-safe `node(s)` and `error(s)` formatting, with clear iconographic reporting (`✖`, `✓`, `○`, `?`).
+- **Enhanced Interrogation Tools**:
+    - **`read_node()` & `read_pipeline()`**: Promoted to first-class tools. They now accept in-memory objects and return structured results with values and diagnostics.
+    - **`explain()` function**: Enhanced to surface context, tracebacks, and missingness statistics for pipeline results and errors.
+    - **Verbose Logging**: Added `verbose=1` support to pipeline builders, mapping directly to Nix build logs for improved debugging.
+- **Architectural Improvements**:
+    - **Lazy Evaluation**: Implemented lazy cross-pipeline dependency resolution, allowing expressive and ergonomic pipeline composition.
+    - **Resilient Path Resolution**: Fixed repository root discovery for nested builds and Nix sandboxes.
+    - **Dependency Traceability**: Automatic injection of `node_name` into all diagnostic records for clear error attribution in complex DAGs.
 
-- **Standardized Missingness (NA) Handling**: Finalized the implementation of the new NA-handling specification for improved consistency and "No Silent Magic" compliance.
-    - **`NAPredicateError`**: Introduced a dedicated error code for NA values encountered in boolean contexts. This enables `filter()` and other data verbs to distinguish missingness-related failures from general type errors.
-    - **Enhanced `filter()` Logic**: Updated `filter()` to utilize structured `NAPredicateError` detection. Rows where the predicate evaluates to `NA` are now excluded with a warning in both vectorized and row-wise filter evaluation paths.
-    - **Strict Condition Guards**: Enhanced `if` expressions, logical operators (`&&`, `||`), and comparison operators (`==`, `!=`, `<`, `>`, etc.) to raise `NAPredicateError` when they encounter `NA` values in boolean contexts.
-    - **Type-Validated Flags**: Added strict type validation for supported `na_ignore` math-transform call paths. Passing invalid types (e.g., `na_ignore = 1`) now results in an immediate `TypeError`.
-    - **Optimized Aggregations**: Refactored `min()` and `max()` into high-performance single-pass implementations with validated `na_rm` support.
-    - **Expanded Transform Support**: Added `VList` support to `pow()` and verified `na_ignore` semantics across `abs`, `log`, `sqrt`, `exp`, and `pow`.
+### Standardized Missingness & "Death to Null"
+- **Comprehensive NA Enforcement**:
+    - Finalized the T-Lang NA specification for total "No Silent Magic" compliance.
+    - **`NAPredicateError`**: Dedicated error code for NA values in boolean contexts, enabling robust logic in `filter()` and `if` expressions.
+    - **Strict Guards**: Enhanced logical and comparison operators to raise errors on NA instead of silent propagation.
+    - **Optimized Math**: Verified `na_ignore` semantics across all core math transforms (`abs`, `log`, `sqrt`, `exp`, `pow`) and aggregations (`min`, `max`, `sum`, `mean`).
+- **Complete Removal of Null**:
+    - The `null` keyword and `VNull` type have been completely removed from the language grammar and AST.
+    - Unified all previous "nullable" return paths (e.g., missing env vars, empty nodes) to use typed `NA` values.
+    - Replaced `is_null()` with `is_na()` as the universal missingness predicate.
 
-- **Standardized PMML Interchange (Authority Pivot)**: Finalized the transition to JPMML as the canonical scoring authority for all PMML models. 
-    - **JPMML Bridge**: Standardized on a CSV-based bridge for the JPMML evaluator, ensuring robust and deterministic cross-language scoring. The `predict()` function now prioritizes the JPMML bridge for any artifact containing a `_pmml_path`.
-    - **StatsModels PMML Support**: Enhanced `statsmodels` detection in the Python emitter to correctly identify `ResultsWrapper` objects, enabling seamless PMML export via `jpmml-statsmodels`.
-    - **Native Scorer Extraction**: Extracted 700+ lines of native OCaml scoring logic (Trees, Forests, Boosted ensembles, and Linear models) into `T_native_scoring.ml` for validation parity.
-    - **Factor Resolution Parity**: Restored and verified sophisticated term resolution (categorical dummies and interaction terms) in native linear model scoring.
-    - **Automatic Environment Configuration**: The Nix `devShell` now automatically exports `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR`, enabling zero-config PMML scoring in development environments.
-- **Improved Language Robustness & Interop**:
-    - **Strict Scalar Equality (No Silent Magic)**: Enforced strict scalarity for `==` and `!=` operators. These operators now return a `TypeError` if either operand is a collection (List, Vector, NDArray), forcing explicit use of broadcasting operators (`.==`, `.!=`) for element-wise comparison.
-    - **`identical(a, b)`**: Introduced a new core builtin for deep structural equality. Use `identical()` to compare complex objects like Lists or DataFrames, providing a safe alternative to the now scalar-only `==` operator.
-    - **Grouped Mutate Support**: Fixed a regression in `mutate()` where assigning a scalar constant to a column in a grouped DataFrame would fail with a "not callable" error.
-    - **Improved Bitwise Logic Hints**: Added `&` (BitAnd) and `|` (BitOr) to the scalar-strictly guarded operators. Using these with collections now provides a helpful hint to use vectorized operators (`.&` or `.|`).
-    - **Guarded NSE Transformation**: Fixed a critical regression where standard functions (like `ifelse` or `build_pipeline`) were receiving unexpected lambdas instead of evaluated values when called inside data verbs. NSE lambda-wrapping is now strictly guarded by a registry of NSE-aware builtins.
-    - **Expanded NSE Registry**: Added `node`, `py`, `rn`, `shn`, `mutate_node`, `filter_node`, `select_node`, and `arrange_node` to the list of builtins that handle NSE expressions, ensuring correct dependency capture and predicate evaluation.
-    - **Refined Python Auto-Return**: Fixed the Python node emitter to ignore trailing comments and blank lines when determining the last expression to auto-return, preventing silent `None` results when nodes end with comments.
-    - **String Column Extraction**: Enhanced the `pull()` builtin and internal `extract_column_name` utility to support `VString` arguments. This enables extraction of column names containing special characters (like `probability(1)`) that are not valid T symbols.
-- **CI/CD & Demo Infrastructure**:
-    - **Workflow Decoupling**: Refactored the monolithic `t_demos` E2E test suite into 30+ dedicated per-demo workflow files for faster execution and precise failure isolation.
-    - **Adaptive Repositories**: Updated the `pmml_interchange_t` and `glm_titanic_t` demos to showcase categorical factor handling and multi-lang verification across R, Python, and T.
-- **Stabilized Pipeline Dependency Detection**: Refactored the lexical analyzer to prevent false-positive dependencies in polyglot pipelines.
-    - **Explicit `deps` Argument**: Introduced a first-class `deps` argument in node definitions (`node`, `rn`, `pyn`, `shn`). This allows for robust, explicit dependency declaration using bare identifiers.
-- **Strict Dependency Declaration Enforcement**: Finalized the removal of implicit Nix package injection for pipeline nodes. T-Lang now strictly enforces that all required packages (like `jsonlite`, `arrow`, `pandas`, or `onnxruntime`) must be explicitly declared in `tproject.toml`. Pipeline compilation now provides actionable errors if dependency closures are incomplete.
-- **Mandatory Serialization Integrity**: Introduced mandatory MD5 integrity digests for all `.tobj` serialized files. The deserialization engine now automatically verifies the data integrity of artifacts, providing a descriptive warning when fallback loading is used for legacy (pre-digest) files.
-- **Resilient Pipeline Path Resolution**: Fixed a critical regression in project root discovery for nested builds. The generated `_pipeline/pipeline.nix` now reliably resolves the repository root regardless of the execution context (local, CI, or build sandbox), ensuring Nix-builds succeed across all directory depths.
-- **Test Suite Stabilization**: Refactored the core pipeline test suite to use static interrogation (`build=false`) and modern-format mocks. This ensures a stable **1782/1782** pass rate across all environments by decoupling units tests from fragile Nix-in-Nix build dependencies.
-- **Standardized Nixpkgs Pinning**: Decoupled the Nixpkgs date from the system date during project initialization to ensure reproducible and cached environments.
-    - Added `RSTATS-NIX-DATE` as the single source of truth for the project-wide Nixpkgs snapshot date.
-    - Updated `t init` to dynamically use this canonical date, preventing accidental resource-intensive source builds (like Deno/Quarto) on architectures like `aarch64-linux`.
-- **Column-wise DataFrame Construction**: Enhanced the `dataframe()` builtin to support construction from a Dictionary of columns.
-    - Added support for the intuitive `dataframe([x: [1,2], y: [3,4]])` syntax.
-    - **Scalar Recycling**: Implemented automatic recycling of single values to match the length of other columns (e.g., `dataframe([x: 1:5, y: 0])`).
-    - Improved error messaging for mismatched column lengths.
-- **PMML Serialization Hardening**:
-    - **Python Reader Guard**: Implemented an explicit runtime check in emitted Python scripts that raises a descriptive `RuntimeError` if `pypmml` is missing, preventing silent data-type mismatches and improving "No Silent Magic" compliance.
-    - **Static Requirement Checks**: Added compiler-level validation to ensure `pypmml` and `sklearn2pmml` are declared in `tproject.toml` whenever PMML serialization is requested for Python nodes.
-    - **Comprehensive Testing**: Added detailed verification in `tests/test_serializers.ml` for both static dependency detection and emitted code safety.
+### Model Interoperability & Native Scoring
+- **Standardized PMML Interchange**:
+    - Transitioned to JPMML as the canonical scoring authority via a robust, CSV-based bridge.
+    - **Native Ensemble Scoring**: Added native OCaml support for Random Forests, XGBoost, and LightGBM models.
+    - **Categorical Expansion**: Implemented automatic dummy-variable/one-hot expansion and interaction term (`:`) resolution in the native `lm()` and `predict()` engines.
+    - **`fit_stats()` API**: Unified goodness-of-fit statistics (R², AIC, BIC) into a single, language-agnostic DataFrame output.
+- **Native ONNX Inference**:
+    - Full support for `^onnx` serialization and native OCaml scoring via `onnxruntime` FFI.
+    - Automated feature mapping, metadata extraction, and multi-input/output tensor support.
+    - High-performance, memory-safe session management with OCaml GC integration.
 
-- **"Death to Null" Initiative**: Complete removal of `null` and `VNull` from the language in favor of a strict, explicit missingness model.
-    - **Grammar Cleanup**: Removed the `null` keyword from the lexer and parser. The language now exclusively uses `NA` (generic or typed) for missing data.
-    - **Non-Nullable Core**: Refactored the AST to eliminate `VNull` and `TNull`. All previous "nullable" expressions (e.g., `ifelse` without `else`, empty `read_node` results, missing environment variables) now return `NA`.
-    - **Unified Predicates**: Replaced `is_null()` with `is_na()` as the standard builtin for checking missingness across all types.
-    - **Error Visibility**: Standardized all `TypeError` messages to use `NA` instead of `Null` when describing expected types for builtins and data verbs.
-    - **Internal Architecture**: Renamed `NullColumn` to `NAColumn` and `ArrowNull` to `ArrowNA` in the Arrow-backed DataFrame implementation for total consistency.
-- **Strict Dependency Declaration**: Built-in serializers (`^json`, `^csv`, `^arrow`, `^pmml`, `^onnx`) no longer implicitly inject dependencies during Nix pipeline emission.
-    - All requirements (like `pandas`, `pyarrow`, `onnxruntime`, etc.) must now be fully and explicitly declared in `tproject.toml`.
-    - Pipeline compilation halts with a descriptive error if expected dependencies are unlisted, ensuring complete transparency for the project's dependency closures.
-    - **Interactive Fixes**: In interactive sessions, T will prompt you to automatically inject the missing entries into `tproject.toml`.
-    - **CI Integration**: For headless environments and bots, this prompt can be automatically bypassed to update the files by setting `TLANG_AUTO_ADD_PIPELINE_DEPS=1`.
-- **Pipeline Build Observability & Diagnostics**:
-    - **Structured Node Diagnostics**: Implemented a comprehensive diagnostics engine that captures and classifies "own" vs. "upstream" warnings.
-    - **`read_node()` & `read_pipeline()` Enhancement**: Promoted `read_node()` to a first-class interrogation tool. It now accepts in-memory `Pipeline` objects and returns structured `Dict` results containing values, warnings, and errors alongside existing artifact lookups.
-    - **Verbose Logging Control**: Added a `verbose` argument to `build_pipeline()`, `populate_pipeline()`, and `t_make()`. Level `verbose=1` or higher automatically maps to Nix `--verbose` flags and prints the full Nix build logs for failed nodes.
-    - **Refined Warning Deduplication**: Introduced a robust hashing-based deduplication system in the evaluator to ensure diagnostic summaries remain clean and actionable.
-    - **Flattened Dispatch Logic**: Refactored the core pipeline introspection builtins for better code quality, performance, and maintainability.
-    - **CI Standardization**: Standardized all internal pipeline tests to use `verbose=1` for better CI debugging.
-- **REPL Fixes**: Corrected a documentation comment collision in `repl.ml` that was causing compilation errors during the scale-wide refactor.
-- **Lazy Pipeline Evaluation**: Implemented lazy cross-pipeline dependency resolution. 
-    - Pipelines now support referencing nodes from other pipelines by name during definition without triggering immediate `NameError`.
-    - Evaluation of T-runtime nodes is automatically deferred to the build phase if dependencies are unresolved, enabling intuitive and ergonomic pipeline composition.
-    - The mechanism preserves all node metadata (runtime, serializers) and ensures DAG integrity for downstream compatibility checks.
-- **Project Root Discovery**: Enhanced the builder's root-finding algorithm to recognize `tproject.toml` as a valid project root indicator, preventing incorrect filesystem traversal during Nix DAG generation.
-- **Architectural Documentation**: Added `spec_files/eager_pipeline_evaluation.md` detailing the technical implementation and safety constraints of the new lazy evaluation engine.
-- **Test Failure Summary**: Enhanced the test runner to provide a clean, aggregated summary of all failures and error messages at the end of the suite execution, improving visibility and debugging efficiency.
-- **`fit_stats()` API Standardization**: Unified model-level statistics on a single, standardized `fit_stats()` function. The function now natively supports lists and dictionaries of models, allowing for effortless aggregation of goodness-of-fit statistics (R², AIC, BIC, etc.) from multiple languages (R, Python, T) into a single tidy T DataFrame.
-- **Test Suite Synchronization**: Updated the internal test suite and golden benchmarks to align with the new `fit_stats()` API.
-- Integration tests in b-rodrigues/t_demos now run on PRs as well.
-- **ONNX Serializer & Native Inference**: Comprehensive support for the ONNX (Open Neural Network Exchange) system.
-    - Registered `^onnx` as a first-class serializer for multi-runtime model portability.
-    - Added ONNX export/import helpers for R and Python in the Nix pipeline emitter.
-    - Implemented T-native metadata reader (`t_read_onnx`) for model discovery.
-    - **Native T Prediction**: Implemented high-performance scoring using OCaml FFI bindings to the `onnxruntime` C API.
-        - Supports direct `predict(df, model)` on ONNX model objects within T nodes.
-        - Includes automatic 64-bit to 32-bit float conversion for standard tensor inputs.
-        - **Multi-Input/Output support**: Capable of handling models with multiple input and output tensors.
-        - **Metadata Extraction**: Extracts model producer, description, and custom properties (available via the `metadata` dictionary in the model object).
-        - **Auto-Feature Mapping**: Automatically resolves model inputs by matching DataFrame column names against model metadata when available.
-        - Persistent session management with automated GC-based lifecycle control via custom blocks.
-- **PMML Decision Trees & Random Forests**: Added native PMML parsing and prediction support for tree-based models, including golden tests for `randomForest` exports.
-- **PMML scikit-learn Random Forests**: Added golden coverage for `sklearn2pmml`-exported RandomForest classifier and regressor models.
-- **fit_stats() for Forests**: Added tree/forest metadata (model type, number of trees, feature count, mining function) when calling `fit_stats()` on PMML random forests.
-- **PMML XGBoost & LightGBM**: Added native PMML parsing and prediction support for boosted tree ensembles.
-    - Added support for **LightGBM** models with shared additive tree logic.
-    - Generalized the internal ensemble structure to a common `boosted_model` format.
-    - Updated `fit_stats()` to provide tree counts and feature counts for all supported boosted ensembles.
-    - Fixed `flake.nix` build issues for LightGBM/Boost by disabling GPU support and adjusting CMake flags for CPU-only builds.
-    - Added full golden test coverage for both XGBoost and LightGBM using real artifacts from R and Python.
-- **Categorical Modeling Interop**:
-    - **Dummy/One-Hot Expansion**: Implemented automatic categorical expansion for the native `lm()` implementation. T now correctly handles factor columns by generating dummy variables during model fitting, ensuring compatibility with R's `lm()` behavior.
-    - **Advanced `predict()`**: Refactored the internal prediction engine to support interaction terms (`:`) and factor level mapping.
-    - **No Silent Magic**: Enforced strict error handling for unsupported interop operations. The R-ONNX writer and other experimental serializers now return explicit `VError` values instead of silent fallbacks or broken artifacts.
+### Language Robustness & Interop
+- **Strict Equality Semantics**:
+    - Enforced scalarity for `==` and `!=`. These now require explicit broadcasting (`.==`) for collections to prevent silent logic errors.
+    - **`identical(a, b)`**: New core builtin for deep structural equality of complex objects.
+- **Enhanced Data Operations**:
+    - **`dataframe()` Constructor**: Added support for Dictionary-based construction and automatic scalar recycling.
+    - **NSE Safety**: Implemented guarded NSE transformation to prevent unexpected lambda-wrapping of non-NSE builtins.
+- **String Column Extraction**: Enhanced `pull()` and column helpers to support `VString` arguments for extraction of special-character column names.
+
+### Project, CI & Test Infrastructure
+- **Strict Dependency Declaration**:
+    - Finalized the removal of implicit Nix package injection. All requirements must be explicitly listed in `tproject.toml`.
+    - Added interactive injection prompts and `TLANG_AUTO_ADD_PIPELINE_DEPS` for CI automation.
+- **Environment Stability**:
+    - Standardized Nixpkgs pinning via `RSTATS-NIX-DATE` for reproducible, cache-friendly builds.
+    - **Serialization Integrity**: Introduced mandatory MD5 digests for all serialized artifacts.
+- **CI/CD Stabilization**:
+    - Refactored `t_demos` into 30+ dedicated per-demo workflows.
+    - Optimized the core test suite to use static interrogation and modern mocks, achieving a stable baseline of **1837/1837** tests passed.
+    - Enhanced the test runner with aggregated failure summaries.
+
+### Bug Fixes & Refinements
+- **REPL Stability**: Corrected a documentation comment collision in `repl.ml` that was causing compilation errors during scale-wide refactors.
+- **Python Node Emitter**: Refined the auto-return logic to ignore trailing comments and whitespace, preventing silent `None` results.
+- **Grouped Mutate**: Fixed a regression where assigning constant scalars to grouped DataFrames would fail.
+- **Interaction Resolution**: Restored and verified interaction term (`:`) resolution in native linear model scoring.
 
 ## Version 0.51.2 — Current Stable Release
 
