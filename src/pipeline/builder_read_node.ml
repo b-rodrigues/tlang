@@ -86,6 +86,9 @@ let read_node ?which_log name =
           | Some cn ->
               if cn.Ast.cn_class = "VError" then
                 (match Serialization.read_verror_json cn.Ast.cn_path with
+                 | Ok (VError e) ->
+                     (* Enrich the error context with the originating node name *)
+                     VError { e with context = ("node_name", VString name) :: e.context }
                  | Ok v -> v
                  | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Error node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
               else if cn.Ast.cn_runtime = "T"

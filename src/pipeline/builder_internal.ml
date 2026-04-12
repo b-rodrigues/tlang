@@ -134,7 +134,10 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
         (* Completed: nix-build prints the output store path without ".drv" *)
         match List.find_opt (fun name -> contains_substring line ("-" ^ name)) node_names with
         | Some name ->
-            if Hashtbl.find statuses name <> "Completed" && Hashtbl.find statuses name <> "Errored" then (
+            if Hashtbl.find statuses name <> "Completed" && 
+               Hashtbl.find statuses name <> "SoftFailed" &&
+               Hashtbl.find statuses name <> "Errored" then (
+              (* We'll refine this to SoftFailed later if artifact class is VError *)
               Hashtbl.replace statuses name "Completed";
               Printf.printf "  ✓ %s built\n%!" name
             )
@@ -198,10 +201,21 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 (* Reconcile statuses: if nix-build succeeded, check which nodes were built (cached or otherwise) *)
                 List.iter (fun name ->
                   if Hashtbl.find statuses name <> "Completed" && 
+                     Hashtbl.find statuses name <> "SoftFailed" &&
                      Hashtbl.find statuses name <> "Errored" then (
                     let node_path = Filename.concat out_path name in
-                    if Sys.file_exists node_path then
-                      Hashtbl.replace statuses name "Completed"
+                    if Sys.file_exists node_path then (
+                      let class_path = Filename.concat node_path "class" in
+                      match read_file_first_line class_path with
+                      | Some "VError" -> Hashtbl.replace statuses name "SoftFailed"
+                      | _ -> Hashtbl.replace statuses name "Completed"
+                    )
+                  ) else if Hashtbl.find statuses name = "Completed" then (
+                    (* Refine "Completed" from Nix output if it was actually a soft-fail *)
+                    let node_path = Filename.concat out_path name in
+                    let class_path = Filename.concat node_path "class" in
+                    if (match read_file_first_line class_path with Some "VError" -> true | _ -> false) then
+                       Hashtbl.replace statuses name "SoftFailed"
                   )
                 ) node_names;
 
@@ -214,8 +228,15 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 
                 (* Success Summary *)
                 let completed = List.filter (fun n -> Hashtbl.find statuses n = "Completed") node_names in
-                Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
-                  (List.length completed) (List.length node_names);
+                let soft_failed = List.filter (fun n -> Hashtbl.find statuses n = "SoftFailed") node_names in
+                let total_built = List.length completed + List.length soft_failed in
+                 
+                if List.length soft_failed > 0 then
+                  Printf.printf "\n✓ Pipeline build completed [%d nodes completed, %d nodes captured errors]\n%!" 
+                    (List.length completed) (List.length soft_failed)
+                else
+                  Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
+                    total_built (List.length node_names);
                 
                 let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
                 let log_path = Filename.concat pipeline_dir log_name in
@@ -229,6 +250,8 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                     let serializer_expr = match List.assoc_opt name p.p_serializers with Some s -> s | None -> Ast.mk_expr (Ast.Var "default") in
                     let serializer = Nix_unparse.expr_to_string serializer_expr in
                     let deps = match List.assoc_opt name p.p_deps with Some d -> d| None -> [] in
+                    let status = Hashtbl.find statuses name in
+                    let success = if status = "SoftFailed" then "false" else "true" in
                     Serialization.json_dict [
                       ("node", "\"" ^ Serialization.json_escape name ^ "\"");
                       ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
@@ -236,7 +259,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                       ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
                       ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
                       ("dependencies", Serialization.json_list deps);
-                      ("success", "true")
+                      ("success", success)
                     ]
                   ) p.p_exprs
                 in
