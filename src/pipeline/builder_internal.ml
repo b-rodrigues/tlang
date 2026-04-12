@@ -243,8 +243,6 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 ) else
                   Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
                     total_built (List.length node_names);
-                  Printf.printf "\n✓ Pipeline build completed [%d/%d nodes built successfully]\n%!" 
-                    total_built (List.length node_names);
                 
                 let log_name = Printf.sprintf "build_log_%s_%s.json" timestamp hash in
                 let log_path = Filename.concat pipeline_dir log_name in
