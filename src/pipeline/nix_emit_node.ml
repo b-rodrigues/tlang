@@ -1096,7 +1096,25 @@ def py_read_onnx(path):
       let non_imports = List.filter (fun l -> String.trim l <> "") non_imports in
       if runtime = "Python" && not (raw_assigns_to name expr_s) then
          match List.rev non_imports with
-         | last :: rest when not (is_assignment_stmt last) && not (String.starts_with ~prefix:"print(" (String.trim last)) ->
+         | last :: rest when
+             let l = String.trim last in
+             not (is_assignment_stmt l) &&
+             not (String.starts_with ~prefix:"print(" l) &&
+             not (String.starts_with ~prefix:"raise " l) &&
+             not (String.starts_with ~prefix:"import " l) &&
+             not (String.starts_with ~prefix:"from " l) &&
+             not (String.starts_with ~prefix:"if " l) &&
+             not (String.starts_with ~prefix:"for " l) &&
+             not (String.starts_with ~prefix:"while " l) &&
+             not (String.starts_with ~prefix:"with " l) &&
+             not (String.starts_with ~prefix:"def " l) &&
+             not (String.starts_with ~prefix:"class " l) &&
+             not (String.starts_with ~prefix:"assert " l) &&
+             not (String.starts_with ~prefix:"yield " l) &&
+             not (String.starts_with ~prefix:"del " l) &&
+             not (String.starts_with ~prefix:"global " l) &&
+             not (String.starts_with ~prefix:"nonlocal " l)
+             ->
              let last_trimmed = String.trim last in
              let spaces = ref 0 in
              while !spaces < String.length last && (last.[!spaces] = ' ' || last.[!spaces] = '\t') do
