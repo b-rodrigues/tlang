@@ -57,11 +57,13 @@
     - Pipeline compilation halts with a descriptive error if expected dependencies are unlisted, ensuring complete transparency for the project's dependency closures.
     - **Interactive Fixes**: In interactive sessions, T will prompt you to automatically inject the missing entries into `tproject.toml`.
     - **CI Integration**: For headless environments and bots, this prompt can be automatically bypassed to update the files by setting `TLANG_AUTO_ADD_PIPELINE_DEPS=1`.
-- **Pipeline Build Observability**:
-    - Added a `verbose` argument to `build_pipeline()`, `populate_pipeline()`, and `t_make()`.
-    - Level `verbose=1` or higher automatically maps to Nix `--verbose` flags and prints the full Nix build logs for any failed nodes directly to the console.
-    - Standardized all internal pipeline tests to use `verbose=1` for better CI debugging.
-- **`read_node()` Enhancements**: Improved `read_node()` to support a `Pipeline` object as its first argument, enabling convenient retrieval of artifacts from a specific pipeline instance alongside existing string-based node name lookups.
+- **Pipeline Build Observability & Diagnostics**:
+    - **Structured Node Diagnostics**: Implemented a comprehensive diagnostics engine that captures and classifies "own" vs. "upstream" warnings.
+    - **`read_node()` & `read_pipeline()` Enhancement**: Promoted `read_node()` to a first-class interrogation tool. It now accepts in-memory `Pipeline` objects and returns structured `Dict` results containing values, warnings, and errors alongside existing artifact lookups.
+    - **Verbose Logging Control**: Added a `verbose` argument to `build_pipeline()`, `populate_pipeline()`, and `t_make()`. Level `verbose=1` or higher automatically maps to Nix `--verbose` flags and prints the full Nix build logs for failed nodes.
+    - **Refined Warning Deduplication**: Introduced a robust hashing-based deduplication system in the evaluator to ensure diagnostic summaries remain clean and actionable.
+    - **Flattened Dispatch Logic**: Refactored the core pipeline introspection builtins for better code quality, performance, and maintainability.
+    - **CI Standardization**: Standardized all internal pipeline tests to use `verbose=1` for better CI debugging.
 - **REPL Fixes**: Corrected a documentation comment collision in `repl.ml` that was causing compilation errors during the scale-wide refactor.
 - **Lazy Pipeline Evaluation**: Implemented lazy cross-pipeline dependency resolution. 
     - Pipelines now support referencing nodes from other pipelines by name during definition without triggering immediate `NameError`.
