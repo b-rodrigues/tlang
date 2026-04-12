@@ -1143,7 +1143,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 }
 )
     | Call { fn; args } ->
-        let fn_val = eval_expr env_ref fn in
+        let fn_val = Utils.unwrap_value (eval_expr env_ref fn) in
         eval_call env_ref fn_val args
 
     | Lambda l -> VLambda { l with env = Some !env_ref } (* Capture the current environment *)
@@ -1908,6 +1908,21 @@ and eval_dict_lit env_ref items =
 
 and eval_dot_access env_ref target_expr field =
   let target_val = eval_expr env_ref target_expr in
+  match target_val with
+  | VNodeResult { diagnostics; _ } ->
+      (match field with
+      | "warnings" ->
+          (match Utils.node_diagnostics_to_value diagnostics with
+           | VDict p -> (match List.assoc_opt "warnings" p with Some v -> v | None -> VNA NAGeneric)
+           | _ -> VNA NAGeneric)
+      | "error" ->
+          (match Utils.node_diagnostics_to_value diagnostics with
+           | VDict p -> (match List.assoc_opt "error" p with Some v -> v | None -> VNA NAGeneric)
+           | _ -> VNA NAGeneric)
+      | _ -> eval_dot_access_val env_ref (Utils.unwrap_value target_val) field)
+  | _ -> eval_dot_access_val env_ref target_val field
+
+and eval_dot_access_val _env_ref target_val field =
   (* Helper: check if any column name in the table starts with the given prefix *)
   let has_column_prefix arrow_table prefix =
     let pfx = prefix ^ "." in
@@ -2419,8 +2434,8 @@ and eval_binop env_ref op left right =
        | _ -> make_error TypeError ("Left operand of || must be Bool, got " ^ Utils.type_name lval))
   (* Membership Operator *)
   | In ->
-      let lval = eval_expr env_ref left in
-      let rval = eval_expr env_ref right in
+      let lval = Utils.unwrap_value (eval_expr env_ref left) in
+      let rval = Utils.unwrap_value (eval_expr env_ref right) in
       (match (lval, rval) with
       | (VError _, _) -> lval
       | (_, VError _) -> rval
@@ -2452,8 +2467,10 @@ and eval_binop env_ref op left right =
 
   (* All other binary operators *)
   | _ ->
-  let lval = eval_expr env_ref left in
-  let rval = eval_expr env_ref right in
+  let lval_raw = eval_expr env_ref left in
+  let rval_raw = eval_expr env_ref right in
+  let lval = Utils.unwrap_value lval_raw in
+  let rval = Utils.unwrap_value rval_raw in
   match (op, lval, rval) with
   | _, VError _, _ -> lval
   | _, _, VError _ -> rval
@@ -2476,7 +2493,7 @@ and eval_binop env_ref op left right =
   | _ -> eval_scalar_binop op lval rval
 
 and eval_unop env_ref op operand =
-  let v = eval_expr env_ref operand in
+  let v = Utils.unwrap_value (eval_expr env_ref operand) in
   match v with VError _ as e -> e | _ ->
   match v with
   | VNA _ -> Error.na_predicate_error "Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly."

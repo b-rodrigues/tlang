@@ -239,6 +239,11 @@ and value =
   (* Internal: environment as a first-class value, used by __q_caller_env__ *)
   | VEnv of value Env.t
   | VSerializer of serializer
+  | VNodeResult of {
+      v : value;
+      node_name : string;
+      diagnostics : node_diagnostics;
+    }
 
 
 
@@ -380,10 +385,15 @@ module Utils = struct
     nd_error = None;
   }
 
-  let is_truthy = function
+  let rec unwrap_value = function
+    | VNodeResult { v; _ } -> unwrap_value v
+    | v -> v
+
+  let rec is_truthy = function
     | VBool false | VInt 0 -> false
     | VError _ -> false
     | VNA _ -> false
+    | VNodeResult { v; _ } -> is_truthy v
     | _ -> true
 
   (** Check if an expression is a column reference and extract the column name.
@@ -540,7 +550,7 @@ module Utils = struct
     | TSerializer -> "Serializer"
     | TExpr -> "Expression"
 
-  let type_name = function
+  let rec type_name = function
     | VInt _ -> "Int" | VFloat _ -> "Float"
     | VBool _ -> "Bool" | VString _ -> "String" | VRawCode _ -> "Code"
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
@@ -565,6 +575,7 @@ module Utils = struct
     | VUnquoteSplice _ -> "UnquoteSplice"
     | VDynamicArg _ -> "DynamicArg"
     | VEnv _ -> "Environment"
+    | VNodeResult { v; _ } -> type_name v
 
   let rec binop_to_string = function
     | Plus -> "+" | Minus -> "-" | Mul -> "*" | Div -> "/" | Mod -> "%"
@@ -790,6 +801,7 @@ module Utils = struct
     | VUnquoteSplice v -> "!!!" ^ value_to_string v
     | VDynamicArg (n, v) -> n ^ " := " ^ value_to_string v
     | VEnv _ -> "<environment>"
+    | VNodeResult { v; _ } -> value_to_string v
 
   let value_to_raw_string = function
     | VString s -> s

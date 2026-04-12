@@ -285,6 +285,7 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       invalid_arg "value_to_yojson: VFactor/VSerializer is not supported for JSON serialization"
   | VUnquote _ | VUnquoteSplice _ | VDynamicArg _ | VQuo _ | VEnv _ ->
       invalid_arg "value_to_yojson: metaprogramming intermediate values are not serializable"
+  | VNodeResult { v; _ } -> value_to_yojson v
 
 let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   match j with
