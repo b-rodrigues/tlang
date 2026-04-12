@@ -392,19 +392,21 @@ let deserialize_from_file path =
     let ic = open_in_bin path in
     let result =
       match read_serialized_value_header ic with
-      | Error _ ->
-          (* Fallback: is it a JSON-serialized VError? *)
+      | Error original_err ->
+          (* Fallback: is it a JSON-serialized VError?
+             We check for a 'class' file in the same directory. *)
           let class_path = Filename.concat (Filename.dirname path) "class" in
           if Sys.file_exists class_path then
-            let ch = open_in class_path in
-            let cls = try input_line ch |> String.trim with _ -> "" in
-            close_in ch;
-            if cls = "VError" then
-              read_json path
-            else
-              Error "Missing TLANG magic header and not a VError."
+            (close_in ic;
+             let ic2 = open_in class_path in
+             let cls = input_line ic2 |> String.trim in
+             close_in ic2;
+             if cls = "VError" then
+               read_json path
+             else
+               Error (Printf.sprintf "Unknown artifact class `%s`" cls))
           else
-            Error "Missing TLANG magic header and no class file found."
+            (close_in ic; Error original_err)
       | Ok () ->
           (* Remember position right after the version header so we can fall
              back to legacy (digest-less) deserialization if needed. *)
