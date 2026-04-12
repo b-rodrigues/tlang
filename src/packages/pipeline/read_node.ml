@@ -18,10 +18,10 @@ open Ast
 --# @export
 *)
 let register env =
-  (** Helper to extract an argument from a named/positional list.
-      @param name The name of the argument (for named calls).
-      @param pos The 1-indexed position of the argument (for positional calls).
-      @param default Fallback value if the argument is missing. *)
+  (* Helper to extract an argument from a named/positional list.
+     @param name The name of the argument (for named calls).
+     @param pos The 1-indexed position of the argument (for positional calls).
+     @param default Fallback value if the argument is missing. *)
   let extract_arg name pos default args =
     match List.assoc_opt (Some name) args with
     | Some v -> v
