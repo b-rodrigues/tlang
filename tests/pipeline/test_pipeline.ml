@@ -280,15 +280,26 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let legacy_node_path = "test_legacy_node.tobj" in
   write_marshaled_value_legacy legacy_node_path "0.4.0" (Ast.VInt 7);
+  let plot_json_path = "test_plot_metadata_fallback.json" in
+  ignore (Serialization.write_json plot_json_path
+    (Ast.VDict [
+      ("class", Ast.VString "matplotlib");
+      ("backend", Ast.VString "matplotlib");
+      ("title", Ast.VString "Fallback plot");
+      ("mapping", Ast.VDict []);
+      ("labels", Ast.VDict [("x", Ast.VString "x"); ("y", Ast.VString "y")]);
+      ("layers", Ast.VList [(None, Ast.VString "Line2D")]);
+    ]));
   let legacy_log = Printf.sprintf {|{
     "timestamp": "20240101-000001",
     "hash": "legacy",
     "out_path": "/tmp",
     "nodes": [
       { "node": "legacy_node", "path": "%s", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
-      { "node": "compatible_node", "path": "test_roundtrip.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
+      { "node": "compatible_node", "path": "test_roundtrip.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+      { "node": "plot_json_node", "path": "%s", "runtime": "Python", "serializer": "json", "class": "matplotlib", "dependencies": [], "success": "true" }
     ]
-  }|} legacy_node_path in
+  }|} legacy_node_path plot_json_path in
   let oc_legacy_log = open_out "_pipeline/build_log_legacy_version.json" in
   output_string oc_legacy_log legacy_log;
   close_out oc_legacy_log;
@@ -311,6 +322,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "read_node missing key (mocked)"
     "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
     "true";
+
+  test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
+    "read_node(\"plot_json_node\", which_log=\"legacy_version\").title"
+    {|"Fallback plot"|};
 
   test "read_node rejects older serialized node versions"
     "read_node(\"legacy_node\", which_log=\"legacy_version\")"

@@ -140,18 +140,21 @@ let is_visual_metadata_class = function
   | VString "ggplot" | VString "matplotlib" -> true
   | _ -> false
 
+let display_keys_from_pairs pairs =
+  List.fold_left (fun acc (k, v) ->
+    match k, v with
+    | "_display_keys", VList items ->
+        Some (List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items)
+    | _ -> acc
+  ) None pairs
+
 (** Internal helper for recursive pretty formatting with indentation *)
 let rec pretty_format ?(max_depth=5) ?(indent="") v =
   match v with
   | VDict pairs ->
       if max_depth <= 0 then Utils.value_to_string v
       else if pairs = [] then "{}" else
-      let display_keys = List.fold_left (fun acc (k, v) ->
-        match k, v with
-        | "_display_keys", VList items ->
-            Some (List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items)
-        | _ -> acc
-      ) None pairs in
+      let display_keys = display_keys_from_pairs pairs in
       let visible_pairs = match display_keys with
         | None -> pairs
         | Some keys -> List.filter (fun (k, _) -> List.mem k keys) pairs
@@ -193,9 +196,17 @@ and pretty_print_visual_metadata pairs =
   if body_pairs = [] then
     Printf.sprintf "%s {}\n" class_name
   else
+    let display_keys =
+      match display_keys_from_pairs pairs with
+      | Some keys -> List.filter (fun key -> key <> "class") keys
+      | None -> List.map fst body_pairs
+    in
+    let filtered_body_pairs =
+      List.filter (fun (k, _) -> List.mem k display_keys) body_pairs
+    in
     let body =
       pretty_format
-        (VDict (body_pairs @ [("_display_keys", VList (List.map (fun (k, _) -> (None, VString k)) body_pairs))]))
+        (VDict (filtered_body_pairs @ [("_display_keys", VList (List.map (fun k -> (None, VString k)) display_keys))]))
     in
     Printf.sprintf "%s %s\n" class_name body
 

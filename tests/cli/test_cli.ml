@@ -217,6 +217,29 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   in
   test_message "pretty_print ggplot metadata uses specialized class heading"
     (contains ggplot_pretty "ggplot {" && contains ggplot_pretty "`mapping`");
+  let ggplot_trimmed_pretty =
+    Pretty_print.pretty_print_value
+      (Ast.VDict [
+        ("class", Ast.VString "ggplot");
+        ("backend", Ast.VString "R");
+        ("title", Ast.VString "Fuel economy");
+        ("mapping", Ast.VDict [("x", Ast.VString "wt"); ("y", Ast.VString "mpg")]);
+        ("labels", Ast.VDict [("x", Ast.VString "Weight"); ("y", Ast.VString "Miles per gallon")]);
+        ("layers", Ast.VList [(None, Ast.VString "Point")]);
+        ("extra", Ast.VString "hidden");
+        ("_display_keys", Ast.VList [
+          (None, Ast.VString "class");
+          (None, Ast.VString "title");
+          (None, Ast.VString "layers");
+        ]);
+      ])
+  in
+  test_message "pretty_print ggplot metadata honors provided display keys"
+    (contains ggplot_trimmed_pretty "ggplot {" &&
+     contains ggplot_trimmed_pretty "`title`" &&
+     contains ggplot_trimmed_pretty "`layers`" &&
+     not (contains ggplot_trimmed_pretty "`mapping`") &&
+     not (contains ggplot_trimmed_pretty "`extra`"));
   let matplotlib_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [

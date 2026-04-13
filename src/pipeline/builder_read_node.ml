@@ -54,6 +54,22 @@ let is_visual_metadata_class = function
   | "ggplot" | "matplotlib" -> true
   | _ -> false
 
+let read_standard_node_value cn =
+  if cn.cn_serializer = "json" then
+    match Serialization.read_json cn.cn_path with
+    | Ok v -> v
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "arrow" then
+    match Arrow_io.read_ipc cn.cn_path with
+    | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+    | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "pmml" then
+    match Pmml_utils.read_pmml cn.cn_path with
+    | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
+    | Error _ -> VComputedNode cn
+  else
+    VComputedNode cn
+
 (* Best-effort deserialization for nodes exposed through T_NODE_<name> in the
    Nix sandbox: recover structured VError artifacts when possible and otherwise
    fall back to the computed node handle. *)
@@ -70,21 +86,9 @@ let read_env_node_value name cn =
       | Ok v -> v
       | Error _ -> VComputedNode cn
     else
-      VComputedNode cn
-  else if cn.cn_serializer = "json" then
-    match Serialization.read_json cn.cn_path with
-    | Ok v -> v
-    | Error _ -> VComputedNode cn
-  else if cn.cn_serializer = "arrow" then
-    match Arrow_io.read_ipc cn.cn_path with
-    | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
-    | Error _ -> VComputedNode cn
-  else if cn.cn_serializer = "pmml" then
-    match Pmml_utils.read_pmml cn.cn_path with
-    | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
-    | Error _ -> VComputedNode cn
+      read_standard_node_value cn
   else
-    VComputedNode cn
+    read_standard_node_value cn
 
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
@@ -162,9 +166,36 @@ let read_node ?which_log name =
                   if Sys.file_exists viz_path then
                     (match Serialization.read_json viz_path with
                      | Ok v -> v
-                     | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read plot metadata node `%s` from `%s`: %s" name viz_path msg))
+                      | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read plot metadata node `%s` from `%s`: %s" name viz_path msg))
                   else
-                    VComputedNode cn
+                    (if cn.Ast.cn_runtime = "T"
+                        && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
+                     then
+                        (match Serialization.deserialize_from_file cn.Ast.cn_path with
+                         | Ok v -> v
+                         | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                     else if cn.Ast.cn_serializer = "json" then
+                        (match Serialization.read_json cn.Ast.cn_path with
+                         | Ok v -> v
+                         | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read JSON node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                     else if cn.Ast.cn_serializer = "arrow" then
+                        (match Arrow_io.read_ipc cn.Ast.cn_path with
+                         | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+                         | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                     else if cn.Ast.cn_serializer = "csv" then
+                        (try
+                           let ch = open_in cn.Ast.cn_path in
+                           let content = really_input_string ch (in_channel_length ch) in
+                           close_in ch;
+                           T_read_csv.parse_csv_string content
+                         with exn ->
+                           Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read CSV node `%s` from `%s`: %s" name cn.Ast.cn_path (Printexc.to_string exn)))
+                     else if cn.Ast.cn_serializer = "pmml" then
+                        (match Pmml_utils.read_pmml cn.Ast.cn_path with
+                         | Ok v -> Pmml_utils.attach_source_path cn.Ast.cn_path v
+                         | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read PMML node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                     else
+                       VComputedNode cn)
                 else if cn.Ast.cn_runtime = "T"
                    && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
                 then
