@@ -280,7 +280,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let legacy_node_path = "test_legacy_node.tobj" in
   write_marshaled_value_legacy legacy_node_path "0.4.0" (Ast.VInt 7);
-  let plot_json_path = "test_plot_metadata_fallback.json" in
+  let plot_json_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-plot-fallback" in
+  (try Unix.mkdir plot_json_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let plot_json_path = Filename.concat plot_json_dir "artifact" in
+  let plot_json_viz = Filename.concat plot_json_dir "viz" in
+  (try Sys.remove plot_json_viz with Sys_error _ -> ());
   ignore (Serialization.write_json plot_json_path
     (Ast.VDict [
       ("class", Ast.VString "matplotlib");
@@ -326,6 +330,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
     "read_node(\"plot_json_node\", which_log=\"legacy_version\").title"
     {|"Fallback plot"|};
+  test "plot fallback fixture does not create a viz sidecar"
+    (Printf.sprintf {|file_exists("%s")|} plot_json_viz)
+    "false";
 
   test "read_node rejects older serialized node versions"
     "read_node(\"legacy_node\", which_log=\"legacy_version\")"
