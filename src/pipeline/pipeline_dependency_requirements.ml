@@ -171,7 +171,7 @@ let scan_code_requirements ~node_name ~runtime raw_text =
 
 let required_for_pipeline (p : Ast.pipeline_result) =
   List.fold_left
-    (fun acc (node_name, _) ->
+    (fun acc (node_name, cmd_expr) ->
       let runtime =
         match List.assoc_opt node_name p.p_runtimes with
         | Some r -> r
@@ -197,7 +197,7 @@ let required_for_pipeline (p : Ast.pipeline_result) =
           formats acc
       in
       let acc =
-        match expr.node with
+        match cmd_expr.node with
         | RawCode { raw_text; _ } ->
             merge_requirements acc (scan_code_requirements ~node_name ~runtime raw_text)
         | _ -> acc
