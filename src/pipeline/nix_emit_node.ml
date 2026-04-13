@@ -343,11 +343,7 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
 
   let t_json_r_code = {|
 r_write_json <- function(object, path) {
-  if (r_write_plot_metadata(object, path)) {
-    invisible(path)
-  } else {
-    jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
-  }
+  jsonlite::write_json(object, path, auto_unbox = TRUE, null = "null")
 }
 r_read_json <- function(path) {
   jsonlite::read_json(path, simplifyVector = TRUE)
@@ -383,9 +379,8 @@ def py_read_csv(path):
   let t_json_py_code = {|
 import json
 def py_write_json(obj, path):
-    metadata = py_extract_plot_metadata(obj)
     with open(path, "w") as f:
-        json.dump(metadata if metadata is not None else obj, f)
+        json.dump(obj, f)
 def py_read_json(path):
     with open(path) as f:
         return json.load(f)
@@ -1311,21 +1306,23 @@ def py_save_viz_metadata(obj, path):
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in
 
   let r_emit_artifact value_name =
-    let viz_call = Printf.sprintf "  r_save_viz_metadata(%s, \"$out/viz\")" value_name in
+    let viz_call = Printf.sprintf "  r_save_viz_metadata(%s, file.path(Sys.getenv(\"out\"), \"viz\"))" value_name in
+    let artifact_path = "file.path(Sys.getenv(\"out\"), \"artifact\")" in
     if uses_default_serializer then
       Printf.sprintf {|%s
-  %s(%s, "$out/artifact")|} viz_call ser_call value_name
+  %s(%s, %s)|} viz_call ser_call value_name artifact_path
     else
-      Printf.sprintf {|  %s(%s, "$out/artifact")|} ser_call value_name
+      Printf.sprintf {|  %s(%s, %s)|} ser_call value_name artifact_path
   in
 
   let py_emit_artifact value_name =
-    let viz_call = Printf.sprintf "    py_save_viz_metadata(%s, \"$out/viz\")" value_name in
+    let viz_call = Printf.sprintf "    py_save_viz_metadata(%s, os.path.join(os.environ[\"out\"], \"viz\"))" value_name in
+    let artifact_path = "os.path.join(os.environ[\"out\"], \"artifact\")" in
     if uses_default_serializer then
       Printf.sprintf {|%s
-    %s(%s, "$out/artifact")|} viz_call ser_call value_name
+    %s(%s, %s)|} viz_call ser_call value_name artifact_path
     else
-      Printf.sprintf {|    %s(%s, "$out/artifact")|} ser_call value_name
+      Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
   in
 
   let is_import_line line =
