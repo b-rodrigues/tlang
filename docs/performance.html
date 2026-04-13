@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - performance</h1>
-</header>
 <h1 id="performance">Performance</h1>
 <blockquote>
 <p>Arrow backend architecture, vectorization strategy, and performance
@@ -68,7 +65,7 @@ present</li>
 to keep DataFrames on the <strong>native Arrow path</strong> after
 supported structural changes by rebuilding a native Arrow table when the
 resulting schema is Arrow-builder-compatible. Primitive,
-dictionary/factor, date, datetime/timestamp, null-only, and several
+dictionary/factor, date, datetime/timestamp, NA-only, and several
 list-column shapes can now stay native; users should still inspect the
 active backend explicitly for more complex nested schemas.</p>
 </blockquote>
@@ -100,7 +97,7 @@ explain(df2).storage_backend     -- often still &quot;native_arrow&quot; for sup
 explain(df2).native_path_active  -- true when native backing was preserved
 
 df3 = dataframe([[missing: NA], [missing: NA]])
-explain(df3).storage_backend     -- &quot;native_arrow&quot; for null-only schemas
+explain(df3).storage_backend     -- &quot;native_arrow&quot; for NA-only schemas
 explain(df3).native_path_active  -- true</code></pre>
 <p>This is the quickest way to understand whether a pipeline is still on
 the fast Arrow path or has already materialized into OCaml/T-managed
@@ -287,7 +284,7 @@ cardinality (&gt;10,000 unique groups) uses O(n × g) operations in the
 OCaml fallback path, where n is row count and g is group count.</p></li>
 <li><p><strong>Memory usage</strong>: Pure OCaml fallback stores data as
 <code>option array</code> (boxed), using more memory than Arrow’s
-compact nullable representation. For 1M-row datasets, expect ~2× memory
+compact NAable representation. For 1M-row datasets, expect ~2× memory
 overhead compared to native Arrow storage.</p></li>
 </ol>
 <hr />

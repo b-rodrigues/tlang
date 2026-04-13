@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - index</h1>
-</header>
 <h1 id="function-reference">Function Reference</h1>
 <table>
 <colgroup>
@@ -211,6 +208,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Model Coefficients</td>
 </tr>
 <tr>
+<td><a href="col_lens.html">col_lens</a></td>
+<td>Create a Column Lens</td>
+</tr>
+<tr>
 <td><a href="colnames.html">colnames</a></td>
 <td>Get column names</td>
 </tr>
@@ -221,6 +222,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="complete.html">complete</a></td>
 <td>Complete a data frame</td>
+</tr>
+<tr>
+<td><a href="compose.html">compose</a></td>
+<td>Compose Lenses</td>
 </tr>
 <tr>
 <td><a href="conf_int.html">conf_int</a></td>
@@ -347,8 +352,21 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Check if string ends with suffix</td>
 </tr>
 <tr>
+<td><a href="enquo.html">enquo</a></td>
+<td>Capture a function argument’s expression (non-standard
+evaluation)</td>
+</tr>
+<tr>
+<td><a href="enquos.html">enquos</a></td>
+<td>Capture variadic argument expressions (non-standard evaluation)</td>
+</tr>
+<tr>
 <td><a href="env.html">env</a></td>
 <td>Get environment variable</td>
+</tr>
+<tr>
+<td><a href="env_var_lens.html">env_var_lens</a></td>
+<td>Pipeline Env Var Lens</td>
 </tr>
 <tr>
 <td><a href="error.html">error</a></td>
@@ -368,7 +386,7 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 </tr>
 <tr>
 <td><a href="eval.html">eval</a></td>
-<td>Evaluate a quoted expression</td>
+<td>Evaluate a quoted expression or quosure</td>
 </tr>
 <tr>
 <td><a href="everything.html">everything</a></td>
@@ -400,7 +418,7 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 </tr>
 <tr>
 <td><a href="exprs.html">exprs</a></td>
-<td>Capture multiple expressions</td>
+<td></td>
 </tr>
 <tr>
 <td><a href="factor.html">factor</a></td>
@@ -475,12 +493,16 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Filter rows</td>
 </tr>
 <tr>
+<td><a href="filter_lens.html">filter_lens</a></td>
+<td>Filter Lens</td>
+</tr>
+<tr>
 <td><a href="filter_node.html">filter_node</a></td>
 <td>Filter Pipeline Nodes</td>
 </tr>
 <tr>
 <td><a href="fit_stats.html">fit_stats</a></td>
-<td>Model Fit Statistics</td>
+<td>Model Goodness-of-Fit Statistics</td>
 </tr>
 <tr>
 <td><a href="fivenum.html">fivenum</a></td>
@@ -512,7 +534,7 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 </tr>
 <tr>
 <td><a href="get.html">get</a></td>
-<td>Get element by index</td>
+<td>Get Value via Lens</td>
 </tr>
 <tr>
 <td><a href="getwd.html">getwd</a></td>
@@ -545,6 +567,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="huber_loss.html">huber_loss</a></td>
 <td>Huber loss</td>
+</tr>
+<tr>
+<td><a href="idx_lens.html">idx_lens</a></td>
+<td>Index Lens</td>
 </tr>
 <tr>
 <td><a href="ifelse.html">ifelse</a></td>
@@ -663,6 +689,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Get length</td>
 </tr>
 <tr>
+<td><a href="lens.html">lens</a></td>
+<td>Lens Library</td>
+</tr>
+<tr>
 <td><a href="levels.html">levels</a></td>
 <td>Get factor levels</td>
 </tr>
@@ -743,6 +773,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Mode</td>
 </tr>
 <tr>
+<td><a href="modify.html">modify</a></td>
+<td>Multiple Lens Transformations</td>
+</tr>
+<tr>
 <td><a href="month.html">month</a></td>
 <td>Extract or label the month</td>
 </tr>
@@ -811,6 +845,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Configure a Pipeline Node</td>
 </tr>
 <tr>
+<td><a href="node_lens.html">node_lens</a></td>
+<td>Pipeline Node Lens</td>
+</tr>
+<tr>
 <td><a href="normalize.html">normalize</a></td>
 <td>Normalize values</td>
 </tr>
@@ -829,6 +867,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="ordered.html">ordered</a></td>
 <td>Create ordered factors</td>
+</tr>
+<tr>
+<td><a href="over.html">over</a></td>
+<td>Transform Focused Value</td>
 </tr>
 <tr>
 <td><a href="package_info.html">package_info</a></td>
@@ -1023,6 +1065,15 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Extract the quarter</td>
 </tr>
 <tr>
+<td><a href="quo.html">quo</a></td>
+<td>Capture an expression with its lexical environment (quosure)</td>
+</tr>
+<tr>
+<td><a href="quos.html">quos</a></td>
+<td>Capture multiple expressions with their lexical environment
+(quosures)</td>
+</tr>
+<tr>
 <td><a href="range.html">range</a></td>
 <td>Range</td>
 </tr>
@@ -1037,6 +1088,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="read_file.html">read_file</a></td>
 <td>Read file contents</td>
+</tr>
+<tr>
+<td><a href="read_log.html">read_log</a></td>
+<td>Read Node Build Log</td>
 </tr>
 <tr>
 <td><a href="read_node.html">read_node</a></td>
@@ -1083,6 +1138,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Rewire a Node’s Dependencies</td>
 </tr>
 <tr>
+<td><a href="rm.html">rm</a></td>
+<td>Remove objects from the environment</td>
+</tr>
+<tr>
 <td><a href="rn.html">rn</a></td>
 <td>Configure an R Pipeline Node</td>
 </tr>
@@ -1093,6 +1152,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="round_date.html">round_date</a></td>
 <td>Round dates to the nearest unit</td>
+</tr>
+<tr>
+<td><a href="row_lens.html">row_lens</a></td>
+<td>Row Lens</td>
 </tr>
 <tr>
 <td><a href="row_number.html">row_number</a></td>
@@ -1161,6 +1224,10 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <tr>
 <td><a href="serialize.html">serialize</a></td>
 <td>Serialize Value</td>
+</tr>
+<tr>
+<td><a href="set.html">set</a></td>
+<td>Set Focused Value</td>
 </tr>
 <tr>
 <td><a href="shape.html">shape</a></td>
@@ -1323,8 +1390,16 @@ href="build_pipeline_internal.html">build_pipeline_internal</a></td>
 <td>Generate Documentation</td>
 </tr>
 <tr>
+<td><a href="t_make.html">t_make</a></td>
+<td>Build Pipeline Internally</td>
+</tr>
+<tr>
 <td><a href="t_read_json.html">t_read_json</a></td>
 <td>Read Value from JSON</td>
+</tr>
+<tr>
+<td><a href="t_read_onnx.html">t_read_onnx</a></td>
+<td>Read an ONNX model file</td>
 </tr>
 <tr>
 <td><a href="t_read_pmml.html">t_read_pmml</a></td>

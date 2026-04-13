@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - rn</h1>
-</header>
 <h1 id="rn">rn</h1>
 <p>Configure an R Pipeline Node</p>
 <p>A convenience wrapper around <code>node()</code> with
@@ -51,10 +48,16 @@ expression to evaluate inside the R node (must be enclosed in
 an external <code>.R</code> file to execute as the node body. Mutually
 exclusive with <code>command</code>. Sets the runtime to <code>R</code>
 automatically.</p></li>
-<li><p><strong>serializer</strong> (<code>Symbol</code>): (Optional)
-Custom serializer function. Default = default.</p></li>
-<li><p><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
-Custom deserializer function. Default = default.</p></li>
+<li><p><strong>serializer</strong> (<code>String</code>): | Function
+(Optional) Custom serializer strategy. Built-in values include
+“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
+unquoted function name. Custom functions can also be used. Default =
+“default”.</p></li>
+<li><p><strong>deserializer</strong> (<code>String</code>): | Function
+(Optional) Custom deserializer strategy. Built-in values include
+“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
+unquoted function name. Custom functions can also be used. Default =
+“default”.</p></li>
 <li><p><strong>functions</strong> (<code>String</code>): | List[String]
 (Optional) R scripts to source before execution.</p></li>
 <li><p><strong>include</strong> (<code>String</code>): | List[String]

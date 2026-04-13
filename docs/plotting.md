@@ -87,6 +87,49 @@ This "Transparent Plotting" enables programmatic verification of visualizationsâ
 
 ## Plotting in Literate Programming
 
-When using [Quarto](literate-programming-quarto.html) with T pipelines, these plotting nodes can be directly embedded in your documents. T handles the handoff so that the visual result is rendered correctly in the final HTML or PDF report.
+When using [Quarto](literate-programming-quarto.html) with T pipelines, it is important to understand how `read_node()` behaves depending on the language of the code chunk.
+
+### In T Chunks
+Within a `{t}` code block, `read_node()` follows the same behavior as the REPL: it returns the **JSON metadata dictionary**. 
+
+```markdown
+```{t}
+#| echo: false
+g = read_node("p_ggplot")
+print(g.title)
+```
+```
+*Output: "Fuel Economy"*
+
+This is useful for including summary information about your visualizations directly in the text of your report.
+
+### In R and Python Chunks
+To actually **render** the plot in your report, you must use an `{r}` or `{python}` chunk. However, in these environments, `read_node()` is a preprocessor token that T replaces with the **absolute path string** to the artifact in the Nix store. 
+
+Because `read_node()` returns a path, you must manually load the artifact using the specialized reader for that language.
+
+#### Example: Rendering a ggplot2 node in R
+```markdown
+```{r}
+#| echo: false
+# read_node("p_ggplot") becomes '/nix/store/.../artifact'
+p <- readRDS(read_node("p_ggplot"))
+p
+```
+```
+
+#### Example: Rendering a matplotlib node in Python
+```markdown
+```{python}
+#| echo: false
+import pickle
+# read_node("p_matplotlib") becomes '/nix/store/.../artifact'
+with open(read_node("p_matplotlib"), "rb") as f:
+    fig = pickle.load(f)
+fig
+```
+```
+
+This dual behavior ensures that you can use T for programmatic inspection and R/Python for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
 
 See the [T Pipeline Demos](demos.html) for real-world examples of pipelines generating interactive and static reports.

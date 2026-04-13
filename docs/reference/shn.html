@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - shn</h1>
-</header>
 <h1 id="shn">shn</h1>
 <p>Configure a Shell Pipeline Node</p>
 <p>A convenience wrapper around <code>node()</code> with
@@ -51,10 +48,16 @@ command or raw shell script body to execute. Mutually exclusive with
 <li><p><strong>script</strong> (<code>String</code>): (Optional) Path to
 an external <code>.sh</code> file to execute as the node body. Mutually
 exclusive with <code>command</code>.</p></li>
-<li><p><strong>serializer</strong> (<code>Symbol</code>): (Optional)
-Custom serializer function. Default = text.</p></li>
-<li><p><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
-Custom deserializer function. Default = default.</p></li>
+<li><p><strong>serializer</strong> (<code>String</code>): | Function
+(Optional) Custom serializer strategy. Built-in values include
+“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
+unquoted function name. Custom functions can also be used. Default =
+“default”.</p></li>
+<li><p><strong>deserializer</strong> (<code>String</code>): | Function
+(Optional) Custom deserializer strategy. Built-in values include
+“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
+unquoted function name. Custom functions can also be used. Default =
+“default”.</p></li>
 <li><p><strong>args</strong> (<code>Dict</code>): | List (Optional)
 Runtime arguments. Lists become positional CLI arguments for exec-style
 nodes.</p></li>

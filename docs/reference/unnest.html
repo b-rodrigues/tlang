@@ -33,13 +33,20 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - unnest</h1>
-</header>
 <h1 id="unnest">unnest</h1>
 <p>Expand nested columns</p>
-<p>Expands nested list or DataFrame columns back into regular rows and
-columns.</p>
+<p>Expands a nested list-column (produced by nest() or similar) back
+into its constituent rows and columns, effectively duplicating rows of
+the “parent” DataFrame for every row in the nested table.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>df</strong> (<code>DataFrame</code>): The DataFrame
+containing a nested column.</p></li>
+<li><p><strong>cols</strong> (<code>Column</code>): Selection column to
+unnest (positional or ‘cols=’ arg).</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>The expanded DataFrame.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

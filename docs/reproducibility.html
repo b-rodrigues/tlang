@@ -98,9 +98,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - reproducibility</h1>
-</header>
 <h1 id="reproducibility-in-t">Reproducibility in T</h1>
 <p>How T ensures perfect reproducibility for data analysis through Nix
 integration and deterministic execution.</p>
@@ -147,7 +144,7 @@ class="sourceCode nix"><code class="sourceCode nix"><span id="cb1-1"><a href="#c
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">inputs</span> <span class="op">=</span> <span class="op">{</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">nixpkgs</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:NixOS/nixpkgs/nixos-23.11&quot;</span><span class="op">;</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.1.0&quot;</span><span class="op">;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.51.3&quot;</span><span class="op">;</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="va">outputs</span> <span class="op">=</span> <span class="op">{</span> <span class="va">self</span><span class="op">,</span> <span class="va">nixpkgs</span><span class="op">,</span> <span class="va">tlang</span> <span class="op">}</span>: <span class="op">{</span></span>
@@ -182,7 +179,7 @@ have breaking changes - Results differ or code errors</p>
 <div class="sourceCode" id="cb3"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2026: Same exact environment as 2024</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop github:myuser/my-analysis<span class="pp">?</span>rev=abc123</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe <span class="op">&lt;</span> analysis.t</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Identical output, guaranteed</span></span></code></pre></div>
 <p>The <code>flake.lock</code> file ensures every dependency (OCaml,
@@ -246,7 +243,7 @@ Assumptions with Intent Blocks</h2>
   ],
   
   environment: {
-    t_version: &quot;0.1.0&quot;,
+    t_version: &quot;0.51.3&quot;,
     nix_revision: &quot;abc123&quot;,
     run_date: &quot;2024-01-15&quot;
   }
@@ -265,8 +262,8 @@ Example</h2>
 ├── flake.lock          # Locked dependencies
 ├── data/
 │   └── sales.csv       # Input data (or fetch script)
-├── scripts/
-│   └── analysis.t      # T analysis script
+├── src/
+│   └── pipeline.t      # T analysis script
 ├── outputs/
 │   └── report.csv      # Generated results
 └── README.md           # Documentation</code></pre>
@@ -278,7 +275,7 @@ class="sourceCode nix"><code class="sourceCode nix"><span id="cb8-1"><a href="#c
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="va">inputs</span> <span class="op">=</span> <span class="op">{</span></span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">nixpkgs</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:NixOS/nixpkgs/nixos-23.11&quot;</span><span class="op">;</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.1.0&quot;</span><span class="op">;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">tlang</span>.<span class="va">url</span> <span class="op">=</span> <span class="st">&quot;github:b-rodrigues/tlang/v0.51.3&quot;</span><span class="op">;</span></span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">};</span></span>
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="va">outputs</span> <span class="op">=</span> <span class="op">{</span> <span class="va">self</span><span class="op">,</span> <span class="va">nixpkgs</span><span class="op">,</span> <span class="va">tlang</span> <span class="op">}</span>: <span class="op">{</span></span>
@@ -287,7 +284,7 @@ class="sourceCode nix"><code class="sourceCode nix"><span id="cb8-1"><a href="#c
 <span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <h3 id="step-2-write-analysis-with-intent">Step 2: Write Analysis with
 Intent</h3>
-<p><strong><code>scripts/analysis.t</code></strong>:</p>
+<p><strong><code>src/pipeline.t</code></strong>:</p>
 <pre class="t"><code>intent {
   description: &quot;Q4 2023 revenue analysis by region&quot;,
   data_source: &quot;data/sales.csv (exported 2023-12-31)&quot;,
@@ -316,13 +313,13 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href=
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Run analysis</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe <span class="op">&lt;</span> scripts/analysis.t</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span>
 <span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Output: outputs/report.csv</span></span></code></pre></div>
 <h3 id="step-4-version-control">Step 4: Version Control</h3>
 <div class="sourceCode" id="cb11"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> init</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add flake.nix flake.lock scripts/ data/ README.md</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add flake.nix flake.lock src/ data/ README.md</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">&quot;Initial Q4 2023 analysis&quot;</span></span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> tag v1.0.0</span>
 <span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> push</span></code></pre></div>
@@ -337,7 +334,7 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href=
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Run analysis</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe <span class="op">&lt;</span> scripts/analysis.t</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span>
 <span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify identical output</span></span>
 <span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="fu">diff</span> outputs/report.csv expected_report.csv</span>
@@ -397,7 +394,7 @@ class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb13
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">nix</span> develop <span class="at">--command</span> dune build</span>
 <span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">&quot;nix&quot;</span>, <span class="st">&quot;develop&quot;</span>, <span class="st">&quot;--command&quot;</span>, <span class="st">&quot;dune&quot;</span>, <span class="st">&quot;exec&quot;</span>, <span class="st">&quot;src/repl.exe&quot;</span>, <span class="st">&quot;&lt;&quot;</span>, <span class="st">&quot;analysis.t&quot;</span>]</span></code></pre></div>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">&quot;nix&quot;</span>, <span class="st">&quot;develop&quot;</span>, <span class="st">&quot;--command&quot;</span>, <span class="st">&quot;t&quot;</span>, <span class="st">&quot;run&quot;</span>, <span class="st">&quot;src/pipeline.t&quot;</span>]</span></code></pre></div>
 <h3 id="continuous-integration">Continuous Integration</h3>
 <p>Verify reproducibility on every commit:</p>
 <p><strong><code>.github/workflows/reproduce.yml</code></strong>:</p>
@@ -412,7 +409,7 @@ class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb14-1"><a href=
 <span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">steps</span><span class="kw">:</span></span>
 <span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/checkout@v2</span></span>
 <span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> cachix/install-nix-action@v15</span></span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> nix develop --command dune exec src/repl.exe &lt; analysis.t</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> nix develop --command t run src/pipeline.t</span></span>
 <span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">run</span><span class="kw">:</span><span class="at"> diff outputs/result.csv expected_result.csv</span></span></code></pre></div>
 <h3 id="data-versioning">Data Versioning</h3>
 <p>Use DVC or Git-LFS for data versioning:</p>

@@ -98,9 +98,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - project_development</h1>
-</header>
 <h1 id="t-project-development-guide">T Project Development Guide</h1>
 <p>This guide walks you through creating and developing a <strong>T
 project</strong> — a data analysis project that uses T packages.</p>
@@ -112,24 +109,26 @@ that depends on packages.</p>
 <h2 id="creating-a-project">1. Creating a Project</h2>
 <p>Create a new project interactively:</p>
 <div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t init project</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Initializing</span> new T package/project...</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Name</span> <span class="pp">[</span><span class="ss">my_project</span><span class="pp">]</span>: housing-analysis</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">Author</span> <span class="pp">[</span><span class="ss">User</span><span class="pp">]</span>: Alice</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">License</span> <span class="pp">[</span><span class="ss">EUPL</span><span class="pp">-</span><span class="ss">1.2</span><span class="pp">]</span>: EUPL-1.2</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ex">Nixpkgs</span> date <span class="pp">[</span><span class="ss">2026</span><span class="pp">-</span><span class="ss">02</span><span class="pp">-</span><span class="ss">19</span><span class="pp">]</span>: 2026-02-19</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Project <span class="st">&#39;housing-analysis&#39;</span> created successfully!</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t init <span class="at">--project</span> housing-analysis</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Initializing</span> new T project...</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Author</span> <span class="pp">[</span><span class="ss">User</span><span class="pp">]</span>: Alice</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">License</span> <span class="pp">[</span><span class="ss">EUPL</span><span class="pp">-</span><span class="ss">1.2</span><span class="pp">]</span>: EUPL-1.2</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Nixpkgs</span> date <span class="pp">[</span><span class="ss">2026</span><span class="pp">-</span><span class="ss">02</span><span class="pp">-</span><span class="ss">19</span><span class="pp">]</span>: 2026-02-19</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Project <span class="st">&#39;housing-analysis&#39;</span> created successfully!</span></code></pre></div>
 <p>This creates the following structure:</p>
 <ul>
 <li><strong>tproject.toml</strong>: Project metadata and
 dependencies.</li>
-<li><strong>flake.nix</strong>: Reproducible environment definition
-(managed automatically).</li>
+<li><strong>flake.nix</strong>: Reproducible environment
+definition.</li>
+<li><strong>README.md</strong>: Project documentation.</li>
+<li><strong>.gitignore</strong>: Git exclusion list.</li>
 <li><strong>src/</strong>: Your analysis scripts (e.g.,
 <code>pipeline.t</code>).</li>
 <li><strong>data/</strong>: Data files.</li>
-<li><strong>README.md</strong>: Project documentation.</li>
+<li><strong>outputs/</strong>: Output directory for results.</li>
+<li><strong>tests/</strong>: Project-specific tests.</li>
 </ul>
 <h2 id="entering-the-development-environment">2. Entering the
 Development Environment</h2>
@@ -152,7 +151,7 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="dt">data_utils</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/data-utils&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.2.0&quot;</span><span class="op"> }</span></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">[t]</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.51.0&quot;</span></span></code></pre></div>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.51.3&quot;</span></span></code></pre></div>
 <h3 id="system-dependencies-and-latex">3.1 System Dependencies and
 LaTeX</h3>
 <p>Beyond T packages, you can declare system-level tools and LaTeX
@@ -188,6 +187,17 @@ pipeline nodes (T, R, or Python) during execution. Then re-enter the
 shell:</p>
 <div class="sourceCode" id="cb7"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span></code></pre></div>
+<h3 id="upgrading-t-and-nixpkgs">3.2 Upgrading T and Nixpkgs</h3>
+<p>To upgrade your project to the latest version of T and set the
+project’s nixpkgs date to today’s UTC date:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t upgrade</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Checking</span> for new T releases...</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Upgrading</span> project to T 0.51.1 and nixpkgs date 2026-03-21 <span class="er">(</span><span class="ex">today</span><span class="st">&#39;s UTC date)...</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="st">Regenerating flake.nix and updating dependencies...</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="st">Running nix flake update...</span></span></code></pre></div>
+<p>This updates your <code>tproject.toml</code> and then runs
+<code>t update</code> automatically.</p>
 <h2 id="importing-packages">4. Importing Packages</h2>
 <p>Once inside <code>nix develop</code>, you can use the
 <code>import</code> statement in your T scripts to load package
@@ -227,11 +237,11 @@ p = pipeline {
 build_pipeline(p)
 print(price_by_area)</code></pre>
 <p>Run your script:</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
-<p>Or use the REPL for interactive exploration:</p>
 <div class="sourceCode" id="cb13"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<p>Or use the REPL for interactive exploration:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
 <h2 id="running-tests">6. Running Tests</h2>
 <p>You can add tests in <code>tests/</code> following the same
 conventions as packages:</p>
@@ -241,8 +251,8 @@ import my_stats
 result = weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
 assert(result == 1.7)</code></pre>
 <p>Run them with:</p>
-<div class="sourceCode" id="cb15"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
 <h2 id="reproducibility">7. Reproducibility</h2>
 <p>Your project is fully reproducible through Nix:</p>
 <ul>
@@ -254,11 +264,11 @@ inputs</li>
 source of truth for dependencies</li>
 </ul>
 <p>Anyone can reproduce your environment:</p>
-<div class="sourceCode" id="cb16"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
 <h2 id="ide-support-autocompletion">8. IDE Support &amp;

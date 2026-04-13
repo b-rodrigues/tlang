@@ -33,19 +33,17 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - models</h1>
-</header>
 <h1 id="statistical-models-tidy-output">Statistical Models &amp; Tidy
 Output</h1>
 <blockquote>
 <p>[!IMPORTANT] <strong>Native Support Note</strong>: <span
-class="math inline"><em>T</em></span> currently provides a native
-implementation for Linear Models (<code>lm</code>) for convenience. For
-more advanced modeling (GLMs, Mixed Models, Machine Learning), <span
-class="math inline"><em>T</em></span> uses a “Polyglot” approach where
-models are trained in R or Python nodes and then consumed natively in T
-via PMML.</p>
+class="math inline"><em>T</em></span> provides native implementations
+for Linear Models (<code>lm</code>) and PMML-imported <strong>Decision
+Trees</strong> and <strong>Random Forests</strong>. For other advanced
+modeling (GLMs, Mixed Models, Machine Learning), <span
+class="math inline"><em>T</em></span> uses a polyglot approach where
+models are trained in R or Python nodes and exchanged through PMML or
+ONNX.</p>
 </blockquote>
 <p><span class="math inline"><em>T</em></span> treats models as
 first-class objects that can be summarized and evaluated regardless of
@@ -62,12 +60,11 @@ model = lm(mtcars, mpg ~ wt + hp)
 -- Named args also supported
 model = lm(data = mtcars, formula = mpg ~ wt + hp)</code></pre>
 <h3 id="advanced-modeling-polyglot">Advanced Modeling (Polyglot)</h3>
-<p>To fit models beyond simple OLS, you should use <code>R</code> or
+<p>To fit models beyond simple OLS, use <code>R</code> or
 <code>Python</code> nodes within a <span
-class="math inline"><em>T</em></span> pipeline. These nodes produce a
-model object that is serialized to PMML, allowing <span
-class="math inline"><em>T</em></span> to consume it natively for
-inspection and prediction.</p>
+class="math inline"><em>T</em></span> pipeline. These nodes can
+serialize model artifacts through PMML or ONNX depending on the scoring
+path you want.</p>
 <h4 id="example-logistic-regression-in-r">Example: Logistic Regression
 in R</h4>
 <pre class="t"><code>p = pipeline {
@@ -81,6 +78,20 @@ in R</h4>
 build_pipeline(p)
 model = read_node(&quot;model_node&quot;)
 summary(model) -- Fully supported in T!</code></pre>
+<h4 id="example-logistic-regression-in-python-via-onnx">Example:
+Logistic Regression in Python via ONNX</h4>
+<pre class="t"><code>p = pipeline {
+    model_node = pyn(
+        command = &lt;{
+            from sklearn.linear_model import LogisticRegression
+            clf = LogisticRegression().fit(X, y)
+            clf
+        }&gt;,
+        serializer = ^onnx
+    )
+}
+build_pipeline(p)
+model = read_node(&quot;model_node&quot;)</code></pre>
 <hr />
 <h2 id="model-inspection-diagnostics">Model Inspection &amp;
 Diagnostics</h2>
@@ -110,7 +121,10 @@ s._tidy_df
 <code>term</code> and <code>estimate</code>.</p>
 <h3 id="fit_statsmodel"><code>fit_stats(model)</code></h3>
 <p>Returns a single-row DataFrame of model-level statistics (R-squared,
-AIC, BIC, etc.).</p>
+AIC, BIC, etc.). For PMML decision trees and random forests, this
+includes tree metadata such as <code>n_trees</code>,
+<code>n_features</code>, <code>model_type</code>, and
+<code>mining_function</code>.</p>
 <pre class="t"><code>stats = fit_stats(model)
 -- # A DataFrame: 1 × 15
 --   r_squared  adj_r_squared  aic    bic    nobs</code></pre>
@@ -167,7 +181,8 @@ square DataFrame.</p>
 <hr />
 <h2 id="prediction">Prediction</h2>
 <p>The <code>predict(data, model)</code> function performs vectorized
-predictions natively in <span class="math inline"><em>T</em></span>.</p>
+predictions natively in <span class="math inline"><em>T</em></span> for
+native, PMML-backed, and ONNX-backed models.</p>
 <pre class="t"><code>-- Fast, native evaluation in T
 -- Even if the model was trained in R or Python (and imported via PMML)
 preds = predict(new_data, model)</code></pre>
@@ -175,17 +190,51 @@ preds = predict(new_data, model)</code></pre>
 functions for GLMs (imported via PMML), including
 <strong>Logit</strong>, <strong>Probit</strong>, <strong>Log</strong>,
 <strong>Inverse</strong>, and <strong>Cloglog</strong>.</p>
+<blockquote>
+<p><strong>PMML Trees &amp; Boosting</strong>: <span
+class="math inline"><em>T</em></span> can now evaluate PMML-imported
+<strong>Decision Trees</strong>, <strong>Random Forests</strong>, and
+<strong>XGBoost (GBTree)</strong> models natively (no external runtime).
+This includes PMML exports from <strong>scikit-learn</strong> via
+<code>sklearn2pmml</code>. Use <code>t_read_pmml()</code> to load the
+model and <code>predict(df, model)</code> to score new data.</p>
+</blockquote>
+<blockquote>
+<p><strong>ONNX Native Inference</strong>: <span
+class="math inline"><em>T</em></span> can run ONNX models natively
+through ONNX Runtime using <code>t_read_onnx()</code> plus
+<code>predict(df, model)</code>. The current implementation supports
+single-input/single-output models and expects the selected numeric
+feature columns to match the model input width.</p>
+</blockquote>
 <hr />
-<h2 id="model-interchange-pmml">Model Interchange &amp; PMML</h2>
+<h2 id="model-interchange-pmml-and-onnx">Model Interchange: PMML and
+ONNX</h2>
 <h3 id="why-pmml">Why PMML?</h3>
 <p>The <strong>Predictive Model Markup Language (PMML)</strong> is the
 bridge between <span class="math inline"><em>T</em></span> and other
-runtimes. It allows: 1. <strong>R Integration</strong>: Using any R
-model that has a PMML exporter (e.g. <code>stats::glm</code>,
-<code>survival::coxph</code>). 2. <strong>Python Integration</strong>:
-Using <code>scikit-learn</code> or <code>statsmodels</code>. 3.
-<strong>Reproducibility</strong>: Models persist independently of the
-original runtime code.</p>
+runtimes when you want T-native scoring. It allows: 1. <strong>R
+Integration</strong>: Using any R model that has a PMML exporter
+(e.g. <code>stats::glm</code>, <code>survival::coxph</code>). 2.
+<strong>Python Integration</strong>: Using <code>scikit-learn</code> or
+<code>statsmodels</code>. 3. <strong>Reproducibility</strong>: Models
+persist independently of the original runtime code.</p>
+<h3 id="why-onnx">Why ONNX?</h3>
+<p><strong>ONNX</strong> is the preferred interchange format when you
+want broad ML model coverage or faster native inference through ONNX
+Runtime. It allows: 1. <strong>Python ML Export</strong>:
+<code>scikit-learn</code> models via <code>skl2onnx</code>. 2.
+<strong>Native T Loading</strong>: Reading models with
+<code>t_read_onnx(path)</code> and scoring them with
+<code>predict(data, model)</code>. 3. <strong>R/Python Runtime
+Loading</strong>: Reading models via the <code>onnx</code> R package or
+Python <code>onnxruntime</code>. 4. <strong>Broader Coverage</strong>:
+Neural-network and non-PMML model families that PMML cannot represent
+well.</p>
+<p>Use <code>^pmml</code> when you want T’s hand-written classical-model
+evaluator. Use <code>^onnx</code> when you want a portable model
+artifact with native ONNX Runtime inference in T or cross-runtime
+execution in Python/R.</p>
 <h3 id="cross-runtime-consistency">Cross-Runtime Consistency</h3>
 <p><span class="math inline"><em>T</em></span>’s statistical evaluator
 is verified against R’s reference implementation. Results match R’s
@@ -244,6 +293,9 @@ build reproducible data pipelines and manage projects in T:</p>
 <li><strong><a href="pipeline_tutorial.html">Pipeline
 Tutorial</a></strong> — Learn how to build reproducible, DAG-based data
 analysis workflows.</li>
+<li><strong><a href="pmml_tutorial.html">PMML Tutorial</a></strong> —
+Learn the supported PMML workflows for moving models between R, Python,
+and T.</li>
 <li><strong><a href="project_development.html">Project
 Development</a></strong> — Master T’s project structure and dependency
 management.</li>

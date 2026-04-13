@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - formulas</h1>
-</header>
 <h1 id="formulas-in-t">Formulas in T</h1>
 <p>Formulas provide a declarative way to specify statistical models,
 inspired by R.</p>
@@ -47,8 +44,11 @@ passed to modeling functions.</p>
 <pre class="t"><code>-- Simple linear regression
 model = lm(data = df, formula = y ~ x)
 
--- Future: Multiple regression
-model = lm(data = df, formula = y ~ x1 + x2 + x3)</code></pre>
+-- Multiple regression
+model = lm(data = df, formula = y ~ x1 + x2 + x3)
+
+-- Interaction terms
+model = lm(data = df, formula = y ~ x1 * x2)</code></pre>
 <h2 id="supported-functions">Supported Functions</h2>
 <ul>
 <li><code>lm()</code> - Linear regression</li>
@@ -75,11 +75,10 @@ observations - <code>response</code>: Name of response variable -
 <pre class="t"><code>data = read_csv(&quot;mtcars.csv&quot;)
 model = lm(data = data, formula = mpg ~ hp)
 print(model.r_squared)</code></pre>
-<h2 id="future-extensions">Future Extensions</h2>
+<h2 id="current-limitations">Current Limitations</h2>
 <ul>
 <li>Intercept control: <code>y ~ x + 1</code> vs
 <code>y ~ x - 1</code></li>
-<li>Interactions: <code>y ~ x1 * x2</code></li>
 <li>Transformations: <code>y ~ log(x)</code></li>
 </ul>
 <hr />

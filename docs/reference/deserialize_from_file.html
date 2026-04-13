@@ -33,12 +33,15 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - deserialize_from_file</h1>
-</header>
 <h1 id="deserialize_from_file">deserialize_from_file</h1>
 <p>Binary Deserialization</p>
-<p>Reads a serialized T value from a file.</p>
+<p>Reads a serialized T value from a file. Verifies an integrity digest
+before unmarshalling to reject tampered or externally-supplied
+artifacts. SECURITY NOTE: OCaml Marshal is not safe for fully untrusted
+input. The MD5 digest check detects accidental corruption only — MD5 is
+not cryptographically secure and provides no protection against
+intentional tampering. Only load .tobj files produced by your own T
+installation.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>path</strong> (<code>String</code>): Source file path.</li>

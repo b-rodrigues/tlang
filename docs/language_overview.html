@@ -33,18 +33,44 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - language_overview</h1>
-</header>
 <h1 id="t-language-overview">T Language Overview</h1>
 <blockquote>
-<p><strong>Version</strong>: Alpha 0.1<br />
-<strong>Status</strong>: Syntax and semantics frozen for alpha</p>
+<p><strong>Version</strong>: 0.51.3</p>
 </blockquote>
 <p>T is a functional programming language designed for declarative,
 tabular data manipulation. It combines the pipeline-driven style of R’s
 tidyverse with OCaml’s type discipline, producing a small, focused
 language for data wrangling and basic statistics.</p>
+<hr />
+<h2 id="quick-syntax-tour">Quick Syntax Tour</h2>
+<pre class="t"><code>-- Variable assignment
+x = 10
+name = &quot;Alice&quot;
+
+-- Variable re-assignment (Shadowing)
+x := 20
+
+-- Function definition (lambda style preferred)
+add = \(a, b) a + b
+
+-- Conditionals
+result = if (x &gt; 5) &quot;high&quot; else &quot;low&quot;
+
+-- Pipe operators
+-- |&gt; passes left-hand to right-hand, short-circuits on Error
+-- ?|&gt; forwards left-hand to right-hand even if it is an Error for recovery
+[1, 2, 3] |&gt; map(\(v) v * v) |&gt; sum
+
+-- Import a whole package
+import mypackage
+
+-- Import specific names from a package or another .t file
+import mypackage [fn1, fn2]
+import &quot;helpers.t&quot; [clean_data, normalize]
+
+-- Sequence generation
+seq(5)                -- [1, 2, 3, 4, 5]
+seq(1, 10, by = 2)    -- [1, 3, 5, 7, 9]</code></pre>
 <hr />
 <h2 id="core-concepts">Core Concepts</h2>
 <h3 id="values-and-types">Values and Types</h3>
@@ -124,9 +150,9 @@ language for data wrangling and basic statistics.</p>
 <td>Structured error value</td>
 </tr>
 <tr>
-<td><code>Null</code></td>
-<td><code>null</code></td>
-<td>Absence of value</td>
+<td><code>Symbol</code></td>
+<td><code>$mpg</code></td>
+<td>Name reference (NSE, DataFrames)</td>
 </tr>
 <tr>
 <td><code>Expression</code></td>
@@ -144,15 +170,30 @@ language for data wrangling and basic statistics.</p>
 <pre class="t"><code>x = 42
 name = &quot;Alice&quot;
 active = true</code></pre>
-<p>Variables are bound with <code>=</code>. All values are
-immutable.</p>
+<p>Variables are bound with <code>=</code>. All values are immutable by
+default. To overwrite an existing binding (shadowing), use the
+<code>:=</code> operator:</p>
+<pre class="t"><code>x = 10
+x := 20    -- Overwrites x with 20</code></pre>
+<p>To remove a variable from the environment entirely, use the
+<code>rm()</code> function. It supports bare symbols, strings, and the
+<code>list</code> parameter:</p>
+<pre class="t"><code>rm(x)             -- Removes x from the environment
+rm(&quot;name&quot;)        -- Removes name by string
+rm(a, b, c)       -- Removes multiple variables
+
+vars = [&quot;x&quot;, &quot;y&quot;]
+rm(list = vars)   -- Removes variables &#39;x&#39; and &#39;y&#39;</code></pre>
 <h3 id="arithmetic-and-operators">Arithmetic and Operators</h3>
 <pre class="t"><code>2 + 3       -- 5
 10 - 3      -- 7
 4 * 5       -- 20
 15 / 3      -- 5
 1 + 2.5     -- 3.5 (mixed int/float is promoted)
-&quot;hi&quot; + &quot; T&quot; -- &quot;hi T&quot; (string concatenation)</code></pre>
+
+-- String concatenation is NOT supported with +
+-- Use str_join() or paste() instead:
+str_join([&quot;hi&quot;, &quot; T&quot;], sep = &quot;&quot;) -- &quot;hi T&quot;</code></pre>
 <p>Operator precedence follows standard mathematical conventions.
 Parentheses override precedence.</p>
 <h3 id="comparisons">Comparisons</h3>
@@ -162,11 +203,88 @@ Parentheses override precedence.</p>
 5 &gt; 3     -- true
 5 &gt;= 5    -- true
 2 &lt;= 2    -- true</code></pre>
+<blockquote>
+<p>[!IMPORTANT] <strong>Strict Scalar Equality</strong>: The equality
+operators <code>==</code> and <code>!=</code> are defined for
+<strong>scalars only</strong>. If either operand is a collection (List,
+Vector, or NDArray), the operator will return a <code>TypeError</code>.
+To perform element-wise comparisons or check equality against a
+collection, you <strong>must</strong> use the broadcasting operators
+<code>.==</code> and <code>.!=</code>.</p>
+<pre class="t"><code>1 == [1, 2]    -- Error: Operator &#39;==&#39; is defined for scalars only.
+1 .== [1, 2]   -- [true, false]</code></pre>
+<p><strong>Deep Equality</strong>: To check if two complex objects are
+structurally identical (including all elements and metadata), use the
+<code>identical()</code> function. This is the recommended way to
+compare Lists, Vectors, or DataFrames for identity.</p>
+<pre class="t"><code>v1 = [1, 2, 3]
+v2 = [1, 2, 3]
+identical(v1, v2)   -- true</code></pre>
+</blockquote>
 <h3 id="boolean-logic">Boolean Logic</h3>
 <pre class="t"><code>true and true   -- true
 true and false  -- false
 false or true   -- true
 not true        -- false</code></pre>
+<h3 id="vectorized-logic">Vectorized Logic</h3>
+<p>For element-wise logical operations on collections, use the
+designated broadcasting operators:</p>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Description</th>
+<th>Scalar Equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.&amp;</code></td>
+<td>Vectorized AND</td>
+<td><code>and</code> (or <code>&amp;&amp;</code>)</td>
+</tr>
+<tr>
+<td><code>.|</code></td>
+<td>Vectorized OR</td>
+<td><code>or</code> (or <code>||</code>)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>[!TIP] <strong>No Silent Magic</strong>: Just like arithmetic and
+comparison, the bitwise operators <code>&amp;</code> and <code>|</code>
+strictly require scalar operands. Attempting to use them with a List or
+Vector will result in a <code>TypeError</code> that directs you to use
+the vectorized <code>.&amp;</code> or <code>.|</code> operators.</p>
+</blockquote>
+<hr />
+<h2 id="tooling">Tooling</h2>
+<h3 id="repl">REPL</h3>
+<p>The T REPL (<code>dune exec src/repl.exe</code>) supports:</p>
+<ul>
+<li><strong>Readline editing</strong> with arrow keys and history
+navigation</li>
+<li><strong>Persistent history</strong> in
+<code>~/.t_history</code></li>
+<li><strong>Multi-line input</strong> for open brackets, parentheses,
+and braces</li>
+<li><strong>Magic commands</strong> such as <code>:help</code>,
+<code>:quit</code>, and <code>:clear</code></li>
+<li><strong>Signal-safe interrupts</strong> so <code>Ctrl+C</code>
+returns you to the prompt cleanly</li>
+</ul>
+<h3 id="language-server-protocol-lsp">Language Server Protocol
+(LSP)</h3>
+<p>T ships a native LSP server (<code>t-lsp</code>) for editor
+integrations such as VS Code:</p>
+<ul>
+<li><strong>Completion</strong> for symbols, functions, and DataFrame
+columns</li>
+<li><strong>Go to definition</strong> for bindings</li>
+<li><strong>Hover documentation</strong> sourced from <code>--#</code>
+docstrings</li>
+<li><strong>Diagnostics</strong> for parse and type errors</li>
+</ul>
 <hr />
 <h2 id="functions">Functions</h2>
 <h3 id="lambda-syntax">Lambda Syntax</h3>
@@ -253,6 +371,107 @@ error(&quot;fail&quot;) ?|&gt; recovery |&gt; increment  -- 1</code></pre>
 <pre class="t"><code>result = if (5 &gt; 3) &quot;yes&quot; else &quot;no&quot;   -- &quot;yes&quot;</code></pre>
 <p>Conditionals are expressions — they return values.</p>
 <hr />
+<h2 id="pattern-matching-new">Pattern Matching (New)</h2>
+<p>T now supports pattern matching on lists and errors using the
+<code>match</code> expression. This addition provides a more declarative
+way to destructure data and handle error states.</p>
+<pre class="t"><code>-- Matching on lists
+x = [1, 2, 3]
+result = match(x) {
+  [h, ..t] =&gt; h,
+  [] =&gt; 0
+} -- 1
+
+-- Matching on errors
+res = 1 / 0
+msg = match(res) {
+  Error { msg: m } =&gt; m,
+  _ =&gt; &quot;not an error&quot;
+} -- &quot;Division by zero&quot;</code></pre>
+<p>Match arms are checked in order. If no patterns match, a
+<code>MatchError</code> is returned. Pattern bindings are scoped to the
+selected arm and do not leak out.</p>
+<h3 id="data-science-examples">Data Science Examples</h3>
+<p>Pattern matching is particularly useful for robust data pipelines and
+statistical reporting:</p>
+<pre class="t"><code>-- 1. Graceful fallback for data loading
+df = read_csv(&quot;data.csv&quot;)
+data = match(df) {
+  Error { msg } =&gt; {
+    print(str_sprintf(&quot;Warning: %s. Falling back to backup.&quot;, msg));
+    read_csv(&quot;backup.csv&quot;)
+  },
+  _ =&gt; df
+}
+
+-- 2. Destructuring calculation results
+stats = [mean(x), sd(x), length(x)]
+report = match(stats) {
+  [m, s, n] =&gt; str_sprintf(&quot;Average: %f (±%f) from %d samples&quot;, m, s, n),
+  _ =&gt; &quot;Invalid statistics list&quot;
+}
+
+-- 3. Handling pipeline validation
+p = my_pipeline
+status = match(pipeline_validate(p)) {
+  [] =&gt; &quot;Pipeline is valid and ready to build.&quot;,
+  [first_err, ..others] =&gt; 
+    str_join([&quot;Found &quot;, str_string(length(others) + 1), &quot; validation errors.&quot;])
+}</code></pre>
+<h3 id="integration-with-maybe-pipe-and-first-class-errors">Integration
+with Maybe-Pipe and First-Class Errors</h3>
+<p>Pattern matching is the final piece of T’s “Errors-as-Values”
+philosophy. While the <strong>maybe-pipe</strong> (<code>?|&gt;</code>)
+is used for simple forwarding and recovery, <code>match</code> provides
+precise control over different types of outcomes.</p>
+<pre class="t"><code>-- Comprehensive error recovery pattern
+read_csv(&quot;raw_data.csv&quot;)
+  ?|&gt; \(v) match(v) {
+    Error { msg: m } =&gt; 
+      if (str_detect(m, &quot;File not found&quot;)) read_csv(&quot;default.csv&quot;)
+      else error(&quot;DataLoadError&quot;, str_sprintf(&quot;Critical failure: %s&quot;, m)),
+
+    df =&gt; df |&gt; clean_data()
+  }</code></pre>
+<h4 id="comparison-of-error-handling-patterns">Comparison of Error
+Handling Patterns</h4>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 27%" />
+<col style="width: 47%" />
+</colgroup>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Behavior</th>
+<th>Best Used For…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>\|&gt;</code> (Pipe)</td>
+<td>Short-circuits on error</td>
+<td>Standard “Happy Path” data flows.</td>
+</tr>
+<tr>
+<td><code>?\|&gt;</code> (Maybe-Pipe)</td>
+<td>Forwards errors to functions</td>
+<td>Simple fallback values or generic logging.</td>
+</tr>
+<tr>
+<td><code>match</code></td>
+<td>Explicit branching</td>
+<td>Complex recovery, destructuring messages, or handling multiple
+success/failure states.</td>
+</tr>
+</tbody>
+</table>
+<p>For error handling, <code>match</code> expressions automatically
+propagate unhandled errors. If the scrutinee is an <code>Error</code>
+and no pattern explicitly handles it (via <code>Error { ... }</code> or
+a catch-all <code>_</code>), the original error value is returned.</p>
+<hr />
 <h2 id="collections">Collections</h2>
 <h3 id="lists">Lists</h3>
 <pre class="t"><code>numbers = [1, 2, 3]
@@ -267,6 +486,14 @@ person.age   -- 30</code></pre>
 <pre class="t"><code>config = {host: &quot;localhost&quot;, port: 8080}
 config.host  -- &quot;localhost&quot;
 config.port  -- 8080</code></pre>
+<h3 id="symbols">Symbols (<code>$</code>)</h3>
+<p>Symbols are name references that are not immediately evaluated. They
+are primarily used to reference DataFrame columns in verbs like
+<code>select($mpg)</code> or <code>filter($cyl &gt; 4)</code>.</p>
+<p>Symbols are created by prefixing an identifier with
+<code>$</code>:</p>
+<pre class="t"><code>s = $my_symbol
+type(s)  -- &quot;Symbol&quot;</code></pre>
 <hr />
 <h2 id="missing-values-na">Missing Values (NA)</h2>
 <p>T uses explicit <code>NA</code> values with type tags. NA does
@@ -430,10 +657,13 @@ df |&gt; select($name, $age)
 df |&gt; filter($age &gt; 25)
 df |&gt; mutate($age_plus_10 = $age + 10)         -- named-arg style
 df |&gt; arrange($age, &quot;desc&quot;)
-df |&gt; group_by($dept)
-   |&gt; summarize($count = nrow($dept))           -- named-arg style
-df |&gt; group_by($dept)
-   |&gt; mutate($dept_size, \(g) nrow(g))</code></pre>
+df |&gt; 
+  group_by($dept) |&gt; 
+  summarize($count = nrow($dept))           
+-- named-arg style
+df |&gt; 
+  group_by($dept) |&gt; 
+  mutate($dept_size, \(g) nrow(g))</code></pre>
 <h4 id="named-arg-syntax-col-expr">Named-Arg Syntax
 (<code>$col = expr</code>)</h4>
 <p>For <code>mutate</code> and <code>summarize</code>, you can use
@@ -506,7 +736,7 @@ filesystem, running git commands, or using other CLI tools.</p>
 <h3 id="as-a-statement">As a Statement</h3>
 <p>When used as a standalone statement, the command is executed and its
 output is printed directly to <code>stdout</code>. The return value of
-the expression is <code>null</code>.</p>
+the expression is <code>NA</code>.</p>
 <pre class="t"><code>?&lt;{ls -la}&gt;
 ?&lt;{git status}&gt;</code></pre>
 <h3 id="as-an-expression">As an Expression</h3>
@@ -537,15 +767,98 @@ is_error(result)  -- true</code></pre>
 <hr />
 <h2 id="pipelines">Pipelines</h2>
 <p>Pipelines define named computation nodes with automatic dependency
-resolution:</p>
+resolution and provide the foundation for reproducible, polyglot
+workflows. You can see a complete, polyglot version of this example in
+the <a
+href="../examples/polyglot_pipeline.t"><code>examples/polyglot_pipeline.t</code></a>
+file.</p>
+<p>Built-in serializer keywords include <code>"csv"</code>,
+<code>"arrow"</code>, <code>"pmml"</code>, and <code>"onnx"</code> (or
+<code>^csv</code>, <code>^arrow</code>, <code>^pmml</code>,
+<code>^onnx</code> when referencing the first-class serializer values
+directly).</p>
+<p>The <strong>ONNX</strong> system provides full cross-runtime model
+portability: - <strong><code>^onnx</code> Serializer</strong>:
+Automatically handles model export/import between R, Python, and T
+nodes. - <strong>Native Inference</strong>: Use
+<code>t_read_onnx()</code> to load models and <code>predict()</code> for
+high-performance scoring directly inside T nodes, with no dependency on
+R or Python at prediction time. - <strong>Rich Metadata</strong>:
+T-native ONNX objects contain input/output schema and custom model
+properties (producer, description, feature names) extracted directly
+from the session.</p>
 <pre class="t"><code>p = pipeline {
-  data = read_csv(&quot;sales.csv&quot;)
-  filtered = filter(data, $amount &gt; 100)
-  total = filtered |&gt; select($amount) |&gt; \(d) sum(d.amount)
+  -- 1. Load data natively in T (CSV backend)
+  data = node(
+    command = read_csv(&quot;examples/sample_data.csv&quot;) |&gt; filter($age &gt; 25),
+    serializer = &quot;csv&quot;
+  )
+  
+  -- 2. Train a statistical model in R (using the rn() wrapper)
+  model_r = rn(
+    command = &lt;{ lm(score ~ age, data = data) }&gt;,
+    serializer = &quot;pmml&quot;,
+    deserializer = &quot;csv&quot;
+  )
+  
+  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
+  predictions = node(
+    command = data |&gt; mutate($pred = predict(data, model_r)),
+    deserializer = &quot;pmml&quot;
+  )
+
+  -- 4. Generate a shell report
+  report = shn(command = &lt;{
+    printf &#39;R model results cached at: %s\n&#39; &quot;$T_NODE_model_r/artifact&quot;
+  }&gt;)
 }
 
-p.data       -- access node result
-p.total      -- access computed value</code></pre>
+build_pipeline(p)
+
+-- Access pipeline results
+p.data           -- Native T object
+p.predictions    -- Results with predictions column</code></pre>
+<p>For ONNX-based interchange, use a Python or R node to write the model
+and a Python, R, or T node to read it back:</p>
+<pre class="t"><code>p = pipeline {
+  model_py = pyn(
+    command = &lt;{
+      from sklearn.linear_model import LogisticRegression
+      clf = LogisticRegression().fit(X, y)
+      clf
+    }&gt;,
+    serializer = ^onnx
+  )
+
+  onnx_session = pyn(
+    command = &lt;{
+      model_py
+    }&gt;,
+    deserializer = ^onnx
+  )
+}</code></pre>
+<h4 id="debugging-and-logs">Debugging and Logs</h4>
+<p>When building a pipeline, T tracks the build status and logs for
+every node. If a node fails, you can inspect its logs directly from the
+T interpreter:</p>
+<pre class="t"><code>-- Get help on log inspection
+help(read_log)
+
+-- Read the full Nix build log for a specific node
+read_log(&quot;model_r&quot;)</code></pre>
+<p>The <code>read_log()</code> function requires a node name to identify
+which build output to retrieve. It returns the raw build output as a
+string, which can be printed with <code>cat()</code> to preserve
+formatting:</p>
+<pre class="t"><code>cat(read_log(&quot;scored&quot;))</code></pre>
+<p>For more comprehensive examples and templates, visit the <a
+href="https://github.com/b-rodrigues/t_demos">T Demos
+repository</a>.</p>
+<p>Instead of inlining code with <code>command</code>, nodes can point
+to an external file using <code>script</code>. <code>command</code> and
+<code>script</code> are mutually exclusive, and the runtime can be
+inferred from file extensions such as <code>.R</code> or
+<code>.py</code>.</p>
 <p>Pipeline features: - <strong>Automatic dependency
 resolution</strong>: Nodes can be declared in any order -
 <strong>Deterministic execution</strong>: Same inputs always produce
@@ -559,6 +872,18 @@ R, and shell runtimes - <strong>Environment Variables</strong>: Pass
 custom variables into Nix build sandboxes via <code>env_vars</code> -
 <strong>Re-run</strong>: <code>pipeline_run()</code> re-executes the
 pipeline</p>
+<p>You can also inspect and transform pipelines without rebuilding them
+from scratch:</p>
+<pre class="t"><code>p_full = p_etl |&gt; union(p_model)
+p_trimmed = p_full |&gt; difference(p_debug)
+p_updated = p_prod |&gt; patch(p_overrides)
+
+pipeline_nodes(p_full)
+pipeline_deps(p_full)
+pipeline_to_frame(p_full)
+pipeline_dot(p_full)
+
+pipeline_validate(p_full)</code></pre>
 <hr />
 <h2 id="standard-library">Standard Library</h2>
 <p>All packages are loaded automatically at startup:</p>
@@ -583,7 +908,7 @@ pipeline</p>
 <code>read_file</code>, <code>list_files</code>, <code>env</code>,
 <code>path_join</code>, <code>path_basename</code>,
 <code>path_dirname</code>, <code>path_ext</code>,
-<code>path_stem</code>, <code>path_abs</code></td>
+<code>path_stem</code>, <code>path_abs</code>, <code>rm</code></td>
 </tr>
 <tr>
 <td><code>base</code></td>
@@ -601,7 +926,7 @@ pipeline</p>
 <tr>
 <td><code>stats</code></td>
 <td><code>mean</code>, <code>sd</code>, <code>quantile</code>,
-<code>cor</code>, <code>lm</code></td>
+<code>cor</code>, <code>lm</code>, <code>predict</code></td>
 </tr>
 <tr>
 <td><code>dataframe</code></td>
@@ -613,16 +938,15 @@ pipeline</p>
 <td><code>colcraft</code></td>
 <td><code>select</code>, <code>filter</code>, <code>mutate</code>,
 <code>arrange</code>, <code>group_by</code>, <code>summarize</code>,
-<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>,
-<code>cume_dist</code>, <code>percent_rank</code>, <code>ntile</code>,
-<code>lag</code>, <code>lead</code>, <code>cumsum</code>,
-<code>cummin</code>, <code>cummax</code>, <code>cummean</code>,
-<code>cumall</code>, <code>cumany</code></td>
+<code>rename</code>, <code>relocate</code>, <code>distinct</code>,
+<code>count</code>, <code>slice</code>, <code>pivot_longer</code>,
+<code>pivot_wider</code>, joins, missing-value helpers, factor helpers,
+and window functions</td>
 </tr>
 <tr>
 <td><code>pipeline</code></td>
-<td><code>pipeline_nodes</code>, <code>pipeline_deps</code>,
-<code>pipeline_node</code>, <code>pipeline_run</code></td>
+<td>node constructors, inspection helpers, validation helpers, DAG
+transformations, and composition tools</td>
 </tr>
 <tr>
 <td><code>explain</code></td>
@@ -631,6 +955,74 @@ pipeline</p>
 </tr>
 </tbody>
 </table>
+<h3 id="selected-signatures">Selected Signatures</h3>
+<p>These signatures provide a compact map of the most commonly used
+functions:</p>
+<h4 id="core-base-and-math">Core, Base, and Math</h4>
+<ul>
+<li><code>print(value :: Any) :: NA</code></li>
+<li><code>type(value :: Any) :: String</code></li>
+<li><code>length(list :: List) :: Int</code></li>
+<li><code>head(x :: DataFrame | List | Vector, n = 6) :: DataFrame | List | Vector</code></li>
+<li><code>tail(x :: DataFrame | List | Vector, n = 6) :: DataFrame | List | Vector</code></li>
+<li><code>map(list :: List, fn :: Function) :: List</code></li>
+<li><code>filter(list :: List, fn :: Function) :: List</code></li>
+<li><code>sum(list :: List, na_rm = false) :: Number</code></li>
+<li><code>seq(start = 1, end :: Int, by = 1) :: List[Int]</code></li>
+<li><code>is_na(value :: Any) :: Bool</code></li>
+<li><code>is_error(value :: Any) :: Bool</code></li>
+<li><code>error(message :: String) :: Error</code></li>
+<li><code>pow(base :: Number, exp :: Number) :: Float</code></li>
+<li><code>sqrt(value :: Number) :: Float</code></li>
+<li><code>abs(value :: Number) :: Number</code></li>
+<li><code>rm(...) :: NA</code></li>
+</ul>
+<h4 id="stats-and-dataframes">Stats and DataFrames</h4>
+<ul>
+<li><code>mean(vector :: Vector, na_rm = false) :: Float</code></li>
+<li><code>sd(vector :: Vector, na_rm = false) :: Float</code></li>
+<li><code>quantile(vector :: Vector, prob :: Float, na_rm = false) :: Float</code></li>
+<li><code>cor(v1 :: Vector, v2 :: Vector, na_rm = false) :: Float</code></li>
+<li><code>lm(data :: DataFrame, formula :: Formula) :: Model</code></li>
+<li><code>predict(model :: Model, data :: DataFrame) :: Vector</code></li>
+<li><code>read_csv(path :: String, clean_colnames = false) :: DataFrame</code></li>
+<li><code>write_csv(df :: DataFrame, path :: String) :: NA</code></li>
+<li><code>nrow(df :: DataFrame) :: Int</code></li>
+<li><code>ncol(df :: DataFrame) :: Int</code></li>
+<li><code>colnames(df :: DataFrame) :: List[String]</code></li>
+</ul>
+<h4 id="data-manipulation-1">Data Manipulation</h4>
+<ul>
+<li><code>select(df :: DataFrame, ...) :: DataFrame</code></li>
+<li><code>filter(df :: DataFrame, predicate :: NSE) :: DataFrame</code></li>
+<li><code>mutate(df :: DataFrame, ...) :: DataFrame</code></li>
+<li><code>arrange(df :: DataFrame, $col, direction = "asc") :: DataFrame</code></li>
+<li><code>group_by(df :: DataFrame, ...) :: DataFrame</code></li>
+<li><code>summarize(df :: DataFrame, ...) :: DataFrame</code></li>
+<li><code>rename(df :: DataFrame, $new = $old, ...) :: DataFrame</code></li>
+<li><code>pivot_longer(df :: DataFrame, ..., names_to = "name", values_to = "value") :: DataFrame</code></li>
+<li><code>pivot_wider(df :: DataFrame, names_from :: Symbol, values_from :: Symbol) :: DataFrame</code></li>
+<li><code>left_join(x :: DataFrame, y :: DataFrame, by = [String]) :: DataFrame</code></li>
+<li><code>drop_na(df :: DataFrame, ...) :: DataFrame</code></li>
+<li><code>replace_na(df :: DataFrame, replace :: Dict) :: DataFrame</code></li>
+<li><code>factor(x :: Vector | List, levels = [], ordered = false) :: Vector</code></li>
+<li><code>row_number(x :: Vector) :: Vector</code></li>
+<li><code>lag(x :: Vector, n = 1) :: Vector</code></li>
+</ul>
+<h4 id="pipelines-1">Pipelines</h4>
+<ul>
+<li><code>node(command :: Any, script :: String, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>pyn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>rn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>build_pipeline(pipeline :: Pipeline) :: NA</code></li>
+<li><code>pipeline_run(pipeline :: Pipeline) :: Pipeline</code></li>
+<li><code>pipeline_nodes(p :: Pipeline) :: List[String]</code></li>
+<li><code>pipeline_deps(p :: Pipeline) :: Dict</code></li>
+<li><code>pipeline_to_frame(p :: Pipeline) :: DataFrame</code></li>
+<li><code>pipeline_validate(p :: Pipeline) :: List[String]</code></li>
+<li><code>union(p1 :: Pipeline, p2 :: Pipeline) :: Pipeline</code></li>
+<li><code>difference(p1 :: Pipeline, p2 :: Pipeline) :: Pipeline</code></li>
+</ul>
 <h3 id="math-functions">Math Functions</h3>
 <p>Pure numerical primitives that work on scalars and vectors:</p>
 <pre class="t"><code>sqrt(4)        -- 2.0
@@ -712,7 +1104,7 @@ type([1, 2])         -- &quot;List&quot;
 type({x: 1})         -- &quot;Dict&quot;
 type(NA)             -- &quot;NA&quot;
 type(1 / 0)          -- &quot;Error&quot;
-type(null)           -- &quot;Null&quot;</code></pre>
+type(NA)           -- &quot;NA&quot;</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you have a solid grasp of T’s syntax and core features,
@@ -727,6 +1119,9 @@ analysis workflows.</li>
 Examples</a></strong> — See T’s data verbs in action with worked
 examples.</li>
 </ol>
+<p>For more hands-on examples and complete project templates, visit the
+<a href="https://github.com/b-rodrigues/t_demos"><strong>T Demos
+Repository</strong></a>.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

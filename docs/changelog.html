@@ -33,365 +33,608 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - changelog</h1>
-</header>
 <h1 id="changelog">Changelog</h1>
+<h2 id="xx-upcoming">[0.51.4] - 2026-04-xx (upcoming)</h2>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="first-class-visual-metadata-plot-inspection">First-Class Visual
+Metadata &amp; Plot Inspection</h3>
+<ul>
+<li><strong>Automated Plot Metadata Capture</strong>:
+<ul>
+<li>Implemented infrastructure to automatically extract and persist
+metadata from visual objects in polyglot pipelines.</li>
+<li><strong>R Support</strong>: Capture titles, labels (x, y, color,
+etc.), mappings, and layers from <code>ggplot2</code> objects.</li>
+<li><strong>Python Support</strong>: Full metadata extraction for
+<code>matplotlib</code> figures and <code>plotnine</code> (ggplot-style)
+objects.</li>
+</ul></li>
+<li><strong>Transparent <code>read_node()</code> for Plots</strong>:
+<ul>
+<li><code>read_node()</code> now recognizes nodes of class
+<code>ggplot</code> or <code>matplotlib</code>.</li>
+<li>Instead of returning an opaque binary artifact, it returns a
+structured JSON-backed dictionary of the plot’s metadata, enabling
+programmatic verification of visualizations in T scripts.</li>
+</ul></li>
+</ul>
+<h3 id="core-evaluator-emitter-refinements">Core Evaluator &amp; Emitter
+Refinements</h3>
+<ul>
+<li><strong>Improved Pretty Printing</strong>: Updated the core pretty
+printer to handle complex nested dictionaries and diagnostics summaries
+more gracefully.</li>
+<li><strong>Nix Emitter Stability</strong>: Significant updates to
+<code>nix_emit_node.ml</code> to support the new visualization injection
+logic and improve script-based node robustness.</li>
+<li><strong>Test Infrastructure</strong>: Added golden tests and mocks
+for visual metadata scenarios.</li>
+</ul>
+<h2 id="section">[0.51.3] - 2026-04-12</h2>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
+&amp; Observability</h3>
+<ul>
+<li><strong>First-Class Diagnostics Engine</strong>:
+<ul>
+<li>Implemented a comprehensive diagnostics system that captures and
+classifies “own” vs. “upstream” warnings.</li>
+<li>Pipeline builds now persist non-terminal warnings and terminal
+errors as node artifacts.</li>
+<li><strong>Soft-Fail Semantics</strong>: Internal node failures no
+longer halt the entire Nix build; they produce <code>VError</code>
+objects, allowing independent branches to complete.</li>
+<li><strong>Diagnostic Suppression</strong>: Introduced
+<code>suppress_warnings</code> combinator to silence high-noise nodes
+while maintaining background auditability.</li>
+<li><strong>Improved Summaries</strong>: Updated build summaries to use
+plural-safe <code>node(s)</code> and <code>error(s)</code> formatting,
+with clear iconographic reporting (<code>✖</code>, <code>✓</code>,
+<code>○</code>, <code>?</code>).</li>
+</ul></li>
+<li><strong>Enhanced Interrogation Tools</strong>:
+<ul>
+<li><strong><code>read_node()</code> &amp;
+<code>read_pipeline()</code></strong>: Promoted to first-class tools.
+They now accept in-memory objects and return structured results with
+values and diagnostics.</li>
+<li><strong><code>explain()</code> function</strong>: Enhanced to
+surface context, tracebacks, and missingness statistics for pipeline
+results and errors.</li>
+<li><strong>Verbose Logging</strong>: Added <code>verbose=1</code>
+support to pipeline builders, mapping directly to Nix build logs for
+improved debugging.</li>
+</ul></li>
+<li><strong>Architectural Improvements</strong>:
+<ul>
+<li><strong>Lazy Evaluation</strong>: Implemented lazy cross-pipeline
+dependency resolution, allowing expressive and ergonomic pipeline
+composition.</li>
+<li><strong>Resilient Path Resolution</strong>: Fixed repository root
+discovery for nested builds and Nix sandboxes.</li>
+<li><strong>Dependency Traceability</strong>: Automatic injection of
+<code>node_name</code> into all diagnostic records for clear error
+attribution in complex DAGs.</li>
+</ul></li>
+</ul>
+<h3 id="standardized-missingness-death-to-null">Standardized Missingness
+&amp; “Death to Null”</h3>
+<ul>
+<li><strong>Comprehensive NA Enforcement</strong>:
+<ul>
+<li>Finalized the T-Lang NA specification for total “No Silent Magic”
+compliance.</li>
+<li><strong><code>NAPredicateError</code></strong>: Dedicated error code
+for NA values in boolean contexts, enabling robust logic in
+<code>filter()</code> and <code>if</code> expressions.</li>
+<li><strong>Strict Guards</strong>: Enhanced logical and comparison
+operators to raise errors on NA instead of silent propagation.</li>
+<li><strong>Optimized Math</strong>: Verified <code>na_ignore</code>
+semantics across all core math transforms (<code>abs</code>,
+<code>log</code>, <code>sqrt</code>, <code>exp</code>, <code>pow</code>)
+and aggregations (<code>min</code>, <code>max</code>, <code>sum</code>,
+<code>mean</code>).</li>
+</ul></li>
+<li><strong>Complete Removal of Null</strong>:
+<ul>
+<li>The <code>null</code> keyword and <code>VNull</code> type have been
+completely removed from the language grammar and AST.</li>
+<li>Unified all previous “nullable” return paths (e.g., missing env
+vars, empty nodes) to use typed <code>NA</code> values.</li>
+<li>Replaced <code>is_null()</code> with <code>is_na()</code> as the
+universal missingness predicate.</li>
+</ul></li>
+</ul>
+<h3 id="model-interoperability-native-scoring">Model Interoperability
+&amp; Native Scoring</h3>
+<ul>
+<li><strong>Standardized PMML Interchange</strong>:
+<ul>
+<li>Transitioned to JPMML as the canonical scoring authority via a
+robust, CSV-based bridge.</li>
+<li><strong>Native Ensemble Scoring</strong>: Added native OCaml support
+for Random Forests, XGBoost, and LightGBM models.</li>
+<li><strong>Categorical Expansion</strong>: Implemented automatic
+dummy-variable/one-hot expansion and interaction term (<code>:</code>)
+resolution in the native <code>lm()</code> and <code>predict()</code>
+engines.</li>
+<li><strong><code>fit_stats()</code> API</strong>: Unified
+goodness-of-fit statistics (R², AIC, BIC) into a single,
+language-agnostic DataFrame output.</li>
+</ul></li>
+<li><strong>Native ONNX Inference</strong>:
+<ul>
+<li>Full support for <code>^onnx</code> serialization and native OCaml
+scoring via <code>onnxruntime</code> FFI.</li>
+<li>Automated feature mapping, metadata extraction, and
+multi-input/output tensor support.</li>
+<li>High-performance, memory-safe session management with OCaml GC
+integration.</li>
+</ul></li>
+</ul>
+<h3 id="language-robustness-interop">Language Robustness &amp;
+Interop</h3>
+<ul>
+<li><strong>Strict Equality Semantics</strong>:
+<ul>
+<li>Enforced scalarity for <code>==</code> and <code>!=</code>. These
+now require explicit broadcasting (<code>.==</code>) for collections to
+prevent silent logic errors.</li>
+<li><strong><code>identical(a, b)</code></strong>: New core builtin for
+deep structural equality of complex objects.</li>
+</ul></li>
+<li><strong>Enhanced Data Operations</strong>:
+<ul>
+<li><strong><code>dataframe()</code> Constructor</strong>: Added support
+for Dictionary-based construction and automatic scalar recycling.</li>
+<li><strong>NSE Safety</strong>: Implemented guarded NSE transformation
+to prevent unexpected lambda-wrapping of non-NSE builtins.</li>
+</ul></li>
+<li><strong>String Column Extraction</strong>: Enhanced
+<code>pull()</code> and column helpers to support <code>VString</code>
+arguments for extraction of special-character column names.</li>
+</ul>
+<h3 id="project-ci-test-infrastructure">Project, CI &amp; Test
+Infrastructure</h3>
+<ul>
+<li><strong>Strict Dependency Declaration</strong>:
+<ul>
+<li>Finalized the removal of implicit Nix package injection. All
+requirements must be explicitly listed in
+<code>tproject.toml</code>.</li>
+<li>Added interactive injection prompts and
+<code>TLANG_AUTO_ADD_PIPELINE_DEPS</code> for CI automation.</li>
+</ul></li>
+<li><strong>Environment Stability</strong>:
+<ul>
+<li>Standardized Nixpkgs pinning via <code>RSTATS-NIX-DATE</code> for
+reproducible, cache-friendly builds.</li>
+<li><strong>Serialization Integrity</strong>: Introduced mandatory MD5
+digests for all serialized artifacts.</li>
+</ul></li>
+<li><strong>CI/CD Stabilization</strong>:
+<ul>
+<li>Refactored <code>t_demos</code> into 30+ dedicated per-demo
+workflows.</li>
+<li>Optimized the core test suite to use static interrogation and modern
+mocks, achieving a stable baseline of <strong>1837/1837</strong> tests
+passed.</li>
+<li>Enhanced the test runner with aggregated failure summaries.</li>
+</ul></li>
+</ul>
+<h3 id="bug-fixes-refinements">Bug Fixes &amp; Refinements</h3>
+<ul>
+<li><strong>REPL Stability</strong>: Corrected a documentation comment
+collision in <code>repl.ml</code> that was causing compilation errors
+during scale-wide refactors.</li>
+<li><strong>Python Node Emitter</strong>: Refined the auto-return logic
+to ignore trailing comments and whitespace, preventing silent
+<code>None</code> results.</li>
+<li><strong>Grouped Mutate</strong>: Fixed a regression where assigning
+constant scalars to grouped DataFrames would fail.</li>
+<li><strong>Interaction Resolution</strong>: Restored and verified
+interaction term (<code>:</code>) resolution in native linear model
+scoring.</li>
+</ul>
+<h2 id="version-0.51.2">Version 0.51.2</h2>
+<p><strong>Status</strong>: Beta<br />
+<strong>Release Date</strong>: 2026-03-28</p>
+<h3 id="features-ux">Features &amp; UX</h3>
+<ul>
+<li><strong>Immutable Update Lenses</strong>: F inalized the lens system
+with support for deep surgical updates to Dictionaries and DataFrames.
+<ul>
+<li>Introduced <strong><code>modify()</code></strong>: A variadic
+builtin for applying multiple lens transformations in a single
+pass.</li>
+<li>Updated <strong><code>compose()</code></strong>: Now variadic,
+allowing any number of lenses to be chained into a single declarative
+path.</li>
+<li><strong>Orchestration Lenses</strong>: Added
+<code>node_lens()</code> and <code>env_var_lens()</code> for inspecting
+and modifying Pipeline node results and environment variables.</li>
+<li><strong>Collections &amp; Filtering</strong>: Added
+<strong><code>idx_lens(i)</code></strong> for positional access in
+Lists/Vectors, <strong><code>row_lens(i)</code></strong> for specific
+DataFrame row targeting, and
+<strong><code>filter_lens(p)</code></strong> for predicate-based focus
+on elements and rows.</li>
+<li><strong>Vectorization</strong>: Lenses are fully vectorized,
+allowing transformations to penetrate nested DataFrames across all rows
+automatically.</li>
+</ul></li>
+<li><strong><code>rm()</code> Function</strong>: New core language
+feature for removing variables from the environment. Supports symbols,
+strings, and list-based removal (e.g., <code>rm(x, y)</code>,
+<code>rm("z")</code>, <code>rm(list = vars)</code>).</li>
+<li><strong>Asynchronous Build Progress</strong>: Implemented a new
+streaming build progress reporter in the terminal. Pipeline builds now
+show real-time “building” and “built” alerts for each node, with
+high-noise Nix logs filtered by default.</li>
+<li><strong>First-Class Serializer System</strong>: Introduced a robust,
+type-safe serialization layer for polyglot pipelines.
+<ul>
+<li><strong>Serializer Registry</strong>: Added the <code>^</code>
+symbol prefix for resolving built-in serializers from a centralized
+registry (e.g., <code>^csv</code>, <code>^arrow</code>,
+<code>^pmml</code>, <code>^json</code>, <code>^text</code>).</li>
+<li><strong>VSerializer Type</strong>: Serializers are now first-class
+records containing metadata and language-specific snippets for R and
+Python.</li>
+<li><strong>Foreign Code Enforcement</strong>: Custom polyglot
+serializers now require foreign code blocks
+(<code>&lt;{ ... }&gt;</code>) for reader/writer snippets, ensuring
+syntactic separation between T and injected code.</li>
+<li><strong>Static Coherence Checks</strong>: The pipeline builder now
+performs build-time verification to ensure producer and consumer formats
+match, catching data interchange errors before execution.</li>
+</ul></li>
+<li><strong>Error Visibility</strong>: When a pipeline fails, the
+summary now correctly reports the count of errored nodes (e.g., “[1 node
+errored]”).</li>
+<li><strong>REPL Interface</strong>: Added a new <code>t_make()</code>
+builtin to the REPL. It defaults to building <code>src/pipeline.t</code>
+and supports optional named arguments (e.g., <code>max_jobs</code>,
+<code>max_cores</code>) that pass through to the underlying Nix
+build.</li>
+<li><strong>Improved Name Errors</strong>: Added fuzzy matching to
+<code>NameError</code> reporting with “Did you mean …?” suggestions when
+an unbound variable is accessed.</li>
+<li><strong>Pattern Matching (match)</strong>: Introduced the
+<code>match</code> expression for declarative list and error
+destructuring. Includes support for head/tail patterns,
+<code>Error { msg }</code> patterns, and automatic error propagation for
+unhandled error values.</li>
+<li><strong>REPL Responsiveness</strong>: Added explicit
+<code>flush stderr</code> after variable reassignment (<code>:=</code>)
+warnings to ensure they appear promptly in the REPL.</li>
+<li><strong>Pipeline Sandboxing</strong>: Enhanced
+<code>read_node()</code> to automatically fall back to environment
+variables (<code>T_NODE_&lt;name&gt;</code>) when build logs are
+unavailable. This enables <code>read_node</code> to work inside Nix
+build sandboxes (e.g., within Quarto nodes or nested pipeline steps) and
+provides automatic deserialization for Arrow, JSON, and PMML artifacts
+based on class hints.</li>
+</ul>
+<h3 id="improved">Improved</h3>
+<ul>
+<li><strong>Build Log Inspection</strong>: <code>read_log()</code> now
+returns the Nix build log as a <code>VString</code> instead of printing
+directly. This allows the log to be captured as a variable or formatted
+with <code>cat()</code>.</li>
+<li><strong>String Printing</strong>: <code>print()</code> and
+<code>cat()</code> now correctly handle literal newlines and escape
+sequences in strings and shell results, ensuring
+<code>?&lt;{ls -l}&gt;</code> and logs display correctly.</li>
+<li><strong>Project Initialization</strong>: Better <code>t init</code>
+interactive prompts and project scaffolding templates. The
+<code>t init</code> command now defaults to the version of the T binary
+being used.</li>
+<li><strong>CLI Interface</strong>: Renamed <code>t init package</code>
+and <code>t init project</code> subcommands to
+<code>t init --package</code> and <code>t init --project</code> flags
+for better clarity.</li>
+<li><strong>Python Node FFI</strong>: Improved dependency handling in
+<code>pyn()</code>. Pipeline nodes are now correctly provided as global
+variables in the Python runtime.</li>
+<li><strong>Nix Sandbox Robustness</strong>: Added missing
+<code>import os</code> to Python serialization snippets, ensuring
+standard library access in the Nix sandbox.</li>
+<li><strong>CI Reliability</strong>: <code>t update</code> now
+automatically handles untracked <code>flake.nix</code> in Git
+repositories when running in a CI environment
+(<code>CI=true</code>).</li>
+<li><strong>Nix Support</strong>: Added help for experimental flags and
+trusted user configuration in <code>docs/installation.md</code>.</li>
+</ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><strong>Design Consistency</strong>: Standardized all documentation
+and examples to reinforce the “<strong>Data Frame First</strong>”
+principle for function arguments, ensuring compatibility with T’s
+functional piping (<code>|&gt;</code>) patterns.</li>
+<li><strong>Typos</strong>: Fixed documentation typos (e.g.,
+“sterilization” -&gt; “serialization”).</li>
+<li><strong>Example Revisions</strong>: Synchronized all pipeline demos
+in <code>t_demos</code> and <code>examples/</code> with the latest
+first-class serializer system and <code>^</code>-prefix notation.</li>
+<li><strong>Error Message Clarity</strong>: Improved error messages for
+immutable variable reassignment with actionable suggestions
+(<code>Use ':=' to overwrite or rm() to delete the variable</code>).</li>
+<li><strong>Global Guide Alignment</strong>: Performed a repository-wide
+sweep to remove legacy version strings and hardcoded formatting in
+installation and project guides.</li>
+</ul>
 <p>Version history and roadmap for the T programming language.</p>
+<h2 id="section-1">[0.51.1] - 2026-03-21</h2>
+<p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
+March 2026</p>
+<h3 id="features-cli">Features &amp; CLI</h3>
+<ul>
+<li><strong>New Command</strong>: Introduced <code>t upgrade</code> to
+automatically update projects to the latest T version and refresh the
+<code>rstats-on-nix</code> nixpkgs date.</li>
+<li><strong>Centralized Versioning</strong>: Version is now managed in a
+single <code>VERSION</code> file and propagated across the project.</li>
+</ul>
+<h3 id="bug-fixes-improvements">Bug Fixes &amp; Improvements</h3>
+<ul>
+<li><strong>Package Management</strong>: Fixed issues in
+<code>t update</code> and related flake generation logic.</li>
+<li><strong>Quarto Integration</strong>: Fixed <code>read_node</code>
+substitution in Quarto reports to prevent syntax errors in R/Python
+chunks.</li>
+<li><strong>Testing</strong>: Resolved failures in Quarto pipeline tests
+and improved CI reliability.</li>
+</ul>
 <h2 id="version-0.51.0-first-public-release">Version 0.51.0 — First
 Public Release</h2>
 <p><strong>Status</strong>: Alpha — Syntax and semantics frozen<br />
 <strong>Release Date</strong>: February 2026</p>
+<h3 id="package-manager-t-update">Package Manager
+(<code>t update</code>)</h3>
+<ul>
+<li><strong>Versioning sync</strong>: <code>t update</code> now
+generates a <code>flake.nix</code> that points to this version by
+default.</li>
+<li><strong>Improved defaults</strong>: Projects without an explicit
+<code>min_version</code> now use 0.51.0.</li>
+</ul>
 <h3 id="language-core">Language Core</h3>
-<p>✅ <strong>Implemented</strong>: - Lexer and parser (Menhir) -
-Tree-walking interpreter - Expression-oriented evaluation - Immutable
-values - Dynamic typing with runtime checks - First-class functions and
-closures - List comprehensions - <strong>Non-Standard Evaluation
-(NSE)</strong>: Dollar-prefix column references
-(<code>$column_name</code>) for concise data manipulation</p>
+<p>✅ <strong>Implemented</strong>:</p>
+<ul>
+<li>Lexer and parser (Menhir)</li>
+<li>Tree-walking interpreter</li>
+<li>Expression-oriented evaluation</li>
+<li>Immutable values</li>
+<li>Dynamic typing with runtime checks</li>
+<li>First-class functions and closures</li>
+<li>List comprehensions</li>
+<li><strong>Non-Standard Evaluation (NSE)</strong>: Dollar-prefix column
+references (<code>$column_name</code>) for concise data
+manipulation</li>
+</ul>
 <h3 id="nse-non-standard-evaluation">NSE (Non-Standard Evaluation)</h3>
-<p>✅ <strong>Implemented</strong>: - Dollar-prefix syntax:
-<code>$column_name</code> for column references - Auto-transformation:
-<code>$age &gt; 30</code> → <code>\(row) row.age &gt; 30</code> -
-Named-arg syntax: <code>summarize($total = sum($amount))</code>,
-<code>mutate($bonus = $salary * 0.1)</code> - Works with all data verbs:
-<code>select</code>, <code>filter</code>, <code>mutate</code>,
-<code>arrange</code>, <code>group_by</code>, <code>summarize</code></p>
+<p>✅ <strong>Implemented</strong>:</p>
+<ul>
+<li>Dollar-prefix syntax: <code>$column_name</code> for column
+references</li>
+<li>Auto-transformation: <code>$age &gt; 30</code> →
+<code>\(row) row.age &gt; 30</code></li>
+<li>Named-arg syntax: <code>summarize($total = sum($amount))</code>,
+<code>mutate($bonus = $salary * 0.1)</code></li>
+<li>Works with all data verbs: <code>select</code>, <code>filter</code>,
+<code>mutate</code>, <code>arrange</code>, <code>group_by</code>,
+<code>summarize</code></li>
+</ul>
 <h3 id="data-types">Data Types</h3>
-<p>✅ <strong>Implemented</strong>: - Scalars: Int, Float, Bool, String
-- Collections: List, Dict - DataFrames (Arrow-backed) - Vectors (typed
-arrays) - NA (typed missing values) - Error (structured errors, not
-exceptions) - Pipeline (DAG execution) - Intent (LLM metadata) - Formula
-(statistical modeling) - Null</p>
+<p>✅ <strong>Implemented</strong>:</p>
+<ul>
+<li>Scalars: Int, Float, Bool, String</li>
+<li>Collections: List, Dict</li>
+<li>DataFrames (Arrow-backed)</li>
+<li>Vectors (typed arrays)</li>
+<li>NA (typed missing values)</li>
+<li>Error (structured errors, not exceptions)</li>
+<li>Pipeline (DAG execution)</li>
+<li>Intent (LLM metadata)</li>
+<li>Formula (statistical modeling)</li>
+<li>NA</li>
+</ul>
 <h3 id="operators">Operators</h3>
-<p>✅ <strong>Implemented</strong>: - Arithmetic: <code>+</code>,
-<code>-</code>, <code>*</code>, <code>/</code>, <code>%</code> -
-Comparison: <code>==</code>, <code>!=</code>, <code>&lt;</code>,
-<code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> - Logical:
-<code>and</code>, <code>or</code>, <code>not</code> - Pipe:
-<code>|&gt;</code> (conditional, short-circuits on error) - Maybe-pipe:
-<code>?|&gt;</code> (always forwards, including errors) - Formula:
-<code>~</code> (for regression models)</p>
+<p>✅ <strong>Implemented</strong>:</p>
+<ul>
+<li>Arithmetic: <code>+</code>, <code>-</code>, <code>*</code>,
+<code>/</code>, <code>%</code></li>
+<li>Comparison: <code>==</code>, <code>!=</code>, <code>&lt;</code>,
+<code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code></li>
+<li>Logical: <code>and</code>, <code>or</code>, <code>not</code></li>
+<li>Pipe: <code>|&gt;</code> (conditional, short-circuits on error)</li>
+<li>Maybe-pipe: <code>?|&gt;</code> (always forwards, including
+errors)</li>
+<li>Formula: <code>~</code> (for regression models)</li>
+</ul>
 <h3 id="standard-library">Standard Library</h3>
-<p>✅ <strong>Core Package</strong>: - <code>print</code>,
-<code>pretty_print</code>, <code>type</code>, <code>length</code>,
-<code>head</code>, <code>tail</code> - <code>map</code>,
-<code>filter</code>, <code>sum</code>, <code>seq</code> -
-<code>is_error</code></p>
-<p>✅ <strong>Base Package</strong>: - <code>error</code>,
-<code>error_code</code>, <code>error_message</code>,
-<code>error_context</code> - <code>assert</code> - <code>NA</code>,
-<code>na_int</code>, <code>na_float</code>, <code>na_bool</code>,
-<code>na_string</code>, <code>is_na</code></p>
-<p>✅ <strong>Math Package</strong>: - <code>sqrt</code>,
-<code>abs</code>, <code>log</code>, <code>exp</code>, <code>pow</code> -
-<code>min</code>, <code>max</code></p>
-<p>✅ <strong>Stats Package</strong>: - <code>mean</code>,
-<code>sd</code>, <code>quantile</code>, <code>cor</code> (with
-<code>na_rm</code> parameter) - <code>lm</code> (linear regression:
-<code>y ~ x</code>)</p>
-<p>✅ <strong>DataFrame Package</strong>: - <code>read_csv</code> (with
-<code>separator</code>, <code>skip_lines</code>,
-<code>skip_header</code>, <code>clean_colnames</code>) -
-<code>write_csv</code> - <code>nrow</code>, <code>ncol</code>,
-<code>colnames</code> - <code>clean_colnames</code> (symbol expansion,
-diacritics, snake_case, collision resolution)</p>
-<p>✅ <strong>Colcraft Package</strong> (Data Verbs): -
-<code>select</code>, <code>filter</code>, <code>mutate</code>,
-<code>arrange</code> - <code>group_by</code>, <code>summarize</code>,
-<code>ungroup</code> - <strong>Window functions</strong>: - Ranking:
-<code>row_number</code>, <code>min_rank</code>, <code>dense_rank</code>,
-<code>cume_dist</code>, <code>percent_rank</code>, <code>ntile</code> -
-Offset: <code>lag</code>, <code>lead</code> - Cumulative:
-<code>cumsum</code>, <code>cummin</code>, <code>cummax</code>,
-<code>cummean</code>, <code>cumall</code>, <code>cumany</code></p>
-<p>✅ <strong>Pipeline Package</strong>: - <code>pipeline_nodes</code>,
-<code>pipeline_deps</code>, <code>pipeline_node</code>,
-<code>pipeline_run</code></p>
-<p>✅ <strong>Explain Package</strong>: - <code>explain</code>,
-<code>explain_json</code> - <code>intent_fields</code>,
-<code>intent_get</code></p>
+<p>✅ <strong>Core Package</strong>:</p>
+<ul>
+<li><code>print</code>, <code>pretty_print</code>, <code>type</code>,
+<code>length</code>, <code>head</code>, <code>tail</code></li>
+<li><code>map</code>, <code>filter</code>, <code>sum</code>,
+<code>seq</code></li>
+<li><code>is_error</code></li>
+</ul>
+<p>✅ <strong>Base Package</strong>:</p>
+<ul>
+<li><code>error</code>, <code>error_code</code>,
+<code>error_message</code>, <code>error_context</code></li>
+<li><code>assert</code></li>
+<li><code>NA</code>, <code>na_int</code>, <code>na_float</code>,
+<code>na_bool</code>, <code>na_string</code>, <code>is_na</code></li>
+</ul>
+<p>✅ <strong>Math Package</strong>:</p>
+<ul>
+<li><code>sqrt</code>, <code>abs</code>, <code>log</code>,
+<code>exp</code>, <code>pow</code></li>
+<li><code>min</code>, <code>max</code></li>
+</ul>
+<p>✅ <strong>Stats Package</strong>:</p>
+<ul>
+<li><code>mean</code>, <code>sd</code>, <code>quantile</code>,
+<code>cor</code> (with <code>na_rm</code> parameter)</li>
+<li><code>lm</code> (linear regression: <code>y ~ x</code>)</li>
+</ul>
+<p>✅ <strong>DataFrame Package</strong>:</p>
+<ul>
+<li><code>read_csv</code> (with <code>separator</code>,
+<code>skip_lines</code>, <code>skip_header</code>,
+<code>clean_colnames</code>)</li>
+<li><code>write_csv</code></li>
+<li><code>nrow</code>, <code>ncol</code>, <code>colnames</code></li>
+<li><code>clean_colnames</code> (symbol expansion, diacritics,
+snake_case, collision resolution)</li>
+</ul>
+<p>✅ <strong>Colcraft Package</strong> (Data Verbs):</p>
+<ul>
+<li><code>select</code>, <code>filter</code>, <code>mutate</code>,
+<code>arrange</code></li>
+<li><code>group_by</code>, <code>summarize</code>,
+<code>ungroup</code></li>
+<li><strong>Window functions</strong>:
+<ul>
+<li>Ranking: <code>row_number</code>, <code>min_rank</code>,
+<code>dense_rank</code>, <code>cume_dist</code>,
+<code>percent_rank</code>, <code>ntile</code></li>
+<li>Offset: <code>lag</code>, <code>lead</code></li>
+<li>Cumulative: <code>cumsum</code>, <code>cummin</code>,
+<code>cummax</code>, <code>cummean</code>, <code>cumall</code>,
+<code>cumany</code></li>
+</ul></li>
+</ul>
+<p>✅ <strong>Pipeline Package</strong>:</p>
+<ul>
+<li><code>pipeline_nodes</code>, <code>pipeline_deps</code>,
+<code>pipeline_node</code>, <code>pipeline_run</code></li>
+</ul>
+<p>✅ <strong>Explain Package</strong>:</p>
+<ul>
+<li><code>explain</code>, <code>explain_json</code></li>
+<li><code>intent_fields</code>, <code>intent_get</code></li>
+</ul>
 <h3 id="features">Features</h3>
-<p>✅ <strong>Error Handling</strong>: - Errors as values (not
-exceptions) - Railway-oriented programming with <code>|&gt;</code> and
-<code>?|&gt;</code> - Actionable error messages with suggestions</p>
-<p>✅ <strong>NA Handling</strong>: - Explicit NA (typed:
-<code>na_int()</code>, etc.) - No automatic propagation -
-<code>na_rm</code> parameter for aggregations - Window functions handle
-NA gracefully</p>
-<p>✅ <strong>Pipelines</strong>: - DAG-based execution - Automatic
-dependency resolution - Deterministic order - Cycle detection -
-Introspection</p>
-<p>✅ <strong>Cross-Language Model Interchange (PMML)</strong>: - Native
-PMML parser and evaluator in OCaml - Seamless import of models from R
-(<code>lm</code>) and Python (<code>scikit-learn</code>) -
-<code>broom</code>-style tidy summaries (<code>summary()</code>,
-<code>fit_stats()</code>) for imported models - Native high-performance
-prediction in T without runtime language dependencies</p>
-<p>✅ <strong>Intent Blocks</strong>: - Structured metadata for LLM
-collaboration - Document assumptions, constraints, goals -
-Machine-readable format</p>
-<p>✅ <strong>Arrow Integration</strong>: - Zero-copy columnar storage -
-CSV reading via Arrow C GLib - Dual-path operations (native + fallback)
-- <code>explain(df)</code> now surfaces whether a DataFrame is still on
+<p>✅ <strong>Error Handling</strong>:</p>
+<ul>
+<li>Errors as values (not exceptions)</li>
+<li>Railway-oriented programming with <code>|&gt;</code> and
+<code>?|&gt;</code></li>
+<li>Actionable error messages with suggestions</li>
+</ul>
+<p>✅ <strong>NA Handling</strong>:</p>
+<ul>
+<li>Explicit NA (typed: <code>na_int()</code>, etc.)</li>
+<li>No automatic propagation</li>
+<li><code>na_rm</code> parameter for aggregations</li>
+<li>Window functions handle NA gracefully</li>
+</ul>
+<p>✅ <strong>Pipelines</strong>:</p>
+<ul>
+<li>DAG-based execution</li>
+<li>Automatic dependency resolution</li>
+<li>Deterministic order</li>
+<li>Cycle detection</li>
+<li>Introspection</li>
+</ul>
+<p>✅ <strong>Cross-Language Model Interchange (PMML)</strong>:</p>
+<ul>
+<li>Native PMML parser and evaluator in OCaml</li>
+<li>Seamless import of models from R (<code>lm</code>) and Python
+(<code>scikit-learn</code>)</li>
+<li><code>broom</code>-style tidy summaries (<code>summary()</code>,
+<code>fit_stats()</code>) for imported models</li>
+<li>Native high-performance prediction in T without runtime language
+dependencies</li>
+</ul>
+<p>✅ <strong>Intent Blocks</strong>:</p>
+<ul>
+<li>Structured metadata for LLM collaboration</li>
+<li>Document assumptions, constraints, goals</li>
+<li>Machine-readable format</li>
+</ul>
+<p>✅ <strong>Arrow Integration &amp; Data Formats</strong>:</p>
+<ul>
+<li>Zero-copy columnar storage</li>
+<li>CSV reading via Arrow C GLib</li>
+<li><strong>Parquet &amp; Feather Support</strong>: Full native
+read/write for Arrow-backed files</li>
+<li>Dual-path operations (native + fallback)</li>
+<li><code>explain(df)</code> surfaces whether a DataFrame is still on
 the native Arrow path (<code>storage_backend</code>,
-<code>native_path_active</code>) - Supported structural rebuilds now try
-to stay Arrow-backed by rematerializing into a fresh native table -
-<strong>Current limitation</strong>: unsupported builder paths (for
-example null-only, factor, list, date, or datetime columns) still fall
-back to pure OCaml/T storage</p>
-<p>✅ <strong>Reproducibility</strong>: - Nix flakes for dependency
-management - Deterministic execution - Frozen syntax and semantics</p>
+<code>native_path_active</code>)</li>
+<li>Supported structural rebuilds now try to stay Arrow-backed by
+rematerializing into a fresh native table</li>
+<li><strong>Current limitation</strong>: unsupported builder paths (for
+example NA-only, factor, list, date, or datetime columns) still fall
+back to pure OCaml/T storage</li>
+</ul>
+<p>✅ <strong>Reproducibility</strong>:</p>
+<ul>
+<li>Nix flakes for dependency management</li>
+<li>Deterministic execution</li>
+<li>Frozen syntax and semantics</li>
+</ul>
 <h3 id="repl">REPL</h3>
-<p>✅ <strong>Implemented</strong>: - Interactive read-eval-print loop -
-Multiline input support - Persistent environment - Auto-loading of
-standard library</p>
+<p>✅ <strong>Implemented</strong>:</p>
+<ul>
+<li>Interactive read-eval-print loop</li>
+<li>Multiline input support</li>
+<li>Persistent environment</li>
+<li>Auto-loading of standard library</li>
+</ul>
 <h3 id="testing">Testing</h3>
-<p>✅ <strong>Implemented</strong>: - Unit tests (OCaml) - Golden tests
-(T vs R comparison) - Example-based tests</p>
+<p>✅ <strong>Implemented</strong>:</p>
+<ul>
+<li>Unit tests (OCaml)</li>
+<li>Golden tests (T vs R comparison)</li>
+<li>Example-based tests</li>
+</ul>
 <h3 id="package-management-flakes-bug-fixes">Package Management &amp;
 Flakes (Bug fixes)</h3>
-<p>✅ <strong>Implemented</strong>: - <code>T_PACKAGE_PATH</code> flake
-configurations export the exact built derivations rather than raw source
-maps - Packages dynamically bundle the local <code>src/</code> and
-<code>help/</code> directories instead of silently failing context -
-<code>t-lang</code> compiler successfully stripped out of packages’
-default recursive <code>buildInputs</code> dependencies -
-<code>help()</code> UX fallback bypasses closures gracefully by
-searching locally bound environment lambda variables</p>
+<p>✅ <strong>Implemented</strong>:</p>
+<ul>
+<li><code>T_PACKAGE_PATH</code> flake configurations export the exact
+built derivations rather than raw source maps</li>
+<li>Packages dynamically bundle the local <code>src/</code> and
+<code>help/</code> directories instead of silently failing context</li>
+<li><code>t-lang</code> compiler successfully stripped out of packages’
+default recursive <code>buildInputs</code> dependencies</li>
+<li><code>help()</code> UX fallback bypasses closures gracefully by
+searching locally bound environment lambda variables</li>
+</ul>
 <h3 id="documentation">Documentation</h3>
-<p>✅ <strong>Implemented</strong> (this release): - README with quick
-start - Getting Started guide - Installation guide - API Reference (all
-packages) - Language Overview - Data Manipulation Examples - Pipeline
-Tutorial - Architecture guide - Contributing guide - Development guide -
-Comprehensive Examples - Error Handling guide - Reproducibility guide -
-LLM Collaboration guide - FAQ - Troubleshooting guide - Changelog (this
-file) - <strong>Model Interchange &amp; PMML</strong>: Documentation for
+<p>✅ <strong>Implemented</strong> (this release):</p>
+<ul>
+<li>README with quick start</li>
+<li>Getting Started guide</li>
+<li>Installation guide</li>
+<li>API Reference (all packages)</li>
+<li>Language Overview</li>
+<li>Data Manipulation Examples</li>
+<li>Pipeline Tutorial</li>
+<li>Architecture guide</li>
+<li>Contributing guide</li>
+<li>Development guide</li>
+<li>Comprehensive Examples</li>
+<li>Error Handling guide</li>
+<li>Reproducibility guide</li>
+<li>LLM Collaboration guide</li>
+<li>FAQ</li>
+<li>Troubleshooting guide</li>
+<li>Changelog (this file)</li>
+<li><strong>Model Interchange &amp; PMML</strong>: Documentation for
 cross-language model support and broom-style outputs for imported
-models. - <strong>Improved Data Inspection</strong>: Enhanced
-<code>glimpse()</code> documentation for quick DataFrame summaries.</p>
-<hr />
-<h2 id="roadmap">Roadmap</h2>
-<h3 id="version-0.6.0-beta-planned">Version 0.6.0 (Beta) — Planned</h3>
-<p><strong>Focus</strong>: Performance and expanded functionality</p>
-<h4 id="performance-improvements">Performance Improvements</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />Bytecode compilation (replace
-tree-walking)</label></li>
-<li><label><input type="checkbox" />Stack-based VM</label></li>
-<li><label><input type="checkbox" />Lazy evaluation for
-pipelines</label></li>
-<li><label><input type="checkbox" />More Arrow compute
-kernels</label></li>
+models.</li>
+<li><strong>Improved Data Inspection</strong>: Enhanced
+<code>glimpse()</code> documentation for quick DataFrame summaries.</li>
 </ul>
-<h4 id="new-features">New Features</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />DataFrame joins (<code>join</code>,
-<code>left_join</code>, <code>inner_join</code>)</label></li>
-<li><label><input type="checkbox" />More statistical functions
-(<code>t_test</code>, <code>anova</code>,
-<code>chisq_test</code>)</label></li>
-<li><label><input type="checkbox" />Multiple regression
-(<code>lm(y ~ x1 + x2 + x3)</code>)</label></li>
-<li><label><input type="checkbox" />Parquet support</label></li>
-<li><label><input type="checkbox" />Basic plotting (via Arrow/matplotlib
-integration)</label></li>
-</ul>
-<h4 id="language-enhancements">Language Enhancements</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />Pattern matching on
-values</label></li>
-<li><label><input type="checkbox" />Recursive functions optimization
-(tail-call)</label></li>
-<li><label><input type="checkbox" />Anonymous pipeline
-blocks</label></li>
-<li><label><input type="checkbox" />Destructuring
-assignment</label></li>
-</ul>
-<h4 id="standard-library-1">Standard Library</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />String manipulation package
-(<code>split</code>, <code>join</code>, <code>regex</code>)</label></li>
-<li><label><input type="checkbox" />Date/time package
-(<code>parse_date</code>, <code>diff_days</code>)</label></li>
-<li><label><input type="checkbox" />File I/O package
-(<code>read_lines</code>, <code>write_lines</code>)</label></li>
-</ul>
-<h3 id="version-0.3.0-beta-planned">Version 0.3.0 (Beta) — Planned</h3>
-<p><strong>Focus</strong>: Ecosystem and tooling</p>
-<h4 id="tooling">Tooling</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />Language Server Protocol (LSP) for
-IDE support</label></li>
-<li><label><input type="checkbox" />Formatter
-(<code>t-fmt</code>)</label></li>
-<li><label><input type="checkbox" />Linter
-(<code>t-lint</code>)</label></li>
-<li><label><input type="checkbox" />Package manager
-(<code>t-pkg</code>)</label></li>
-</ul>
-<h4 id="ecosystem">Ecosystem</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />User-contributed
-packages</label></li>
-<li><label><input type="checkbox" />Package registry</label></li>
-<li><label><input type="checkbox" />Binary distribution (no source
-build)</label></li>
-</ul>
-<h4 id="language-features">Language Features</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />Optional static typing (gradual
-typing)</label></li>
-<li><label><input type="checkbox" />Type annotations and
-inference</label></li>
-<li><label><input type="checkbox" />Modules and namespaces</label></li>
-</ul>
-<h3 id="version-1.0.0-stable-future">Version 1.0.0 (Stable) —
-Future</h3>
-<p><strong>Focus</strong>: Production-ready, stable API</p>
-<h4 id="stability">Stability</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />API freeze (no breaking
-changes)</label></li>
-<li><label><input type="checkbox" />Comprehensive
-benchmarks</label></li>
-<li><label><input type="checkbox" />Performance parity with
-Pandas/dplyr</label></li>
-<li><label><input type="checkbox" />95%+ test coverage</label></li>
-</ul>
-<h4 id="features-1">Features</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />Distributed execution (multi-node
-pipelines)</label></li>
-<li><label><input type="checkbox" />GPU acceleration (Arrow Compute on
-CUDA)</label></li>
-<li><label><input type="checkbox" />Database integration (SQL,
-DuckDB)</label></li>
-<li><label><input type="checkbox" />Streaming data support</label></li>
-</ul>
-<h4 id="documentation-1">Documentation</h4>
-<ul class="task-list">
-<li><label><input type="checkbox" />Books and tutorials</label></li>
-<li><label><input type="checkbox" />Video courses</label></li>
-<li><label><input type="checkbox" />Case studies</label></li>
-<li><label><input type="checkbox" />Certification program</label></li>
-</ul>
-<hr />
-<h2 id="historical-development-pre-alpha">Historical Development
-(Pre-Alpha)</h2>
-<h3 id="phase-8-documentation-stabilization">Phase 8: Documentation
-&amp; Stabilization</h3>
-<ul>
-<li>Comprehensive documentation suite</li>
-<li>Website updates</li>
-<li>Alpha freeze</li>
-</ul>
-<h3 id="phase-7-cli-repl">Phase 7: CLI &amp; REPL</h3>
-<ul>
-<li>Interactive REPL</li>
-<li>Error recovery</li>
-<li>Standard library auto-loading</li>
-</ul>
-<h3 id="phase-6-llm-tooling-introspection">Phase 6: LLM Tooling &amp;
-Introspection</h3>
-<ul>
-<li>Intent blocks</li>
-<li><code>explain()</code> functions</li>
-<li>Pipeline introspection</li>
-</ul>
-<h3 id="phase-5-math-statistics">Phase 5: Math &amp; Statistics</h3>
-<ul>
-<li>Math functions</li>
-<li>Statistical functions with NA handling</li>
-<li>Linear regression</li>
-</ul>
-<h3 id="phase-4-data-verbs-window-functions">Phase 4: Data Verbs &amp;
-Window Functions</h3>
-<ul>
-<li>Six core verbs (select, filter, mutate, arrange, group_by,
-summarize)</li>
-<li>All window functions (rank, offset, cumulative)</li>
-<li>Grouped operations</li>
-</ul>
-<h3 id="phase-3-pipelines">Phase 3: Pipelines</h3>
-<ul>
-<li>Pipeline syntax</li>
-<li>DAG execution</li>
-<li>Dependency resolution</li>
-<li>Cycle detection</li>
-</ul>
-<h3 id="phase-2-tabular-data-arrow">Phase 2: Tabular Data &amp;
-Arrow</h3>
-<ul>
-<li>Arrow C GLib integration</li>
-<li>DataFrame type</li>
-<li>CSV I/O</li>
-<li>Column name cleaning</li>
-</ul>
-<h3 id="phase-1-language-core">Phase 1: Language Core</h3>
-<ul>
-<li>Lexer and parser</li>
-<li>AST and evaluator</li>
-<li>Basic types and operators</li>
-<li>Functions and closures</li>
-</ul>
-<hr />
-<h2 id="known-issues-alpha-0.1">Known Issues (Alpha 0.1)</h2>
-<h3 id="performance">Performance</h3>
-<ul>
-<li><strong>Slow for large datasets</strong> (&gt;1M rows): Tree-walking
-interpreter</li>
-<li><strong>Memory usage</strong>: No streaming, entire datasets in
-RAM</li>
-</ul>
-<h3 id="limitations">Limitations</h3>
-<ul>
-<li><strong>No joins</strong>: Must pre-join data externally</li>
-<li><strong>No visualization</strong>: Export to CSV for plotting</li>
-<li><strong>Limited file formats</strong>: CSV only</li>
-<li><strong>No user packages</strong>: Fixed standard library</li>
-</ul>
-<h3 id="bugs">Bugs</h3>
-<ul>
-<li><strong>Arrow FFI edge cases</strong>: Some Arrow operations may
-crash on corner cases</li>
-<li><strong>Floating-point precision</strong>: Platform-specific
-differences in golden tests</li>
-<li><strong>Error messages</strong>: Some could be more helpful</li>
-</ul>
-<p><strong>Reporting</strong>: Please report bugs on <a
-href="https://github.com/b-rodrigues/tlang/issues">GitHub Issues</a></p>
-<hr />
-<h2 id="contributing-to-roadmap">Contributing to Roadmap</h2>
-<p>We welcome input on priorities! Please: 1. Open GitHub Discussion for
-feature requests 2. Vote on existing feature requests 3. Contribute
-implementations (see <a href="contributing.html">Contributing
-Guide</a>)</p>
-<hr />
-<h2 id="versioning-policy">Versioning Policy</h2>
-<p>T follows <strong>Semantic Versioning</strong> (semver):</p>
-<ul>
-<li><strong>Major</strong> (1.0.0): Breaking changes</li>
-<li><strong>Minor</strong> (0.1.0): New features,
-backward-compatible</li>
-<li><strong>Patch</strong> (0.1.1): Bug fixes</li>
-</ul>
-<p><strong>Alpha/Beta status</strong>: API may change without major
-version bump.</p>
-<p><strong>Post-1.0</strong>: Stable API, breaking changes only in major
-versions.</p>
-<hr />
-<h2 id="release-schedule">Release Schedule</h2>
-<p><strong>Alpha (current)</strong>: No fixed schedule, continuous
-development<br />
-<strong>Beta</strong>: Expected Q3 2026<br />
-<strong>1.0</strong>: Expected 2027</p>
-<p><strong>Note</strong>: Dates are estimates and may change based on
-development progress and community feedback.</p>
-<hr />
-<p><strong>Stay Updated</strong>: Watch the <a
-href="https://github.com/b-rodrigues/tlang">GitHub repository</a> for
-release announcements!</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

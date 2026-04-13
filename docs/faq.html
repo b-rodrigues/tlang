@@ -21,71 +21,6 @@
       vertical-align: middle;
     }
     .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-    /* CSS for syntax highlighting */
-    html { -webkit-text-size-adjust: 100%; }
-    pre > code.sourceCode { white-space: pre; position: relative; }
-    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-    pre > code.sourceCode > span:empty { height: 1.2em; }
-    .sourceCode { overflow: visible; }
-    code.sourceCode > span { color: inherit; text-decoration: inherit; }
-    div.sourceCode { margin: 1em 0; }
-    pre.sourceCode { margin: 0; }
-    @media screen {
-    div.sourceCode { overflow: auto; }
-    }
-    @media print {
-    pre > code.sourceCode { white-space: pre-wrap; }
-    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-    }
-    pre.numberSource code
-      { counter-reset: source-line 0; }
-    pre.numberSource code > span
-      { position: relative; left: -4em; counter-increment: source-line; }
-    pre.numberSource code > span > a:first-child::before
-      { content: counter(source-line);
-        position: relative; left: -1em; text-align: right; vertical-align: baseline;
-        border: none; display: inline-block;
-        -webkit-touch-callout: none; -webkit-user-select: none;
-        -khtml-user-select: none; -moz-user-select: none;
-        -ms-user-select: none; user-select: none;
-        padding: 0 4px; width: 4em;
-        color: #aaaaaa;
-      }
-    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
-    div.sourceCode
-      {   }
-    @media screen {
-    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-    }
-    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-    code span.at { color: #7d9029; } /* Attribute */
-    code span.bn { color: #40a070; } /* BaseN */
-    code span.bu { color: #008000; } /* BuiltIn */
-    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-    code span.ch { color: #4070a0; } /* Char */
-    code span.cn { color: #880000; } /* Constant */
-    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-    code span.dt { color: #902000; } /* DataType */
-    code span.dv { color: #40a070; } /* DecVal */
-    code span.er { color: #ff0000; font-weight: bold; } /* Error */
-    code span.ex { } /* Extension */
-    code span.fl { color: #40a070; } /* Float */
-    code span.fu { color: #06287e; } /* Function */
-    code span.im { color: #008000; font-weight: bold; } /* Import */
-    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-    code span.op { color: #666666; } /* Operator */
-    code span.ot { color: #007020; } /* Other */
-    code span.pp { color: #bc7a00; } /* Preprocessor */
-    code span.sc { color: #4070a0; } /* SpecialChar */
-    code span.ss { color: #bb6688; } /* SpecialString */
-    code span.st { color: #4070a0; } /* String */
-    code span.va { color: #19177c; } /* Variable */
-    code span.vs { color: #4070a0; } /* VerbatimString */
-    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
   </style>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -98,376 +33,211 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - faq</h1>
-</header>
 <h1 id="frequently-asked-questions-faq">Frequently Asked Questions
 (FAQ)</h1>
-<p>Common questions about T programming language.</p>
+<p>Welcome to the <strong>T Orchestration Engine</strong> FAQ. This
+guide covers the philosophy, technical architecture, and practical usage
+of T.</p>
+<hr />
 <h2 id="general-questions">General Questions</h2>
-<h3 id="what-is-t">What is T?</h3>
-<p>T is an experimental programming language for data analysis designed
-with three core principles: 1. <strong>Reproducibility-first</strong>:
-Nix-managed dependencies ensure identical results across time and
-environments 2. <strong>Explicit semantics</strong>: No silent failures
-or hidden behavior 3. <strong>LLM-native</strong>: Intent blocks enable
-structured AI collaboration</p>
-<h3 id="who-is-t-for">Who is T for?</h3>
+<h3 id="what-makes-t-different">What makes T different?</h3>
+<p>T isn’t just another data analysis language; it’s a
+<strong>reproducibility-first</strong> engine. While R and Python rely
+on external tools for environment management, T integrates
+<strong>Nix</strong> at its core. Every workflow is a statically defined
+directed acyclic graph (DAG) called a <strong>Pipeline</strong>,
+ensuring that your analysis is as stable as the hardware it runs on.</p>
+<h3 id="who-should-use-t">Who should use T?</h3>
 <ul>
-<li><strong>Data analysts</strong> who prioritize reproducibility</li>
-<li><strong>Researchers</strong> who need auditable analyses</li>
-<li><strong>Teams</strong> using LLMs for data work</li>
-<li><strong>Anyone</strong> frustrated by R/Python dependency
-management</li>
+<li><strong>Scientific Researchers</strong>: Who need ironclad,
+auditable proof of how results were derived.</li>
+<li><strong>Data Engineering Teams</strong>: Looking for a polyglot
+orchestration layer that passes data between R and Python without
+serialization overhead.</li>
+<li><strong>LLM-First Developers</strong>: T’s functional, immutable,
+and pipeline-centric design is optimized for high-fidelity code
+generation by AI.</li>
 </ul>
-<h3 id="how-is-t-different-from-r">How is T different from R?</h3>
-<table>
-<thead>
-<tr>
-<th>Aspect</th>
-<th>R</th>
-<th>T</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Dependency management</td>
-<td>CRAN (version drift)</td>
-<td>Nix (frozen)</td>
-</tr>
-<tr>
-<td>NA propagation</td>
-<td>Automatic (silent)</td>
-<td>Explicit (<code>na_rm</code>)</td>
-</tr>
-<tr>
-<td>Error handling</td>
-<td>Exceptions</td>
-<td>Errors as values</td>
-</tr>
-<tr>
-<td>Reproducibility</td>
-<td>Best-effort</td>
-<td>Guaranteed</td>
-</tr>
-<tr>
-<td>LLM integration</td>
-<td>None</td>
-<td>Intent blocks</td>
-</tr>
-<tr>
-<td>Performance</td>
-<td>Mature, optimized</td>
-<td>Alpha, improving</td>
-</tr>
-</tbody>
-</table>
-<h3 id="how-is-t-different-from-pythonpandas">How is T different from
-Python/Pandas?</h3>
-<table>
-<thead>
-<tr>
-<th>Aspect</th>
-<th>Python/Pandas</th>
-<th>T</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Type system</td>
-<td>Dynamic</td>
-<td>Dynamic</td>
-</tr>
-<tr>
-<td>Syntax</td>
-<td>Imperative</td>
-<td>Functional</td>
-</tr>
-<tr>
-<td>Pipelines</td>
-<td>Method chaining</td>
-<td>Pipe operators</td>
-</tr>
-<tr>
-<td>Data backend</td>
-<td>NumPy</td>
-<td>Apache Arrow</td>
-</tr>
-<tr>
-<td>Reproducibility</td>
-<td>venv/conda</td>
-<td>Nix flakes</td>
-</tr>
-</tbody>
-</table>
 <h3 id="is-t-production-ready">Is T production-ready?</h3>
-<p><strong>No.</strong> T is in <strong>alpha (v0.1)</strong>. It’s
-suitable for: - Exploratory analysis - Research projects - Learning
-functional data analysis - Reproducibility experiments</p>
-<p><strong>Not yet suitable for</strong>: - Production data pipelines -
-High-performance computing - Mission-critical applications</p>
+<p>T is currently in <strong>Beta (v0.51.0)</strong>. While it is an
+experimental project, it is already fully capable of performing
+end-to-end data processing. You can use T’s native <strong>data
+manipulation verbs</strong> and <strong>Quarto integration</strong> to
+build reports without ever leaving the language. For more complex
+statistical modeling or advanced visualization, you can easily pull in R
+or Python nodes.</p>
 <hr />
-<h2 id="installation-setup">Installation &amp; Setup</h2>
-<h3 id="do-i-need-to-learn-nix">Do I need to learn Nix?</h3>
-<p><strong>Basic usage</strong>: No. Just run <code>nix develop</code>
-and you’re done.</p>
-<p><strong>Advanced usage</strong>: Understanding Nix helps with: -
-Custom dependency management - Performance tuning - Troubleshooting
-build issues</p>
-<h3 id="can-i-use-t-without-nix">Can I use T without Nix?</h3>
-<p><strong>Technically yes</strong>, but you lose reproducibility
-guarantees. You’d need to: - Manually install OCaml, Dune, Menhir, Arrow
-- Manage version compatibility yourself - Accept platform-specific
-differences</p>
-<p><strong>We strongly recommend using Nix.</strong></p>
-<h3 id="does-t-work-on-windows">Does T work on Windows?</h3>
-<p><strong>Yes</strong>, via <strong>WSL2</strong> (Windows Subsystem
-for Linux): 1. Install WSL2 2. Install Nix inside WSL2 3. Follow
-standard installation steps</p>
-<p><strong>Native Windows support</strong> is not planned for alpha.</p>
-<h3 id="how-much-disk-space-does-t-require">How much disk space does T
-require?</h3>
+<h2 id="the-technical-core">The Technical Core</h2>
+<h3 id="how-does-the-polyglot-architecture-work">How does the Polyglot
+Architecture work?</h3>
+<p>T uses <strong>Apache Arrow</strong> as its core data exchange
+format. When you pass a DataFrame between a T node and an <strong>R
+(<code>rn()</code>)</strong>, <strong>Python
+(<code>pyn()</code>)</strong>, or <strong>Shell
+(<code>shn()</code>)</strong> node, T handles the interchange using
+highly efficient Arrow files. - <strong>Hermeticity</strong>: Because T
+runs every node in a hermetic Nix sandbox, data cannot be shared
+directly in memory. - <strong>Serialization</strong>: Dataframes are
+serialized to Arrow IPC files on disk. This is still significantly
+faster and more robust than traditional CSV/JSON interchange. -
+<strong>Fidelity</strong>: All level metadata for factors and nested
+list-columns is preserved through the serialization process. -
+<strong>Model Interchange</strong>: Machine learning models are passed
+between languages using <strong>PMML</strong>.</p>
+<h3 id="what-is-nse-and-why-the-prefix">What is NSE and why the
+<code>$</code> prefix?</h3>
+<p>T uses <strong>Non-Standard Evaluation (NSE)</strong> to make data
+manipulation concise. The <code>$</code> prefix (e.g.,
+<code>filter($age &gt; 30)</code>) identifies column names or variables
+in the data context, similar to <code>rlang</code> in R but built
+directly into the language syntax for clarity.</p>
+<h3 id="how-are-missing-values-na-handled">How are missing values (NA)
+handled?</h3>
+<p>T takes a strict approach to safety. Unlike other languages where
+<code>NA</code> might propagate silently, T requires explicit handling.
+- Aggregation functions will <strong>throw an error</strong> if they
+encounter an <code>NA</code> unless you pass <code>na_rm = true</code>.
+- Native types like <code>na_int()</code>, <code>na_float()</code>, and
+<code>na_string()</code> ensure type-safe missingness.</p>
+<h3 id="does-t-have-loops-or-mutable-state">Does T have loops or mutable
+state?</h3>
+<p><strong>No.</strong> T is a pure functional language. - Instead of
+<code>for</code> or <code>while</code> loops, use <code>map()</code>,
+<code>filter()</code>, or <strong>recursion</strong>. - Variables are
+immutable. This prevents the “spaghetti state” common in long data
+scripts.</p>
+<hr />
+<h2 id="pipelines-reproducibility">Pipelines &amp; Reproducibility</h2>
+<h3 id="why-are-pipelines-mandatory">Why are Pipelines mandatory?</h3>
+<p>For non-interactive work, T enforces a <code>pipeline</code> block.
+This ensures that every step of your analysis is declared as a node in a
+graph. This architecture: 1. Prevents order-of-execution bugs (scripts
+that only work if run in a specific sequence). 2. Enables
+<strong>automatic parallelization</strong> of independent nodes. 3.
+Allows for advanced graph operations like <code>swap()</code>,
+<code>rewire()</code>, and <code>upstream_of()</code>.</p>
+<h3 id="do-i-need-to-know-nix">Do I need to know Nix?</h3>
+<p>Not for basic work. Running <code>nix develop</code> sets up your
+entire environment. However, T’s power comes from Nix—it handles your
+OCaml, R, Python, and system dependencies in a single, pinned
+<code>flake.lock</code>.</p>
+<h3 id="what-operating-systems-are-supported">What operating systems are
+supported?</h3>
 <ul>
-<li><strong>Nix store</strong>: ~2-3 GB (one-time download)</li>
-<li><strong>T repository</strong>: ~50 MB</li>
-<li><strong>Build artifacts</strong>: ~100 MB</li>
+<li><strong>Linux</strong>: Full <strong>native support</strong> on all
+modern distributions.</li>
+<li><strong>macOS</strong>: Full <strong>native support</strong> via the
+Nix installer (Intel and Apple Silicon).</li>
+<li><strong>Windows</strong>: Fully supported via <strong>WSL2</strong>
+(Windows Subsystem for Linux).</li>
+<li><strong>Docker</strong>: T can build its own Docker images using
+Nix, making deployment to the cloud seamless.</li>
 </ul>
-<p>Total: ~2.5 GB for first install (cached for future use).</p>
 <hr />
-<h2 id="language-features">Language Features</h2>
-<h3 id="does-t-have-static-types">Does T have static types?</h3>
-<p><strong>No.</strong> T is dynamically typed (runtime type
-checking).</p>
-<p><strong>Rationale</strong>: For alpha, dynamic typing matches
-exploratory REPL workflow. Static typing may come in future
-versions.</p>
-<h3 id="can-i-write-loops">Can I write loops?</h3>
-<p><strong>No explicit loops.</strong> Use functional patterns:</p>
-<pre class="t"><code>-- Instead of for loop, use map
-numbers = [1, 2, 3, 4, 5]
-squared = map(numbers, \(x) x * x)
-
--- Instead of while loop, use recursion
-factorial = \(n)
-  if (n &lt;= 1) 1 else n * factorial(n - 1)</code></pre>
-<h3 id="can-i-define-custom-types">Can I define custom types?</h3>
-<p><strong>Not in alpha.</strong> You can use: - Lists and dictionaries
-for structured data - Functions for behavior - DataFrames for tabular
-data</p>
-<p><strong>Future</strong>: User-defined types and pattern matching.</p>
-<h3 id="does-t-support-object-oriented-programming">Does T support
-object-oriented programming?</h3>
-<p><strong>No.</strong> T is functional. Use: - Functions for behavior -
-Dictionaries for data encapsulation - Closures for state</p>
-<h3 id="can-i-import-external-libraries">Can I import external
-libraries?</h3>
-<p><strong>Not yet.</strong> Alpha has a fixed standard library.</p>
-<p><strong>Future</strong>: Package system for user-contributed
-libraries.</p>
-<hr />
-<h2 id="data-analysis">Data Analysis</h2>
-<h3 id="can-t-replace-r-for-my-workflow">Can T replace R for my
-workflow?</h3>
-<p><strong>It depends.</strong></p>
-<p><strong>T is good for</strong>: - Descriptive statistics - Data
-cleaning and transformation - Simple linear regression - Reproducible
-pipelines</p>
-<p><strong>T is not (yet) good for</strong>: - Advanced statistical
-models - Machine learning - Complex visualizations - Domain-specific
-packages (bioinformatics, finance)</p>
-<p><strong>Strategy</strong>: Use T for data preparation, export to CSV,
-use R/Python for specialized analysis.</p>
-<h3 id="how-do-i-visualize-data-in-t">How do I visualize data in T?</h3>
-<p><strong>Alpha has no visualization.</strong></p>
-<p><strong>Workaround</strong>: Export to CSV, visualize in
-R/Python:</p>
-<pre class="t"><code>-- In T
-result = df |&gt; group_by(&quot;category&quot;) |&gt; summarize(&quot;count&quot;, nrow)
-write_csv(result, &quot;plot_data.csv&quot;)
-
-# In R
-library(ggplot2)
-data &lt;- read.csv(&quot;plot_data.csv&quot;)
-ggplot(data, aes(x = category, y = count)) + geom_bar(stat = &quot;identity&quot;)</code></pre>
-<p><strong>Future</strong>: Native plotting via Arrow integration.</p>
-<h3 id="can-i-read-parquetexceldatabases">Can I read
-Parquet/Excel/databases?</h3>
-<p><strong>Alpha</strong>: Only CSV via <code>read_csv()</code></p>
-<p><strong>Future</strong> (planned): - Parquet (via Arrow) - Excel (via
-external library) - Databases (SQL integration)</p>
-<p><strong>Workaround</strong>: Convert to CSV first:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># In Python</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pd.read_parquet(<span class="st">&quot;data.parquet&quot;</span>)</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>df.to_csv(<span class="st">&quot;data.csv&quot;</span>, index<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># In T</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> read_csv(<span class="st">&quot;data.csv&quot;</span>)</span></code></pre></div>
-<h3 id="how-do-i-join-dataframes">How do I join DataFrames?</h3>
-<p><strong>Alpha has no built-in join.</strong></p>
-<p><strong>Workaround</strong>: Manual matching with filters and maps
-(inefficient) or use R/Python:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># In Python/Pandas</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> pd.read_csv(<span class="st">&quot;a.csv&quot;</span>)</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> pd.read_csv(<span class="st">&quot;b.csv&quot;</span>)</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>merged <span class="op">=</span> a.merge(b, on<span class="op">=</span><span class="st">&quot;id&quot;</span>)</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>merged.to_csv(<span class="st">&quot;merged.csv&quot;</span>, index<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co"># In T</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> read_csv(<span class="st">&quot;merged.csv&quot;</span>)</span></code></pre></div>
-<p><strong>Future</strong>: <code>str_join()</code> function with
-multiple strategies.</p>
-<hr />
-<h2 id="performance">Performance</h2>
-<h3 id="is-t-slow">Is T slow?</h3>
-<p><strong>For alpha, yes.</strong> T uses a tree-walking interpreter
-(slow but simple).</p>
-<p><strong>Benchmarks</strong> (preliminary): - 10k row filter: ~10ms -
-10k row group-by-summarize: ~50ms - Linear regression (1k points):
-~20ms</p>
-<p><strong>Future optimizations</strong>: - Bytecode compilation - JIT
-for hot paths - More Arrow compute kernels</p>
+<h2 id="data-manipulation-features">Data Manipulation &amp;
+Features</h2>
+<h3 id="what-libraries-are-included">What libraries are included?</h3>
+<p>The T standard library includes: -
+<strong><code>colcraft</code></strong>: A powerful suite of verbs
+(<code>mutate</code>, <code>summarize</code>, <code>pivot_longer</code>)
+following <code>tidyverse</code> semantics. -
+<strong><code>chrono</code></strong>: Precise date and time manipulation
+with calendar-aware rounding. - <strong><code>factors</code></strong>:
+Native Arrow-backed categorical data handling.</p>
+<h3 id="how-do-i-program-with-column-names">How do I program with column
+names?</h3>
+<p>If you’re building a reusable function that takes a column name as an
+argument, T provides first-class support for
+<strong>Metaprogramming</strong>: - Use <code>enquo(col)</code> to
+capture the argument. - Use <code>!!</code> (unquote) to inject it into
+a verb. - Use <code>!!name := value</code> for dynamic column
+naming.</p>
+<p>Example:</p>
+<pre class="t"><code>my_avg = \(df, col, name)
+  df |&gt; summarize(!!name := mean(!!col))</code></pre>
+<h3 id="how-do-i-visualize-data">How do I visualize data?</h3>
+<p>For simple reports, you can use T’s built-in
+<strong><code>colcraft</code></strong> verbs to summarize data and
+output it via <strong>Quarto</strong>. While T does not currently have
+its own native plotting library, its high-fidelity interop with R and
+Python makes it trivial to define a specialized node for more complex
+charts using <code>ggplot2</code>, <code>matplotlib</code>, or
+<code>seaborn</code>.</p>
 <h3 id="can-t-handle-large-datasets">Can T handle large datasets?</h3>
-<p><strong>It depends.</strong></p>
-<p><strong>Comfortable</strong>: Up to ~1 million rows
-<strong>Possible</strong>: Up to ~10 million rows (slow) <strong>Not
-recommended</strong>: &gt;10 million rows</p>
-<p><strong>For large data</strong>: Use Pandas/Polars for ETL, T for
-final analysis.</p>
-<h3 id="will-t-get-faster">Will T get faster?</h3>
-<p><strong>Yes.</strong> Roadmap includes: - Bytecode VM - Lazy
-evaluation for pipelines - GPU support (via Arrow Compute)</p>
+<p><strong>Yes.</strong> T’s native Arrow backend allows it to perform
+<code>select</code>, <code>filter</code>, and <code>sort</code>
+operations directly on Arrow tables in memory. - <strong>Optimized
+Compute</strong>: T’s built-in compute engine handles millions of rows
+by interacting directly with Arrow memory buffers. -
+<strong>Orchestration</strong>: For massive datasets, you can leverage T
+to orchestrate R’s <code>dtplyr</code> or Python’s <code>polars</code>
+nodes. The results are passed back via Arrow serialization, maintaining
+high fidelity.</p>
 <hr />
-<h2 id="reproducibility">Reproducibility</h2>
-<h3 id="how-does-nix-ensure-reproducibility">How does Nix ensure
-reproducibility?</h3>
-<p>Nix uses <strong>content-addressed storage</strong>: Every dependency
-is identified by a cryptographic hash of its build inputs. Same hash →
-identical binary, guaranteed.</p>
-<p><strong>flake.lock</strong> pins exact hashes, so the same code
-always uses the same dependencies.</p>
-<h3 id="can-i-reproduce-analyses-from-years-ago">Can I reproduce
-analyses from years ago?</h3>
-<p><strong>Yes</strong>, if you have: 1. Source code 2.
-<code>flake.lock</code> file 3. Nix installed</p>
-<p>Even if packages have been updated or removed from repositories, Nix
-can rebuild from source using pinned versions.</p>
-<h3 id="do-i-need-to-commit-data-files">Do I need to commit data
-files?</h3>
-<p><strong>Ideally, yes</strong> (or use data versioning like DVC).</p>
-<p><strong>Alternatives</strong>: - Store data in external archive
-(Zenodo, OSF) - Include download script in project - Document exact data
-source and version</p>
+<h2 id="developer-experience">Developer Experience</h2>
+<h3 id="is-there-an-lsp-or-vs-code-support">Is there an LSP or VS Code
+support?</h3>
+<p>Yes! The T Language Server (<code>t-lsp</code>) provides: -
+<strong>Autocompletion</strong>: For functions, variables, and even
+<strong>DataFrame column names</strong>. - <strong>Hover Docs</strong>:
+View docstrings directly in your editor. - <strong>Diagnostics</strong>:
+Real-time syntax and type error reporting.</p>
+<h3 id="what-about-the-repl">What about the REPL?</h3>
+<p>The T REPL is designed for productivity: - <strong>Ghost
+Hints</strong>: Inline suggestions based on your command history. -
+<strong>Signal Safety</strong>: Hit <code>Ctrl+C</code> to cancel a
+long-running calculation without crashing the session. -
+<strong>Multi-line Detection</strong>: Automatic detection of nested
+blocks for easy copy-pasting.</p>
+<h3 id="what-happens-if-a-node-fails-or-produces-a-complex-object">What
+happens if a node fails or produces a complex object?</h3>
+<p>T is built with <strong>robustness</strong> in mind. If a node fails
+(e.g., an R script crashes), T captures the error and presents it as a
+first-class <code>VError</code> value, preventing the whole pipeline
+engine from crashing. - <strong>Fail-Safe Loading</strong>: The
+<code>read_node()</code> function will never crash your session. Even if
+an artifact is missing or corrupted, you get a clean error value you can
+handle with <code>?|&gt;</code>. - <strong>High-Fidelity
+Representation</strong>: T works hard to provide native representations
+of list, dict, and DataFrame objects from other languages. -
+<strong>Generic Fallbacks</strong>: If a node produces a complex object
+that T doesn’t natively understand (like a custom private class in
+Python), it is safely wrapped as a <code>HostObject</code>. You can
+still pass this object as a reference to other nodes of the same
+language, keeping your polyglot workflow intact. - <strong>Native Escape
+Hatch</strong>: If you need to manipulate a complex object that cannot
+be serialized, you can always read the node’s artifact directly using
+the native interpreter’s own libraries (e.g., by calling
+<code>read_node()</code> inside a Python or R script).</p>
+<h3 id="can-i-write-literate-programming-reports">Can I write Literate
+Programming reports?</h3>
+<p>Absolutely. T integrates with <strong>Quarto</strong> through a
+native extension. You can write <code>.qmd</code> files where code
+chunks are written in <strong>pure T</strong>, allowing you to summarize
+data and generate professional reports without ever needing R or Python.
+For advanced charting or low-level file processing, you can mix T chunks
+with R, Python, or <strong>Shell</strong> (using the <code>shn()</code>
+function) in the same document.</p>
 <hr />
-<h2 id="llm-collaboration">LLM Collaboration</h2>
-<h3 id="can-i-use-t-without-llms">Can I use T without LLMs?</h3>
-<p><strong>Yes!</strong> Intent blocks are optional. They’re useful for:
-- Documentation - Team communication - Future regeneration</p>
-<p>You can write pure T code without any intent blocks.</p>
-<h3 id="what-llms-work-with-t">What LLMs work with T?</h3>
-<p>T’s design is <strong>LLM-agnostic</strong>. Any LLM can: - Parse
-intent blocks - Generate T code - Follow pipeline structure</p>
-<p><strong>Tested with</strong>: GPT-4, Claude, open-source models.</p>
-<h3 id="do-i-need-an-llm-to-learn-t">Do I need an LLM to learn T?</h3>
-<p><strong>No.</strong> T is a normal programming language. Intent
-blocks are just structured comments.</p>
+<h2 id="community-contributing">Community &amp; Contributing</h2>
+<h3 id="how-can-i-help">How can I help?</h3>
+<p>T is an open-source project. You can contribute by: - Porting
+R/Python utility functions to native T. - Improving the
+<code>t-lsp</code> implementation. - Reporting bugs or suggesting
+features on <a
+href="https://github.com/b-rodrigues/tlang/issues">GitHub</a>.</p>
+<h3 id="whats-next-on-the-roadmap">What’s next on the roadmap?</h3>
+<p>The developer (Bruno Rodrigues) works on T based on community
+interest and experimental whims. High-priority items include
+<strong>Julia integration</strong> and expanding the native Arrow
+compute engine.</p>
 <hr />
-<h2 id="troubleshooting">Troubleshooting</h2>
-<h3 id="build-fails-with-command-not-found-nix">Build fails with
-“command not found: nix”</h3>
-<p><strong>Solution</strong>: Install Nix first (see <a
-href="installation.html">Installation Guide</a>).</p>
-<h3 id="tests-fail-on-macos-vs-linux">Tests fail on macOS vs Linux</h3>
-<p><strong>Possible causes</strong>: - Floating-point precision
-differences (acceptable if small) - Platform-specific Arrow behavior</p>
-<p><strong>Solution</strong>: Check if differences are significant.
-Small numerical differences (&lt;1e-6) are acceptable.</p>
-<h3 id="repl-crashes-on-large-datasets">REPL crashes on large
-datasets</h3>
-<p><strong>Workaround</strong>: - Process data in chunks - Use filters
-to reduce size early - Export intermediate results</p>
-<p><strong>Future</strong>: Lazy evaluation will help.</p>
-<hr />
-<h2 id="contributing">Contributing</h2>
-<h3 id="how-can-i-contribute">How can I contribute?</h3>
-<p>See <a href="contributing.html">Contributing Guide</a> for: - Bug
-reports - Feature requests - Code contributions - Documentation
-improvements</p>
-<h3 id="i-found-a-bug.-what-should-i-do">I found a bug. What should I
-do?</h3>
-<ol type="1">
-<li>Check if it’s already reported in <a
-href="https://github.com/b-rodrigues/tlang/issues">GitHub
-Issues</a></li>
-<li>If not, create a new issue with:
-<ul>
-<li>Clear title</li>
-<li>Steps to reproduce</li>
-<li>Expected vs actual behavior</li>
-<li>Environment details</li>
-</ul></li>
-</ol>
-<h3 id="can-i-add-a-new-standard-library-function">Can I add a new
-standard library function?</h3>
-<p><strong>Yes!</strong> See <a href="development.html">Development
-Guide</a> for: - Adding functions to packages - Writing tests - Updating
-documentation</p>
-<hr />
-<h2 id="future-plans">Future Plans</h2>
-<h3 id="whats-the-roadmap">What’s the roadmap?</h3>
-<p><strong>Alpha (current)</strong>: Core language, basic data analysis
-<strong>Beta</strong>: Performance improvements, more functions
-<strong>1.0</strong>: Production-ready, stable API</p>
-<p>See <a href="changelog.html">Changelog</a> for details.</p>
-<h3 id="will-t-support-feature-x">Will T support [feature X]?</h3>
-<p>Check <a href="https://github.com/b-rodrigues/tlang/issues">GitHub
-Issues</a> or ask in Discussions.</p>
-<h3 id="when-will-t-be-production-ready">When will T be
-production-ready?</h3>
-<p><strong>No specific date.</strong> T prioritizes correctness and
-design over speed.</p>
-<p><strong>Estimate</strong>: Beta in 6-12 months, 1.0 in 1-2 years.</p>
-<hr />
-<h2 id="philosophy">Philosophy</h2>
-<h3 id="why-create-a-new-language-instead-of-improving-rpython">Why
-create a new language instead of improving R/Python?</h3>
-<p>T explores <strong>language-level reproducibility</strong> and
-<strong>LLM-native design</strong> — concepts hard to retrofit into
-existing languages.</p>
-<p><strong>Goal</strong>: Learn what works, potentially influence
-mainstream languages.</p>
-<h3 id="why-functional-instead-of-imperative">Why functional instead of
-imperative?</h3>
-<p><strong>Functional style</strong>: - Easier to reason about (no
-hidden state) - Composable (pipelines) - Easier for LLMs to generate
-(pure functions)</p>
-<h3 id="is-t-research-or-practical">Is T research or practical?</h3>
-<p><strong>Both.</strong> T is: - <strong>Research</strong>: Exploring
-reproducibility and LLM collaboration - <strong>Practical</strong>:
-Usable for real data analysis (with caveats)</p>
-<hr />
-<h2 id="getting-help">Getting Help</h2>
-<h3 id="where-can-i-ask-questions">Where can I ask questions?</h3>
-<ul>
-<li><strong>GitHub Issues</strong>: Bug reports</li>
-<li><strong>GitHub Discussions</strong>: General questions, ideas</li>
-<li><strong>Documentation</strong>: Comprehensive guides</li>
-</ul>
-<h3 id="im-stuck.-who-can-help">I’m stuck. Who can help?</h3>
-<ol type="1">
-<li>Check <a href="troubleshooting.html">Troubleshooting Guide</a></li>
-<li>Search <a href="https://github.com/b-rodrigues/tlang/issues">GitHub
-Issues</a></li>
-<li>Ask in GitHub Discussions</li>
-<li>Read <a href="getting-started.html">Getting Started</a></li>
-</ol>
-<hr />
-<p><strong>More Questions?</strong> Open a <a
+<blockquote>
+<p>[!TIP] <strong>Need help?</strong> Check out the <a
+href="getting-started.html">Getting Started</a> guide or join the <a
 href="https://github.com/b-rodrigues/tlang/discussions">GitHub
-Discussion</a>!</p>
+Discussions</a>.</p>
+</blockquote>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - pmml_tutorial</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="pmml-tutorial">PMML Tutorial</h1>
+<blockquote>
+<p>A practical guide to moving classical models between R, Python, and T
+with <code>^pmml</code></p>
+</blockquote>
+<p>PMML is T’s interchange format for many classical statistical and
+tree-based models. It is useful when you want to:</p>
+<ul>
+<li>train a model in <strong>R</strong> or <strong>Python</strong></li>
+<li>persist it as a stable artifact</li>
+<li>load it back into <strong>T</strong></li>
+<li>score it natively with <code>predict(data, model)</code></li>
+</ul>
+<p>This tutorial focuses on the workflows that T supports today,
+including the initial T-native <code>t_write_pmml()</code> pass-through
+path for PMML artifacts that were already loaded from disk or a pipeline
+node.</p>
+<hr />
+<h2 id="when-to-use-pmml">1. When to Use PMML</h2>
+<p>Use <code>^pmml</code> when you want a model artifact that can cross
+runtime boundaries while still being readable by T’s native model
+tooling.</p>
+<p>PMML is a good fit for:</p>
+<ul>
+<li>linear and GLM-style models exported from R</li>
+<li>scikit-learn models that <code>sklearn2pmml</code> can represent
+faithfully</li>
+<li>PMML tree and ensemble artifacts that T can score natively</li>
+</ul>
+<p>PMML is <strong>not</strong> a universal model format. If your model
+family or preprocessing pipeline cannot be represented faithfully in
+PMML, prefer <code>^onnx</code> or keep scoring in the source
+runtime.</p>
+<hr />
+<h2 id="prerequisites">2. Prerequisites</h2>
+<p>PMML support is polyglot, so the exact requirements depend on where
+the model is produced or consumed.</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Main Requirements</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R writes PMML</td>
+<td><code>r2pmml</code>, <code>XML</code>, <code>jsonlite</code>,
+<code>jre</code></td>
+</tr>
+<tr>
+<td>Python writes PMML</td>
+<td><code>sklearn2pmml</code> or <code>jpmml-statsmodels</code>, plus
+<code>jre</code></td>
+</tr>
+<tr>
+<td>Python reads PMML</td>
+<td>JPMML evaluator via wrapper</td>
+</tr>
+<tr>
+<td>T reads and scores PMML</td>
+<td>built-in <code>t_read_pmml()</code> + native evaluator</td>
+</tr>
+</tbody>
+</table>
+<p>When PMML is used inside pipelines, these dependencies should be
+declared explicitly in your project configuration so T can build the
+correct runtime environment.</p>
+<hr />
+<h2 id="your-first-pmml-workflow">3. Your First PMML Workflow</h2>
+<p>The simplest workflow is:</p>
+<ol type="1">
+<li>train in another runtime</li>
+<li>serialize with <code>^pmml</code></li>
+<li>read the artifact in T</li>
+<li>score it with <code>predict()</code></li>
+</ol>
+<pre class="t"><code>p = pipeline {
+  model_r = rn(
+    command = &lt;{
+      data &lt;- read.csv(&quot;mtcars.csv&quot;)
+      lm(mpg ~ wt + hp, data = data)
+    }&gt;,
+    serializer = ^pmml
+  )
+}
+
+build_pipeline(p)
+model = read_node(&quot;model_r&quot;)</code></pre>
+<p>At this point <code>model</code> is a T model object reconstructed
+from the PMML artifact.</p>
+<p>You can inspect it with the usual model helpers:</p>
+<pre class="t"><code>summary(model)
+fit_stats(model)
+coef(model)</code></pre>
+<hr />
+<h2 id="scoring-pmml-models-natively-in-t">4. Scoring PMML Models
+Natively in T</h2>
+<p>Once a PMML model is in T, prediction looks the same as prediction
+for other supported model objects:</p>
+<pre class="t"><code>new_data = read_csv(&quot;mtcars_new.csv&quot;)
+preds = predict(new_data, model)</code></pre>
+<p>This is the main attraction of PMML in T: training can happen in R or
+Python, but downstream prediction, summary, and fit-stat extraction can
+stay inside the T runtime.</p>
+<p>For PMML-imported tree models, random forests, and supported boosted
+ensembles, this is already a strong workflow:</p>
+<pre class="t"><code>forest = t_read_pmml(&quot;tests/golden/data/iris_random_forest.pmml&quot;)
+iris = read_csv(&quot;tests/golden/data/iris.csv&quot;)
+predict(iris, forest)</code></pre>
+<hr />
+<h2 id="training-in-r-and-consuming-in-t">5. Training in R and Consuming
+in T</h2>
+<p>R is the most natural PMML producer for many classical models.</p>
+<pre class="t"><code>p = pipeline {
+  train_df = node(
+    command = read_csv(&quot;mtcars.csv&quot;),
+    serializer = ^csv
+  )
+
+  model_r = rn(
+    command = &lt;{
+      glm(am ~ wt + hp, data = train_df, family = binomial())
+    }&gt;,
+    deserializer = ^csv,
+    serializer = ^pmml
+  )
+
+  scored = node(
+    command = predict(read_csv(&quot;mtcars.csv&quot;), model_r),
+    deserializer = ^pmml
+  )
+}</code></pre>
+<p>The important part is the boundary:</p>
+<ul>
+<li>the R node <strong>writes</strong> a PMML artifact with
+<code>serializer = ^pmml</code></li>
+<li>the T node <strong>reads</strong> that artifact with
+<code>deserializer = ^pmml</code></li>
+</ul>
+<p>This keeps the interchange contract explicit.</p>
+<hr />
+<h2 id="training-in-python-and-consuming-in-t">6. Training in Python and
+Consuming in T</h2>
+<p>Python is a strong fit when your model is supported by
+<code>sklearn2pmml</code> or the JPMML statsmodels bridge.</p>
+<pre class="t"><code>p = pipeline {
+  model_py = pyn(
+    command = &lt;{
+      from sklearn.ensemble import RandomForestClassifier
+      clf = RandomForestClassifier(random_state = 42)
+      clf.fit(X, y)
+      clf
+    }&gt;,
+    serializer = ^pmml
+  )
+
+  scored = node(
+    command = predict(read_csv(&quot;iris.csv&quot;), model_py),
+    deserializer = ^pmml
+  )
+}</code></pre>
+<p>As with R, the boundary is explicit:</p>
+<ul>
+<li>Python exports PMML</li>
+<li>T deserializes the PMML artifact</li>
+<li>T performs native scoring when the imported model family is
+supported</li>
+</ul>
+<p>If the Python model cannot be represented faithfully in PMML, T
+should fail explicitly rather than silently switching to a different
+interchange story.</p>
+<hr />
+<h2 id="loading-pmml-directly-from-disk">7. Loading PMML Directly from
+Disk</h2>
+<p>You can also bypass pipelines and load an existing PMML file
+manually:</p>
+<pre class="t"><code>model = t_read_pmml(&quot;model.pmml&quot;)
+summary(model)</code></pre>
+<p>This is useful when:</p>
+<ul>
+<li>you already have exported PMML artifacts</li>
+<li>you want to inspect or score them interactively</li>
+<li>you want to compare several artifacts in the REPL</li>
+</ul>
+<hr />
+<h2 id="writing-pmml-from-t-with-t_write_pmml">8. Writing PMML from T
+with <code>t_write_pmml()</code></h2>
+<p>T now provides an initial native <code>t_write_pmml()</code> path,
+but it is intentionally narrow.</p>
+<p>Today, <code>t_write_pmml()</code> supports <strong>pass-through
+copying</strong> of PMML artifacts that were already loaded into T
+from:</p>
+<ul>
+<li><code>t_read_pmml("path.pmml")</code></li>
+<li><code>read_node("node_name")</code> for PMML pipeline outputs</li>
+</ul>
+<p>Example:</p>
+<pre class="t"><code>model = t_read_pmml(&quot;model.pmml&quot;)
+t_write_pmml(model, &quot;model-copy.pmml&quot;)</code></pre>
+<p>This is useful when you want to:</p>
+<ul>
+<li>copy a PMML artifact to a deterministic location</li>
+<li>preserve a pipeline output outside the build cache</li>
+<li>re-materialize a model you inspected in the REPL</li>
+</ul>
+<h3 id="current-limitation">Current Limitation</h3>
+<p><code>t_write_pmml()</code> does <strong>not</strong> yet export
+arbitrary native T model objects to fresh PMML XML. If you construct or
+fit a model natively in T and then call <code>t_write_pmml()</code>, T
+should fail explicitly unless the value still carries an original PMML
+source artifact.</p>
+<p>That is deliberate: T currently exposes a safe pass-through path, not
+a pretend PMML writer for unsupported cases.</p>
+<hr />
+<h2 id="recommended-workflow-pattern">9. Recommended Workflow
+Pattern</h2>
+<p>For now, the safest PMML workflow is:</p>
+<ol type="1">
+<li>train in R or Python</li>
+<li>export with <code>^pmml</code></li>
+<li>read and score in T</li>
+<li>use <code>t_write_pmml()</code> only to preserve or copy existing
+PMML artifacts</li>
+</ol>
+<p>In other words:</p>
+<ul>
+<li>use foreign runtimes as the <strong>PMML producers</strong></li>
+<li>use T as the <strong>PMML consumer and scorer</strong></li>
+<li>use <code>t_write_pmml()</code> as an <strong>artifact-preservation
+tool</strong>, not as a general exporter</li>
+</ul>
+<hr />
+<h2 id="troubleshooting">10. Troubleshooting</h2>
+<h3
+id="read_node-returns-an-error-about-missing-pmml-dependencies"><code>read_node()</code>
+returns an error about missing PMML dependencies</h3>
+<p>Make sure the runtime that produced or reads the PMML artifact
+declares the required packages in project configuration. PMML support is
+not implicit magic.</p>
+<h3 id="python-pmml-loading-fails">Python PMML loading fails</h3>
+<p>Check that <code>jpmml-evaluator</code> is available in
+<code>[additional-tools]</code> and that <code>pyarrow</code> is
+available in <code>[py-dependencies]</code>. Also ensure the JVM-backed
+PMML toolchain is correctly provisioned.</p>
+<h3 id="t_write_pmml-rejects-a-model"><code>t_write_pmml()</code>
+rejects a model</h3>
+<p>That usually means the value does not carry a source PMML artifact
+path. Reload it with <code>t_read_pmml()</code> or obtain it from
+<code>read_node()</code> before calling <code>t_write_pmml()</code>.</p>
+<h3 id="predictions-differ-from-the-source-runtime">Predictions differ
+from the source runtime</h3>
+<p>Verify that the model family and preprocessing steps are truly
+representable in PMML. The model coefficients are often not the problem;
+preprocessing fidelity usually is.</p>
+<hr />
+<h2 id="next-steps">11. Next Steps</h2>
+<p>Now that you have a PMML workflow in place, continue with:</p>
+<ol type="1">
+<li><strong><a href="models.html">Statistical Models</a></strong> —
+inspect imported models with <code>summary()</code>,
+<code>fit_stats()</code>, and <code>predict()</code>.</li>
+<li><strong><a href="pipeline_tutorial.html">Pipeline
+Tutorial</a></strong> — build larger multi-node workflows around PMML
+artifacts.</li>
+<li><strong><a href="serializers.html">Serializers in T</a></strong> —
+understand how <code>^pmml</code>, <code>^onnx</code>,
+<code>^arrow</code>, and <code>^json</code> fit into the broader
+interchange system.</li>
+</ol>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>
