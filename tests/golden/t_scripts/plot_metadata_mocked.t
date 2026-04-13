@@ -1,8 +1,16 @@
 -- Test: mocked plot metadata artifacts can be read through read_node()
-run("mkdir -p _pipeline tests/golden/t_outputs/mock_plot_metadata")
+run("mkdir -p _pipeline tests/golden/t_outputs/mock_plot_metadata/ggplot")
+run("mkdir -p _pipeline tests/golden/t_outputs/mock_plot_metadata/matplotlib")
 
-ggplot_artifact = "tests/golden/t_outputs/mock_plot_metadata/ggplot.json"
-matplotlib_artifact = "tests/golden/t_outputs/mock_plot_metadata/matplotlib.json"
+ggplot_dir = "tests/golden/t_outputs/mock_plot_metadata/ggplot"
+matplotlib_dir = "tests/golden/t_outputs/mock_plot_metadata/matplotlib"
+
+ggplot_artifact = path_join(ggplot_dir, "artifact")
+matplotlib_artifact = path_join(matplotlib_dir, "artifact")
+
+-- Write dummy artifacts
+write_text(ggplot_artifact, "rds-mock")
+write_text(matplotlib_artifact, "pkl-mock")
 
 t_write_json([
   class: "ggplot",
@@ -12,7 +20,7 @@ t_write_json([
   labels: [x: "Weight", y: "Miles per gallon"],
   layers: ["Point"],
   _display_keys: ["class", "backend", "title", "mapping", "labels", "layers"]
-], ggplot_artifact)
+], path_join(ggplot_dir, "viz"))
 
 t_write_json([
   class: "matplotlib",
@@ -22,7 +30,7 @@ t_write_json([
   labels: [x: "wt", y: "mpg"],
   layers: ["point"],
   _display_keys: ["class", "backend", "title", "mapping", "labels", "layers"]
-], matplotlib_artifact)
+], path_join(matplotlib_dir, "viz"))
 
 build_log = [
   timestamp: "20260413-plot-meta",
