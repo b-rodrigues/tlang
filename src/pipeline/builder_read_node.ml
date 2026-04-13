@@ -50,6 +50,10 @@ let add_node_name_context name context =
   if List.exists (fun (k, _) -> k = "node_name") context then context
   else ("node_name", VString name) :: context
 
+let is_visual_metadata_class = function
+  | "ggplot" | "matplotlib" -> true
+  | _ -> false
+
 (* Best-effort deserialization for nodes exposed through T_NODE_<name> in the
    Nix sandbox: recover structured VError artifacts when possible and otherwise
    fall back to the computed node handle. *)
@@ -57,6 +61,10 @@ let read_env_node_value name cn =
   if cn.cn_class = "VError" then
     match Serialization.read_verror_json cn.cn_path with
     | Ok (VError e) -> VError { e with context = add_node_name_context name e.context }
+    | Ok v -> v
+    | Error _ -> VComputedNode cn
+  else if is_visual_metadata_class cn.cn_class then
+    match Serialization.read_json cn.cn_path with
     | Ok v -> v
     | Error _ -> VComputedNode cn
   else if cn.cn_serializer = "json" then
@@ -90,12 +98,13 @@ let read_node ?which_log name =
           cn_runtime = "unknown";
           cn_path = artifact_path;
           cn_serializer = (
-            match cls with 
-            | "ArrowDataFrame" | "data.frame" | "DataFrame" | "Table" -> "arrow"
-            | "JSON" | "VDict" | "VList" | "list" | "dict" -> "json"
-            | "PMML" | "pmml" -> "pmml"
-            | _ -> "default"
-          );
+             match cls with 
+             | "ArrowDataFrame" | "data.frame" | "DataFrame" | "Table" -> "arrow"
+             | "ggplot" | "matplotlib" -> "json"
+             | "JSON" | "VDict" | "VList" | "list" | "dict" -> "json"
+             | "PMML" | "pmml" -> "pmml"
+             | _ -> "default"
+           );
           cn_class = cls;
           cn_dependencies = [];
         } in
@@ -145,6 +154,10 @@ let read_node ?which_log name =
                         VError { e with context = add_node_name_context name e.context }
                     | Ok v -> v
                     | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Error node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                else if is_visual_metadata_class cn.Ast.cn_class then
+                  (match Serialization.read_json cn.Ast.cn_path with
+                   | Ok v -> v
+                   | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read plot metadata node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
                 else if cn.Ast.cn_runtime = "T"
                    && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
                 then

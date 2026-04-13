@@ -15,6 +15,7 @@
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.
 --# @return :: Any The evaluated return value of the command.
+--# @note When a Python node returns a `matplotlib` or `plotnine` plot object, T stores structured plot metadata so the REPL can display the normalized `matplotlib` class, title, mappings, labels, and layers instead of the raw Python object.
 --# @family pipeline
 --# @seealso node, rn
 --# @export
