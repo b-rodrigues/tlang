@@ -138,9 +138,48 @@ let add_quarto_requirement ~node_name =
     additional_tools = add_list req.additional_tools [ "quarto"; "which" ];
   }
 
+let scan_code_requirements ~node_name ~runtime raw_text =
+  let reason = Printf.sprintf "node `%s` usage discovery" node_name in
+  let req = with_reason empty_requirements reason in
+  match runtime with
+  | "R" ->
+      let req = { req with r_deps = add_list req.r_deps [ "jsonlite" ] } in
+      let has_pkg pkg =
+        let re1 = Str.regexp (Printf.sprintf "library([\"']?%s[\"']?)" pkg) in
+        let re2 = Str.regexp (Printf.sprintf "require([\"']?%s[\"']?)" pkg) in
+        let re3 = Str.regexp (Printf.sprintf "%s::" pkg) in
+        (try ignore (Str.search_forward re1 raw_text 0); true with Not_found ->
+         try ignore (Str.search_forward re2 raw_text 0); true with Not_found ->
+         try ignore (Str.search_forward re3 raw_text 0); true with Not_found -> false)
+      in
+      if has_pkg "ggplot2" then
+        { req with r_deps = add_list req.r_deps [ "ggplot2" ] }
+      else req
+  | "Python" ->
+      let has_pkg pkg =
+        let re1 = Str.regexp (Printf.sprintf "import %s" pkg) in
+        let re2 = Str.regexp (Printf.sprintf "from %s" pkg) in
+        (try ignore (Str.search_forward re1 raw_text 0); true with Not_found ->
+         try ignore (Str.search_forward re2 raw_text 0); true with Not_found -> false)
+      in
+      let req =
+        if has_pkg "matplotlib" then
+          { req with py_deps = add_list req.py_deps [ "matplotlib" ] }
+        else
+          req
+      in
+      let req =
+        if has_pkg "plotnine" then
+          { req with py_deps = add_list req.py_deps [ "plotnine"; "pandas" ] }
+        else
+          req
+      in
+      if String_set.is_empty req.py_deps then empty_requirements else req
+  | _ -> empty_requirements
+
 let required_for_pipeline (p : Ast.pipeline_result) =
   List.fold_left
-    (fun acc (node_name, _) ->
+    (fun acc (node_name, cmd_expr) ->
       let runtime =
         match List.assoc_opt node_name p.p_runtimes with
         | Some r -> r
@@ -164,6 +203,12 @@ let required_for_pipeline (p : Ast.pipeline_result) =
           (fun feature req ->
             merge_requirements req (add_feature_requirement ~node_name ~runtime ~feature))
           formats acc
+      in
+      let acc =
+        match cmd_expr.node with
+        | RawCode { raw_text; _ } ->
+            merge_requirements acc (scan_code_requirements ~node_name ~runtime raw_text)
+        | _ -> acc
       in
       if runtime = "Quarto" then
         merge_requirements acc (add_quarto_requirement ~node_name)

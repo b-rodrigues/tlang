@@ -98,9 +98,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - architecture</h1>
-</header>
 <h1 id="t-language-architecture">T Language Architecture</h1>
 <p>Internal design and implementation of the T programming language.</p>
 <h2 id="table-of-contents">Table of Contents</h2>
@@ -490,6 +487,28 @@ exposes:</p>
 </ul>
 <p>That means Arrow is used both as an internal storage backend and as
 an interchange format at the language boundary.</p>
+<h3 id="handling-foreign-objects-robustness">Handling Foreign Objects
+&amp; Robustness</h3>
+<p>T puts significant effort into providing high-fidelity
+representations of Python, R, and Julia objects.</p>
+<ul>
+<li><strong>Fail-Safe Loading</strong>: The <code>read_node()</code>
+function is designed to never crash the primary T environment, even if
+the node’s artifacts are missing or corrupted.</li>
+<li><strong>Representation Wrappers</strong>: T provides specialized
+“host object” representations for common foreign types (Lists, Dicts,
+DataFrames, Models). If a node produces an object that T doesn’t
+natively understand, it is safely wrapped as a generic
+<code>HostObject</code> that can still be passed as a reference to other
+nodes of the same language (e.g., from one R node to another) without T
+needing to understand its internal structure.</li>
+<li><strong>Native Fallback</strong>: If T’s representation is
+insufficient for a particular task, users can always access the raw
+object by reading the node’s artifact directly from within a native
+script (e.g., using <code>read_node()</code> inside a <code>.qmd</code>
+or <code>.py</code> component). This ensures full interop with the
+entire ecosystem of libraries in those languages.</li>
+</ul>
 <hr />
 <h2 id="arrow-backend">Arrow Backend</h2>
 <p>T uses <strong>Apache Arrow</strong> for high-performance columnar

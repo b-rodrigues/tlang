@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - plotting</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="plotting-and-visual-inspection">Plotting and Visual
+Inspection</h1>
+<p>T is primarily an orchestration engine and does not currently provide
+its own native low-level plotting library, and very likely never will.
+Instead, T leverages the powerful visualization ecosystems of
+<strong>R</strong> (<code>ggplot2</code>) and <strong>Python</strong>
+(<code>matplotlib</code>, <code>plotnine</code>) through its polyglot
+pipeline architecture.</p>
+<p>One of T’s unique features is <strong>Automated Visual Metadata
+Capture</strong>. When you generate a plot in an R or Python node, T
+“sees” the plot object and automatically extracts its structural
+metadata during the build process.</p>
+<hr />
+<h2 id="plotting-in-polyglot-pipelines">Plotting in Polyglot
+Pipelines</h2>
+<p>Generating a plot in T is as simple as returning a plot object from a
+foreign-language node.</p>
+<h3 id="example-ggplot2-in-r">Example: ggplot2 in R</h3>
+<pre class="t"><code>p = pipeline {
+    data = read_csv(&quot;data.csv&quot;)
+
+    p_ggplot = rn(
+        command = &lt;{
+            library(ggplot2)
+            ggplot(data, aes(x = wt, y = mpg)) +
+                geom_point() +
+                labs(title = &quot;Fuel Economy&quot;)
+        }&gt;,
+        deserializer = ^csv
+    )
+}</code></pre>
+<h3 id="example-matplotlib-in-python">Example: matplotlib in Python</h3>
+<pre class="t"><code>    p_matplotlib = pyn(
+        command = &lt;{
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots()
+            ax.scatter(data[&#39;wt&#39;], data[&#39;mpg&#39;])
+            ax.set_title(&quot;Fuel Economy&quot;)
+            fig
+        }&gt;,
+        deserializer = ^csv
+    )</code></pre>
+<p>In both cases, T recognizes that the node result is a
+visualization.</p>
+<hr />
+<h2 id="visual-metadata-capture">Visual Metadata Capture</h2>
+<p>When you build a pipeline containing these nodes, T creates two
+artifacts for each plotting node in the Nix store: 1. <strong>The
+Artifact</strong>: The serialized plot object (e.g., an RDS file for
+<code>ggplot2</code>). 2. <strong>The Metadata
+(<code>viz</code>)</strong>: A JSON representation of the plot’s
+contents.</p>
+<p>T automatically extracts: - <strong>Title</strong>: The main title of
+the plot. - <strong>Backend</strong>: The runtime used to produce the
+plot (<code>"R"</code> or <code>"Python"</code>). -
+<strong>Class</strong>: The plot type (<code>"ggplot"</code>,
+<code>"matplotlib"</code>, or <code>"plotnine"</code>). -
+<strong>Labels</strong>: Axis labels and legends. -
+<strong>Layers</strong>: The types of geometries present (e.g., “point”,
+“line”). - <strong>Mappings</strong>: In <code>ggplot2</code>, the
+aesthetic mappings (x, y, color, etc.).</p>
+<hr />
+<h2 id="inspecting-plots-with-read_node">Inspecting Plots with
+<code>read_node()</code></h2>
+<p>Because T captures this metadata, you can inspect the “contents” of a
+plot directly from your T scripts or the REPL without needing to render
+it to an image.</p>
+<p>When you call <code>read_node()</code> on a plotting node, T returns
+the <strong>metadata dictionary</strong> instead of the binary
+artifact.</p>
+<pre class="t"><code>&gt; g = read_node(&quot;p_ggplot&quot;)
+&gt; print(g.title)
+&quot;Fuel Economy&quot;
+
+&gt; print(g.layers)
+[&quot;point&quot;]
+
+&gt; print(g.labels)
+{ x: &quot;wt&quot;, y: &quot;mpg&quot;, title: &quot;Fuel Economy&quot; }</code></pre>
+<p>This “Transparent Plotting” enables programmatic verification of
+visualizations—for example, a test script could assert that a generated
+plot has the correct title and includes a regression line layer.</p>
+<hr />
+<h2 id="plotting-in-literate-programming">Plotting in Literate
+Programming</h2>
+<p>When using <a href="literate-programming-quarto.html">Quarto</a> with
+T pipelines, it is important to understand how <code>read_node()</code>
+behaves depending on the language of the code chunk.</p>
+<h3 id="in-t-chunks">In T Chunks</h3>
+<p>Within a <code>{t}</code> code block, <code>read_node()</code>
+follows the same behavior as the REPL: it returns the <strong>JSON
+metadata dictionary</strong>.</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="in">```{t}</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="in">#| echo: false</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="in">g = read_node(&quot;p_ggplot&quot;)</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="in">print(g.title)</span></span></code></pre></div>
+<pre><code>*Output: &quot;Fuel Economy&quot;*
+
+This is useful for including summary information about your visualizations directly in the text of your report.
+
+### In R and Python Chunks
+To actually **render** the plot in your report, you must use an `{r}` or `{python}` chunk. However, in these environments, `read_node()` is a preprocessor token that T replaces with the **absolute path string** to the artifact in the Nix store. 
+
+Because `read_node()` returns a path, you must manually load the artifact using the specialized reader for that language.
+
+#### Example: Rendering a ggplot2 node in R
+```markdown
+```{r}
+#| echo: false
+# read_node(&quot;p_ggplot&quot;) becomes &#39;/nix/store/.../artifact&#39;
+p &lt;- readRDS(read_node(&quot;p_ggplot&quot;))
+p</code></pre>
+<pre><code>
+#### Example: Rendering a matplotlib node in Python
+```markdown
+```{python}
+#| echo: false
+import pickle
+# read_node(&quot;p_matplotlib&quot;) becomes &#39;/nix/store/.../artifact&#39;
+with open(read_node(&quot;p_matplotlib&quot;), &quot;rb&quot;) as f:
+    fig = pickle.load(f)
+fig</code></pre>
+<p>```</p>
+<p>This dual behavior ensures that you can use T for programmatic
+inspection and R/Python for high-fidelity visual rendering, all while
+maintaining strict Nix-based reproducibility.</p>
+<p>See the <a href="demos.html">T Pipeline Demos</a> for real-world
+examples of pipelines generating interactive and static reports.</p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

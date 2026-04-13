@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - error-handling</h1>
-</header>
 <h1 id="error-handling-in-t">Error Handling in T</h1>
 <p>Comprehensive guide to error handling, recovery patterns, and
 debugging in T.</p>
@@ -46,7 +43,13 @@ debugging in T.</p>
 <li><a href="#error-as-values">Error as Values</a></li>
 <li><a href="#pipe-operators-and-errors">Pipe Operators and
 Errors</a></li>
+<li><a href="#pattern-matching-and-errors">Pattern Matching and
+Errors</a></li>
 <li><a href="#error-recovery-patterns">Error Recovery Patterns</a></li>
+<li><a href="#pipeline-diagnostics-and-soft-failures">Pipeline
+Diagnostics and Soft-Failures</a></li>
+<li><a href="#polyglot-error-handling-pythonr">Polyglot Error Handling
+(Python/R)</a></li>
 <li><a href="#common-errors">Common Errors</a></li>
 <li><a href="#best-practices">Best Practices</a></li>
 </ul>
@@ -63,6 +66,9 @@ paths are explicit</li>
 pipelined like data</li>
 <li><strong>Predictable Behavior</strong>: No hidden control flow from
 exceptions</li>
+<li><strong>Observability at Scale</strong>: Pipeline builds capture and
+persist errors as artifacts, preventing build halts while ensuring full
+traceability.</li>
 </ol>
 <p><strong>Key Principle</strong>: Errors are data, and data can be
 transformed, inspected, and recovered from.</p>
@@ -200,7 +206,7 @@ logging.</p>
 <pre class="t"><code>-- Recovery pattern
 result = risky_operation()
   ?|&gt; \(x) if (is_error(x)) {
-    print(&quot;Error occurred: &quot; + error_message(x))
+    print(str_join([&quot;Error occurred: &quot;, error_message(x)]))
     default_value
   } else {
     x
@@ -211,28 +217,56 @@ error(&quot;fail&quot;)
   ?|&gt; \(x) if (is_error(x)) 0 else x  -- Recovery
   |&gt; \(x) x + 1                        -- Normal processing (1)</code></pre>
 <hr />
+<h2 id="pattern-matching-and-errors">Pattern Matching and Errors</h2>
+<p>Pattern matching is the most declarative way to handle first-class
+errors in T. It allows you to destructure error values and branch logic
+based on specific outcomes.</p>
+<h3 id="basic-error-matching">Basic Error Matching</h3>
+<p>Use the <code>Error { msg }</code> pattern to capture the error
+message:</p>
+<pre class="t"><code>result = match(1 / 0) {
+  Error { msg: m } =&gt; str_sprintf(&quot;Caught error: %s&quot;, m),
+  val =&gt; str_sprintf(&quot;Result: %f&quot;, val)
+}
+-- &quot;Caught error: Division by zero&quot;</code></pre>
+<h3 id="automatic-error-propagation">Automatic Error Propagation</h3>
+<p>If you don’t explicitly handle <code>Error</code> in a
+<code>match</code> expression, the original error value is propagated
+automatically. This matches the behavior of the standard pipe
+(<code>|&gt;</code>).</p>
+<pre class="t"><code>-- This match does NOT handle Error
+res = match(error(&quot;Fail&quot;)) {
+  [head, ..tail] =&gt; head,
+  [] =&gt; 0
+}
+-- Result is still Error(&quot;Fail&quot;)</code></pre>
+<hr />
 <h2 id="error-recovery-patterns">Error Recovery Patterns</h2>
 <h3 id="pattern-1-default-values">Pattern 1: Default Values</h3>
-<pre class="t"><code>-- Return default on error
+<pre class="t"><code>-- Return default on error using match
 safe_divide = \(a, b)
-  (a / b) ?|&gt; \(result)
-    if (is_error(result)) 0.0 else result
+  match(a / b) {
+    Error { _ } =&gt; 0.0,
+    res =&gt; res
+  }
 
-safe_divide(10, 0)   -- 0.0 (instead of error)
+safe_divide(10, 0)   -- 0.0
 safe_divide(10, 2)   -- 5.0</code></pre>
 <h3 id="pattern-2-fallback-sources">Pattern 2: Fallback Sources</h3>
-<pre class="t"><code>-- Try multiple data sources
-data = read_csv(&quot;primary.csv&quot;)
-  ?|&gt; \(x) if (is_error(x)) read_csv(&quot;backup.csv&quot;) else x
-  ?|&gt; \(x) if (is_error(x)) read_csv(&quot;fallback.csv&quot;) else x
+<pre class="t"><code>-- Try multiple data sources cleanly
+data = match(read_csv(&quot;primary.csv&quot;)) {
+  Error { _ } =&gt; match(read_csv(&quot;backup.csv&quot;)) {
+    Error { _ } =&gt; read_csv(&quot;fallback.csv&quot;),
+    res =&gt; res
+  },
+  res =&gt; res
+}
 
--- If all fail, handle gracefully
-final_data = data ?|&gt; \(x)
-  if (is_error(x)) {
-    print(&quot;All data sources failed&quot;)
-    empty_dataframe()  -- Return empty structure
-  } else {
-    x
+-- Or combining match with the maybe-pipe for flat recovery
+final_data = read_csv(&quot;primary.csv&quot;)
+  ?|&gt; \(res) match(res) {
+    Error { _ } =&gt; read_csv(&quot;backup.csv&quot;),
+    valid_df =&gt; valid_df
   }</code></pre>
 <h3 id="pattern-3-validation-and-recovery">Pattern 3: Validation and
 Recovery</h3>
@@ -249,7 +283,7 @@ process_value = \(v)
 safe_process = \(v)
   process_value(v) ?|&gt; \(result)
     if (is_error(result)) {
-      print(&quot;Invalid value: &quot; + error_message(result))
+      print(str_sprintf(&quot;Invalid value: %s&quot;, error_message(result)))
       0  -- Default
     } else {
       result
@@ -261,7 +295,7 @@ safe_process(10)   -- Returns 20</code></pre>
 <pre class="t"><code>-- Log errors and continue
 logged_operation = risky_function()
   ?|&gt; \(x) if (is_error(x)) {
-    write_log(&quot;Error in risky_function: &quot; + error_message(x))
+    write_log(str_sprintf(&quot;Error in risky_function: %s&quot;, error_message(x)))
     x  -- Pass error along
   } else {
     x
@@ -293,23 +327,175 @@ results = process_many([1, -2, 3, 0])
 successes = filter(results, \(r) r.success)</code></pre>
 <h3 id="pattern-6-error-transformation">Pattern 6: Error
 Transformation</h3>
-<pre class="t"><code>-- Transform errors into more specific types
+<p>Pattern matching is excellent for converting low-level errors into
+domain-specific ones.</p>
+<pre class="t"><code>-- Transform errors using match
 enhance_error = \(e)
-  if (is_error(e)) {
-    code = error_code(e)
-    msg = error_message(e)
-    
-    if (code == &quot;DivisionByZero&quot;)
-      error(&quot;MathError&quot;, &quot;Math operation failed: &quot; + msg)
-    else if (code == &quot;NAError&quot;)
-      error(&quot;DataQualityError&quot;, &quot;Data quality issue: &quot; + msg)
-    else
-      e
-  } else {
-    e
+  match(e) {
+    Error { msg } =&gt; 
+      if (str_detect(msg, &quot;DivisionByZero&quot;))
+        error(&quot;MathError&quot;, str_sprintf(&quot;Calculation failed: %s&quot;, msg))
+      else if (str_detect(msg, &quot;NAError&quot;))
+        error(&quot;DataQualityError&quot;, str_sprintf(&quot;Quality issue: %s&quot;, msg))
+      else
+        e,
+    _ =&gt; e
   }
 
 risky_calc() ?|&gt; enhance_error</code></pre>
+<hr />
+<h2 id="pipeline-diagnostics-and-soft-failures">Pipeline Diagnostics and
+Soft-Failures</h2>
+<p>In T-Lang, the materialization of a pipeline is a separate phase from
+the logic execution. When a node in a pipeline fails, it doesn’t
+necessarily halt the entire build.</p>
+<h3 id="hard-fail-vs.-soft-fail">Hard-Fail vs. Soft-Fail</h3>
+<ol type="1">
+<li><strong>Hard-Fail</strong>: Occurs when the environment or system
+fails (e.g., missing dependencies, Nix build errors, out-of-memory). The
+build stops immediately and no artifacts are produced.</li>
+<li><strong>Soft-Fail (Captured Error)</strong>: Occurs when the node’s
+internal code (T, Python, or R) raises an error. The node produces a
+<code>VError</code> artifact instead of the expected data. The pipeline
+build <strong>continues</strong>, allowing other independent branches to
+complete.</li>
+</ol>
+<h3 id="the-build-summary">The Build Summary</h3>
+<p>After a build, T provides an iconographic summary:</p>
+<pre class="text"><code>✖ Pipeline build captured node errors [5 succeeded, 2 captured errors, 2 had warnings]
+  ! Captured error in node: r_err
+  ! Captured error in node: py_err
+  ? Warnings in node: r_warn
+  ? Warnings in node: py_warn</code></pre>
+<ul>
+<li><strong><code>!</code> (Captured error)</strong>: The node failed,
+producing a <code>VError</code> artifact.</li>
+<li><strong><code>?</code> (Warnings)</strong>: The node succeeded, but
+issued non-terminal diagnostics.</li>
+</ul>
+<h3 id="investigating-with-explain">Investigating with
+<code>explain()</code></h3>
+<p>When you load a node that soft-failed, you receive a T-Lang Error
+object. You can use the <code>explain()</code> builtin to see the exact
+cause, including tracebacks from other languages.</p>
+<pre class="t"><code>hu = read_node(&quot;py_err&quot;)
+-- Error(RuntimeError: &quot;Critical error in Python logic&quot;)
+
+explain(hu)
+-- Output:
+-- Context:
+--   runtime_traceback: &quot;Traceback (most recent call last): ...&quot;
+--   node_name: &quot;py_err&quot;
+--   node_status: &quot;errored&quot;</code></pre>
+<hr />
+<h2 id="polyglot-error-handling-pythonr">Polyglot Error Handling
+(Python/R)</h2>
+<p>T-Lang provides a “diagnostic bridge” for nodes running in other
+languages.</p>
+<h3 id="python-nodes">Python Nodes</h3>
+<ul>
+<li><strong>Exceptions</strong>: All uncaught exceptions are caught by
+the T-Lang runner. The exception type, message, and full traceback are
+serialized into the <code>VError</code> artifact.</li>
+<li><strong>Warnings</strong>: Captured via
+<code>warnings.catch_warnings()</code>. These are listed in the build
+summary but do not cause the node to return an error state.</li>
+</ul>
+<h3 id="r-nodes">R Nodes</h3>
+<ul>
+<li><strong>Errors</strong>: Handled via <code>tryCatch</code>. R
+conditions are mapped to <code>VError</code> codes.</li>
+<li><strong>Warnings</strong>: Handled via
+<code>withCallingHandlers</code>. Warnings are collected into the node’s
+metadata without interrupting the primary data export.</li>
+</ul>
+<hr />
+<h3 id="pattern-7-conditional-modeling-and-automated-reporting">Pattern
+7: Conditional Modeling and Automated Reporting</h3>
+<p>In automated daily pipelines where data is refreshed externally, a
+three-way branching strategy is often necessary. You can use pattern
+matching to choose between a full complex model, a simplified fallback
+model, or a validation report based on the data’s characteristics.</p>
+<pre class="t"><code>p = pipeline {
+  -- 1. Load the latest daily raw data
+  raw_data = node(command = read_csv(&quot;daily_extract.csv&quot;))
+
+  -- 2. Validate and &quot;tag&quot; the data based on quality metrics
+  quality_status = node(command = 
+    raw_data ?|&gt; \(df) {
+      if (nrow(df) &lt; 500) 
+        error(&quot;CriticalError&quot;, &quot;Insufficient rows for any modeling.&quot;)
+      else if (length(levels(df.segment)) &lt; 2)
+        [type: &quot;low_diversity&quot;, data: df]
+      else
+        [type: &quot;high_quality&quot;, data: df]
+    }
+  )
+
+  -- 3. Precise branching: Choose the best action for each state
+  final_result = node(command = 
+    quality_status ?|&gt; \(outcome) match(outcome) {
+      -- Full Case: Sufficient data and factor levels
+      [type: &quot;high_quality&quot;, data: df] =&gt; 
+        lm(df, $yield ~ $temp + $segment),
+      
+      -- Fallback Case: Enough data, but not enough factor diversity
+      -- We drop the &#39;segment&#39; predictor to avoid model failure
+      [type: &quot;low_diversity&quot;, data: df] =&gt; 
+        lm(df, $yield ~ $temp),
+      
+      -- Failure Case: Stop modeling and generate a diagnostic report
+      Error { msg } =&gt; 
+        generate_validation_report(msg, raw_data)
+    }
+  )
+}</code></pre>
+<p><strong>Why use this?</strong>: * <strong>Adaptive Modeling</strong>:
+Your pipeline automatically scales its complexity to match the quality
+of the incoming data, avoiding “singular matrix” or “one level factor”
+errors. * <strong>Operational Intelligence</strong>: Instead of the
+whole pipeline failing due to a minor data shift (like one category
+disappearing from today’s extract), the system gracefully degrades its
+service while still providing a result. * <strong>Auditability</strong>:
+Every run clearly states which path was taken through the use of
+descriptive tags like <code>low_diversity</code> or
+<code>high_quality</code>.</p>
+<hr />
+<h2 id="comparing-error-handling-tools">Comparing Error Handling
+Tools</h2>
+<p>T offers several tools for managing errors, each suited for different
+scenarios:</p>
+<ul>
+<li><strong>Conditional Pipe (<code>|&gt;</code>)</strong>: Best for
+“fail-fast” pipelines where any error should immediately stop further
+processing. It’s the default for sequential operations.</li>
+<li><strong>Maybe-Pipe (<code>?|&gt;</code>)</strong>: Ideal for
+scenarios requiring explicit error handling or recovery at each step. It
+allows functions to receive and act upon error values, enabling logging,
+fallback logic, or transformation.</li>
+<li><strong>Pattern Matching (<code>match</code>)</strong>: The most
+declarative and powerful tool for branching logic based on error types
+or success values. It’s excellent for:
+<ul>
+<li><strong>Specific Error Recovery</strong>: Handling different error
+types differently.</li>
+<li><strong>Default Values/Fallbacks</strong>: Providing alternative
+values when an error occurs.</li>
+<li><strong>Error Transformation</strong>: Converting generic errors
+into more domain-specific ones.</li>
+<li><strong>Complex Recovery Logic</strong>: When
+<code>if (is_error(x))</code> becomes too nested or less readable.</li>
+</ul></li>
+</ul>
+<p><strong>General Guidance</strong>: * Use <code>|&gt;</code> for the
+majority of your data pipelines where you expect success and want to
+stop on the first error. * Use <code>?|&gt;</code> when you need to
+inspect or act on an error <em>at a specific point</em> in a pipeline,
+often followed by <code>match</code> or an
+<code>if (is_error(...))</code> check. * Use <code>match</code> when
+your error recovery logic involves different actions for different error
+types, or when you want a clear, declarative way to distinguish between
+success and various error states.</p>
 <hr />
 <h2 id="common-errors">Common Errors</h2>
 <h3 id="na-handling-errors">NA Handling Errors</h3>
@@ -383,7 +569,7 @@ else
 Messages</h3>
 <p><strong>Good</strong>: Clear, actionable messages</p>
 <pre class="t"><code>if (age &lt; 0 or age &gt; 150)
-  error(&quot;ValidationError&quot;, &quot;Age must be between 0 and 150, got: &quot; + str_string(age))</code></pre>
+  error(&quot;ValidationError&quot;, str_sprintf(&quot;Age must be between 0 and 150, got: %s&quot;, str_string(age)))</code></pre>
 <p><strong>Bad</strong>: Vague messages</p>
 <pre class="t"><code>if (age &lt; 0 or age &gt; 150)
   error(&quot;Invalid age&quot;)</code></pre>
@@ -410,7 +596,7 @@ assert(is_error(risky_function(-1)))</code></pre>
 <h3 id="log-errors-in-production">6. Log Errors in Production</h3>
 <pre class="t"><code>production_pipeline = pipeline {
   data = read_csv(&quot;data.csv&quot;) ?|&gt; \(x) if (is_error(x)) {
-    write_log(&quot;CRITICAL: Failed to load data: &quot; + error_message(x))
+    write_log(str_sprintf(&quot;CRITICAL: Failed to load data: %s&quot;, error_message(x)))
     x
   } else x
   
@@ -439,9 +625,9 @@ else
 <pre class="t"><code>result = risky_operation()
 
 if (is_error(result)) {
-  print(&quot;Error code: &quot; + error_code(result))
-  print(&quot;Error message: &quot; + error_message(result))
-  print(&quot;Error context: &quot; + error_context(result))
+  print(str_sprintf(&quot;Error code: %s&quot;, error_code(result)))
+  print(str_sprintf(&quot;Error message: %s&quot;, error_message(result)))
+  print(str_sprintf(&quot;Error context: %s&quot;, error_context(result)))
 }</code></pre>
 <h3 id="trace-error-source">Trace Error Source</h3>
 <pre class="t"><code>-- Add markers in pipeline

@@ -33,13 +33,12 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - abs</h1>
-</header>
 <h1 id="abs">abs</h1>
 <p>Absolute value</p>
-<p>Returns the absolute value of a number or vector/ndarray
-elements.</p>
+<p>Returns the absolute value of a number or vector/ndarray elements.
+Raises a TypeError if an NA value is encountered. Use
+<code>filter</code> or explicit missingness handling before calling
+<code>abs</code> on data that may contain NAs.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>x</strong> (<code>Number</code>): | Vector | NDArray The

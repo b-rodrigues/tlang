@@ -33,12 +33,11 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - serialize_to_file</h1>
-</header>
 <h1 id="serialize_to_file">serialize_to_file</h1>
 <p>Binary Serialization</p>
-<p>Serializes any T value to a file using OCaml’s Marshal module.</p>
+<p>Serializes any T value to a file using OCaml’s Marshal module.
+Includes a content digest for integrity verification on
+deserialization.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>path</strong> (<code>String</code>): Destination file

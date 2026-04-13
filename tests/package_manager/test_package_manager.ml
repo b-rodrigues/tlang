@@ -211,6 +211,60 @@ min_version = "0.51.0"
         && analysis.missing_additional_tools = expected_tools
     | _ -> false);
 
+  test_pm "R code discovery keeps baseline requirements when ggplot2 is absent" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          1 + 1
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "plot-discovery-r" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"]
+        && analysis.reasons = ["node `a` usage discovery"]
+    | _ -> false);
+
+  test_pm "matplotlib discovery does not force pandas" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = py(command = <{
+          import matplotlib.pyplot as plt
+          fig, ax = plt.subplots()
+          ax.plot([1, 2], [3, 4])
+          fig
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "plot-discovery-py" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_py_deps = ["matplotlib"]
+        && analysis.reasons = ["node `a` usage discovery"]
+    | _ -> false);
+
+  test_pm "plotnine discovery adds plotnine and pandas" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = py(command = <{
+          from plotnine import ggplot, aes, geom_point
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "plotnine-discovery-py" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_py_deps = ["pandas"; "plotnine"]
+        && analysis.reasons = ["node `a` usage discovery"]
+    | _ -> false);
+
   test_pm "auto-add pipeline dependencies via env var" (fun () ->
     Random.self_init ();
     let base_dir =

@@ -136,6 +136,17 @@ let pretty_print_summary pairs =
   | _ -> Buffer.add_string buf "No coefficient data available.\n");
   Buffer.contents buf
 
+let is_visual_metadata_class = function
+  | VString "ggplot" | VString "matplotlib" | VString "plotnine" -> true
+  | _ -> false
+
+let display_keys_from_pairs pairs =
+  List.fold_left (fun acc (k, v) ->
+    match k, v with
+    | "_display_keys", VList items ->
+        Some (List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items)
+    | _ -> acc
+  ) None pairs
 
 (** Internal helper for recursive pretty formatting with indentation *)
 let rec pretty_format ?(max_depth=5) ?(indent="") v =
@@ -143,12 +154,7 @@ let rec pretty_format ?(max_depth=5) ?(indent="") v =
   | VDict pairs ->
       if max_depth <= 0 then Utils.value_to_string v
       else if pairs = [] then "{}" else
-      let display_keys = List.fold_left (fun acc (k, v) ->
-        match k, v with
-        | "_display_keys", VList items ->
-            Some (List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) items)
-        | _ -> acc
-      ) None pairs in
+      let display_keys = display_keys_from_pairs pairs in
       let visible_pairs = match display_keys with
         | None -> pairs
         | Some keys -> List.filter (fun (k, _) -> List.mem k keys) pairs
@@ -168,10 +174,48 @@ let rec pretty_format ?(max_depth=5) ?(indent="") v =
       ) items in
       let all_simple = List.length items <= 5 && List.for_all (fun (_, v) ->
         match v with VDict _ | VList _ | VVector _ | VDataFrame _ | VPipeline _ -> false | _ -> true
-      ) items in
-      if all_simple then Utils.value_to_string v
-      else "[\n" ^ indent ^ "  " ^ String.concat (",\n" ^ indent ^ "  ") lines ^ "\n" ^ indent ^ "]"
-  | other -> Utils.value_to_string other
+       ) items in
+       if all_simple then Utils.value_to_string v
+       else "[\n" ^ indent ^ "  " ^ String.concat (",\n" ^ indent ^ "  ") lines ^ "\n" ^ indent ^ "]"
+   | other -> Utils.value_to_string other
+
+and pretty_print_visual_metadata pairs =
+  let visible_pairs =
+    pairs
+    |> List.filter (fun (k, _) -> k <> "_display_keys")
+  in
+  let class_name =
+    match List.assoc_opt "class" visible_pairs with
+    | Some (VString s) -> s
+    | _ -> "plot"
+  in
+  let body_pairs =
+    visible_pairs
+    |> List.filter (fun (k, _) -> k <> "class")
+  in
+  if body_pairs = [] then
+    Printf.sprintf "%s {}\n" class_name
+  else
+    let display_keys =
+      match display_keys_from_pairs pairs with
+      | Some keys ->
+          let body_key_set =
+            List.fold_left (fun acc (k, _) -> String_set.add k acc) String_set.empty body_pairs
+          in
+          List.filter (fun key -> String_set.mem key body_key_set) keys
+      | None -> List.map fst body_pairs
+    in
+    let display_key_set =
+      List.fold_left (fun acc key -> String_set.add key acc) String_set.empty display_keys
+    in
+    let filtered_body_pairs =
+      List.filter (fun (k, _) -> String_set.mem k display_key_set) body_pairs
+    in
+    let body =
+      pretty_format
+        (VDict (filtered_body_pairs @ [("_display_keys", VList (List.map (fun k -> (None, VString k)) display_keys))]))
+    in
+    Printf.sprintf "%s %s\n" class_name body
 
 (** Pretty-print any value for REPL display *)
 let pretty_print_value v =
@@ -181,11 +225,17 @@ let pretty_print_value v =
   | VPipeline p -> pretty_print_pipeline p
   | VDict pairs ->
       let is_summary = List.mem_assoc "class" pairs && List.assoc "class" pairs = VString "summary" in
+      let is_visual_metadata =
+        List.mem_assoc "class" pairs
+        && is_visual_metadata_class (List.assoc "class" pairs)
+      in
       let has_kind = List.mem_assoc "kind" pairs in
       let is_large = List.length pairs > 5 in
       let has_nested = List.exists (fun (_, v) -> match v with VDict _ | VList _ | VVector _ -> true | _ -> false) pairs in
       if is_summary then
         pretty_print_summary pairs
+      else if is_visual_metadata then
+        pretty_print_visual_metadata pairs
       else if has_kind || is_large || has_nested then
         pretty_format v ^ "\n"
       else

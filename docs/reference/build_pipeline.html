@@ -33,17 +33,17 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - build_pipeline</h1>
-</header>
 <h1 id="build_pipeline">build_pipeline</h1>
 <p>Build Pipeline Artifacts</p>
 <p>Builds a pipeline to <code>pipeline.nix</code> and records node
 artifacts in a local registry.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>p</strong> (<code>Pipeline</code>): The pipeline to
-build.</li>
+<li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to
+build.</p></li>
+<li><p><strong>verbose</strong> (<code>Int</code>): (Optional) Nix build
+verbosity level. <code>0</code> keeps build failures quiet; values above
+<code>0</code> print failed node logs.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>The output path (Nix store path or local fallback directory).</p>

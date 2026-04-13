@@ -280,15 +280,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   let legacy_node_path = "test_legacy_node.tobj" in
   write_marshaled_value_legacy legacy_node_path "0.4.0" (Ast.VInt 7);
+  let plot_json_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-plot-fallback" in
+  (try Unix.mkdir plot_json_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let plot_json_path = Filename.concat plot_json_dir "artifact" in
+  let plot_json_viz = Filename.concat plot_json_dir "viz" in
+  (try Sys.remove plot_json_viz with Sys_error _ -> ());
+  ignore (Serialization.write_json plot_json_path
+    (Ast.VDict [
+      ("class", Ast.VString "matplotlib");
+      ("backend", Ast.VString "Python");
+      ("title", Ast.VString "Fallback plot");
+      ("mapping", Ast.VDict []);
+      ("labels", Ast.VDict [("x", Ast.VString "x"); ("y", Ast.VString "y")]);
+      ("layers", Ast.VList [(None, Ast.VString "Line2D")]);
+    ]));
   let legacy_log = Printf.sprintf {|{
     "timestamp": "20240101-000001",
     "hash": "legacy",
     "out_path": "/tmp",
     "nodes": [
       { "node": "legacy_node", "path": "%s", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
-      { "node": "compatible_node", "path": "test_roundtrip.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
+      { "node": "compatible_node", "path": "test_roundtrip.tobj", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+      { "node": "plot_json_node", "path": "%s", "runtime": "Python", "serializer": "json", "class": "matplotlib", "dependencies": [], "success": "true" }
     ]
-  }|} legacy_node_path in
+  }|} legacy_node_path plot_json_path in
   let oc_legacy_log = open_out "_pipeline/build_log_legacy_version.json" in
   output_string oc_legacy_log legacy_log;
   close_out oc_legacy_log;
@@ -311,6 +326,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "read_node missing key (mocked)"
     "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
     "true";
+
+  test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
+    "read_node(\"plot_json_node\", which_log=\"legacy_version\").title"
+    {|"Fallback plot"|};
+  test "plot fallback fixture does not create a viz sidecar"
+    (Printf.sprintf {|file_exists("%s")|} plot_json_viz)
+    "false";
 
   test "read_node rejects older serialized node versions"
     "read_node(\"legacy_node\", which_log=\"legacy_version\")"
@@ -584,32 +606,123 @@ p_cross = pipeline {
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
    | Ast.VPipeline p ->
-       let nix = Nix_emit_pipeline.emit_pipeline p in
-       let has_r_json_helpers =
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_r_json_helpers =
          contains_substring nix "r_write_json <- function" &&
          contains_substring nix "r_read_json <- function" &&
          contains_substring nix "source <- r_read_json(" &&
          contains_substring nix "r_write_json(report_r,"
        in
-       let has_py_arrow_helpers =
-         contains_substring nix "def py_write_arrow(df, path):" &&
-         contains_substring nix "def py_read_arrow(path):" &&
-         contains_substring nix "source = py_read_arrow(" &&
-         contains_substring nix "py_write_arrow(report_py,"
+        let has_py_arrow_helpers =
+          contains_substring nix "def py_write_arrow(df, path):" &&
+          contains_substring nix "def py_read_arrow(path):" &&
+          contains_substring nix "source = py_read_arrow(" &&
+          contains_substring nix "py_write_arrow(report_py,"
+        in
+        let omits_old_runtime_prefixed_helpers =
+          (not (contains_substring nix "t_read_json(")) &&
+          (not (contains_substring nix "t_write_json(")) &&
+          (not (contains_substring nix "t_read_arrow(")) &&
+          (not (contains_substring nix "t_write_arrow("))
+        in
+        if has_r_json_helpers && has_py_arrow_helpers && omits_old_runtime_prefixed_helpers then begin
+          incr pass_count; Printf.printf "  ✓ pipeline emits r_/py_ runtime serializer helper names\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ runtime serializer helper naming emission failed\n"
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ serializer naming pipeline should return VPipeline, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_plot_pipeline, _) = eval_string_env
+    {|pipeline {
+  plot_r = rn(command = <{
+    library(ggplot2)
+    ggplot(mtcars, aes(wt, mpg)) + geom_point() + labs(title = "Fuel economy")
+  }>)
+  plot_py = py(command = <{
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    ax.plot([1, 2], [3, 4])
+    fig
+  }>)
+}|}
+    (Packages.init_env ()) in
+  (match v_plot_pipeline with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has_r_plot_helpers =
+         contains_substring nix "r_extract_plot_metadata <- function(object)" &&
+         contains_substring nix "r_save_viz_metadata <- function(object, path)" &&
+         contains_substring nix "file.path(Sys.getenv('out'), 'class')" &&
+         contains_substring nix "r_save_viz_metadata(plot_r, file.path(Sys.getenv('out'), 'viz'))"
        in
-       let omits_old_runtime_prefixed_helpers =
-         not (contains_substring nix "t_read_json(") &&
-         not (contains_substring nix "t_write_json(") &&
-         not (contains_substring nix "t_read_arrow(") &&
-         not (contains_substring nix "t_write_arrow(")
-       in
-       if has_r_json_helpers && has_py_arrow_helpers && omits_old_runtime_prefixed_helpers then begin
-         incr pass_count; Printf.printf "  ✓ pipeline emits r_/py_ runtime serializer helper names\n"
+        let has_py_plot_helpers =
+          contains_substring nix "def py_extract_plot_metadata(obj):" &&
+          contains_substring nix "from plotnine.ggplot import ggplot as PlotnineGGPlot" &&
+          contains_substring nix "\"class\": \"plotnine\"" &&
+          contains_substring nix "\"backend\": \"Python\"" &&
+          contains_substring nix "py_visual_class(plot_py)" &&
+          contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ['out'], 'viz'))"
+        in
+       if has_r_plot_helpers && has_py_plot_helpers then begin
+         incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R and Python nodes\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ runtime serializer helper naming emission failed\n"
+         incr fail_count; Printf.printf "  ✗ plot metadata helper emission failed\n"
        end
    | other ->
-       incr fail_count; Printf.printf "  ✗ serializer naming pipeline should return VPipeline, got: %s\n"
+       incr fail_count; Printf.printf "  ✗ plot metadata pipeline should return VPipeline, got: %s\n"
+         (Ast.Utils.value_to_string other));
+
+  let temp_plot_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-plot-metadata" in
+  (try Unix.mkdir temp_plot_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let ggplot_node_dir = Filename.concat temp_plot_dir "ggplot-node" in
+  (try Unix.mkdir ggplot_node_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let ggplot_viz = Filename.concat ggplot_node_dir "viz" in
+  (* artifact now holds "real" data or is irrelevant for this metadata-reading test *)
+  let ggplot_artifact = Filename.concat ggplot_node_dir "artifact" in
+  let ggplot_class = Filename.concat ggplot_node_dir "class" in
+  let ggplot_value =
+    Ast.VDict [
+      ("class", Ast.VString "ggplot");
+      ("backend", Ast.VString "R");
+      ("title", Ast.VString "Fuel economy");
+      ("mapping", Ast.VDict [("x", Ast.VString "wt"); ("y", Ast.VString "mpg")]);
+      ("labels", Ast.VDict [("x", Ast.VString "Weight"); ("y", Ast.VString "Miles per gallon")]);
+      ("layers", Ast.VList [(None, Ast.VString "Point")]);
+      ("_display_keys", Ast.VList [
+        (None, Ast.VString "class");
+        (None, Ast.VString "backend");
+        (None, Ast.VString "title");
+        (None, Ast.VString "mapping");
+        (None, Ast.VString "labels");
+        (None, Ast.VString "layers");
+      ]);
+    ]
+  in
+  ignore (Serialization.write_json ggplot_viz ggplot_value);
+  let oc_art = open_out ggplot_artifact in output_string oc_art "dummy-artifact"; close_out oc_art;
+  let oc_ggplot_class = open_out ggplot_class in
+  output_string oc_ggplot_class "ggplot\n";
+  close_out oc_ggplot_class;
+  let original_plot_env = Sys.getenv_opt "T_NODE_plot_meta" in
+  let restored =
+    Fun.protect
+      ~finally:(fun () ->
+        match original_plot_env with
+        | Some value -> Unix.putenv "T_NODE_plot_meta" value
+        | None -> Unix.putenv "T_NODE_plot_meta" "")
+      (fun () ->
+        Unix.putenv "T_NODE_plot_meta" ggplot_node_dir;
+        Builder.read_node "plot_meta")
+  in
+  (match restored with
+   | Ast.VNodeResult { v = Ast.VDict pairs; _ }
+     when List.assoc_opt "class" pairs = Some (Ast.VString "ggplot")
+          && List.assoc_opt "title" pairs = Some (Ast.VString "Fuel economy") ->
+       incr pass_count; Printf.printf "  ✓ read_node reads ggplot plot metadata artifacts from default serializer output\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ ggplot plot metadata artifact reading failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   let quarto_script = "test_quarto_report.qmd" in

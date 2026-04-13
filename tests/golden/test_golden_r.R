@@ -261,6 +261,14 @@ test_that("WINDOW RANK: cume_dist on simple.age", {
   compare_csvs("simple_cume_dist_age")
 })
 
+# ============================================================================
+# Test Suite 12: PLOT METADATA
+# ============================================================================
+
+test_that("PLOT METADATA: mocked read_node artifacts", {
+  compare_csvs("plot_metadata_mocked")
+})
+
 test_that("WINDOW RANK: ntile on simple.age", {
   compare_csvs("simple_ntile_age")
 })

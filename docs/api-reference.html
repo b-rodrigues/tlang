@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - api-reference</h1>
-</header>
 <h1 id="api-reference">API Reference</h1>
 <p>Package-oriented guide to T’s standard library.</p>
 <blockquote>
@@ -111,7 +108,7 @@ expressions:</p>
 flow and pipeline/intent constructs). It is not used for general
 dictionary literals.</p>
 <p>An empty brace block <code>{}</code> parses as an empty block
-(<code>Block []</code>) and evaluates to <code>null</code> at runtime.
+(<code>Block []</code>) and evaluates to <code>NA</code> at runtime.
 Braces are never used for dictionary literals; dictionaries always use
 the bracket (<code>[...]</code>) syntax described above.</p>
 <hr />
@@ -400,7 +397,7 @@ filenames</li>
 Symbol)</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p><code>String</code> or <code>null</code> if not found</p>
+<p><code>String</code> or <code>NA</code> if not found</p>
 <hr />
 <h3 id="exitcode"><code>exit(code)</code></h3>
 <p>Exits the T interpreter.</p>
@@ -437,14 +434,14 @@ Symbol)</li>
 <p><code>String</code></p>
 <hr />
 <h3 id="path_extpath"><code>path_ext(path)</code></h3>
-<p>Get the file extension (including the dot). Returns <code>null</code>
+<p>Get the file extension (including the dot). Returns <code>NA</code>
 if no extension is found.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>path</code> — Path string</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p><code>String</code> or <code>null</code></p>
+<p><code>String</code> or <code>NA</code></p>
 <hr />
 <h3 id="path_stempath"><code>path_stem(path)</code></h3>
 <p>Get the filename without its extension.</p>
@@ -464,6 +461,29 @@ working directory.</p>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>String</code></p>
+<hr />
+<h3 id="rm..."><code>rm(...)</code></h3>
+<p>Remove one or more variables from the environment by name. Supports
+bare symbols (R-style selective removal), strings, and lists of names
+via the <code>list</code> parameter.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>...</code> — One or more variable symbols or strings
+identifying variables to remove.</li>
+<li><code>list</code> (optional) — A List of strings or symbols to
+remove.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>NA</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>x = 10; y = 20
+rm(x, y)          -- Removes x and y
+
+z = 30
+rm(&quot;z&quot;)           -- Removes z
+
+vars = [&quot;a&quot;, &quot;b&quot;]
+rm(list = vars)   -- Removes variables &#39;a&#39; and &#39;b&#39;</code></pre>
 <hr />
 <h2 id="base-package">Base Package</h2>
 <p>Error handling, NA values, and assertions.</p>
@@ -574,7 +594,7 @@ na_string()  -- NA(String)</code></pre>
 <pre class="t"><code>is_na(NA)           -- true
 is_na(na_int())     -- true
 is_na(42)           -- false
-is_na(null)         -- false (null ≠ NA)</code></pre>
+is_na(&quot;hello&quot;)      -- false</code></pre>
 <hr />
 <h2 id="math-package">Math Package</h2>
 <p>Mathematical functions operating on scalars and vectors.</p>
@@ -787,7 +807,8 @@ imported via PMML)</li>
 <code>broom::glance()</code> in R.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>model</code> — Linear model object</li>
+<li><code>model</code> — Model object (linear model, decision tree, or
+random forest; PMML imports supported)</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>DataFrame with statistics like <code>r_squared</code>,
@@ -811,7 +832,8 @@ id="add_diagnosticsmodel-data"><code>add_diagnostics(model, data)</code></h3>
 <pre class="t"><code>add_diagnostics(model, data = df)</code></pre>
 <hr />
 <h3 id="predictdata-model"><code>predict(data, model)</code></h3>
-<p>Perform vectorized prediction on a new DataFrame.</p>
+<p>Perform vectorized prediction on a new DataFrame. Supports linear
+models as well as PMML decision trees and random forests.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>data</code> — DataFrame containing predictor columns</li>
@@ -872,7 +894,7 @@ id="write_arrowdataframe-path"><code>write_arrow(dataframe, path)</code></h3>
 <li><code>path</code> — Output file path (String)</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p><code>null</code></p>
+<p><code>NA</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>write_arrow(df, &quot;snapshot.arrow&quot;)</code></pre>
 <hr />
@@ -887,7 +909,7 @@ id="write_csvdataframe-path-separator"><code>write_csv(dataframe, path, separato
 “,”)</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p><code>null</code></p>
+<p><code>NA</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>write_csv(df, &quot;output.csv&quot;)
 write_csv(df, &quot;output.tsv&quot;, separator = &quot;\t&quot;)</code></pre>
@@ -1331,7 +1353,7 @@ str_glue(&quot;Hello {name}&quot;)  -- &quot;Hello Alice&quot;</code></pre>
 <h2 id="pipeline-package">Pipeline Package</h2>
 <p>Pipeline introspection and management.</p>
 <h3
-id="nodecommand-script-null-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-null-shell_args-functions-include-noop-false"><code>node(command, script = null, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = null, shell_args = [], functions = [], include = [], noop = false)</code></h3>
+id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false"><code>node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)</code></h3>
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node.</p>
 <p><strong>Parameters:</strong></p>
@@ -1374,9 +1396,9 @@ include = &quot;config.yml&quot;
 }</code></pre>
 <hr />
 <h3
-id="pycommand-script-null-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>py(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="pycommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <h3
-id="pyncommand-script-null-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>pyn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="pyncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure a Python Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Python"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Python code.</p>
@@ -1401,7 +1423,7 @@ generate a stub. Default: <code>false</code>.</li>
 <p>The evaluated return value of the command.</p>
 <hr />
 <h3
-id="rncommand-script-null-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>rn(command, script = null, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
+id="rncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false"><code>rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false)</code></h3>
 <p>Configure an R Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "R"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute R code.</p>
@@ -1426,7 +1448,7 @@ generate a stub. Default: <code>false</code>.</li>
 <p>The evaluated return value of the command.</p>
 <hr />
 <h3
-id="shncommand-script-null-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false"><code>shn(command, script = null, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)</code></h3>
+id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false"><code>shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)</code></h3>
 <p>Configure a shell pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "sh"</code>. Use it for CLI
 tools, inline shell scripts, and <code>.sh</code> files inside
@@ -1460,6 +1482,25 @@ generate a stub. Default: <code>false</code>.</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>The evaluated return value of the command.</p>
+<h3
+id="suppress_warningsvalue"><code>suppress_warnings(value)</code></h3>
+<p>Silence diagnostic warnings for a pipeline node while maintaining
+auditability in the background metadata.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — The expression or value to wrap (usually at the
+end of a node definition).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The original <code>value</code>, but with a signal to the evaluator
+to suppress console warnings for the currently executing node.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>p = pipeline {
+  -- Silence warnings from a high-noise filter
+  filtered = raw 
+    |&gt; filter($amount &gt; 100) 
+    |&gt; suppress_warnings
+}</code></pre>
 <hr />
 <h3
 id="pipeline_nodespipeline"><code>pipeline_nodes(pipeline)</code></h3>
@@ -1541,7 +1582,7 @@ Recommended for scripts run with <code>t run</code>.</p>
 </ul>
 <hr />
 <h3
-id="read_nodename-which_log-null"><code>read_node(name, which_log = null)</code></h3>
+id="read_nodename-which_log-na"><code>read_node(name, which_log = NA)</code></h3>
 <p>Read a materialized artifact from a previous build.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -1556,7 +1597,7 @@ specific build log. Defaults to latest.</li>
 read_node(&quot;model_v1&quot;, which_log = &quot;20260221&quot;)</code></pre>
 <hr />
 <h3
-id="inspect_pipelinewhich_log-null"><code>inspect_pipeline(which_log = null)</code></h3>
+id="inspect_pipelinewhich_log-na"><code>inspect_pipeline(which_log = NA)</code></h3>
 <p>View build status and output paths for a pipeline build.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
@@ -1927,11 +1968,6 @@ side is a list/vector. You do not need <code>.in</code>.</p>
 <td><code>Error</code></td>
 <td><code>error("msg")</code></td>
 <td>Structured errors (not exceptions)</td>
-</tr>
-<tr>
-<td><code>Null</code></td>
-<td><code>null</code></td>
-<td>Absence of value</td>
 </tr>
 <tr>
 <td><code>Intent</code></td>

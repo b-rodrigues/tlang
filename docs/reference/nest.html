@@ -33,13 +33,27 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - nest</h1>
-</header>
 <h1 id="nest">nest</h1>
 <p>Nest columns into sub-dataframes</p>
 <p>Packs selected columns into nested DataFrame values grouped by the
-remaining columns.</p>
+remaining columns. Supports flexible column selection using symbols,
+strings, or selection helpers (like starts_with, ends_with). If the
+DataFrame is already grouped (via group_by()) and no columns are
+specified, nest() will automatically nest all columns except the
+grouping keys.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>data</strong> (<code>Selection</code>): (Optional)
+Columns or matchers to nest.</p></li>
+<li><p><strong>df</strong> (<code>DataFrame</code>): The DataFrame to
+nest.</p></li>
+<li><p><strong>name</strong> (<code>String</code>): (Optional) Name for
+the new nested column, defaults to “data”.</p></li>
+<li><p><strong>…</strong> (<code>Selection</code>): (Optional)
+Positional columns to nest if ‘data’ is not provided.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>A new DataFrame with grouped keys and a nested list-column.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

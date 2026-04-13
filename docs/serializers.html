@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - serializers</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="serializers-in-t">Serializers in T</h1>
+<p>T uses a first-class serializer system to manage data interchange
+between different runtimes (T, R, Python, Julia) and for materializing
+pipeline nodes as persistent artifacts.</p>
+<h2 id="using-serializers">1. Using Serializers</h2>
+<p>Serializers are identified by the <code>^</code> prefix. You can
+specify them when defining pipeline nodes:</p>
+<pre class="t"><code>p = pipeline {
+  -- Use the built-in Arrow serializer for a DataFrame
+  data = node(command = read_csv(&quot;large.csv&quot;), serializer = ^arrow)
+  
+  -- Use the PMML serializer for a model
+  model = rn(command = &lt;{ lm(y ~ x, data = data) }&gt;, serializer = ^pmml)
+  
+  -- Use the JSON serializer for a simple dictionary
+  config = node(command = { &quot;debug&quot;: true, &quot;retries&quot;: 5 }, serializer = ^json)
+}</code></pre>
+<h3 id="implicit-serialization">Implicit Serialization</h3>
+<p>If you don’t specify a serializer, T uses the <code>^tlang</code>
+(internal binary) format for T-to-T communication. For other runtimes, T
+attempts to infer a sensible default based on the data type or the
+specific wrapper used (e.g., <code>shn()</code> defaults to
+<code>^text</code>).</p>
+<h2 id="built-in-serializers">2. Built-in Serializers</h2>
+<table>
+<thead>
+<tr>
+<th>Identifier</th>
+<th>Name</th>
+<th>Best For</th>
+<th>Compatibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>^tlang</code></td>
+<td>T-Native</td>
+<td>T-to-T interchange</td>
+<td>T only</td>
+</tr>
+<tr>
+<td><code>^arrow</code></td>
+<td>Apache Arrow</td>
+<td>Large DataFrames</td>
+<td>T, R, Python, Julia</td>
+</tr>
+<tr>
+<td><code>^pmml</code></td>
+<td>PMML</td>
+<td>Predictive Models</td>
+<td>T, R, Python</td>
+</tr>
+<tr>
+<td><code>^onnx</code></td>
+<td>ONNX</td>
+<td>ML Models</td>
+<td>T, R, Python</td>
+</tr>
+<tr>
+<td><code>^json</code></td>
+<td>JSON</td>
+<td>Config, lists, dicts</td>
+<td>T, R, Python</td>
+</tr>
+<tr>
+<td><code>^csv</code></td>
+<td>CSV</td>
+<td>Tabular data</td>
+<td>T, R, Python</td>
+</tr>
+<tr>
+<td><code>^text</code></td>
+<td>Plain Text</td>
+<td>Logs, shell output</td>
+<td>All</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-serializer-structure">3. The <code>serializer</code>
+Structure</h2>
+<p>A serializer is a first-class object in T. You can inspect its
+properties or even define your own.</p>
+<pre class="t"><code>type serializer = {
+  format: string,
+  writer: function(path: string, value: any) -&gt; result[NA, string],
+  reader: function(path: string) -&gt; result[any, string]
+}</code></pre>
+<h3 id="custom-serializers">Custom Serializers</h3>
+<p>You can create a custom serializer by defining a record that matches
+the required interface:</p>
+<pre class="t"><code>my_log_serializer = {
+  format: &quot;log&quot;,
+  writer: \(path, val) {
+    -- custom logic to write log
+    Ok(NA)
+  },
+  reader: \(path) {
+    -- custom logic to read log
+    Ok(&quot;log content&quot;)
+  }
+}
+
+-- Usage
+node(command = ..., serializer = my_log_serializer)</code></pre>
+<h2 id="static-coherence-checks">4. Static Coherence Checks</h2>
+<p>One of the most powerful features of T’s serializer system is the
+<strong>static coherence check</strong>. When you build a pipeline, T
+verifies that the format produced by a source node matches the format
+expected by the consumer node.</p>
+<pre class="t"><code>node A {
+  target: wn(&quot;data.csv&quot;, serializer = ^csv)
+}
+
+node B {
+  source: rn(&quot;data.csv&quot;, serializer = ^arrow)
+}
+
+-- Result: Static Error
+-- &quot;Format mismatch: Node A produces ^csv, but Node B expects ^arrow.&quot;</code></pre>
+<p>This prevents runtime errors after long-running computations by
+catching interchange mismatches at the start of the build.</p>
+<h2 id="polyglot-support">5. Polyglot Support</h2>
+<p>For cross-language nodes, serializers provide the necessary glue code
+for the target runtime. For example, when using <code>^arrow</code> in
+an R node:</p>
+<ol type="1">
+<li>T injects the <code>arrow</code> R library into the build
+environment.</li>
+<li>T generates the R code to call
+<code>arrow::write_ipc_file()</code>.</li>
+<li>T ensures the resulting file is correctly tracked as a Nix
+artifact.</li>
+</ol>
+<h3 id="custom-polyglot-serializers-r-and-python-snippets">Custom
+Polyglot Serializers: R and Python Snippets</h3>
+<p>For a serializer to work across non-T runtimes, it can optionally
+provide code snippets for R and Python. These snippets are strings that
+T injects into the generated build scripts.</p>
+<p>You can define these by adding <code>r_writer</code>,
+<code>r_reader</code>, <code>py_writer</code>, or <code>py_reader</code>
+keys to your serializer dictionary. You can use standard strings or
+<strong>foreign code blocks</strong> <code>&lt;{ ... }&gt;</code> for
+better readability:</p>
+<pre class="t"><code>my_custom_ser = [
+  format: &quot;custom&quot;,
+  
+  -- T implementation
+  writer: \(path, val) { Ok(NA) },
+  reader: \(path) { Ok(42) },
+  
+  -- R snippets (using foreign code blocks)
+  r_writer: &lt;{ function(obj, path) { saveRDS(obj, path) } }&gt;,
+  r_reader: &lt;{ function(path) { readRDS(path) } }&gt;,
+  
+  -- Python snippets
+  py_writer: &lt;{ lambda obj, path: pickle.dump(obj, open(path, &#39;wb&#39;)) }&gt;,
+  py_reader: &lt;{ lambda path: pickle.load(open(path, &#39;rb&#39;)) }&gt;
+]</code></pre>
+<h4 id="injected-code-patterns">Injected Code Patterns</h4>
+<p>When T processes a node with an <code>R</code> runtime and the above
+serializer: 1. It looks for the <code>r_writer</code> snippet. 2. It
+generates a call in the node’s R script:
+<code>&lt;r_writer&gt;(node_result, "artifact_path")</code>.</p>
+<h4 id="registering-custom-formats">Registering Custom Formats</h4>
+<p>If you use a custom format name (e.g.,
+<code>format: "myformat"</code>), you should ensure that your R or
+Python scripts have the necessary libraries loaded to handle that
+format. You can do this by adding the libraries to your
+<code>tproject.toml</code> or using the <code>functions</code> /
+<code>includes</code> parameters in the node definition.</p>
+<p>For more information on how pipelines use these serializers, see the
+<a href="pipeline_tutorial.html">Pipeline Tutorial</a>. For a
+model-focused walkthrough of <code>^pmml</code>, see the <a
+href="pmml_tutorial.html">PMML Tutorial</a>.</p>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

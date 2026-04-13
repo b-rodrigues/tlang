@@ -98,9 +98,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - pipeline_tutorial</h1>
-</header>
 <h1 id="pipeline-tutorial">Pipeline Tutorial</h1>
 <blockquote>
 <p>A step-by-step guide to T’s pipeline execution model</p>
@@ -152,6 +149,14 @@ enforces cross-runtime safety: if a node with a non-<code>T</code>
 runtime depends on a <code>T</code> node, or vice versa, you should
 specify an explicit
 <code>serializer</code>/<code>deserializer</code>.</p>
+<p>When an R node returns a <code>ggplot2</code> object, or a Python
+node returns a <code>matplotlib</code> / <code>plotnine</code> plot
+object, T now preserves lightweight plot metadata for REPL inspection.
+Reading or printing those artifacts shows a structured summary with the
+plot class (<code>ggplot</code>, <code>matplotlib</code>, or
+<code>plotnine</code>), runtime backend (<code>R</code> or
+<code>Python</code>), title, aesthetic mappings, labels, and layer
+information instead of a raw runtime-specific object dump.</p>
 <h3 id="using-the-script-argument">Using the <code>script</code>
 Argument</h3>
 <p>Instead of inlining code with <code>command</code>, you can point a
@@ -222,9 +227,11 @@ and <code>sh</code>, see
 <h2 id="cross-language-integration">3. Cross-Language Integration</h2>
 <p>T is designed to orchestrate code across multiple languages. The
 pipeline runner manages the serialization and deserialization of data
-between R, Python, and T using industry-standard formats.</p>
-<h3 id="supported-interchange-formats">Supported Interchange
-Formats</h3>
+between R, Python, and T using a first-class serializer system. For a
+deep dive into how T handles data interchange, see the <a
+href="serializers.html">Serializers Documentation</a>.</p>
+<h3 id="interchange-formats-comparison">Interchange Formats
+Comparison</h3>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -560,7 +567,7 @@ node runs inside a <strong>Nix sandbox</strong> — an isolated build
 environment. Import statements from your script are
 <strong>automatically propagated</strong> into each sandbox, so imported
 packages and functions are available to all nodes.</p>
-<pre class="t"><code>-- my_analysis.t
+<pre class="t"><code>-- pipeline.t
 import my_stats
 import data_utils[read_clean, normalize]
 
@@ -784,8 +791,8 @@ scalar-like values:</p>
 <td><code>"true"</code></td>
 </tr>
 <tr>
-<td><strong>Null</strong></td>
-<td><code>null</code></td>
+<td><strong>NA</strong></td>
+<td><code>NA</code></td>
 <td>(Omitted from derivation)</td>
 </tr>
 </tbody>
@@ -794,7 +801,7 @@ scalar-like values:</p>
 <p>T performs early validation on environment variables: -
 <code>env_vars</code> must be a dictionary. - Unsupported types (like
 Lists or nested Dicts) trigger a structured type error during pipeline
-construction. - <code>null</code> values are silently omitted from the
+construction. - <code>NA</code> values are silently omitted from the
 generated Nix derivation instead of being materialized as empty
 strings.</p>
 <p>These variables are automatically threaded into the generated
@@ -899,6 +906,32 @@ pipeline_nodes(p_full)  -- [&quot;raw&quot;, &quot;clean&quot;, &quot;fit&quot;,
 -- Fix: rename before merging
 p_model2 = p_model |&gt; rename_node(&quot;clean&quot;, &quot;clean_model&quot;)
 p_etl |&gt; union(p_model2)</code></pre>
+<hr />
+<h2 id="diagnostic-suppression">24. Diagnostic Suppression</h2>
+<p>Nodes that produce large numbers of non-terminal warnings (like those
+from <code>filter()</code> or complex modeling functions) can be
+silenced using the <code>suppress_warnings</code> combinator. This
+silences the console output for a node while maintaining the warning
+records for auditability.</p>
+<pre class="t"><code>p = pipeline {
+  -- High-noise node with suppressed warnings
+  filtered = dataframe([[x: 1], [x: NA], [x: 3]]) 
+    |&gt; filter($x &gt; 1) 
+    |&gt; suppress_warnings
+
+  -- Downstream node remains unaffected
+  count = nrow(filtered)
+}</code></pre>
+<p>When building or running a pipeline with suppressed nodes, the
+summary reflects this state:</p>
+<pre><code>Pipeline summary: 1 node(s) with warnings, 1 suppressed, 0 error(s)
+  ○  filtered — warnings suppressed by caller (1 NAs ignored)</code></pre>
+<p>The <code>○</code> symbol indicates a suppressed node. You can still
+access the underlying warning objects programmatically via
+<code>read_node()</code> or <code>read_pipeline()</code>.</p>
+<pre class="t"><code>res = read_node(p, &quot;filtered&quot;)
+res.diagnostics.warnings_suppressed  -- true
+res.diagnostics.warnings            -- list of captured warnings</code></pre>
 <h3 id="difference"><code>difference</code></h3>
 <p>Removes from the first pipeline all nodes whose names appear in the
 second pipeline. Nodes in the second pipeline that don’t exist in the
@@ -1061,7 +1094,8 @@ wire R/Python nodes to nodes in other pipelines.</strong></p>
 Workaround</h4>
 <p>If you need an R or Python node to depend on a node from a separate
 pipeline via <code>chain()</code>, you must “bring” that dependency into
-the pipeline block using a T-expression stub.</p>
+the pipeline block using a T-expression stub with an <strong>aliased
+name</strong>.</p>
 <p><strong>❌ Broken: R node cannot “see” <code>raw_data</code> for
 chaining</strong></p>
 <pre class="t"><code>p_data = pipeline { raw_data = read_csv(&quot;data.csv&quot;) }
@@ -1074,26 +1108,35 @@ p_model = pipeline {
 
 -- Error: &quot;no shared dependency names found&quot;
 p_full = p_data |&gt; chain(p_model)</code></pre>
-<p><strong>✅ Fixed: Use a T-stub to make the dependency
-explicit</strong></p>
+<p><strong>❌ Also broken: self-referential stub</strong></p>
+<pre class="t"><code>p_model = pipeline {
+  raw_data = raw_data  -- Error: &quot;Self-referential node detected&quot;
+  model = rn(&lt;{ lm(mpg ~ hp, data = raw_data) }&gt;)
+}</code></pre>
+<p><strong>✅ Fixed: Use a T-stub with an aliased name</strong></p>
 <pre class="t"><code>p_data = pipeline { raw_data = read_csv(&quot;data.csv&quot;) }
 
 p_model = pipeline {
-  -- The T-stub: makes `raw_data` an explicit sibling of `model`
-  raw_data = raw_data  
+  -- Aliased T-stub: different name on the left, raw_data on the right.
+  -- T can parse the RHS and see `raw_data` as an external dependency.
+  data_input = raw_data
   
   model = rn(&lt;{ 
-    lm(mpg ~ hp, data = raw_data) 
-  }&gt;)
+    lm(mpg ~ hp, data = data_input)  -- use the alias name in R
+  }&gt;,
+  deserializer = &quot;arrow&quot;)
 }
 
--- Success! T sees `raw_data` as a T-expression dependency of the stub.
+-- Success! T sees `raw_data` as a dependency of `data_input`, wiring the pipelines.
 p_full = p_data |&gt; chain(p_model)</code></pre>
-<p>By defining <code>raw_data = raw_data</code> (or any name that
-matches the upstream output), you create a T-expression node. T
-<em>can</em> analyze the right-hand side of that assignment, detect the
-cross-pipeline dependency, and allow <code>chain()</code> to wire the
-pipelines together.</p>
+<p>By giving the stub a different name
+(<code>data_input = raw_data</code>), you avoid a self-reference while
+still creating a T-expression that references <code>raw_data</code>. T
+can parse the right-hand side, detect the cross-pipeline dependency, and
+allow <code>chain()</code> to wire the pipelines together. Note that
+R/Python code inside the chained node should use the <strong>alias
+name</strong> (<code>data_input</code>) as the variable, not the
+original (<code>raw_data</code>).</p>
 <hr />
 <h2 id="parallel-execution">26. Parallel Execution</h2>
 <p>Combines two pipelines that are intended to run independently. No
@@ -1217,6 +1260,64 @@ safe_pipeline = pipeline { a = 1; b = a + 1 }
 <p>If validation fails:</p>
 <pre class="t"><code>p_broken |&gt; pipeline_assert
 -- Error(ValueError: &quot;Node `b` depends on `a` which does not exist in the pipeline.&quot;)</code></pre>
+<hr />
+<h2 id="handling-ambiguous-dependencies">29. Handling Ambiguous
+Dependencies</h2>
+<p>T-Lang uses a lexical analyzer to automatically detect dependencies
+between nodes by scanning the code for variable names that match other
+node names. While this is convenient, there are cases where automatic
+detection is insufficient or may produce false positives.</p>
+<h3 id="excluding-false-positives">Excluding False Positives</h3>
+<p>Sometimes, a node’s code may contain a word that matches another node
+name but is intended to be a comment or a string, not a dependency. To
+prevent these from causing unwanted dependency cycles, T automatically
+<strong>strips standard comments</strong> starting with <code>--</code>
+or <code>#</code> within foreign code blocks
+(<code>&lt;{ ... }&gt;</code>) before analyzing the code.</p>
+<pre class="t"><code>p = pipeline {
+  data = read_csv(&quot;input.csv&quot;)
+  
+  -- The analyzer will IGNORE the string &#39;results&#39; because it&#39;s in a comment.
+  -- This prevents an accidental dependency on the &#39;results&#39; node.
+  process = pyn(command = &lt;{
+    # We will save the processed results to a file
+    import pandas as pd
+    df = data.dropna()
+    df
+  }&gt;)
+
+  results = node(command = process |&gt; head)
+}</code></pre>
+<h3 id="forcing-detection-with-deps">Forcing Detection with
+<code>deps</code></h3>
+<p>In some runtimes, like <code>sh</code> (shell), T cannot always
+reliably infer dependencies from the command string. Similarly, you may
+want to explicitly declare a dependency that isn’t directly referenced
+in the code (e.g., a file produced by another node that your script
+reads via a hardcoded path).</p>
+<p>For these cases, you can use the <code>deps</code> argument in node
+definitions to manually declare one or more dependencies:</p>
+<pre class="t"><code>p = pipeline {
+  raw_file = shn(command = &lt;{ curl -o data.csv https://example.com/data.csv }&gt;)
+
+  -- This shell node reads data.csv, which is created by raw_file.
+  -- We use the `deps` argument to ensure raw_file executes first.
+  summary = shn(
+    command = &lt;{ cat data.csv | wc -l }&gt;, 
+    deps = [raw_file],
+    serializer = &quot;text&quot;
+  )
+}</code></pre>
+<p><strong>Key Features of <code>deps</code></strong>: -
+<strong>First-Class Syntax</strong>: <code>deps</code> is an optional
+argument available in <code>node()</code>, <code>rn()</code>,
+<code>pyn()</code>, and <code>shn()</code>. - <strong>Bare
+Identifiers</strong>: You can list direct node names as bare identifiers
+(e.g., <code>deps = [node1, node2]</code>). - <strong>Manual
+Override</strong>: It ensures the specified nodes are added to the
+dependency graph even if they aren’t parsed from the command or script
+body. - <strong>Strict Validation</strong>: T validates that all listed
+dependencies exist within the same pipeline.</p>
 <hr />
 <h2 id="best-practices">Best Practices</h2>
 <ol type="1">

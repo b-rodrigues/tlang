@@ -33,23 +33,29 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - dataframe</h1>
-</header>
 <h1 id="dataframe">dataframe</h1>
 <p>Create a DataFrame</p>
-<p>Constructs a DataFrame from a list of dictionaries (rows).</p>
+<p>Constructs a DataFrame from either a list of rows (Dicts) or a
+Dictionary of columns (Vectors/Lists).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>rows</strong> (<code>List[Dict]</code>): The data rows.</li>
+<li><strong>data</strong> (<code>List[Dict]|Dict</code>): The data rows
+or columns.</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>The created DataFrame.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>df = dataframe([
+<pre class="t"><code># Row-wise construction:
+df = dataframe([
 {&quot;a&quot;: 1, &quot;b&quot;: 2},
 {&quot;a&quot;: 3, &quot;b&quot;: 4}
-])</code></pre>
+])
+
+# Column-wise construction (supported for VDict):
+df2 = dataframe([a: [1, 3], b = [2, 4]])
+
+# Scalar values are recycled to match other column lengths:
+df3 = dataframe([x: [1, 2, 3], constant = 0])</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="read_csv.html">read_csv</a></p>
 </div>

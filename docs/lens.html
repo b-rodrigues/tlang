@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - lens</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="composable-lenses-reaching-the-unreachable">Composable Lenses:
+Reaching the Unreachable</h1>
+<blockquote>
+<p>How to navigate and transform nested data structures that were
+previously painful or impossible to reach.</p>
+</blockquote>
+<p>Traditional data manipulation verbs like <code>mutate()</code>,
+<code>filter()</code>, and <code>arrange()</code> are designed for flat
+DataFrames. Once your data becomes multi-dimensional—whether through
+nesting DataFrames (<code>nest()</code>) or building complex
+Pipelines—standard verbs often lead to a “pyramid of doom.”</p>
+<p>Lenses solve this by providing a first-class, composable way to “zoom
+in” on nested values and transform them surgically.</p>
+<hr />
+<h2 id="part-i-why-lenses">Part I: Why Lenses</h2>
+<h3 id="the-core-problem-deeply-nested-structures">1. The Core Problem:
+Deeply Nested Structures</h3>
+<p>Consider a dataset that is genuinely hierarchical: a
+<code>clients</code> DataFrame where each row’s <code>projects</code>
+column holds another DataFrame of that client’s projects, and each
+project’s <code>milestones</code> column holds a further DataFrame of
+milestones. Each client has a different number of projects; each project
+has a different number of milestones. This kind of structure arises
+naturally after a <code>nest()</code> call, or when loading hierarchical
+data from a JSON API.</p>
+<pre class="t"><code>-- clients: DataFrame
+--   $name     : String
+--   $projects : DataFrame (nested)
+--       $title      : String
+--       $milestones : DataFrame (nested)
+--           $label   : String
+--           $pct_int : Int    -- completion percentage, 0–100</code></pre>
+<p>A business requirement: <strong>apply a 10-point uplift to every
+milestone’s <code>$pct_int</code> value</strong> (an end-of-quarter
+adjustment). Because the number of milestones varies per project and per
+client, you cannot simply <code>mutate($pct_int = $pct_int + 10)</code>
+on the top-level DataFrame—<code>$pct_int</code> lives three levels
+down.</p>
+<h4 id="the-nested-mutate-approach-the-pyramid-of-doom">The Nested
+Mutate Approach (The “Pyramid of Doom”)</h4>
+<p>With standard verbs you have to peel back every layer manually,
+inventing a new lambda variable at each level:</p>
+<pre class="t"><code>updated_clients = clients |&gt; mutate(
+  $projects = map($projects, \(proj)
+    proj |&gt; mutate(
+      $milestones = map($milestones, \(ms)
+        ms |&gt; mutate($pct_int = min($pct_int + 10, 100))
+      )
+    )
+  )
+)</code></pre>
+<p>This is fragile: rename a column or add another level of nesting and
+you rewrite the entire block. The deeper the hierarchy, the worse it
+gets.</p>
+<h4 id="the-lens-approach-declarative-pathing">The Lens Approach
+(Declarative Pathing)</h4>
+<p>Lenses let you declare the <strong>path</strong> to the target once,
+then apply it in a single operation. T handles traversal and immutable
+reconstruction automatically.</p>
+<pre class="t"><code>-- Define the path once; compose() is variadic
+pct_l = compose(col_lens(&quot;projects&quot;), col_lens(&quot;milestones&quot;), col_lens(&quot;pct_int&quot;))
+
+-- Apply the transformation everywhere in one line
+updated_clients = clients |&gt; over(pct_l, \(x) min(x .+ 10, 100))</code></pre>
+<p><strong>Why lenses win:</strong></p>
+<ol type="1">
+<li><strong>Readability</strong>: The path is declared once; the
+operation is a single flat expression.</li>
+<li><strong>Vectorization</strong>: <code>over()</code> distributes your
+function across all matching values at every level automatically. When
+the focused value is a Vector (as it is here), broadcasting operators
+like <code>.+</code> and <code>.*</code> are required for element-wise
+operations; scalar operators will not work as intended.</li>
+<li><strong>Reuse</strong>: Name a lens once and use it with
+<code>get()</code>, <code>set()</code>, or <code>over()</code> anywhere
+in the codebase.</li>
+</ol>
+<hr />
+<h3 id="the-problem-surgical-edits-to-pipelines">2. The Problem:
+Surgical Edits to Pipelines</h3>
+<p>Pipelines in T are often treated as immutable specifications. If you
+needed to change an environment variable for a deep node or update a
+cached result before building, you previously had to reconstruct the
+pipeline or use internal hacks.</p>
+<h4 id="the-solution-orchestration-lenses">The Solution: Orchestration
+Lenses</h4>
+<p>Specialized lenses allow you to treat a Pipeline as a queryable data
+structure.</p>
+<ul>
+<li><strong><code>node_lens(node_name)</code></strong>: Targets the
+cached result value of a specific node.</li>
+<li><strong><code>env_var_lens(node_name, var_name)</code></strong>:
+Targets a specific environment variable for a given node.</li>
+</ul>
+<pre class="t"><code>p = build_pipeline(&quot;complex_analysis.t&quot;)
+
+-- Inject a debug flag into a specific node&#39;s environment
+debug_l = env_var_lens(&quot;compute_stats&quot;, &quot;DEBUG&quot;)
+p_debug = p |&gt; set(debug_l, &quot;true&quot;)
+
+-- Re-run with the updated environment
+build_pipeline(p_debug)</code></pre>
+<hr />
+<h2 id="part-ii-lens-api">Part II: Lens API</h2>
+<h3 id="core-operations">3. Core Operations</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Function</th>
+<th style="text-align: left;">Signature</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td
+style="text-align: left;"><strong><code>set(data, lens, value)</code></strong></td>
+<td style="text-align: left;"><code>(A, Lens, B) -&gt; A</code></td>
+<td style="text-align: left;">Replaces the focused value.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>over(data, lens, f)</code></strong></td>
+<td
+style="text-align: left;"><code>(A, Lens, B -&gt; B) -&gt; A</code></td>
+<td style="text-align: left;">Applies a function to the focused
+value.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>modify(data, lens1, f1, ...)</code></strong></td>
+<td
+style="text-align: left;"><code>(A, Lens, B -&gt; B, ...) -&gt; A</code></td>
+<td style="text-align: left;">Applies multiple lens+function pairs in
+sequence.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>compose(...)</code></strong></td>
+<td style="text-align: left;"><code>(...Lens) -&gt; Lens</code></td>
+<td style="text-align: left;">Chains lenses into a single path
+(left-to-right).</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Broadcasting</strong>: When <code>over()</code> focuses on a
+column, the function receives a <strong>Vector</strong>. Use
+broadcasting operators (<code>.+</code>, <code>.*</code>, etc.) for
+element-wise math, not scalar operators. This applies at every level of
+a nested traversal.</p>
+</blockquote>
+<h4
+id="modify-multiple-transformations-in-one-call"><code>modify()</code>:
+Multiple transformations in one call</h4>
+<p>When you need to transform several paths in one operation,
+<code>modify()</code> keeps the update list flat and readable instead of
+chaining multiple <code>over()</code> calls.</p>
+<pre class="t"><code>-- Two distinct paths through the same nested structure
+pct_l   = compose(col_lens(&quot;projects&quot;), col_lens(&quot;milestones&quot;), col_lens(&quot;pct_int&quot;))
+label_l = compose(col_lens(&quot;projects&quot;), col_lens(&quot;milestones&quot;), col_lens(&quot;label&quot;))
+
+updated_clients = clients |&gt; modify(
+    pct_l,   \(x) min(x .+ 10, 100),
+    label_l, \(s) s + &quot; ✓&quot;
+)</code></pre>
+<hr />
+<h3 id="primitive-lenses">4. Primitive Lenses</h3>
+<h4 id="col_lensname"><code>col_lens(name)</code></h4>
+<p>Targets a column in a DataFrame, a key in a Dictionary, or a named
+field in a nested record. This is the primary building block for
+navigating hierarchical structures.</p>
+<pre class="t"><code>employees = dataframe([[name: &quot;Alice&quot;, salary: 50000],
+                       [name: &quot;Bob&quot;,   salary: 48000]])
+
+salary_l = col_lens(&quot;salary&quot;)
+
+-- Replace values
+raised   = employees |&gt; set(salary_l, [60000, 58000])
+
+-- Transform values
+after_tax = raised |&gt; over(salary_l, \(x) x .* 0.75)</code></pre>
+<h4 id="idx_lensindex"><code>idx_lens(index)</code></h4>
+<p>Focuses on a single 0-based index in a <strong>List</strong> or
+<strong>Vector</strong>.</p>
+<pre class="t"><code>scores = [10, 20, 30]
+
+-- Correct the second score
+scores2 = scores |&gt; set(idx_lens(1), 99)  -- [10, 99, 30]</code></pre>
+<h4 id="row_lensindex"><code>row_lens(index)</code></h4>
+<p>Focuses on a specific row in a <strong>DataFrame</strong>. Compose
+with <code>col_lens</code> for cell-level access.</p>
+<pre class="t"><code>df  = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
+
+-- Update a single cell (row 0, column &quot;y&quot;)
+df2 = df |&gt; set(compose(row_lens(0), col_lens(&quot;y&quot;)), 99)</code></pre>
+<hr />
+<h3 id="traversals-filter_lens">5. Traversals:
+<code>filter_lens</code></h3>
+<blockquote>
+<p><strong>Note:</strong> <code>filter_lens</code> is a
+<strong>traversal</strong>, not a lens—it focuses on <em>multiple</em>
+elements simultaneously rather than a single one. Unlike a lens, which
+always focuses on exactly one location, a traversal may focus on zero,
+one, or many locations. Composition with other lenses works via the same
+<code>compose()</code> function, but the update function is applied
+independently to each matched element, and the results are written back
+into their original positions.</p>
+</blockquote>
+<p><code>filter_lens(predicate)</code> focuses on every element or row
+satisfying a condition. It works on <strong>Lists</strong>,
+<strong>Vectors</strong>, and <strong>DataFrames</strong>.</p>
+<pre class="t"><code>scores = [1, 2, 3, 4, 5]
+
+-- Add 10 to every even number
+scores2 = scores |&gt; over(filter_lens(\(x) x % 2 == 0), \(x) x + 10)
+-- [1, 12, 3, 14, 5]</code></pre>
+<p>When composing a traversal with another lens, pass both to
+<code>compose()</code>. Do <strong>not</strong> use <code>|&gt;</code>
+inside an argument position—the operator precedence will cause the
+expression to parse incorrectly:</p>
+<pre class="t"><code>-- Correct: both arguments to compose()
+df |&gt; set(compose(filter_lens(\(r) r.status == &quot;expired&quot;), col_lens(&quot;val&quot;)), 0)
+
+-- Wrong: |&gt; inside an argument position parses incorrectly
+-- df |&gt; set(filter_lens(\(r) r.status == &quot;expired&quot;) |&gt; compose(col_lens(&quot;val&quot;)), 0)</code></pre>
+<p>For flat-DataFrame conditional updates, <code>mutate()</code> with
+<code>if_else()</code> is often simpler and more familiar:</p>
+<pre class="t"><code>-- Equivalent, and clearer for the flat case
+df |&gt; mutate($val = if_else($status == &quot;expired&quot;, 0, $val))</code></pre>
+<p>The traversal form pays off when the condition and transformation
+live inside a <em>nested</em> structure—for example, when
+<code>df</code> is itself a column inside a larger DataFrame and a
+top-level <code>mutate</code> cannot reach the target field.</p>
+<hr />
+<h3 id="api-quick-reference">6. API Quick Reference</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Function</th>
+<th style="text-align: left;">Signature</th>
+<th style="text-align: left;">Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td
+style="text-align: left;"><strong><code>set(data, lens, value)</code></strong></td>
+<td style="text-align: left;"><code>(A, Lens, B) -&gt; A</code></td>
+<td style="text-align: left;">Replaces the focused value.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>over(data, lens, f)</code></strong></td>
+<td
+style="text-align: left;"><code>(A, Lens, B -&gt; B) -&gt; A</code></td>
+<td style="text-align: left;">Transforms the focused value.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>modify(data, lens1, f1, ...)</code></strong></td>
+<td
+style="text-align: left;"><code>(A, Lens, B -&gt; B, ...) -&gt; A</code></td>
+<td style="text-align: left;">Multiple lens+function pairs in one
+call.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>compose(...)</code></strong></td>
+<td style="text-align: left;"><code>(...Lens) -&gt; Lens</code></td>
+<td style="text-align: left;">Chains any number of lenses into one
+path.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>col_lens(name)</code></strong></td>
+<td style="text-align: left;"><code>String -&gt; Lens</code></td>
+<td style="text-align: left;">Column/key/field focus.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>node_lens(name)</code></strong></td>
+<td style="text-align: left;"><code>String -&gt; Lens</code></td>
+<td style="text-align: left;">Pipeline node focus.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>env_var_lens(n, v)</code></strong></td>
+<td
+style="text-align: left;"><code>(String, String) -&gt; Lens</code></td>
+<td style="text-align: left;">Pipeline env var focus.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>idx_lens(i)</code></strong></td>
+<td style="text-align: left;"><code>Int -&gt; Lens</code></td>
+<td style="text-align: left;">List/Vector index focus.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>row_lens(i)</code></strong></td>
+<td style="text-align: left;"><code>Int -&gt; Lens</code></td>
+<td style="text-align: left;">DataFrame row focus.</td>
+</tr>
+<tr>
+<td
+style="text-align: left;"><strong><code>filter_lens(p)</code></strong></td>
+<td style="text-align: left;"><code>Function -&gt; Traversal</code></td>
+<td style="text-align: left;">Condition-based multi-focus.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="best-practices">Best Practices</h3>
+<ol type="1">
+<li><strong>Name your paths</strong>: Store commonly used lenses as
+named variables (<code>pct_l</code>, <code>salary_l</code>) and reuse
+them across <code>get</code>, <code>set</code>, and <code>over</code>
+calls.</li>
+<li><strong>Encapsulation</strong>: When building packages, export
+lenses for your internal data structures so users can extend your logic
+without knowing column names.</li>
+<li><strong>Prefer standard verbs for flat DataFrames</strong>: Lenses
+shine in nested or polymorphic contexts. For straightforward
+flat-DataFrame operations, <code>mutate()</code> and
+<code>filter()</code> are simpler and more idiomatic.</li>
+</ol>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

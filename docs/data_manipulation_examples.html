@@ -33,10 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language -
-data_manipulation_examples</h1>
-</header>
 <h1 id="data-manipulation-examples">Data Manipulation Examples</h1>
 <blockquote>
 <p>Practical examples of data wrangling with T’s core verbs</p>
@@ -144,6 +140,25 @@ df |&gt; filter($dept == &quot;eng&quot;) |&gt; nrow
 -- 42 (number of engineers)</code></pre>
 <p>The NSE syntax auto-transforms <code>$age &gt; 30</code> into
 <code>\(row) row.age &gt; 30</code>.</p>
+<h3 id="combining-conditions">Combining Conditions</h3>
+<p>To combine multiple conditions in <code>filter()</code>, use the
+<strong>logical</strong> operators <code>&amp;&amp;</code> (AND) and
+<code>||</code> (OR):</p>
+<pre class="t"><code>-- Engineering department AND age &gt; 25
+df |&gt; filter($dept == &quot;eng&quot; &amp;&amp; $age &gt; 25)
+
+-- Sales department OR high score
+df |&gt; filter($dept == &quot;sales&quot; || $score &gt; 90)</code></pre>
+<blockquote>
+<p>[!TIP] <strong>No Silent Magic</strong>: Standard bitwise operators
+<code>&amp;</code> and <code>|</code> are strictly for scalars. If you
+accidentally use them in a filter (e.g.,
+<code>$age &gt; 25 &amp; $dept == "eng"</code>), T will return a helpful
+<code>TypeError</code> suggesting the use of
+<code>&amp;&amp;</code>/<code>||</code> for combining filter conditions,
+or <code>.&amp;</code>/<code>.|</code> for vectorized element-wise
+operations.</p>
+</blockquote>
 <hr />
 <h2 id="mutate-add-or-transform-columns">mutate() — Add or Transform
 Columns</h2>
@@ -231,6 +246,26 @@ df |&gt; separate($date, into = [&quot;year&quot;, &quot;month&quot;, &quot;day&
 <p>Combines multiple columns into a single character column.</p>
 <pre class="t"><code>-- Combine year, month, day into a single &quot;full_date&quot; column
 df |&gt; unite(&quot;full_date&quot;, $year, $month, $day, sep = &quot;-&quot;)</code></pre>
+<h3 id="nest-nest-columns-into-sub-dataframes">nest() — Nest Columns
+into Sub-DataFrames</h3>
+<p>Groups data and packs selected columns into a single nested
+list-column containing DataFrames.</p>
+<pre class="t"><code>-- Nest columns mpg and hp into a column named &quot;data&quot;
+-- Other columns (cyl, etc.) remain as grouping keys
+nt = df |&gt; nest($mpg, $hp)
+
+-- Use selection helpers to nest all columns starting with &#39;s&#39;
+nt = df |&gt; nest(data = starts_with(&quot;s&quot;))
+
+-- Automatic grouping behavior:
+-- If already grouped, nest() without arguments nests all non-grouping columns.
+nt = df |&gt; group_by($cyl) |&gt; nest()
+-- Resulting schema: [cyl, data] where data contains all other columns</code></pre>
+<h3 id="unnest-expand-nested-columns">unnest() — Expand Nested
+Columns</h3>
+<p>Expands a nested list-column back into regular rows and columns.</p>
+<pre class="t"><code>-- Unnest the &quot;data&quot; column back into individual columns
+df_flat = nt |&gt; unnest($data)</code></pre>
 <hr />
 <h2 id="missing-value-handling">Missing Value Handling</h2>
 <h3 id="drop_na-remove-nas">drop_na() — Remove NAs</h3>

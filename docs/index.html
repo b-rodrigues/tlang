@@ -33,21 +33,155 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - index</h1>
-</header>
-<h1 id="t---a-language-for-tabular-data-and-human-llm-collaboration">T -
-A Language for Tabular Data and Human-LLM Collaboration</h1>
-<p><strong>T</strong> is an experimental programming language for
-declarative, functional manipulation of tabular data. Inspired by R’s
-tidyverse and OCaml’s semantic rigor, T is designed to make data
-analysis <strong>explicit, inspectable, and
-pipeline-oriented</strong>.</p>
-<p>Unlike traditional scripting languages, T is built from the ground up
-to support <strong>human–LLM collaborative programming</strong>, where
-humans specify intent and constraints, and language tools (including
-LLMs) generate localized, mechanical code.</p>
-<p><strong>Status:</strong> Alpha 0.51.0.</p>
+<h1 id="t-the-orchestration-engine-for-polyglot-data-science">T — The
+Orchestration Engine for Polyglot Data Science</h1>
+<p><strong>T</strong> is an experimental orchestration engine designed
+for declarative, reproducible pipelines. It provides a functional
+Domain-Specific Language (DSL) that coordinates R, Python, and Shell
+nodes—with Julia support planned—within a Nix-managed
+infrastructure.</p>
+<p>Unlike traditional scripting languages, T is built to be a
+<strong>specifications-ready engine</strong>, making data analysis
+<strong>explicit, inspectable, and pipeline-oriented</strong>. This
+unique architecture ensures that humans and LLMs can collaborate on
+defining high-level intent while T handles the low-level orchestration
+and environmental consistency.</p>
+<p><strong>Status:</strong> Version 0.51.3 “Sangoku”, latest
+stabilization release.</p>
+<hr />
+<h2 id="the-polyglot-pipeline">The Polyglot Pipeline</h2>
+<p>T’s core strength is its <strong>mandatory pipeline
+architecture</strong>. To execute code in T, you typically define it as
+a series of nodes in a directed acyclic graph (DAG). T handles the
+“glue”:</p>
+<pre class="t"><code>-- A reproducible polyglot pipeline
+p = pipeline {
+  -- 1. Load data natively in T (CSV backend)
+  data = node(
+    command = read_csv(&quot;examples/sample_data.csv&quot;) |&gt; filter($age &gt; 25),
+    serializer = &quot;csv&quot;
+  )
+  
+  -- 2. Train a statistical model in R (using the rn() wrapper)
+  model_r = rn(
+    command = &lt;{ lm(score ~ age, data = data) }&gt;,
+    serializer = &quot;pmml&quot;,
+    deserializer = &quot;csv&quot;
+  )
+  
+  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
+  predictions = node(
+    command = data |&gt; mutate($pred = predict(data, model_r)),
+    deserializer = &quot;pmml&quot;
+  )
+
+  -- 4. Generate a shell report
+  report = shn(command = &lt;{
+    printf &#39;R model results cached at: %s\n&#39; &quot;$T_NODE_model_r/artifact&quot;
+  }&gt;)
+}
+
+-- Build the pipeline into reproducible Nix artifacts
+build_pipeline(p)</code></pre>
+<h2 id="what-is-t">What is T?</h2>
+<p>T is not designed to replace your existing tools; it is designed to
+<strong>orchestrate</strong> them. It addresses the “dependency drift”
+and “works on my machine” syndrome by making <strong>Nix
+mandatory</strong>.</p>
+<ul>
+<li><strong>Orchestration, Not Invention</strong>: Use R for its
+statistics, Python for its machine learning, and T to ensure they always
+talk to each other correctly via high-performance formats like Apache
+Arrow.</li>
+<li><strong>Strictly Functional &amp; Immutable</strong>: T eliminates
+side effects and mutable state. If <code>a = 1 / 0</code>, then
+<code>a</code> is an <code>Error</code> value, not an exception. Logic
+is auditable and predictable.</li>
+<li><strong>Mandatory Reproducibility</strong>: Every node in a T
+pipeline runs in its own sandboxed Nix environment. T automatically
+detects dependencies and ensures that if a node’s inputs haven’t
+changed, its results are pulled from the cache.</li>
+<li><strong>AI-Native Design</strong>: Through features like
+<code>intent</code> blocks and structured metadata, T is built for a
+future where humans and AI collaborate on complex data workflows.</li>
+</ul>
+<hr />
+<h2 id="foreign-language-nodes-deserialization">Foreign Language Nodes
+&amp; Deserialization</h2>
+<p>When you define a node using <code>node()</code>, <code>rn()</code>
+(R), <code>pyn()</code> (Python), or <code>shn()</code> (Shell)—with
+Julia support planned—T treats the result as a first-class
+<strong>Node</strong> object. These objects transition through two main
+states:</p>
+<ol type="1">
+<li><strong>Unbuilt Node</strong>: A specification of what to run
+(command, runtime, environment variables).</li>
+<li><strong>Computed Node</strong>: After <code>build_pipeline()</code>,
+the node points to a concrete, immutable artifact in the Nix store.</li>
+</ol>
+<h3 id="automatic-deserialization">Automatic Deserialization</h3>
+<p>When you call <code>read_node("node_name")</code> in the REPL, T
+looks at the node’s <strong>serializer</strong> and attempts to
+automatically load the data back into the T environment:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Serializer</th>
+<th style="text-align: left;">Resulting T Type</th>
+<th style="text-align: left;">Backend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>default</code> /
+<code>serialize</code></td>
+<td style="text-align: left;">Varies</td>
+<td style="text-align: left;">Native T binary serialization</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>arrow</code></td>
+<td style="text-align: left;"><code>DataFrame</code></td>
+<td style="text-align: left;">Apache Arrow IPC (zero-copy)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>csv</code></td>
+<td style="text-align: left;"><code>DataFrame</code></td>
+<td style="text-align: left;">Native CSV parser</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>json</code></td>
+<td style="text-align: left;"><code>Dict</code> / <code>List</code></td>
+<td style="text-align: left;">JSON parser</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pmml</code></td>
+<td style="text-align: left;"><code>Model</code></td>
+<td style="text-align: left;">Native T model evaluator</td>
+</tr>
+</tbody>
+</table>
+<h3 id="looking-into-the-entrails">Looking into the “Entrails”</h3>
+<p>If a node’s serializer is not supported for automatic
+deserialization, <code>read_node()</code> returns the <strong>Computed
+Node object</strong> itself. This object contains all the metadata
+necessary to load the artifact manually or inspect its provenance.</p>
+<p>You can use <code>explain()</code> to look inside a built node:</p>
+<pre class="t"><code>-- Example: Inspecting a built R node
+&gt; model_node = p.model_r
+&gt; explain(model_node)
+{
+  `kind`: &quot;computed_node&quot;,
+  `name`: &quot;model_r&quot;,
+  `runtime`: &quot;R&quot;,
+  `path`: &quot;/nix/store/...-model_r/artifact&quot;,
+  `serializer`: &quot;pmml&quot;,
+  `class`: &quot;lm&quot;,
+  `dependencies`: [&quot;data&quot;]
+}</code></pre>
+<p>The <code>path</code> field is the “escape hatch”—it gives you the
+absolute path to the node’s output in the Nix store. You can use this to
+start an external interpreter and inspect the file directly, or pass it
+to a custom loader like <code>read_parquet(model_node.path)</code>.</p>
 <hr />
 <h2 id="documentation">Documentation</h2>
 <h3 id="getting-started">Getting Started</h3>
@@ -81,12 +215,18 @@ step-by-step guide to T’s pipeline model</li>
 Quarto</a> — rendering reports from pipelines</li>
 <li><a href="models.html">Statistical Models</a> — linear regression,
 GLMs, and broom-style output</li>
+<li><a href="plotting.html">Plotting &amp; Visualization</a> — ggplot2,
+matplotlib, and visual metadata capture</li>
+<li><a href="pmml_tutorial.html">PMML Tutorial</a> — move supported
+models between R, Python, and T</li>
 <li><a href="handling_dates.html">Handling Dates</a> — parsing,
 extraction, and date arithmetic</li>
 <li><a href="error-handling.html">Error Handling Guide</a> — error
 patterns and recovery strategies</li>
 <li><a href="examples.html">Comprehensive Examples</a> — real-world
 analysis patterns</li>
+<li><a href="demos.html">T Pipeline Demos</a> — interactive reports for
+T demo projects</li>
 </ul>
 <h3 id="advanced-topics">Advanced Topics</h3>
 <ul>
@@ -102,6 +242,8 @@ for modeling</li>
 optimization</li>
 <li><a href="performance_analysis.html">Performance Analysis</a> —
 in-depth analysis of T’s performance metrics</li>
+<li><a href="lens.html">Composable Lenses</a> — functional updates for
+nested structures</li>
 </ul>
 <h3 id="developer-resources">Developer Resources</h3>
 <ul>
@@ -110,7 +252,7 @@ implementation</li>
 <li><a href="contributing.html">Contributing Guide</a> — how to
 contribute to T</li>
 <li><a href="development.html">Development Guide</a> — building,
-testing, and debugging</li>
+testings, and debugging</li>
 <li><a href="project_development.html">Project Development</a> —
 managing T projects and workspaces</li>
 <li><a href="package_development.html">Package Development Guide</a> —

@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Function Reference - node</h1>
-</header>
 <h1 id="node">node</h1>
 <p>Configure a Pipeline Node</p>
 <p>Configure execution settings such as the runtime and custom
@@ -55,10 +52,16 @@ to execute as the node body. Mutually exclusive with
 extension when not explicitly provided.</p></li>
 <li><p><strong>runtime</strong> (<code>Symbol</code>): (Optional) The
 runtime environment (T, R, Python, Quarto). Default = T.</p></li>
-<li><p><strong>serializer</strong> (<code>Symbol</code>): (Optional)
-Custom serializer function. Default = default.</p></li>
-<li><p><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
-Custom deserializer function. Default = default.</p></li>
+<li><p><strong>serializer</strong> (<code>String</code>): | Function
+(Optional) Custom serializer strategy. Built-in values include
+“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
+unquoted function name. Custom functions can also be used. Default =
+“default”.</p></li>
+<li><p><strong>deserializer</strong> (<code>String</code>): | Function
+(Optional) Custom deserializer strategy. Built-in values include
+“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
+unquoted function name. Custom functions can also be used. Default =
+“default”.</p></li>
 <li><p><strong>args</strong> (<code>Dict</code>): (Optional)
 Runtime/tool arguments. For Quarto, use this to pass CLI arguments such
 as <code>subcommand</code>, <code>path</code>, and additional options.

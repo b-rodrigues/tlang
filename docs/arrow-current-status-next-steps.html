@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Programming Language - arrow-current-status-next-steps</title>
+  <title>T Programming Language -
+arrow-current-status-next-steps</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,10 +34,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language -
-arrow-current-status-next-steps</h1>
-</header>
 <h1 id="arrow-current-status-and-next-steps">Arrow: current status and
 next steps</h1>
 <p>This document summarizes the current Apache Arrow-related state of
@@ -160,7 +157,7 @@ arithmetic, math, aggregation, comparisons, and grouping,</li>
 <li>Arrow IPC read/write,</li>
 <li>native list-column and dictionary-column support,</li>
 <li>date support,</li>
-<li>null-only native materialization support,</li>
+<li>NA-only native materialization support,</li>
 <li>zero-copy numeric column views via Bigarray,</li>
 <li>conversion between Arrow storage and T runtime values,</li>
 <li>bridge utilities for statistical work via
@@ -233,7 +230,7 @@ present:</p>
 <li>dictionary/factor columns</li>
 <li>list columns with nested DataFrame reconstruction</li>
 <li>date columns</li>
-<li>null-only columns</li>
+<li>NA-only columns</li>
 <li>zero-copy views for native numeric columns</li>
 <li>Arrow-to-Owl bridge for numeric/statistical workflows</li>
 <li>serialization hardening for native-backed DataFrames crossing
@@ -303,7 +300,7 @@ workflow</li>
 <li>date/datetime,</li>
 <li>dictionary/factor,</li>
 <li>list/nested columns,</li>
-<li>null-only columns,</li>
+<li>NA-only columns,</li>
 <li>zero-copy views,</li>
 <li>IPC read/write</li>
 </ul></li>
@@ -388,9 +385,9 @@ id="testsarrowtest_arrow_integration.ml"><code>tests/arrow/test_arrow_integratio
 <li>list-column support, including:
 <ul>
 <li>native materialization</li>
-<li>null entries</li>
-<li>empty/all-null fallback behavior</li>
-<li>sparse null-heavy cases</li>
+<li>NA entries</li>
+<li>empty/all-NA fallback behavior</li>
+<li>sparse NA-heavy cases</li>
 <li>repeated lifecycle queries</li>
 <li>GC stress loops</li>
 <li>T-level <code>nest</code>, <code>unnest</code>, and
@@ -462,7 +459,7 @@ add</h3>
 <li>primitive tables,</li>
 <li>dictionary/factor tables,</li>
 <li>list-column tables where supported,</li>
-<li>null-only columns.</li>
+<li>NA-only columns.</li>
 </ul></li>
 <li>The remaining useful additions are edge cases such as empty
 structures and future datetime/timestamp coverage.</li>
@@ -520,7 +517,7 @@ high-risk interaction.</li>
 <li>The FFI explicitly combines chunked arrays, but there is no obvious
 dedicated regression test for multi-chunk column recombination.</li>
 </ul></li>
-<li><strong>Null-only and empty-structure IPC tests</strong>
+<li><strong>NA-only and empty-structure IPC tests</strong>
 <ul>
 <li>Current tests cover some fallback behavior, but dedicated IPC
 round-trip checks would be valuable.</li>
@@ -561,10 +558,10 @@ the implementation-status overview without searching
 </ol>
 <h3 id="recently-closed-gap">Recently closed gap</h3>
 <ul>
-<li><strong>Null-only native rebuild/materialization</strong>
+<li><strong>NA-only native rebuild/materialization</strong>
 <ul>
-<li><code>NullColumn</code> can now be materialized back into a native
-Arrow table, which means null-only DataFrames can remain on the native
+<li><code>NAColumn</code> can now be materialized back into a native
+Arrow table, which means NA-only DataFrames can remain on the native
 Arrow path and participate in Arrow IPC round-trips.</li>
 </ul></li>
 </ul>
@@ -614,7 +611,7 @@ best next steps are:</p>
 </ul></li>
 <li><strong>Document the current support matrix</strong>
 <ul>
-<li>especially for dictionary, list, date, datetime, and null-only
+<li>especially for dictionary, list, date, datetime, and NA-only
 columns.</li>
 </ul></li>
 <li><strong>Refresh stale docs/spec language</strong>

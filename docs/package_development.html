@@ -98,32 +98,32 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - package_development</h1>
-</header>
 <h1 id="t-package-development-guide">T Package Development Guide</h1>
 <p>This guide walks you through creating, developing, and publishing a
 package for the T language.</p>
 <h2 id="creating-a-package">1. Creating a Package</h2>
 <p>You can create a new package interactively using the
-<code>t init package</code> command.</p>
+<code>t init --package</code> command.</p>
 <div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t init package</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Initializing</span> new T package/project...</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Name</span> <span class="pp">[</span><span class="ss">my_package</span><span class="pp">]</span>: advanced-stats</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">Author</span> <span class="pp">[</span><span class="ss">User</span><span class="pp">]</span>: Alice</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">License</span> <span class="pp">[</span><span class="ss">EUPL</span><span class="pp">-</span><span class="ss">1.2</span><span class="pp">]</span>: EUPL-1.2</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Package <span class="st">&#39;advanced-stats&#39;</span> created successfully!</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t init <span class="at">--package</span> advanced-stats</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Initializing</span> new T package...</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Author</span> <span class="pp">[</span><span class="ss">User</span><span class="pp">]</span>: Alice</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">License</span> <span class="pp">[</span><span class="ss">EUPL</span><span class="pp">-</span><span class="ss">1.2</span><span class="pp">]</span>: EUPL-1.2</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Package <span class="st">&#39;advanced-stats&#39;</span> created successfully!</span></code></pre></div>
 <p>This creates a standard directory structure:</p>
 <ul>
 <li><strong>DESCRIPTION.toml</strong>: Package metadata and
 dependencies.</li>
 <li><strong>flake.nix</strong>: Reproducible development environment
 definition.</li>
+<li><strong>README.md</strong>: Package overview.</li>
+<li><strong>CHANGELOG.md</strong>: History of changes.</li>
+<li><strong>LICENSE</strong>: License text.</li>
 <li><strong>src/</strong>: Source code (e.g., <code>main.t</code>).</li>
 <li><strong>tests/</strong>: Test files (e.g.,
 <code>test-advanced-stats.t</code>).</li>
+<li><strong>examples/</strong>: Usage examples.</li>
 <li><strong>docs/</strong>: Documentation (e.g.,
 <code>index.md</code>).</li>
 </ul>

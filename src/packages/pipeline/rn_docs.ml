@@ -15,6 +15,7 @@
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.
 --# @return :: Any The evaluated return value of the command.
+--# @note When an R node returns a `ggplot2` object, T stores structured plot metadata so the REPL can display the plot class, title, mappings, labels, and layers without dumping the raw R object.
 --# @family pipeline
 --# @seealso node, pyn
 --# @export

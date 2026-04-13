@@ -33,9 +33,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - arrow</h1>
-</header>
 <h1 id="arrow-ingestion-strategy">Arrow Ingestion Strategy</h1>
 <p>T prioritizes high-performance data ingestion by leveraging native
 Apache Arrow and Parquet readers. This document outlines how T handles
@@ -56,7 +53,7 @@ to a pure OCaml CSV parser. This ensure full compatibility with complex
 CSV formats while providing maximum speed for standard ones.</p>
 <h3 id="null-value-handling-na">NULL Value Handling (NA)</h3>
 <p>The native reader is configured to recognize the following strings as
-<code>NA</code> (null values): - <code>NA</code> - <code>na</code> -
+<code>NA</code> (NA values): - <code>NA</code> - <code>na</code> -
 <code>N/A</code> - Empty fields</p>
 <p>This ensures consistency between the native reader and the OCaml
 fallback parser.</p>

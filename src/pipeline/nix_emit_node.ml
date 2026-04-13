@@ -967,6 +967,231 @@ def py_read_onnx(path):
     | _        -> ""
   in
 
+  let visualization_r_code = {|
+r_non_empty_string <- function(value) {
+  is.character(value) && length(value) > 0 && !is.na(value[[1]]) && nzchar(value[[1]])
+}
+
+r_compact_named_list <- function(entries) {
+  entries <- Filter(Negate(is.null), entries)
+  if (length(entries) == 0) {
+    list()
+  } else {
+    do.call(c, entries)
+  }
+}
+
+r_mapping_to_list <- function(mapping) {
+  if (is.null(mapping) || length(mapping) == 0) {
+    return(list())
+  }
+  r_compact_named_list(lapply(names(mapping), function(name) {
+    value <- mapping[[name]]
+    label <- tryCatch(rlang::as_label(value), error = function(e) NULL)
+    if (is.null(label) || !nzchar(label)) NULL else setNames(list(label), name)
+  }))
+}
+
+r_labels_to_list <- function(plot) {
+  label_keys <- c("title", "subtitle", "caption", "x", "y", "colour", "color", "fill")
+  r_compact_named_list(lapply(label_keys, function(key) {
+    value <- plot$labels[[key]]
+    if (r_non_empty_string(value)) setNames(list(as.character(value[[1]])), key) else NULL
+  }))
+}
+
+r_layers_to_list <- function(plot) {
+  if (is.null(plot$layers) || length(plot$layers) == 0) {
+    list()
+  } else {
+    as.list(vapply(plot$layers, function(layer) {
+      geom_class <- class(layer$geom)[1]
+      sub("^Geom", "", geom_class)
+    }, character(1)))
+  }
+}
+
+r_extract_plot_metadata <- function(object) {
+  if (!inherits(object, "ggplot")) {
+    return(NULL)
+  }
+  labels <- r_labels_to_list(object)
+  title <- labels$title
+  if (!r_non_empty_string(title)) {
+    title <- NULL
+  } else {
+    title <- as.character(title[[1]])
+  }
+  mapping <- r_mapping_to_list(object$mapping)
+  metadata <- list(
+    class = "ggplot",
+    backend = "R",
+    title = title,
+    mapping = mapping,
+    labels = labels,
+    layers = r_layers_to_list(object),
+    `_display_keys` = c("class", "backend", "title", "mapping", "labels", "layers")
+  )
+  metadata
+}
+
+r_visual_class <- function(object) {
+  metadata <- r_extract_plot_metadata(object)
+  if (!is.null(metadata)) {
+    metadata$class
+  } else {
+    as.character(class(object)[1])
+  }
+}
+
+r_save_viz_metadata <- function(object, path) {
+  metadata <- r_extract_plot_metadata(object)
+  if (is.null(metadata)) {
+    return(FALSE)
+  }
+  jsonlite::write_json(metadata, path, auto_unbox = TRUE, null = "null")
+  TRUE
+}
+|} in
+
+  let visualization_py_code = {|
+import json
+
+def _py_clean_mapping_value(value):
+    text = str(value)
+    if text.startswith("after_stat(") or text.startswith("stage("):
+        return text
+    if text.startswith("'") and text.endswith("'"):
+        return text[1:-1]
+    return text
+
+def _py_compact_dict(entries):
+    return {key: value for key, value in entries.items() if value not in (None, "", [], {})}
+
+def _py_plotnine_mapping(mapping):
+    if mapping is None:
+        return {}
+    return _py_compact_dict({key: _py_clean_mapping_value(value) for key, value in mapping.items()})
+
+def _py_plotnine_labels(obj):
+    labels_obj = getattr(obj, "labels", None)
+    if labels_obj is None:
+        return {}
+    return _py_compact_dict({
+        "title": getattr(labels_obj, "title", None),
+        "subtitle": getattr(labels_obj, "subtitle", None),
+        "caption": getattr(labels_obj, "caption", None),
+        "x": getattr(labels_obj, "x", None),
+        "y": getattr(labels_obj, "y", None),
+        "color": getattr(labels_obj, "color", None),
+        "fill": getattr(labels_obj, "fill", None),
+    })
+
+def _py_plotnine_layers(obj):
+    layers = []
+    for layer in getattr(obj, "layers", []) or []:
+        geom = getattr(layer, "geom", None)
+        geom_name = type(geom).__name__ if geom is not None else None
+        if geom_name:
+            layers.append(geom_name.replace("geom_", ""))
+    return layers
+
+def _py_matplotlib_layers(ax):
+    layers = []
+    if getattr(ax, "lines", None):
+        layers.extend(type(line).__name__ for line in ax.lines)
+    if getattr(ax, "collections", None):
+        layers.extend(type(collection).__name__ for collection in ax.collections)
+    if getattr(ax, "patches", None):
+        layers.extend(type(patch).__name__ for patch in ax.patches if type(patch).__name__ != "Spine")
+    if getattr(ax, "images", None):
+        layers.extend(type(image).__name__ for image in ax.images)
+    deduped = []
+    for layer in layers:
+        if layer not in deduped:
+            deduped.append(layer)
+    return deduped
+
+def py_extract_plot_metadata(obj):
+    try:
+        from plotnine.ggplot import ggplot as PlotnineGGPlot
+    except Exception:
+        PlotnineGGPlot = None
+    if PlotnineGGPlot is not None and isinstance(obj, PlotnineGGPlot):
+        labels = _py_plotnine_labels(obj)
+        return {
+            "class": "plotnine",
+            "backend": "Python",
+            "title": labels.get("title"),
+            "mapping": _py_plotnine_mapping(getattr(obj, "mapping", None)),
+            "labels": labels,
+            "layers": _py_plotnine_layers(obj),
+            "_display_keys": ["class", "backend", "title", "mapping", "labels", "layers"],
+        }
+
+    try:
+        from matplotlib.figure import Figure as MatplotlibFigure
+        from matplotlib.axes import Axes as MatplotlibAxes
+    except Exception:
+        MatplotlibFigure = ()
+        MatplotlibAxes = ()
+
+    figure = None
+    axes = None
+    if MatplotlibFigure and isinstance(obj, MatplotlibFigure):
+        figure = obj
+        axes = obj.axes[0] if getattr(obj, "axes", None) else None
+    elif MatplotlibAxes and isinstance(obj, MatplotlibAxes):
+        axes = obj
+        figure = getattr(obj, "figure", None)
+
+    if figure is None and axes is None:
+        return None
+
+    title = None
+    if figure is not None and getattr(figure, "_suptitle", None) is not None:
+        text = figure._suptitle.get_text()
+        if text:
+            title = text
+    if title is None and axes is not None:
+        text = axes.get_title()
+        if text:
+            title = text
+    labels = _py_compact_dict({
+        "title": title,
+        "x": axes.get_xlabel() if axes is not None else None,
+        "y": axes.get_ylabel() if axes is not None else None,
+    })
+    return {
+        "class": "matplotlib",
+        "backend": "Python",
+        "title": title,
+        "mapping": {},
+        "labels": labels,
+        "layers": _py_matplotlib_layers(axes) if axes is not None else [],
+        "_display_keys": ["class", "backend", "title", "mapping", "labels", "layers"],
+    }
+
+def py_visual_class(obj):
+    metadata = py_extract_plot_metadata(obj)
+    if metadata is not None:
+        return metadata.get("class", "matplotlib")
+    return type(obj).__name__
+
+def py_save_viz_metadata(obj, path):
+    metadata = py_extract_plot_metadata(obj)
+    if metadata is not None:
+        with open(path, "w") as f:
+            json.dump(metadata, f)
+|} in
+
+  let visualization_injection =
+    match runtime with
+    | "R" -> Printf.sprintf "      cat << 'EOF' >> node_script.R\n%s\nEOF" visualization_r_code
+    | "Python" -> Printf.sprintf "      cat << 'EOF' >> node_script.py\n%s\nEOF" visualization_py_code
+    | _ -> ""
+  in
+
   (* Logic for deserializing dependencies *)
   let deps_script_lines =
     if runtime = "Quarto" || runtime = "sh" then
@@ -1059,6 +1284,7 @@ def py_read_onnx(path):
   let expr_s = Nix_unparse.unparse_expr expr in
   let ser_expr_is_string = match serializer.Ast.node with Ast.Value (Ast.VString _) -> true | _ -> false in
   let ser_s = Nix_unparse.expr_to_string serializer in
+  let uses_default_serializer = ser_s = "default" in
   let ser_call =
     let write_fns = match runtime with
       | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
@@ -1080,6 +1306,26 @@ def py_read_onnx(path):
   in
 
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in
+
+  let r_emit_artifact value_name =
+    let viz_call = Printf.sprintf "  r_save_viz_metadata(%s, file.path(Sys.getenv('out'), 'viz'))" value_name in
+    let artifact_path = "file.path(Sys.getenv('out'), 'artifact')" in
+    if uses_default_serializer then
+      Printf.sprintf {|%s
+  %s(%s, %s)|} viz_call ser_call value_name artifact_path
+    else
+      Printf.sprintf {|  %s(%s, %s)|} ser_call value_name artifact_path
+  in
+
+  let py_emit_artifact value_name =
+    let viz_call = Printf.sprintf "    py_save_viz_metadata(%s, os.path.join(os.environ['out'], 'viz'))" value_name in
+    let artifact_path = "os.path.join(os.environ['out'], 'artifact')" in
+    if uses_default_serializer then
+      Printf.sprintf {|%s
+    %s(%s, %s)|} viz_call ser_call value_name artifact_path
+    else
+      Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
+  in
 
   let is_import_line line =
     let l = String.trim line in
@@ -1252,18 +1498,19 @@ def py_read_onnx(path):
             (shell_single_quote ("exec " ^ shell_quote_words script_tokens))
         else if runtime = "R" then
           let r_source = shell_single_quote (Printf.sprintf {|source("%s")|} script_path) in
-          let r_ser = shell_single_quote (Printf.sprintf {|%s(%s, file.path(Sys.getenv("out"), "artifact"))|} ser_call name) in
-          let r_class = shell_single_quote (Printf.sprintf {|writeLines(as.character(class(%s)[1]), file.path(Sys.getenv("out"), "class"))|} name) in
+          let r_ser = shell_single_quote (Printf.sprintf {|%s
+  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))|} (r_emit_artifact name) name) in
           Printf.sprintf {|      echo %s >> node_script.R
       echo %s >> node_script.R
-      echo %s >> node_script.R|} r_source r_ser r_class
+|} r_source r_ser
         else if runtime = "Python" then
           let py_exec = shell_single_quote (Printf.sprintf {|exec(open("%s").read(), globals())|} script_path) in
-          let py_ser = shell_single_quote (Printf.sprintf {|%s(%s, os.path.join(os.environ["out"], "artifact"))|} ser_call name) in
-          let py_class = shell_single_quote (Printf.sprintf {|with open(os.path.join(os.environ["out"], "class"), "w") as f: f.write(type(%s).__name__)|} name) in
+          let py_ser = shell_single_quote (Printf.sprintf {|%s
+    with open(os.path.join(os.environ['out'], 'class'), 'w') as f:
+        f.write(py_visual_class(%s))|} (py_emit_artifact name) name) in
           Printf.sprintf {|      echo %s >> node_script.py
       echo %s >> node_script.py
-      echo %s >> node_script.py|} py_exec py_ser py_class
+|} py_exec py_ser
         else
           let t_import = shell_single_quote (Printf.sprintf {|      import "%s"|} script_path) in
           Printf.sprintf {|      echo %s >> node_script.t
@@ -1290,13 +1537,15 @@ EOF
       echo "  captured_warns <<- append(captured_warns, conditionMessage(w))" >> node_script.R
       echo "  invokeRestart('muffleWarning')" >> node_script.R
       echo "})" >> node_script.R
-      echo "if (r_is_error(%s)) {" >> node_script.R
-      echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
-      echo "} else {" >> node_script.R
-      echo "  %s(%s, \"$out/artifact\")" >> node_script.R
-      echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
-      echo "  r_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.R
-      echo "}" >> node_script.R|} name expr_s_no_imports name name ser_call name name
+       echo "if (r_is_error(%s)) {" >> node_script.R
+       echo "  r_write_error(%s, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
+       echo "} else {" >> node_script.R
+       cat <<'EOF' >> node_script.R
+%s
+EOF
+       echo "  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
+       echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
+       echo "}" >> node_script.R|} name expr_s_no_imports name name (r_emit_artifact name) name
       else
         Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
       echo "tryCatch({" >> node_script.R
@@ -1312,13 +1561,15 @@ EOF
       echo "  r_write_error(e, \"$out/artifact\")" >> node_script.R
       echo "  quit(save = 'no', status = 0)" >> node_script.R
       echo "})" >> node_script.R
-      echo "if (r_is_error(%s)) {" >> node_script.R
-      echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
-      echo "} else {" >> node_script.R
-      echo "  %s(%s, \"$out/artifact\")" >> node_script.R
-      echo "  writeLines(as.character(class(%s)[1]), \"$out/class\")" >> node_script.R
-      echo "  r_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.R
-      echo "}" >> node_script.R|} name name expr_s name name ser_call name name
+       echo "if (r_is_error(%s)) {" >> node_script.R
+       echo "  r_write_error(%s, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
+       echo "} else {" >> node_script.R
+       cat <<'EOF' >> node_script.R
+%s
+EOF
+       echo "  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
+       echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
+       echo "}" >> node_script.R|} name name expr_s name name (r_emit_artifact name) name
     else if runtime = "Python" then
       if is_raw_code then
         if raw_assigns_to name expr_s then
@@ -1334,11 +1585,13 @@ EOF
       echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
-      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
-      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|} (indent_string expr_s 8) name name ser_call name name
+      cat <<'EOF' >> node_script.py
+%s
+EOF
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string expr_s 8) name name (py_emit_artifact name) name
         else
           let globals_decl =
             if deps = [] then ""
@@ -1355,16 +1608,18 @@ EOF
       echo "        warnings.simplefilter('always')" >> node_script.py
       echo "        %s = __node_runner()" >> node_script.py
       echo "except Exception as e:" >> node_script.py
-      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
-      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
-      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|}
+      cat <<'EOF' >> node_script.py
+%s
+EOF
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|}
             (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
-            (indent_string expr_s_no_imports 4) name name name ser_call name name
+            (indent_string expr_s_no_imports 4) name name name (py_emit_artifact name) name
       else
         Printf.sprintf {|      echo "import warnings" >> node_script.py
       echo "try:" >> node_script.py
@@ -1374,14 +1629,16 @@ EOF
 %s
 EOF
       echo "except Exception as e:" >> node_script.py
-      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
-      echo "    %s(%s, \"$out/artifact\")" >> node_script.py
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(type(%s).__name__)" >> node_script.py
-      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name ser_call name name
+      cat <<'EOF' >> node_script.py
+%s
+EOF
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
@@ -1512,8 +1769,9 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_exports ext error_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_exports ext error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd

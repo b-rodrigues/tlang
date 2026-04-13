@@ -98,9 +98,6 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<header id="title-block-header">
-<h1 class="title">T Programming Language - getting-started</h1>
-</header>
 <h1 id="getting-started-with-t">Getting Started with T</h1>
 <p>Welcome to T! This guide will help you install T, create your first
 project, and understand the basic layout of a T workspace.</p>
@@ -122,7 +119,8 @@ Nix:</p>
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> shell github:b-rodrigues/tlang</span></code></pre></div>
 <p>This command will download the T executable, fetch all required
 dependencies, and drop you into a temporary shell where the
-<code>t</code> command is available.</p>
+<code>t</code> command is available, for as long as you stay in that
+shell.</p>
 <h2 id="starting-a-new-workspace">Starting a New Workspace</h2>
 <p>T provides a built-in scaffolding tool to initialize your workspaces.
 There are two types of workspaces in T: - <strong>Projects</strong>:
@@ -131,42 +129,46 @@ Designed for data analysis, scripts, and reproducible pipelines. -
 libraries to share with others.</p>
 <h3 id="creating-a-project">Creating a Project</h3>
 <p>To start a new data analysis project, navigate to your desired folder
-and run:</p>
+and run (while in the temporary shell you dropped in before):</p>
 <div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init project</span></code></pre></div>
-<p>The interactive wizard will ask for a project name (e.g.,
-<code>my_analysis</code>) and generate a reproducible workspace. The
-resulting tree layout will look like this:</p>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--project</span> my_analysis</span></code></pre></div>
+<p>The scaffolding tool will generate a reproducible workspace with the
+following layout:</p>
 <pre class="text"><code>my_analysis/
 ├── tproject.toml       # Project configuration and dependencies
 ├── flake.nix           # Reproducible environment definition
-├── _pipeline/          # Output directory for pipeline node results
+├── README.md           # Project overview
+├── src/
+│   └── pipeline.t      # Your main analysis script
 ├── data/               # Place your raw data files here
-└── scripts/
-    └── main.t          # Your main analysis script</code></pre>
+├── outputs/            # Output directory for results
+└── tests/              # Unit tests for your analysis</code></pre>
 <h3 id="creating-a-package">Creating a Package</h3>
 <p>If you want to create a reusable library of T functions, initialize a
 package instead:</p>
 <div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init package</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--package</span> my_package</span></code></pre></div>
 <p>The tree layout for a package is structured for development and
 testing:</p>
 <pre class="text"><code>my_package/
-├── tproject.toml       # Package metadata (name, version, exports)
+├── DESCRIPTION.toml    # Package metadata (name, version, exports)
 ├── flake.nix           # Reproducible environment definition
+├── README.md           # Package overview
 ├── src/
 │   └── main.t          # Package source code
-└── tests/
-    └── test_main.t     # Unit tests for your package</code></pre>
+├── tests/
+│   └── test-my_package.t  # Unit tests for your package
+├── examples/           # Usage examples
+└── docs/               # Documentation</code></pre>
 <h2 id="running-your-code">Running Your Code</h2>
 <p>Now that you’ve bootstrapped your project or package, you can leave
 the temporary Nix shell using <code>exit</code>. Move into the project’s
-directory, and use <code>nix develop</code> to drop into the development
-environment of the project. You may be prompted to make the
-<code>flake.nix</code> discoverable, you can copy and paste the
-suggested command or simply run <code>git add .</code> to stage the
-whole project. Try <code>nix develop</code> again to drop into the
-development environment. You should see the following:</p>
+directory (if not there already), and type <code>nix develop</code> to
+drop into the development environment of the project. You may be
+prompted to make the <code>flake.nix</code> discoverable, you can copy
+and paste the suggested command or simply run <code>git add .</code> to
+stage the whole project. Try <code>nix develop</code> again to drop into
+the development environment. You should see the following:</p>
 <div class="sourceCode" id="cb6"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">==================================================</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span> Project: start_t</span>

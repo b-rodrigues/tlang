@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.51.4] - 2026-04-xx (upcoming)
+
+**Status**: Beta  
+
+### First-Class Visual Metadata & Plot Inspection
+- **Automated Plot Metadata Capture**: 
+    - Implemented infrastructure to automatically extract and persist metadata from visual objects in polyglot pipelines.
+    - **R Support**: Capture titles, labels (x, y, color, etc.), mappings, and layers from `ggplot2` objects.
+    - **Python Support**: Full metadata extraction for `matplotlib` figures and `plotnine` (ggplot-style) objects.
+- **Transparent `read_node()` for Plots**:
+    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, or `plotnine`.
+    - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
+
+### Core Evaluator & Emitter Refinements
+- **Improved Pretty Printing**: Updated the core pretty printer to handle complex nested dictionaries and diagnostics summaries more gracefully.
+- **Nix Emitter Stability**: Significant updates to `nix_emit_node.ml` to support the new visualization injection logic and improve script-based node robustness.
+- **Test Infrastructure**: Added golden tests and mocks for visual metadata scenarios.
+
+
 ## [0.51.3] - 2026-04-12
 
 **Status**: Beta  
