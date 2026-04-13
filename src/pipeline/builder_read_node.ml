@@ -98,7 +98,7 @@ let read_node ?which_log name =
           cn_runtime = "unknown";
           cn_path = artifact_path;
           cn_serializer = (
-             match cls with 
+             match cls with
              | "ArrowDataFrame" | "data.frame" | "DataFrame" | "Table" -> "arrow"
              | "ggplot" | "matplotlib" -> "json"
              | "JSON" | "VDict" | "VList" | "list" | "dict" -> "json"

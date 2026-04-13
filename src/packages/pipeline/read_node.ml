@@ -75,19 +75,23 @@ let register env =
          | VNA _ -> Builder.read_node name
          | VString s -> Builder.read_node ~which_log:s name
          | _ -> Error.type_error "read_node: expected String for 'which_log'")
-    | VComputedNode cn ->
-        (match Serialization_registry.lookup cn.cn_serializer with
-         | Some ser ->
-              (match ser.s_reader with
-               | VBuiltin { b_func; _ } ->
+     | VComputedNode cn ->
+         (match Serialization_registry.lookup cn.cn_serializer with
+          | Some ser ->
+               (match ser.s_reader with
+                | VBuiltin { b_func; _ } ->
                    b_func [(None, VString cn.cn_path)] (ref _env)
-               | _ ->
-                   Error.make_error RuntimeError (Printf.sprintf "read_node: Serializer ^%s has no T-native reader." cn.cn_serializer))
-          | None ->
-             if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
-               (match Serialization.deserialize_from_file cn.cn_path with
+                | _ ->
+                    Error.make_error RuntimeError (Printf.sprintf "read_node: Serializer ^%s has no T-native reader." cn.cn_serializer))
+           | None ->
+             if cn.cn_class = "ggplot" || cn.cn_class = "matplotlib" then
+               (match Serialization.read_json cn.cn_path with
                 | Ok v -> v
-                | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
+                | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read plot metadata node `%s`: %s" cn.cn_name msg))
+             else if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
+                (match Serialization.deserialize_from_file cn.cn_path with
+                 | Ok v -> v
+                 | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
              else if cn.cn_serializer = "arrow" then
                (match Arrow_io.read_ipc cn.cn_path with
                 | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
