@@ -1,6 +1,6 @@
 # Plotting and Visual Inspection
 
-T is primarily an orchestration engine and does not currently provide its own native low-level plotting library. Instead, T leverages the powerful visualization ecosystems of **R** (`ggplot2`) and **Python** (`matplotlib`, `plotnine`) through its polyglot pipeline architecture.
+T is primarily an orchestration engine and does not currently provide its own native low-level plotting library, and very likely never will. Instead, T leverages the powerful visualization ecosystems of **R** (`ggplot2`) and **Python** (`matplotlib`, `plotnine`) through its polyglot pipeline architecture.
 
 One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R or Python node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
 
