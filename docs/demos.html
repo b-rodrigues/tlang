@@ -173,12 +173,17 @@ composition.</li>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/tstats-project/t_demos</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> t_demos/<span class="op">&lt;</span>project_name<span class="op">&gt;</span></span></code></pre></div></li>
-<li><p><strong>Enter the T environment</strong>:</p>
+<li><p><strong>Synchronize dependencies</strong>: T uses
+<code>tproject.toml</code> to manage dependencies. Run this to generate
+the necessary <code>flake.nix</code>:</p>
 <div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div></li>
-<li><p><strong>Run the pipeline</strong>:</p>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> update</span></code></pre></div></li>
+<li><p><strong>Enter the T environment</strong>:</p>
 <div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span></code></pre></div></li>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div></li>
+<li><p><strong>Run the pipeline</strong>:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span></code></pre></div></li>
 </ol>
 </div>
 <footer>
