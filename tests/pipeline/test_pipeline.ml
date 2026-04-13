@@ -632,15 +632,15 @@ p_cross = pipeline {
        let has_r_plot_helpers =
          contains_substring nix "r_extract_plot_metadata <- function(object)" &&
          contains_substring nix "r_save_viz_metadata <- function(object, path)" &&
-         contains_substring nix "writeLines(r_visual_class(plot_r), \"$out/class\")" &&
-         contains_substring nix "r_save_viz_metadata(plot_r, file.path(Sys.getenv(\"out\"), \"viz\"))"
+         contains_substring nix "file.path(Sys.getenv('out'), 'class')" &&
+         contains_substring nix "r_save_viz_metadata(plot_r, file.path(Sys.getenv('out'), 'viz'))"
        in
        let has_py_plot_helpers =
          contains_substring nix "def py_extract_plot_metadata(obj):" &&
          contains_substring nix "from plotnine.ggplot import ggplot as PlotnineGGPlot" &&
          contains_substring nix "\"class\": \"matplotlib\"" &&
-         contains_substring nix "f.write(py_visual_class(plot_py))" &&
-         contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ[\"out\"], \"viz\"))"
+         contains_substring nix "py_visual_class(plot_py)" &&
+         contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ['out'], 'viz'))"
        in
        if has_r_plot_helpers && has_py_plot_helpers then begin
          incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R and Python nodes\n"

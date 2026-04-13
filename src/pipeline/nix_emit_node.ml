@@ -1308,8 +1308,8 @@ def py_save_viz_metadata(obj, path):
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in
 
   let r_emit_artifact value_name =
-    let viz_call = Printf.sprintf "  r_save_viz_metadata(%s, file.path(Sys.getenv(\"out\"), \"viz\"))" value_name in
-    let artifact_path = "file.path(Sys.getenv(\"out\"), \"artifact\")" in
+    let viz_call = Printf.sprintf "  r_save_viz_metadata(%s, file.path(Sys.getenv('out'), 'viz'))" value_name in
+    let artifact_path = "file.path(Sys.getenv('out'), 'artifact')" in
     if uses_default_serializer then
       Printf.sprintf {|%s
   %s(%s, %s)|} viz_call ser_call value_name artifact_path
@@ -1318,8 +1318,8 @@ def py_save_viz_metadata(obj, path):
   in
 
   let py_emit_artifact value_name =
-    let viz_call = Printf.sprintf "    py_save_viz_metadata(%s, os.path.join(os.environ[\"out\"], \"viz\"))" value_name in
-    let artifact_path = "os.path.join(os.environ[\"out\"], \"artifact\")" in
+    let viz_call = Printf.sprintf "    py_save_viz_metadata(%s, os.path.join(os.environ['out'], 'viz'))" value_name in
+    let artifact_path = "os.path.join(os.environ['out'], 'artifact')" in
     if uses_default_serializer then
       Printf.sprintf {|%s
     %s(%s, %s)|} viz_call ser_call value_name artifact_path
@@ -1499,14 +1499,14 @@ def py_save_viz_metadata(obj, path):
         else if runtime = "R" then
           let r_source = shell_single_quote (Printf.sprintf {|source("%s")|} script_path) in
           let r_ser = shell_single_quote (Printf.sprintf {|%s
-  writeLines(r_visual_class(%s), file.path(Sys.getenv("out"), "class"))|} (r_emit_artifact name) name) in
+  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))|} (r_emit_artifact name) name) in
           Printf.sprintf {|      echo %s >> node_script.R
       echo %s >> node_script.R
 |} r_source r_ser
         else if runtime = "Python" then
           let py_exec = shell_single_quote (Printf.sprintf {|exec(open("%s").read(), globals())|} script_path) in
           let py_ser = shell_single_quote (Printf.sprintf {|%s
-    with open(os.path.join(os.environ["out"], "class"), "w") as f:
+    with open(os.path.join(os.environ['out'], 'class'), 'w') as f:
         f.write(py_visual_class(%s))|} (py_emit_artifact name) name) in
           Printf.sprintf {|      echo %s >> node_script.py
       echo %s >> node_script.py
@@ -1538,13 +1538,13 @@ EOF
       echo "  invokeRestart('muffleWarning')" >> node_script.R
       echo "})" >> node_script.R
        echo "if (r_is_error(%s)) {" >> node_script.R
-       echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
+       echo "  r_write_error(%s, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
        echo "} else {" >> node_script.R
        cat <<'EOF' >> node_script.R
 %s
 EOF
-       echo "  writeLines(r_visual_class(%s), \"$out/class\")" >> node_script.R
-       echo "  r_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.R
+       echo "  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
+       echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
        echo "}" >> node_script.R|} name expr_s_no_imports name name (r_emit_artifact name) name
       else
         Printf.sprintf {|      echo "captured_warns <- list()" >> node_script.R
@@ -1562,13 +1562,13 @@ EOF
       echo "  quit(save = 'no', status = 0)" >> node_script.R
       echo "})" >> node_script.R
        echo "if (r_is_error(%s)) {" >> node_script.R
-       echo "  r_write_error(%s, \"$out/artifact\")" >> node_script.R
+       echo "  r_write_error(%s, file.path(Sys.getenv('out'), 'artifact'))" >> node_script.R
        echo "} else {" >> node_script.R
        cat <<'EOF' >> node_script.R
 %s
 EOF
-       echo "  writeLines(r_visual_class(%s), \"$out/class\")" >> node_script.R
-       echo "  r_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.R
+       echo "  writeLines(r_visual_class(%s), file.path(Sys.getenv('out'), 'class'))" >> node_script.R
+       echo "  r_write_warnings(captured_warns, file.path(Sys.getenv('out'), 'warnings'))" >> node_script.R
        echo "}" >> node_script.R|} name name expr_s name name (r_emit_artifact name) name
     else if runtime = "Python" then
       if is_raw_code then
@@ -1585,13 +1585,13 @@ EOF
       echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
       cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(py_visual_class(%s))" >> node_script.py
-      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|} (indent_string expr_s 8) name name (py_emit_artifact name) name
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string expr_s 8) name name (py_emit_artifact name) name
         else
           let globals_decl =
             if deps = [] then ""
@@ -1608,16 +1608,16 @@ EOF
       echo "        warnings.simplefilter('always')" >> node_script.py
       echo "        %s = __node_runner()" >> node_script.py
       echo "except Exception as e:" >> node_script.py
-      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
       cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(py_visual_class(%s))" >> node_script.py
-      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|}
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|}
             (if globals_decl = "" then "" else Printf.sprintf "      echo %s >> node_script.py\n" (shell_single_quote globals_decl))
             (indent_string expr_s_no_imports 4) name name name (py_emit_artifact name) name
       else
@@ -1629,16 +1629,16 @@ EOF
 %s
 EOF
       echo "except Exception as e:" >> node_script.py
-      echo "    py_write_error(traceback.format_exc(), \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(traceback.format_exc(), os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "    sys.exit(0)" >> node_script.py
       echo "if py_is_error(%s):" >> node_script.py
-      echo "    py_write_error(%s, \"$out/artifact\")" >> node_script.py
+      echo "    py_write_error(%s, os.path.join(os.environ['out'], 'artifact'))" >> node_script.py
       echo "else:" >> node_script.py
       cat <<'EOF' >> node_script.py
 %s
 EOF
-      echo "    with open(\"$out/class\", \"w\") as f: f.write(py_visual_class(%s))" >> node_script.py
-      echo "    py_write_warnings(captured_warns, \"$out/warnings\")" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
+      echo "    with open(os.path.join(os.environ['out'], 'class'), 'w') as f: f.write(py_visual_class(%s))" >> node_script.py
+      echo "    py_write_warnings(captured_warns, os.path.join(os.environ['out'], 'warnings'))" >> node_script.py|} (indent_string (Printf.sprintf "%s = %s" name expr_s) 8) name name (py_emit_artifact name) name
     else if runtime = "sh" then
       (match expr.Ast.node with
       | RawCode { raw_text; _ } ->
