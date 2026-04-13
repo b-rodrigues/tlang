@@ -196,12 +196,13 @@ and pretty_print_visual_metadata pairs =
   if body_pairs = [] then
     Printf.sprintf "%s {}\n" class_name
   else
-    let body_key_set =
-      List.fold_left (fun acc (k, _) -> String_set.add k acc) String_set.empty body_pairs
-    in
     let display_keys =
       match display_keys_from_pairs pairs with
-      | Some keys -> List.filter (fun key -> String_set.mem key body_key_set) keys
+      | Some keys ->
+          let body_key_set =
+            List.fold_left (fun acc (k, _) -> String_set.add k acc) String_set.empty body_pairs
+          in
+          List.filter (fun key -> String_set.mem key body_key_set) keys
       | None -> List.map fst body_pairs
     in
     let display_key_set =
