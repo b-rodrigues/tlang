@@ -32,6 +32,22 @@ let register env =
   in
 
   let read_fn named_args _env =
+    let read_computed_node_value cn =
+      if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
+        (match Serialization.deserialize_from_file cn.cn_path with
+         | Ok v -> v
+         | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
+      else if cn.cn_serializer = "json" then
+        (match Serialization.read_json cn.cn_path with
+         | Ok v -> v
+         | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read JSON node `%s`: %s" cn.cn_name msg))
+      else if cn.cn_serializer = "arrow" then
+        (match Arrow_io.read_ipc cn.cn_path with
+         | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
+         | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read Arrow node `%s`: %s" cn.cn_name msg))
+      else
+        Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer)
+    in
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VPipeline p ->
         (match extract_arg "name" 2 (VNA NAGeneric) named_args with
@@ -91,30 +107,9 @@ let register env =
                    | Ok v -> v
                     | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read plot metadata node `%s`: %s" cn.cn_name msg))
                 else
-                  (if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
-                     (match Serialization.deserialize_from_file cn.cn_path with
-                      | Ok v -> v
-                      | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
-                   else if cn.cn_serializer = "json" then
-                     (match Serialization.read_json cn.cn_path with
-                      | Ok v -> v
-                      | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read JSON node `%s`: %s" cn.cn_name msg))
-                   else if cn.cn_serializer = "arrow" then
-                     (match Arrow_io.read_ipc cn.cn_path with
-                      | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
-                      | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read Arrow node `%s`: %s" cn.cn_name msg))
-                   else
-                     VComputedNode cn)
-              else if cn.cn_runtime = "T" && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize") then
-                 (match Serialization.deserialize_from_file cn.cn_path with
-                  | Ok v -> v
-                 | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to deserialize T node `%s`: %s" cn.cn_name msg))
-             else if cn.cn_serializer = "arrow" then
-               (match Arrow_io.read_ipc cn.cn_path with
-                | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
-               | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read Arrow node `%s`: %s" cn.cn_name msg))
-            else
-              Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer))
+                  read_computed_node_value cn
+              else
+                read_computed_node_value cn)
     | VNA _ -> Error.make_error ValueError "read_node: requires a node name or a ComputedNode object."
     | _ -> Error.type_error "read_node: expected String or ComputedNode for argument 'node'"
   in
