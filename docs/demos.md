@@ -49,16 +49,21 @@ To try any of these demos locally:
     git clone https://github.com/tstats-project/t_demos
     cd t_demos/<project_name>
     ```
-2.  **Synchronize dependencies**:
-    T uses `tproject.toml` to manage dependencies. Run this to generate the necessary `flake.nix`:
+2.  **Bootstrap the T environment**:
+    If you don't have the `t` command installed yet, use Nix to get it directly from the source repository:
+    ```bash
+    nix shell github:b-rodrigues/tlang
+    ```
+3.  **Synchronize dependencies**:
+    T uses `tproject.toml` to manage dependencies. Run this to generate the project's local `flake.nix`:
     ```bash
     t update
     ```
-3.  **Enter the T environment**:
+4.  **Enter the project shell**:
     ```bash
     nix develop
     ```
-4.  **Run the pipeline**:
+5.  **Run the pipeline**:
     ```bash
     t run src/pipeline.t
     ```
