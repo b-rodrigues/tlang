@@ -1121,7 +1121,7 @@ def py_extract_plot_metadata(obj):
         labels = _py_plotnine_labels(obj)
         return {
             "class": "matplotlib",
-            "backend": "plotnine",
+            "backend": "Python",
             "title": labels.get("title"),
             "mapping": _py_plotnine_mapping(getattr(obj, "mapping", None)),
             "labels": labels,
@@ -1164,7 +1164,7 @@ def py_extract_plot_metadata(obj):
     })
     return {
         "class": "matplotlib",
-        "backend": "matplotlib",
+        "backend": "Python",
         "title": title,
         "mapping": {},
         "labels": labels,
