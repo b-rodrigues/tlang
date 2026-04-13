@@ -151,11 +151,14 @@ Artifact</strong>: The serialized plot object (e.g., an RDS file for
 (<code>viz</code>)</strong>: A JSON representation of the plot’s
 contents.</p>
 <p>T automatically extracts: - <strong>Title</strong>: The main title of
-the plot. - <strong>Backend</strong>: The library used (e.g.,
-“matplotlib” or “plotnine”). - <strong>Labels</strong>: Axis labels and
-legends. - <strong>Layers</strong>: The types of geometries present
-(e.g., “point”, “line”). - <strong>Mappings</strong>: In
-<code>ggplot2</code>, the aesthetic mappings (x, y, color, etc.).</p>
+the plot. - <strong>Backend</strong>: The runtime used to produce the
+plot (<code>"R"</code> or <code>"Python"</code>). -
+<strong>Class</strong>: The plot type (<code>"ggplot"</code>,
+<code>"matplotlib"</code>, or <code>"plotnine"</code>). -
+<strong>Labels</strong>: Axis labels and legends. -
+<strong>Layers</strong>: The types of geometries present (e.g., “point”,
+“line”). - <strong>Mappings</strong>: In <code>ggplot2</code>, the
+aesthetic mappings (x, y, color, etc.).</p>
 <hr />
 <h2 id="inspecting-plots-with-read_node">Inspecting Plots with
 <code>read_node()</code></h2>

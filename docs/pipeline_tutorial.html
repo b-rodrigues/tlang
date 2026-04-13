@@ -153,9 +153,10 @@ specify an explicit
 node returns a <code>matplotlib</code> / <code>plotnine</code> plot
 object, T now preserves lightweight plot metadata for REPL inspection.
 Reading or printing those artifacts shows a structured summary with the
-normalized class (<code>ggplot</code> or <code>matplotlib</code>),
-title, aesthetic mappings, labels, and layer information instead of a
-raw runtime-specific object dump.</p>
+plot class (<code>ggplot</code>, <code>matplotlib</code>, or
+<code>plotnine</code>), runtime backend (<code>R</code> or
+<code>Python</code>), title, aesthetic mappings, labels, and layer
+information instead of a raw runtime-specific object dump.</p>
 <h3 id="using-the-script-argument">Using the <code>script</code>
 Argument</h3>
 <p>Instead of inlining code with <code>command</code>, you can point a
