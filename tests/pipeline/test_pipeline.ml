@@ -631,16 +631,16 @@ p_cross = pipeline {
        let nix = Nix_emit_pipeline.emit_pipeline p in
        let has_r_plot_helpers =
          contains_substring nix "r_extract_plot_metadata <- function(object)" &&
-         contains_substring nix "r_write_plot_metadata <- function(object, path)" &&
+         contains_substring nix "r_save_viz_metadata <- function(object, path)" &&
          contains_substring nix "writeLines(r_visual_class(plot_r), \"$out/class\")" &&
-         contains_substring nix "if (r_write_plot_metadata(plot_r, \"$out/artifact\"))"
+         contains_substring nix "r_save_viz_metadata(plot_r, file.path(Sys.getenv(\"out\"), \"viz\"))"
        in
        let has_py_plot_helpers =
          contains_substring nix "def py_extract_plot_metadata(obj):" &&
          contains_substring nix "from plotnine.ggplot import ggplot as PlotnineGGPlot" &&
          contains_substring nix "\"class\": \"matplotlib\"" &&
          contains_substring nix "f.write(py_visual_class(plot_py))" &&
-         contains_substring nix "if not py_write_plot_metadata(plot_py, \"$out/artifact\"):"
+         contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ[\"out\"], \"viz\"))"
        in
        if has_r_plot_helpers && has_py_plot_helpers then begin
          incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R and Python nodes\n"
@@ -655,6 +655,8 @@ p_cross = pipeline {
   (try Unix.mkdir temp_plot_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
   let ggplot_node_dir = Filename.concat temp_plot_dir "ggplot-node" in
   (try Unix.mkdir ggplot_node_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let ggplot_viz = Filename.concat ggplot_node_dir "viz" in
+  (* artifact now holds "real" data or is irrelevant for this metadata-reading test *)
   let ggplot_artifact = Filename.concat ggplot_node_dir "artifact" in
   let ggplot_class = Filename.concat ggplot_node_dir "class" in
   let ggplot_value =
@@ -675,7 +677,8 @@ p_cross = pipeline {
       ]);
     ]
   in
-  ignore (Serialization.write_json ggplot_artifact ggplot_value);
+  ignore (Serialization.write_json ggplot_viz ggplot_value);
+  let oc_art = open_out ggplot_artifact in output_string oc_art "dummy-artifact"; close_out oc_art;
   let oc_ggplot_class = open_out ggplot_class in
   output_string oc_ggplot_class "ggplot\n";
   close_out oc_ggplot_class;

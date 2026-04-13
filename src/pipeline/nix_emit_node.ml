@@ -1046,9 +1046,11 @@ r_visual_class <- function(object) {
 
 r_save_viz_metadata <- function(object, path) {
   metadata <- r_extract_plot_metadata(object)
-  if (!is.null(metadata)) {
-    jsonlite::write_json(metadata, path, auto_unbox = TRUE, null = "null")
+  if (is.null(metadata)) {
+    return(FALSE)
   }
+  jsonlite::write_json(metadata, path, auto_unbox = TRUE, null = "null")
+  TRUE
 }
 |} in
 
