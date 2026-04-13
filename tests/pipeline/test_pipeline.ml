@@ -288,7 +288,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   ignore (Serialization.write_json plot_json_path
     (Ast.VDict [
       ("class", Ast.VString "matplotlib");
-      ("backend", Ast.VString "matplotlib");
+      ("backend", Ast.VString "Python");
       ("title", Ast.VString "Fallback plot");
       ("mapping", Ast.VDict []);
       ("labels", Ast.VDict [("x", Ast.VString "x"); ("y", Ast.VString "y")]);
@@ -657,13 +657,14 @@ p_cross = pipeline {
          contains_substring nix "file.path(Sys.getenv('out'), 'class')" &&
          contains_substring nix "r_save_viz_metadata(plot_r, file.path(Sys.getenv('out'), 'viz'))"
        in
-       let has_py_plot_helpers =
-         contains_substring nix "def py_extract_plot_metadata(obj):" &&
-         contains_substring nix "from plotnine.ggplot import ggplot as PlotnineGGPlot" &&
-         contains_substring nix "\"class\": \"matplotlib\"" &&
-         contains_substring nix "py_visual_class(plot_py)" &&
-         contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ['out'], 'viz'))"
-       in
+        let has_py_plot_helpers =
+          contains_substring nix "def py_extract_plot_metadata(obj):" &&
+          contains_substring nix "from plotnine.ggplot import ggplot as PlotnineGGPlot" &&
+          contains_substring nix "\"class\": \"plotnine\"" &&
+          contains_substring nix "\"backend\": \"Python\"" &&
+          contains_substring nix "py_visual_class(plot_py)" &&
+          contains_substring nix "py_save_viz_metadata(plot_py, os.path.join(os.environ['out'], 'viz'))"
+        in
        if has_r_plot_helpers && has_py_plot_helpers then begin
          incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R and Python nodes\n"
        end else begin

@@ -153,8 +153,8 @@ let scan_code_requirements ~node_name ~runtime raw_text =
          try ignore (Str.search_forward re3 raw_text 0); true with Not_found -> false)
       in
       if has_pkg "ggplot2" then
-        { req with r_deps = add_list req.r_deps [ "ggplot2"; "jsonlite" ] }
-      else empty_requirements
+        { req with r_deps = add_list req.r_deps [ "ggplot2" ] }
+      else req
   | "Python" ->
       let has_pkg pkg =
         let re1 = Str.regexp (Printf.sprintf "import %s" pkg) in
@@ -162,11 +162,19 @@ let scan_code_requirements ~node_name ~runtime raw_text =
         (try ignore (Str.search_forward re1 raw_text 0); true with Not_found ->
          try ignore (Str.search_forward re2 raw_text 0); true with Not_found -> false)
       in
-      if has_pkg "matplotlib" then
-        { req with py_deps = add_list req.py_deps [ "matplotlib"; "pandas" ] }
-      else if has_pkg "plotnine" then
-        { req with py_deps = add_list req.py_deps [ "plotnine"; "pandas" ] }
-      else empty_requirements
+      let req =
+        if has_pkg "matplotlib" then
+          { req with py_deps = add_list req.py_deps [ "matplotlib" ] }
+        else
+          req
+      in
+      let req =
+        if has_pkg "plotnine" then
+          { req with py_deps = add_list req.py_deps [ "plotnine"; "pandas" ] }
+        else
+          req
+      in
+      if String_set.is_empty req.py_deps then empty_requirements else req
   | _ -> empty_requirements
 
 let required_for_pipeline (p : Ast.pipeline_result) =

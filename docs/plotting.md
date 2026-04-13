@@ -55,7 +55,8 @@ When you build a pipeline containing these nodes, T creates two artifacts for ea
 
 T automatically extracts:
 - **Title**: The main title of the plot.
-- **Backend**: The library used (e.g., "matplotlib" or "plotnine").
+- **Backend**: The runtime used to produce the plot (`"R"` or `"Python"`).
+- **Class**: The plot type (`"ggplot"`, `"matplotlib"`, or `"plotnine"`).
 - **Labels**: Axis labels and legends.
 - **Layers**: The types of geometries present (e.g., "point", "line").
 - **Mappings**: In `ggplot2`, the aesthetic mappings (x, y, color, etc.).

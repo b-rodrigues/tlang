@@ -240,19 +240,19 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
      contains ggplot_trimmed_pretty "`layers`" &&
      not (contains ggplot_trimmed_pretty "`mapping`") &&
      not (contains ggplot_trimmed_pretty "`extra`"));
-  let matplotlib_pretty =
+  let plotnine_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
-        ("class", Ast.VString "matplotlib");
-        ("backend", Ast.VString "plotnine");
+        ("class", Ast.VString "plotnine");
+        ("backend", Ast.VString "Python");
         ("title", Ast.VString "Scatter plot");
         ("mapping", Ast.VDict [("x", Ast.VString "wt"); ("y", Ast.VString "mpg")]);
         ("labels", Ast.VDict [("x", Ast.VString "wt"); ("y", Ast.VString "mpg")]);
         ("layers", Ast.VList [(None, Ast.VString "point")]);
       ])
   in
-  test_message "pretty_print matplotlib metadata keeps normalized class"
-    (contains matplotlib_pretty "matplotlib {" && contains matplotlib_pretty "\"plotnine\"");
+  test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
+    (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
   print_newline ();
 
   Printf.printf "Phase 7 — Multi-line: Parser newline tolerance:\n";

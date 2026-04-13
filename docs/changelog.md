@@ -10,7 +10,7 @@
     - **R Support**: Capture titles, labels (x, y, color, etc.), mappings, and layers from `ggplot2` objects.
     - **Python Support**: Full metadata extraction for `matplotlib` figures and `plotnine` (ggplot-style) objects.
 - **Transparent `read_node()` for Plots**:
-    - `read_node()` now recognizes nodes of class `ggplot` or `matplotlib`.
+    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, or `plotnine`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
 ### Core Evaluator & Emitter Refinements

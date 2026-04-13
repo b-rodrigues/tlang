@@ -51,7 +51,7 @@ let add_node_name_context name context =
   else ("node_name", VString name) :: context
 
 let is_visual_metadata_class = function
-  | "ggplot" | "matplotlib" -> true
+  | "ggplot" | "matplotlib" | "plotnine" -> true
   | _ -> false
 
 let read_standard_node_value cn =
@@ -63,6 +63,14 @@ let read_standard_node_value cn =
     match Arrow_io.read_ipc cn.cn_path with
     | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
     | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "csv" then
+    (try
+       let ch = open_in cn.cn_path in
+       let content = really_input_string ch (in_channel_length ch) in
+       close_in ch;
+       T_read_csv.parse_csv_string content
+     with _ ->
+       VComputedNode cn)
   else if cn.cn_serializer = "pmml" then
     match Pmml_utils.read_pmml cn.cn_path with
     | Ok v -> Pmml_utils.attach_source_path cn.cn_path v

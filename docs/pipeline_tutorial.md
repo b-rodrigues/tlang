@@ -56,7 +56,7 @@ p = pipeline {
 
 Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, and `shn()` as shortcuts for Python, R, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
-When an R node returns a `ggplot2` object, or a Python node returns a `matplotlib` / `plotnine` plot object, T now preserves lightweight plot metadata for REPL inspection. Reading or printing those artifacts shows a structured summary with the normalized class (`ggplot` or `matplotlib`), title, aesthetic mappings, labels, and layer information instead of a raw runtime-specific object dump.
+When an R node returns a `ggplot2` object, or a Python node returns a `matplotlib` / `plotnine` plot object, T now preserves lightweight plot metadata for REPL inspection. Reading or printing those artifacts shows a structured summary with the plot class (`ggplot`, `matplotlib`, or `plotnine`), runtime backend (`R` or `Python`), title, aesthetic mappings, labels, and layer information instead of a raw runtime-specific object dump.
 
 ### Using the `script` Argument
 

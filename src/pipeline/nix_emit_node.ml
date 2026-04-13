@@ -1120,7 +1120,7 @@ def py_extract_plot_metadata(obj):
     if PlotnineGGPlot is not None and isinstance(obj, PlotnineGGPlot):
         labels = _py_plotnine_labels(obj)
         return {
-            "class": "matplotlib",
+            "class": "plotnine",
             "backend": "Python",
             "title": labels.get("title"),
             "mapping": _py_plotnine_mapping(getattr(obj, "mapping", None)),

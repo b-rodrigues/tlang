@@ -45,8 +45,32 @@ let register env =
         (match Arrow_io.read_ipc cn.cn_path with
          | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
          | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read Arrow node `%s`: %s" cn.cn_name msg))
+      else if cn.cn_serializer = "csv" then
+        (try
+           let ch = open_in cn.cn_path in
+           let content = really_input_string ch (in_channel_length ch) in
+           close_in ch;
+           T_read_csv.parse_csv_string content
+         with exn ->
+           Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read CSV node `%s`: %s" cn.cn_name (Printexc.to_string exn)))
+      else if cn.cn_serializer = "pmml" then
+        (match Pmml_utils.read_pmml cn.cn_path with
+         | Ok v -> Pmml_utils.attach_source_path cn.cn_path v
+         | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read PMML node `%s`: %s" cn.cn_name msg))
       else
         Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer)
+    in
+    let is_visual_metadata_class = function
+      | "ggplot" | "matplotlib" | "plotnine" -> true
+      | _ -> false
+    in
+    let uses_builtin_fallback_reader cn =
+      (cn.cn_runtime = "T"
+       && (cn.cn_serializer = "default" || cn.cn_serializer = "serialize"))
+      || cn.cn_serializer = "json"
+      || cn.cn_serializer = "arrow"
+      || cn.cn_serializer = "csv"
+      || cn.cn_serializer = "pmml"
     in
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VPipeline p ->
@@ -92,23 +116,25 @@ let register env =
          | VString s -> Builder.read_node ~which_log:s name
          | _ -> Error.type_error "read_node: expected String for 'which_log'")
      | VComputedNode cn ->
-         (match Serialization_registry.lookup cn.cn_serializer with
-          | Some ser ->
-               (match ser.s_reader with
-                | VBuiltin { b_func; _ } ->
-                   b_func [(None, VString cn.cn_path)] (ref _env)
-                | _ ->
-                    Error.make_error RuntimeError (Printf.sprintf "read_node: Serializer ^%s has no T-native reader." cn.cn_serializer))
-           | None ->
-              if cn.cn_class = "ggplot" || cn.cn_class = "matplotlib" then
-                let viz_path = Filename.concat (Filename.dirname cn.cn_path) "viz" in
-                if Sys.file_exists viz_path then
-                  (match Serialization.read_json viz_path with
-                   | Ok v -> v
-                    | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read plot metadata node `%s`: %s" cn.cn_name msg))
-                else
-                  read_computed_node_value cn
-              else
+          if is_visual_metadata_class cn.cn_class then
+            let viz_path = Filename.concat (Filename.dirname cn.cn_path) "viz" in
+            if Sys.file_exists viz_path then
+              (match Serialization.read_json viz_path with
+               | Ok v -> v
+               | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "read_node: Failed to read plot metadata node `%s`: %s" cn.cn_name msg))
+            else
+              read_computed_node_value cn
+          else if uses_builtin_fallback_reader cn then
+            read_computed_node_value cn
+          else
+            (match Serialization_registry.lookup cn.cn_serializer with
+           | Some ser ->
+                (match ser.s_reader with
+                 | VBuiltin { b_func; _ } ->
+                    b_func [(None, VString cn.cn_path)] (ref _env)
+                 | _ ->
+                     Error.make_error RuntimeError (Printf.sprintf "read_node: Serializer ^%s has no T-native reader." cn.cn_serializer))
+            | None ->
                 read_computed_node_value cn)
     | VNA _ -> Error.make_error ValueError "read_node: requires a node name or a ComputedNode object."
     | _ -> Error.type_error "read_node: expected String or ComputedNode for argument 'node'"

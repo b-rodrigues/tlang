@@ -23,8 +23,8 @@ t_write_json([
 ], path_join(ggplot_dir, "viz"))
 
 t_write_json([
-  class: "matplotlib",
-  backend: "plotnine",
+  class: "plotnine",
+  backend: "Python",
   title: "Scatter plot",
   mapping: [x: "wt", y: "mpg"],
   labels: [x: "wt", y: "mpg"],
@@ -50,7 +50,7 @@ build_log = [
       path: matplotlib_artifact,
       runtime: "Python",
       serializer: "default",
-      class: "matplotlib",
+      class: "plotnine",
       dependencies: []
     ]
   ]
