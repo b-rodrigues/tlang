@@ -64,9 +64,13 @@ let read_env_node_value name cn =
     | Ok v -> v
     | Error _ -> VComputedNode cn
   else if is_visual_metadata_class cn.cn_class then
-    match Serialization.read_json cn.cn_path with
-    | Ok v -> v
-    | Error _ -> VComputedNode cn
+    let viz_path = Filename.concat (Filename.dirname cn.cn_path) "viz" in
+    if Sys.file_exists viz_path then
+      match Serialization.read_json viz_path with
+      | Ok v -> v
+      | Error _ -> VComputedNode cn
+    else
+      VComputedNode cn
   else if cn.cn_serializer = "json" then
     match Serialization.read_json cn.cn_path with
     | Ok v -> v
@@ -154,10 +158,14 @@ let read_node ?which_log name =
                         VError { e with context = add_node_name_context name e.context }
                     | Ok v -> v
                     | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Error node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
-                else if is_visual_metadata_class cn.Ast.cn_class then
-                  (match Serialization.read_json cn.Ast.cn_path with
-                   | Ok v -> v
-                   | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read plot metadata node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
+                else if is_visual_metadata_class cn.cn_class then
+                  let viz_path = Filename.concat (Filename.dirname cn.cn_path) "viz" in
+                  if Sys.file_exists viz_path then
+                    (match Serialization.read_json viz_path with
+                     | Ok v -> v
+                     | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read plot metadata node `%s` from `%s`: %s" name viz_path msg))
+                  else
+                    VComputedNode cn
                 else if cn.Ast.cn_runtime = "T"
                    && (cn.Ast.cn_serializer = "default" || cn.Ast.cn_serializer = "serialize")
                 then

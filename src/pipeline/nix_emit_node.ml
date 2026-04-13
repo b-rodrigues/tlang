@@ -1049,13 +1049,11 @@ r_visual_class <- function(object) {
   }
 }
 
-r_write_plot_metadata <- function(object, path) {
+r_save_viz_metadata <- function(object, path) {
   metadata <- r_extract_plot_metadata(object)
-  if (is.null(metadata)) {
-    return(FALSE)
+  if (!is.null(metadata)) {
+    jsonlite::write_json(metadata, path, auto_unbox = TRUE, null = "null")
   }
-  jsonlite::write_json(metadata, path, auto_unbox = TRUE, null = "null")
-  TRUE
 }
 |} in
 
@@ -1183,13 +1181,11 @@ def py_visual_class(obj):
         return metadata.get("class", "matplotlib")
     return type(obj).__name__
 
-def py_write_plot_metadata(obj, path):
+def py_save_viz_metadata(obj, path):
     metadata = py_extract_plot_metadata(obj)
-    if metadata is None:
-        return False
-    with open(path, "w") as f:
-        json.dump(metadata, f)
-    return True
+    if metadata is not None:
+        with open(path, "w") as f:
+            json.dump(metadata, f)
 |} in
 
   let visualization_injection =
@@ -1315,20 +1311,19 @@ def py_write_plot_metadata(obj, path):
   let is_raw_code = match expr.Ast.node with RawCode _ -> true | _ -> false in
 
   let r_emit_artifact value_name =
+    let viz_call = Printf.sprintf "  r_save_viz_metadata(%s, \"$out/viz\")" value_name in
     if uses_default_serializer then
-      Printf.sprintf {|  if (r_write_plot_metadata(%s, "$out/artifact")) {
-    invisible(NULL)
-  } else {
-    %s(%s, "$out/artifact")
-  }|} value_name ser_call value_name
+      Printf.sprintf {|%s
+  %s(%s, "$out/artifact")|} viz_call ser_call value_name
     else
       Printf.sprintf {|  %s(%s, "$out/artifact")|} ser_call value_name
   in
 
   let py_emit_artifact value_name =
+    let viz_call = Printf.sprintf "    py_save_viz_metadata(%s, \"$out/viz\")" value_name in
     if uses_default_serializer then
-      Printf.sprintf {|    if not py_write_plot_metadata(%s, "$out/artifact"):
-        %s(%s, "$out/artifact")|} value_name ser_call value_name
+      Printf.sprintf {|%s
+    %s(%s, "$out/artifact")|} viz_call ser_call value_name
     else
       Printf.sprintf {|    %s(%s, "$out/artifact")|} ser_call value_name
   in
