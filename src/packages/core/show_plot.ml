@@ -205,13 +205,12 @@ ggplot2::ggsave(
   units = "in"
 )
 |}
-    artifact_path
     rendered_plot_filename
     rendered_plot_width_inches
     rendered_plot_height_inches
     rendered_plot_dpi
 
-let render_script_for_python artifact_path =
+let render_script_for_python _artifact_path =
   Printf.sprintf
     {|
 import os
@@ -287,7 +286,6 @@ elif type(plot_obj).__module__.startswith("bokeh"):
 else:
     raise TypeError("show_plot currently supports matplotlib Figure/Axes, plotnine ggplot, seaborn Grid, plotly Figure, altair Chart, and bokeh Figure objects for Python nodes.")
 |}
-    artifact_path
     rendered_plot_filename
     rendered_plot_dpi
     rendered_plot_dpi
