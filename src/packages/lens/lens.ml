@@ -515,6 +515,10 @@ let over_impl ~eval_call args env =
 *)
 let get_impl ~eval_call args env =
   match args with
+  | [(_, VString name)] | [(_, VSymbol name)] ->
+      (match Env.find_opt name env with
+       | Some v -> v
+       | None -> Error.name_error name)
   | [(_, data); (_, VDict items)] ->
       (match List.assoc_opt "get" items with
        | Some get_fn -> eval_call env get_fn [(None, mk_expr (Value data))]
@@ -533,7 +537,7 @@ let get_impl ~eval_call args env =
       else VFloat arr.data.(i)
   | [(_, _); (_, other)] ->
       Error.type_error (Printf.sprintf "get expects either (data, Lens) or (collection, Index). Got %s for the second argument." (Utils.type_name other))
-  | _ -> Error.arity_error_named "get" 2 (List.length args)
+  | _ -> Error.type_error "Function `get` expects (1) a variable name [String/Symbol] or (2) a collection and integer index."
 
 (*
 --# Compose Lenses
@@ -744,7 +748,7 @@ let register ~eval_call env =
   env
   |> make_l_builtin "col_lens" 1 col_lens_impl
   |> make_l_builtin "over" 3 over_impl
-  |> make_l_builtin "get" 2 get_impl
+  |> make_l_builtin ~variadic:true "get" 1 get_impl
   |> make_l_builtin ~variadic:true "compose" 2 compose_impl
   |> make_l_builtin "set" 3 set_impl
   |> make_l_builtin ~variadic:true "modify" 1 modify_impl

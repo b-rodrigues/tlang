@@ -17,6 +17,16 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "map" "map([1, 2, 3], \\(x) x * x)" "[1, 4, 9]";
   print_newline ();
 
+  Printf.printf "Metaprogramming Builtins:\n";
+  test "sym from string" {|type(sym("mpg"))|} {|"Symbol"|};
+  test "get variable by name" "x = 42; get(\"x\")" "42";
+  test "get variable by symbol" "x = 42; get(sym(\"x\"))" "42";
+  test "get indexing list" "get([10, 20], 0)" "10";
+  test "get indexing list 2" "x = [10, 20]; get(x, 1)" "20";
+  test "get nonexistent variable" {|is_error(get("nonexistent"))|} "true";
+  test "get wrong type" "get(42)" {|Error(TypeError: "Function `get` expects (1) a variable name [String/Symbol] or (2) a collection and integer index.")|};
+  print_newline ();
+
   Printf.printf "Filesystem Builtins:\n";
   test "getwd returns string" "type(getwd())" {|"String"|};
   test "file_exists false for /tmp (dir not file)" {|file_exists("/tmp")|} "false";
