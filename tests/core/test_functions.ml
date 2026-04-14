@@ -10,6 +10,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "autoquoted parameter works with summarize unquote"
     "f = \\(df, $col) summarize(df, result = mean(!!col)); df = dataframe([age: [1, 2], wt: [3, 4]]); get(pull(f(df, age), \"result\"), 0)"
     "1.5";
+  test "autoquoted parameter keeps working when caller passes $column"
+    "f = \\(df, $col) summarize(df, result = mean(!!col)); df = dataframe([age: [1, 2], wt: [3, 4]]); get(pull(f(df, $age), \"result\"), 0)"
+    "1.5";
   test "autoquoted parameter works with mutate unquote"
     "f = \\(df, $col) mutate(df, copy = !!col); df = dataframe([age: [1, 2], wt: [3, 4]]); get(pull(f(df, age), \"copy\"), 1)"
     "2";

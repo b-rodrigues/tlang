@@ -2085,13 +2085,22 @@ and autoquote_name_error ?location () =
     "Auto-quoted parameters expect a bare name, $column, String, or Symbol."
 
 and strip_leading_dollar s =
-  if String.length s > 0 && s.[0] = '$' then
+  if s = "" then
+    s
+  else if s.[0] = '$' then
     String.sub s 1 (String.length s - 1)
   else
     s
 
 and take_prefix n xs =
-  if List.length xs > n then List.filteri (fun i _ -> i < n) xs else xs
+  let rec go acc remaining_count rest =
+    if remaining_count <= 0 then List.rev acc
+    else
+      match rest with
+      | [] -> List.rev acc
+      | x :: xs_rest -> go (x :: acc) (remaining_count - 1) xs_rest
+  in
+  go [] n xs
 
 and autoquote_name_of_expr (expr : Ast.expr) : (string, value) result =
   let normalize name =
@@ -2327,6 +2336,8 @@ and eval_call env_ref fn_val raw_args =
 
   let named_args = process_args_spliced [] 0 raw_args in
 
+  (* Apply a user lambda, including the autoquote-specific `__aq_<name>` bindings
+     used to re-expand `!!param` inside NSE-aware builtins. *)
   let apply_lambda base_env params autoquote_params param_types return_type variadic body =
     let args_vals = List.map snd named_args in
     let n_params = List.length params in
@@ -2337,7 +2348,12 @@ and eval_call env_ref fn_val raw_args =
       let fixed_args = take_prefix n_params args_vals in
       let autoquote_error =
         List.find_map (fun (value, is_autoquoted) ->
-          if is_autoquoted then match value with VError _ as e -> Some e | _ -> None else None
+          if is_autoquoted then
+            match value with
+            | VError _ as e -> Some e
+            | _ -> None
+          else
+            None
         ) (List.combine fixed_args autoquote_params)
       in
       match autoquote_error with
