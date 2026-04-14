@@ -89,6 +89,20 @@ x = 100
 eval(q)          -- evaluates in captured env (x = 5) → 6
 ```
 
+### Dynamic Lookup: `get(name)`
+
+The `get()` function provides a way to retrieve a variable's value dynamically by its name (as a String or Symbol). This matches R's `get()` semantics and is useful when you have a variable name stored in a string.
+
+```t
+salary = [1000, 2000, 3000]
+var_name = "salary"
+
+get(var_name)       -- retrieves [1000, 2000, 3000]
+get(sym(var_name))  -- also works with Symbols
+```
+
+Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!sym(col)`.
+
 ## Quasiquotation
 
 Quasiquotation allows you to "fill in the blanks" in a captured expression.
@@ -158,7 +172,7 @@ expr(select(df, !!sym(col_name)))
 -- Output: expr(select(df, mpg))
 ```
 
-This is most useful for programmatic code generation. It complements `enquo()`: `enquo()` captures what the caller wrote, while `sym()` starts from an already-computed string.
+This is most useful for programmatic code generation. Use `sym()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
 
 ## Non-Standard Evaluation (NSE)
 
@@ -258,6 +272,8 @@ e = expr((add, 1, 2))
 | `quo(x)` | Capture `x` as a Quosure (expression + lexical environment). |
 | `quos(...)` | Capture multiple expressions as a List of Quosures. |
 | `eval(e)` | Evaluate Expression `e` in the current env, or Quosure `e` in its captured env. |
+| `get(name)` | Dynamically retrieve a variable's value by String or Symbol name. |
+| `sym(s)` | Convert a String `s` into a Symbol at runtime. |
 | `!!x` | Evaluate `x` and inject into `expr()`/`quo()`; strips env from quosures. |
 | `!!!x` | Evaluate `x` and splice elements into `expr()`/`quo()`. |
 | `!!name := value` | Use a dynamic String/Symbol as an argument name inside `expr()`/`quo()`. |
