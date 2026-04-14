@@ -579,7 +579,7 @@ let compose2 ~eval_call lens1 lens2 =
             match args with
             | [(_, data); (_, val_v)] ->
                      let setter_lambda = VLambda {
-                       params = ["inner"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
+                       params = ["inner"]; autoquote_params = [false]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
                        body = mk_expr (Call { fn = mk_expr (Value set2); args = [(None, mk_expr (Var "inner")); (None, mk_expr (Value val_v))] });
                        env = Some !env_ref;
                      } in

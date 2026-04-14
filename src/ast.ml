@@ -257,6 +257,7 @@ and builtin = {
 
 and lambda = {
   params : symbol list;
+  autoquote_params : bool list;
   param_types : typ option list;
   return_type : typ option;
   generic_params : string list;
@@ -390,6 +391,16 @@ module Utils = struct
   let rec unwrap_value = function
     | VNodeResult { v; _ } -> unwrap_value v
     | v -> v
+
+  let display_params params autoquote_params =
+    let rec go acc ps aqs =
+      match ps, aqs with
+      | [], _ -> List.rev acc
+      | p :: ps_rest, true :: aqs_rest -> go (("$" ^ p) :: acc) ps_rest aqs_rest
+      | p :: ps_rest, false :: aqs_rest -> go (p :: acc) ps_rest aqs_rest
+      | p :: ps_rest, [] -> go (p :: acc) ps_rest []
+    in
+    go [] params autoquote_params
 
   let rec is_truthy = function
     | VBool false | VInt 0 -> false
@@ -622,8 +633,8 @@ module Utils = struct
           | None -> unparse_expr e
         ) args in
         unparse_expr fn ^ "(" ^ String.concat ", " args_s ^ ")"
-    | Lambda { params; body; _ } ->
-        "\\(" ^ String.concat ", " params ^ ") " ^ unparse_expr body
+    | Lambda { params; autoquote_params; body; _ } ->
+        "\\(" ^ String.concat ", " (display_params params autoquote_params) ^ ") " ^ unparse_expr body
     | IfElse { cond; then_; else_ } ->
         "if (" ^ unparse_expr cond ^ ") " ^ unparse_expr then_ ^ " else " ^ unparse_expr else_
     | Match { scrutinee; cases } ->
@@ -753,9 +764,9 @@ module Utils = struct
         ) p_nodes in
         if errors = [] then base
         else base ^ "\nErrors:" ^ (String.concat "" errors)
-    | VLambda { params; variadic; _ } ->
+    | VLambda { params; autoquote_params; variadic; _ } ->
         let dots = if variadic then ", ..." else "" in
-        "\\(" ^ String.concat ", " params ^ dots ^ ") -> <function>"
+        "\\(" ^ String.concat ", " (display_params params autoquote_params) ^ dots ^ ") -> <function>"
     | VBuiltin _ -> "<builtin_function>"
     | VNA na_t ->
         let tag = na_type_to_string na_t in

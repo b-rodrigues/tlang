@@ -180,6 +180,31 @@ my_select(iris, $Sepal.Length)
 
 `enquo()` accepts exactly one argument, which must be a bare symbol (the name of one of the function's parameters).
 
+### Auto-Quoted Parameters: `\(df, $col)`
+
+T now supports auto-quoting directly in lambda and `function(...)` parameter lists. Prefixing a parameter with `$` means the caller can pass a bare column name and the function receives it as a symbol-like column reference.
+
+```t
+my_mean = \(df, $col) {
+  summarize(df, result = mean(!!col))
+}
+
+df = dataframe([salary: [100, 200, 300]])
+my_mean(df, salary)
+```
+
+This removes the need for the common `enquo()` + `eval(expr(...))` wrapper when the function is simply forwarding a column-like argument into an NSE-aware data verb.
+
+Current behavior:
+
+- callers can pass a bare name like `salary`
+- callers can still pass `$salary`
+- string and symbol values are also accepted
+- the captured parameter evaluates to a `Symbol` in ordinary code
+- `!!col` inside NSE-aware verbs expands back to a column reference so `summarize(result = mean(!!col))` works as expected
+
+Use `enquo()` when you need to preserve the caller's full expression rather than just a column-style name.
+
 ### `enquos(...)`
 
 `enquos()` is the variadic counterpart to `enquo()`. It captures all expressions passed through the variadic `...` parameter as a named list of Quosures, each paired with the caller's environment.
@@ -267,5 +292,5 @@ df |> mutate(new = $score * 2)
 ## Best Practices
 
 1.  **Use `quo` by default**: When in doubt, use `quo` instead of `expr`. It ensures the code "remembers" its environment, preventing `NameError` when evaluated in different contexts.
-2.  **Quotation in Functions**: Use `enquo` when you need to capture the caller's expression for later injection. Today, callers should still pass `$col` for column references; if you already have a string name, convert it with `sym()` before injecting it with `!!`.
+2.  **Quotation in Functions**: Use `$param` for the common "accept a column name" case. Use `enquo` when you need the caller's full expression, and use `sym()` when you are starting from a computed string.
 3.  **Dynamic Naming**: Use `!!name := !!value` for maximum flexibility when writing generic data processing functions.

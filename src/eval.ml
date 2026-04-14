@@ -2080,15 +2080,113 @@ and eval_dot_access_val _env_ref target_val field =
 and lambda_arity_error params args =
   Error.arity_error (List.length params) (List.length args)
 
+and autoquote_name_error ?location () =
+  make_error ?location TypeError
+    "Auto-quoted parameters expect a bare name, $column, String, or Symbol."
+
+and strip_leading_dollar s =
+  if String.length s > 0 && s.[0] = '$' then
+    String.sub s 1 (String.length s - 1)
+  else
+    s
+
+and autoquote_name_of_expr (expr : Ast.expr) : (string, value) result =
+  let normalize name =
+    let trimmed = String.trim name in
+    if trimmed = "" then Error (autoquote_name_error ?location:expr.loc ())
+    else Ok trimmed
+  in
+  match expr.node with
+  | Var name -> normalize name
+  | ColumnRef name -> normalize name
+  | Value (VString name) -> normalize name
+  | Value (VSymbol name) -> normalize (strip_leading_dollar name)
+  | _ -> Error (autoquote_name_error ?location:expr.loc ())
+
+and autoquote_capture_expr (expr : Ast.expr) : (Ast.expr * value, value) result =
+  match autoquote_name_of_expr expr with
+  | Ok name ->
+      let loc = expr.loc in
+      Ok (Ast.mk_expr ?loc (ColumnRef name), VSymbol name)
+  | Error _ as err -> err
+
+and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
+  let loc = expr.loc in
+  let rec expand = expand_autoquoted_unquotes env_ref in
+  let expand_stmt stmt =
+    let stmt_loc = stmt.loc in
+    match stmt.node with
+    | Expression e -> Ast.mk_stmt ?loc:stmt_loc (Expression (expand e))
+    | Assignment { name; typ; expr = e } -> Ast.mk_stmt ?loc:stmt_loc (Assignment { name; typ; expr = expand e })
+    | Reassignment { name; expr = e } -> Ast.mk_stmt ?loc:stmt_loc (Reassignment { name; expr = expand e })
+    | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
+  in
+  match expr.node with
+  | Unquote { node = Var name; _ } ->
+      (match Env.find_opt ("__aq_" ^ name) !env_ref with
+       | Some (VExpr captured) -> captured
+       | _ -> expr)
+  | Call { fn; args } ->
+      Ast.mk_expr ?loc (Call { fn = expand fn; args = List.map (fun (name, e) -> (name, expand e)) args })
+  | BinOp { op; left; right } ->
+      Ast.mk_expr ?loc (BinOp { op; left = expand left; right = expand right })
+  | BroadcastOp { op; left; right } ->
+      Ast.mk_expr ?loc (BroadcastOp { op; left = expand left; right = expand right })
+  | UnOp { op; operand } ->
+      Ast.mk_expr ?loc (UnOp { op; operand = expand operand })
+  | IfElse { cond; then_; else_ } ->
+      Ast.mk_expr ?loc (IfElse { cond = expand cond; then_ = expand then_; else_ = expand else_ })
+  | Match { scrutinee; cases } ->
+      Ast.mk_expr ?loc (Match { scrutinee = expand scrutinee; cases = List.map (fun (pattern, body) -> (pattern, expand body)) cases })
+  | ListLit items ->
+      Ast.mk_expr ?loc (ListLit (List.map (fun (name, e) -> (name, expand e)) items))
+  | ListComp { expr = inner; clauses } ->
+      let clauses =
+        List.map (function
+          | CFor { var; iter } -> CFor { var; iter = expand iter }
+          | CFilter filter_expr -> CFilter (expand filter_expr)
+        ) clauses
+      in
+      Ast.mk_expr ?loc (ListComp { expr = expand inner; clauses })
+  | DictLit pairs ->
+      Ast.mk_expr ?loc (DictLit (List.map (fun (name, e) -> (name, expand e)) pairs))
+  | DotAccess { target; field } ->
+      Ast.mk_expr ?loc (DotAccess { target = expand target; field })
+  | PipelineDef nodes ->
+      Ast.mk_expr ?loc (PipelineDef (List.map (fun (name, e) -> (name, expand e)) nodes))
+  | IntentDef pairs ->
+      Ast.mk_expr ?loc (IntentDef (List.map (fun (name, e) -> (name, expand e)) pairs))
+  | Unquote inner ->
+      Ast.mk_expr ?loc (Unquote (expand inner))
+  | UnquoteSplice inner ->
+      Ast.mk_expr ?loc (UnquoteSplice (expand inner))
+  | Lambda l ->
+      Ast.mk_expr ?loc (Lambda { l with body = expand l.body })
+  | Block stmts ->
+      Ast.mk_expr ?loc (Block (List.map expand_stmt stmts))
+  | Value _ | Var _ | ColumnRef _ | RawCode _ | ShellExpr _ -> expr
+
 and eval_call env_ref fn_val raw_args =
   let current_builtin_name =
     match fn_val with
     | VBuiltin { b_name; _ } -> b_name
     | _ -> None
   in
+  let lambda_autoquote_flags =
+    match fn_val with
+    | VLambda { autoquote_params; _ } -> Some (Array.of_list autoquote_params)
+    | _ -> None
+  in
+  let autoquote_captured_exprs : (int * Ast.expr) list ref = ref [] in
+  let is_autoquoted_fixed_param index =
+    match lambda_autoquote_flags with
+    | Some flags when index < Array.length flags -> flags.(index)
+    | _ -> false
+  in
   let make_row_lambda body =
     Ast.mk_expr (Lambda {
       params = ["row"];
+      autoquote_params = [false];
       param_types = [None];
       return_type = None;
       generic_params = [];
@@ -2120,6 +2218,7 @@ and eval_call env_ref fn_val raw_args =
     if not (uses_nse_builtin current_builtin_name) then args
     else
     List.map (fun (name, expr) ->
+      let expr = expand_autoquoted_unquotes env_ref expr in
       let loc = expr.loc in
       match expr.node with
       | Call { fn = { node = Var "n"; _ }; args = [] }
@@ -2186,9 +2285,20 @@ and eval_call env_ref fn_val raw_args =
     (VNA NAGeneric)
   ) else begin
 
-  let rec process_args_spliced acc = function
+  let rec process_args_spliced acc param_index = function
     | [] -> acc
     | (name, e) :: rest ->
+        if is_autoquoted_fixed_param param_index then
+          let next_acc =
+            match autoquote_capture_expr e with
+            | Ok (captured_expr, captured_value) ->
+                autoquote_captured_exprs := (param_index, captured_expr) :: !autoquote_captured_exprs;
+                acc @ [(name, captured_value)]
+            | Error err ->
+                acc @ [(name, err)]
+          in
+          process_args_spliced next_acc (param_index + 1) rest
+        else
         let v = match e.node with
           | Call { fn = { node = Var "__dynamic_arg__"; _ }; args = [(_, name_expr); (_, value_expr)] } ->
               let n_val = eval_expr env_ref name_expr in
@@ -2198,7 +2308,7 @@ and eval_call env_ref fn_val raw_args =
           | _ -> eval_expr env_ref e
         in
         match v with
-        | VUnquote inner -> process_args_spliced (acc @ [(name, inner)]) rest
+        | VUnquote inner -> process_args_spliced (acc @ [(name, inner)]) (param_index + 1) rest
         | VUnquoteSplice sv ->
             let units = match sv with
               | VList items -> items
@@ -2206,13 +2316,74 @@ and eval_call env_ref fn_val raw_args =
               | VDict d -> List.map (fun (k, v) -> (Some k, v)) d
               | _ -> [(name, sv)]
             in
-            process_args_spliced (acc @ units) rest
+            process_args_spliced (acc @ units) (param_index + List.length units) rest
         | VDynamicArg (n, v) ->
-            process_args_spliced (acc @ [(Some n, v)]) rest
-        | _ -> process_args_spliced (acc @ [(name, v)]) rest
+            process_args_spliced (acc @ [(Some n, v)]) (param_index + 1) rest
+        | _ -> process_args_spliced (acc @ [(name, v)]) (param_index + 1) rest
   in
 
-  let named_args = process_args_spliced [] raw_args in
+  let named_args = process_args_spliced [] 0 raw_args in
+
+  let apply_lambda base_env params autoquote_params param_types return_type variadic body =
+    let args_vals = List.map snd named_args in
+    let n_params = List.length params in
+    let n_args = List.length args_vals in
+    if (not variadic && n_params <> n_args) || (variadic && n_args < n_params) then
+      lambda_arity_error params args_vals
+    else
+      let fixed_args = if n_args > n_params then List.filteri (fun i _ -> i < n_params) args_vals else args_vals in
+      let autoquote_error =
+        List.find_map (fun (value, is_autoquoted) ->
+          if is_autoquoted then match value with VError _ as e -> Some e | _ -> None else None
+        ) (List.combine fixed_args autoquote_params)
+      in
+      match autoquote_error with
+      | Some err -> err
+      | None ->
+          let type_errors = List.filter_map (fun (v, t_opt) ->
+            match t_opt with
+            | Some t when not (Ast.is_compatible v t) ->
+                let expected = Ast.Utils.typ_to_string t in
+                let got = Ast.Utils.type_name v in
+                Some (Printf.sprintf "Expected %s, got %s" expected got)
+            | _ -> None
+          ) (List.combine fixed_args param_types) in
+          if type_errors <> [] then
+            Error.type_error (String.concat "; " type_errors)
+          else
+            let call_env =
+              List.fold_left2
+                (fun current_env name value -> Env.add name value current_env)
+                base_env params fixed_args
+            in
+            let caller_env = !env_ref in
+            let call_raw_args = List.map snd raw_args in
+            let call_env = List.fold_left2 (fun acc name e ->
+              Env.add ("__q_" ^ name) (VExpr e) acc
+            ) call_env params (if List.length call_raw_args > n_params then List.filteri (fun i _ -> i < n_params) call_raw_args else call_raw_args) in
+            let call_env =
+              List.fold_left (fun acc (index, captured_expr) ->
+                match List.nth_opt params index with
+                | Some name -> Env.add ("__aq_" ^ name) (VExpr captured_expr) acc
+                | None -> acc
+              ) call_env !autoquote_captured_exprs
+            in
+            let call_env = Env.add "__q_caller_env__" (VEnv caller_env) call_env in
+            let call_env = if variadic then
+               let dots_vals = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) args_vals |> List.map (fun v -> (None, v)) else [] in
+               let dots_exprs = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) raw_args |> List.map (fun (n, e) -> (n, VExpr e)) else [] in
+               let env = Env.add "..." (VList dots_vals) call_env in
+               Env.add "__q_dots" (VList dots_exprs) env
+            else call_env in
+            let call_env_ref = ref call_env in
+            let result = eval_expr call_env_ref body in
+            (match return_type with
+             | Some t when not (Error.is_error_value result) && not (Ast.is_compatible result t) ->
+                 let expected = Ast.Utils.typ_to_string t in
+                 let got = Ast.Utils.type_name result in
+                 Error.type_error (Printf.sprintf "Function returned %s, but expected %s" got expected)
+             | _ -> result)
+  in
 
   match fn_val with
   | VBuiltin { b_arity; b_variadic; b_func; _ } ->
@@ -2222,110 +2393,11 @@ and eval_call env_ref fn_val raw_args =
       else
         b_func named_args env_ref
 
-  | VLambda { params; param_types; return_type; variadic; body; env = Some closure_env; _ } ->
-      let args_vals = List.map snd named_args in
-      let n_params = List.length params in
-      let n_args = List.length args_vals in
-      if (not variadic && n_params <> n_args) || (variadic && n_args < n_params) then
-        lambda_arity_error params args_vals
-      else
-        (* Runtime Type Check: Arguments (fixed-arity part) *)
-        let fixed_args = if n_args > n_params then List.filteri (fun i _ -> i < n_params) args_vals else args_vals in
-        let type_errors = List.filter_map (fun (v, t_opt) ->
-          match t_opt with
-          | Some t when not (Ast.is_compatible v t) ->
-              let expected = Ast.Utils.typ_to_string t in
-              let got = Ast.Utils.type_name v in
-              Some (Printf.sprintf "Expected %s, got %s" expected got)
-          | _ -> None
-        ) (List.combine fixed_args param_types) in
+  | VLambda { params; autoquote_params; param_types; return_type; variadic; body; env = Some closure_env; _ } ->
+      apply_lambda closure_env params autoquote_params param_types return_type variadic body
 
-        if type_errors <> [] then
-          Error.type_error (String.concat "; " type_errors)
-        else
-          let call_env =
-            List.fold_left2
-              (fun current_env name value -> Env.add name value current_env)
-              closure_env params fixed_args
-          in
-          (* Bind expressions for enquo() — also store the caller's env for quosure capture *)
-          let caller_env = !env_ref in
-          let call_raw_args = List.map snd raw_args in
-          let call_env = List.fold_left2 (fun acc name e ->
-            Env.add ("__q_" ^ name) (VExpr e) acc
-          ) call_env params (if List.length call_raw_args > n_params then List.filteri (fun i _ -> i < n_params) call_raw_args else call_raw_args) in
-          let call_env = Env.add "__q_caller_env__" (VEnv caller_env) call_env in
-
-          (* Handle variadic ... *)
-          let call_env = if variadic then
-             let dots_vals = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) args_vals |> List.map (fun v -> (None, v)) else [] in
-             let dots_exprs = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) raw_args |> List.map (fun (n, e) -> (n, VExpr e)) else [] in
-             let env = Env.add "..." (VList dots_vals) call_env in
-             Env.add "__q_dots" (VList dots_exprs) env
-          else call_env in
-
-          let call_env_ref = ref call_env in
-          let result = eval_expr call_env_ref body in
-          (* Runtime Type Check: Return Value *)
-          (match return_type with
-           | Some t when not (Error.is_error_value result) && not (Ast.is_compatible result t) ->
-               let expected = Ast.Utils.typ_to_string t in
-               let got = Ast.Utils.type_name result in
-               Error.type_error (Printf.sprintf "Function returned %s, but expected %s" got expected)
-           | _ -> result)
-
-  | VLambda { params; param_types; return_type; variadic; body; env = None; _ } ->
-      (* Lambda without closure — use current env *)
-      let args_vals = List.map snd named_args in
-      let n_params = List.length params in
-      let n_args = List.length args_vals in
-      if (not variadic && n_params <> n_args) || (variadic && n_args < n_params) then
-        lambda_arity_error params args_vals
-      else
-        (* Runtime Type Check: Arguments (fixed-arity part) *)
-        let fixed_args = if n_args > n_params then List.filteri (fun i _ -> i < n_params) args_vals else args_vals in
-        let type_errors = List.filter_map (fun (v, t_opt) ->
-          match t_opt with
-          | Some t when not (Ast.is_compatible v t) ->
-              let expected = Ast.Utils.typ_to_string t in
-              let got = Ast.Utils.type_name v in
-              Some (Printf.sprintf "Expected %s, got %s" expected got)
-          | _ -> None
-        ) (List.combine fixed_args param_types) in
-
-        if type_errors <> [] then
-          Error.type_error (String.concat "; " type_errors)
-        else
-          let call_env =
-            List.fold_left2
-              (fun current_env name value -> Env.add name value current_env)
-              !env_ref params fixed_args
-          in
-          (* Bind expressions for enquo() — also store the caller's env for quosure capture *)
-          let caller_env = !env_ref in
-          let call_raw_args = List.map snd raw_args in
-          let call_env = List.fold_left2 (fun acc name e ->
-            Env.add ("__q_" ^ name) (VExpr e) acc
-          ) call_env params (if List.length call_raw_args > n_params then List.filteri (fun i _ -> i < n_params) call_raw_args else call_raw_args) in
-          let call_env = Env.add "__q_caller_env__" (VEnv caller_env) call_env in
-
-          (* Handle variadic ... *)
-          let call_env = if variadic then
-             let dots_vals = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) args_vals |> List.map (fun v -> (None, v)) else [] in
-             let dots_exprs = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) raw_args |> List.map (fun (n, e) -> (n, VExpr e)) else [] in
-             let env = Env.add "..." (VList dots_vals) call_env in
-             Env.add "__q_dots" (VList dots_exprs) env
-          else call_env in
-
-          let call_env_ref = ref call_env in
-          let result = eval_expr call_env_ref body in
-          (* Runtime Type Check: Return Value *)
-          (match return_type with
-           | Some t when not (Error.is_error_value result) && not (Ast.is_compatible result t) ->
-               let expected = Ast.Utils.typ_to_string t in
-               let got = Ast.Utils.type_name result in
-               Error.type_error (Printf.sprintf "Function returned %s, but expected %s" got expected)
-           | _ -> result)
+  | VLambda { params; autoquote_params; param_types; return_type; variadic; body; env = None; _ } ->
+      apply_lambda !env_ref params autoquote_params param_types return_type variadic body
 
   | VSymbol s ->
       (* Try to look up the symbol in the env — might be a function name *)
@@ -2336,9 +2408,9 @@ and eval_call env_ref fn_val raw_args =
               Wrap them in a row-accessor lambda so they are callable by verbs (NSE). *)
            if String.length s > 0 && s.[0] = '$' then
              let field = String.sub s 1 (String.length s - 1) in
-             let fn = VLambda { params = ["row"]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
-                               body = Ast.mk_expr (DotAccess { target = Ast.mk_expr (Var "row"); field }); env = Some !env_ref } in
-             eval_call env_ref fn raw_args
+              let fn = VLambda { params = ["row"]; autoquote_params = [false]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
+                                body = Ast.mk_expr (DotAccess { target = Ast.mk_expr (Var "row"); field }); env = Some !env_ref } in
+              eval_call env_ref fn raw_args
            else
              let names = 
                Env.bindings !env_ref 

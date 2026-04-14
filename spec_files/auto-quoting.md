@@ -123,16 +123,16 @@ This is a small, self-contained addition with no parser changes required. It hel
 
 ---
 
-## Gap 2: No Auto-Quoting Parameter Annotations
+## Gap 2: Auto-Quoting Parameter Annotations
 
-The deeper ergonomic problem is that writing a reusable function that accepts column names forces callers to remember to pass `$col` rather than a bare name, 
-and forces the function body to use `eval(expr(...))` machinery even for simple cases.
+The deeper ergonomic problem was that writing a reusable function that accepts column names forced callers to remember to pass `$col` rather than a bare name, 
+and often pushed function bodies toward `eval(expr(...))` machinery even for simple cases.
 
 The R-devel thread proposed (via Michael Lawrence) annotating a formal parameter in the function signature to mark it as auto-quoting. 
 T's existing `$` prefix creates a natural place for exactly this extension: if `$col` in a *call* means "treat as a column reference", 
 then `$col` in a *parameter list* could mean "auto-quote this argument".
 
-### Proposed syntax
+### Implemented syntax
 
 ```t
 -- Current: caller must supply $col, body needs enquo or prior $ passing
@@ -142,7 +142,7 @@ my_mean = \(df, col) {
 }
 my_mean(df, $salary)     -- caller must remember $
 
--- Proposed: $ in parameter list marks argument as auto-quoted
+-- Implemented: $ in parameter list marks argument as auto-quoted
 my_mean = \(df, $col) {
     df |> summarize(result = mean(!!col))
 }
@@ -152,17 +152,18 @@ my_mean(df, salary)      -- caller writes bare name, no $ needed
 The symmetry mirrors the C pointer analogy noted in the original thread: `*a` in a declaration creates a pointer, `*a` in an expression dereferences it. 
 Here `$col` in a declaration means "quote on the way in", `!!col` in the body means "inject the symbol".
 
-This would make the `eval(expr(...))` wrapper unnecessary for the common case of passing through a column reference to a data verb.
+This makes the `eval(expr(...))` wrapper unnecessary for the common case of passing through a column reference to a data verb.
 
 ### Scope and complexity
 
-This is a parser and evaluator change, not just a library addition. It requires:
+This required a parser and evaluator change, not just a library addition:
 
-- recognising `$param` in lambda parameter lists as an annotation rather than a syntax error
-- at call time, capturing the argument expression as a `Symbol` rather than evaluating it
-- documenting the interaction with `enquo` (auto-quoted parameters would not need `enquo`)
+- `$param` in lambda/function parameter lists is recognised as an annotation
+- at call time, bare names are captured without eager evaluation and bound as symbols
+- inside NSE-aware verbs, `!!col` is expanded back into a column reference so patterns like `summarize(result = mean(!!col))` work directly
+- `enquo()` remains the tool for preserving an arbitrary caller expression; `$param` is the lighter-weight column-name shortcut
 
-It is the larger of the two proposed changes and warrants its own design discussion before implementation.
+Current limit: auto-quoted parameters are intentionally restricted to column-style inputs (bare names, `$col`, strings, or symbols). Passing an arbitrary expression still raises a clear `TypeError` rather than guessing.
 
 ---
 
@@ -177,12 +178,12 @@ It is the larger of the two proposed changes and warrants its own design discuss
 | `$col` NSE in colcraft verbs | ✅ Implemented | Already a Symbol at call time |
 | `eval(expr(...))` workaround | ✅ Works today | Verbose but correct |
 | `sym(string) -> Symbol` | ✅ Implemented | Available in `core`; supports string-driven quasiquotation |
-| Auto-quoting parameter `$param` | ❌ Missing | Larger change, needs design work |
+| Auto-quoting parameter `$param` | ✅ Implemented | Best for column-style inputs; arbitrary expressions still use `enquo()` |
 
 ---
 
 ## Recommended Next Steps
 
-1. **Short term**: Continue tightening the metaprogramming documentation so it distinguishes clearly between `enquo()` (capture what the caller wrote) and `sym()` (start from a computed string).
+1. **Short term**: Continue tightening the metaprogramming documentation so it distinguishes clearly between `$param` (column-name shortcut), `enquo()` (capture what the caller wrote), and `sym()` (start from a computed string).
 
-2. **Design discussion**: Open a separate issue for auto-quoting parameter annotations (`$param` in function signatures). This is the change that would most directly realise the original RFC's goal — functions that accept bare column names without any quoting machinery visible to the caller.
+2. **Future extension**: Decide whether auto-quoted parameters should eventually accept richer expression forms, or whether that territory should remain exclusive to `enquo()`/`quos()`.
