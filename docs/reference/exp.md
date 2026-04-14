@@ -6,12 +6,14 @@ Calculates e raised to the power of x.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The exponent.
+- **x** (`Number`): | Vector | NDArray The input value.
+
+- **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The result of e^x.
+| Vector | NDArray The exponential.
 
 ## Examples
 

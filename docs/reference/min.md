@@ -8,6 +8,8 @@ Returns the minimum value in a vector or list.
 
 - **x** (`Vector`): | List The numeric data.
 
+- **na_rm** (`Bool`): Whether to remove NA values. Default is false.
+
 
 ## Returns
 

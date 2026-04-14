@@ -10,6 +10,8 @@ Calculates base raised to the power of exponent.
 
 - **exponent** (`Number`): The exponent.
 
+- **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
+
 
 ## Returns
 
