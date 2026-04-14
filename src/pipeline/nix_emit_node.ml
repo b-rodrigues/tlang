@@ -388,18 +388,52 @@ def py_read_json(path):
 
   let t_pickle_py_code = {|
 import os
-try:
-    import cloudpickle as pickle
-except ImportError:
-    try:
-        import dill as pickle
-    except ImportError:
-        import pickle
+import pickle
 
 def serialize(obj, path):
+    # Use standard pickle by default.
+    # We only switch to cloudpickle/dill if we detect a complex plot object
+    # that standard pickle likely cannot handle (due to lambdas/internal state).
+    use_enhanced = False
+    try:
+        mod = type(obj).__module__
+        if mod.startswith(("matplotlib", "seaborn", "plotly", "altair", "bokeh", "plotnine")):
+            use_enhanced = True
+    except Exception:
+        pass
+
+    if use_enhanced:
+        try:
+            import cloudpickle as cp
+            with open(path, "wb") as f:
+                cp.dump(obj, f)
+            return
+        except ImportError:
+            try:
+                import dill
+                with open(path, "wb") as f:
+                    dill.dump(obj, f)
+                return
+            except ImportError:
+                pass
+
     with open(path, "wb") as f:
         pickle.dump(obj, f)
+
 def deserialize(path):
+    # Try enhanced first in case it was serialized with them
+    try:
+        import cloudpickle as cp
+        with open(path, "rb") as f:
+            return cp.load(f)
+    except ImportError:
+        try:
+            import dill
+            with open(path, "rb") as f:
+                return dill.load(f)
+        except ImportError:
+            pass
+    
     with open(path, "rb") as f:
         return pickle.load(f)
 |} in
