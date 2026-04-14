@@ -132,4 +132,26 @@ fig
 
 This dual behavior ensures that you can use T for programmatic inspection and R/Python for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
 
+---
+
+## Opening Plots with `show_plot()`
+
+`show_plot()` renders a built or unbuilt plotting node in a fresh Nix sandbox, writes the rendered image to `_pipeline/`, and then opens the image locally.
+
+Add an opener in `tproject.toml` if you want to override the default viewer:
+
+```toml
+[visualization-tool]
+command = "xdg-open"
+```
+
+```t
+p = rn(command = <{
+  library(ggplot2)
+  ggplot(mtcars, aes(wt, mpg)) + geom_point()
+}>)
+
+show_plot(p)
+```
+
 See the [T Pipeline Demos](demos.html) for real-world examples of pipelines generating interactive and static reports.

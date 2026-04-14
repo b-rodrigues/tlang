@@ -89,20 +89,20 @@ This document outlines the step-by-step evolution of the T language from the cur
 
 **Objective**: Enhance the REPL developer experience for polyglot plotting workloads.
 
-- [ ] **R / ggplot2 Metadata**:
-    - [ ] Detect `ggplot` class objects during R evaluation.
-    - [ ] Extract plot metadata (title, mapping, layers) instead of raw list structure.
-    - [ ] Implement a specialized `pretty_print` for ggplot objects in the REPL.
-- [ ] **Python / Matplotlib & Plotly**:
-    - [ ] Detect Python plot objects (Figures, plotly dicts).
-    - [ ] Extract basic metadata (Labels, data sources).
-- [ ] **The `t_show()` helper**:
-    - [ ] Implement a `t_show(plot)` utility that saves the plot to a temporary PDF/PNG and prompts the user to open it (or opens it automatically if possible).
+- [x] **R / ggplot2 Metadata**:
+    - [x] Detect `ggplot` class objects during R evaluation.
+    - [x] Extract plot metadata (title, mapping, layers) instead of raw list structure.
+    - [x] Implement a specialized `pretty_print` for ggplot objects in the REPL.
+- [x] **Python / Matplotlib & Plotnine**:
+    - [x] Detect Python plot objects (Figures, Axes, plotnine ggplot objects).
+    - [x] Extract basic metadata (title, labels, mappings, layers).
+- [x] **The `show_plot()` helper**:
+    - [x] Implement a `show_plot(plot)` utility that saves the plot to `_pipeline/` and opens it with the configured visualization tool when possible.
     - **Syntax Preview**:
       ```t
       p = rn(command = <{ ggplot(mtcars, aes(wt, mpg)) + geom_point() }>)
       p -- Shows: "ggplot object (Layers: 1, Mapping: wt -> x, mpg -> y)"
-      t_show(p) -- Opens the plot in the default system viewer
+      show_plot(p) -- Opens the plot with the configured visualization tool
       ```
 
 ---

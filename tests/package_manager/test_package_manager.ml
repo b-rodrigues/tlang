@@ -138,6 +138,9 @@ packages = ["dplyr", "tidyr"]
 version = "python310"
 packages = ["pandas"]
 
+[visualization-tool]
+command = "xdg-open"
+
 [t]
 min_version = "0.51.0"
 |} in
@@ -148,6 +151,7 @@ min_version = "0.51.0"
                 && cfg.proj_description = "Test project"
                 && cfg.proj_r_dependencies = ["dplyr"; "tidyr"]
                 && cfg.proj_py_version = "python310"
+                && cfg.proj_visualization_tool = "xdg-open"
                 && cfg.proj_py_dependencies = ["pandas"]
     | Error _ -> false);
 
@@ -160,11 +164,12 @@ min_version = "0.51.0"
 
   test_pm "serialize and re-parse project config" (fun () ->
     let cfg0 = Package_types.default_project_config "roundtrip-proj" in
-    let cfg = { cfg0 with proj_r_dependencies = ["foo"]; proj_py_dependencies = ["bar"] } in
+    let cfg = { cfg0 with proj_r_dependencies = ["foo"]; proj_py_dependencies = ["bar"]; proj_visualization_tool = "imv" } in
     let toml_str = Toml_parser.serialize_tproject_toml cfg in
     match Toml_parser.parse_tproject_toml toml_str with
     | Ok cfg2 -> cfg2.proj_name = "roundtrip-proj" 
                  && cfg2.proj_r_dependencies = ["foo"]
+                 && cfg2.proj_visualization_tool = "imv"
                  && cfg2.proj_py_dependencies = ["bar"]
     | Error _ -> false);
 
