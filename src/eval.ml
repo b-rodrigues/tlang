@@ -2090,6 +2090,9 @@ and strip_leading_dollar s =
   else
     s
 
+and take_prefix n xs =
+  if List.length xs > n then List.filteri (fun i _ -> i < n) xs else xs
+
 and autoquote_name_of_expr (expr : Ast.expr) : (string, value) result =
   let normalize name =
     let trimmed = String.trim name in
@@ -2331,7 +2334,7 @@ and eval_call env_ref fn_val raw_args =
     if (not variadic && n_params <> n_args) || (variadic && n_args < n_params) then
       lambda_arity_error params args_vals
     else
-      let fixed_args = if n_args > n_params then List.filteri (fun i _ -> i < n_params) args_vals else args_vals in
+      let fixed_args = take_prefix n_params args_vals in
       let autoquote_error =
         List.find_map (fun (value, is_autoquoted) ->
           if is_autoquoted then match value with VError _ as e -> Some e | _ -> None else None
@@ -2358,9 +2361,10 @@ and eval_call env_ref fn_val raw_args =
             in
             let caller_env = !env_ref in
             let call_raw_args = List.map snd raw_args in
+            let fixed_raw_args = take_prefix n_params call_raw_args in
             let call_env = List.fold_left2 (fun acc name e ->
               Env.add ("__q_" ^ name) (VExpr e) acc
-            ) call_env params (if List.length call_raw_args > n_params then List.filteri (fun i _ -> i < n_params) call_raw_args else call_raw_args) in
+            ) call_env params fixed_raw_args in
             let call_env =
               List.fold_left (fun acc (index, captured_expr) ->
                 match List.nth_opt params index with
