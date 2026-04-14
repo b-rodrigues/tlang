@@ -137,7 +137,10 @@ p
 ```markdown
 ```{python}
 #| echo: false
-import pickle
+try:
+    import cloudpickle as pickle
+except ImportError:
+    import pickle
 # read_node("p_matplotlib") becomes '/nix/store/.../artifact'
 with open(read_node("p_matplotlib"), "rb") as f:
     fig = pickle.load(f)
@@ -189,11 +192,12 @@ show_plot(p)
 `show_plot()` renders the plot by reloading the stored artifact inside a Nix sandbox:
 
 - **R / ggplot2** nodes require `ggplot2` to be present in `[r-dependencies].packages`.
-- **Python / matplotlib** nodes require `matplotlib` in `[py-dependencies].packages`.
-- **Python / seaborn** nodes require `seaborn` and `matplotlib` in `[py-dependencies].packages`.
-- **Python / Plotly** requires `plotly` and `kaleido` (for static image export) in `[py-dependencies].packages`.
-- **Python / Altair** requires `altair` and `vl-convert-python` (preferred) or `altair_saver` in `[py-dependencies].packages`.
-- **Python / Bokeh** requires `bokeh`, `selenium`, and a headless browser in the environment.
+- **Python / matplotlib** nodes require `matplotlib` and `cloudpickle` in `[py-dependencies].packages`.
+- **Python / seaborn** nodes require `seaborn`, `matplotlib`, and `cloudpickle` in `[py-dependencies].packages`.
+- **Python / Plotly** requires `plotly`, `kaleido` (for static image export), and `cloudpickle` in `[py-dependencies].packages`.
+- **Python / Altair** requires `altair`, `vl-convert-python` (preferred), and `cloudpickle` in `[py-dependencies].packages`.
+- **Python / Bokeh** requires `bokeh`, `selenium`, `cloudpickle`, and a headless browser in the environment.
+- **Python / Plotnine** requires `plotnine`, `pandas`, and `cloudpickle` in `[py-dependencies].packages`.
 
 ### Automated Dependency Detection
 
@@ -201,10 +205,12 @@ When you use these libraries in a `pyn()` node, T's static analyzer will automat
 
 | Detected Import | Automatically Suggested Packages |
 | :--- | :--- |
-| `import seaborn` | `seaborn`, `matplotlib` |
-| `import plotly` | `plotly`, `kaleido` |
-| `import altair` | `altair`, `vl-convert-python` |
-| `import bokeh` | `bokeh`, `selenium` |
+| `import matplotlib` | `matplotlib`, `cloudpickle` |
+| `import seaborn` | `seaborn`, `matplotlib`, `cloudpickle` |
+| `import plotnine` | `plotnine`, `pandas`, `cloudpickle` |
+| `import plotly` | `plotly`, `kaleido`, `cloudpickle` |
+| `import altair` | `altair`, `vl-convert-python`, `cloudpickle` |
+| `import bokeh` | `bokeh`, `selenium`, `cloudpickle` |
 
 Example project configuration:
 
