@@ -18,10 +18,18 @@
     - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, or `altair`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
-### Core Evaluator & Emitter Refinements
+### Metaprogramming & Dynamic Lookup
+- **New `get()` & `sym()` Builtins**:
+    - **`get(name)`**: Introduced for dynamic variable retrieval from the environment by name (String or Symbol). Matches R-style `get()` semantics and supports collection indexing (List, Vector, NDArray) as a secondary mode.
+    - **`sym(string)`**: Added to convert strings into first-class symbols, enabling programmatic construction of expressions for non-standard evaluation (NSE) via the `!!` unquote operator.
+- **Enhanced Lens Interop**: The `get()` function is now fully integrated with the lens system, allowing it to retrieve values from complex structures when passed a `Lens` object.
+
+### Core Evaluator, Emitter & Documentation Refinements
+- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `sym()`, and related primitives.
+- **Integrated Documentation Tooling**: Verified `t_doc("parse")` and `t_doc("generate")` workflows for extracting and publishing reference pages for new core functions.
 - **Improved Pretty Printing**: Updated the core pretty printer to handle complex nested dictionaries and diagnostics summaries more gracefully.
 - **Nix Emitter Stability**: Significant updates to `nix_emit_node.ml` to support the new visualization injection logic and improve script-based node robustness.
-- **Test Infrastructure**: Added golden tests and mocks for visual metadata scenarios.
+- **Test Infrastructure**: Added the `get_sym_demo_t` comprehensive demo project with dedicated CI validation and automated assertions.
 
 ### Bug Fixes & Refinements
 - **Visualization Stability**: Fixed a critical `Printf.sprintf` type error in the Python plot rendering logic that prevented pipeline builds for Python-based visualizations.
