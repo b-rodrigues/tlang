@@ -191,7 +191,7 @@ let register_sym env =
       in
       match args with
       | [VString name] -> validate_name name
-      | [VSymbol name] -> validate_name name
+      | [VSymbol name] -> VSymbol name
       | [_] -> Error.type_error "Function `sym` expects a String or Symbol."
       | _ -> Error.arity_error_named "sym" 1 (List.length args)
     ))
