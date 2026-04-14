@@ -1228,7 +1228,7 @@ def py_extract_plot_metadata(obj):
     except Exception:
         pass
 
-    if figure is None and axes is None and viz_class not in ["plotly", "altair", "bokeh"]:
+    if figure is None and axes is None:
         if MatplotlibFigure and isinstance(obj, MatplotlibFigure):
             figure = obj
             axes = obj.axes[0] if getattr(obj, "axes", None) else None
@@ -1236,18 +1236,20 @@ def py_extract_plot_metadata(obj):
             axes = obj
             figure = getattr(obj, "figure", None)
 
-    if figure is None and axes is None:
-        return None
-
     title = None
-    if figure is not None and getattr(figure, "_suptitle", None) is not None:
-        text = figure._suptitle.get_text()
-        if text:
-            title = text
-    if title is None and axes is not None:
-        text = axes.get_title()
-        if text:
-            title = text
+    if figure is None and axes is None:
+        if viz_class not in ["plotly", "altair", "bokeh"]:
+            return None
+    else:
+        if figure is not None and getattr(figure, "_suptitle", None) is not None:
+            text = figure._suptitle.get_text()
+            if text:
+                title = text
+        if title is None and axes is not None:
+            text = axes.get_title()
+            if text:
+                title = text
+
     labels = _py_compact_dict({
         "title": title,
         "x": axes.get_xlabel() if axes is not None else None,

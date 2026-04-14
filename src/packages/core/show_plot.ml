@@ -186,10 +186,10 @@ let open_rendered_plot viewer path =
             (Printf.sprintf "show_plot: failed to launch `%s` for `%s`: %s"
                exec path (Unix.error_message err)))
 
-let render_script_for_r artifact_path =
+let render_script_for_r _artifact_path =
   Printf.sprintf
     {|
-plot_obj <- readRDS(%S)
+plot_obj <- readRDS(Sys.getenv("ARTIFACT_PATH"))
 if (!inherits(plot_obj, "ggplot")) {
   stop("show_plot currently supports ggplot objects for R nodes.")
 }
@@ -237,7 +237,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     PlotnineGGPlot = None
 
-artifact_path = %S
+artifact_path = os.environ["ARTIFACT_PATH"]
 output_path = os.path.join(os.environ["out"], %S)
 
 with open(artifact_path, "rb") as handle:
@@ -302,7 +302,7 @@ let render_script_for_class class_name artifact_path =
       Error
         (Printf.sprintf "show_plot: unsupported plot class `%s`. Expected ggplot, matplotlib, plotnine, seaborn, plotly, altair, or bokeh." class_name)
 
-let render_nix_expression ~project_root ~runtime ~script_name ~script_content =
+let render_nix_expression ~project_root ~runtime ~script_name ~script_content ~artifact_path =
   let tproject_path = Filename.concat project_root "tproject.toml" in
   Printf.sprintf
     {|
@@ -319,11 +319,14 @@ let
   pyVersion = pyDeps.version or "python3";
   pyPackagesList = pyDeps.packages or [];
   py-env = pkgs.${pyVersion}.withPackages (ps: builtins.map (p: ps.${p}) pyPackagesList);
+  artifact = builtins.path { name = "plot-artifact"; path = %S; };
 in
 pkgs.stdenv.mkDerivation {
   name = "show-plot-render";
   dontUnpack = true;
   buildInputs = [ %s ];
+  MPLCONFIGDIR = ".";
+  ARTIFACT_PATH = "${artifact}";
   buildCommand = ''
     mkdir -p "$out"
     export out="$out"
@@ -337,6 +340,7 @@ EOF
     project_root
     tproject_path
     tproject_path
+    artifact_path
     (if runtime = "R" then "r-env" else "py-env")
     script_name
     script_content
@@ -453,7 +457,7 @@ let render_plot_artifact cn =
         let nix_path = Filename.concat Builder_utils.pipeline_dir (render_prefix ^ ".nix") in
         let local_plot_path = Filename.concat Builder_utils.pipeline_dir (render_prefix ^ ".png") in
         let nix_content =
-          render_nix_expression ~project_root ~runtime ~script_name ~script_content
+          render_nix_expression ~project_root ~runtime ~script_name ~script_content ~artifact_path:cn.cn_path
         in
         match Builder_utils.write_file nix_path nix_content with
         | Error msg ->
