@@ -16,7 +16,7 @@ open Ast
 *)
 
 let supported_plot_class = function
-  | "ggplot" | "matplotlib" | "plotnine" -> true
+  | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" | "bokeh" -> true
   | _ -> false
 
 let rendered_plot_filename = "plot.png"
@@ -31,7 +31,7 @@ type viewer_tool = {
 
 let runtime_of_plot_class = function
   | "ggplot" -> Some "R"
-  | "matplotlib" | "plotnine" -> Some "Python"
+  | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" | "bokeh" -> Some "Python"
   | _ -> None
 
 let is_blank s =
@@ -247,8 +247,39 @@ elif isinstance(plot_obj, MatplotlibAxes):
     plot_obj.figure.savefig(output_path, dpi=%d, bbox_inches="tight")
 elif isinstance(plot_obj, MatplotlibFigure):
     plot_obj.savefig(output_path, dpi=%d, bbox_inches="tight")
+elif type(plot_obj).__module__.startswith("seaborn"):
+    fig = getattr(plot_obj, "fig", getattr(plot_obj, "figure", None))
+    if fig:
+        fig.savefig(output_path, dpi=%d, bbox_inches="tight")
+    else:
+        raise TypeError(f"show_plot failed to extract figure from seaborn object of type {type(plot_obj).__name__}")
+elif type(plot_obj).__module__.startswith("plotly"):
+    try:
+        import plotly.io as pio
+        # static image export requires 'kaleido'
+        pio.write_image(plot_obj, output_path, format="png")
+    except Exception as exc:
+        raise RuntimeError(f"show_plot: plotly renderer failed. Ensure 'kaleido' is in [py-dependencies].packages. Error: {str(exc)}")
+elif type(plot_obj).__module__.startswith("altair"):
+    try:
+        import vl_convert as vlc
+        spec = plot_obj.to_json()
+        png_data = vlc.vegalite_to_png(vl_spec=spec)
+        with open(output_path, "wb") as f:
+            f.write(png_data)
+    except Exception as exc:
+        try:
+             plot_obj.save(output_path)
+        except Exception:
+             raise RuntimeError(f"show_plot: altair renderer failed. Ensure 'vl-convert-python' or 'altair_saver' is in [py-dependencies].packages. Error: {str(exc)}")
+elif type(plot_obj).__module__.startswith("bokeh"):
+    try:
+        from bokeh.io import export_png
+        export_png(plot_obj, filename=output_path)
+    except Exception as exc:
+        raise RuntimeError(f"show_plot: bokeh renderer failed. Note that Bokeh export requires 'selenium' and a headless browser. Error: {str(exc)}")
 else:
-    raise TypeError("show_plot currently supports matplotlib Figure/Axes and plotnine ggplot objects for Python nodes.")
+    raise TypeError("show_plot currently supports matplotlib Figure/Axes, plotnine ggplot, seaborn Grid, plotly Figure, altair Chart, and bokeh Figure objects for Python nodes.")
 |}
     artifact_path
     rendered_plot_filename
@@ -262,7 +293,7 @@ let render_script_for_class class_name artifact_path =
   | Some "Python" -> Ok (render_script_for_python artifact_path, "render_plot.py", "Python")
   | _ ->
       Error
-        (Printf.sprintf "show_plot: unsupported plot class `%s`. Expected ggplot, matplotlib, or plotnine." class_name)
+        (Printf.sprintf "show_plot: unsupported plot class `%s`. Expected ggplot, matplotlib, plotnine, seaborn, plotly, altair, or bokeh." class_name)
 
 let render_nix_expression ~project_root ~runtime ~script_name ~script_content =
   let tproject_path = Filename.concat project_root "tproject.toml" in

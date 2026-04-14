@@ -137,7 +137,7 @@ let pretty_print_summary pairs =
   Buffer.contents buf
 
 let is_visual_metadata_class = function
-  | VString "ggplot" | VString "matplotlib" | VString "plotnine" -> true
+  | VString "ggplot" | VString "matplotlib" | VString "plotnine" | VString "seaborn" | VString "plotly" | VString "altair" | VString "bokeh" -> true
   | _ -> false
 
 let display_keys_from_pairs pairs =
