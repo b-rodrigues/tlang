@@ -408,32 +408,37 @@ def serialize(obj, path):
             with open(path, "wb") as f:
                 cp.dump(obj, f)
             return
-        except ImportError:
-            try:
-                import dill
-                with open(path, "wb") as f:
-                    dill.dump(obj, f)
-                return
-            except ImportError:
-                pass
+        except Exception:
+            pass
+        try:
+            import dill
+            with open(path, "wb") as f:
+                dill.dump(obj, f)
+            return
+        except Exception:
+            pass
 
     with open(path, "wb") as f:
         pickle.dump(obj, f)
 
 def deserialize(path):
-    # Try enhanced first in case it was serialized with them
+    # Try cloudpickle first
     try:
         import cloudpickle as cp
         with open(path, "rb") as f:
             return cp.load(f)
-    except ImportError:
-        try:
-            import dill
-            with open(path, "rb") as f:
-                return dill.load(f)
-        except ImportError:
-            pass
+    except Exception:
+        pass
     
+    # Try dill
+    try:
+        import dill
+        with open(path, "rb") as f:
+            return dill.load(f)
+    except Exception:
+        pass
+    
+    # Finally try standard pickle
     with open(path, "rb") as f:
         return pickle.load(f)
 |} in

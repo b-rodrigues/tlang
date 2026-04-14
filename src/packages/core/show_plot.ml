@@ -214,13 +214,28 @@ let render_script_for_python _artifact_path =
   Printf.sprintf
     {|
 import os
-try:
-    import cloudpickle as pickle
-except ImportError:
+artifact_path = os.environ["ARTIFACT_PATH"]
+output_path = os.path.join(os.environ["out"], %S)
+
+def _load_artifact(path):
     try:
-        import dill as pickle
-    except ImportError:
-        import pickle
+        import cloudpickle as cp
+        with open(path, "rb") as f:
+            return cp.load(f)
+    except Exception:
+        pass
+    try:
+        import dill
+        with open(path, "rb") as f:
+            return dill.load(f)
+    except Exception:
+        pass
+    import pickle
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+plot_obj = _load_artifact(artifact_path)
+
 try:
     import matplotlib
 except (ImportError, ModuleNotFoundError) as exc:
@@ -235,12 +250,6 @@ try:
     from plotnine.ggplot import ggplot as PlotnineGGPlot
 except (ImportError, ModuleNotFoundError):
     PlotnineGGPlot = None
-
-artifact_path = os.environ["ARTIFACT_PATH"]
-output_path = os.path.join(os.environ["out"], %S)
-
-with open(artifact_path, "rb") as handle:
-    plot_obj = pickle.load(handle)
 
 if PlotnineGGPlot is not None and isinstance(plot_obj, PlotnineGGPlot):
     fig = plot_obj.draw()
