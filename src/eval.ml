@@ -98,6 +98,20 @@ let attach_location location value =
 let attach_expr_location (expr : Ast.expr) value =
   attach_location expr.loc value
 
+let strip_dollar_prefix s =
+  if String.length s <= 1 then
+    s
+  else if s.[0] = '$' then
+    String.sub s 1 (String.length s - 1)
+  else
+    s
+
+let take_prefix n xs =
+  List.filteri (fun i _ -> i < n) xs
+
+let drop_prefix n xs =
+  List.filteri (fun i _ -> i >= n) xs
+
 let attach_stmt_location (stmt : Ast.stmt) value =
   attach_location stmt.loc value
 
@@ -2084,19 +2098,6 @@ and autoquote_name_error ?location () =
   make_error ?location TypeError
     "Auto-quoted parameters expect a bare name, $column, String, or Symbol."
 
-and strip_dollar_prefix s =
-  if String.length s <= 1 then
-    s
-  else if s.[0] = '$' then
-    String.sub s 1 (String.length s - 1)
-  else
-    s
-
-and take_prefix n xs =
-  List.filteri (fun i _ -> i < n) xs
-
-and drop_prefix n xs =
-  List.filteri (fun i _ -> i >= n) xs
 
 and autoquote_name_of_expr (expr : Ast.expr) : (string, value) result =
   let normalize name =
@@ -2120,7 +2121,7 @@ and autoquote_capture_expr (expr : Ast.expr) : (Ast.expr * value, value) result 
 
 and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : Ast.expr =
   let loc = expr.loc in
-  let rec expand = expand_autoquoted_unquotes env_ref in
+  let expand = expand_autoquoted_unquotes env_ref in
   let expand_stmt stmt =
     let stmt_loc = stmt.loc in
     match stmt.node with
