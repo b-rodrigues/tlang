@@ -90,21 +90,31 @@ cannot work because `!!` is a parser-level operator, not a runtime function — 
 
 ## Gap 1: `sym()` Helper for Programmatic Symbols
 
-The issue also raised the equivalent of R's `get()`:
+The original discussion also touched on R's `get()` pattern:
 
 ```r
 x <- 1:10; y <- "x"
 data.frame(z = get(y))
 ```
 
-In T there is still no direct `get()`-style variable lookup helper, but the runtime now has the missing building block for the string-to-symbol step:
+T now has direct `get()`-style variable lookup:
+
+```t
+x = [1, 2, 3]
+y = "x"
+
+get(y)
+get(sym(y))
+```
+
+So the remaining ergonomic gap here is no longer "variable lookup by name". The real gap from the quasiquotation side was the string-to-symbol step needed for programmatic injection into quoted code:
 
 ```t
 y = "column_name"
 expr(select(df, !!sym(y)))
 ```
 
-T now exposes `sym()` in the `core` package. It converts a string to a runtime `Symbol`, or passes an existing `Symbol` through unchanged. This closes the smallest, library-only gap from the original discussion and makes string-driven quasiquotation less awkward.
+T now exposes `sym()` in the `core` package. It converts a string to a runtime `Symbol`, or passes an existing `Symbol` through unchanged. Together, `get(name)` handles environment lookup while `sym(name)` handles programmatic quasiquotation and dynamic column-name injection.
 
 ### Implemented addition
 
