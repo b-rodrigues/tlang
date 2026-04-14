@@ -217,24 +217,29 @@ import os
 artifact_path = os.environ["ARTIFACT_PATH"]
 output_path = os.path.join(os.environ["out"], %S)
 
-def _load_artifact(path):
+def deserialize(path):
+    # Try standard pickle first for maximum compatibility
+    try:
+        import pickle
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        pass
+
+    # Try cloudpickle next
     try:
         import cloudpickle as cp
         with open(path, "rb") as f:
             return cp.load(f)
     except Exception:
         pass
-    try:
-        import dill
-        with open(path, "rb") as f:
-            return dill.load(f)
-    except Exception:
-        pass
-    import pickle
+    
+    # Finally try dill
+    import dill
     with open(path, "rb") as f:
-        return pickle.load(f)
+        return dill.load(f)
 
-plot_obj = _load_artifact(artifact_path)
+plot_obj = deserialize(artifact_path)
 
 try:
     import matplotlib

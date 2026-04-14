@@ -397,7 +397,7 @@ def serialize(obj, path):
     use_enhanced = False
     try:
         mod = type(obj).__module__
-        if mod.startswith(("matplotlib", "seaborn", "plotly", "altair", "bokeh", "plotnine")):
+        if mod.startswith(("matplotlib", "seaborn", "plotly", "altair", "plotnine")):
             use_enhanced = True
     except Exception:
         pass
@@ -422,7 +422,15 @@ def serialize(obj, path):
         pickle.dump(obj, f)
 
 def deserialize(path):
-    # Try cloudpickle first
+    # Try standard pickle first for maximum compatibility
+    try:
+        import pickle
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        pass
+
+    # Try cloudpickle next
     try:
         import cloudpickle as cp
         with open(path, "rb") as f:
@@ -430,7 +438,7 @@ def deserialize(path):
     except Exception:
         pass
     
-    # Try dill
+    # Finally try dill
     try:
         import dill
         with open(path, "rb") as f:
@@ -438,7 +446,7 @@ def deserialize(path):
     except Exception:
         pass
     
-    # Finally try standard pickle
+    # Last resort fallback (should already be covered by above but for completeness)
     with open(path, "rb") as f:
         return pickle.load(f)
 |} in
