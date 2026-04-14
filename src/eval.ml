@@ -2085,7 +2085,7 @@ and autoquote_name_error ?location () =
     "Auto-quoted parameters expect a bare name, $column, String, or Symbol."
 
 and strip_dollar_prefix s =
-  if s = "" then
+  if String.length s <= 1 then
     s
   else if s.[0] = '$' then
     String.sub s 1 (String.length s - 1)
@@ -2094,6 +2094,9 @@ and strip_dollar_prefix s =
 
 and take_prefix n xs =
   List.filteri (fun i _ -> i < n) xs
+
+and drop_prefix n xs =
+  List.filteri (fun i _ -> i >= n) xs
 
 and autoquote_name_of_expr (expr : Ast.expr) : (string, value) result =
   let normalize name =
@@ -2182,6 +2185,9 @@ and eval_call env_ref fn_val raw_args =
     | VLambda { autoquote_params; _ } -> Some (Array.of_list autoquote_params)
     | _ -> None
   in
+  (* We capture canonicalized autoquote expressions while processing arguments so
+     the later lambda-application path can expose them through `__aq_<name>`
+     without re-walking/evaluating the original argument list. *)
   let autoquote_captured_exprs : (int * Ast.expr) list ref = ref [] in
   let is_autoquoted_fixed_param index =
     match lambda_autoquote_flags with
@@ -2383,8 +2389,8 @@ and eval_call env_ref fn_val raw_args =
             in
             let call_env = Env.add "__q_caller_env__" (VEnv caller_env) call_env in
             let call_env = if variadic then
-               let dots_vals = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) args_vals |> List.map (fun v -> (None, v)) else [] in
-               let dots_exprs = if n_args > n_params then List.filteri (fun i _ -> i >= n_params) raw_args |> List.map (fun (n, e) -> (n, VExpr e)) else [] in
+               let dots_vals = if n_args > n_params then drop_prefix n_params args_vals |> List.map (fun v -> (None, v)) else [] in
+               let dots_exprs = if n_args > n_params then drop_prefix n_params raw_args |> List.map (fun (n, e) -> (n, VExpr e)) else [] in
                let env = Env.add "..." (VList dots_vals) call_env in
                Env.add "__q_dots" (VList dots_exprs) env
             else call_env in
