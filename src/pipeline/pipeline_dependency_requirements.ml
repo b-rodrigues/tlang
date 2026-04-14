@@ -164,13 +164,31 @@ let scan_code_requirements ~node_name ~runtime raw_text =
       in
       let req =
         if has_pkg "matplotlib" then
-          { req with py_deps = add_list req.py_deps [ "matplotlib" ] }
+          { req with py_deps = add_list req.py_deps [ "matplotlib"; "cloudpickle" ] }
+        else
+          req
+      in
+      let req =
+        if has_pkg "seaborn" then
+          { req with py_deps = add_list req.py_deps [ "seaborn"; "matplotlib"; "cloudpickle" ] }
         else
           req
       in
       let req =
         if has_pkg "plotnine" then
-          { req with py_deps = add_list req.py_deps [ "plotnine"; "pandas" ] }
+          { req with py_deps = add_list req.py_deps [ "plotnine"; "pandas"; "cloudpickle" ] }
+        else
+          req
+      in
+      let req =
+        if has_pkg "plotly" then
+          { req with py_deps = add_list req.py_deps [ "plotly"; "kaleido"; "cloudpickle" ] }
+        else
+          req
+      in
+      let req =
+        if has_pkg "altair" then
+          { req with py_deps = add_list req.py_deps [ "altair"; "vl-convert-python"; "cloudpickle" ] }
         else
           req
       in

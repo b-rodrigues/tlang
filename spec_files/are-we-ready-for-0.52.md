@@ -34,7 +34,7 @@ The changelog mentions a "Transition to JPMML as the canonical scoring authority
 *   **Finding**: The current implementation correctly uses Native OCaml scoring for performance but retains the JPMML bridge (via `t_read_pmml.ml`) as the "Ground Truth" for complex PMML features not yet handled by the native engine. This dual-path approach is sound but should be clearly labeled in the documentation.
 
 ### C. Plotting (v0.51.4)
-The next milestone (`v0.51.4 — Plotting Metadata`) has **0% implementation**. The `ggplot2` and `matplotlib` detection logic remains purely theoretical.
+The plotting milestone now has working metadata extraction for `ggplot2`, `matplotlib`, and `plotnine`, specialized REPL pretty-printing, and a `show_plot()` helper that renders plots into `_pipeline/` and opens them with the configured visualization tool.
 
 ### D. Documentation Debt
 While the `explain()` function is powerful, the user-facing documentation for how to *leverage* `VError` in complex DAG branches (Section 4 of the Diagnostics spec) is still light on examples.
@@ -46,8 +46,8 @@ While the `explain()` function is powerful, the user-facing documentation for ho
 The core of v0.51.3 is stable, tested (1837/1837 tests passing), and exceeds expectations. 
 
 **Immediate Action Items for v0.51.4**:
-1.  Initiate the `R / ggplot2 Metadata` detection in the R runner.
-2.  Design the `t_show()` helper for the REPL.
+1.  Extend Python visualization support beyond the current matplotlib/plotnine coverage if Plotly becomes a release goal.
+2.  Add more end-to-end validation around `show_plot()` once Nix-backed test coverage is available in CI.
 3.  Formalize the "Julia First-Class Support" design doc to prepare for the v0.52.0 pinnacle.
 
 **Conclusion**: We are ready. The "Infrastructure" and "NA Policy" additions make this a much stronger release than originally planned.

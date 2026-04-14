@@ -389,10 +389,64 @@ def py_read_json(path):
   let t_pickle_py_code = {|
 import os
 import pickle
+
 def serialize(obj, path):
+    # Use standard pickle by default.
+    # We only switch to cloudpickle/dill if we detect a complex plot object
+    # that standard pickle likely cannot handle (due to lambdas/internal state).
+    use_enhanced = False
+    try:
+        mod = type(obj).__module__
+        if mod.startswith(("matplotlib", "seaborn", "plotly", "altair", "plotnine")):
+            use_enhanced = True
+    except Exception:
+        pass
+
+    if use_enhanced:
+        try:
+            import dill
+            with open(path, "wb") as f:
+                dill.dump(obj, f)
+            return
+        except Exception:
+            pass
+        try:
+            import cloudpickle as cp
+            with open(path, "wb") as f:
+                cp.dump(obj, f)
+            return
+        except Exception:
+            pass
+
     with open(path, "wb") as f:
         pickle.dump(obj, f)
+
 def deserialize(path):
+    # Try standard pickle first for maximum compatibility
+    try:
+        import pickle
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        pass
+
+    # Try dill next (more robust for Bokeh)
+    try:
+        import dill
+        with open(path, "rb") as f:
+            return dill.load(f)
+    except Exception:
+        pass
+    
+    # Try cloudpickle as last resort
+    try:
+        import cloudpickle as cp
+        with open(path, "rb") as f:
+            return cp.load(f)
+    except Exception:
+        pass
+    
+    # Final chance (if cloudpickle import failed but we didn't return)
     with open(path, "rb") as f:
         return pickle.load(f)
 |} in
@@ -1138,32 +1192,77 @@ def py_extract_plot_metadata(obj):
 
     figure = None
     axes = None
-    if MatplotlibFigure and isinstance(obj, MatplotlibFigure):
-        figure = obj
-        axes = obj.axes[0] if getattr(obj, "axes", None) else None
-    elif MatplotlibAxes and isinstance(obj, MatplotlibAxes):
-        axes = obj
-        figure = getattr(obj, "figure", None)
+    # Default title; backend-specific extraction below can replace it, and the
+    # later figure/axes fallback only runs when the title is still empty.
+    title = None
+    viz_class = "matplotlib"
+
+    # Seaborn support
+    try:
+        # Check by module name to avoid hard dependency on seaborn in the extractor
+        obj_type = type(obj)
+        if obj_type.__module__.startswith("seaborn"):
+            viz_class = "seaborn"
+            if hasattr(obj, "fig"):
+                figure = obj.fig
+            elif hasattr(obj, "figure"):
+                figure = obj.figure
+            if figure and not axes:
+                axes = figure.axes[0] if getattr(figure, "axes", None) else None
+    except Exception:
+        pass
+
+    # Plotly support
+    try:
+        obj_type = type(obj)
+        if obj_type.__module__.startswith("plotly"):
+            viz_class = "plotly"
+            if hasattr(obj, "layout") and obj.layout.title:
+                t = obj.layout.title
+                if hasattr(t, "text"):
+                    title = t.text
+                elif isinstance(t, str):
+                    title = t
+    except Exception:
+        pass
+
+    # Altair support
+    try:
+        if type(obj).__module__.startswith("altair"):
+            viz_class = "altair"
+            if hasattr(obj, "title") and obj.title:
+                title = str(obj.title)
+    except Exception:
+        pass
 
     if figure is None and axes is None:
-        return None
+        if MatplotlibFigure and isinstance(obj, MatplotlibFigure):
+            figure = obj
+            axes = obj.axes[0] if getattr(obj, "axes", None) else None
+        elif MatplotlibAxes and isinstance(obj, MatplotlibAxes):
+            axes = obj
+            figure = getattr(obj, "figure", None)
+    if figure is None and axes is None:
+        if viz_class not in ["plotly", "altair"]:
+            return None
+    else:
+        suptitle = getattr(figure, "_suptitle", None) if figure is not None else None
+        if title is None and suptitle is not None:
+            text = suptitle.get_text()
+            if text:
+                title = text
+        if title is None and axes is not None:
+            text = axes.get_title()
+            if text:
+                title = text
 
-    title = None
-    if figure is not None and getattr(figure, "_suptitle", None) is not None:
-        text = figure._suptitle.get_text()
-        if text:
-            title = text
-    if title is None and axes is not None:
-        text = axes.get_title()
-        if text:
-            title = text
     labels = _py_compact_dict({
         "title": title,
         "x": axes.get_xlabel() if axes is not None else None,
         "y": axes.get_ylabel() if axes is not None else None,
     })
     return {
-        "class": "matplotlib",
+        "class": viz_class,
         "backend": "Python",
         "title": title,
         "mapping": {},
@@ -1748,6 +1847,7 @@ EOF
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
     T_JPMML_STATSMODELS_JAR = "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar";
     T_JPMML_EVALUATOR_JAR = "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar";
+    MPLCONFIGDIR = ".";
 %s
 %s
     buildCommand = ''

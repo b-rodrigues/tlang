@@ -374,6 +374,11 @@ version = "python314"
 # packages = ["pandas", "numpy"]
 packages = []
 
+[visualization-tool]
+# Optional plot opener used by `show_plot()`
+# Example: command = "xdg-open"
+command = ""
+
 [additional-tools]
 # Additional Nix packages for the project (e.g., git, awk, jq, quarto)
 # If quarto is listed here, run `t update` and then `nix develop` to

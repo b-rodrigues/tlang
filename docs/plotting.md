@@ -1,6 +1,9 @@
 # Plotting and Visual Inspection
 
-T is primarily an orchestration engine and does not currently provide its own native low-level plotting library, and very likely never will. Instead, T leverages the powerful visualization ecosystems of **R** (`ggplot2`) and **Python** (`matplotlib`, `plotnine`) through its polyglot pipeline architecture.
+T is primarily an orchestration engine and does not currently provide its own native low-level plotting library. Instead, T's `show_plot()` function supports a wide range of visualization libraries across R and Python:
+
+- **R**: `ggplot2`
+- **Python**: `matplotlib`, `seaborn`, `plotly`, `altair`, `plotnine`
 
 One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R or Python node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
 
@@ -14,16 +17,13 @@ Generating a plot in T is as simple as returning a plot object from a foreign-la
 
 ```t
 p = pipeline {
-    data = read_csv("data.csv")
-
     p_ggplot = rn(
         command = <{
             library(ggplot2)
-            ggplot(data, aes(x = wt, y = mpg)) +
+            ggplot(mtcars, aes(x = wt, y = mpg)) +
                 geom_point() +
                 labs(title = "Fuel Economy")
-        }>,
-        deserializer = ^csv
+        }>
     )
 }
 ```
@@ -31,16 +31,17 @@ p = pipeline {
 ### Example: matplotlib in Python
 
 ```t
-    p_matplotlib = pyn(
+    p = pipeline {
+      p_matplotlib = pyn(
         command = <{
             import matplotlib.pyplot as plt
             fig, ax = plt.subplots()
-            ax.scatter(data['wt'], data['mpg'])
+            ax.scatter([2.6, 3.2, 3.4], [21.0, 19.2, 18.1])
             ax.set_title("Fuel Economy")
             fig
-        }>,
-        deserializer = ^csv
-    )
+        }>
+      )
+    }
 ```
 
 In both cases, T recognizes that the node result is a visualization.
@@ -56,7 +57,7 @@ When you build a pipeline containing these nodes, T creates two artifacts for ea
 T automatically extracts:
 - **Title**: The main title of the plot.
 - **Backend**: The runtime used to produce the plot (`"R"` or `"Python"`).
-- **Class**: The plot type (`"ggplot"`, `"matplotlib"`, or `"plotnine"`).
+- **Class**: The plot library or object type (e.g., `"ggplot"`, `"matplotlib"`, `"seaborn"`, `"plotly"`, `"altair"`).
 - **Labels**: Axis labels and legends.
 - **Layers**: The types of geometries present (e.g., "point", "line").
 - **Mappings**: In `ggplot2`, the aesthetic mappings (x, y, color, etc.).
@@ -82,6 +83,23 @@ When you call `read_node()` on a plotting node, T returns the **metadata diction
 ```
 
 This "Transparent Plotting" enables programmatic verification of visualizations—for example, a test script could assert that a generated plot has the correct title and includes a regression line layer.
+
+---
+
+## REPL Display
+
+Plot metadata is pretty-printed in the REPL instead of dumping raw runtime-specific structures.
+
+For example, a `ggplot` node read through `read_node()` displays as a structured object with fields such as:
+
+- `class`
+- `backend`
+- `title`
+- `mapping`
+- `labels`
+- `layers`
+
+This makes plotting nodes inspectable even when the underlying artifact is binary (`.rds` or Python pickle).
 
 ---
 
@@ -122,7 +140,10 @@ p
 ```markdown
 ```{python}
 #| echo: false
-import pickle
+try:
+    import cloudpickle as pickle
+except ImportError:
+    import pickle
 # read_node("p_matplotlib") becomes '/nix/store/.../artifact'
 with open(read_node("p_matplotlib"), "rb") as f:
     fig = pickle.load(f)
@@ -131,5 +152,87 @@ fig
 ```
 
 This dual behavior ensures that you can use T for programmatic inspection and R/Python for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
+
+---
+
+## Opening Plots with `show_plot()`
+
+`show_plot()` renders a plotting artifact in a fresh Nix sandbox, writes the rendered image to `_pipeline/`, and then opens the image locally.
+
+It accepts:
+
+- an unbuilt `rn()` / `pyn()` node
+- a built `ComputedNode`
+- a `read_node()` result that still points back to a built plot node
+
+The rendered output is currently written as a PNG file under `_pipeline/`.
+
+Add an opener in `tproject.toml` if you want to override the default viewer:
+
+```toml
+[visualization-tool]
+command = "xdg-open"
+```
+
+The value must be a single executable name or an absolute path to an executable. When no custom tool is configured, T falls back to:
+
+1. `open` on systems where it is available
+2. `xdg-open` otherwise
+
+```t
+p = rn(command = <{
+  library(ggplot2)
+  ggplot(mtcars, aes(wt, mpg)) + geom_point()
+}>)
+
+show_plot(p)
+```
+
+`show_plot(p)` returns the local path of the rendered PNG after launching the viewer.
+
+### Runtime Requirements
+
+`show_plot()` renders the plot by reloading the stored artifact inside a Nix sandbox:
+
+- **R / ggplot2** nodes require `ggplot2` to be present in `[r-dependencies].packages`.
+- **Python / matplotlib** nodes require `matplotlib` and `cloudpickle` in `[py-dependencies].packages`.
+- **Python / seaborn** nodes require `seaborn`, `matplotlib`, and `cloudpickle` in `[py-dependencies].packages`.
+- **Python / Plotly** requires `plotly`, `kaleido` (for static image export), and `cloudpickle` in `[py-dependencies].packages`.
+- **Python / Altair** requires `altair`, `vl-convert-python` (preferred), and `cloudpickle` in `[py-dependencies].packages`.
+- **Python / Plotnine** requires `plotnine`, `pandas`, and `cloudpickle` in `[py-dependencies].packages`.
+
+### Automated Dependency Detection
+
+When you use these libraries in a `pyn()` node, T's static analyzer will automatically detect the imports and prompt you to add the required rendering dependencies to your `tproject.toml` if they are missing.
+
+| Detected Import | Automatically Suggested Packages |
+| :--- | :--- |
+| `import matplotlib` | `matplotlib`, `cloudpickle` |
+| `import seaborn` | `seaborn`, `matplotlib`, `cloudpickle` |
+| `import plotnine` | `plotnine`, `pandas`, `cloudpickle` |
+| `import plotly` | `plotly`, `kaleido`, `cloudpickle` |
+| `import altair` | `altair`, `vl-convert-python`, `cloudpickle` |
+Example project configuration:
+
+```toml
+[r-dependencies]
+packages = ["ggplot2"]
+
+[py-dependencies]
+version = "python314"
+packages = ["matplotlib", "plotnine", "seaborn", "plotly", "kaleido"]
+
+[visualization-tool]
+command = "xdg-open"
+```
+
+### Files Written to `_pipeline/`
+
+When you call `show_plot()`, T creates local helper files in `_pipeline/`, including:
+
+- a temporary Nix expression used for rendering
+- the rendered PNG image that is opened locally
+
+This keeps the visualization workflow aligned with T's existing pipeline artifact conventions.
 
 See the [T Pipeline Demos](demos.html) for real-world examples of pipelines generating interactive and static reports.

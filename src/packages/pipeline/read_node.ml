@@ -61,7 +61,7 @@ let register env =
         Error.make_error GenericError (Printf.sprintf "read_node: No automatic deserializer for runtime %s and serializer %s. Use a specific loader like read_csv(node.path)." cn.cn_runtime cn.cn_serializer)
     in
     let is_visual_metadata_class = function
-      | "ggplot" | "matplotlib" | "plotnine" -> true
+      | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> true
       | _ -> false
     in
     let uses_builtin_fallback_reader cn =

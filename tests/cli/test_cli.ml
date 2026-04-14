@@ -253,6 +253,44 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   in
   test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
     (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
+  let ggplot_render =
+    Show_plot.render_script_for_class "ggplot" "/tmp/plot.rds"
+  in
+  test_message "show_plot R renderer uses readRDS and ggsave"
+    (match ggplot_render with
+     | Ok (script, script_name, runtime) ->
+         script_name = "render_plot.R"
+         && runtime = "R"
+         && contains script "readRDS"
+         && contains script "ggsave"
+     | Error _ -> false);
+  let matplotlib_render =
+    Show_plot.render_script_for_class "matplotlib" "/tmp/plot.pkl"
+  in
+  test_message "show_plot Python renderer uses deserialize and savefig"
+    (match matplotlib_render with
+     | Ok (script, script_name, runtime) ->
+         script_name = "render_plot.py"
+         && runtime = "Python"
+         && contains script "deserialize"
+         && contains script "savefig"
+     | Error _ -> false);
+  let seaborn_render =
+    Show_plot.render_script_for_class "seaborn" "/tmp/plot.pkl"
+  in
+  test_message "show_plot seaborn renderer uses deserialize and savefig"
+    (match seaborn_render with
+     | Ok (script, script_name, runtime) ->
+         script_name = "render_plot.py"
+         && runtime = "Python"
+         && contains script "deserialize"
+         && contains script "seaborn"
+         && contains script "savefig"
+     | Error _ -> false);
+  test_message "show_plot rejects unsupported plot classes"
+    (match Show_plot.render_script_for_class "vega" "/tmp/plot.json" with
+     | Error msg -> contains msg "vega" && contains msg "ggplot" && contains msg "matplotlib" && contains msg "plotnine" && contains msg "seaborn" && contains msg "plotly" && contains msg "altair"
+     | Ok _ -> false);
   print_newline ();
 
   Printf.printf "Phase 7 — Multi-line: Parser newline tolerance:\n";

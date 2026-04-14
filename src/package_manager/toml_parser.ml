@@ -65,6 +65,7 @@ let parse_tproject_toml (content : string) : (project_config, string) result =
         proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
         proj_py_dependencies = get_string_list_opt toml ["py-dependencies"; "packages"] ~default:[];
         proj_py_version = get_string_opt toml ["py-dependencies"; "version"] ~default:"python314";
+        proj_visualization_tool = get_string_opt toml ["visualization-tool"; "command"] ~default:"";
         proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:Version.version;
         proj_nixpkgs_date = get_string_opt toml ["nixpkgs"; "date"] ~default:"";
         proj_additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
@@ -123,6 +124,10 @@ let serialize_tproject_toml (cfg : project_config) : string =
   Printf.bprintf buf "version = %S\n" cfg.proj_py_version;
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_py_dependencies));
+  if cfg.proj_visualization_tool <> "" then begin
+    Buffer.add_string buf "[visualization-tool]\n";
+    Printf.bprintf buf "command = %S\n\n" cfg.proj_visualization_tool
+  end;
   Buffer.add_string buf "[additional-tools]\n";
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_additional_tools));
