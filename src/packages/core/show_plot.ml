@@ -79,12 +79,11 @@ let copy_file src dst =
             in
             loop ()));
     Ok ()
-  with
-  | Sys_error msg ->
-      Error
-        (Printf.sprintf
-           "show_plot: failed to copy `%s` to `%s`: %s"
-           src dst msg)
+  with exn ->
+    Error
+      (Printf.sprintf
+         "show_plot: failed to copy `%s` to `%s`: %s"
+         src dst (Printexc.to_string exn))
 
 let flush_output_streams () =
   flush stdout;

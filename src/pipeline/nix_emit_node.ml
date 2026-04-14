@@ -1192,6 +1192,8 @@ def py_extract_plot_metadata(obj):
 
     figure = None
     axes = None
+    # Seed title before backend detection so Plotly/Altair titles survive the
+    # later matplotlib/seaborn fallback path.
     title = None
     viz_class = "matplotlib"
 
