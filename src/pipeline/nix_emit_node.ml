@@ -404,16 +404,16 @@ def serialize(obj, path):
 
     if use_enhanced:
         try:
-            import cloudpickle as cp
+            import dill
             with open(path, "wb") as f:
-                cp.dump(obj, f)
+                dill.dump(obj, f)
             return
         except Exception:
             pass
         try:
-            import dill
+            import cloudpickle as cp
             with open(path, "wb") as f:
-                dill.dump(obj, f)
+                cp.dump(obj, f)
             return
         except Exception:
             pass
@@ -430,15 +430,7 @@ def deserialize(path):
     except Exception:
         pass
 
-    # Try cloudpickle next
-    try:
-        import cloudpickle as cp
-        with open(path, "rb") as f:
-            return cp.load(f)
-    except Exception:
-        pass
-    
-    # Finally try dill
+    # Try dill next (more robust for Bokeh)
     try:
         import dill
         with open(path, "rb") as f:
@@ -446,7 +438,15 @@ def deserialize(path):
     except Exception:
         pass
     
-    # Last resort fallback (should already be covered by above but for completeness)
+    # Try cloudpickle as last resort
+    try:
+        import cloudpickle as cp
+        with open(path, "rb") as f:
+            return cp.load(f)
+    except Exception:
+        pass
+    
+    # Final chance (if cloudpickle import failed but we didn't return)
     with open(path, "rb") as f:
         return pickle.load(f)
 |} in

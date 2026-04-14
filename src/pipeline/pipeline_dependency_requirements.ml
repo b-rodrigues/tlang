@@ -192,12 +192,6 @@ let scan_code_requirements ~node_name ~runtime raw_text =
         else
           req
       in
-      let req =
-        if has_pkg "bokeh" then
-          { req with py_deps = add_list req.py_deps [ "bokeh"; "selenium"; "cloudpickle" ] }
-        else
-          req
-      in
       if String_set.is_empty req.py_deps then empty_requirements else req
   | _ -> empty_requirements
 

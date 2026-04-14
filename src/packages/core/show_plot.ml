@@ -16,7 +16,7 @@ open Ast
 *)
 
 let supported_plot_class = function
-  | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" | "bokeh" -> true
+  | "ggplot" | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> true
   | _ -> false
 
 let rendered_plot_filename = "plot.png"
@@ -226,18 +226,18 @@ def deserialize(path):
     except Exception:
         pass
 
-    # Try cloudpickle next
+    # Try dill next (more robust for Bokeh)
     try:
-        import cloudpickle as cp
+        import dill
         with open(path, "rb") as f:
-            return cp.load(f)
+            return dill.load(f)
     except Exception:
         pass
     
-    # Finally try dill
-    import dill
+    # Try cloudpickle as last resort
+    import cloudpickle as cp
     with open(path, "rb") as f:
-        return dill.load(f)
+        return cp.load(f)
 
 plot_obj = deserialize(artifact_path)
 
@@ -298,7 +298,7 @@ elif type(plot_obj).__module__.startswith("bokeh"):
     except Exception as exc:
         raise RuntimeError(f"show_plot: bokeh renderer failed. Note that Bokeh export requires 'selenium' and a headless browser. Error: {str(exc)}")
 else:
-    raise TypeError("show_plot currently supports matplotlib Figure/Axes, plotnine ggplot, seaborn Grid, plotly Figure, altair Chart, and bokeh Figure objects for Python nodes.")
+    raise TypeError("show_plot currently supports matplotlib Figure/Axes, plotnine ggplot, seaborn Grid, plotly Figure, and altair Chart objects for Python nodes. Note: Bokeh is not supported due to serialization limitations.")
 |}
     rendered_plot_filename
     rendered_plot_dpi
@@ -312,7 +312,7 @@ let render_script_for_class class_name artifact_path =
   | Some "Python" -> Ok (render_script_for_python artifact_path, "render_plot.py", "Python")
   | _ ->
       Error
-        (Printf.sprintf "show_plot: unsupported plot class `%s`. Expected ggplot, matplotlib, plotnine, seaborn, plotly, altair, or bokeh." class_name)
+        (Printf.sprintf "show_plot: unsupported plot class `%s`. Expected ggplot, matplotlib, plotnine, seaborn, plotly, or altair." class_name)
 
 let render_nix_expression ~project_root ~runtime ~script_name ~script_content ~artifact_path =
   let tproject_path = Filename.concat project_root "tproject.toml" in
