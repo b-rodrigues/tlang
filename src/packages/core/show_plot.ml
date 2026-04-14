@@ -91,8 +91,8 @@ let copy_file src dst =
            "show_plot: failed to copy `%s` to `%s`: %s"
            src dst (Unix.error_message err))
 
-(* Ensure REPL-visible output is flushed before launching the local viewer or
-   returning the rendered path. *)
+(* Ensure REPL-visible output is flushed at key show_plot handoff points,
+   including before viewer launch and before returning the rendered path. *)
 let flush_output_streams () =
   flush stdout;
   flush stderr

@@ -1193,7 +1193,7 @@ def py_extract_plot_metadata(obj):
     figure = None
     axes = None
     # Default title; backend-specific extraction below can replace it, and the
-    # later figure/axes fallback only fills it in when still empty.
+    # later figure/axes fallback only runs when the title is still empty.
     title = None
     viz_class = "matplotlib"
 
