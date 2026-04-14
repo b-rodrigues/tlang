@@ -1246,8 +1246,9 @@ def py_extract_plot_metadata(obj):
         if viz_class not in ["plotly", "altair"]:
             return None
     else:
-        if title is None and figure is not None and getattr(figure, "_suptitle", None) is not None:
-            text = figure._suptitle.get_text()
+        suptitle = getattr(figure, "_suptitle", None) if figure is not None else None
+        if title is None and suptitle is not None:
+            text = suptitle.get_text()
             if text:
                 title = text
         if title is None and axes is not None:

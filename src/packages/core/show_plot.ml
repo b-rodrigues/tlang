@@ -79,11 +79,22 @@ let copy_file src dst =
             in
             loop ()));
     Ok ()
-  with exn ->
-    Error
-      (Printf.sprintf
-         "show_plot: failed to copy `%s` to `%s`: %s"
-         src dst (Printexc.to_string exn))
+  with
+  | Sys_error msg ->
+      Error
+        (Printf.sprintf
+           "show_plot: failed to copy `%s` to `%s`: %s"
+           src dst msg)
+  | Unix.Unix_error (err, _, _) ->
+      Error
+        (Printf.sprintf
+           "show_plot: failed to copy `%s` to `%s`: %s"
+           src dst (Unix.error_message err))
+  | End_of_file ->
+      Error
+        (Printf.sprintf
+           "show_plot: failed to copy `%s` to `%s`: unexpected end of file"
+           src dst)
 
 (* Ensure REPL-visible output is flushed before launching the local viewer or
    returning the rendered path. *)
