@@ -124,8 +124,10 @@ let serialize_tproject_toml (cfg : project_config) : string =
   Printf.bprintf buf "version = %S\n" cfg.proj_py_version;
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_py_dependencies));
-  Buffer.add_string buf "[visualization-tool]\n";
-  Printf.bprintf buf "command = %S\n\n" cfg.proj_visualization_tool;
+  if cfg.proj_visualization_tool <> "" then begin
+    Buffer.add_string buf "[visualization-tool]\n";
+    Printf.bprintf buf "command = %S\n\n" cfg.proj_visualization_tool
+  end;
   Buffer.add_string buf "[additional-tools]\n";
   Printf.bprintf buf "packages = [%s]\n\n"
     (String.concat ", " (List.map (fun a -> Printf.sprintf "%S" a) cfg.proj_additional_tools));

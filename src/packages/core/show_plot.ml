@@ -19,6 +19,16 @@ let supported_plot_class = function
   | "ggplot" | "matplotlib" | "plotnine" -> true
   | _ -> false
 
+let rendered_plot_filename = "plot.png"
+let rendered_plot_width_inches = 8
+let rendered_plot_height_inches = 6
+let rendered_plot_dpi = 144
+
+type viewer_tool = {
+  command : string;
+  configured : bool;
+}
+
 let runtime_of_plot_class = function
   | "ggplot" -> Some "R"
   | "matplotlib" | "plotnine" -> Some "Python"
@@ -42,9 +52,12 @@ let read_first_line path =
     let ic = open_in path in
     Fun.protect
       ~finally:(fun () -> close_in_noerr ic)
-      (fun () -> input_line ic |> String.trim)
-  with _ ->
-    ""
+      (fun () -> Ok (input_line ic |> String.trim))
+  with
+  | Sys_error msg ->
+      Error (Printf.sprintf "show_plot: failed to read `%s`: %s" path msg)
+  | End_of_file ->
+      Error (Printf.sprintf "show_plot: `%s` is empty." path)
 
 let copy_file src dst =
   let ic = open_in_bin src in
@@ -96,6 +109,8 @@ let configured_visualization_tool ?project_root () =
       Error ("show_plot: failed to read tproject.toml: " ^ msg)
 
 let default_visualization_tool () =
+  (* Prefer `open` when available (macOS); otherwise fall back to Linux's
+     `xdg-open`. *)
   if Builder_utils.command_exists "open" then Some "open"
   else if Builder_utils.command_exists "xdg-open" then Some "xdg-open"
   else None
@@ -103,10 +118,12 @@ let default_visualization_tool () =
 let visualization_tool ?project_root () =
   match configured_visualization_tool ?project_root () with
   | Error _ as err -> err
-  | Ok (Some tool) -> Ok (Some tool)
-  | Ok None -> Ok (default_visualization_tool ())
+  | Ok (Some tool) -> Ok (Some { command = tool; configured = true })
+  | Ok None ->
+      Ok (Option.map (fun tool -> { command = tool; configured = false }) (default_visualization_tool ()))
 
-let open_rendered_plot tool path =
+let open_rendered_plot viewer path =
+  let tool = viewer.command in
   let executable =
     if Filename.is_relative tool then
       if Builder_utils.command_exists tool then Some tool else None
@@ -114,18 +131,60 @@ let open_rendered_plot tool path =
   in
   match executable with
   | None ->
-      Error
-        (Printf.sprintf "show_plot: visualization tool `%s` was not found. Update `[visualization-tool].command` or open `%s` manually." tool path)
+      if viewer.configured then
+        Error
+          (Printf.sprintf "show_plot: visualization tool `%s` was not found. Update `[visualization-tool].command` or open `%s` manually." tool path)
+      else
+        Error
+          (Printf.sprintf "show_plot: no default visualization tool was found (`open`/`xdg-open`). Configure `[visualization-tool].command` or open `%s` manually." path)
   | Some exec ->
       (try
          let devnull = Unix.openfile "/dev/null" [Unix.O_RDWR] 0 in
-         ignore (Unix.create_process exec [| exec; path |] devnull devnull devnull);
-         Unix.close devnull;
-         Ok ()
+         let read_fd, write_fd = Unix.pipe () in
+         match Unix.fork () with
+         | 0 ->
+             Unix.close read_fd;
+             ignore (Unix.setsid ());
+             (try
+                let tool_pid = Unix.create_process exec [| exec; path |] devnull devnull devnull in
+                if tool_pid <= 0 then raise (Unix.Unix_error (Unix.ECHILD, "create_process", exec));
+                let ok = Bytes.of_string "OK" in
+                ignore (Unix.write write_fd ok 0 (Bytes.length ok));
+                Unix.close write_fd;
+                Unix.close devnull;
+                Stdlib.exit 0
+              with Unix.Unix_error (child_err, _, _) ->
+                let msg = Bytes.of_string (Unix.error_message child_err) in
+                ignore (Unix.write write_fd msg 0 (Bytes.length msg));
+                Unix.close write_fd;
+                Unix.close devnull;
+                Stdlib.exit 1)
+         | fork_pid ->
+             Unix.close write_fd;
+             Unix.close devnull;
+             let (_, status) = Unix.waitpid [] fork_pid in
+             let buffer = Bytes.create 256 in
+             let read_count = Unix.read read_fd buffer 0 (Bytes.length buffer) in
+             Unix.close read_fd;
+             let child_message = Bytes.sub_string buffer 0 read_count in
+             (match status with
+              | Unix.WEXITED 0 when child_message = "OK" -> Ok ()
+              | Unix.WEXITED 0 | Unix.WEXITED _ ->
+                  let detail =
+                    if child_message = "" then "visualization tool process did not report successful launch"
+                    else child_message
+                  in
+                  Error
+                    (Printf.sprintf "show_plot: failed to launch `%s` for `%s`: %s"
+                       exec path detail)
+              | Unix.WSIGNALED signal | Unix.WSTOPPED signal ->
+                  Error
+                    (Printf.sprintf "show_plot: failed to launch `%s` for `%s`: process terminated with signal %d"
+                       exec path signal))
        with Unix.Unix_error (err, _, _) ->
-         Error
-           (Printf.sprintf "show_plot: failed to launch `%s` for `%s`: %s"
-              exec path (Unix.error_message err)))
+          Error
+            (Printf.sprintf "show_plot: failed to launch `%s` for `%s`: %s"
+               exec path (Unix.error_message err)))
 
 let render_script_for_r artifact_path =
   Printf.sprintf
@@ -134,51 +193,68 @@ plot_obj <- readRDS(%S)
 if (!inherits(plot_obj, "ggplot")) {
   stop("show_plot currently supports ggplot objects for R nodes.")
 }
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  stop("show_plot requires `ggplot2` in [r-dependencies].packages.")
+}
 ggplot2::ggsave(
-  filename = file.path(Sys.getenv("out"), "plot.png"),
+  filename = file.path(Sys.getenv("out"), %S),
   plot = plot_obj,
-  width = 8,
-  height = 6,
-  dpi = 144,
+  width = %d,
+  height = %d,
+  dpi = %d,
   units = "in"
 )
 |}
     artifact_path
+    rendered_plot_filename
+    rendered_plot_width_inches
+    rendered_plot_height_inches
+    rendered_plot_dpi
 
 let render_script_for_python artifact_path =
   Printf.sprintf
     {|
 import os
 import pickle
-import matplotlib
+try:
+    import matplotlib
+except (ImportError, ModuleNotFoundError) as exc:
+    raise ImportError("show_plot requires `matplotlib` in [py-dependencies].packages.") from exc
+
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from matplotlib.figure import Figure as MatplotlibFigure
 from matplotlib.axes import Axes as MatplotlibAxes
 
 try:
     from plotnine.ggplot import ggplot as PlotnineGGPlot
-except Exception:
+except (ImportError, ModuleNotFoundError):
     PlotnineGGPlot = None
 
 artifact_path = %S
-output_path = os.path.join(os.environ["out"], "plot.png")
+output_path = os.path.join(os.environ["out"], %S)
 
 with open(artifact_path, "rb") as handle:
     plot_obj = pickle.load(handle)
 
 if PlotnineGGPlot is not None and isinstance(plot_obj, PlotnineGGPlot):
     fig = plot_obj.draw()
-    fig.savefig(output_path, dpi=144, bbox_inches="tight")
-    import matplotlib.pyplot as plt
+    fig.savefig(output_path, dpi=%d, bbox_inches="tight")
     plt.close(fig)
+# Axes is checked before Figure so single-axes objects render their parent
+# figure directly without changing the public show_plot contract.
 elif isinstance(plot_obj, MatplotlibAxes):
-    plot_obj.figure.savefig(output_path, dpi=144, bbox_inches="tight")
+    plot_obj.figure.savefig(output_path, dpi=%d, bbox_inches="tight")
 elif isinstance(plot_obj, MatplotlibFigure):
-    plot_obj.savefig(output_path, dpi=144, bbox_inches="tight")
+    plot_obj.savefig(output_path, dpi=%d, bbox_inches="tight")
 else:
     raise TypeError("show_plot currently supports matplotlib Figure/Axes and plotnine ggplot objects for Python nodes.")
 |}
     artifact_path
+    rendered_plot_filename
+    rendered_plot_dpi
+    rendered_plot_dpi
+    rendered_plot_dpi
 
 let render_script_for_class class_name artifact_path =
   match runtime_of_plot_class class_name with
@@ -235,19 +311,24 @@ let computed_node_from_registry node_name =
   | Some node_dir when not (is_blank node_dir) ->
       let artifact_path = Filename.concat node_dir "artifact" in
       let class_path = Filename.concat node_dir "class" in
-      let class_name = read_first_line class_path in
-      if Sys.file_exists artifact_path && supported_plot_class class_name then
-        Ok {
-          cn_name = node_name;
-          cn_runtime = (match runtime_of_plot_class class_name with Some runtime -> runtime | None -> "unknown");
-          cn_path = artifact_path;
-          cn_serializer = "default";
-          cn_class = class_name;
-          cn_dependencies = [];
-        }
-      else
-        Error
-          (Printf.sprintf "show_plot: could not resolve plot artifact for node `%s` from `%s`." node_name node_dir)
+      (match read_first_line class_path with
+       | Error _ as err -> err
+       | Ok class_name ->
+           if not (Sys.file_exists artifact_path) then
+             Error
+               (Printf.sprintf "show_plot: artifact `%s` for node `%s` is missing." artifact_path node_name)
+           else if not (supported_plot_class class_name) then
+             Error
+               (Printf.sprintf "show_plot: node `%s` has unsupported plot class `%s`." node_name class_name)
+           else
+             Ok {
+               cn_name = node_name;
+               cn_runtime = (match runtime_of_plot_class class_name with Some runtime -> runtime | None -> "unknown");
+               cn_path = artifact_path;
+               cn_serializer = "default";
+               cn_class = class_name;
+               cn_dependencies = [];
+             })
   | _ ->
       match Builder_logs.get_logs () with
       | [] ->
@@ -328,11 +409,11 @@ let render_plot_artifact cn =
     | Ok (script_content, script_name, runtime) ->
         let project_root = Builder_utils.get_project_root () in
         Builder_utils.ensure_pipeline_dir ();
-        let render_id =
+        let render_prefix =
           Printf.sprintf "show_plot_render_%s_%d" (Builder_utils.get_timestamp ()) (Unix.getpid ())
         in
-        let nix_path = Filename.concat Builder_utils.pipeline_dir (render_id ^ ".nix") in
-        let local_plot_path = Filename.concat Builder_utils.pipeline_dir (render_id ^ ".png") in
+        let nix_path = Filename.concat Builder_utils.pipeline_dir (render_prefix ^ ".nix") in
+        let local_plot_path = Filename.concat Builder_utils.pipeline_dir (render_prefix ^ ".png") in
         let nix_content =
           render_nix_expression ~project_root ~runtime ~script_name ~script_content
         in
@@ -349,7 +430,7 @@ let render_plot_artifact cn =
                | Error msg ->
                    Error ("show_plot: failed to render plot in Nix sandbox: " ^ msg)
                | Ok out_path ->
-                   let rendered_path = Filename.concat out_path "plot.png" in
+                   let rendered_path = Filename.concat out_path rendered_plot_filename in
                    if not (Sys.file_exists rendered_path) then
                      Error
                        (Printf.sprintf "show_plot: render succeeded but `%s` was not produced." rendered_path)
@@ -358,8 +439,8 @@ let render_plot_artifact cn =
                      match visualization_tool ~project_root () with
                      | Error _ as err -> err
                      | Ok None -> Ok local_plot_path
-                     | Ok (Some tool) ->
-                         (match open_rendered_plot tool local_plot_path with
+                     | Ok (Some viewer) ->
+                         (match open_rendered_plot viewer local_plot_path with
                           | Ok () -> Ok local_plot_path
                           | Error _ as err -> err)
                    end)

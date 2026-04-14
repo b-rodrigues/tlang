@@ -275,6 +275,10 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
          && contains script "pickle.load"
          && contains script "savefig"
      | Error _ -> false);
+  test_message "show_plot rejects unsupported plot classes"
+    (match Show_plot.render_script_for_class "plotly" "/tmp/plot.json" with
+     | Error msg -> contains msg "plotly" && contains msg "ggplot" && contains msg "matplotlib" && contains msg "plotnine"
+     | Ok _ -> false);
   print_newline ();
 
   Printf.printf "Phase 7 — Multi-line: Parser newline tolerance:\n";
