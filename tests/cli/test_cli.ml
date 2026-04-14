@@ -275,9 +275,21 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
          && contains script "pickle.load"
          && contains script "savefig"
      | Error _ -> false);
+  let seaborn_render =
+    Show_plot.render_script_for_class "seaborn" "/tmp/plot.pkl"
+  in
+  test_message "show_plot seaborn renderer uses pickle and savefig"
+    (match seaborn_render with
+     | Ok (script, script_name, runtime) ->
+         script_name = "render_plot.py"
+         && runtime = "Python"
+         && contains script "pickle.load"
+         && contains script "seaborn"
+         && contains script "savefig"
+     | Error _ -> false);
   test_message "show_plot rejects unsupported plot classes"
-    (match Show_plot.render_script_for_class "plotly" "/tmp/plot.json" with
-     | Error msg -> contains msg "plotly" && contains msg "ggplot" && contains msg "matplotlib" && contains msg "plotnine"
+    (match Show_plot.render_script_for_class "vega" "/tmp/plot.json" with
+     | Error msg -> contains msg "vega" && contains msg "ggplot" && contains msg "matplotlib" && contains msg "plotnine" && contains msg "seaborn" && contains msg "plotly" && contains msg "altair" && contains msg "bokeh"
      | Ok _ -> false);
   print_newline ();
 

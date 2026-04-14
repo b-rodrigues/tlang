@@ -1,6 +1,6 @@
 # Plotting and Visual Inspection
 
-T is primarily an orchestration engine and does not currently provide its own native low-level plotting library, and very likely never will. Instead, T leverages the powerful visualization ecosystems of **R** (`ggplot2`) and **Python** (`matplotlib`, `plotnine`) through its polyglot pipeline architecture.
+T is primarily an orchestration engine and does not currently provide its own native low-level plotting library. Instead, T leverages the powerful visualization ecosystems of **R** (`ggplot2`) and **Python** (`matplotlib`, `plotnine`, `seaborn`, `plotly`, `altair`, `bokeh`) through its polyglot pipeline architecture.
 
 One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R or Python node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
 
@@ -54,7 +54,7 @@ When you build a pipeline containing these nodes, T creates two artifacts for ea
 T automatically extracts:
 - **Title**: The main title of the plot.
 - **Backend**: The runtime used to produce the plot (`"R"` or `"Python"`).
-- **Class**: The plot type (`"ggplot"`, `"matplotlib"`, or `"plotnine"`).
+- **Class**: The plot library or object type (e.g., `"ggplot"`, `"matplotlib"`, `"seaborn"`, `"plotly"`, `"altair"`, `"bokeh"`).
 - **Labels**: Axis labels and legends.
 - **Layers**: The types of geometries present (e.g., "point", "line").
 - **Mappings**: In `ggplot2`, the aesthetic mappings (x, y, color, etc.).
@@ -188,9 +188,23 @@ show_plot(p)
 
 `show_plot()` renders the plot by reloading the stored artifact inside a Nix sandbox:
 
-- **R / ggplot2** nodes require `ggplot2` to be present in `[r-dependencies].packages`
-- **Python / matplotlib** nodes require `matplotlib` to be present in `[py-dependencies].packages`
-- **Python / plotnine** nodes render through plotnine when available, but still require `matplotlib` because the final output is saved through matplotlib
+- **R / ggplot2** nodes require `ggplot2` to be present in `[r-dependencies].packages`.
+- **Python / matplotlib** nodes require `matplotlib` in `[py-dependencies].packages`.
+- **Python / seaborn** nodes require `seaborn` and `matplotlib` in `[py-dependencies].packages`.
+- **Python / Plotly** requires `plotly` and `kaleido` (for static image export) in `[py-dependencies].packages`.
+- **Python / Altair** requires `altair` and `vl-convert-python` (preferred) or `altair_saver` in `[py-dependencies].packages`.
+- **Python / Bokeh** requires `bokeh`, `selenium`, and a headless browser in the environment.
+
+### Automated Dependency Detection
+
+When you use these libraries in a `pyn()` node, T's static analyzer will automatically detect the imports and prompt you to add the required rendering dependencies to your `tproject.toml` if they are missing.
+
+| Detected Import | Automatically Suggested Packages |
+| :--- | :--- |
+| `import seaborn` | `seaborn`, `matplotlib` |
+| `import plotly` | `plotly`, `kaleido` |
+| `import altair` | `altair`, `vl-convert-python` |
+| `import bokeh` | `bokeh`, `selenium` |
 
 Example project configuration:
 
@@ -200,7 +214,7 @@ packages = ["ggplot2"]
 
 [py-dependencies]
 version = "python314"
-packages = ["matplotlib", "plotnine"]
+packages = ["matplotlib", "plotnine", "seaborn", "plotly", "kaleido"]
 
 [visualization-tool]
 command = "xdg-open"
