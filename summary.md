@@ -422,3 +422,4 @@ This command automatically:
 2.  Retrieves today's date for the `rstats-on-nix` nixpkgs fork.
 3.  Updates `tproject.toml` with the new values.
 4.  Regenerates `flake.nix` and runs `nix flake update`.
+
