@@ -1192,8 +1192,8 @@ def py_extract_plot_metadata(obj):
 
     figure = None
     axes = None
-    # Seed title before backend detection so Plotly/Altair titles survive the
-    # later matplotlib/seaborn fallback path.
+    # Seed title before backend detection so non-matplotlib backends can set it
+    # once and the later figure/axes fallback only fills it in when still empty.
     title = None
     viz_class = "matplotlib"
 
@@ -1246,7 +1246,7 @@ def py_extract_plot_metadata(obj):
         if viz_class not in ["plotly", "altair"]:
             return None
     else:
-        if figure is not None and getattr(figure, "_suptitle", None) is not None:
+        if title is None and figure is not None and getattr(figure, "_suptitle", None) is not None:
             text = figure._suptitle.get_text()
             if text:
                 title = text

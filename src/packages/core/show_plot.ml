@@ -85,6 +85,8 @@ let copy_file src dst =
          "show_plot: failed to copy `%s` to `%s`: %s"
          src dst (Printexc.to_string exn))
 
+(* Ensure REPL-visible output is flushed before launching the local viewer or
+   returning the rendered path. *)
 let flush_output_streams () =
   flush stdout;
   flush stderr
