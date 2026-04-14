@@ -215,7 +215,13 @@ let render_script_for_python artifact_path =
   Printf.sprintf
     {|
 import os
-import pickle
+try:
+    import cloudpickle as pickle
+except ImportError:
+    try:
+        import dill as pickle
+    except ImportError:
+        import pickle
 try:
     import matplotlib
 except (ImportError, ModuleNotFoundError) as exc:

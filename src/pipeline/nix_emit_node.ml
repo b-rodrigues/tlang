@@ -388,7 +388,14 @@ def py_read_json(path):
 
   let t_pickle_py_code = {|
 import os
-import pickle
+try:
+    import cloudpickle as pickle
+except ImportError:
+    try:
+        import dill as pickle
+    except ImportError:
+        import pickle
+
 def serialize(obj, path):
     with open(path, "wb") as f:
         pickle.dump(obj, f)
