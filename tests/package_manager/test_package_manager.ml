@@ -249,7 +249,7 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "plot-discovery-py" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_py_deps = ["matplotlib"]
+        analysis.missing_py_deps = ["cloudpickle"; "matplotlib"]
         && analysis.reasons = ["node `a` usage discovery"]
     | _ -> false);
 
@@ -266,7 +266,7 @@ min_version = "0.51.0"
     | Ast.VPipeline p ->
         let cfg = Package_types.default_project_config "plotnine-discovery-py" in
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
-        analysis.missing_py_deps = ["pandas"; "plotnine"]
+        analysis.missing_py_deps = ["cloudpickle"; "pandas"; "plotnine"]
         && analysis.reasons = ["node `a` usage discovery"]
     | _ -> false);
 
