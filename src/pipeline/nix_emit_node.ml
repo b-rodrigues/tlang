@@ -1138,12 +1138,62 @@ def py_extract_plot_metadata(obj):
 
     figure = None
     axes = None
-    if MatplotlibFigure and isinstance(obj, MatplotlibFigure):
-        figure = obj
-        axes = obj.axes[0] if getattr(obj, "axes", None) else None
-    elif MatplotlibAxes and isinstance(obj, MatplotlibAxes):
-        axes = obj
-        figure = getattr(obj, "figure", None)
+    viz_class = "matplotlib"
+
+    # Seaborn support
+    try:
+        # Check by module name to avoid hard dependency on seaborn in the extractor
+        obj_type = type(obj)
+        if obj_type.__module__.startswith("seaborn"):
+            viz_class = "seaborn"
+            if hasattr(obj, "fig"):
+                figure = obj.fig
+            elif hasattr(obj, "figure"):
+                figure = obj.figure
+            if figure and not axes:
+                axes = figure.axes[0] if getattr(figure, "axes", None) else None
+    except Exception:
+        pass
+
+    # Plotly support
+    try:
+        obj_type = type(obj)
+        if obj_type.__module__.startswith("plotly"):
+            viz_class = "plotly"
+            if hasattr(obj, "layout") and obj.layout.title:
+                t = obj.layout.title
+                if hasattr(t, "text"):
+                    title = t.text
+                elif isinstance(t, str):
+                    title = t
+    except Exception:
+        pass
+
+    # Altair support
+    try:
+        if type(obj).__module__.startswith("altair"):
+            viz_class = "altair"
+            if hasattr(obj, "title") and obj.title:
+                title = str(obj.title)
+    except Exception:
+        pass
+
+    # Bokeh support
+    try:
+        if type(obj).__module__.startswith("bokeh"):
+            viz_class = "bokeh"
+            if hasattr(obj, "title") and hasattr(obj.title, "text"):
+                title = obj.title.text
+    except Exception:
+        pass
+
+    if figure is None and axes is None and viz_class not in ["plotly", "altair", "bokeh"]:
+        if MatplotlibFigure and isinstance(obj, MatplotlibFigure):
+            figure = obj
+            axes = obj.axes[0] if getattr(obj, "axes", None) else None
+        elif MatplotlibAxes and isinstance(obj, MatplotlibAxes):
+            axes = obj
+            figure = getattr(obj, "figure", None)
 
     if figure is None and axes is None:
         return None
@@ -1163,7 +1213,7 @@ def py_extract_plot_metadata(obj):
         "y": axes.get_ylabel() if axes is not None else None,
     })
     return {
-        "class": "matplotlib",
+        "class": viz_class,
         "backend": "Python",
         "title": title,
         "mapping": {},
