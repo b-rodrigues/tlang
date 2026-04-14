@@ -88,7 +88,7 @@ cannot work because `!!` is a parser-level operator, not a runtime function — 
 
 ---
 
-## Gap 1: No `sym()` / `as_symbol()` Function
+## Gap 1: `sym()` Helper for Programmatic Symbols
 
 The issue also raised the equivalent of R's `get()`:
 
@@ -97,22 +97,21 @@ x <- 1:10; y <- "x"
 data.frame(z = get(y))
 ```
 
-In T there is no direct equivalent. The natural approach would be:
+In T there is still no direct `get()`-style variable lookup helper, but the runtime now has the missing building block for the string-to-symbol step:
 
 ```t
-y = "x"
-eval(expr(!!sym(y)))
+y = "column_name"
+expr(select(df, !!sym(y)))
 ```
 
-but T does not currently expose a `sym()` (or `as_symbol()`) function that converts a string to a `Symbol`. This is a real gap. 
-Without it, there is no clean way to go from a string variable holding a column name to a symbol that can be injected via `!!` into a quoted expression.
+T now exposes `sym()` in the `core` package. It converts a string to a runtime `Symbol`, or passes an existing `Symbol` through unchanged. This closes the smallest, library-only gap from the original discussion and makes string-driven quasiquotation less awkward.
 
-### Proposed addition
+### Implemented addition
 
-Add `sym(string) -> Symbol` to the `core` or `base` package:
+`sym(string_or_symbol) -> Symbol` is now available in `core`:
 
 ```t
-sym("mpg")         -- Symbol($mpg)
+sym("mpg")         -- mpg
 sym(y)             -- Symbol from the value of y
 
 -- Usage
@@ -120,7 +119,7 @@ col_name = "salary"
 df |> select(!!sym(col_name))
 ```
 
-This is a small, self-contained addition with no parser changes required.
+This is a small, self-contained addition with no parser changes required. It helps with programmatic code generation and dynamic column naming, even though it does **not** by itself introduce auto-quoting for function parameters.
 
 ---
 
@@ -177,15 +176,13 @@ It is the larger of the two proposed changes and warrants its own design discuss
 | `enquo` / `enquos` | ✅ Implemented | Captures caller expressions |
 | `$col` NSE in colcraft verbs | ✅ Implemented | Already a Symbol at call time |
 | `eval(expr(...))` workaround | ✅ Works today | Verbose but correct |
-| `sym(string) -> Symbol` | ❌ Missing | Small addition, no parser change |
+| `sym(string) -> Symbol` | ✅ Implemented | Available in `core`; supports string-driven quasiquotation |
 | Auto-quoting parameter `$param` | ❌ Missing | Larger change, needs design work |
 
 ---
 
 ## Recommended Next Steps
 
-1. **Immediate**: Add `sym(string) -> Symbol` to `core` or `base`. This unblocks the `get()`-style use case and is a one-function addition.
+1. **Short term**: Continue tightening the metaprogramming documentation so it distinguishes clearly between `enquo()` (capture what the caller wrote) and `sym()` (start from a computed string).
 
-2. **Short term**: Update the metaprogramming documentation to clarify that `enquo` is not needed when callers already pass `$col` symbols, and show the simpler `!!col` pattern.
-
-3. **Design discussion**: Open a separate issue for auto-quoting parameter annotations (`$param` in function signatures). This is the change that would most directly realise the original RFC's goal — functions that accept bare column names without any quoting machinery visible to the caller.
+2. **Design discussion**: Open a separate issue for auto-quoting parameter annotations (`$param` in function signatures). This is the change that would most directly realise the original RFC's goal — functions that accept bare column names without any quoting machinery visible to the caller.

@@ -164,5 +164,38 @@ let register_numeric env =
     ))
     env
 
+(*
+--# Convert a string to a Symbol
+--#
+--# Creates a Symbol from a string so it can be injected into quoted code with
+--# `!!`. Existing Symbol values pass through unchanged.
+--#
+--# @name sym
+--# @param x :: String | Symbol The name to convert.
+--# @return :: Symbol The resulting symbol.
+--# @example
+--#   sym("mpg")
+--#   expr(select(df, !!sym("mpg")))
+--# @family core
+--# @export
+*)
+let register_sym env =
+  Env.add "sym"
+    (make_builtin ~name:"sym" 1 (fun args _env ->
+      let validate_name name =
+        let trimmed = String.trim name in
+        if trimmed = "" then
+          Error.value_error "Function `sym` expects a non-empty String or Symbol."
+        else
+          VSymbol trimmed
+      in
+      match args with
+      | [VString name] -> validate_name name
+      | [VSymbol name] -> validate_name name
+      | [_] -> Error.type_error "Function `sym` expects a String or Symbol."
+      | _ -> Error.arity_error_named "sym" 1 (List.length args)
+    ))
+    env
+
 let register env =
-  env |> register_integer |> register_float |> register_numeric
+  env |> register_integer |> register_float |> register_numeric |> register_sym

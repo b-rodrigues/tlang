@@ -148,6 +148,18 @@ print(e)
 
 If `!!name` does not evaluate to a `String` or `Symbol`, a `TypeError` is raised.
 
+### `sym(string_or_symbol)`
+
+When you have a column or argument name in a string variable, use `sym()` to turn it into a runtime `Symbol` that can be injected with `!!`.
+
+```t
+col_name = "mpg"
+expr(select(df, !!sym(col_name)))
+-- Output: expr(select(df, mpg))
+```
+
+This is most useful for programmatic code generation. It complements `enquo()`: `enquo()` captures what the caller wrote, while `sym()` starts from an already-computed string.
+
 ## Non-Standard Evaluation (NSE)
 
 For writing functions that accept unevaluated expressions from the caller — similar to `dplyr` verbs in R — T provides `enquo()` and `enquos()`.
@@ -255,5 +267,5 @@ df |> mutate(new = $score * 2)
 ## Best Practices
 
 1.  **Use `quo` by default**: When in doubt, use `quo` instead of `expr`. It ensures the code "remembers" its environment, preventing `NameError` when evaluated in different contexts.
-2.  **Quotation in Functions**: Always use `enquo` to capture arguments intended for data verbs. This allows callers to pass unquoted column names or complex expressions naturally.
+2.  **Quotation in Functions**: Use `enquo` when you need to capture the caller's expression for later injection. Today, callers should still pass `$col` for column references; if you already have a string name, convert it with `sym()` before injecting it with `!!`.
 3.  **Dynamic Naming**: Use `!!name := !!value` for maximum flexibility when writing generic data processing functions.

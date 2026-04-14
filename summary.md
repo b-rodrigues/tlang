@@ -267,7 +267,7 @@ Purpose: printing, introspection, collections, metaprogramming, filesystem/path 
 - Printing and output: `print(...)`, `cat(..., sep = " ")`, `pretty_print(x)`, `write_text(text, path)`
 - Type and function introspection: `type(x)`, `args(fn)`, `help(name)`, `apropos(query)`, `packages()`, `package_info(name)`, `body(fn)`, `source(fn)`, `is_error(x)`
 - Collections and basic control: `length(x)`, `head(x, n = 6)`, `tail(x, n = 6)`, `get(x, key)`, `map(xs, fn)`, `sum(xs, na_rm = false)`, `seq(end)`, `seq(start, end, by = 1)`, `ifelse(cond, yes, no)`, `case_when(...)`, `casewhen(...)`
-- Metaprogramming: `expr(code)`, `exprs(...)`, `quo(code)`, `quos(...)`, `eval(expr_or_quo)`, `enquo(param)`, `enquos(...)`
+- Metaprogramming: `expr(code)`, `exprs(...)`, `quo(code)`, `quos(...)`, `eval(expr_or_quo)`, `enquo(param)`, `enquos(...)`, `sym(name)`
 - Converters: `to_integer(x)`, `to_float(x)`, `to_numeric(x)`
 - Execution and shell/file helpers: `run(command, ...)`, `exit(code = 0)`, `getwd()`, `file_exists(path)`, `dir_exists(path)`, `read_file(path)`, `list_files(path = ".")`, `env(name)`
 - Path helpers: `path_join(...)`, `path_basename(path)`, `path_dirname(path)`, `path_ext(path)`, `path_stem(path)`, `path_abs(path)`
