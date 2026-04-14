@@ -169,8 +169,32 @@ let scan_code_requirements ~node_name ~runtime raw_text =
           req
       in
       let req =
+        if has_pkg "seaborn" then
+          { req with py_deps = add_list req.py_deps [ "seaborn"; "matplotlib" ] }
+        else
+          req
+      in
+      let req =
         if has_pkg "plotnine" then
           { req with py_deps = add_list req.py_deps [ "plotnine"; "pandas" ] }
+        else
+          req
+      in
+      let req =
+        if has_pkg "plotly" then
+          { req with py_deps = add_list req.py_deps [ "plotly"; "kaleido" ] }
+        else
+          req
+      in
+      let req =
+        if has_pkg "altair" then
+          { req with py_deps = add_list req.py_deps [ "altair"; "vl-convert-python" ] }
+        else
+          req
+      in
+      let req =
+        if has_pkg "bokeh" then
+          { req with py_deps = add_list req.py_deps [ "bokeh"; "selenium" ] }
         else
           req
       in
