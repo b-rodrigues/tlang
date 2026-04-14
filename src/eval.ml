@@ -2084,7 +2084,7 @@ and autoquote_name_error ?location () =
   make_error ?location TypeError
     "Auto-quoted parameters expect a bare name, $column, String, or Symbol."
 
-and strip_leading_dollar s =
+and strip_dollar_prefix s =
   if s = "" then
     s
   else if s.[0] = '$' then
@@ -2093,14 +2093,7 @@ and strip_leading_dollar s =
     s
 
 and take_prefix n xs =
-  let rec go acc remaining_count rest =
-    if remaining_count <= 0 then List.rev acc
-    else
-      match rest with
-      | [] -> List.rev acc
-      | x :: xs_rest -> go (x :: acc) (remaining_count - 1) xs_rest
-  in
-  go [] n xs
+  List.filteri (fun i _ -> i < n) xs
 
 and autoquote_name_of_expr (expr : Ast.expr) : (string, value) result =
   let normalize name =
@@ -2112,7 +2105,7 @@ and autoquote_name_of_expr (expr : Ast.expr) : (string, value) result =
   | Var name -> normalize name
   | ColumnRef name -> normalize name
   | Value (VString name) -> normalize name
-  | Value (VSymbol name) -> normalize (strip_leading_dollar name)
+  | Value (VSymbol name) -> normalize (strip_dollar_prefix name)
   | _ -> Error (autoquote_name_error ?location:expr.loc ())
 
 and autoquote_capture_expr (expr : Ast.expr) : (Ast.expr * value, value) result =

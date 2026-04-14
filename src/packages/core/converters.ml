@@ -182,15 +182,13 @@ let register_numeric env =
 let register_sym env =
   Env.add "sym"
     (make_builtin ~name:"sym" 1 (fun args _env ->
-      let validate_name name =
-        let trimmed = String.trim name in
-        if trimmed = "" then
-          Error.value_error "Function `sym` expects a non-empty String or Symbol."
-        else
-          VSymbol trimmed
-      in
       match args with
-      | [VString name] -> validate_name name
+      | [VString name] ->
+          let trimmed = String.trim name in
+          if trimmed = "" then
+            Error.value_error "Function `sym` expects a non-empty String or Symbol."
+          else
+            VSymbol trimmed
       | [VSymbol name] -> VSymbol name
       | [_] -> Error.type_error "Function `sym` expects a String or Symbol."
       | _ -> Error.arity_error_named "sym" 1 (List.length args)
