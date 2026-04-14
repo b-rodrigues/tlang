@@ -1192,6 +1192,7 @@ def py_extract_plot_metadata(obj):
 
     figure = None
     axes = None
+    title = None
     viz_class = "matplotlib"
 
     # Seaborn support
@@ -1232,15 +1233,6 @@ def py_extract_plot_metadata(obj):
     except Exception:
         pass
 
-    # Bokeh support
-    try:
-        if type(obj).__module__.startswith("bokeh"):
-            viz_class = "bokeh"
-            if hasattr(obj, "title") and hasattr(obj.title, "text"):
-                title = obj.title.text
-    except Exception:
-        pass
-
     if figure is None and axes is None:
         if MatplotlibFigure and isinstance(obj, MatplotlibFigure):
             figure = obj
@@ -1248,10 +1240,8 @@ def py_extract_plot_metadata(obj):
         elif MatplotlibAxes and isinstance(obj, MatplotlibAxes):
             axes = obj
             figure = getattr(obj, "figure", None)
-
-    title = None
     if figure is None and axes is None:
-        if viz_class not in ["plotly", "altair", "bokeh"]:
+        if viz_class not in ["plotly", "altair"]:
             return None
     else:
         if figure is not None and getattr(figure, "_suptitle", None) is not None:

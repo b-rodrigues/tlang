@@ -31,7 +31,7 @@ type viewer_tool = {
 
 let runtime_of_plot_class = function
   | "ggplot" -> Some "R"
-  | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" | "bokeh" -> Some "Python"
+  | "matplotlib" | "plotnine" | "seaborn" | "plotly" | "altair" -> Some "Python"
   | _ -> None
 
 let is_blank s =
@@ -60,23 +60,35 @@ let read_first_line path =
       Error (Printf.sprintf "show_plot: `%s` is empty." path)
 
 let copy_file src dst =
-  let ic = open_in_bin src in
-  Fun.protect
-    ~finally:(fun () -> close_in_noerr ic)
-    (fun () ->
-      let oc = open_out_bin dst in
-      Fun.protect
-        ~finally:(fun () -> close_out_noerr oc)
-        (fun () ->
-          let buffer = Bytes.create 8192 in
-          let rec loop () =
-            let read_count = input ic buffer 0 (Bytes.length buffer) in
-            if read_count > 0 then begin
-              output oc buffer 0 read_count;
-              loop ()
-            end
-          in
-          loop ()))
+  try
+    let ic = open_in_bin src in
+    Fun.protect
+      ~finally:(fun () -> close_in_noerr ic)
+      (fun () ->
+        let oc = open_out_bin dst in
+        Fun.protect
+          ~finally:(fun () -> close_out_noerr oc)
+          (fun () ->
+            let buffer = Bytes.create 8192 in
+            let rec loop () =
+              let read_count = input ic buffer 0 (Bytes.length buffer) in
+              if read_count > 0 then begin
+                output oc buffer 0 read_count;
+                loop ()
+              end
+            in
+            loop ()));
+    Ok ()
+  with
+  | Sys_error msg ->
+      Error
+        (Printf.sprintf
+           "show_plot: failed to copy `%s` to `%s`: %s"
+           src dst msg)
+
+let flush_output_streams () =
+  flush stdout;
+  flush stderr
 
 let configured_visualization_tool ?project_root () =
   let root =
@@ -226,7 +238,7 @@ def deserialize(path):
     except Exception:
         pass
 
-    # Try dill next (more robust for Bokeh)
+    # Try dill next for environments that serialized with dill.
     try:
         import dill
         with open(path, "rb") as f:
@@ -291,14 +303,8 @@ elif type(plot_obj).__module__.startswith("altair"):
              plot_obj.save(output_path)
         except Exception:
              raise RuntimeError(f"show_plot: altair renderer failed. Ensure 'vl-convert-python' or 'altair_saver' is in [py-dependencies].packages. Error: {str(exc)}")
-elif type(plot_obj).__module__.startswith("bokeh"):
-    try:
-        from bokeh.io import export_png
-        export_png(plot_obj, filename=output_path)
-    except Exception as exc:
-        raise RuntimeError(f"show_plot: bokeh renderer failed. Note that Bokeh export requires 'selenium' and a headless browser. Error: {str(exc)}")
 else:
-    raise TypeError("show_plot currently supports matplotlib Figure/Axes, plotnine ggplot, seaborn Grid, plotly Figure, and altair Chart objects for Python nodes. Note: Bokeh is not supported due to serialization limitations.")
+    raise TypeError("show_plot currently supports matplotlib Figure/Axes, plotnine ggplot, seaborn Grid, plotly Figure, and altair Chart objects for Python nodes.")
 |}
     rendered_plot_filename
     rendered_plot_dpi
@@ -489,26 +495,31 @@ let render_plot_artifact cn =
                      Error
                        (Printf.sprintf "show_plot: render succeeded but `%s` was not produced." rendered_path)
                    else begin
-                     copy_file rendered_path local_plot_path;
-                     match visualization_tool ~project_root () with
-                     | Error _ as err -> err
-                     | Ok None -> Ok local_plot_path
-                     | Ok (Some viewer) ->
-                         (match open_rendered_plot viewer local_plot_path with
-                          | Ok () -> Ok local_plot_path
-                          | Error _ as err -> err)
-                   end)
+                      (match copy_file rendered_path local_plot_path with
+                       | Error _ as err -> err
+                       | Ok () ->
+                           flush_output_streams ();
+                           match visualization_tool ~project_root () with
+                           | Error _ as err -> err
+                           | Ok None -> Ok local_plot_path
+                           | Ok (Some viewer) ->
+                               (match open_rendered_plot viewer local_plot_path with
+                                | Ok () -> Ok local_plot_path
+                                | Error _ as err -> err))
+                    end)
 
 let register env =
   let show_plot_fn named_args _env =
     match named_args with
     | [(_, plot)] ->
         (match resolve_plot_node plot with
-         | Error msg -> Error.make_error ValueError msg
-         | Ok cn ->
-             (match render_plot_artifact cn with
-              | Ok path -> VString path
-              | Error msg -> Error.make_error RuntimeError msg))
+          | Error msg -> Error.make_error ValueError msg
+          | Ok cn ->
+              (match render_plot_artifact cn with
+               | Ok path ->
+                   flush_output_streams ();
+                   VString path
+               | Error msg -> Error.make_error RuntimeError msg))
     | _ ->
         Error.arity_error_named "show_plot" 1 (List.length named_args)
   in

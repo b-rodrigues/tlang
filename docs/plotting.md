@@ -5,9 +5,6 @@ T is primarily an orchestration engine and does not currently provide its own na
 - **R**: `ggplot2`
 - **Python**: `matplotlib`, `seaborn`, `plotly`, `altair`, `plotnine`
 
-> [!NOTE]
-> Bokeh is currently not supported due to its complex internal state which cannot be reliably serialized in the Nix sandbox environment.
-
 One of T's unique features is **Automated Visual Metadata Capture**. When you generate a plot in an R or Python node, T "sees" the plot object and automatically extracts its structural metadata during the build process.
 
 ---
@@ -60,7 +57,7 @@ When you build a pipeline containing these nodes, T creates two artifacts for ea
 T automatically extracts:
 - **Title**: The main title of the plot.
 - **Backend**: The runtime used to produce the plot (`"R"` or `"Python"`).
-- **Class**: The plot library or object type (e.g., `"ggplot"`, `"matplotlib"`, `"seaborn"`, `"plotly"`, `"altair"`, `"bokeh"`).
+- **Class**: The plot library or object type (e.g., `"ggplot"`, `"matplotlib"`, `"seaborn"`, `"plotly"`, `"altair"`).
 - **Labels**: Axis labels and legends.
 - **Layers**: The types of geometries present (e.g., "point", "line").
 - **Mappings**: In `ggplot2`, the aesthetic mappings (x, y, color, etc.).
@@ -202,7 +199,6 @@ show_plot(p)
 - **Python / seaborn** nodes require `seaborn`, `matplotlib`, and `cloudpickle` in `[py-dependencies].packages`.
 - **Python / Plotly** requires `plotly`, `kaleido` (for static image export), and `cloudpickle` in `[py-dependencies].packages`.
 - **Python / Altair** requires `altair`, `vl-convert-python` (preferred), and `cloudpickle` in `[py-dependencies].packages`.
-- **Python / Bokeh** requires `bokeh`, `selenium`, `cloudpickle`, and a headless browser in the environment.
 - **Python / Plotnine** requires `plotnine`, `pandas`, and `cloudpickle` in `[py-dependencies].packages`.
 
 ### Automated Dependency Detection
@@ -216,8 +212,6 @@ When you use these libraries in a `pyn()` node, T's static analyzer will automat
 | `import plotnine` | `plotnine`, `pandas`, `cloudpickle` |
 | `import plotly` | `plotly`, `kaleido`, `cloudpickle` |
 | `import altair` | `altair`, `vl-convert-python`, `cloudpickle` |
-| `import bokeh` | `bokeh`, `selenium`, `cloudpickle` |
-
 Example project configuration:
 
 ```toml

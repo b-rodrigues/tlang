@@ -8,14 +8,14 @@
 - **Automated Plot Metadata Capture**: 
     - Implemented infrastructure to automatically extract and persist metadata from visual objects in polyglot pipelines.
     - **R Support**: Capture titles, labels (x, y, color, etc.), mappings, and layers from `ggplot2` objects.
-    - **Python Support**: Full metadata extraction and inspection support for `matplotlib` figures, `plotnine` (ggplot-style), `seaborn` grids, `plotly` figures, `altair` charts, and `bokeh` figures.
+    - **Python Support**: Full metadata extraction and inspection support for `matplotlib` figures, `plotnine` (ggplot-style), `seaborn` grids, `plotly` figures, and `altair` charts.
 - **Enhanced `show_plot()` Builtin**:
     - Introduced `show_plot()` to render and open pipeline plot artifacts locally.
-    - Supports automatic rendering of R (`ggplot2`) and Python (Matplotlib, Seaborn, Plotly, Altair, Bokeh, Plotnine) plots within the Nix sandbox.
-    - Implemented headless rendering for interactive libraries: Plotly (via `kaleido`), Altair (via `vl-convert`), and Bokeh (via `selenium`).
+    - Supports automatic rendering of R (`ggplot2`) and Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine) plots within the Nix sandbox.
+    - Implemented headless rendering for interactive libraries: Plotly (via `kaleido`) and Altair (via `vl-convert`).
     - **Dependency Automation**: `tlang` now automatically suggests or injects `cloudpickle` when plotting libraries are detected in Python nodes to ensure reliable serialization of complex objects containing lambdas.
 - **Transparent `read_node()` for Plots**:
-    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, `altair`, or `bokeh`.
+    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, or `altair`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
 ### Core Evaluator & Emitter Refinements
@@ -25,7 +25,7 @@
 
 ### Bug Fixes & Refinements
 - **Visualization Stability**: Fixed a critical `Printf.sprintf` type error in the Python plot rendering logic that prevented pipeline builds for Python-based visualizations.
-- **Improved REPL interaction**: Explicitly flush the environment after `show_plot` calls to ensure the rendered path is correctly reported.
+- **Improved REPL interaction**: Explicitly flush stdout/stderr around `show_plot` calls so the rendered path is reported cleanly before local viewer launch.
 
 
 ## [0.51.3] - 2026-04-12
