@@ -286,6 +286,7 @@ else:
     rendered_plot_dpi
     rendered_plot_dpi
     rendered_plot_dpi
+    rendered_plot_dpi
 
 let render_script_for_class class_name artifact_path =
   match runtime_of_plot_class class_name with
