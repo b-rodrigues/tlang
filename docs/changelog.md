@@ -13,6 +13,7 @@
     - Introduced `show_plot()` to render and open pipeline plot artifacts locally.
     - Supports automatic rendering of R (`ggplot2`) and Python (Matplotlib, Seaborn, Plotly, Altair, Bokeh, Plotnine) plots within the Nix sandbox.
     - Implemented headless rendering for interactive libraries: Plotly (via `kaleido`), Altair (via `vl-convert`), and Bokeh (via `selenium`).
+    - **Dependency Automation**: `tlang` now automatically suggests or injects `cloudpickle` when plotting libraries are detected in Python nodes to ensure reliable serialization of complex objects containing lambdas.
 - **Transparent `read_node()` for Plots**:
     - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, `altair`, or `bokeh`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
