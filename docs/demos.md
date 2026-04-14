@@ -38,6 +38,13 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 - **Description**: Demonstrates functional updates to immutable configurations and dynamic DAG generation.
 - **Key Features**: Pipeline-as-code, functional composition.
 
+## Meta-programming & Introspection
+
+### [Dynamic Lookup & Symbols](metaprogramming.html)
+- **Repo**: `get_sym_demo_t`
+- **Description**: Showcases runtime variable lookup and symbol construction for dynamic orchestration.
+- **Key Features**: `get()`, `sym()`, dynamic node access.
+
 ---
 
 ## Running the Demos
