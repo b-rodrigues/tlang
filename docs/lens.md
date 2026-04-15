@@ -159,6 +159,21 @@ df  = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
 df2 = df |> set(compose(row_lens(0), col_lens("y")), 99)
 ```
 
+### 4.1 Cross-Node Retrieval in Sandboxes
+
+A unique feature of `node_lens` is its ability to perform **cross-node artifact retrieval** when used within a Nix-managed pipeline node.
+
+While standard lenses like `col_lens` require a data source (e.g., `get(df, l)`), a `node_lens` used with a single-argument `get()` will automatically locate and deserialize the artifact of a sibling node from the sandbox environment.
+
+```t
+-- Inside a node script (e.g., node_b)
+-- Assuming node_a is a dependency of this node:
+
+target_data = get(node_lens("node_a"))
+```
+
+This works because T automatically propagates artifact paths of dependencies via environment variables (`T_NODE_<name>`) within the Nix sandbox. T handles the path resolution, integrity checks, and deserialization (using the appropriate artifact class) automatically.
+
 ---
 
 ### 5. Traversals: `filter_lens`

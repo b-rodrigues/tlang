@@ -1324,6 +1324,45 @@ p.ranked        -- DataFrame sorted by score
 
 ---
 
+## 39. Cross-Node Artifact Retrieval
+
+When nodes are executed within a Nix-managed sandbox (via `populate_pipeline(p, build = true)`), they are isolated from each other. However, T provides a built-in mechanism for nodes to access the serialized artifacts of their dependencies.
+
+### Automatic Environment Propagation
+
+For every dependency `dep` that a node has, the pipeline runner automatically injects an environment variable named `T_NODE_<dep>` into the sandbox. This variable contains the path to the Nix store directory where that dependency's artifact is stored.
+
+### Retrieval with `node_lens`
+
+The canonical way to access a sibling node's artifact is using the `node_lens` with the single-argument `get()` function. This is preferred over manual environment variable lookup because:
+1. It is **portable**: T handles the path resolution and deserialization automatically.
+2. It is **integrated**: It uses the same deserializer system as the rest of the pipeline.
+
+```t
+p = pipeline {
+  node_a = node(command = 100, serializer = "json")
+  
+  -- This node retrieves node_a's value from its Nix artifact
+  dynamic_access = node(
+    command = {
+        -- Using get(node_lens("...")) for cross-node access
+        val = get(node_lens("node_a"))
+        val * 2
+    },
+    runtime = "T"
+  )
+}
+```
+
+When `dynamic_access` runs inside the Nix sandbox:
+1. T sees the `node_lens("node_a")` and looks for the `T_NODE_node_a` environment variable.
+2. It locates the `artifact` file within that path.
+3. It detects the artifact class (e.g., `Int` from JSON) and deserializes it back into a T value.
+
+This pattern is essential for **polyglot pipelines** where data is passed between T, R, and Python nodes through files, and for **dynamic access** nodes where the target of a retrieval is determined at runtime (e.g., `target = "A"; get(node_lens(target))`).
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipelines, learn how to manage reproducible projects and develop T packages:
