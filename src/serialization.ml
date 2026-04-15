@@ -293,6 +293,7 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
         | Ast.NodeLens n -> `Assoc [("type", `String "NodeLens"); ("name", `String n)]
         | Ast.EnvVarLens (n, v) -> `Assoc [("type", `String "EnvVarLens"); ("node", `String n); ("var", `String v)]
         | Ast.CompositeLens (l1, l2) -> `Assoc [("type", `String "CompositeLens"); ("left", lens_to_yojson l1); ("right", lens_to_yojson l2)]
+        | Ast.FilterLens p -> `Assoc [("type", `String "FilterLens"); ("predicate", value_to_yojson p)]
       in
       `Assoc [("class", `String "VLens"); ("data", lens_to_yojson l)]
   | VNodeResult { v; _ } -> value_to_yojson v
@@ -324,6 +325,8 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
                        | Some (`String "CompositeLens") ->
                            Ast.CompositeLens (yojson_to_lens (List.assoc "left" items),
                                               yojson_to_lens (List.assoc "right" items))
+                       | Some (`String "FilterLens") ->
+                           Ast.FilterLens (yojson_to_value (List.assoc "predicate" items))
                        | _ -> Ast.ColLens "error")
                   | _ -> Ast.ColLens "error"
                 in
@@ -456,7 +459,9 @@ let deserialize_from_file path =
              if cls = "VError" then
                read_verror_json path
              else
-               Error (Printf.sprintf "Unknown artifact class `%s`" cls))
+               (* Fallback: try reading as JSON if the class is one of the basic T types
+                  or just try read_json as a general fallback for text-based artifacts. *)
+               read_json path)
           else
             (close_in ic; Error original_err)
       | Ok () ->

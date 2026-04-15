@@ -50,12 +50,12 @@ let register ~eval_call env =
                Printf.eprintf "get(node_lens('%s')): Deserialization of %s failed: %s\n" name artifact_path e;
                None)
         else (
-          Printf.eprintf "get(node_lens('%s')): Artifact file %s does not exist.\n" name artifact_path;
-          None
+          (* Artifact file missing — signal that Nix must build it *)
+          Some (Error.missing_artifact_error (Printf.sprintf "Artifact file %s does not exist." artifact_path))
         )
     | None -> 
-        Printf.eprintf "get(node_lens('%s')): Environment variable %s not found.\n" name env_name;
-        None
+        (* Env var missing — signal that Nix must provide it *)
+        Some (Error.missing_artifact_error (Printf.sprintf "Environment variable %s not found." env_name))
   in
 
   let apply_lens lens data _env_ref =
@@ -106,6 +106,53 @@ let register ~eval_call env =
                 | Some vars -> (match List.assoc_opt var vars with Some v -> v | None -> (VNA NAGeneric))
                 | None -> (VNA NAGeneric))
            | _ -> Error.type_error "env_var_lens get expects a Pipeline")
+      | FilterLens p ->
+          let filter_data = function
+            | VList items ->
+                let filtered = List.filter (fun (_name, v) -> 
+                  match eval_call env p [(None, mk_expr (Value v))] with
+                  | VBool b -> b
+                  | _ -> false (* The test expects an error, but FilterLens impl usually checks this. *)
+                ) items in
+                VList filtered
+            | VVector v ->
+                let filtered = Array.to_list v |> List.filter (fun v -> 
+                  match eval_call env p [(None, mk_expr (Value v))] with
+                  | VBool b -> b
+                  | _ -> false
+                ) |> Array.of_list in
+                VVector filtered
+            | VDataFrame df ->
+                let nrows = Arrow_table.num_rows df.arrow_table in
+                let keep = Array.make nrows false in
+                for i = 0 to nrows - 1 do
+                  let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
+                  match eval_call env p [(None, mk_expr (Value row_dict))] with
+                  | VBool b -> keep.(i) <- b
+                  | _ -> ()
+                done;
+                VDataFrame { df with arrow_table = Arrow_compute.filter df.arrow_table keep }
+            | other -> Error.type_error (Printf.sprintf "filter_lens expected collection, got %s" (Utils.type_name other))
+          in
+          (* Re-implement Bool check to match test expectation *)
+          let check_pred v = 
+             match eval_call env p [(None, mk_expr (Value v))] with
+             | VBool _ -> true
+             | VError _ as e -> raise (Failure (match e with VError info -> info.message | _ -> "Error"))
+             | other -> raise (Failure (Printf.sprintf "filter_lens predicate must return Bool, got %s" (Utils.type_name other)))
+          in
+          (try 
+             (match d with 
+               | VList items -> List.iter (fun (_, v) -> ignore(check_pred v)) items
+               | VVector v -> Array.iter (fun v -> ignore(check_pred v)) v
+               | VDataFrame df -> 
+                   let nrows = Arrow_table.num_rows df.arrow_table in
+                   for i = 0 to nrows - 1 do
+                     ignore(check_pred (VDict (Arrow_bridge.row_to_dict df.arrow_table i)))
+                   done
+               | _ -> ());
+             filter_data d
+           with Failure msg -> Error.type_error msg)
       | CompositeLens (l1, l2) ->
           let inner = get_lens l1 d in
           (match inner with
@@ -129,7 +176,7 @@ let register ~eval_call env =
       | [VLens (NodeLens name)] ->
           (match get_node_from_env name with
            | Some v -> v
-           | None -> Error.type_error (Printf.sprintf "node_lens get('%s') failed: T_NODE_%s environment variable not found." name name))
+           | None -> Error.type_error (Printf.sprintf "node_lens get('%s') failed (check stderr for details)." name))
       | [VLens _l] ->
           Error.type_error "Single-argument get() with a lens requires a node_lens to perform environment-based retrieval."
 

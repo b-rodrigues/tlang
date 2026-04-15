@@ -428,19 +428,10 @@ let filter_lens_set_impl p ~eval_call args env =
 --# @family lens
 --# @export
 *)
-let filter_lens_impl ~eval_call args _env =
+let filter_lens_impl ~eval_call:_ args _env =
   match args with
   | [(_, VNA _)] -> Error.type_error "filter_lens: predicate cannot be NA"
-  | [(_, p)] ->
-      let get_fn = VBuiltin {
-        b_name = None; b_arity = 1; b_variadic = false;
-        b_func = (fun args env_ref -> filter_lens_get_impl p ~eval_call args !env_ref)
-      } in
-      let set_fn = VBuiltin {
-        b_name = None; b_arity = 2; b_variadic = false;
-        b_func = (fun args env_ref -> filter_lens_set_impl p ~eval_call args !env_ref)
-      } in
-      VDict [("get", get_fn); ("set", set_fn)]
+  | [(_, p)] -> VLens (FilterLens p)
   | _ -> Error.arity_error_named "filter_lens" 1 (List.length args)
 
 (*
@@ -490,8 +481,9 @@ let rec apply_lens_get ~eval_call lens data env =
                 (match List.assoc_opt var vars with
                  | Some v -> v
                  | None -> (VNA NAGeneric))
-            | None -> (VNA NAGeneric))
-       | _ -> Error.type_error "env_var_lens get expects a Pipeline")
+             | None -> (VNA NAGeneric))
+        | _ -> Error.type_error "env_var_lens get expects a Pipeline")
+  | FilterLens p -> filter_lens_get_impl p ~eval_call [(None, data)] env
   | CompositeLens (l1, l2) ->
       let inner = apply_lens_get ~eval_call l1 data env in
       (match inner with
@@ -592,9 +584,10 @@ let rec apply_lens_set ~eval_call lens data val_v env =
            let new_vars = List.map (fun (k, v) -> if k = var_name then (k, val_v) else (k, v)) vars in
            let final_vars = if List.mem_assoc var_name vars then new_vars else new_vars @ [(var_name, val_v)] in
            let new_env_vars = List.map (fun (n, v) -> if n = node_name then (n, final_vars) else (n, v)) p.p_env_vars in
-           let final_env_vars = if List.mem_assoc node_name p.p_env_vars then new_env_vars else new_env_vars @ [(node_name, final_vars)] in
-           VPipeline { p with p_env_vars = final_env_vars }
-       | _ -> Error.type_error "env_var_lens set expects a Pipeline")
+            let final_env_vars = if List.mem_assoc node_name p.p_env_vars then new_env_vars else new_env_vars @ [(node_name, final_vars)] in
+            VPipeline { p with p_env_vars = final_env_vars }
+        | _ -> Error.type_error "env_var_lens set expects a Pipeline")
+  | FilterLens p -> filter_lens_set_impl p ~eval_call [(None, data); (None, val_v)] env
   | CompositeLens (l1, l2) ->
       let getter_lambda = VLambda {
         params = ["inner"]; autoquote_params = [false]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
@@ -691,6 +684,9 @@ let modify_impl ~eval_call args env =
 --# Pipeline Node Lens
 --#
 --# Targets the cached result value of a specific node in a Pipeline.
+--# In a Nix-managed sandbox, this lens also supports cross-node retrieval 
+--# using the 1-argument `get(node_lens("name"))` syntax, which automatically 
+--# locates and deserializes the sibling node's artifact from the environment.
 --#
 --# @name node_lens
 --# @param node_name :: String The name of the node.
