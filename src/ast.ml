@@ -37,6 +37,7 @@ type error_code =
   | RuntimeError
   | GenericError
   | NAPredicateError
+  | MissingArtifactError
 
 (** Structured source location *)
 type source_location = {
@@ -201,6 +202,7 @@ and lens =
   | NodeLens of string
   | EnvVarLens of string * string
   | CompositeLens of lens * lens
+  | FilterLens of value
 
 (** Runtime values *)
 and value =
@@ -532,6 +534,7 @@ module Utils = struct
     | RuntimeError -> "RuntimeError"
     | GenericError -> "GenericError"
     | NAPredicateError -> "NAPredicateError"
+    | MissingArtifactError -> "MissingArtifactError"
 
   let error_code_of_string = function
     | "TypeError" -> TypeError
@@ -550,6 +553,7 @@ module Utils = struct
     | "RuntimeError" -> RuntimeError
     | "GenericError" -> GenericError
     | "NAPredicateError" -> NAPredicateError
+    | "MissingArtifactError" -> MissingArtifactError
     | _ -> RuntimeError
 
   let na_type_to_string = function
@@ -815,6 +819,7 @@ module Utils = struct
           | NodeLens n -> Printf.sprintf "node_lens(\"%s\")" n
           | EnvVarLens (node, var) -> Printf.sprintf "env_var_lens(\"%s\", \"%s\")" node var
           | CompositeLens (l1, l2) -> Printf.sprintf "compose(%s, %s)" (lens_to_string l1) (lens_to_string l2)
+          | FilterLens _ -> "filter_lens(...)"
         in
         lens_to_string l
     | VIntent { intent_fields } ->

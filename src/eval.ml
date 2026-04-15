@@ -1485,15 +1485,11 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
       if un.un_noop then VSymbol (Printf.sprintf "<noop:%s>" name)
       else if un.un_runtime = "T" then
         let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
-        let is_unbuilt d = match Env.find_opt d !current_env_ref with
-          | Some (VComputedNode _) -> 
-              (* If the dependency is a node (built or unbuilt), we must defer local 
-                 evaluation of the command, as it is a recipe for Nix. *)
-              true
-          | None ->
-              (* Allow unknown names to be deferred for cross-pipeline or late resolution. *)
-              true
-          | _ -> false
+        let is_unbuilt d =
+          match Env.find_opt d !current_env_ref with
+          | Some (VComputedNode _) -> true
+          | Some _ -> false
+          | None -> List.mem d node_names
         in
         let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
         if is_raw || List.exists is_unbuilt node_deps then
@@ -1544,8 +1540,19 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
                      acc)
             | _ -> acc
           ) !current_env_ref node_deps in
-          eval_expr (ref env_with_deserialized) un.un_command
-          |> annotate_pipeline_error ~runtime:un.un_runtime name
+          let result = eval_expr (ref env_with_deserialized) un.un_command in
+          match result with
+          | VError { code = MissingArtifactError; _ } ->
+              (* Fallback: if execution failed because of missing artifact, defer to Nix *)
+              VComputedNode {
+                cn_name = name;
+                cn_runtime = un.un_runtime;
+                cn_path = "<unbuilt>";
+                cn_serializer = Nix_unparse.unparse_expr un.un_serializer;
+                cn_class = "Unknown";
+                cn_dependencies = node_deps;
+              }
+          | _ -> result |> annotate_pipeline_error ~runtime:un.un_runtime name
       else VComputedNode {
         cn_name = name;
         cn_runtime = un.un_runtime;
@@ -2072,14 +2079,26 @@ and eval_dot_access_val _env_ref target_val field =
       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Node has no field `%s`" field))
   | VSerializer s ->
       (match field with
-      | "writer" -> s.s_writer
-      | "reader" -> s.s_reader
-      | "format" -> VString s.s_format
-      | "r_writer" -> (match s.s_r_writer with Some sw -> VRawCode sw | None -> (VNA NAGeneric))
-      | "r_reader" -> (match s.s_r_reader with Some sr -> VRawCode sr | None -> (VNA NAGeneric))
-      | "py_writer" -> (match s.s_py_writer with Some sw -> VRawCode sw | None -> (VNA NAGeneric))
-      | "py_reader" -> (match s.s_py_reader with Some sr -> VRawCode sr | None -> (VNA NAGeneric))
-      | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Serializer has no field `%s`" field))
+       | "writer" -> s.s_writer
+       | "reader" -> s.s_reader
+       | "format" -> VString s.s_format
+       | "r_writer" -> (match s.s_r_writer with Some sw -> VRawCode sw | None -> (VNA NAGeneric))
+       | "r_reader" -> (match s.s_r_reader with Some sr -> VRawCode sr | None -> (VNA NAGeneric))
+       | "py_writer" -> (match s.s_py_writer with Some sw -> VRawCode sw | None -> (VNA NAGeneric))
+       | "py_reader" -> (match s.s_py_reader with Some sr -> VRawCode sr | None -> (VNA NAGeneric))
+       | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Serializer has no field `%s`" field))
+  | VLens l ->
+      (match field with
+      | "get" -> 
+          VBuiltin { b_name = Some "get"; b_arity = 1; b_variadic = false; 
+                     b_func = (fun args env_ref -> eval_expr env_ref (mk_expr (Call { fn = mk_expr (Var "get"); args = [(None, mk_expr (Value (List.hd args |> snd))); (None, mk_expr (Value (VLens l)))] }))) }
+      | "set" -> 
+          VBuiltin { b_name = Some "set"; b_arity = 2; b_variadic = false; 
+                     b_func = (fun args env_ref -> eval_expr env_ref (mk_expr (Call { fn = mk_expr (Var "set"); args = [(None, mk_expr (Value (List.hd args |> snd))); (None, mk_expr (Value (VLens l))); (None, mk_expr (Value (List.nth args 1 |> snd)))] }))) }
+      | "over" -> 
+          VBuiltin { b_name = Some "over"; b_arity = 2; b_variadic = false; 
+                     b_func = (fun args env_ref -> eval_expr env_ref (mk_expr (Call { fn = mk_expr (Var "over"); args = [(None, mk_expr (Value (List.hd args |> snd))); (None, mk_expr (Value (VLens l))); (None, mk_expr (Value (List.nth args 1 |> snd)))] }))) }
+      | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Lens has no field `%s`" field))
   | VShellResult sr ->
       (match field with
       | "stdout"    -> VString sr.sr_stdout

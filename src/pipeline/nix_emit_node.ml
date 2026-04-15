@@ -120,6 +120,17 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   in
 
   let deps_inputs = String.concat " " (if extra_input = "" then deps else extra_input :: deps) in
+  (* Emit T_NODE_<dep> as proper Nix derivation attributes so they are present
+     in the process environment when `t run` executes the node script.
+     Shell-level `export` inside buildCommand is unreliable for child processes
+     in some Nix sandbox configurations.
+     Note: the value must be a bare Nix identifier (e.g. `T_NODE_foo = foo;`),
+     not a string interpolation, since it goes at the attribute level. *)
+  let deps_nix_attrs =
+    deps
+    |> List.map (fun d -> Printf.sprintf "    %s = %s;" (dep_env_var_name d) d)
+    |> String.concat "\n"
+  in
   let deps_exports =
     deps
     |> List.map (fun d -> Printf.sprintf "      export %s=${%s}\n" (dep_env_var_name d) d)
@@ -1850,6 +1861,7 @@ EOF
     MPLCONFIGDIR = ".";
 %s
 %s
+%s
     buildCommand = ''
       cp -r $src/* . || true
       chmod -R u+w .
@@ -1874,4 +1886,4 @@ EOF
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_exports ext error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
