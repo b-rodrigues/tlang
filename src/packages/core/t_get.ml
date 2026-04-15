@@ -46,9 +46,16 @@ let register ~eval_call env =
         if Sys.file_exists artifact_path then
           (match Serialization.deserialize_from_file artifact_path with
            | Ok v -> Some v
-           | Error _ -> None)
-        else None
-    | None -> None
+           | Error e -> 
+               Printf.eprintf "get(node_lens('%s')): Deserialization of %s failed: %s\n" name artifact_path e;
+               None)
+        else (
+          Printf.eprintf "get(node_lens('%s')): Artifact file %s does not exist.\n" name artifact_path;
+          None
+        )
+    | None -> 
+        Printf.eprintf "get(node_lens('%s')): Environment variable %s not found.\n" name env_name;
+        None
   in
 
   let apply_lens lens data _env_ref =
