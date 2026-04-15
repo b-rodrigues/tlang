@@ -825,6 +825,5 @@ let register ~eval_call env =
   |> make_l_builtin ~variadic:true "compose" 2 compose_impl
   |> make_l_builtin "set" 3 set_impl
   |> Env.add "over" (make_builtin_named ~name:"over" 3 over_fn)
-  |> Env.add "get" (make_builtin_named ~name:"get" 2 get_fn)
   |> make_l_builtin ~variadic:true "modify" 1 modify_impl
   |> make_l_builtin "filter_lens" 1 filter_lens_impl
