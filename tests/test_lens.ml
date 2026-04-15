@@ -85,4 +85,21 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|length(package_info("lens").functions)|}
     "12";
 
+  (* 8. Regression Tests (Avoid core get/sym overrides/missing) *)
+  test "regression: core get(string) lookup"
+    {|my_var = 100; get("my_var")|}
+    "100";
+
+  test "regression: core sym(string)"
+    {|type(sym("hello"))|}
+    {|"Symbol"|};
+
+  test "regression: get(list, index) fallback"
+    {|lst = [10, 20, 30]; get(lst, 1)|}
+    "20";
+
+  test "regression: get(pipeline, node) lookup"
+    {|p = pipeline { a = 123 }; get(p, "a")|}
+    "123";
+
   print_newline ()
