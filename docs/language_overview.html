@@ -483,17 +483,100 @@ tail(numbers)    -- [2, 3]</code></pre>
 person.name  -- &quot;Alice&quot;
 person.age   -- 30</code></pre>
 <h3 id="dictionaries">Dictionaries</h3>
-<pre class="t"><code>config = {host: &quot;localhost&quot;, port: 8080}
-config.host  -- &quot;localhost&quot;
-config.port  -- 8080</code></pre>
-<h3 id="symbols">Symbols (<code>$</code>)</h3>
-<p>Symbols are name references that are not immediately evaluated. They
-are primarily used to reference DataFrame columns in verbs like
-<code>select($mpg)</code> or <code>filter($cyl &gt; 4)</code>.</p>
-<p>Symbols are created by prefixing an identifier with
-<code>$</code>:</p>
-<pre class="t"><code>s = $my_symbol
-type(s)  -- &quot;Symbol&quot;</code></pre>
+<p>config = {host: “localhost”, port: 8080} config.host – “localhost”
+config.port – 8080</p>
+<pre><code>
+---
+
+## Data Access and Lenses
+
+T provides a unified retrieval system via the `get()` primitive and the **Lens** library. Lenses allow you to focus on specific parts of complex data structures (DataFrames, Lists, Pipelines) and perform serializable, cross-node data operations.
+
+### The Unified `get()` Built-in
+
+The `get()` function is the primary entry point for retrieving data. It supports four distinct modes of operation:
+
+#### 1. Variable Lookup (R-style)
+```t
+salary = 50000
+get(&quot;salary&quot;)                -- 50000
+get(sym(&quot;salary&quot;))           -- 50000</code></pre>
+<h4 id="collection-indexing-0-based">2. Collection Indexing
+(0-based)</h4>
+<pre class="t"><code>lst = [10, 20, 30]
+get(lst, 1)                  -- 20</code></pre>
+<h4 id="pipeline-node-access">3. Pipeline Node Access</h4>
+<pre class="t"><code>p = pipeline { a = 1, b = 2 }
+get(p, &quot;a&quot;)                  -- 1</code></pre>
+<h4 id="lens-focus">4. Lens Focus</h4>
+<pre class="t"><code>l = col_lens(&quot;mpg&quot;)
+get(mtcars, l)               -- Vector of &#39;mpg&#39; column</code></pre>
+<h3 id="lenses">Lenses</h3>
+<p>Lenses are structured, serializable “addressing” objects. Unlike
+standard property access (<code>obj.prop</code>), lenses can be composed
+and passed between pipeline nodes.</p>
+<h4 id="built-in-lenses">Built-in Lenses</h4>
+<table>
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 26%" />
+<col style="width: 43%" />
+</colgroup>
+<thead>
+<tr>
+<th>Creator</th>
+<th>Target</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>col_lens(name)</code></td>
+<td><code>DataFrame</code>, <code>Dict</code>, <code>List</code></td>
+<td>Targets a column or key by name.</td>
+</tr>
+<tr>
+<td><code>idx_lens(i)</code></td>
+<td><code>List</code>, <code>Vector</code></td>
+<td>Targets an element by index.</td>
+</tr>
+<tr>
+<td><code>row_lens(i)</code></td>
+<td><code>DataFrame</code></td>
+<td>Targets a specific row as a Dictionary.</td>
+</tr>
+<tr>
+<td><code>node_lens(name)</code></td>
+<td><code>Pipeline</code></td>
+<td>Targets a specific node within a pipeline.</td>
+</tr>
+<tr>
+<td><code>env_var_lens(n, v)</code></td>
+<td><code>Pipeline</code></td>
+<td>Targets an environment variable <code>v</code> from node
+<code>n</code>.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="composition-and-transformation">Composition and
+Transformation</h4>
+<p>Lenses can be composed using <code>compose()</code> to reach deep
+into nested structures. To update data through a lens, use the
+<code>over()</code> function.</p>
+<pre class="t"><code>-- Deep access
+data = [users: [Alice: [id: 1], Bob: [id: 2]]]
+l_deep = compose(col_lens(&quot;users&quot;), col_lens(&quot;Alice&quot;), col_lens(&quot;id&quot;))
+get(data, l_deep)            -- 1
+
+-- Deep update
+data_updated = over(data, l_deep, 99)
+get(data_updated, l_deep)    -- 99</code></pre>
+<blockquote>
+<p>[!NOTE] <strong>Serializable Pipelines</strong>: Tlang lenses are now
+implemented as structured data (<code>VLens</code>), not closures. This
+ensures they can be saved to disk by one pipeline node and loaded by
+another without losing functionality.</p>
+</blockquote>
 <hr />
 <h2 id="missing-values-na">Missing Values (NA)</h2>
 <p>T uses explicit <code>NA</code> values with type tags. NA does

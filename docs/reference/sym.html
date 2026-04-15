@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pow</title>
+  <title>T Function Reference - sym</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,26 +33,20 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pow">pow</h1>
-<p>Power function</p>
-<p>Calculates base raised to the power of exponent.</p>
+<h1 id="sym">sym</h1>
+<p>Convert a string to a Symbol</p>
+<p>Creates a Symbol from a string so it can be injected into quoted code
+with <code>!!</code>. Existing Symbol values pass through unchanged.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>base</strong> (<code>Number</code>): | Vector | NDArray
-The base.</p></li>
-<li><p><strong>exponent</strong> (<code>Number</code>): The
-exponent.</p></li>
-<li><p><strong>na_ignore</strong> (<code>Bool</code>): Whether to
-preserve NA values in inputs. Default is false.</p></li>
+<li><strong>x</strong> (<code>String</code>): | Symbol The name to
+convert.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<div class="line-block">Vector | NDArray The result of base ^
-exponent.</div>
+<p>The resulting symbol.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>pow(2, 3)
--- Returns = 8.0</code></pre>
-<h2 id="see-also">See Also</h2>
-<p><a href="exp.html">exp</a>, <a href="sqrt.html">sqrt</a></p>
+<pre class="t"><code>sym(&quot;mpg&quot;)
+expr(select(df, !!sym(&quot;mpg&quot;)))</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

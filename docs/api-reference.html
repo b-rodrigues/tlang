@@ -225,6 +225,22 @@ to_float(42)             -- 42.0
 to_float(&quot;hello&quot;)        -- NA(Float)
 to_numeric([&quot;1&quot;, &quot;2&quot;])   -- [1.0, 2.0]</code></pre>
 <hr />
+<h3 id="symvalue"><code>sym(value)</code></h3>
+<p>Convert a string name into a <code>Symbol</code> so it can be
+injected into quoted code with <code>!!</code>. Existing symbols pass
+through unchanged.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>value</code> — String or Symbol</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Symbol</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>sym(&quot;mpg&quot;)                           -- mpg
+expr(select(df, !!sym(&quot;mpg&quot;)))       -- expr(select(df, mpg))
+name = &quot;result&quot;
+expr(f(!!sym(name) := 42))           -- expr(f(result = 42))</code></pre>
+<hr />
 <h3 id="lengthcollection"><code>length(collection)</code></h3>
 <p>Get the number of elements in a collection.</p>
 <p><strong>Parameters:</strong></p>

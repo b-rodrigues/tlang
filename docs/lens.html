@@ -234,6 +234,25 @@ with <code>col_lens</code> for cell-level access.</p>
 
 -- Update a single cell (row 0, column &quot;y&quot;)
 df2 = df |&gt; set(compose(row_lens(0), col_lens(&quot;y&quot;)), 99)</code></pre>
+<h3 id="cross-node-retrieval-in-sandboxes">4.1 Cross-Node Retrieval in
+Sandboxes</h3>
+<p>A unique feature of <code>node_lens</code> is its ability to perform
+<strong>cross-node artifact retrieval</strong> when used within a
+Nix-managed pipeline node.</p>
+<p>While standard lenses like <code>col_lens</code> require a data
+source (e.g., <code>get(df, l)</code>), a <code>node_lens</code> used
+with a single-argument <code>get()</code> will automatically locate and
+deserialize the artifact of a sibling node from the sandbox
+environment.</p>
+<pre class="t"><code>-- Inside a node script (e.g., node_b)
+-- Assuming node_a is a dependency of this node:
+
+target_data = get(node_lens(&quot;node_a&quot;))</code></pre>
+<p>This works because T automatically propagates artifact paths of
+dependencies via environment variables
+(<code>T_NODE_&lt;name&gt;</code>) within the Nix sandbox. T handles the
+path resolution, integrity checks, and deserialization (using the
+appropriate artifact class) automatically.</p>
 <hr />
 <h3 id="traversals-filter_lens">5. Traversals:
 <code>filter_lens</code></h3>

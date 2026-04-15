@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pow</title>
+  <title>T Function Reference - suppress_warnings</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,26 +33,21 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pow">pow</h1>
-<p>Power function</p>
-<p>Calculates base raised to the power of exponent.</p>
+<h1 id="suppress_warnings">suppress_warnings</h1>
+<p>Suppress Diagnostics for a Node</p>
+<p>Silences all captured warnings for the current node in the console
+summary. Warnings remain accessible programmatically via
+<code>read_node()</code> or <code>read_pipeline()</code>. Use this to
+reduce noise from known warnings during data processing (e.g., NAs in
+filter).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>base</strong> (<code>Number</code>): | Vector | NDArray
-The base.</p></li>
-<li><p><strong>exponent</strong> (<code>Number</code>): The
-exponent.</p></li>
-<li><p><strong>na_ignore</strong> (<code>Bool</code>): Whether to
-preserve NA values in inputs. Default is false.</p></li>
+<li><strong>value</strong> (<code>Any</code>): The value or expression
+to wrap. Usually call it at the end of a node definition.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<div class="line-block">Vector | NDArray The result of base ^
-exponent.</div>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>pow(2, 3)
--- Returns = 8.0</code></pre>
-<h2 id="see-also">See Also</h2>
-<p><a href="exp.html">exp</a>, <a href="sqrt.html">sqrt</a></p>
+<p>The original value, signaling the evaluator to suppress diagnostic
+output.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>
