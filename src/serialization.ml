@@ -314,33 +314,33 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
               | Some (`Assoc d) ->
                   let rec yojson_to_lens = function
                     | `Assoc items ->
-                        let required_field lens_type field =
+                        let required_field lens_kind field =
                           match List.assoc_opt field items with
                           | Some value -> Ok value
                           | None ->
                               Error
                                 (Printf.sprintf
                                    "yojson_to_lens: %s is missing required field `%s`"
-                                   lens_type field)
+                                   lens_kind field)
                         in
-                        let required_string lens_type field =
-                          match required_field lens_type field with
+                        let required_string lens_kind field =
+                          match required_field lens_kind field with
                           | Ok (`String s) -> Ok s
                           | Ok value ->
                               Error
                                 (Printf.sprintf
                                    "yojson_to_lens: %s field `%s` must be a String, got %s"
-                                   lens_type field (Yojson.Safe.to_string value))
+                                   lens_kind field (Yojson.Safe.to_string value))
                           | Error _ as err -> err
                         in
-                        let required_int lens_type field =
-                          match required_field lens_type field with
+                        let required_int lens_kind field =
+                          match required_field lens_kind field with
                           | Ok (`Int i) -> Ok i
                           | Ok value ->
                               Error
                                 (Printf.sprintf
                                    "yojson_to_lens: %s field `%s` must be an Int, got %s"
-                                   lens_type field (Yojson.Safe.to_string value))
+                                   lens_kind field (Yojson.Safe.to_string value))
                           | Error _ as err -> err
                         in
                         (match List.assoc_opt "type" items with
@@ -372,8 +372,8 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
                              (match required_field "FilterLens" "predicate" with
                               | Ok predicate -> Ok (Ast.FilterLens (yojson_to_value predicate))
                               | Error msg -> Error msg)
-                         | Some (`String lens_type) ->
-                             Error (Printf.sprintf "yojson_to_lens: unsupported lens type `%s`" lens_type)
+                         | Some (`String lens_kind) ->
+                             Error (Printf.sprintf "yojson_to_lens: unsupported lens type `%s`" lens_kind)
                          | Some value ->
                              Error
                                (Printf.sprintf

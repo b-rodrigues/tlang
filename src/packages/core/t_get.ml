@@ -122,7 +122,7 @@ let register ~eval_call env =
                 | None -> (VNA NAGeneric))
            | _ -> Error.type_error "env_var_lens get expects a Pipeline")
        | FilterLens p ->
-           let eval_pred v =
+           let evaluate_predicate v =
              match eval_call env p [(None, mk_expr (Value v))] with
              | VBool b -> Ok b
              | VError _ as e -> Error e
@@ -134,25 +134,25 @@ let register ~eval_call env =
            in
            (match d with
             | VList items ->
-                let rec aux acc = function
-                  | [] -> Ok (List.rev acc)
-                  | (name, v) :: rest ->
-                      (match eval_pred v with
-                       | Ok true -> aux ((name, v) :: acc) rest
-                       | Ok false -> aux acc rest
-                       | Error e -> Error e)
+                 let rec aux acc = function
+                   | [] -> Ok (List.rev acc)
+                   | (name, v) :: rest ->
+                       (match evaluate_predicate v with
+                        | Ok true -> aux ((name, v) :: acc) rest
+                        | Ok false -> aux acc rest
+                        | Error e -> Error e)
                 in
                 (match aux [] items with
                  | Ok filtered -> VList filtered
                  | Error e -> e)
             | VVector arr ->
-                let rec aux acc = function
-                  | [] -> Ok (List.rev acc)
-                  | v :: rest ->
-                      (match eval_pred v with
-                       | Ok true -> aux (v :: acc) rest
-                       | Ok false -> aux acc rest
-                       | Error e -> Error e)
+                 let rec aux acc = function
+                   | [] -> Ok (List.rev acc)
+                   | v :: rest ->
+                       (match evaluate_predicate v with
+                        | Ok true -> aux (v :: acc) rest
+                        | Ok false -> aux acc rest
+                        | Error e -> Error e)
                 in
                 (match aux [] (Array.to_list arr) with
                  | Ok filtered -> VVector (Array.of_list filtered)
@@ -160,13 +160,13 @@ let register ~eval_call env =
             | VDataFrame df ->
                 let nrows = Arrow_table.num_rows df.arrow_table in
                 let keep = Array.make nrows false in
-                let rec aux i =
-                  if i >= nrows then Ok ()
-                  else
-                    let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
-                    match eval_pred row_dict with
-                    | Ok b -> keep.(i) <- b; aux (i + 1)
-                    | Error e -> Error e
+                 let rec aux i =
+                   if i >= nrows then Ok ()
+                   else
+                     let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
+                     match evaluate_predicate row_dict with
+                     | Ok b -> keep.(i) <- b; aux (i + 1)
+                     | Error e -> Error e
                 in
                 (match aux 0 with
                  | Ok () ->
@@ -177,14 +177,14 @@ let register ~eval_call env =
                  | Error e -> e)
             | VPipeline pipe ->
                 let depths = Pipeline_to_frame.compute_depths pipe.p_deps in
-                let rec aux acc = function
-                  | [] -> Ok (List.rev acc)
-                  | (name, v) :: rest ->
-                      let meta = VDict (Pipeline_to_frame.node_metadata_dict name pipe depths) in
-                      (match eval_pred meta with
-                       | Ok true -> aux ((Some name, v) :: acc) rest
-                       | Ok false -> aux acc rest
-                       | Error e -> Error e)
+                 let rec aux acc = function
+                   | [] -> Ok (List.rev acc)
+                   | (name, v) :: rest ->
+                       let meta = VDict (Pipeline_to_frame.node_metadata_dict name pipe depths) in
+                       (match evaluate_predicate meta with
+                        | Ok true -> aux ((Some name, v) :: acc) rest
+                        | Ok false -> aux acc rest
+                        | Error e -> Error e)
                 in
                 (match aux [] pipe.p_nodes with
                  | Ok filtered -> VList filtered
