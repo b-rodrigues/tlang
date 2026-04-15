@@ -113,6 +113,14 @@ let register ~eval_call env =
            | Some v -> v
            | None -> Error.name_error name)
 
+      (* Lens/Node Fallback Case (1 arg: Lens) *)
+      | [VLens (NodeLens name)] ->
+          (match get_node_from_env name with
+           | Some v -> v
+           | None -> Error.type_error (Printf.sprintf "node_lens get('%s') failed: T_NODE_%s environment variable not found." name name))
+      | [VLens l] ->
+          Error.type_error "Single-argument get() with a lens requires a node_lens to perform environment-based retrieval."
+
       (* Pipeline Node Lookup (2 args: Pipeline, String/Symbol) *)
       | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
           (match List.assoc_opt node_name p.p_nodes with
