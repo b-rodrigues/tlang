@@ -546,37 +546,7 @@ let rec apply_lens_get ~eval_call lens data env =
        | VError _ as e -> e
        | _ -> apply_lens_get ~eval_call l2 inner env)
 
-let get_impl ~eval_call args env =
-  match args with
-  | [(_, VString name)] | [(_, VSymbol name)] ->
-      (match Env.find_opt name env with
-       | Some v -> v
-       | None -> Error.name_error name)
-  | [(_, data); (_, VLens l)] ->
-      apply_lens_get ~eval_call l data env
-  | [(_, data); (_, VDict items)] ->
-      (match List.assoc_opt "get" items with
-       | Some get_fn -> eval_call env get_fn [(None, mk_expr (Value data))]
-       | None -> Error.type_error "Lens missing get function")
-  | [(_, VList items); (_, VInt i)] ->
-      let len = List.length items in
-      if i < 0 || i >= len then Error.index_error i len
-      else let (_, v) = List.nth items i in v
-  | [(_, VVector arr); (_, VInt i)] ->
-      let len = Array.length arr in
-      if i < 0 || i >= len then Error.index_error i len
-      else arr.(i)
-  | [(_, VNDArray arr); (_, VInt i)] ->
-      let len = Array.length arr.data in
-      if i < 0 || i >= len then Error.index_error i len
-      else VFloat arr.data.(i)
-  | [(_, VPipeline p); (_, VString node_name)] ->
-      (match List.assoc_opt node_name p.p_nodes with
-       | Some v -> v
-       | None -> (VNA NAGeneric))
-  | [(_, _); (_, other)] ->
-      Error.type_error (Printf.sprintf "get expects either (data, Lens) or (collection, Index). Got %s for the second argument." (Utils.type_name other))
-  | _ -> Error.type_error "Function `get` expects (1) a variable name [String/Symbol] or (2) a collection and integer index."
+
 
 (*
 --# Compose Lenses
@@ -801,19 +771,6 @@ let register ~eval_call env =
     | [(_, data); (_, lens); (_, func)] ->
         over_val ~eval_call (ref env_val) lens data func
     | _ -> Error.arity_error_named "over" 3 (List.length args)
-  in
-  let get_fn args (env_val : value Env.t) =
-    match args with
-    | [(_, data); (_, VLens l)] -> apply_lens_get ~eval_call l data env_val
-    | [(_, data); (_, VDict items)] ->
-        (match List.assoc_opt "get" items with
-         | Some fn -> eval_call env_val fn [(None, mk_expr (Value data))]
-         | None -> Error.type_error "Lens missing get function")
-    | [(_, data); (_, index)] -> (* fallback to standard collection get *)
-        (match Env.find_opt "get" env_val with
-         | Some (VBuiltin { b_func; _ }) -> b_func [(None, data); (None, index)] (ref env_val)
-         | _ -> Error.name_error "get")
-    | _ -> Error.arity_error_named "get" 2 (List.length args)
   in
   env
   |> make_l_builtin "col_lens" 1 col_lens_impl
