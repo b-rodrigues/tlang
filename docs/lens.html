@@ -295,21 +295,7 @@ swiss_l = compose(
 world2 = world |&gt; over(swiss_l, \(p) p .+ 0.5)</code></pre>
 <hr />
 <h2 id="part-iii-advanced-patterns">Part III: Advanced Patterns</h2>
-<h3 id="unified-access-dot-syntax-lenses">6. Unified Access: Dot-Syntax
-Lenses</h3>
-<p>While <code>get(data, lens)</code> is the canonical form, T supports
-<strong>dot-access syntax</strong> for lenses, allowing them to behave
-like methods on the lens object themselves. This is often more readable
-when chaining operations.</p>
-<pre class="t"><code>price_l = col_lens(&quot;price&quot;)
-
--- These are equivalent:
-p1 = get(item, price_l)
-p2 = price_l.get(item)
-
--- Method chaining with &#39;over&#39;
-item_on_sale = price_l.over(item, \(p) p * 0.9)</code></pre>
-<h3 id="orchestration-dynamic-pipeline-queries">7. Orchestration:
+<h3 id="orchestration-dynamic-pipeline-queries">6. Orchestration:
 Dynamic Pipeline Queries</h3>
 <p>Because lenses are first-class values, you can build them dynamically
 to query or modify pipelines based on configuration data.</p>
@@ -321,7 +307,7 @@ to query or modify pipelines based on configuration data.</p>
 -- Choose which model to query at runtime
 best_model_name = &quot;model_py&quot;
 model_value = get(p, node_lens(best_model_name))</code></pre>
-<h3 id="serialization-multi-node-safety">8. Serialization &amp;
+<h3 id="serialization-multi-node-safety">7. Serialization &amp;
 Multi-Node Safety</h3>
 <p>T lenses are fully serializable. This means you can define a complex
 <code>FilterLens</code> in one pipeline node, pass it as a parameter to
@@ -333,7 +319,7 @@ qc_lens = filter_lens(\(r) r.std_err &gt; 0.05)
 -- Node B: Receives qc_lens as an argument and applies it to its local data
 flagged_data = data |&gt; over(qc_lens, \(v) v + &quot; [NEEDS REVIEW]&quot;)</code></pre>
 <hr />
-<h3 id="api-quick-reference">9. API Quick Reference</h3>
+<h3 id="api-quick-reference">8. API Quick Reference</h3>
 <table>
 <colgroup>
 <col style="width: 33%" />

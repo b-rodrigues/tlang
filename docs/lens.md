@@ -219,22 +219,7 @@ world2 = world |> over(swiss_l, \(p) p .+ 0.5)
 
 ## Part III: Advanced Patterns
 
-### 6. Unified Access: Dot-Syntax Lenses
-
-While `get(data, lens)` is the canonical form, T supports **dot-access syntax** for lenses, allowing them to behave like methods on the lens object themselves. This is often more readable when chaining operations.
-
-```t
-price_l = col_lens("price")
-
--- These are equivalent:
-p1 = get(item, price_l)
-p2 = price_l.get(item)
-
--- Method chaining with 'over'
-item_on_sale = price_l.over(item, \(p) p * 0.9)
-```
-
-### 7. Orchestration: Dynamic Pipeline Queries
+### 6. Orchestration: Dynamic Pipeline Queries
 
 Because lenses are first-class values, you can build them dynamically to query or modify pipelines based on configuration data.
 
@@ -249,7 +234,7 @@ best_model_name = "model_py"
 model_value = get(p, node_lens(best_model_name))
 ```
 
-### 8. Serialization & Multi-Node Safety
+### 7. Serialization & Multi-Node Safety
 
 T lenses are fully serializable. This means you can define a complex `FilterLens` in one pipeline node, pass it as a parameter to another node (even one running in a different runtime like R or Python), and it will maintain its structure.
 
@@ -263,7 +248,7 @@ flagged_data = data |> over(qc_lens, \(v) v + " [NEEDS REVIEW]")
 
 ---
 
-### 9. API Quick Reference
+### 8. API Quick Reference
 
 | Function | Signature | Use Case |
 | :--- | :--- | :--- |

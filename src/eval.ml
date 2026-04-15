@@ -2087,18 +2087,7 @@ and eval_dot_access_val _env_ref target_val field =
        | "py_writer" -> (match s.s_py_writer with Some sw -> VRawCode sw | None -> (VNA NAGeneric))
        | "py_reader" -> (match s.s_py_reader with Some sr -> VRawCode sr | None -> (VNA NAGeneric))
        | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Serializer has no field `%s`" field))
-  | VLens l ->
-      (match field with
-      | "get" -> 
-          VBuiltin { b_name = Some "get"; b_arity = 1; b_variadic = false; 
-                     b_func = (fun args env_ref -> eval_expr env_ref (mk_expr (Call { fn = mk_expr (Var "get"); args = [(None, mk_expr (Value (List.hd args |> snd))); (None, mk_expr (Value (VLens l)))] }))) }
-      | "set" -> 
-          VBuiltin { b_name = Some "set"; b_arity = 2; b_variadic = false; 
-                     b_func = (fun args env_ref -> eval_expr env_ref (mk_expr (Call { fn = mk_expr (Var "set"); args = [(None, mk_expr (Value (List.hd args |> snd))); (None, mk_expr (Value (VLens l))); (None, mk_expr (Value (List.nth args 1 |> snd)))] }))) }
-      | "over" -> 
-          VBuiltin { b_name = Some "over"; b_arity = 2; b_variadic = false; 
-                     b_func = (fun args env_ref -> eval_expr env_ref (mk_expr (Call { fn = mk_expr (Var "over"); args = [(None, mk_expr (Value (List.hd args |> snd))); (None, mk_expr (Value (VLens l))); (None, mk_expr (Value (List.nth args 1 |> snd)))] }))) }
-      | _ -> Error.make_error Ast.KeyError (Printf.sprintf "Lens has no field `%s`" field))
+  | VLens _ -> Error.make_error Ast.TypeError (Printf.sprintf "Field `%s` not found on Lens." field)
   | VShellResult sr ->
       (match field with
       | "stdout"    -> VString sr.sr_stdout
