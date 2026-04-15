@@ -285,6 +285,16 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       invalid_arg "value_to_yojson: VFactor/VSerializer is not supported for JSON serialization"
   | VUnquote _ | VUnquoteSplice _ | VDynamicArg _ | VQuo _ | VEnv _ ->
       invalid_arg "value_to_yojson: metaprogramming intermediate values are not serializable"
+  | VLens l ->
+      let rec lens_to_yojson = function
+        | Ast.ColLens s -> `Assoc [("type", `String "ColLens"); ("name", `String s)]
+        | Ast.IdxLens i -> `Assoc [("type", `String "IdxLens"); ("index", `Int i)]
+        | Ast.RowLens i -> `Assoc [("type", `String "RowLens"); ("index", `Int i)]
+        | Ast.NodeLens n -> `Assoc [("type", `String "NodeLens"); ("name", `String n)]
+        | Ast.EnvVarLens (n, v) -> `Assoc [("type", `String "EnvVarLens"); ("node", `String n); ("var", `String v)]
+        | Ast.CompositeLens (l1, l2) -> `Assoc [("type", `String "CompositeLens"); ("left", lens_to_yojson l1); ("right", lens_to_yojson l2)]
+      in
+      `Assoc [("class", `String "VLens"); ("data", lens_to_yojson l)]
   | VNodeResult { v; _ } -> value_to_yojson v
 
 let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
@@ -295,7 +305,31 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `String s -> VString s
   | `Null -> (VNA NAGeneric)
   | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
-  | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
+  | `Assoc a ->
+      (match List.assoc_opt "class" a with
+       | Some (`String "VLens") ->
+           (match List.assoc_opt "data" a with
+            | Some (`Assoc d) ->
+                let rec yojson_to_lens = function
+                  | `Assoc items ->
+                      (match List.assoc_opt "type" items with
+                       | Some (`String "ColLens") -> Ast.ColLens (match List.assoc "name" items with `String s -> s | _ -> "")
+                       | Some (`String "IdxLens") -> Ast.IdxLens (match List.assoc "index" items with `Int i -> i | _ -> 0)
+                       | Some (`String "RowLens") -> Ast.RowLens (match List.assoc "index" items with `Int i -> i | _ -> 0)
+                       | Some (`String "NodeLens") -> Ast.NodeLens (match List.assoc "name" items with `String s -> s | _ -> "")
+                       | Some (`String "EnvVarLens") ->
+                            let node = match List.assoc "node" items with `String s -> s | _ -> "" in
+                            let var = match List.assoc "var" items with `String s -> s | _ -> "" in
+                            Ast.EnvVarLens (node, var)
+                       | Some (`String "CompositeLens") ->
+                           Ast.CompositeLens (yojson_to_lens (List.assoc "left" items),
+                                              yojson_to_lens (List.assoc "right" items))
+                       | _ -> Ast.ColLens "error")
+                  | _ -> Ast.ColLens "error"
+                in
+                VLens (yojson_to_lens (`Assoc d))
+            | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
+       | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
   | _ ->
       invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 
