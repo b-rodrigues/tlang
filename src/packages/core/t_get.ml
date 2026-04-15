@@ -38,6 +38,8 @@ open Ast
 --# @export
 *)
 let register ~eval_call env =
+  (* Returns either the retrieved artifact value or a structured VError explaining
+     why sandbox-backed lookup could not produce one. *)
   let get_node_from_env name =
     let env_name = "T_NODE_" ^ name in
     match Sys.getenv_opt env_name with

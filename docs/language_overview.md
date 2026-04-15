@@ -392,6 +392,7 @@ person.age   -- 30
 ```
 
 ### Dictionaries
+
 ```t
 config = {host: "localhost", port: 8080}
 config.host  -- "localhost"
