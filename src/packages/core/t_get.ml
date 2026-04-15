@@ -12,9 +12,10 @@ open Ast
 --# 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based).
 --# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result.
 --# 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data.
+--# 5. **Cross-Node Access (Sandbox)**: `get(node_lens("name"))` retrieves a sibling node's artifact from the sandbox environment.
 --#
 --# @name get
---# @param target :: Any The environment name (String/Symbol), Collection, Pipeline, or Data.
+--# @param target :: Any The environment name (String/Symbol), Collection, Pipeline, Data, or NodeLens.
 --# @param selector :: Any (Optional) The index (Int), Node name (String/Symbol), or Lens.
 --# @return :: Any The retrieved value or focused data subset.
 --# @example
@@ -30,10 +31,26 @@ open Ast
 --#   l = col_lens("mpg")
 --#   get(mtcars, l)               -- Vector of 'mpg' column (Lens)
 --#
+--#   -- Sandbox access (within a Nix-built node):
+--#   get(node_lens("node_a"))      -- Deserializes T_NODE_node_a artifact
+--#
 --# @family core
 --# @export
 *)
 let register ~eval_call env =
+  let get_node_from_env name =
+    let env_name = "T_NODE_" ^ name in
+    match Sys.getenv_opt env_name with
+    | Some path ->
+        let artifact_path = Filename.concat path "artifact" in
+        if Sys.file_exists artifact_path then
+          (match Serialization.deserialize_from_file artifact_path with
+           | Ok v -> Some v
+           | Error _ -> None)
+        else None
+    | None -> None
+  in
+
   let apply_lens lens data _env_ref =
     let rec get_lens l d =
       match l with
@@ -66,18 +83,6 @@ let register ~eval_call env =
                else VDict (Arrow_bridge.row_to_dict df.arrow_table i)
            | _ -> Error.type_error (Printf.sprintf "row_lens get expects a DataFrame, got %s" (Utils.type_name d)))
       | NodeLens name ->
-          let get_node_from_env name =
-            let env_name = "T_NODE_" ^ name in
-            match Sys.getenv_opt env_name with
-            | Some path ->
-                let artifact_path = Filename.concat path "artifact" in
-                if Sys.file_exists artifact_path then
-                  (match Serialization.deserialize_from_file artifact_path with
-                   | Ok v -> Some v
-                   | Error _ -> None)
-                else None
-            | None -> None
-          in
           (match d with
            | VPipeline p ->
                (match List.assoc_opt name p.p_nodes with
@@ -118,7 +123,7 @@ let register ~eval_call env =
           (match get_node_from_env name with
            | Some v -> v
            | None -> Error.type_error (Printf.sprintf "node_lens get('%s') failed: T_NODE_%s environment variable not found." name name))
-      | [VLens l] ->
+      | [VLens _l] ->
           Error.type_error "Single-argument get() with a lens requires a node_lens to perform environment-based retrieval."
 
       (* Pipeline Node Lookup (2 args: Pipeline, String/Symbol) *)
