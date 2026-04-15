@@ -234,3 +234,10 @@ let register ~eval_call env =
       | _ -> Error.arity_error_named "get" 1 (List.length args)
     ))
     env
+  |> (fun env ->
+      Env.add "sym" (make_builtin ~name:"sym" 1 (fun args _env ->
+        match args with
+        | [VString s] | [VSymbol s] -> VSymbol s
+        | [v] -> Error.type_error (Printf.sprintf "sym: expected a String, got %s." (Utils.type_name v))
+        | _ -> Error.arity_error_named "sym" 1 (List.length args)
+      )) env)
