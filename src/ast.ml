@@ -194,6 +194,14 @@ and serializer = {
   s_py_reader : string option;
 }
 
+and lens =
+  | ColLens of string
+  | IdxLens of int
+  | RowLens of int
+  | NodeLens of string
+  | EnvVarLens of string * string
+  | CompositeLens of lens * lens
+
 (** Runtime values *)
 and value =
   (* Scalar Types *)
@@ -212,6 +220,7 @@ and value =
   | VNDArray of ndarray
   | VDataFrame of dataframe
   | VPipeline of pipeline_result
+  | VLens of lens
   (* Functional Types *)
   | VLambda of lambda
   | VBuiltin of builtin
@@ -578,7 +587,7 @@ module Utils = struct
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
     | VList _ -> "List" | VDict _ -> "Dict"
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
-    | VPipeline _ -> "Pipeline"
+    | VPipeline _ -> "Pipeline" | VLens _ -> "Lens"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error"
     | VFactor _ -> "Factor"
@@ -798,6 +807,16 @@ module Utils = struct
         let start_s = value_to_string (VDatetime (iv.iv_start, iv.iv_tz)) in
         let end_s = value_to_string (VDatetime (iv.iv_end, iv.iv_tz)) in
         Printf.sprintf "Interval(start=%s, end=%s)" start_s end_s
+    | VLens l ->
+        let rec lens_to_string = function
+          | ColLens s -> Printf.sprintf "col_lens(\"%s\")" s
+          | IdxLens i -> Printf.sprintf "idx_lens(%d)" i
+          | RowLens i -> Printf.sprintf "row_lens(%d)" i
+          | NodeLens n -> Printf.sprintf "node_lens(\"%s\")" n
+          | EnvVarLens (node, var) -> Printf.sprintf "env_var_lens(\"%s\", \"%s\")" node var
+          | CompositeLens (l1, l2) -> Printf.sprintf "compose(%s, %s)" (lens_to_string l1) (lens_to_string l2)
+        in
+        lens_to_string l
     | VIntent { intent_fields } ->
         let field_to_string (k, v) = k ^ ": \"" ^ String.escaped v ^ "\"" in
         "Intent{" ^ (intent_fields |> List.map field_to_string |> String.concat ", ") ^ "}"
