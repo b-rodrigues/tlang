@@ -226,14 +226,23 @@ after_tax = raised |&gt; over(salary_l, \(x) x .* 0.75)</code></pre>
 <pre class="t"><code>scores = [10, 20, 30]
 
 -- Correct the second score
-scores2 = scores |&gt; set(idx_lens(1), 99)  -- [10, 99, 30]</code></pre>
+scores2 = scores |&gt; set(idx_lens(1), 99)  -- [10, 99, 30]
+
+-- Update a nested list
+data = [ids: [101, 102, 103]]
+target_id_l = compose(col_lens(&quot;ids&quot;), idx_lens(2))
+data2 = data |&gt; set(target_id_l, 999)    -- [ids: [101, 102, 999]]</code></pre>
 <h4 id="row_lensindex"><code>row_lens(index)</code></h4>
 <p>Focuses on a specific row in a <strong>DataFrame</strong>. Compose
 with <code>col_lens</code> for cell-level access.</p>
 <pre class="t"><code>df  = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
 
 -- Update a single cell (row 0, column &quot;y&quot;)
-df2 = df |&gt; set(compose(row_lens(0), col_lens(&quot;y&quot;)), 99)</code></pre>
+cell_l = compose(row_lens(0), col_lens(&quot;y&quot;))
+df2 = df |&gt; set(cell_l, 99)
+
+-- Transform a single cell
+df3 = df |&gt; over(cell_l, \(v) v * 10)</code></pre>
 <h3 id="cross-node-retrieval-in-sandboxes">4.1 Cross-Node Retrieval in
 Sandboxes</h3>
 <p>A unique feature of <code>node_lens</code> is its ability to perform
@@ -261,10 +270,7 @@ appropriate artifact class) automatically.</p>
 <strong>traversal</strong>, not a lens—it focuses on <em>multiple</em>
 elements simultaneously rather than a single one. Unlike a lens, which
 always focuses on exactly one location, a traversal may focus on zero,
-one, or many locations. Composition with other lenses works via the same
-<code>compose()</code> function, but the update function is applied
-independently to each matched element, and the results are written back
-into their original positions.</p>
+one, or many locations.</p>
 </blockquote>
 <p><code>filter_lens(predicate)</code> focuses on every element or row
 satisfying a condition. It works on <strong>Lists</strong>,
@@ -272,27 +278,62 @@ satisfying a condition. It works on <strong>Lists</strong>,
 <pre class="t"><code>scores = [1, 2, 3, 4, 5]
 
 -- Add 10 to every even number
-scores2 = scores |&gt; over(filter_lens(\(x) x % 2 == 0), \(x) x + 10)
+even_l = filter_lens(\(x) x % 2 == 0)
+scores2 = scores |&gt; over(even_l, \(x) x + 10)
 -- [1, 12, 3, 14, 5]</code></pre>
-<p>When composing a traversal with another lens, pass both to
-<code>compose()</code>. Do <strong>not</strong> use <code>|&gt;</code>
-inside an argument position—the operator precedence will cause the
-expression to parse incorrectly:</p>
-<pre class="t"><code>-- Correct: both arguments to compose()
-df |&gt; set(compose(filter_lens(\(r) r.status == &quot;expired&quot;), col_lens(&quot;val&quot;)), 0)
+<h4 id="deep-conditional-updates">Deep Conditional Updates</h4>
+<p>Lenses really shine when you need to update a deep field based on a
+property of an intermediate container.</p>
+<pre class="t"><code>-- For every city in Switzerland, increase population by 0.5m
+swiss_l = compose(
+  col_lens(&quot;countries&quot;), 
+  filter_lens(\(c) c.name == &quot;Switzerland&quot;), 
+  col_lens(&quot;cities&quot;), 
+  col_lens(&quot;pop&quot;)
+)
 
--- Wrong: |&gt; inside an argument position parses incorrectly
--- df |&gt; set(filter_lens(\(r) r.status == &quot;expired&quot;) |&gt; compose(col_lens(&quot;val&quot;)), 0)</code></pre>
-<p>For flat-DataFrame conditional updates, <code>mutate()</code> with
-<code>if_else()</code> is often simpler and more familiar:</p>
-<pre class="t"><code>-- Equivalent, and clearer for the flat case
-df |&gt; mutate($val = if_else($status == &quot;expired&quot;, 0, $val))</code></pre>
-<p>The traversal form pays off when the condition and transformation
-live inside a <em>nested</em> structure—for example, when
-<code>df</code> is itself a column inside a larger DataFrame and a
-top-level <code>mutate</code> cannot reach the target field.</p>
+world2 = world |&gt; over(swiss_l, \(p) p .+ 0.5)</code></pre>
 <hr />
-<h3 id="api-quick-reference">6. API Quick Reference</h3>
+<h2 id="part-iii-advanced-patterns">Part III: Advanced Patterns</h2>
+<h3 id="unified-access-dot-syntax-lenses">6. Unified Access: Dot-Syntax
+Lenses</h3>
+<p>While <code>get(data, lens)</code> is the canonical form, T supports
+<strong>dot-access syntax</strong> for lenses, allowing them to behave
+like methods on the lens object themselves. This is often more readable
+when chaining operations.</p>
+<pre class="t"><code>price_l = col_lens(&quot;price&quot;)
+
+-- These are equivalent:
+p1 = get(item, price_l)
+p2 = price_l.get(item)
+
+-- Method chaining with &#39;over&#39;
+item_on_sale = price_l.over(item, \(p) p * 0.9)</code></pre>
+<h3 id="orchestration-dynamic-pipeline-queries">7. Orchestration:
+Dynamic Pipeline Queries</h3>
+<p>Because lenses are first-class values, you can build them dynamically
+to query or modify pipelines based on configuration data.</p>
+<pre class="t"><code>p = pipeline {
+    model_r = node(command = &lt;{ train_model(df) }&gt;, runtime = R)
+    model_py = node(command = &lt;{ train_model(df) }&gt;, runtime = Python)
+}
+
+-- Choose which model to query at runtime
+best_model_name = &quot;model_py&quot;
+model_value = get(p, node_lens(best_model_name))</code></pre>
+<h3 id="serialization-multi-node-safety">8. Serialization &amp;
+Multi-Node Safety</h3>
+<p>T lenses are fully serializable. This means you can define a complex
+<code>FilterLens</code> in one pipeline node, pass it as a parameter to
+another node (even one running in a different runtime like R or Python),
+and it will maintain its structure.</p>
+<pre class="t"><code>-- Node A: Define a &quot;quality control&quot; lens
+qc_lens = filter_lens(\(r) r.std_err &gt; 0.05)
+
+-- Node B: Receives qc_lens as an argument and applies it to its local data
+flagged_data = data |&gt; over(qc_lens, \(v) v + &quot; [NEEDS REVIEW]&quot;)</code></pre>
+<hr />
+<h3 id="api-quick-reference">9. API Quick Reference</h3>
 <table>
 <colgroup>
 <col style="width: 33%" />
@@ -388,6 +429,9 @@ without knowing column names.</li>
 shine in nested or polymorphic contexts. For straightforward
 flat-DataFrame operations, <code>mutate()</code> and
 <code>filter()</code> are simpler and more idiomatic.</li>
+<li><strong>Vectorize Early</strong>: If your function inside
+<code>over</code> works on a Vector, use broadcasting operators
+(<code>.+</code>, <code>.*</code>) to ensure performance.</li>
 </ol>
 </div>
 <footer>

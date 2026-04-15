@@ -146,6 +146,11 @@ scores = [10, 20, 30]
 
 -- Correct the second score
 scores2 = scores |> set(idx_lens(1), 99)  -- [10, 99, 30]
+
+-- Update a nested list
+data = [ids: [101, 102, 103]]
+target_id_l = compose(col_lens("ids"), idx_lens(2))
+data2 = data |> set(target_id_l, 999)    -- [ids: [101, 102, 999]]
 ```
 
 #### `row_lens(index)`
@@ -156,7 +161,11 @@ Focuses on a specific row in a **DataFrame**. Compose with `col_lens` for cell-l
 df  = dataframe([[x: 1, y: 10], [x: 2, y: 20]])
 
 -- Update a single cell (row 0, column "y")
-df2 = df |> set(compose(row_lens(0), col_lens("y")), 99)
+cell_l = compose(row_lens(0), col_lens("y"))
+df2 = df |> set(cell_l, 99)
+
+-- Transform a single cell
+df3 = df |> over(cell_l, \(v) v * 10)
 ```
 
 ### 4.1 Cross-Node Retrieval in Sandboxes
@@ -178,7 +187,7 @@ This works because T automatically propagates artifact paths of dependencies via
 
 ### 5. Traversals: `filter_lens`
 
-> **Note:** `filter_lens` is a **traversal**, not a lens—it focuses on *multiple* elements simultaneously rather than a single one. Unlike a lens, which always focuses on exactly one location, a traversal may focus on zero, one, or many locations. Composition with other lenses works via the same `compose()` function, but the update function is applied independently to each matched element, and the results are written back into their original positions.
+> **Note:** `filter_lens` is a **traversal**, not a lens—it focuses on *multiple* elements simultaneously rather than a single one. Unlike a lens, which always focuses on exactly one location, a traversal may focus on zero, one, or many locations. 
 
 `filter_lens(predicate)` focuses on every element or row satisfying a condition. It works on **Lists**, **Vectors**, and **DataFrames**.
 
@@ -186,32 +195,75 @@ This works because T automatically propagates artifact paths of dependencies via
 scores = [1, 2, 3, 4, 5]
 
 -- Add 10 to every even number
-scores2 = scores |> over(filter_lens(\(x) x % 2 == 0), \(x) x + 10)
+even_l = filter_lens(\(x) x % 2 == 0)
+scores2 = scores |> over(even_l, \(x) x + 10)
 -- [1, 12, 3, 14, 5]
 ```
 
-When composing a traversal with another lens, pass both to `compose()`. Do **not** use `|>` inside an argument position—the operator precedence will cause the expression to parse incorrectly:
+#### Deep Conditional Updates
+Lenses really shine when you need to update a deep field based on a property of an intermediate container.
 
 ```t
--- Correct: both arguments to compose()
-df |> set(compose(filter_lens(\(r) r.status == "expired"), col_lens("val")), 0)
+-- For every city in Switzerland, increase population by 0.5m
+swiss_l = compose(
+  col_lens("countries"), 
+  filter_lens(\(c) c.name == "Switzerland"), 
+  col_lens("cities"), 
+  col_lens("pop")
+)
 
--- Wrong: |> inside an argument position parses incorrectly
--- df |> set(filter_lens(\(r) r.status == "expired") |> compose(col_lens("val")), 0)
+world2 = world |> over(swiss_l, \(p) p .+ 0.5)
 ```
-
-For flat-DataFrame conditional updates, `mutate()` with `if_else()` is often simpler and more familiar:
-
-```t
--- Equivalent, and clearer for the flat case
-df |> mutate($val = if_else($status == "expired", 0, $val))
-```
-
-The traversal form pays off when the condition and transformation live inside a *nested* structure—for example, when `df` is itself a column inside a larger DataFrame and a top-level `mutate` cannot reach the target field.
 
 ---
 
-### 6. API Quick Reference
+## Part III: Advanced Patterns
+
+### 6. Unified Access: Dot-Syntax Lenses
+
+While `get(data, lens)` is the canonical form, T supports **dot-access syntax** for lenses, allowing them to behave like methods on the lens object themselves. This is often more readable when chaining operations.
+
+```t
+price_l = col_lens("price")
+
+-- These are equivalent:
+p1 = get(item, price_l)
+p2 = price_l.get(item)
+
+-- Method chaining with 'over'
+item_on_sale = price_l.over(item, \(p) p * 0.9)
+```
+
+### 7. Orchestration: Dynamic Pipeline Queries
+
+Because lenses are first-class values, you can build them dynamically to query or modify pipelines based on configuration data.
+
+```t
+p = pipeline {
+    model_r = node(command = <{ train_model(df) }>, runtime = R)
+    model_py = node(command = <{ train_model(df) }>, runtime = Python)
+}
+
+-- Choose which model to query at runtime
+best_model_name = "model_py"
+model_value = get(p, node_lens(best_model_name))
+```
+
+### 8. Serialization & Multi-Node Safety
+
+T lenses are fully serializable. This means you can define a complex `FilterLens` in one pipeline node, pass it as a parameter to another node (even one running in a different runtime like R or Python), and it will maintain its structure.
+
+```t
+-- Node A: Define a "quality control" lens
+qc_lens = filter_lens(\(r) r.std_err > 0.05)
+
+-- Node B: Receives qc_lens as an argument and applies it to its local data
+flagged_data = data |> over(qc_lens, \(v) v + " [NEEDS REVIEW]")
+```
+
+---
+
+### 9. API Quick Reference
 
 | Function | Signature | Use Case |
 | :--- | :--- | :--- |
@@ -233,3 +285,4 @@ The traversal form pays off when the condition and transformation live inside a 
 1. **Name your paths**: Store commonly used lenses as named variables (`pct_l`, `salary_l`) and reuse them across `get`, `set`, and `over` calls.
 2. **Encapsulation**: When building packages, export lenses for your internal data structures so users can extend your logic without knowing column names.
 3. **Prefer standard verbs for flat DataFrames**: Lenses shine in nested or polymorphic contexts. For straightforward flat-DataFrame operations, `mutate()` and `filter()` are simpler and more idiomatic.
+4. **Vectorize Early**: If your function inside `over` works on a Vector, use broadcasting operators (`.+`, `.*`) to ensure performance.
