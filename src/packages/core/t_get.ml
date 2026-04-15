@@ -1,29 +1,35 @@
 open Ast
 
 (*
---# Get variable or element
+--# Unified Data Retrieval (get)
 --#
---# If called with one argument, retrieves a variable's value from the environment 
---# by name (String or Symbol). Matches R's `get()` semantics for variable lookup.
+--# Retrieves values from environments, collections, or pipelines using names, 
+--# indices, or lenses. 
 --#
---# If called with two arguments, retrieves an element from a List, Vector, or 
---# NDArray at the specified index (0-based).
+--# This is a polymorphic primitive that unifies several retrieval modes:
+--#
+--# 1. **Variable Lookup**: `get("var_name")` retrieves a variable from the environment.
+--# 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based).
+--# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result.
+--# 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data.
 --#
 --# @name get
---# @param x :: String | Symbol | List | Vector | NDArray The variable name or collection.
---# @param index :: Int (Optional) The index to retrieve if `x` is a collection.
---# @return :: Any The variable value or collection element.
+--# @param target :: Any The environment name (String/Symbol), Collection, Pipeline, or Data.
+--# @param selector :: Any (Optional) The index (Int), Node name (String/Symbol), or Lens.
+--# @return :: Any The retrieved value or focused data subset.
 --# @example
 --#   salary = 50000
---#   get("salary")
---#   -- Returns = 50000
+--#   get("salary")                -- 50000 (Lookup)
 --#
---#   col_name = "salary"
---#   get(sym(col_name))
---#   -- Returns = 50000
+--#   lst = [10, 20, 30]
+--#   get(lst, 1)                  -- 20 (Indexing)
 --#
---#   get([10, 20, 30], 1)
---#   -- Returns = 20
+--#   p = pipeline { a = 1 }
+--#   get(p, "a")                  -- 1 (Pipeline Access)
+--#
+--#   l = col_lens("mpg")
+--#   get(mtcars, l)               -- Vector of 'mpg' column (Lens)
+--#
 --# @family core
 --# @export
 *)
@@ -60,12 +66,27 @@ let register ~eval_call env =
                else VDict (Arrow_bridge.row_to_dict df.arrow_table i)
            | _ -> Error.type_error (Printf.sprintf "row_lens get expects a DataFrame, got %s" (Utils.type_name d)))
       | NodeLens name ->
+          let get_node_from_env name =
+            let env_name = "T_NODE_" ^ name in
+            match Sys.getenv_opt env_name with
+            | Some path ->
+                let artifact_path = Filename.concat path "artifact" in
+                if Sys.file_exists artifact_path then
+                  (match Serialization.deserialize_from_file artifact_path with
+                   | Ok v -> Some v
+                   | Error _ -> None)
+                else None
+            | None -> None
+          in
           (match d with
            | VPipeline p ->
                (match List.assoc_opt name p.p_nodes with
                 | Some v -> v
                 | None -> (VNA NAGeneric))
-           | _ -> Error.type_error "node_lens get expects a Pipeline")
+           | _ -> 
+               (match get_node_from_env name with
+                | Some v -> v
+                | None -> Error.type_error "node_lens get expects a Pipeline or available T_NODE_<name> environment variable."))
       | EnvVarLens (node, var) ->
           (match d with
            | VPipeline p ->
