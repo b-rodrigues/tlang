@@ -99,6 +99,21 @@ let register ~eval_call env =
                (match get_node_from_env name with
                 | Some v -> v
                 | None -> Error.type_error "node_lens get expects a Pipeline or available T_NODE_<name> environment variable."))
+      | NodeMetaLens (name, field) ->
+          (match d with
+           | VPipeline p ->
+               (match field with
+                | "runtime" -> (match List.assoc_opt name p.p_runtimes with Some v -> VString v | None -> (VNA NAGeneric))
+                | "noop" -> (match List.assoc_opt name p.p_noops with Some v -> VBool v | None -> (VNA NAGeneric))
+                | "serializer" -> (match List.assoc_opt name p.p_serializers with Some e -> VExpr e | None -> (VNA NAGeneric))
+                | "deserializer" -> (match List.assoc_opt name p.p_deserializers with Some e -> VExpr e | None -> (VNA NAGeneric))
+                | _ -> (VNA NAGeneric))
+           | _ -> Error.type_error "node_meta_lens get expects a Pipeline")
+      | CompositeLens (l1, l2) ->
+          let inner = get_lens l1 d in
+          (match inner with
+           | VError _ as e -> e
+           | _ -> get_lens l2 inner)
       | EnvVarLens (node, var) ->
           (match d with
            | VPipeline p ->
@@ -131,7 +146,16 @@ let register ~eval_call env =
                   | VBool b -> keep.(i) <- b
                   | _ -> ()
                 done;
-                VDataFrame { df with arrow_table = Arrow_compute.filter df.arrow_table keep }
+                VDataFrame { arrow_table = Arrow_compute.filter df.arrow_table keep; group_keys = df.group_keys }
+            | VPipeline pipe ->
+                let depths = Pipeline_to_frame.compute_depths pipe.p_deps in
+                let filtered_nodes = List.filter (fun (name, _) ->
+                  let meta = VDict (Pipeline_to_frame.node_metadata_dict name pipe depths) in
+                  match eval_call env p [(None, mk_expr (Value meta))] with
+                  | VBool b -> b
+                  | _ -> false
+                ) pipe.p_nodes in
+                VList (List.map (fun (n, v) -> (Some n, v)) filtered_nodes)
             | other -> Error.type_error (Printf.sprintf "filter_lens expected collection, got %s" (Utils.type_name other))
           in
           (* Re-implement Bool check to match test expectation *)
@@ -153,11 +177,6 @@ let register ~eval_call env =
                | _ -> ());
              filter_data d
            with Failure msg -> Error.type_error msg)
-      | CompositeLens (l1, l2) ->
-          let inner = get_lens l1 d in
-          (match inner with
-           | VError _ as e -> e
-           | _ -> get_lens l2 inner)
     in
     get_lens lens data
   in

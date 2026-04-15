@@ -291,6 +291,7 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
         | Ast.IdxLens i -> `Assoc [("type", `String "IdxLens"); ("index", `Int i)]
         | Ast.RowLens i -> `Assoc [("type", `String "RowLens"); ("index", `Int i)]
         | Ast.NodeLens n -> `Assoc [("type", `String "NodeLens"); ("name", `String n)]
+        | Ast.NodeMetaLens (n, f) -> `Assoc [("type", `String "NodeMetaLens"); ("name", `String n); ("field", `String f)]
         | Ast.EnvVarLens (n, v) -> `Assoc [("type", `String "EnvVarLens"); ("node", `String n); ("var", `String v)]
         | Ast.CompositeLens (l1, l2) -> `Assoc [("type", `String "CompositeLens"); ("left", lens_to_yojson l1); ("right", lens_to_yojson l2)]
         | Ast.FilterLens p -> `Assoc [("type", `String "FilterLens"); ("predicate", value_to_yojson p)]
@@ -318,6 +319,10 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
                        | Some (`String "IdxLens") -> Ast.IdxLens (match List.assoc "index" items with `Int i -> i | _ -> 0)
                        | Some (`String "RowLens") -> Ast.RowLens (match List.assoc "index" items with `Int i -> i | _ -> 0)
                        | Some (`String "NodeLens") -> Ast.NodeLens (match List.assoc "name" items with `String s -> s | _ -> "")
+                       | Some (`String "NodeMetaLens") ->
+                            let node = match List.assoc "name" items with `String s -> s | _ -> "" in
+                            let field = match List.assoc "field" items with `String s -> s | _ -> "" in
+                            Ast.NodeMetaLens (node, field)
                        | Some (`String "EnvVarLens") ->
                             let node = match List.assoc "node" items with `String s -> s | _ -> "" in
                             let var = match List.assoc "var" items with `String s -> s | _ -> "" in

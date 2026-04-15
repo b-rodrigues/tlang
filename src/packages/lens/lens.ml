@@ -273,7 +273,21 @@ let filter_lens_get_impl p ~eval_call args env =
        | Error e -> e
        | Ok () ->
            let new_table = Arrow_compute.filter df.arrow_table keep in
-           VDataFrame { df with arrow_table = new_table })
+           VDataFrame { arrow_table = new_table; group_keys = df.group_keys })
+  | [(_, VPipeline pipe)] ->
+      let depths = Pipeline_to_frame.compute_depths pipe.p_deps in
+      let rec aux acc = function
+        | [] -> Ok (List.rev acc)
+        | (name, v) :: rest ->
+            let meta = VDict (Pipeline_to_frame.node_metadata_dict name pipe depths) in
+            (match eval_pred meta with
+             | Ok true -> aux ((name, v) :: acc) rest
+             | Ok false -> aux acc rest
+             | Error e -> Error e)
+      in
+      (match aux [] pipe.p_nodes with
+       | Ok filtered -> VList (List.map (fun (n, v) -> (Some n, v)) filtered)
+       | Error e -> e)
   | [(_, other)] ->
       Error.type_error (Printf.sprintf "filter_lens get expects a Collection, got %s"
         (Utils.type_name other))
@@ -412,6 +426,38 @@ let filter_lens_set_impl p ~eval_call args env =
                   (Printf.sprintf
                      "filter_lens set on DataFrame expects a Dict or DataFrame, got %s"
                      (Utils.type_name other))))
+  | [(_, VPipeline pipe); (_, replacement)] ->
+      let depths = Pipeline_to_frame.compute_depths pipe.p_deps in
+      (match build_mask (List.length pipe.p_nodes) (fun i -> 
+         let (name, _) = List.nth pipe.p_nodes i in
+         VDict (Pipeline_to_frame.node_metadata_dict name pipe depths)
+       ) with
+       | Error e -> e
+       | Ok (mask, match_count) ->
+           (match replacement with
+            | VList repl_items ->
+                 let repl_len = List.length repl_items in
+                 if repl_len <> match_count then
+                   Error.type_error
+                     (Printf.sprintf
+                        "filter_lens set on Pipeline: replacement has %d elements but %d were matched"
+                        repl_len match_count)
+                 else
+                   let repl_arr = Array.of_list (List.map snd repl_items) in
+                   let repl_idx = ref 0 in
+                   let new_nodes = List.mapi (fun i (name, v) ->
+                     if mask.(i) then
+                       let new_v = repl_arr.(!repl_idx) in
+                       incr repl_idx; (name, new_v)
+                     else (name, v)
+                   ) pipe.p_nodes in
+                   VPipeline { pipe with p_nodes = new_nodes }
+            | val_v ->
+                (* scalar broadcast *)
+                let new_nodes = List.mapi (fun i (name, v) ->
+                  if mask.(i) then (name, val_v) else (name, v)
+                ) pipe.p_nodes in
+                VPipeline { pipe with p_nodes = new_nodes }))
   | [(_, other); _] ->
       Error.type_error (Printf.sprintf "filter_lens set expects a Collection, got %s"
         (Utils.type_name other))
@@ -473,6 +519,16 @@ let rec apply_lens_get ~eval_call lens data env =
             | Some v -> v
             | None -> (VNA NAGeneric))
        | _ -> Error.type_error "node_lens get expects a Pipeline")
+  | NodeMetaLens (name, field) ->
+      (match data with
+       | VPipeline p ->
+           (match field with
+            | "runtime" -> (match List.assoc_opt name p.p_runtimes with Some v -> VString v | None -> (VNA NAGeneric))
+            | "noop" -> (match List.assoc_opt name p.p_noops with Some v -> VBool v | None -> (VNA NAGeneric))
+            | "serializer" -> (match List.assoc_opt name p.p_serializers with Some e -> VExpr e | None -> (VNA NAGeneric))
+            | "deserializer" -> (match List.assoc_opt name p.p_deserializers with Some e -> VExpr e | None -> (VNA NAGeneric))
+            | _ -> (VNA NAGeneric))
+       | _ -> Error.type_error "node_meta_lens get expects a Pipeline")
   | EnvVarLens (node, var) ->
       (match data with
        | VPipeline p ->
@@ -587,6 +643,20 @@ let rec apply_lens_set ~eval_call lens data val_v env =
             let final_env_vars = if List.mem_assoc node_name p.p_env_vars then new_env_vars else new_env_vars @ [(node_name, final_vars)] in
             VPipeline { p with p_env_vars = final_env_vars }
         | _ -> Error.type_error "env_var_lens set expects a Pipeline")
+  | NodeMetaLens (name, field) ->
+      (match data with
+       | VPipeline p ->
+           let update_assoc lst new_v =
+             let updated = List.map (fun (n, old) -> if n = name then (n, new_v) else (n, old)) lst in
+             if List.mem_assoc name lst then updated else updated @ [(name, new_v)]
+           in
+           (match field with
+            | "runtime" -> (match val_v with VString v -> VPipeline { p with p_runtimes = update_assoc p.p_runtimes v } | _ -> Error.type_error "runtime must be a String")
+            | "noop" -> (match val_v with VBool b -> VPipeline { p with p_noops = update_assoc p.p_noops b } | _ -> Error.type_error "noop must be a Bool")
+            | "serializer" -> VPipeline { p with p_serializers = update_assoc p.p_serializers (mk_expr (Value val_v)) }
+            | "deserializer" -> VPipeline { p with p_deserializers = update_assoc p.p_deserializers (mk_expr (Value val_v)) }
+            | _ -> Error.type_error (Printf.sprintf "Unknown node metadata field: %s" field))
+       | _ -> Error.type_error "node_meta_lens set expects a Pipeline")
   | FilterLens p -> filter_lens_set_impl p ~eval_call [(None, data); (None, val_v)] env
   | CompositeLens (l1, l2) ->
       let getter_lambda = VLambda {
@@ -700,17 +770,23 @@ let node_lens_impl ~eval_call:_ args _env =
   | _ -> Error.type_error "node_lens expects a node name (String)"
 
 (*
---# Pipeline Env Var Lens
+--# Pipeline Metadata Lens
 --#
---# Targets a specific environment variable for a node in a Pipeline.
+--# Targets a specific metadata field of a pipeline node.
+--# Supported fields: "runtime", "serializer", "deserializer", "noop".
 --#
---# @name env_var_lens
+--# @name node_meta_lens
 --# @param node_name :: String The name of the node.
---# @param var_name :: String The name of the environment variable.
---# @return :: Lens A lens for the environment variable.
+--# @param field :: String The metadata field name.
+--# @return :: Lens A lens for the specified metadata field.
 --# @family lens
 --# @export
-*)
+--# *)
+let node_meta_lens_impl ~eval_call:_ args _env =
+  match args with
+  | [(_, VString node_name); (_, VString field)] -> VLens (NodeMetaLens (node_name, field))
+  | _ -> Error.type_error "node_meta_lens expects a node name and a field name (Strings)"
+
 let env_var_lens_impl ~eval_call:_ args _env =
   match args with
   | [(_, VString node_name); (_, VString var_name)] -> VLens (EnvVarLens (node_name, var_name))
@@ -720,14 +796,35 @@ let register ~eval_call env =
   let make_l_builtin ?(variadic=false) name arity f env =
     Env.add name (VBuiltin { b_name = Some name; b_arity = arity; b_variadic = variadic; b_func = (fun args env_ref -> f ~eval_call args !env_ref) }) env
   in
+  let over_fn args (env_val : value Env.t) =
+    match args with
+    | [(_, data); (_, lens); (_, func)] ->
+        over_val ~eval_call (ref env_val) lens data func
+    | _ -> Error.arity_error_named "over" 3 (List.length args)
+  in
+  let get_fn args (env_val : value Env.t) =
+    match args with
+    | [(_, data); (_, VLens l)] -> apply_lens_get ~eval_call l data env_val
+    | [(_, data); (_, VDict items)] ->
+        (match List.assoc_opt "get" items with
+         | Some fn -> eval_call env_val fn [(None, mk_expr (Value data))]
+         | None -> Error.type_error "Lens missing get function")
+    | [(_, data); (_, index)] -> (* fallback to standard collection get *)
+        (match Env.find_opt "get" env_val with
+         | Some (VBuiltin { b_func; _ }) -> b_func [(None, data); (None, index)] (ref env_val)
+         | _ -> Error.name_error "get")
+    | _ -> Error.arity_error_named "get" 2 (List.length args)
+  in
   env
   |> make_l_builtin "col_lens" 1 col_lens_impl
-  |> make_l_builtin "over" 3 over_impl
-  |> make_l_builtin ~variadic:true "compose" 2 compose_impl
-  |> make_l_builtin "set" 3 set_impl
-  |> make_l_builtin ~variadic:true "modify" 1 modify_impl
-  |> make_l_builtin "node_lens" 1 node_lens_impl
-  |> make_l_builtin "env_var_lens" 2 env_var_lens_impl
   |> make_l_builtin "idx_lens" 1 idx_lens_impl
   |> make_l_builtin "row_lens" 1 row_lens_impl
+  |> make_l_builtin "node_lens" 1 node_lens_impl
+  |> make_l_builtin "node_meta_lens" 2 node_meta_lens_impl
+  |> make_l_builtin "env_var_lens" 2 env_var_lens_impl
+  |> make_l_builtin ~variadic:true "compose" 2 compose_impl
+  |> make_l_builtin "set" 3 set_impl
+  |> Env.add "over" (make_builtin_named ~name:"over" 3 over_fn)
+  |> Env.add "get" (make_builtin_named ~name:"get" 2 get_fn)
+  |> make_l_builtin ~variadic:true "modify" 1 modify_impl
   |> make_l_builtin "filter_lens" 1 filter_lens_impl

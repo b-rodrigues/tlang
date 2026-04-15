@@ -200,6 +200,7 @@ and lens =
   | IdxLens of int
   | RowLens of int
   | NodeLens of string
+  | NodeMetaLens of string * string
   | EnvVarLens of string * string
   | CompositeLens of lens * lens
   | FilterLens of value
@@ -817,6 +818,7 @@ module Utils = struct
           | IdxLens i -> Printf.sprintf "idx_lens(%d)" i
           | RowLens i -> Printf.sprintf "row_lens(%d)" i
           | NodeLens n -> Printf.sprintf "node_lens(\"%s\")" n
+          | NodeMetaLens (n, f) -> Printf.sprintf "node_meta_lens(\"%s\", \"%s\")" n f
           | EnvVarLens (node, var) -> Printf.sprintf "env_var_lens(\"%s\", \"%s\")" node var
           | CompositeLens (l1, l2) -> Printf.sprintf "compose(%s, %s)" (lens_to_string l1) (lens_to_string l2)
           | FilterLens _ -> "filter_lens(...)"

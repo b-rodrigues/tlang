@@ -232,6 +232,41 @@ p = pipeline {
 -- Choose which model to query at runtime
 best_model_name = "model_py"
 model_value = get(p, node_lens(best_model_name))
+
+### 7. Core Orchestration: `node_meta_lens`
+
+While `node_lens` focuses on a node's *result*, `node_meta_lens` focuses on its *inner configuration*. This is essential for dynamic orchestration: toggling `noop` status, swapping runtimes, or updating (de)serializers before a build.
+
+- **`node_meta_lens(node_name, field)`**: Targets the configuration of a node.
+- **Fields**: `"runtime"`, `"noop"`, `"serializer"`, `"deserializer"`.
+
+```t
+p = pipeline {
+    data_gen = node(command = <{ [1, 2, 3, 4] }>)
+    model_r  = node(data_gen, command = <{ train(data_gen) }>, runtime = R)
+}
+
+-- Surgical update: toggle 'noop' status to skip computation
+noop_l = node_meta_lens("model_r", "noop")
+p_noop = p |> set(noop_l, true)
+
+-- Re-orchestration: Swap a node's runtime to Python
+p_py = p |> set(node_meta_lens("model_r", "runtime"), "Python")
+```
+
+### 8. Pipeline Traversals: `filter_lens` on VPipeline
+
+You can now use `filter_lens` on a **Pipeline** object to query or modify sets of nodes. The predicate receives a `Dict` of node metadata (including `$name`, `$runtime`, `$noop`, `$depth`, etc.).
+
+```t
+-- Identify all nodes currently marked as noop
+noop_nodes_l = filter_lens(\(meta) meta.noop == true)
+noop_node_list = get(p, noop_nodes_l)
+
+-- Re-run all R nodes locally by swapping runtime to T
+r_nodes_l = filter_lens(\(meta) meta.runtime == "R")
+p_local = p |> over(r_nodes_l, \(n) n |> set(node_meta_lens(n.name, "runtime"), "T"))
+```
 ```
 
 ### 7. Serialization & Multi-Node Safety
@@ -257,11 +292,12 @@ flagged_data = data |> over(qc_lens, \(v) v + " [NEEDS REVIEW]")
 | **`modify(data, lens1, f1, ...)`** | `(A, Lens, B -> B, ...) -> A` | Multiple lens+function pairs in one call. |
 | **`compose(...)`** | `(...Lens) -> Lens` | Chains any number of lenses into one path. |
 | **`col_lens(name)`** | `String -> Lens` | Column/key/field focus. |
-| **`node_lens(name)`** | `String -> Lens` | Pipeline node focus. |
+| **`node_lens(name)`** | `String -> Lens` | Pipeline node result focus. |
+| **`node_meta_lens(n, f)`**| `(String, String) -> Lens` | Pipeline node metadata focus. |
 | **`env_var_lens(n, v)`** | `(String, String) -> Lens` | Pipeline env var focus. |
 | **`idx_lens(i)`** | `Int -> Lens` | List/Vector index focus. |
 | **`row_lens(i)`** | `Int -> Lens` | DataFrame row focus. |
-| **`filter_lens(p)`** | `Function -> Traversal` | Condition-based multi-focus. |
+| **`filter_lens(p)`** | `Function -> Traversal` | Condition-based multi-focus (Lists, Vectors, DataFrames, Pipelines). |
 
 ---
 
