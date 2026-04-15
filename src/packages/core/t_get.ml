@@ -45,17 +45,18 @@ let register ~eval_call env =
         let artifact_path = Filename.concat path "artifact" in
         if Sys.file_exists artifact_path then
           (match Serialization.deserialize_from_file artifact_path with
-           | Ok v -> Some v
-           | Error e -> 
-               Printf.eprintf "get(node_lens('%s')): Deserialization of %s failed: %s\n" name artifact_path e;
-               None)
-        else (
-          (* Artifact file missing — signal that Nix must build it *)
-          Some (Error.missing_artifact_error (Printf.sprintf "Artifact file %s does not exist." artifact_path))
-        )
-    | None -> 
-        (* Env var missing — signal that Nix must provide it *)
-        Some (Error.missing_artifact_error (Printf.sprintf "Environment variable %s not found." env_name))
+           | Ok v -> v
+           | Error e ->
+               Error.runtime_error
+                 (Printf.sprintf
+                    "Function `get` failed to deserialize node artifact `%s` from `%s`: %s"
+                    name artifact_path e))
+        else
+          Error.missing_artifact_error
+            (Printf.sprintf "Artifact file %s does not exist." artifact_path)
+    | None ->
+        Error.missing_artifact_error
+          (Printf.sprintf "Environment variable %s not found." env_name)
   in
 
   let apply_lens lens data _env_ref =
@@ -89,16 +90,13 @@ let register ~eval_call env =
                if i < 0 || i >= nrows then Error.index_error i nrows
                else VDict (Arrow_bridge.row_to_dict df.arrow_table i)
            | _ -> Error.type_error (Printf.sprintf "row_lens get expects a DataFrame, got %s" (Utils.type_name d)))
-      | NodeLens name ->
-          (match d with
-           | VPipeline p ->
-               (match List.assoc_opt name p.p_nodes with
-                | Some v -> v
-                | None -> (VNA NAGeneric))
-           | _ -> 
-               (match get_node_from_env name with
-                | Some v -> v
-                | None -> Error.type_error "node_lens get expects a Pipeline or available T_NODE_<name> environment variable."))
+       | NodeLens name ->
+           (match d with
+            | VPipeline p ->
+                (match List.assoc_opt name p.p_nodes with
+                 | Some v -> v
+                 | None -> (VNA NAGeneric))
+            | _ -> get_node_from_env name)
       | NodeMetaLens (name, field) ->
           (match d with
            | VPipeline p ->
@@ -121,65 +119,81 @@ let register ~eval_call env =
                 | Some vars -> (match List.assoc_opt var vars with Some v -> v | None -> (VNA NAGeneric))
                 | None -> (VNA NAGeneric))
            | _ -> Error.type_error "env_var_lens get expects a Pipeline")
-      | FilterLens p ->
-          let filter_data = function
+       | FilterLens p ->
+           let eval_pred v =
+             match eval_call env p [(None, mk_expr (Value v))] with
+             | VBool b -> Ok b
+             | VError _ as e -> Error e
+             | other ->
+                 Error
+                   (Error.type_error
+                      (Printf.sprintf "filter_lens predicate must return Bool, got %s"
+                         (Utils.type_name other)))
+           in
+           (match d with
             | VList items ->
-                let filtered = List.filter (fun (_name, v) -> 
-                  match eval_call env p [(None, mk_expr (Value v))] with
-                  | VBool b -> b
-                  | _ -> false (* The test expects an error, but FilterLens impl usually checks this. *)
-                ) items in
-                VList filtered
-            | VVector v ->
-                let filtered = Array.to_list v |> List.filter (fun v -> 
-                  match eval_call env p [(None, mk_expr (Value v))] with
-                  | VBool b -> b
-                  | _ -> false
-                ) |> Array.of_list in
-                VVector filtered
+                let rec aux acc = function
+                  | [] -> Ok (List.rev acc)
+                  | (name, v) :: rest ->
+                      (match eval_pred v with
+                       | Ok true -> aux ((name, v) :: acc) rest
+                       | Ok false -> aux acc rest
+                       | Error e -> Error e)
+                in
+                (match aux [] items with
+                 | Ok filtered -> VList filtered
+                 | Error e -> e)
+            | VVector arr ->
+                let rec aux acc = function
+                  | [] -> Ok (List.rev acc)
+                  | v :: rest ->
+                      (match eval_pred v with
+                       | Ok true -> aux (v :: acc) rest
+                       | Ok false -> aux acc rest
+                       | Error e -> Error e)
+                in
+                (match aux [] (Array.to_list arr) with
+                 | Ok filtered -> VVector (Array.of_list filtered)
+                 | Error e -> e)
             | VDataFrame df ->
                 let nrows = Arrow_table.num_rows df.arrow_table in
                 let keep = Array.make nrows false in
-                for i = 0 to nrows - 1 do
-                  let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
-                  match eval_call env p [(None, mk_expr (Value row_dict))] with
-                  | VBool b -> keep.(i) <- b
-                  | _ -> ()
-                done;
-                VDataFrame { arrow_table = Arrow_compute.filter df.arrow_table keep; group_keys = df.group_keys }
+                let rec aux i =
+                  if i >= nrows then Ok ()
+                  else
+                    let row_dict = VDict (Arrow_bridge.row_to_dict df.arrow_table i) in
+                    match eval_pred row_dict with
+                    | Ok b -> keep.(i) <- b; aux (i + 1)
+                    | Error e -> Error e
+                in
+                (match aux 0 with
+                 | Ok () ->
+                     VDataFrame
+                       { arrow_table = Arrow_compute.filter df.arrow_table keep
+                       ; group_keys = df.group_keys
+                       }
+                 | Error e -> e)
             | VPipeline pipe ->
                 let depths = Pipeline_to_frame.compute_depths pipe.p_deps in
-                let filtered_nodes = List.filter (fun (name, _) ->
-                  let meta = VDict (Pipeline_to_frame.node_metadata_dict name pipe depths) in
-                  match eval_call env p [(None, mk_expr (Value meta))] with
-                  | VBool b -> b
-                  | _ -> false
-                ) pipe.p_nodes in
-                VList (List.map (fun (n, v) -> (Some n, v)) filtered_nodes)
-            | other -> Error.type_error (Printf.sprintf "filter_lens expected collection, got %s" (Utils.type_name other))
-          in
-          (* Re-implement Bool check to match test expectation *)
-          let check_pred v = 
-             match eval_call env p [(None, mk_expr (Value v))] with
-             | VBool _ -> true
-             | VError _ as e -> raise (Failure (match e with VError info -> info.message | _ -> "Error"))
-             | other -> raise (Failure (Printf.sprintf "filter_lens predicate must return Bool, got %s" (Utils.type_name other)))
-          in
-          (try 
-             (match d with 
-               | VList items -> List.iter (fun (_, v) -> ignore(check_pred v)) items
-               | VVector v -> Array.iter (fun v -> ignore(check_pred v)) v
-               | VDataFrame df -> 
-                   let nrows = Arrow_table.num_rows df.arrow_table in
-                   for i = 0 to nrows - 1 do
-                     ignore(check_pred (VDict (Arrow_bridge.row_to_dict df.arrow_table i)))
-                   done
-               | _ -> ());
-             filter_data d
-           with Failure msg -> Error.type_error msg)
-    in
-    get_lens lens data
-  in
+                let rec aux acc = function
+                  | [] -> Ok (List.rev acc)
+                  | (name, v) :: rest ->
+                      let meta = VDict (Pipeline_to_frame.node_metadata_dict name pipe depths) in
+                      (match eval_pred meta with
+                       | Ok true -> aux ((Some name, v) :: acc) rest
+                       | Ok false -> aux acc rest
+                       | Error e -> Error e)
+                in
+                (match aux [] pipe.p_nodes with
+                 | Ok filtered -> VList filtered
+                 | Error e -> e)
+            | other ->
+                Error.type_error
+                  (Printf.sprintf "filter_lens expected collection, got %s"
+                     (Utils.type_name other)))
+     in
+     get_lens lens data
+   in
 
   Env.add "get"
     (make_builtin ~name:"get" ~variadic:true 1 (fun args env ->
@@ -191,13 +205,11 @@ let register ~eval_call env =
            | Some v -> v
            | None -> Error.name_error name)
 
-      (* Lens/Node Fallback Case (1 arg: Lens) *)
-      | [VLens (NodeLens name)] ->
-          (match get_node_from_env name with
-           | Some v -> v
-           | None -> Error.type_error (Printf.sprintf "node_lens get('%s') failed (check stderr for details)." name))
-      | [VLens _l] ->
-          Error.type_error "Single-argument get() with a lens requires a node_lens to perform environment-based retrieval."
+       (* Lens/Node Fallback Case (1 arg: Lens) *)
+       | [VLens (NodeLens name)] ->
+           get_node_from_env name
+       | [VLens _l] ->
+           Error.type_error "Single-argument get() with a lens requires a node_lens to perform environment-based retrieval."
 
       (* Pipeline Node Lookup (2 args: Pipeline, String/Symbol) *)
       | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
@@ -229,15 +241,8 @@ let register ~eval_call env =
            | Some get_fn -> eval_call env get_fn [(None, mk_expr (Value data))]
            | None -> Error.type_error "Function `get`: Data and Dict provided, but Dict is not a valid lens.")
 
-      | [v] -> Error.type_error (Printf.sprintf "Function `get` (1 arg) expects a String or Symbol, got %s." (Utils.type_name v))
-      | [_ ; other] -> Error.type_error (Printf.sprintf "Function `get` (2 args) expects (Pipeline, String), (Collection, Int), or (Data, Lens). Got %s as second argument." (Utils.type_name other))
-      | _ -> Error.arity_error_named "get" 1 (List.length args)
-    ))
-    env
-  |> (fun env ->
-      Env.add "sym" (make_builtin ~name:"sym" 1 (fun args _env ->
-        match args with
-        | [VString s] | [VSymbol s] -> VSymbol s
-        | [v] -> Error.type_error (Printf.sprintf "sym: expected a String, got %s." (Utils.type_name v))
-        | _ -> Error.arity_error_named "sym" 1 (List.length args)
-      )) env)
+       | [v] -> Error.type_error (Printf.sprintf "Function `get` (1 arg) expects a String or Symbol, got %s." (Utils.type_name v))
+       | [_ ; other] -> Error.type_error (Printf.sprintf "Function `get` (2 args) expects (Pipeline, String), (Collection, Int), or (Data, Lens). Got %s as second argument." (Utils.type_name other))
+       | _ -> Error.arity_error_named "get" 1 (List.length args)
+     ))
+     env

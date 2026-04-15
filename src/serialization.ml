@@ -311,31 +311,74 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
       (match List.assoc_opt "class" a with
        | Some (`String "VLens") ->
            (match List.assoc_opt "data" a with
-            | Some (`Assoc d) ->
-                let rec yojson_to_lens = function
-                  | `Assoc items ->
-                      (match List.assoc_opt "type" items with
-                       | Some (`String "ColLens") -> Ast.ColLens (match List.assoc "name" items with `String s -> s | _ -> "")
-                       | Some (`String "IdxLens") -> Ast.IdxLens (match List.assoc "index" items with `Int i -> i | _ -> 0)
-                       | Some (`String "RowLens") -> Ast.RowLens (match List.assoc "index" items with `Int i -> i | _ -> 0)
-                       | Some (`String "NodeLens") -> Ast.NodeLens (match List.assoc "name" items with `String s -> s | _ -> "")
-                       | Some (`String "NodeMetaLens") ->
-                            let node = match List.assoc "name" items with `String s -> s | _ -> "" in
-                            let field = match List.assoc "field" items with `String s -> s | _ -> "" in
-                            Ast.NodeMetaLens (node, field)
-                       | Some (`String "EnvVarLens") ->
-                            let node = match List.assoc "node" items with `String s -> s | _ -> "" in
-                            let var = match List.assoc "var" items with `String s -> s | _ -> "" in
-                            Ast.EnvVarLens (node, var)
-                       | Some (`String "CompositeLens") ->
-                           Ast.CompositeLens (yojson_to_lens (List.assoc "left" items),
-                                              yojson_to_lens (List.assoc "right" items))
-                       | Some (`String "FilterLens") ->
-                           Ast.FilterLens (yojson_to_value (List.assoc "predicate" items))
-                       | _ -> Ast.ColLens "error")
-                  | _ -> Ast.ColLens "error"
-                in
-                VLens (yojson_to_lens (`Assoc d))
+             | Some (`Assoc d) ->
+                 let rec yojson_to_lens = function
+                   | `Assoc items ->
+                       let required_field lens_type field =
+                         match List.assoc_opt field items with
+                         | Some value -> value
+                         | None ->
+                             invalid_arg
+                               (Printf.sprintf
+                                  "yojson_to_lens: %s is missing required field `%s`"
+                                  lens_type field)
+                       in
+                       let required_string lens_type field =
+                         match required_field lens_type field with
+                         | `String s -> s
+                         | value ->
+                             invalid_arg
+                               (Printf.sprintf
+                                  "yojson_to_lens: %s field `%s` must be a String, got %s"
+                                  lens_type field (Yojson.Safe.to_string value))
+                       in
+                       let required_int lens_type field =
+                         match required_field lens_type field with
+                         | `Int i -> i
+                         | value ->
+                             invalid_arg
+                               (Printf.sprintf
+                                  "yojson_to_lens: %s field `%s` must be an Int, got %s"
+                                  lens_type field (Yojson.Safe.to_string value))
+                       in
+                       (match List.assoc_opt "type" items with
+                        | Some (`String "ColLens") ->
+                            Ast.ColLens (required_string "ColLens" "name")
+                        | Some (`String "IdxLens") ->
+                            Ast.IdxLens (required_int "IdxLens" "index")
+                        | Some (`String "RowLens") ->
+                            Ast.RowLens (required_int "RowLens" "index")
+                        | Some (`String "NodeLens") ->
+                            Ast.NodeLens (required_string "NodeLens" "name")
+                        | Some (`String "NodeMetaLens") ->
+                             let node = required_string "NodeMetaLens" "name" in
+                             let field = required_string "NodeMetaLens" "field" in
+                             Ast.NodeMetaLens (node, field)
+                        | Some (`String "EnvVarLens") ->
+                             let node = required_string "EnvVarLens" "node" in
+                             let var = required_string "EnvVarLens" "var" in
+                             Ast.EnvVarLens (node, var)
+                        | Some (`String "CompositeLens") ->
+                            Ast.CompositeLens
+                              ( yojson_to_lens (required_field "CompositeLens" "left")
+                              , yojson_to_lens (required_field "CompositeLens" "right") )
+                        | Some (`String "FilterLens") ->
+                            Ast.FilterLens
+                              (yojson_to_value (required_field "FilterLens" "predicate"))
+                        | Some (`String lens_type) ->
+                            invalid_arg
+                              (Printf.sprintf "yojson_to_lens: unsupported lens type `%s`" lens_type)
+                        | Some value ->
+                            invalid_arg
+                              (Printf.sprintf
+                                 "yojson_to_lens: field `type` must be a String, got %s"
+                                 (Yojson.Safe.to_string value))
+                        | None -> invalid_arg "yojson_to_lens: missing required field `type`")
+                   | other ->
+                       invalid_arg
+                         ("yojson_to_lens: expected lens object, got " ^ Yojson.Safe.to_string other)
+                 in
+                 VLens (yojson_to_lens (`Assoc d))
             | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
        | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
   | _ ->

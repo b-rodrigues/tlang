@@ -483,22 +483,20 @@ tail(numbers)    -- [2, 3]</code></pre>
 person.name  -- &quot;Alice&quot;
 person.age   -- 30</code></pre>
 <h3 id="dictionaries">Dictionaries</h3>
-<p>config = {host: “localhost”, port: 8080} config.host – “localhost”
-config.port – 8080</p>
-<pre><code>
----
-
-## Data Access and Lenses
-
-T provides a unified retrieval system via the `get()` primitive and the **Lens** library. Lenses allow you to focus on specific parts of complex data structures (DataFrames, Lists, Pipelines) and perform serializable, cross-node data operations.
-
-### The Unified `get()` Built-in
-
-The `get()` function is the primary entry point for retrieving data. It supports four distinct modes of operation:
-
-#### 1. Variable Lookup (R-style)
-```t
-salary = 50000
+<pre class="t"><code>config = {host: &quot;localhost&quot;, port: 8080}
+config.host  -- &quot;localhost&quot;
+config.port  -- 8080</code></pre>
+<hr />
+<h2 id="data-access-and-lenses">Data Access and Lenses</h2>
+<p>T provides a unified retrieval system via the <code>get()</code>
+primitive and the <strong>Lens</strong> library. Lenses allow you to
+focus on specific parts of complex data structures (DataFrames, Lists,
+Pipelines) and perform serializable, cross-node data operations.</p>
+<h3 id="the-unified-get-built-in">The Unified <code>get()</code> Built-in</h3>
+<p>The <code>get()</code> function is the primary entry point for
+retrieving data. It supports several modes of operation:</p>
+<h4 id="variable-lookup-r-style">1. Variable Lookup (R-style)</h4>
+<pre class="t"><code>salary = 50000
 get(&quot;salary&quot;)                -- 50000
 get(sym(&quot;salary&quot;))           -- 50000</code></pre>
 <h4 id="collection-indexing-0-based">2. Collection Indexing
@@ -569,7 +567,7 @@ l_deep = compose(col_lens(&quot;users&quot;), col_lens(&quot;Alice&quot;), col_l
 get(data, l_deep)            -- 1
 
 -- Deep update
-data_updated = over(data, l_deep, 99)
+data_updated = over(data, l_deep, \(x) x + 98)
 get(data_updated, l_deep)    -- 99</code></pre>
 <blockquote>
 <p>[!NOTE] <strong>Serializable Pipelines</strong>: Tlang lenses are now

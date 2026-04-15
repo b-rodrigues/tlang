@@ -6,7 +6,7 @@ Creates a Symbol from a string so it can be injected into quoted code with `!!`.
 
 ## Parameters
 
-- **x** (`String`): | Symbol The name to convert.
+- **x** (`String | Symbol`): The name to convert.
 
 
 ## Returns
@@ -19,4 +19,3 @@ The resulting symbol.
 sym("mpg")
 expr(select(df, !!sym("mpg")))
 ```
-

@@ -210,61 +210,61 @@ behaves depending on the language of the code chunk.</p>
 <p>Within a <code>{t}</code> code block, <code>read_node()</code>
 follows the same behavior as the REPL: it returns the <strong>JSON
 metadata dictionary</strong>.</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="in">```{t}</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="in">#| echo: false</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="in">g = read_node(&quot;p_ggplot&quot;)</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="in">print(g.title)</span></span></code></pre></div>
-<pre><code>*Output: &quot;Fuel Economy&quot;*
-
-This is useful for including summary information about your visualizations directly in the text of your report.
-
-### In R and Python Chunks
-To actually **render** the plot in your report, you must use an `{r}` or `{python}` chunk. However, in these environments, `read_node()` is a preprocessor token that T replaces with the **absolute path string** to the artifact in the Nix store. 
-
-Because `read_node()` returns a path, you must manually load the artifact using the specialized reader for that language.
-
-#### Example: Rendering a ggplot2 node in R
-```markdown
-```{r}
+<pre class="markdown"><code>```{t}
 #| echo: false
-# read_node(&quot;p_ggplot&quot;) becomes &#39;/nix/store/.../artifact&#39;
+g = read_node(&quot;p_ggplot&quot;)
+print(g.title)
+```</code></pre>
+<p><em>Output: &quot;Fuel Economy&quot;</em></p>
+<p>This is useful for including summary information about your
+visualizations directly in the text of your report.</p>
+<h3 id="in-r-and-python-chunks">In R and Python Chunks</h3>
+<p>To actually <strong>render</strong> the plot in your report, you must
+use an <code>{r}</code> or <code>{python}</code> chunk. However, in
+these environments, <code>read_node()</code> is a preprocessor token
+that T replaces with the <strong>absolute path string</strong> to the
+artifact in the Nix store.</p>
+<p>Because <code>read_node()</code> returns a path, you must manually
+load the artifact using the specialized reader for that language.</p>
+<h4 id="example-rendering-a-ggplot2-node-in-r">Example: Rendering a ggplot2 node in R</h4>
+<pre class="markdown"><code>```{r}
+#| echo: false
+# read_node(&quot;p_ggplot&quot;) becomes '/nix/store/.../artifact'
 p &lt;- readRDS(read_node(&quot;p_ggplot&quot;))
-p</code></pre>
-<pre><code>
-#### Example: Rendering a matplotlib node in Python
-```markdown
-```{python}
+p
+```</code></pre>
+<h4 id="example-rendering-a-matplotlib-node-in-python">Example: Rendering a matplotlib node in Python</h4>
+<pre class="markdown"><code>```{python}
 #| echo: false
 try:
     import cloudpickle as pickle
 except ImportError:
     import pickle
-# read_node(&quot;p_matplotlib&quot;) becomes &#39;/nix/store/.../artifact&#39;
+# read_node(&quot;p_matplotlib&quot;) becomes '/nix/store/.../artifact'
 with open(read_node(&quot;p_matplotlib&quot;), &quot;rb&quot;) as f:
     fig = pickle.load(f)
-fig</code></pre>
-<pre><code>
-This dual behavior ensures that you can use T for programmatic inspection and R/Python for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
-
----
-
-## Opening Plots with `show_plot()`
-
-`show_plot()` renders a plotting artifact in a fresh Nix sandbox, writes the rendered image to `_pipeline/`, and then opens the image locally.
-
-It accepts:
-
-- an unbuilt `rn()` / `pyn()` node
-- a built `ComputedNode`
-- a `read_node()` result that still points back to a built plot node
-
-The rendered output is currently written as a PNG file under `_pipeline/`.
-
-Add an opener in `tproject.toml` if you want to override the default viewer:
-
-```toml
-[visualization-tool]
+fig
+```</code></pre>
+<p>This dual behavior ensures that you can use T for programmatic
+inspection and R/Python for high-fidelity visual rendering, all while
+maintaining strict Nix-based reproducibility.</p>
+<hr />
+<h2 id="opening-plots-with-show_plot">Opening Plots with <code>show_plot()</code></h2>
+<p><code>show_plot()</code> renders a plotting artifact in a fresh Nix
+sandbox, writes the rendered image to <code>_pipeline/</code>, and then
+opens the image locally.</p>
+<p>It accepts:</p>
+<ul>
+<li>an unbuilt <code>rn()</code> / <code>pyn()</code> node</li>
+<li>a built <code>ComputedNode</code></li>
+<li>a <code>read_node()</code> result that still points back to a built
+plot node</li>
+</ul>
+<p>The rendered output is currently written as a PNG file under
+<code>_pipeline/</code>.</p>
+<p>Add an opener in <code>tproject.toml</code> if you want to override
+the default viewer:</p>
+<pre class="toml"><code>[visualization-tool]
 command = &quot;xdg-open&quot;</code></pre>
 <p>The value must be a single executable name or an absolute path to an
 executable. When no custom tool is configured, T falls back to:</p>

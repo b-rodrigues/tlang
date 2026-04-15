@@ -392,6 +392,7 @@ person.age   -- 30
 ```
 
 ### Dictionaries
+```t
 config = {host: "localhost", port: 8080}
 config.host  -- "localhost"
 config.port  -- 8080
@@ -405,7 +406,7 @@ T provides a unified retrieval system via the `get()` primitive and the **Lens**
 
 ### The Unified `get()` Built-in
 
-The `get()` function is the primary entry point for retrieving data. It supports four distinct modes of operation:
+The `get()` function is the primary entry point for retrieving data. It supports several modes of operation:
 
 #### 1. Variable Lookup (R-style)
 ```t
@@ -457,7 +458,7 @@ l_deep = compose(col_lens("users"), col_lens("Alice"), col_lens("id"))
 get(data, l_deep)            -- 1
 
 -- Deep update
-data_updated = over(data, l_deep, 99)
+data_updated = over(data, l_deep, \(x) x + 98)
 get(data_updated, l_deep)    -- 99
 ```
 

@@ -9,7 +9,7 @@ open Ast
 --# pipeline boundaries.
 --#
 --# Retrieval should primarily be performed via the unified `get(data, lens)` primitive.
---# Updates are performed via `over(data, lens, value)`.
+--# Updates are performed via `over(data, lens, func)`.
 --#
 --# @name lens
 --# @family lens
@@ -629,13 +629,6 @@ let rec apply_lens_set ~eval_call lens data val_v env =
        | _ -> Error.type_error "node_meta_lens set expects a Pipeline")
   | FilterLens p -> filter_lens_set_impl p ~eval_call [(None, data); (None, val_v)] env
   | CompositeLens (l1, l2) ->
-      let getter_lambda = VLambda {
-        params = ["inner"]; autoquote_params = [false]; param_types = [None]; return_type = None; generic_params = []; variadic = false;
-        body = mk_expr (Value val_v); (* This is not quite right for set, we need to apply l2 set first *)
-        env = Some env;
-      } in
-      ignore(getter_lambda);
-      (* Composite set logic: data |> l1.set( l1.get(data) |> l2.set(val_v) ) *)
       let inner = apply_lens_get ~eval_call l1 data env in
       (match inner with
        | VError _ as e -> e

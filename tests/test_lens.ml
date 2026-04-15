@@ -81,6 +81,10 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|v = [1, 2, 3]; l = filter_lens(\(x) x); get(v, l)|}
     {|Error(TypeError: "filter_lens predicate must return Bool, got Int")|};
 
+  test "filter_lens preserves predicate errors"
+    {|v = [1, 2, 3]; l = filter_lens(\(x) error("ValueError", "boom")); get(v, l)|}
+    {|Error(ValueError: "boom")|};
+
   test "package_info lens functions"
     {|length(package_info("lens").functions)|}
     "12";

@@ -1,32 +1,40 @@
 # get
 
-Get variable or element
+Unified data retrieval for names, collections, pipelines, and lenses
 
-If called with one argument, retrieves a variable's value from the environment by name (String or Symbol). Matches R's `get()` semantics for variable lookup.  If called with two arguments, retrieves an element from a List, Vector, or NDArray at the specified index (0-based).
+`get()` is a polymorphic retrieval helper:
+
+- `get("x")` / `get(sym("x"))` looks up a variable in the current environment
+- `get(collection, index)` indexes a `List`, `Vector`, or `NDArray`
+- `get(pipeline, "node")` retrieves a pipeline node result
+- `get(data, lens)` applies a lens focus to a value
+- `get(node_lens("name"))` retrieves a sandboxed sibling-node artifact via `T_NODE_<name>`
 
 ## Parameters
 
-- **x** (`String`): | Symbol | List | Vector | NDArray The variable name or collection.
+- **target** (`String | Symbol | List | Vector | NDArray | Pipeline | Lens`): The value or name to retrieve from.
 
-- **index** (`Int`): (Optional) The index to retrieve if `x` is a collection.
+- **selector** (`Int | String | Symbol | Lens`, optional): The index, node name, or lens to apply when a second argument is provided.
 
 
 ## Returns
 
-The variable value or collection element.
+The looked-up value, selected element, node result, or lens focus.
 
 ## Examples
 
 ```t
 salary = 50000
-get("salary")
--- Returns = 50000
+get("salary")                  -- 50000
+get(sym("salary"))             -- 50000
 
-col_name = "salary"
-get(sym(col_name))
--- Returns = 50000
+get([10, 20, 30], 1)           -- 20
 
-get([10, 20, 30], 1)
--- Returns = 20
+p = pipeline { a = 1 }
+get(p, "a")                    -- 1
+
+l = col_lens("mpg")
+get(mtcars, l)                 -- focused column
+
+get(node_lens("model"))        -- sandbox artifact lookup
 ```
-
