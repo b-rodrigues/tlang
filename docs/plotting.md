@@ -110,13 +110,11 @@ When using [Quarto](literate-programming-quarto.html) with T pipelines, it is im
 ### In T Chunks
 Within a `{t}` code block, `read_node()` follows the same behavior as the REPL: it returns the **JSON metadata dictionary**. 
 
-````markdown
-```{t}
+<pre><code class="language-markdown">```{t}
 #| echo: false
 g = read_node("p_ggplot")
 print(g.title)
-```
-````
+```</code></pre>
 *Output: "Fuel Economy"*
 
 This is useful for including summary information about your visualizations directly in the text of your report.
@@ -127,18 +125,15 @@ To actually **render** the plot in your report, you must use an `{r}` or `{pytho
 Because `read_node()` returns a path, you must manually load the artifact using the specialized reader for that language.
 
 #### Example: Rendering a ggplot2 node in R
-````markdown
-```{r}
+<pre><code class="language-markdown">```{r}
 #| echo: false
 # read_node("p_ggplot") becomes '/nix/store/.../artifact'
 p <- readRDS(read_node("p_ggplot"))
 p
-```
-````
+```</code></pre>
 
 #### Example: Rendering a matplotlib node in Python
-````markdown
-```{python}
+<pre><code class="language-markdown">```{python}
 #| echo: false
 try:
     import cloudpickle as pickle
@@ -148,8 +143,7 @@ except ImportError:
 with open(read_node("p_matplotlib"), "rb") as f:
     fig = pickle.load(f)
 fig
-```
-````
+```</code></pre>
 
 This dual behavior ensures that you can use T for programmatic inspection and R/Python for high-fidelity visual rendering, all while maintaining strict Nix-based reproducibility.
 
