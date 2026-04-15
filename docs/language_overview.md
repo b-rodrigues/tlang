@@ -458,7 +458,7 @@ l_deep = compose(col_lens("users"), col_lens("Alice"), col_lens("id"))
 get(data, l_deep)            -- 1
 
 -- Deep update
-data_updated = over(data, l_deep, \(x) x + 98)
+data_updated = over(data, l_deep, \(x) 99)
 get(data_updated, l_deep)    -- 99
 ```
 

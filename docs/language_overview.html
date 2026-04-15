@@ -567,7 +567,7 @@ l_deep = compose(col_lens(&quot;users&quot;), col_lens(&quot;Alice&quot;), col_l
 get(data, l_deep)            -- 1
 
 -- Deep update
-data_updated = over(data, l_deep, \(x) x + 98)
+data_updated = over(data, l_deep, \(x) 99)
 get(data_updated, l_deep)    -- 99</code></pre>
 <blockquote>
 <p>[!NOTE] <strong>Serializable Pipelines</strong>: Tlang lenses are now
