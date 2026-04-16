@@ -54,4 +54,4 @@ jobs:
 
       - name: Write coverage summary
         run: |
-          python3 /home/runner/work/tlang/tlang/scripts/coverage_summary.py /home/runner/work/tlang/tlang/coverage.xml --repo-root /home/runner/work/tlang/tlang >> "$GITHUB_STEP_SUMMARY"
+          nix develop --accept-flake-config --command python3 "$GITHUB_WORKSPACE/scripts/coverage_summary.py" "$GITHUB_WORKSPACE/coverage.xml" --repo-root "$GITHUB_WORKSPACE" >> "$GITHUB_STEP_SUMMARY"

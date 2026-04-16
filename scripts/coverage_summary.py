@@ -52,6 +52,13 @@ def render_table(rows: list[dict[str, object]]) -> list[str]:
     return lines
 
 
+def parse_hits(raw_hits: str | None) -> int:
+    try:
+        return int(raw_hits or "0")
+    except ValueError:
+        return 0
+
+
 def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
@@ -81,7 +88,7 @@ def main() -> int:
 
         line_nodes = class_node.findall("./lines/line")
         total_lines = len(line_nodes)
-        hit_lines = sum(1 for line_node in line_nodes if int(line_node.get("hits", "0")) > 0)
+        hit_lines = sum(1 for line_node in line_nodes if parse_hits(line_node.get("hits")) > 0)
 
         if total_lines == 0:
             continue
