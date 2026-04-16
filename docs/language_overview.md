@@ -201,6 +201,19 @@ add = \(a, b) a + b
 add(3, 7)  -- 10
 ```
 
+### Auto-Quotation (`$param`)
+
+T supports auto-quoting for function parameters. Prefixing a parameter with `$` indicates that the caller can pass a bare name (like a column name), which is automatically captured as a **Symbol** rather than being evaluated.
+
+```t
+my_select = \(df, $col) select(df, col)
+
+-- Caller passes bare 'salary' which is captured as a symbol
+my_select(df, salary)
+```
+
+This is particularly useful when writing wrappers around data verbs like `select` or `mutate`. See [Quotation and Metaprogramming](quotation.md) for more advanced usage involving `!!` (unquote).
+
 ### Closures
 
 Functions capture their enclosing environment:
