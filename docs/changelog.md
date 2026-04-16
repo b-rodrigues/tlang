@@ -9,8 +9,8 @@
     - Introduced `$param` syntax in lambda and `function()` parameter lists.
     - Parameters prefixed with `$` automatically capture bare names (like column names) as **Symbols** rather than evaluating them.
     - Simplified the creation of data-wrangling wrappers, removing the need for `enquo()` in simple forwarding cases.
-- **Unified `get()` and Restored `sym()`**:
-    - Restored the `sym()` core builtin for programmatic symbol creation.
+- **Unified `get()` and New `sym()` Builtin**:
+    - Added the `sym()` core builtin for programmatic symbol creation.
     - Unified the `get()` dispatcher across `core` and `lens` packages, ensuring a single, stable interface for variable lookup, collection indexing, and lens-based retrieval.
     - **Regression Safety**: Added regression tests to ensure core primitives remain stable when the `lens` package is loaded.
 
