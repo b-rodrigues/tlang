@@ -1,0 +1,57 @@
+name: Test Coverage
+
+on:
+  pull_request:
+  workflow_run:
+    workflows: ["Build and Cache"]
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
+    name: Coverage report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
+
+      - name: Setup Cachix (for R packages)
+        uses: cachix/cachix-action@v13
+        with:
+          name: rstats-on-nix
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+      - name: Run unit and golden tests with coverage
+        run: |
+          nix develop --accept-flake-config --command bash -lc '
+            set -euo pipefail
+            find . -name "*.coverage" -delete
+            dune clean
+            dune runtest --instrument-with bisect_ppx --force
+            dune build --instrument-with bisect_ppx src/repl.exe
+            make golden-data
+            make golden-expected
+            T_REPL="./_build/default/src/repl.exe" make golden-run
+            make golden-compare
+            bisect-ppx-report cobertura coverage.xml
+          '
+
+      - name: Write coverage summary
+        run: |
+          python3 /home/runner/work/tlang/tlang/scripts/coverage_summary.py /home/runner/work/tlang/tlang/coverage.xml --repo-root /home/runner/work/tlang/tlang >> "$GITHUB_STEP_SUMMARY"

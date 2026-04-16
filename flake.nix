@@ -258,13 +258,14 @@
             # type hints, and go-to-definition in editors like VSCode.
             ocamlVersion.ocaml-lsp
 
-            # The standard OCaml code formatter to keep your code clean.
-            ocamlVersion.ocamlformat
-            # RPC version needed for Dune to run the formatter automatically.
-            ocamlVersion.ocamlformat-rpc-lib
+             # The standard OCaml code formatter to keep your code clean.
+             ocamlVersion.ocamlformat
+             # RPC version needed for Dune to run the formatter automatically.
+             ocamlVersion.ocamlformat-rpc-lib
+             ocamlVersion.bisect_ppx
 
-            # Markdown to HTML compiler
-            pkgs.pandoc
+             # Markdown to HTML compiler
+             pkgs.pandoc
             pkgs.quarto
 
             # 3. Arrow C GLib — Apache Arrow columnar data library
