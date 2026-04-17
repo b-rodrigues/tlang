@@ -1,6 +1,6 @@
 # Phased Roadmap to Version 0.53.0
 
-This document outlines the step-by-step evolution of the T language from the **v0.52.0 "Kaméhaméha"** milestone through several targeted point releases, culminating in the **v0.53.0 "Hōkūle'a"** release — a full-fledged polyglot DAG orchestration platform with composable error handling, meta-pipelines, and deep Nix integration.
+This document outlines the step-by-step evolution of the T language from the **v0.52.0 "Kaméhaméha"** milestone through several targeted point releases, culminating in the **v0.53.0 "L'Initiation"** release — a full-fledged polyglot DAG orchestration platform with composable error handling, meta-pipelines, and deep Nix integration.
 
 All features described here assume that v0.52.0 (Julia first-class support, `jn()` node constructor, zero-copy Arrow interchange for Julia, and final stabilization) has shipped.
 
@@ -153,7 +153,7 @@ All features described here assume that v0.52.0 (Julia first-class support, `jn(
 
 ---
 
-## v0.53.0 — "Hōkūle'a" — Full Orchestration Platform 🚀 **MILESTONE**
+## v0.53.0 — "L'Initiation" — Full Orchestration Platform 🚀 **MILESTONE**
 
 **Objective**: Deliver T as a complete, Nix-native data pipeline orchestration platform with full observability, CI integration, and production-grade polyglot execution.
 
@@ -274,7 +274,7 @@ These principles guide all features proposed above:
 | 0.52.1 | — | Observability | Shell/Julia hardening, structured build logs, error composition primitives |
 | 0.52.2 | — | Orchestration | Automatic serializer negotiation, partial/parallel DAG execution, per-node isolation |
 | 0.52.3 | — | Composition | Meta-pipelines, pipeline templates, parameterization, diffing/versioning |
-| 0.53.0 | Hōkūle'a | Platform | Unified diagnostics, CI/CD integration, conditional pipelines, dashboard, Nix deepening |
+| 0.53.0 | L'Initiation | Platform | Unified diagnostics, CI/CD integration, conditional pipelines, dashboard, Nix deepening |
 
 Each release builds on the previous one. The progression is:
 
