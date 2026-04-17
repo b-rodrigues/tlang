@@ -3,10 +3,12 @@
 # Run all T test scripts and generate output CSVs
 # Note: Does not use 'set -e' so all tests run even if some fail
 
-if command -v dune &> /dev/null; then
-  T_REPL="dune exec src/repl.exe --"
+if [ -n "${T_REPL:-}" ]; then
+  T_REPL_CMD=("$T_REPL")
+elif command -v dune &> /dev/null; then
+  T_REPL_CMD=(dune exec src/repl.exe --)
 elif [ -x "./result/bin/t" ]; then
-  T_REPL="./result/bin/t"
+  T_REPL_CMD=(./result/bin/t)
 else
   echo "Error: Neither 'dune' nor './result/bin/t' found. Please run 'nix build' or install dune."
   exit 1
@@ -28,7 +30,7 @@ for script in "$SCRIPT_DIR"/*.t; do
   echo -n "Running: $test_name ... "
   
   # Run the script and capture output
-  output=$($T_REPL run --unsafe "$script" 2>&1 || true)
+  output=$("${T_REPL_CMD[@]}" run --unsafe "$script" 2>&1 || true)
   
   # Check if test was skipped (contains "not yet implemented")
   if echo "$output" | grep -q "not yet implemented"; then

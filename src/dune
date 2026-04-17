@@ -30,6 +30,8 @@
 (library
  (name t_lang)
  (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
  (foreign_stubs
   (language c)
   (names arrow_stubs stats_stubs onnx_stubs)

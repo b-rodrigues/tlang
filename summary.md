@@ -79,6 +79,12 @@ t doc --parse --generate
 t doctor
 ```
 
+### CI coverage reporting
+
+- `.github/workflows/test-coverage.yml` runs the OCaml unit suite and the golden test suite under Bisect_ppx coverage instrumentation.
+- It uses the same Nix + flake + `rstats-on-nix` Cachix setup as the other GitHub Actions workflows.
+- The workflow writes a GitHub step summary with overall source coverage, per-package coverage, and per-function coverage grouped by package.
+
 ### Developing the compiler/runtime itself
 
 ```bash
