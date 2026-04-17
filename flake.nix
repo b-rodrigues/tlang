@@ -263,6 +263,7 @@
              # RPC version needed for Dune to run the formatter automatically.
              ocamlVersion.ocamlformat-rpc-lib
              ocamlVersion.bisect_ppx
+             ocamlVersion.ppxlib
 
              # Markdown to HTML compiler
              pkgs.pandoc
