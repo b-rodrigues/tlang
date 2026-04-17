@@ -258,6 +258,7 @@
 | [quarter](quarter.html) | Extract the quarter |
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
 | [quos](quos.html) | Capture multiple expressions with their lexical environment (quosures) |
+| [qn](qn.html) | Configure a Quarto Pipeline Node |
 | [range](range.html) | Range |
 | [read_arrow](read_arrow.html) | Read Arrow IPC file |
 | [read_csv](read_csv.html) | Read CSV file |

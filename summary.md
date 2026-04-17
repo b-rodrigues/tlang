@@ -192,8 +192,9 @@ Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolve
 - `node(...)` = fully configurable node constructor
 - `rn(...)` = R node wrapper
 - `pyn(...)` = Python node wrapper
+- `qn(...)` = Quarto node wrapper
 - `shn(...)` = shell/Bash node wrapper
-- `node(..., runtime = Quarto)` = Quarto render node
+- `node(..., runtime = Quarto)` = fully configurable Quarto render node
 
 For Bash-specific syntax, prefer `shn(..., shell = "bash", shell_args = ["-lc"])`.
 
