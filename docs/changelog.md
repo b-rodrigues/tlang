@@ -19,6 +19,7 @@
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
 ### Core Evaluator & Emitter Refinements
+- **Quarto Wrapper Ergonomics**: Added `qn()` as a first-class convenience wrapper around `node()` with `runtime = Quarto`, matching the existing `rn()` and `pyn()` helpers for R and Python nodes.
 - **Improved Pretty Printing**: Updated the core pretty printer to handle complex nested dictionaries and diagnostics summaries more gracefully.
 - **Nix Emitter Stability**: Significant updates to `nix_emit_node.ml` to support the new visualization injection logic and improve script-based node robustness.
 - **Test Infrastructure**: Added golden tests and mocks for visual metadata scenarios.
