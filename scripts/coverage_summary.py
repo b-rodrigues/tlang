@@ -52,11 +52,61 @@ def render_table(rows: list[dict[str, object]]) -> list[str]:
     return lines
 
 
+def render_uncovered_table(rows: list[dict[str, object]]) -> list[str]:
+    lines = [
+        "| File | Coverage | Uncovered lines |",
+        "| --- | ---: | --- |",
+    ]
+    for row in rows:
+        lines.append(
+            f"| {row['name']} | {row['percent']:.1f}% | {row['uncovered_ranges']} |"
+        )
+    return lines
+
+
 def parse_hits(raw_hits: str | None) -> int:
     try:
         return int(raw_hits or "0")
     except ValueError:
         return 0
+
+
+def parse_line_number(raw_number: str | None) -> int | None:
+    try:
+        return int(raw_number or "")
+    except ValueError:
+        return None
+
+
+def collapse_ranges(line_numbers: list[int]) -> str:
+    if not line_numbers:
+        return ""
+
+    ranges: list[str] = []
+    start = line_numbers[0]
+    end = line_numbers[0]
+
+    for line_number in line_numbers[1:]:
+        if line_number == end + 1:
+            end = line_number
+            continue
+        ranges.append(f"{start}-{end}" if start != end else str(start))
+        start = line_number
+        end = line_number
+
+    ranges.append(f"{start}-{end}" if start != end else str(start))
+    return ", ".join(ranges)
+
+
+def sort_uncovered_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            -int(row["uncovered_count"]),
+            float(row["percent"]),
+            str(row["name"]),
+        ),
+    )
 
 
 def main() -> int:
@@ -71,6 +121,7 @@ def main() -> int:
     )
     function_rows: dict[str, list[dict[str, object]]] = defaultdict(list)
     other_rows: list[dict[str, object]] = []
+    uncovered_rows: list[dict[str, object]] = []
 
     for class_node in root.findall(".//class"):
         filename = class_node.get("filename")
@@ -88,7 +139,13 @@ def main() -> int:
 
         line_nodes = class_node.findall("./lines/line")
         total_lines = len(line_nodes)
-        hit_lines = sum(1 for line_node in line_nodes if parse_hits(line_node.get("hits")) > 0)
+        uncovered_lines = sorted(
+            line_number
+            for line_node in line_nodes
+            for line_number in [parse_line_number(line_node.get("number"))]
+            if line_number is not None and parse_hits(line_node.get("hits")) == 0
+        )
+        hit_lines = total_lines - len(uncovered_lines)
 
         if total_lines == 0:
             continue
@@ -102,6 +159,16 @@ def main() -> int:
             "total_lines": total_lines,
             "percent": 100.0 * hit_lines / total_lines,
         }
+
+        if uncovered_lines:
+            uncovered_rows.append(
+                {
+                    "name": row["name"],
+                    "percent": row["percent"],
+                    "uncovered_count": len(uncovered_lines),
+                    "uncovered_ranges": collapse_ranges(uncovered_lines),
+                }
+            )
 
         parts = relative_path.parts
         if len(parts) >= 3 and parts[0] == "src" and parts[1] == "packages":
@@ -159,6 +226,10 @@ def main() -> int:
     if other_rows:
         markdown.extend(["## Other source modules", ""])
         markdown.extend(render_table(sort_rows(other_rows)))
+
+    if uncovered_rows:
+        markdown.extend(["", "## Uncovered instrumented lines", ""])
+        markdown.extend(render_uncovered_table(sort_uncovered_rows(uncovered_rows)))
 
     print("\n".join(markdown).rstrip())
     return 0
