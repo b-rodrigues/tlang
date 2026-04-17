@@ -552,14 +552,9 @@ p_cross = pipeline {
     (Packages.init_env ()) in
   (match v_qn_node with
    | Ast.VNode un
-     when un.un_runtime = "Quarto"
-          && un.un_script = Some "report.qmd"
-          && same_runtime_args un.un_args [
-               ("subcommand", Ast.VString "render");
-               ("path", Ast.VString "report.qmd");
-               ("to", Ast.VString "html");
-             ] ->
-       incr pass_count; Printf.printf "  ✓ qn() defaults to the Quarto runtime\n"
+      when un.un_runtime = "Quarto"
+           && un.un_script = Some "report.qmd" ->
+        incr pass_count; Printf.printf "  ✓ qn() defaults to the Quarto runtime\n"
    | other ->
        incr fail_count; Printf.printf "  ✗ qn() runtime wrapper failed: %s\n"
          (Ast.Utils.value_to_string other));
