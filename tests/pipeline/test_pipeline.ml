@@ -254,7 +254,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|Error(ValueError: "Pipeline has a dependency cycle involving node `a`.")|};
   test "pipeline with error in node"
     "pipeline {\n  a = 1 / 0\n  b = a + 1\n}"
-    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Pipeline node `a` failed: Division by zero.\n  - `b` failed: Pipeline node `b` failed: Upstream error: Pipeline node `a` failed: Division by zero.";
+    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Pipeline node `a` failed: Division by zero.\n  - `b` failed: Pipeline node `b` failed: Pipeline node `a` failed: Division by zero.";
   
   test "explain shows runtime for T node error"
     "p = pipeline { a = 1 / 0 }; info = explain(p.a); info.runtime"
@@ -368,13 +368,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   filtered = filter(data, $x > 1)
   count = nrow(filtered)
 }; read_pipeline(p_diag).diagnostics.summary|}
-    "\"1 node(s) with warnings, 0 suppressed, 0 error(s)\"";
+    "\"1 node(s) with warnings, 0 suppressed, 0 error(s), 0 recovered\"";
   test "read_pipeline tracks error nodes"
     {|p_err = pipeline {
   bad = 1 / 0
   downstream = bad + 1
 }; read_pipeline(p_err).diagnostics.summary|}
-    "\"0 node(s) with warnings, 0 suppressed, 2 error(s)\"";
+    "\"0 node(s) with warnings, 0 suppressed, 2 error(s), 0 recovered\"";
   test "read_node(p, name) exposes structured node errors"
     {|p_err = pipeline {
   bad = 1 / 0

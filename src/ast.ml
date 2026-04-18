@@ -101,6 +101,8 @@ and node_diagnostics = {
   nd_warnings : node_warning list;
   nd_error : node_error option;
   nd_warnings_suppressed : bool;
+  nd_recovered : bool;
+  nd_upstream_errors : string list;
 }
 
 
@@ -398,6 +400,8 @@ module Utils = struct
     nd_warnings = [];
     nd_error = None;
     nd_warnings_suppressed = false;
+    nd_recovered = false;
+    nd_upstream_errors = [];
   }
 
   let rec unwrap_value = function
@@ -478,6 +482,8 @@ module Utils = struct
        | Some error -> node_error_to_value error
        | None -> VNA NAGeneric);
       ("warnings_suppressed", VBool diagnostics.nd_warnings_suppressed);
+      ("recovered", VBool diagnostics.nd_recovered);
+      ("upstream_errors", VList (List.map (fun s -> (None, VString s)) diagnostics.nd_upstream_errors));
     ]
 
   let node_has_own_warnings diagnostics =
@@ -506,16 +512,23 @@ module Utils = struct
            if diagnostics.nd_warnings_suppressed && node_has_own_warnings diagnostics 
            then Some (None, VString name) else None)
     in
+    let recovered_nodes =
+      node_diagnostics
+      |> List.filter_map (fun (name, diagnostics) ->
+           if diagnostics.nd_recovered then Some (None, VString name) else None)
+    in
     let warning_count = List.length warning_nodes in
     let error_count = List.length error_nodes in
     let suppressed_count = List.length suppressed_nodes in
+    let recovered_count = List.length recovered_nodes in
     VDict [
       ("warning_nodes", VList warning_nodes);
       ("error_nodes", VList error_nodes);
       ("suppressed_nodes", VList suppressed_nodes);
+      ("recovered_nodes", VList recovered_nodes);
       ("summary",
-       VString (Printf.sprintf "%d node(s) with warnings, %d suppressed, %d error(s)" 
-                 warning_count suppressed_count error_count));
+       VString (Printf.sprintf "%d node(s) with warnings, %d suppressed, %d error(s), %d recovered" 
+                 warning_count suppressed_count error_count recovered_count));
     ]
 
   let error_code_to_string = function

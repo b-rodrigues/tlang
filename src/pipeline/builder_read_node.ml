@@ -43,7 +43,13 @@ let wrap_with_diagnostics name cn v =
     | VError e -> Some { ne_kind = Utils.error_code_to_string e.code; ne_fn = "unknown"; ne_message = e.message; ne_na_count = e.na_count }
     | _ -> None
   ) else None in
-  VNodeResult { v; node_name = name; diagnostics = { nd_warnings = warnings; nd_error = error; nd_warnings_suppressed = false } }
+  VNodeResult { v; node_name = name; diagnostics = {
+    nd_warnings = warnings;
+    nd_error = error;
+    nd_warnings_suppressed = false;
+    nd_recovered = false;
+    nd_upstream_errors = [];
+  } }
 
 (* Add node_name to the error context unless it is already present. *)
 let add_node_name_context name context =
