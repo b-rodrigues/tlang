@@ -14,6 +14,18 @@
     - Unified the `get()` dispatcher across `core` and `lens` packages, ensuring a single, stable interface for variable lookup, collection indexing, and lens-based retrieval.
     - **Regression Safety**: Added regression tests to ensure core primitives remain stable when the `lens` package is loaded.
 
+### Structural Integrity & Terminal Error Handling
+- **Introduced `StructuralError` Category**:
+    - Added `StructuralError` as a new terminal diagnostic code for fundamental pipeline orchestration failures.
+    - **DAG Validation**: Dependency cycles, self-referential nodes, and missing sibling node references are now classified as `StructuralError`.
+    - **Orchestration Failure**: Materialization errors in `populate_pipeline` (e.g., missing dependencies in `tproject.toml`, missing Nix build tools, or stalled artifact directories) now emit `StructuralError`.
+- **Terminal Evaluation Policy**:
+    - The core evaluator now treats `StructuralError` as a **terminal event** that bypasses "Resilient-by-Default" (`resilient=true`) settings.
+    - This ensures that fundamental infrastructure or topology breaks stop script execution immediately, preventing confusing downstream "cascading gibberish" errors while maintaining resilience for standard data-computation errors (like `1 / 0`).
+- **Environment-Aware Failures**:
+    - Pipeline dependency checks now respect the `TLANG_AUTO_ADD_PIPELINE_DEPS` environment variable.
+    - If auto-injection is disabled or impossible (non-interactive sessions), the system raises a fatal `StructuralError` instead of implicitly continuing into a broken Nix state.
+
 ### Pipeline Infrastructure & Lens Orchestration
 - **Resolution Stabilization**:
     - Implemented robust lazy resolution for cross-pipeline dependencies and out-of-order pipeline nodes.
