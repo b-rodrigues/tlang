@@ -533,9 +533,9 @@ p_cross = pipeline {
     {|node(runtime = Quarto, args = [subcommand: "render", path: "report.qmd", to: "html", standalone: true])|}
     (Packages.init_env ()) in
   (match v_quarto_node with
-   | Ast.VNode un
-     when un.un_runtime = "Quarto"
-          && un.un_script = Some "report.qmd"
+    | Ast.VNode un
+      when un.un_runtime = "Quarto"
+           && un.un_script = Some "report.qmd"
           && same_runtime_args un.un_args [
                ("subcommand", Ast.VString "render");
                ("path", Ast.VString "report.qmd");
@@ -544,7 +544,19 @@ p_cross = pipeline {
              ] ->
        incr pass_count; Printf.printf "  ✓ node() stores Quarto runtime args and qmd path\n"
    | other ->
-       incr fail_count; Printf.printf "  ✗ Quarto node args parsing failed: %s\n"
+        incr fail_count; Printf.printf "  ✗ Quarto node args parsing failed: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_qn_node, _) = eval_string_env
+    {|qn(args = [subcommand: "render", path: "report.qmd", to: "html"])|}
+    (Packages.init_env ()) in
+  (match v_qn_node with
+   | Ast.VNode un
+      when un.un_runtime = "Quarto"
+           && un.un_script = Some "report.qmd" ->
+        incr pass_count; Printf.printf "  ✓ qn() defaults to the Quarto runtime\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ qn() runtime wrapper failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   let (v_py_pipeline, _) = eval_string_env
@@ -772,6 +784,19 @@ p_cross = pipeline {
       | other ->
           incr fail_count; Printf.printf "  ✗ pipeline with Quarto node should return VPipeline, got: %s\n"
             (Ast.Utils.value_to_string other));
+
+  let (v_qn_pipeline, _) = eval_string_env
+    {|pipeline {
+  report = qn(args = [subcommand: "render", path: "report.qmd", to: "html"])
+}|}
+    (Packages.init_env ()) in
+  (match v_qn_pipeline with
+   | Ast.VPipeline p
+     when List.assoc_opt "report" p.p_runtimes = Some "Quarto" ->
+       incr pass_count; Printf.printf "  ✓ qn() nodes are desugared with Quarto runtime in pipelines\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ qn() pipeline desugaring failed: %s\n"
+         (Ast.Utils.value_to_string other));
 
   test "pipeline_copy validates node type"
     {|pipeline_copy(node = 1)|}

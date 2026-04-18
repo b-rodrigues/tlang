@@ -17,6 +17,8 @@ _codeql_detected_source_root
 tests/golden/t_outputs/*.csv
 tests/golden/coverage_report.html
 tests/golden/coverage.csv
+*.coverage
+coverage.xml
 *.bak
 _build_cflags_override.sexp
 result

@@ -79,6 +79,12 @@ t doc --parse --generate
 t doctor
 ```
 
+### CI coverage reporting
+
+- `.github/workflows/test-coverage.yml` runs the OCaml unit suite and the golden test suite under Bisect_ppx coverage instrumentation.
+- It uses the same Nix + flake + `rstats-on-nix` Cachix setup as the other GitHub Actions workflows.
+- The workflow writes a GitHub step summary with overall source coverage, per-package coverage, and per-function coverage grouped by package.
+
 ### Developing the compiler/runtime itself
 
 ```bash
@@ -186,8 +192,9 @@ Pipelines are DAGs. Nodes can be declared in any order; dependencies are resolve
 - `node(...)` = fully configurable node constructor
 - `rn(...)` = R node wrapper
 - `pyn(...)` = Python node wrapper
+- `qn(...)` = Quarto node wrapper
 - `shn(...)` = shell/Bash node wrapper
-- `node(..., runtime = Quarto)` = Quarto render node
+- `node(..., runtime = Quarto)` = explicit alternative when you need the fully configurable Quarto form
 
 For Bash-specific syntax, prefer `shn(..., shell = "bash", shell_args = ["-lc"])`.
 
