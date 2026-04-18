@@ -639,9 +639,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
     (* Test: JPMML Bridge Prediction (triggered by predict builtin through authority pivot) *)
     (try
-      let (v, _) = eval_string_env "preds = predict(df, model); length(preds)" env_pmml in
+      let (v, _) = eval_string_env "preds = predict(df, model); nrow(preds)" env_pmml in
       if Ast.Utils.value_to_string v = "150" then begin
-        incr pass_count; Printf.printf "  ✓ golden jpmml: bridge prediction successful (150 rows via JPMML)\n"
+        incr pass_count; Printf.printf "  ✓ golden jpmml: bridge prediction successful (150 rows verified via nrow)\n"
       end else begin
         incr fail_count; Printf.printf "  ✗ golden jpmml: bridge prediction failed (got %s)\n" (Ast.Utils.value_to_string v)
       end

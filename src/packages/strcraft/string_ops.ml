@@ -416,7 +416,7 @@ let length_scalar args _env =
   | [VList items] -> VInt (List.length items)
   | [VDict pairs] -> VInt (List.length pairs)
   | [VVector arr] -> VInt (Array.length arr)
-  | [VDataFrame df] -> VInt (Arrow_table.num_rows df.arrow_table)
+  | [VDataFrame _] -> Error.type_error "length does not work on DataFrames because it is ambiguous (rows vs columns). Use nrow() or ncol() instead."
   | [VInt _ | VFloat _ | VBool _] -> Error.type_error "length expects a collection (List, Vector, or Dict). Scalar provided."
   | [VNA _] -> Error.type_error "Cannot get length of NA."
   | [VError _ as e] -> e
