@@ -1464,6 +1464,36 @@ generate a stub. Default: <code>false</code>.</li>
 <p>The evaluated return value of the command.</p>
 <hr />
 <h3
+id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false"><code>qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false)</code></h3>
+<p>Configure a Quarto pipeline node. A convenience wrapper around
+<code>node()</code> with <code>runtime = "Quarto"</code>. Use it to
+render <code>.qmd</code> files inside <code>pipeline { ... }</code>
+blocks.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>script</code> (optional) — Path to an external
+<code>.qmd</code> file. Mutually exclusive with
+<code>command</code>.</li>
+<li><code>serializer</code> (optional) — Custom serializer function.
+Default: <code>default</code>.</li>
+<li><code>deserializer</code> (optional) — Custom deserializer function.
+Default: <code>default</code>.</li>
+<li><code>env_vars</code> (optional) — Dictionary of environment
+variables to pass into the Nix sandbox.</li>
+<li><code>args</code> (optional) — Runtime/tool arguments for Quarto,
+such as <code>subcommand</code>, <code>path</code>, <code>to</code>, and
+other CLI options.</li>
+<li><code>functions</code> (optional) — Files to source before
+execution.</li>
+<li><code>include</code> (optional) — Additional files for the
+sandbox.</li>
+<li><code>noop</code> (optional) — Whether to skip execution and
+generate a stub. Default: <code>false</code>.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The evaluated return value of the command.</p>
+<hr />
+<h3
 id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false"><code>shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)</code></h3>
 <p>Configure a shell pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "sh"</code>. Use it for CLI

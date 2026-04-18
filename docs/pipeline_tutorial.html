@@ -417,21 +417,38 @@ results:</p>
 p2 = pipeline { a = 5; b = a * 2; c = b + 1 }
 p1.c == p2.c  -- true</code></pre>
 <hr />
-<h2 id="error-handling">12. Error Handling</h2>
+<h2 id="error-handling-resilience">12. Error Handling &amp;
+Resilience</h2>
+<h3 id="errors-are-values">Errors are Values</h3>
+<p>In T, errors are <strong>first-class values</strong>. By default,
+evaluation is <strong>resilient</strong>: if a node fails, it produces
+an <code>Error</code> value instead of crashing the pipeline. This
+allows other independent nodes to continue building, giving you a full
+picture of which parts of your DAG are healthy.</p>
+<pre class="t"><code>p = pipeline {
+  a = 1 / 0      -- Produces an Error(DivisionByZero)
+  b = 1 + 1      -- Still succeeds! (2)
+  c = a + 1      -- Fails because &#39;a&#39; is an error (Error)
+}</code></pre>
+<p>When you print or build this pipeline, T provides a summary of which
+nodes succeeded and which failed.</p>
+<h3 id="the---failfast-flag">The <code>--failfast</code> Flag</h3>
+<p>If you prefer the usual, common behaviour where evaluation stops
+immediately at the first error, you can use the <code>--failfast</code>
+flag:</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
+<p>In your T scripts, you can also opt-in to this behavior via
+<code>t_make()</code>:</p>
+<pre class="t"><code>t_make(failfast = true)</code></pre>
 <h3 id="cycle-detection">Cycle Detection</h3>
-<p>T detects circular dependencies and reports them:</p>
+<p>T detects circular dependencies and reports them at construction
+time, before any nodes are executed:</p>
 <pre class="t"><code>pipeline {
   a = b
   b = a
 }
 -- Error(ValueError: &quot;Pipeline has a dependency cycle involving node &#39;a&#39;&quot;)</code></pre>
-<h3 id="error-propagation">Error Propagation</h3>
-<p>If a node fails, the error is captured and reported:</p>
-<pre class="t"><code>pipeline {
-  a = 1 / 0
-  b = a + 1
-}
--- Error(ValueError: &quot;Pipeline node &#39;a&#39; failed: ...&quot;)</code></pre>
 <h3 id="missing-nodes">Missing Nodes</h3>
 <p>Accessing a non-existent node returns a structured error:</p>
 <pre class="t"><code>p = pipeline { x = 10 }
@@ -531,16 +548,20 @@ execution:</p>
 <p>Scripts executed with <code>t run</code> <strong>must</strong> call
 <code>populate_pipeline()</code> (or <code>build_pipeline()</code>).
 This ensures that non-interactive execution always produces reproducible
-Nix artifacts.</p>
-<div class="sourceCode" id="cb29"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — script defines and populates a pipeline</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.</span></span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the REPL for interactive exploration, or pass --unsafe to override.</span></span></code></pre></div>
+Nix artifacts. By default, <code>t run</code> operates in
+<strong>resilient mode</strong>, continuing past errors to provide a
+full diagnostic summary. Use <code>--failfast</code> to change this.</p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ This works — resilient by default</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_pipeline.t</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 🛑 This fails immediately on the first error</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> my_pipeline.t</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="co"># ❌ This is rejected — script doesn&#39;t call populate_pipeline()</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run my_script.t</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Error: non-interactive execution requires a pipeline.</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use --unsafe to override.</span></span></code></pre></div>
 <p>A valid pipeline script looks like:</p>
 <pre class="t"><code>-- my_pipeline.t
 p = pipeline {
@@ -552,14 +573,14 @@ populate_pipeline(p, build = true)</code></pre>
 <h3 id="interactive-repl">Interactive (REPL)</h3>
 <p>The REPL is <strong>unrestricted</strong> — you can run any T code
 line by line, whether or not it involves pipelines:</p>
-<div class="sourceCode" id="cb31"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> x = 1 + 2</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> print<span class="er">(</span><span class="ex">x</span><span class="kw">)</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p = pipeline { a = 10 }</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span><span class="op">&gt;</span> p.a</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10</span></span></code></pre></div>
 <hr />
 <h2 id="using-imports-in-pipelines">17. Using Imports in Pipelines</h2>
 <p>When a pipeline is built with <code>build_pipeline()</code>, each

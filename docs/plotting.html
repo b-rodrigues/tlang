@@ -210,12 +210,12 @@ behaves depending on the language of the code chunk.</p>
 <p>Within a <code>{t}</code> code block, <code>read_node()</code>
 follows the same behavior as the REPL: it returns the <strong>JSON
 metadata dictionary</strong>.</p>
-<pre class="markdown"><code>```{t}
+<pre><code class="language-markdown">```{t}
 #| echo: false
-g = read_node(&quot;p_ggplot&quot;)
+g = read_node("p_ggplot")
 print(g.title)
 ```</code></pre>
-<p><em>Output: &quot;Fuel Economy&quot;</em></p>
+<p><em>Output: “Fuel Economy”</em></p>
 <p>This is useful for including summary information about your
 visualizations directly in the text of your report.</p>
 <h3 id="in-r-and-python-chunks">In R and Python Chunks</h3>
@@ -226,22 +226,24 @@ that T replaces with the <strong>absolute path string</strong> to the
 artifact in the Nix store.</p>
 <p>Because <code>read_node()</code> returns a path, you must manually
 load the artifact using the specialized reader for that language.</p>
-<h4 id="example-rendering-a-ggplot2-node-in-r">Example: Rendering a ggplot2 node in R</h4>
-<pre class="markdown"><code>```{r}
+<h4 id="example-rendering-a-ggplot2-node-in-r">Example: Rendering a
+ggplot2 node in R</h4>
+<pre><code class="language-markdown">```{r}
 #| echo: false
-# read_node(&quot;p_ggplot&quot;) becomes '/nix/store/.../artifact'
-p &lt;- readRDS(read_node(&quot;p_ggplot&quot;))
+# read_node("p_ggplot") becomes '/nix/store/.../artifact'
+p <- readRDS(read_node("p_ggplot"))
 p
 ```</code></pre>
-<h4 id="example-rendering-a-matplotlib-node-in-python">Example: Rendering a matplotlib node in Python</h4>
-<pre class="markdown"><code>```{python}
+<h4 id="example-rendering-a-matplotlib-node-in-python">Example:
+Rendering a matplotlib node in Python</h4>
+<pre><code class="language-markdown">```{python}
 #| echo: false
 try:
     import cloudpickle as pickle
 except ImportError:
     import pickle
-# read_node(&quot;p_matplotlib&quot;) becomes '/nix/store/.../artifact'
-with open(read_node(&quot;p_matplotlib&quot;), &quot;rb&quot;) as f:
+# read_node("p_matplotlib") becomes '/nix/store/.../artifact'
+with open(read_node("p_matplotlib"), "rb") as f:
     fig = pickle.load(f)
 fig
 ```</code></pre>
@@ -249,7 +251,8 @@ fig
 inspection and R/Python for high-fidelity visual rendering, all while
 maintaining strict Nix-based reproducibility.</p>
 <hr />
-<h2 id="opening-plots-with-show_plot">Opening Plots with <code>show_plot()</code></h2>
+<h2 id="opening-plots-with-show_plot">Opening Plots with
+<code>show_plot()</code></h2>
 <p><code>show_plot()</code> renders a plotting artifact in a fresh Nix
 sandbox, writes the rendered image to <code>_pipeline/</code>, and then
 opens the image locally.</p>
@@ -264,8 +267,9 @@ plot node</li>
 <code>_pipeline/</code>.</p>
 <p>Add an opener in <code>tproject.toml</code> if you want to override
 the default viewer:</p>
-<pre class="toml"><code>[visualization-tool]
-command = &quot;xdg-open&quot;</code></pre>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[visualization-tool]</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="dt">command</span> <span class="op">=</span> <span class="st">&quot;xdg-open&quot;</span></span></code></pre></div>
 <p>The value must be a single executable name or an absolute path to an
 executable. When no custom tool is configured, T falls back to:</p>
 <ol type="1">
@@ -346,16 +350,16 @@ they are missing.</p>
 </tbody>
 </table>
 <p>Example project configuration:</p>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode toml"><code class="sourceCode toml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;ggplot2&quot;</span><span class="op">]</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;python314&quot;</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;matplotlib&quot;</span><span class="op">,</span> <span class="st">&quot;plotnine&quot;</span><span class="op">,</span> <span class="st">&quot;seaborn&quot;</span><span class="op">,</span> <span class="st">&quot;plotly&quot;</span><span class="op">,</span> <span class="st">&quot;kaleido&quot;</span><span class="op">]</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="kw">[visualization-tool]</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="dt">command</span> <span class="op">=</span> <span class="st">&quot;xdg-open&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;ggplot2&quot;</span><span class="op">]</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;python314&quot;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;matplotlib&quot;</span><span class="op">,</span> <span class="st">&quot;plotnine&quot;</span><span class="op">,</span> <span class="st">&quot;seaborn&quot;</span><span class="op">,</span> <span class="st">&quot;plotly&quot;</span><span class="op">,</span> <span class="st">&quot;kaleido&quot;</span><span class="op">]</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">[visualization-tool]</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="dt">command</span> <span class="op">=</span> <span class="st">&quot;xdg-open&quot;</span></span></code></pre></div>
 <h3 id="files-written-to-_pipeline">Files Written to
 <code>_pipeline/</code></h3>
 <p>When you call <code>show_plot()</code>, T creates local helper files

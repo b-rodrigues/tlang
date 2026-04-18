@@ -73,6 +73,30 @@ traceability.</li>
 <p><strong>Key Principle</strong>: Errors are data, and data can be
 transformed, inspected, and recovered from.</p>
 <hr />
+<h2 id="execution-modes-resilient-vs.-fail-fast">Execution Modes:
+Resilient vs. Fail-Fast</h2>
+<p>T-Lang provides two modes of evaluation, controlled by the
+“resilience” setting:</p>
+<h3 id="resilient-mode-default">1. Resilient Mode (Default)</h3>
+<p>Evaluation continues even when statements or pipeline nodes result in
+<code>VError</code> values. This is aligned with the “Errors are Values”
+philosophy, allowing you to collect as much information as possible from
+a single run. Residual errors are simply passed to downstream functions
+(which may short-circuit via <code>|&gt;</code> or recover via
+<code>?|&gt;</code>). This is the recommended mode for complex data
+pipelines where you want to observe as many diagnostic outcomes as
+possible in a single pass.</p>
+<h3 id="fail-fast-mode">2. Fail-Fast Mode</h3>
+<p>Evaluation stops immediately upon encountering the first
+<code>VError</code>. This is the usual, common behaviour for critical
+scripts where subsequent steps should only run if previous ones were
+flawlessly successful.</p>
+<p><strong>How to toggle</strong>: - <strong>CLI</strong>: Use
+<code>t run --failfast script.t</code> - <strong>REPL</strong>: Set
+<code>t_run(failfast = true, ...)</code> - <strong>Pipelines</strong>:
+Use <code>t_make(failfast = true)</code></p>
+<hr />
+<hr />
 <h2 id="error-types">Error Types</h2>
 <p>T has several categories of errors:</p>
 <h3 id="type-errors">1. Type Errors</h3>
