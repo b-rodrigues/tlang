@@ -774,7 +774,7 @@ let init_env () =
     env
   in
   (* Pipeline package *)
-  let rerun_pipeline_fn ?strict env prev = Eval.rerun_pipeline (ref env) ?strict prev in
+  let rerun_pipeline_fn ?strict ?(verbose=true) env prev = Eval.rerun_pipeline (ref env) ?strict ~verbose prev in
   let env = Pipeline_nodes.register env in
   let env = Pipeline_deps.register env in
   let env = Pipeline_node.register env in

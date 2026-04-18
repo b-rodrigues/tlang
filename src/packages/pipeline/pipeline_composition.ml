@@ -5,7 +5,7 @@ let merge_new lst1 lst2 =
   let keys1 = List.map fst lst1 in
   lst1 @ List.filter (fun (k, _) -> not (List.mem k keys1)) lst2
 
-let register ~rerun_pipeline env =
+let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
 
 (*
 --# Chain Two Pipelines

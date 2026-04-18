@@ -13,7 +13,7 @@ open Ast
 --# @seealso read_node
 --# @export
 *)
-let register ~rerun_pipeline env =
+let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
   let get_arg name pos default named_args =
     match List.assoc_opt name (List.filter_map (fun (k, v) -> match k with Some s -> Some (s, v) | None -> None) named_args) with
     | Some v -> (true, v)
@@ -49,15 +49,11 @@ let register ~rerun_pipeline env =
          | Error e -> e
          | Ok verbose ->
              (* Trigger a final resolution pass to catch typos or unresolved cross-pipeline deps *)
-             (match rerun_pipeline ?strict:(Some true) env p with
+             (match rerun_pipeline ?strict:(Some true) ~verbose:false env p with
               | VPipeline p_resolved ->
-                  let has_errors = List.exists (fun (_, v) -> is_error_value v) p_resolved.p_nodes in
-                  if has_errors then
-                    Error.value_error ("Cannot build pipeline with errors: " ^ (Utils.value_to_string (VPipeline p_resolved)))
-                  else
-                    (match Builder.populate_pipeline ~build:true ?verbose p_resolved with
-                     | Ok out_path -> VString out_path
-                     | Error msg -> Error.make_error FileError msg)
+                  (match Builder.populate_pipeline ~build:true ?verbose p_resolved with
+                   | Ok out_path -> VString out_path
+                   | Error msg -> Error.make_error FileError msg)
               | VError _ as err -> err
               | other ->
                   Error.make_error RuntimeError

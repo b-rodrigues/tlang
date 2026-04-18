@@ -1856,8 +1856,8 @@ EOF
   %s = stdenv.mkDerivation {
     name = "%s";
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
-    T_JPMML_STATSMODELS_JAR = "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar";
-    T_JPMML_EVALUATOR_JAR = "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar";
+    T_JPMML_STATSMODELS_JAR = if (pkgs ? jpmml-statsmodels) then "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" else "";
+    T_JPMML_EVALUATOR_JAR = if (pkgs ? jpmml-evaluator) then "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar" else "";
     MPLCONFIGDIR = ".";
 %s
 %s

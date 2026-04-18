@@ -40,6 +40,7 @@ let interrupt_error () =
 --# @param max_jobs :: Int The maximum number of jobs for Nix to run in parallel.
 --# @param max_cores :: Int The maximum number of cores per job for Nix to use.
 --# @param verbose :: Int The Nix build verbosity level. `0` is quiet; values > 0 enable internal node failure logs.
+--# @param failfast :: Bool Whether to stop immediately on evaluation errors (defaults to false).
 --# @return :: Null
 --# @family pipeline
 --# @export
@@ -51,6 +52,7 @@ let register env =
         let filename = ref "src/pipeline.t" in
         let nix_args = ref [] in
         let verbose = ref !Builder_internal.default_nix_build_verbose in
+        let failfast = ref false in
         let arg_error_opt = ref None in
         
         let named_only, positional_only =
@@ -75,6 +77,10 @@ let register env =
               arg_error_opt := Some (ValueError, "t_make: 'verbose' must be a non-negative Int")
           | (Some "verbose", _) ->
               arg_error_opt := Some (TypeError, "t_make: 'verbose' must be an Int")
+          | (Some "failfast", VBool b) ->
+              failfast := b
+          | (Some "failfast", _) ->
+              arg_error_opt := Some (TypeError, "t_make: 'failfast' must be a Bool")
           | (Some k, _) ->
               arg_error_opt := Some (TypeError, Printf.sprintf "t_make: unknown argument '%s'" k)
           | _ -> ()
@@ -87,6 +93,7 @@ let register env =
            | 2, VInt i -> nix_args := (string_of_int i) :: "--cores" :: !nix_args
            | 3, VInt i when i >= 0 -> verbose := i
            | 3, VInt _ -> arg_error_opt := Some (ValueError, "t_make: 'verbose' must be a non-negative Int")
+           | 4, VBool b -> failfast := b
            | n, _ -> arg_error_opt := Some (TypeError, Printf.sprintf "t_make: unexpected argument at position %d" n));
           idx + 1
         ) 0 positional_only in
@@ -114,7 +121,7 @@ let register env =
                   let lexbuf = Lexing.from_string content in
                   (try
                     let program = Parser.program Lexer.token lexbuf in
-                    let (v, new_env) = Eval.eval_program program !env_ref in
+                    let (v, new_env) = Eval.eval_program ~resilient:(not !failfast) program !env_ref in
                     match v with
                     | VError _ -> v
                     | _ ->
