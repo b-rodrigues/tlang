@@ -343,7 +343,7 @@ When you print or build this pipeline, T provides a summary of which nodes succe
 
 ### The `--failfast` Flag
 
-If you prefer the legacy behavior where evaluation stops immediately at the first error, you can use the `--failfast` flag:
+If you prefer the usual, common behaviour where evaluation stops immediately at the first error, you can use the `--failfast` flag:
 
 ```bash
 $ t run --failfast src/pipeline.t

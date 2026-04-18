@@ -60,7 +60,7 @@
 
 ### Resilient-by-Default Evaluation
 - **Global Resilience**: Evaluation now defaults to resilient mode (`resilient=true`). This ensures that scripts and pipelines continue execution upon encountering `VError` values, aligning with the "Errors are Values" philosophy.
-- **`--failfast` Flag**: Replaced the `--resilient` CLI flag with `--failfast`. Users can now explicitly opt-in to legacy short-circuiting behavior.
+- **`--failfast` Flag**: Replaced the `--resilient` CLI flag with `--failfast`. Users can now explicitly opt-in to the usual, common behaviour of short-circuiting upon the first error.
 - **`t_make()` & `t_run()` Integration**: Added `failfast` parameter to the main pipeline orchestrator and script runner for granular control.
 - **Improved Serialization Restoration**: Fixed a critical bug where `VError` values were deserialized as Dictionaries. The system now correctly restores the native `Error` type across node boundaries, even when using modern JSON interchange.
 

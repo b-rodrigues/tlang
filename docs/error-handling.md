@@ -36,10 +36,10 @@ T treats errors as **first-class values**, not exceptions. This design enables:
 T-Lang provides two modes of evaluation, controlled by the "resilience" setting:
 
 ### 1. Resilient Mode (Default)
-Evaluation continues even when statements or pipeline nodes result in `VError` values. This is aligned with the "Errors are Values" philosophy, allowing you to collect as much information as possible from a single run. Residual errors are simply passed to downstream functions (which may short-circuit via `|>` or recover via `?|>`).
+Evaluation continues even when statements or pipeline nodes result in `VError` values. This is aligned with the "Errors are Values" philosophy, allowing you to collect as much information as possible from a single run. Residual errors are simply passed to downstream functions (which may short-circuit via `|>` or recover via `?|>`). This is the recommended mode for complex data pipelines where you want to observe as many diagnostic outcomes as possible in a single pass.
 
 ### 2. Fail-Fast Mode
-Evaluation stops immediately upon encountering the first `VError`. This is useful for critical scripts where subsequent steps should only run if previous ones were flawlessly successful.
+Evaluation stops immediately upon encountering the first `VError`. This is the usual, common behaviour for critical scripts where subsequent steps should only run if previous ones were flawlessly successful.
 
 **How to toggle**:
 - **CLI**: Use `t run --failfast script.t`
