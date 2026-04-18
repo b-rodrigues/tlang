@@ -97,28 +97,67 @@ let t_compare_scores_pmml =
               | VError _ as e -> e
               | VVector native_vec ->
                   (match score_pmml_jpmml df (VDict model_pairs) with
-                   | VError _ as e -> e
-                   | VVector pmml_vec ->
-                       if Array.length native_vec <> Array.length pmml_vec then
-                         Error.make_error RuntimeError "Vector length mismatch between native and PMML scoring."
-                       else
-                         let diffs = ref 0 in
-                         for i = 0 to Array.length native_vec - 1 do
-                           match native_vec.(i), pmml_vec.(i) with
-                           | VFloat f1, VFloat f2 ->
-                               if abs_float (f1 -. f2) > 1e-7 then incr diffs
-                           | VString s1, VString s2 ->
-                               if s1 <> s2 then incr diffs
-                           | VNA _, VNA _ -> ()
-                           | VNA _, _ | _, VNA _ -> incr diffs
-                           | _ -> ()
-                         done;
-                         VDict [
-                           ("n_diffs", VInt !diffs);
-                           ("match", VBool (!diffs = 0));
-                           ("n_rows", VInt (Array.length native_vec));
-                         ]
-                   | _ -> Error.make_error RuntimeError "Expected Vector from JPMML bridge.")
+                    | VError _ as e -> e
+                    | VVector pmml_vec ->
+                        if Array.length native_vec <> Array.length pmml_vec then
+                          Error.make_error RuntimeError "Vector length mismatch between native and PMML scoring."
+                        else
+                          let diffs = ref 0 in
+                          for i = 0 to Array.length native_vec - 1 do
+                            match native_vec.(i), pmml_vec.(i) with
+                            | VFloat f1, VFloat f2 -> if abs_float (f1 -. f2) > 1e-7 then incr diffs
+                            | VString s1, VString s2 -> if s1 <> s2 then incr diffs
+                            | VNA _, VNA _ -> ()
+                            | VNA _, _ | _, VNA _ -> incr diffs
+                            | _ -> ()
+                          done;
+                          VDict [
+                            ("n_diffs", VInt !diffs);
+                            ("match", VBool (!diffs = 0));
+                            ("n_rows", VInt (Array.length native_vec));
+                          ]
+                    | VDataFrame df ->
+                        (* Extraction logic for classification: find target column or take first. *)
+                        let col_name = 
+                          match List.assoc_opt "target" model_pairs with 
+                          | Some (VString s) -> s 
+                          | _ -> List.hd (Arrow_table.column_names df.arrow_table)
+                        in
+                        (match Arrow_table.column_type df.arrow_table col_name with
+                         | Some _ ->
+                            let vec = match Arrow_table.column_type df.arrow_table col_name with
+                              | Some (Arrow_table.ArrowFloat64 | Arrow_table.ArrowInt64) ->
+                                  let col = Arrow_table.get_float_column df.arrow_table col_name in
+                                  Array.map (fun f -> match f with Some v -> VFloat v | None -> VNA NAFloat) col
+                              | Some Arrow_table.ArrowBoolean ->
+                                  let col = Arrow_table.get_bool_column df.arrow_table col_name in
+                                  Array.map (fun b -> match b with Some v -> VBool v | None -> VNA NABool) col
+                              | _ ->
+                                  let col = Arrow_table.get_string_column df.arrow_table col_name in
+                                  Array.map (fun s -> match s with Some v -> VString v | None -> VNA NAString) col
+                            in
+                            (* Now we have a Vector, continue with comparison... *)
+                            (* (Refactor note: extracting this into a helper would be cleaner) *)
+                            let pmml_vec = vec in
+                            if Array.length native_vec <> Array.length pmml_vec then
+                              Error.make_error RuntimeError "Vector length mismatch between native and PMML scoring."
+                            else
+                              let diffs = ref 0 in
+                              for i = 0 to Array.length native_vec - 1 do
+                                match native_vec.(i), pmml_vec.(i) with
+                                | VFloat f1, VFloat f2 -> if abs_float (f1 -. f2) > 1e-7 then incr diffs
+                                | VString s1, VString s2 -> if s1 <> s2 then incr diffs
+                                | VNA _, VNA _ -> ()
+                                | VNA _, _ | _, VNA _ -> incr diffs
+                                | _ -> ()
+                              done;
+                              VDict [
+                                ("n_diffs", VInt !diffs);
+                                ("match", VBool (!diffs = 0));
+                                ("n_rows", VInt (Array.length native_vec));
+                              ]
+                         | None -> Error.make_error RuntimeError "JPMML bridge: result column not found.")
+                    | _ -> Error.make_error RuntimeError "Expected Vector or DataFrame from JPMML bridge.")
               | _ -> Error.make_error RuntimeError "Expected Vector from native scorer."))
     | _ -> Error.arity_error_named "compare_native_vs_pmml_scores" 2 (List.length args))
 
