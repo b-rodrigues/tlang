@@ -416,8 +416,11 @@ let length_scalar args _env =
   | [VList items] -> VInt (List.length items)
   | [VDict pairs] -> VInt (List.length pairs)
   | [VVector arr] -> VInt (Array.length arr)
+  | [VDataFrame df] -> VInt (Arrow_table.num_rows df.arrow_table)
+  | [VInt _ | VFloat _ | VBool _] -> Error.type_error "length expects a collection (List, Vector, or Dict). Scalar provided."
   | [VNA _] -> Error.type_error "Cannot get length of NA."
-  | [VError _] -> Error.type_error "Cannot get length of Error."
+  | [VError _ as e] -> e
+  | [v] -> Error.type_error (Printf.sprintf "length expects a collection (List, Vector, or Dict). Received %s" (Utils.type_name v))
   | _ -> Error.type_error "length expects a collection (List, Vector, or Dict)."
 
 let length_impl args env = length_scalar args env
