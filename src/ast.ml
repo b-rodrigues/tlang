@@ -38,6 +38,7 @@ type error_code =
   | GenericError
   | NAPredicateError
   | MissingArtifactError
+  | StructuralError
 
 (** Structured source location *)
 type source_location = {
@@ -549,6 +550,7 @@ module Utils = struct
     | GenericError -> "GenericError"
     | NAPredicateError -> "NAPredicateError"
     | MissingArtifactError -> "MissingArtifactError"
+    | StructuralError -> "StructuralError"
 
   let error_code_of_string = function
     | "TypeError" -> TypeError
@@ -568,6 +570,7 @@ module Utils = struct
     | "GenericError" -> GenericError
     | "NAPredicateError" -> NAPredicateError
     | "MissingArtifactError" -> MissingArtifactError
+    | "StructuralError" -> StructuralError
     | _ -> RuntimeError
 
   let na_type_to_string = function
