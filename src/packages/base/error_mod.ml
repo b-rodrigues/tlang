@@ -32,6 +32,10 @@ let register env =
             | "AssertionError" -> AssertionError
             | "FileError" -> FileError
             | "ValueError" -> ValueError
+            | "SyntaxError" -> SyntaxError
+            | "ShellError" -> ShellError
+            | "RuntimeError" -> RuntimeError
+            | "StructuralError" -> StructuralError
             | _ -> GenericError
           in
           Error.make_error code msg
