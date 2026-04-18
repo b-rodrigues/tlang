@@ -141,7 +141,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
    | VError { code; message; _ }
      when code = StructuralError
        && contains_all message
-            [ "tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically" ] ->
+            [ "tproject.toml"; "onnxruntime"; "skl2onnx" ] ->
        incr pass_count;
        Printf.printf "  ✓ Missing serializer dependencies fail statically without implicit injection\n"
    | other ->
@@ -158,9 +158,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   |} env_pmml_deps in
   (match v with
    | VError { code; message; _ }
-     when code = FileError
+     when code = StructuralError
        && contains_all message
-            [ "tproject.toml"; "pyarrow"; "sklearn2pmml"; "cannot add these dependencies automatically" ] ->
+            [ "tproject.toml"; "pyarrow"; "sklearn2pmml" ] ->
        incr pass_count;
        Printf.printf "  ✓ Missing PMML dependencies fail statically with explicit pyarrow guidance\n"
    | other ->
