@@ -1334,7 +1334,7 @@ and topo_sort (nodes : (string * 'a) list) (deps : (string * string list) list) 
   | Ok () -> Ok (List.rev !order)
 
 (** Evaluate a pipeline definition *)
-and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
+and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : value =
   let default_un expr = {
     un_command = expr;
     un_script = None;
@@ -1604,7 +1604,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
 
     let p_nodes = List.rev results in
     let p_node_diagnostics = List.rev diagnostics in
-    print_pipeline_diagnostics_summary p_node_diagnostics;
+    if verbose then print_pipeline_diagnostics_summary p_node_diagnostics;
     VPipeline {
       p_nodes;
       p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes;
@@ -1626,7 +1626,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     }
 
 (** Re-run a pipeline *)
-and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value =
+and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
   let desugared_nodes = List.map (fun (name, expr) ->
     (name, {
@@ -1762,7 +1762,7 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
       end
     ) ([], [], ref !env_ref, []) exec_order in
     let p_node_diagnostics = List.rev diagnostics in
-    print_pipeline_diagnostics_summary p_node_diagnostics;
+    if verbose then print_pipeline_diagnostics_summary p_node_diagnostics;
     VPipeline { prev with p_nodes = List.rev results; p_node_diagnostics }
 
 (** Evaluate a splice operand (!!!) and expand its elements as named pairs.
@@ -2812,14 +2812,14 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
   in
   (attach_stmt_location stmt v, env')
 
-and eval_program (program : program) (env : environment) : value * environment =
+and eval_program ?(resilient=true) (program : program) (env : environment) : value * environment =
   let rec go env = function
     | [] -> ((VNA NAGeneric), env)
     | [stmt] -> eval_statement env stmt
     | stmt :: rest ->
         let (v, new_env) = eval_statement env stmt in
         (match v with
-         | VError _ -> (v, new_env)
+         | VError _ when not resilient -> (v, new_env)
          | _ -> go new_env rest)
   in
   go env program

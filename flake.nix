@@ -183,6 +183,7 @@
       {
         # The default package - allows `nix build` and `nix run`
         packages.default = t-lang;
+        legacyPackages = pkgs;
 
         # Make it runnable with `nix run`
         apps.default = {
