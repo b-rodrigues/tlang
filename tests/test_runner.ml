@@ -13,13 +13,13 @@ let eval_string input =
   let env = Packages.init_env () in
   let lexbuf = Lexing.from_string input in
   let program = Parser.program Lexer.token lexbuf in
-  let (result, _env) = Eval.eval_program program env in
+  let (result, _env) = Eval.eval_program ~resilient:false program env in
   result
 
 let eval_string_env input env =
   let lexbuf = Lexing.from_string input in
   let program = Parser.program Lexer.token lexbuf in
-  Eval.eval_program program env
+  Eval.eval_program ~resilient:false program env
 
 let strip_location s =
   let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
