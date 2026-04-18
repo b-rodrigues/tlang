@@ -53,7 +53,7 @@ let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> 
               | VPipeline p_resolved ->
                   (match Builder.populate_pipeline ~build:true ?verbose p_resolved with
                    | Ok out_path -> VString out_path
-                   | Error msg -> Error.make_error FileError msg)
+                   | Error msg -> Error.make_error StructuralError msg)
               | VError _ as err -> err
               | other ->
                   Error.make_error RuntimeError
