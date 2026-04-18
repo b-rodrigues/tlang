@@ -250,6 +250,7 @@ let print_pipeline_diagnostics_summary node_diagnostics =
     |> List.filter (fun (_, diagnostics) -> diagnostics.Ast.nd_recovered)
   in
   if !show_warnings && (warning_nodes <> [] || error_nodes <> [] || recovered_nodes <> []) then begin
+    flush stdout;
     Printf.eprintf
       "Pipeline summary: %d node(s) with warnings, %d error(s), %d recovered\n%!"
       (List.length warning_nodes)

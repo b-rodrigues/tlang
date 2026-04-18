@@ -111,6 +111,7 @@ let register env =
               (fun () ->
                 Builder_internal.nix_build_args := List.rev !nix_args;
                 Builder_internal.default_nix_build_verbose := !verbose;
+                Printf.printf "Starting build for project: %s\n%!" !filename;
                 (try
                   let content =
                     let ch = open_in !filename in

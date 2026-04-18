@@ -210,12 +210,12 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                     if Hashtbl.find statuses name <> "Completed" && 
                        Hashtbl.find statuses name <> "SoftFailed" &&
                        Hashtbl.find statuses name <> "Errored" then (
-                      match read_file_first_line class_path with
-                      | Some "VError" -> Hashtbl.replace statuses name "SoftFailed"
-                      | _ -> Hashtbl.replace statuses name "Completed"
+                      (match read_file_first_line class_path with
+                       | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
+                       | _ -> Hashtbl.replace statuses name "Completed")
                     ) else if Hashtbl.find statuses name = "Completed" then (
                       (* Refine "Completed" from Nix output if it was actually a soft-fail *)
-                      if (match read_file_first_line class_path with Some "VError" -> true | _ -> false) then
+                      if (match read_file_first_line class_path with Some "VError" | Some "Error" -> true | _ -> false) then
                          Hashtbl.replace statuses name "SoftFailed"
                     )
                   )
