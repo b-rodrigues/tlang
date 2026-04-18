@@ -1414,7 +1414,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
         (match un.un_dependencies with
          | Some explicit ->
              if List.mem name explicit then
-               Error (Error.value_error (Printf.sprintf
+               Error (Error.structural_error (Printf.sprintf
                  "Self-referential node: `%s` lists itself in `deps`." name))
              else
                (* Validate that all explicit deps are known sibling nodes in this pipeline *)
@@ -1430,7 +1430,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
              let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
              let has_self_ref = List.exists (fun v -> v = name) fv in
              if has_self_ref && not is_raw then
-               Error (Error.value_error (Printf.sprintf
+               Error (Error.structural_error (Printf.sprintf
                  "Self-referential node detected in command for node: `%s`." name))
              else
                let node_deps = List.filter (fun v ->
@@ -1500,7 +1500,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
   (* Topological sort *)
   match topo_sort desugared_nodes deps with
   | Error cycle_node ->
-    Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
+    Error.structural_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
     let node_map = desugared_nodes in
     let eval_or_defer name un current_env_ref =
@@ -2820,7 +2820,7 @@ and eval_program ?(resilient=true) (program : program) (env : environment) : val
     | stmt :: rest ->
         let (v, new_env) = eval_statement env stmt in
         (match v with
-         | VError _ when not resilient -> (v, new_env)
+         | VError err when not resilient || err.code = StructuralError -> (v, new_env)
          | _ -> go new_env rest)
   in
   go env program
