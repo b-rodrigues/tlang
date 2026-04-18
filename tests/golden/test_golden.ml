@@ -92,7 +92,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Golden test: Cycle detection *)
   test "golden: cycle detection"
     "pipeline {\n  a = b\n  b = a\n}"
-    {|Error(ValueError: "Pipeline has a dependency cycle involving node `a`.")|};
+    {|Error(StructuralError: "Pipeline has a dependency cycle involving node `a`.")|};
 
   (* Golden test: Node failure *)
   test "golden: node failure propagation"

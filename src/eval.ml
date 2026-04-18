@@ -1420,7 +1420,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                (* Validate that all explicit deps are known sibling nodes in this pipeline *)
                let unknown = List.filter (fun d -> not (List.mem d node_names)) explicit in
                if unknown <> [] then
-                 Error (Error.value_error (Printf.sprintf
+                 Error (Error.structural_error (Printf.sprintf
                    "Node `%s`: explicit `deps` contains unknown node(s): %s. All dependencies must be nodes declared in the same pipeline."
                    name (String.concat ", " (List.map (fun d -> "`" ^ d ^ "`") unknown))))
                else
@@ -1494,7 +1494,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
   ) desugared_nodes in
 
   if validation_errors <> [] then
-    Error.make_error TypeError (List.hd validation_errors)
+    Error.make_error StructuralError (List.hd validation_errors)
   else
 
   (* Topological sort *)

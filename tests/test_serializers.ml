@@ -139,7 +139,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env _test =
   |} env_onnx in
   (match v with
    | VError { code; message; _ }
-     when code = FileError
+     when code = StructuralError
        && contains_all message
             [ "tproject.toml"; "onnxruntime"; "skl2onnx"; "cannot add these dependencies automatically" ] ->
        incr pass_count;
