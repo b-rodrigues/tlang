@@ -24,11 +24,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
-      - name: Convert Markdown docs to HTML
-        run: bash docs/build.sh
+      - uses: cachix/cachix-action@v15
+        with:
+          name: rstats-on-nix
+
+      - name: Build documentation and theoretical paper
+        run: |
+          nix develop .#default --command bash -c "
+            bash docs/build.sh &&
+            quarto render paper/paper.qmd --to html &&
+            mv paper/paper.html docs/theoretical_paper.html &&
+            if [ -d 'paper/paper_files' ]; then
+              cp -r paper/paper_files docs/
+            fi
+          "
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
