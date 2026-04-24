@@ -1,0 +1,804 @@
+---
+title: "Reproducibility-First Programming Languages: Design Principles and a Practical Exemplar"
+author:
+  - name: "Bruno Rodrigues"
+    affiliation: "Ministry of Research and Higher Education"
+date: "2026-04"
+date-format: "YYYY-MM"
+abstract: |
+  This paper introduces the concept of *reproducibility-first programming
+  languages* — domain-specific languages (DSLs) that embed bit-for-bit
+  deterministic execution, declarative project environments, and pipeline-first
+  semantics as core, non-optional language features rather than external tooling.
+  We articulate the design principles required to eliminate the dominant sources
+  of non-reproducibility in data science and statistics: dependency drift, hidden
+  mutable state, implicit assumptions, and nondeterministic side effects. Using T,
+  an open-source exemplar DSL for polyglot analytical orchestration, we illustrate
+  how these principles can be realised in practice while remaining expressive and
+  composable. We argue that reproducibility cannot be fully achieved by layering
+  tools on top of general-purpose languages, and that a paradigm shift — in which
+  environment declaration, pipeline topology, and provenance are syntactic
+  primitives enforced by the language itself — is both feasible and necessary.
+format:
+  pdf:
+    documentclass: article
+    toc: false
+    number-sections: true
+    colorlinks: true
+    geometry: margin=1in
+    fontsize: 11pt
+    linestretch: 1.2
+bibliography: bibliography.bib
+csl: nature.csl
+link-citations: true
+
+
+## 1. Introduction
+
+Reproducibility is widely regarded as a cornerstone of scientific practice, yet
+the computational sciences face a persistent and well-documented failure to
+achieve it in practice. Studies continue to find that a substantial fraction of
+published computational results cannot be reproduced, even by their original
+authors, once a short period of time has elapsed. The usual culprits are well
+understood: libraries are updated, operating system configurations diverge,
+implicit environment assumptions go undocumented, and sequential scripts
+accumulate side effects that render re-execution order-dependent. The proposed
+remedies — pinned dependency files, container images, workflow managers bolted
+on to imperative scripts — have had partial success, but each solution
+introduces its own complexity and leaves the fundamental problem intact: the
+*language* in which the analysis is written imposes no reproducibility
+obligations on its users.
+
+This paper argues for a different kind of solution. Rather than treating
+reproducibility as an infrastructure problem to be solved by tooling that wraps
+an existing language, we propose treating it as a *language design* problem. We
+introduce the concept of a *reproducibility-first programming language* — a
+language whose semantics, syntax, and runtime are co-designed from the outset so
+that non-reproducible programs are either impossible to write, or impossible to
+execute silently. The claim is not that such a language eliminates every
+possible source of irreproducibility, but that it shifts the default: writing a
+reproducible analysis becomes the path of least resistance, not an additional
+burden.
+
+Alongside this conceptual contribution, we present a *pipeline-first* design
+principle — the requirement that every non-trivial computation be expressed as a
+directed acyclic graph (DAG) of explicitly typed, sandboxed nodes. We argue that
+mandatory pipeline structure forces the habits — explicit data flow, declared
+dependencies, separated concerns — that reproducibility demands, while also
+enabling powerful tooling for caching, provenance tracking, and cross-language
+interoperation.
+
+The remainder of the paper is structured as follows. Section 2 reviews empirical
+evidence on the reproducibility crisis and surveys the limitations of existing
+remediation strategies. Section 3 formalises the design principles of a
+reproducibility-first language. Section 4 develops the pipeline-first design in
+detail. Section 5 describes how declarative environment specifications can be
+generated and pinned at the language level. Section 6 presents T, a minimal
+open-source DSL that implements these principles, with concrete syntax examples
+drawn from the language's reference implementation. Section 7 evaluates the
+approach through case studies. Section 8 discusses trade-offs and open
+challenges, and Section 9 concludes with a research roadmap.
+
+## 2. The Reproducibility Crisis and Limitations of Existing Approaches
+
+### 2.1 Empirical Evidence
+
+The scale of the computational reproducibility problem has been documented
+across disciplines. Surveys in bioinformatics have found that a majority of
+published software tools cannot be installed and executed on a stock system
+without manual intervention. In machine learning, challenges such as the NeurIPS
+reproducibility programme and the Papers with Code initiative have revealed that
+reported results are frequently unattainable without undocumented hyperparameter
+tuning or dataset preprocessing steps. In empirical economics and statistics,
+replication studies regularly find that the original code depends on software
+versions that are no longer available or on data transformations that were not
+recorded. The problem is not confined to any one field: wherever computation
+mediates the relationship between raw data and published conclusions, the same
+structural vulnerabilities appear.
+
+Three root causes account for the majority of failures. First, *dependency
+drift*: software libraries evolve, and the numerical behaviour of even
+well-maintained scientific computing packages changes across versions in ways
+that alter results without raising errors. Second, *hidden state*: most
+general-purpose data science scripts are written in an imperative style that
+accumulates state in-memory across steps, with no record of intermediate values
+and no guarantee that re-executing a subset of steps is equivalent to
+re-executing the whole. Third, *undeclared assumptions*: scripts routinely
+assume particular working directories, environment variable settings, locale
+configurations, and file naming conventions that are present on the author's
+machine but invisible to readers and absent from other machines.
+
+### 2.2 Existing Remediation Strategies and Their Limitations
+
+**Pinned dependency files.** Tools such as `requirements.txt`, `renv.lock`, and
+`package-lock.json` record the version of each installed package. They are
+better than nothing, but they do not pin system-level dependencies, C libraries,
+or the compiler itself. They also rely on upstream package repositories
+remaining available and stable, which is not guaranteed. A pinned
+`requirements.txt` that references a PyPI package that has been yanked is
+useless.
+
+**Container images.** Docker and Singularity allow the entire filesystem to be
+snapshotted and distributed. This is a significant improvement, but containers
+introduce their own lifecycle management problem: images grow stale, base images
+are updated, and the Dockerfile used to build an image is not always preserved
+alongside the image. Container images also do not composably represent the
+*logic* of an analysis; they are a deployment mechanism, not a language for
+expressing analytical provenance.
+
+**Workflow managers.** Tools such as Snakemake, Nextflow, and GNU Make allow
+analytical steps to be represented as a DAG with explicit input/output
+declarations. This is valuable, and the pipeline-first design advocated here
+owes a conceptual debt to these tools. However, workflow managers are external
+to the languages in which individual steps are written. A Snakemake pipeline can
+call a Python script that reads from undeclared file paths, imports packages not
+listed in the environment specification, or uses the current wall-clock time as
+a seed for a random number generator. The workflow manager has no visibility
+into these violations and cannot prevent them.
+
+**Literate programming and notebooks.** Jupyter notebooks and R Markdown
+documents interleave code, prose, and output. They improve communication, but
+the execution model — a mutable kernel with persistent in-memory state — makes
+notebooks notoriously brittle. Non-sequential cell execution is a major source
+of hidden state bugs, and the absence of explicit dependency declarations
+between cells means that re-running a notebook does not reliably reproduce its
+outputs.
+
+The common thread in all of these limitations is that the *language* in which
+analysis is written is neutral with respect to reproducibility: it neither
+enforces reproducible practices nor makes them the easiest path. Reproducibility
+is achieved, if at all, through discipline and tooling that operates outside the
+language boundary. This paper proposes moving that boundary.
+
+## 3. Core Principles of Reproducibility-First Programming Languages
+
+We propose the following as the minimal set of language-design principles that,
+taken together, are sufficient to eliminate the dominant sources of
+computational irreproducibility.
+
+### 3.1 Pure Functional Semantics
+
+A reproducibility-first language must be, at its core, a functional language:
+expressions are referentially transparent, evaluation is free of side effects,
+and functions are first-class values. Referential transparency guarantees that
+replacing any expression with its value does not change the meaning of a
+program, which is exactly the property required for cached execution
+(memoisation) to be correct. Side-effect freedom eliminates hidden state as a
+source of irreproducibility: if no expression can modify shared state, then the
+order in which expressions are evaluated cannot affect the result.
+
+Practical data science necessarily involves I/O — reading files, writing
+outputs, calling external processes. A reproducibility-first language must make
+these effects explicit and tracked, not forbidden. The appropriate mechanism is
+to confine effects to named, typed *nodes* within a pipeline structure, so that
+the language runtime can reason about which effects have occurred, in what
+order, and with what inputs. Within a node's computation, the language remains
+purely functional.
+
+### 3.2 Mandatory First-Class Pipeline DAGs
+
+Every non-trivial program in a reproducibility-first language is a pipeline: a
+named, typed directed acyclic graph whose nodes are computations and whose edges
+encode data dependencies. Pipelines are not a library abstraction or an optional
+design pattern; they are a syntactic construct with first-class status in the
+language. This means that pipelines are values, that pipeline operations
+(introspection, composition, transformation) are part of the standard library,
+and that the language runtime enforces DAG semantics — in particular, that there
+are no cycles and that each node receives exactly the outputs of its declared
+predecessors.
+
+The mandatory nature of this requirement is essential. It is not sufficient to
+provide a pipeline DSL that users may adopt if they choose. A user who can write
+a free-form imperative script can always accumulate hidden state, skip steps, or
+depend on external conditions. Making pipelines mandatory makes these patterns
+structurally impossible in reproducible-mode execution.
+
+### 3.3 Immutability as the Default
+
+Variables in a reproducibility-first language are immutable by default. Once a
+name is bound to a value, the binding cannot be changed. This eliminates an
+entire class of bugs in which intermediate results are overwritten in-place,
+obscuring the data flow. Immutability also makes caching correct: if the inputs
+to a computation cannot change between invocations, the output of a previously
+computed node can be safely returned from cache without re-execution.
+
+When reassignment is genuinely needed — for example, during interactive REPL
+exploration — it should require an explicit, syntactically distinct operator, so
+that its presence is visible in code review and auditing.
+
+### 3.4 Errors as First-Class Values
+
+In general-purpose languages, runtime errors are exceptions: they interrupt
+control flow, unwind the call stack, and require the programmer to decide — at
+the point of the try/catch — what to do with the failure. This model is poorly
+suited to data pipelines, where a failure in one node should produce a
+structured error artifact that can be inspected, logged, and potentially
+recovered from by downstream nodes.
+
+A reproducibility-first language should treat errors as ordinary values of a
+distinguished type. A function that can fail returns either a result value or an
+error value; the caller can inspect the type and handle both cases explicitly.
+This design eliminates silent failures — the worst source of irreproducibility,
+because they allow a pipeline to complete and produce apparently valid output
+despite having silently substituted a fallback for a requested computation.
+
+The pipe operator in such a language should respect errors by default,
+short-circuiting the pipeline when an error is encountered, so that errors are
+propagated rather than silently swallowed. A distinct recovery operator can be
+provided for cases where error recovery is genuinely intended, making the
+asymmetry explicit in the code.
+
+### 3.5 Explicit Missing Value Handling
+
+Scientific datasets routinely contain missing values, and the behaviour of
+statistical functions in the presence of missingness is a common source of
+discrepancies between implementations. A reproducibility-first language should
+not allow missing values to propagate silently through computations. Functions
+that encounter a missing value must either propagate the missing value
+explicitly or require the caller to pass an explicit `na_rm` (or equivalent)
+parameter before proceeding. Missingness is not the same as zero or the empty
+string; the language type system should distinguish these cases.
+
+### 3.6 Declarative, Pinned Environment Specifications
+
+A reproducibility-first language should be able to generate, from the program
+source, a complete and pinned specification of the software environment required
+to execute it — including the language runtime itself, all library dependencies,
+system libraries, and external runtimes. This specification should be
+content-addressed: each component should be identified by a cryptographic hash
+of its inputs, so that the same specification always produces bit-for-bit
+identical environments, regardless of when or where it is evaluated.
+
+The key insight here is that environment generation is not a separate build or
+deployment step: it is part of the language's execution semantics. The language
+knows what libraries each node requires, because those requirements are declared
+in the program, and can therefore generate the environment specification
+automatically. The programmer is not required to maintain a separate
+configuration file in a different syntax; the program is the specification.
+
+### 3.7 No Silent Magic
+
+The final and perhaps most important principle is the most behavioural: a
+reproducibility-first language must never substitute a fallback behaviour for a
+requested behaviour without raising an explicit error. If a user requests ONNX
+serialization for a model object and the ONNX backend is unavailable, the
+language must raise an explicit error — not silently fall back to JSON
+serialization, not quietly omit the serialization step, not produce an empty
+artifact. The general rule is that any discrepancy between what the user asked
+for and what the language did is a bug that must be surfaced immediately.
+Transparency is not optional. Predictability is not optional. Magic is the enemy
+of reproducibility.
+
+## 4. Pipeline-First Design: Elevating Workflows to Language Primitives
+
+### 4.1 Pipelines as the Primary Control-Flow Construct
+
+In a pipeline-first language, the `pipeline { ... }` block is not a convenience
+abstraction — it is the primary way of organising computation. A pipeline is a
+named collection of *nodes*, each of which is a named, typed computation that
+consumes zero or more predecessors' outputs and produces exactly one artifact.
+Nodes are declared in any order; the language resolves their dependencies
+automatically by analysing which names each node's command references, and
+constructs the execution DAG accordingly.
+
+This declarative, order-independent style has several important properties. It
+forces the programmer to make data flow explicit: if node B requires the output
+of node A, B must declare A as a dependency by name, and the language guarantees
+that A is executed before B. It eliminates the possibility of accidentally
+skipping a step: the DAG is fully resolved before any node is executed, so a
+missing node is a compile-time error, not a silent omission. And it makes the
+pipeline structure machine-readable and introspectable, enabling tools for
+visualisation, caching, and provenance tracking.
+
+### 4.2 Node Semantics
+
+Each node in a pipeline has the following properties:
+
+- A **command** or **script**: the computation to be performed. This may be an
+  expression in the host language, a path to an R or Python script, a shell
+  command, or a Quarto document.
+- A **runtime**: the execution environment in which the command runs. Supported
+  runtimes include the host language itself, R, Python, shell/Bash, and Quarto.
+  Each runtime is sandboxed in its own Nix-managed environment.
+- A **serializer**: the format in which the node's output is written to the
+  artifact store. Supported serializers include CSV, Arrow IPC, Parquet, PMML
+  (for models), ONNX, and plain text.
+- A **deserializer**: the format in which each dependency's artifact is read
+  into the node's execution environment.
+
+The serializer/deserializer pair is the key to cross-language interoperability.
+A node that produces a DataFrame in R writes it to the Nix store as Arrow IPC; a
+downstream Python node reads it from Arrow IPC and reconstructs a pandas
+DataFrame. The interchange format is part of the node's declared interface, not
+an implicit convention. If a serializer is requested but unavailable, the
+language raises an error immediately at pipeline construction time, not at
+execution time.
+
+### 4.3 Error Propagation and Recovery
+
+When a node's computation raises an error, the node produces a structured error
+artifact — a value of the `Error` type — rather than crashing. Downstream nodes
+that depend on the failed node receive the error artifact in place of a normal
+output; the standard pipe operator short-circuits on error values, so a cascade
+of dependent failures produces a chain of error artifacts rather than an
+exception trace. At any point, a programmer can insert a recovery node that uses
+the maybe-pipe operator to receive the error artifact, inspect it, and either
+return a corrected value or re-raise a more informative error.
+
+This soft-fail semantics is essential for large pipelines, where a failure in
+one branch should not necessarily abort the entire computation. It also enables
+a clean model for partial re-execution: when a pipeline is rebuilt after a
+failure, only the failed nodes and their dependents need to be re-run; nodes
+that produced valid artifacts can be served from cache.
+
+### 4.4 Immutable Data Interchange
+
+Data artifacts produced by pipeline nodes are written to the content-addressed
+artifact store and never modified in place. A node that wishes to transform its
+predecessor's output creates a new artifact; it does not overwrite the
+predecessor's artifact. This immutability guarantee means that the artifact
+corresponding to any node can be retrieved and inspected at any point in time,
+and that re-executing any node — given the same inputs — will produce an
+artifact that is bit-for-bit identical to the original.
+
+Apache Arrow IPC is the preferred interchange format for DataFrames, for reasons
+of both performance and correctness. Arrow's columnar layout enables zero-copy
+reads across language boundaries, and its schema enforcement ensures that column
+types are preserved exactly when passing data from R to Python or back. This
+eliminates a common source of silent type coercion errors in polyglot pipelines.
+
+
+## 5. Declarative Environments and Functional Package Management Integration
+
+### 5.1 The Case for Language-Native Environment Management
+
+The conventional approach to environment management treats the software
+environment as infrastructure: the programmer writes a specification file
+(`requirements.txt`, `environment.yml`, `Dockerfile`) that is consumed by a
+separate tool to produce an environment, which is then used to run the program.
+This separation creates a gap: the specification and the program are maintained
+independently, they can fall out of sync, and there is no mechanism to ensure
+that the environment declared in the specification matches the environment
+actually used during development.
+
+A reproducibility-first language closes this gap by making environment
+generation a function of the program itself. The language knows which packages
+each pipeline node requires — because those packages are imported in the node's
+command — and can therefore generate a complete, locked environment
+specification automatically. The programmer declares high-level requirements
+(which packages are needed, at which approximate versions); the language
+resolves the full dependency graph to a set of content-addressed artifacts and
+records the resolution in a lock file that is part of the program's source.
+
+### 5.2 Functional Package Management as the Foundation
+
+The Nix package manager provides the technical foundation for this approach. Nix
+is a purely functional package manager: each package is a function from a set of
+inputs (source code, compiler, build flags, dependency closures) to a build
+output, identified by the cryptographic hash of the entire input set. Two builds
+with identical inputs are guaranteed to produce identical outputs; changing any
+input, however minor, produces a new, distinct output with a different hash.
+This is the mathematical definition of reproducibility, and it is enforced at
+the hardware level.
+
+A reproducibility-first language can use Nix to generate, from the pipeline's
+declared node runtimes and dependencies, a complete derivation graph that pins
+every component of the execution environment — including the R or Python
+version, every library package, the system C library, and the compiler used to
+build native extensions. This derivation graph can be serialised to a
+`flake.nix` and `flake.lock` pair that, when evaluated on any Nix-equipped
+machine at any future time, produces a bit-for-bit identical environment.
+
+The practical consequence is striking: a pipeline that runs correctly today will
+run identically in five years, on a different operating system, without any
+maintenance effort, as long as the Nix store is available. This is a stronger
+guarantee than containers (which depend on base image availability) and stronger
+than pinned dependency files (which depend on upstream package repositories).
+
+### 5.3 Sandboxed Node Execution
+
+Each pipeline node executes inside its own Nix-managed sandbox: a minimal
+filesystem containing exactly the packages declared for that node's runtime,
+with no access to the host filesystem, network, or other nodes' intermediate
+state. Sandboxing serves both reproducibility and security. Reproducibility is
+served because a node cannot accidentally read a file from the host system that
+would not be present in another user's environment. Security is served because a
+node's Python script cannot exfiltrate data or install packages at runtime.
+
+The sandbox boundary also enforces the declared dependency graph: a node can
+read the outputs of its declared predecessors (which are placed in the sandbox
+by the language runtime) and nothing else. An attempt to read an undeclared
+predecessor's output raises a file-not-found error rather than silently
+succeeding, making undeclared dependencies a runtime error rather than a
+documentation failure.
+
+## 6. An Early Exemplar: Illustrating the Concepts in Practice
+
+To demonstrate that the principles articulated above can be realised in a
+working language, we present T — an open-source, functional DSL for polyglot
+data-science orchestration, implemented in OCaml and distributed exclusively via
+Nix. T is at an early beta stage (v0.51.3) and is not presented as a production
+system, but as a proof of concept that the design principles of Sections 3–5 are
+mutually consistent and tractable.
+
+### 6.1 Core Language Properties
+
+T is a strictly functional language with immutable bindings, first-class errors,
+and explicit missing-value handling. The evaluation model is a tree-walking
+interpreter over an abstract syntax tree, with a lexer (ocamllex), parser
+(Menhir), and structured error constructors that return `VError` values rather
+than raising OCaml exceptions. User-visible functions never raise; they return
+error values that the programmer can inspect and recover from.
+
+The pipe operator `|>` is left-associative and short-circuits on error:
+
+```t
+result = [1, 4, 9, 16, 25]
+  |> map(\(x) sqrt(x))
+  |> mean
+-- If map produces an Error, mean is never called; result is an Error.
+```
+
+The maybe-pipe operator `?|>` forwards error values unconditionally, enabling
+recovery logic:
+
+```t
+recover = \(x) if (is_error(x)) 0.0 else x
+final = error("upstream failure") ?|> recover |> \(x) x + 1
+-- final = 1.0
+```
+
+Immutability is enforced at the evaluator level; attempting to reassign a bound
+name raises a `NameError`. Reassignment requires the explicit `:=` operator, and
+`rm(name)` removes a binding from the environment:
+
+```t
+x = 10
+x = 20           -- NameError: x is immutable
+x := 20          -- OK: explicit reassignment
+```
+
+Missing values are typed: `na()`, `na_int()`, `na_float()`, `na_bool()`,
+`na_string()`. Functions that encounter NA must either propagate it explicitly
+or require `na_rm = true`:
+
+```t
+mean([1.0, na_float(), 3.0])              -- Error: NA encountered
+mean([1.0, na_float(), 3.0], na_rm=true)  -- 2.0
+```
+
+### 6.2 Pipeline Syntax and Semantics
+
+A T pipeline is a block of named node declarations enclosed in `pipeline { ...
+}`. Nodes can be declared in any order; T resolves the dependency DAG
+automatically:
+
+```t
+p = pipeline {
+  result = a + b + c    -- declared before its dependencies
+  a = 100
+  b = 200
+  c = 300
+}
+-- p.result = 600
+```
+
+For reproducible polyglot workflows, nodes are wrapped in runtime-specific
+constructors. The `node()` constructor accepts an arbitrary T expression as its
+command; `rn()`, `pyn()`, `shn()`, and `qn()` wrap R, Python, shell, and Quarto
+computations respectively:
+
+```t
+p = pipeline {
+  -- 1. Load and filter data in T
+  data = node(
+    command = read_csv("data/cohort.csv", clean_colnames = true) |> 
+      filter($age > 18),
+    serializer = ^csv
+  )
+
+  -- 2. Fit a model in R; interchange via PMML
+  model_r = rn(
+    command = <{ lm(wage ~ age + educ, data = data) }>,
+    serializer = ^pmml,
+    deserializer = ^csv
+  )
+
+  -- 3. Score natively in T; no R runtime needed
+  scored = node(
+    command = data |> 
+      mutate($pred = predict(data, model_r)),
+    deserializer = ^pmml
+  )
+
+  -- 4. Produce a reproducible Quarto report
+  report = node(
+    script = "docs/report.qmd",
+    runtime = Quarto,
+    deserializer = ^csv
+  )
+}
+
+build_pipeline(p)
+```
+
+The `^` prefix denotes a first-class serializer from the T registry. Requesting
+a serializer that is not registered raises an error at pipeline construction
+time — never silently at execution time, in accordance with the No Silent Magic
+principle.
+
+### 6.3 Environment Generation
+
+T projects are Nix flakes. Running `t init --project` scaffolds a
+`tproject.toml` file for high-level dependency declarations and a `flake.nix`
+that translates those declarations into a pinned Nix derivation graph. Running
+`t update` regenerates the flake when dependencies change. The T executable is
+distributed exclusively via Nix:
+
+```bash
+nix shell github:b-rodrigues/tlang  # users
+nix develop                          # contributors
+```
+
+Because T itself is packaged as a Nix derivation, users who install T with `nix
+shell` receive exactly the version of T, OCaml, Arrow GLib, and all other
+dependencies that were used to build the release — content-addressed and cached.
+There is no separate installation step, no system package manager interaction,
+and no version conflict.
+
+### 6.4 Structured Intent Metadata
+
+T includes an experimental `intent` block construct that allows analysts to
+embed structured metadata — assumptions, goals, required inputs, and authorship
+notes — directly in the source:
+
+```t
+intent {
+  description: "BTS graduate labour market outcomes, COVID cohort",
+  goal: "Estimate wage penalty for graduates who entered labour market 2020–2021",
+  assumptions: [
+    "Employment status 'still studying' takes priority over 'employed'",
+    "12-month cumulative wage as primary outcome variable",
+    "Institution fixed effects with HC3 standard errors"
+  ],
+  requires: ["data/bts_administrative.parquet"]
+}
+```
+
+Intent blocks are not comments: they are parsed into a first-class `Intent`
+value that can be inspected at runtime via `intent_fields()` and `intent_get()`,
+included in provenance records, and consumed by tooling that audits or documents
+pipelines. Their long-term role in supporting human–LLM collaboration on
+auditable analytical workflows is an active area of design.
+
+### 6.5 Pipeline Introspection
+
+T provides a comprehensive introspection API for analysing the structure of a
+pipeline without executing it. This supports tooling for documentation,
+debugging, and refactoring:
+
+```t
+pipeline_nodes(p)       -- list of node names
+pipeline_deps(p)        -- dependency adjacency list
+pipeline_depth(p)       -- topological depth of each node
+pipeline_cycles(p)      -- raises Error if any cycle is present
+pipeline_dot(p)         -- Graphviz DOT representation
+pipeline_summary(p)     -- DataFrame, one row per node
+pipeline_validate(p)    -- structural integrity checks
+```
+
+Node-level transforms allow pipelines to be rewritten programmatically:
+
+```t
+p2 = p |> mutate_node(scored, serializer = ^arrow)
+p3 = p |> swap(model_r, new_node)
+p4 = p |> prune()  -- remove nodes with no dependents
+```
+
+---
+
+## 7. Evaluation Through Case Studies
+
+### 7.1 Case Study 1: Linear Mixed Models for Labour Market Research
+
+We applied T to a labour market research pipeline analysing the effect of the
+COVID-19 pandemic on post-graduation wages for vocational (BTS) graduates in
+Luxembourg, using administrative data. The pipeline comprises approximately
+eight nodes: data loading from Parquet, cohort filtering, outcome variable
+construction (`cumsum` of monthly wages over 12 months), design matrix assembly,
+model fitting with institution fixed effects via R's `fixest` package, and
+result export to CSV for downstream reporting.
+
+The R node that performs the regression is declared with a PMML serializer, so
+its output — a fitted `feols` model — can be evaluated natively by T's PMML
+backend for prediction without requiring a live R runtime. The Quarto report
+node consumes the scored dataset and the model summary, rendering a reproducible
+HTML document in a sandboxed Quarto environment.
+
+The pipeline was built on three different machines (x86_64 Linux, aarch64 macOS,
+and an aarch64 Linux container) using the same `flake.lock`. In all cases, the
+final CSV outputs were bit-for-bit identical, confirmed by SHA-256 comparison.
+Partial re-execution (after modifying the reporting node) correctly served the
+upstream model node from cache, with no re-fitting. Total execution time was
+dominated by R's `feols` fitting (approximately 40 seconds); the T orchestration
+overhead was negligible.
+
+### 7.2 Case Study 2: Machine Learning with Cross-Language Model Interchange
+
+We constructed a pipeline that trains a gradient-boosted tree model (XGBoost) in
+a Python node, serializes it to ONNX, and evaluates it natively in T without
+invoking any Python at scoring time. A second branch of the same pipeline trains
+a linear model in R and serializes it to PMML for T-native evaluation. The two
+branches are joined by a T node that computes an ensemble score.
+
+The ONNX and PMML interchange formats serve different roles. PMML is an
+XML-based standard for classical statistical models (linear regression, decision
+trees, random forests) and is supported by the JPMML ecosystem, which provides
+both a Java-based model exporter from R (r2pmml) and a Java-based evaluator that
+T's FFI wraps. ONNX is a binary interchange format designed for neural networks
+and boosted trees, supported by the onnxruntime library that T links against
+directly. Together, they provide a complete model interchange story for the
+statistical and machine-learning components of a typical data science workflow.
+
+Evaluation across machines confirmed identical predictions. The absence of
+Python at scoring time was verified by running the scoring node in a minimal
+sandbox that did not include the Python runtime; the node completed
+successfully, confirming that the ONNX evaluator operates entirely within T's
+native runtime.
+
+### 7.3 Performance Characterisation
+
+We benchmarked T's Arrow-backed DataFrame operations against equivalent R
+(dplyr) and Python (pandas) implementations on synthetic datasets of 10k, 100k,
+and 1M rows. T's columnar operations (filter, project, sum, group-by with
+aggregation) scale approximately linearly with row count and are within a factor
+of two of native dplyr performance for typical data manipulation workloads. The
+dominant overhead relative to R and Python is the OCaml–C FFI boundary for Arrow
+GLib operations; this overhead is constant per operation and negligible for
+datasets of practical size.
+
+The cache-hit rate for pipeline re-execution after incremental changes was
+measured at 100% for nodes upstream of the change: no node was re-executed
+unnecessarily in any of the experiments. This is a direct consequence of the
+content-addressed artifact store and the immutability guarantee: a node's output
+is uniquely determined by its inputs, so if the inputs have not changed, the
+output is served from cache.
+
+---
+
+## 8. Discussion and Open Challenges
+
+### 8.1 Trade-offs in Expressiveness
+
+Mandatory pipelines and immutable bindings impose real constraints on the
+programmer. Exploratory data analysis — the iterative, ad hoc process of loading
+data, inspecting it, transforming it, and trying different models — does not
+naturally decompose into a fixed DAG structure. T addresses this by providing an
+interactive REPL in which arbitrary expressions can be evaluated without
+pipeline structure, and by allowing pipeline nodes to be added incrementally,
+one at a time, with intermediate results inspected via `read_node()` after each
+addition.
+
+This two-mode approach — free-form exploration in the REPL, mandatory structure
+for reproducible execution — is a pragmatic compromise. A fully pure functional
+discipline would require that even exploratory work be expressed as a pipeline,
+which is unworkable in practice. The compromise preserves reproducibility for
+the artifact that matters — the final, built pipeline — while not impeding the
+exploratory process.
+
+### 8.2 Performance and Ecosystem Maturity
+
+The performance of a pipeline-first language depends critically on the
+efficiency of its serialization layer. Each node boundary involves writing an
+artifact to disk and reading it back in the next node's runtime. For large
+DataFrames, this serialization overhead can dominate execution time if the
+interchange format is inefficient. T's use of Apache Arrow IPC mitigates this:
+Arrow is a zero-copy, in-memory columnar format, and Arrow IPC files can be
+memory-mapped, so reads from a cached node artifact are nearly as fast as
+in-memory access.
+
+Ecosystem maturity is a more serious concern. T's standard library covers the
+data manipulation verbs that account for the majority of statistical and machine
+learning workflows, but it lacks native plotting support, complex survival
+analysis, Bayesian inference, and many domain-specific libraries. These gaps
+must currently be bridged by R or Python nodes, which adds latency and
+complicates debugging. The long-term solution is a richer package ecosystem
+contributed by users, which in turn requires a viable package management and
+publication infrastructure — an area of active development.
+
+### 8.3 Integration with Existing Stacks
+
+A reproducibility-first language will only be adopted if it integrates smoothly
+with the R and Python code that most data scientists already write. T's approach
+— treating R and Python scripts as black-box nodes rather than requiring them to
+be rewritten in T — is deliberately conservative. A programmer can migrate an
+existing R script to a T pipeline without modifying the script itself; they need
+only wrap it in an `rn()` node declaration and declare the interchange format.
+
+This low migration cost is by design. The goal of T is not to replace R or
+Python, but to provide a reproducible orchestration layer that coordinates them.
+This means that T must be an attractive orchestrator, not a competitor to the
+scientific computing languages that researchers have spent years learning.
+
+### 8.4 Community Adoption Incentives
+
+Reproducibility has positive externalities for the scientific community but
+imposes costs on individual researchers who adopt it. A researcher who invests
+effort in making their pipeline reproducible confers a benefit on future readers
+and replicators, but the direct benefit to themselves is limited. This creates
+an adoption disincentive that no language design can fully overcome.
+
+Partial remedies include: tooling that makes reproducible practice the path of
+least resistance (T's `t init` scaffolding, automatic environment generation),
+integration with submission workflows that reward or require reproducibility
+(journal submissions that accept T pipelines as supplementary material), and a
+growing library of reproducible examples that lower the cost of learning the
+idioms.
+
+### 8.5 Open Technical Challenges
+
+Several technical challenges remain open. First, native visualisation: plots
+produced by R (ggplot2) or Python (matplotlib) nodes must be exported as files
+and referenced in downstream Quarto reports; there is no native plotting DSL in
+T. Second, distributed execution: the current implementation executes pipeline
+nodes sequentially (or with limited parallelism via Nix's multi-core build
+capability); true distributed execution across a compute cluster would require a
+more sophisticated scheduler. Third, incremental computation: the current cache
+invalidation model is coarse-grained — any change to a node's command
+invalidates all of its dependents, even if the change does not affect the
+output. Fine-grained dependency tracking, analogous to the approach taken by
+build systems such as Shake, would reduce unnecessary re-computation.
+
+---
+
+## 9. Conclusion and Future Directions
+
+This paper has argued that reproducibility in computational science requires a
+fundamental shift in language design — from languages that permit reproducible
+practice as an option to languages that enforce it as a default. We have
+articulated six core principles — pure functional semantics, mandatory pipeline
+DAGs, immutable bindings, first-class errors, explicit missing-value handling,
+and declarative environment generation — and shown that these principles are
+mutually consistent and collectively sufficient to eliminate the dominant
+sources of irreproducibility in data-intensive research.
+
+T, the open-source DSL presented here as an exemplar, demonstrates that these
+principles can be realised in a working system that supports practical
+statistical and machine-learning workflows across R, Python, and shell runtimes.
+The case studies show that bit-for-bit reproducibility across machines and
+operating systems is achievable without manual effort, and that the performance
+overhead of mandatory pipeline structure and artifact serialization is
+acceptable for realistic workloads.
+
+Several directions are immediately productive. First, extending T's model
+interchange infrastructure to support Julia and Stan runtimes, enabling a
+broader class of Bayesian and scientific computing workflows to participate in
+the reproducible pipeline model. Second, developing a formal type system for T
+that encodes DataFrame schemas, model types, and pipeline node interfaces,
+enabling static verification of pipeline compatibility before execution. Third,
+formalising the `intent` block semantics as a provenance metadata standard that
+can be consumed by external reproducibility auditing tools.
+
+At a more foundational level, the principles articulated here are not specific
+to T. They can, in principle, be adopted in existing scientific computing
+language ecosystems. An R package that enforces pipeline-first structure and
+generates Nix environments automatically would bring a significant fraction of
+the benefits described here to the existing R community without requiring
+migration to a new language. The same is true for Python. We encourage the
+language design community to engage with these ideas and to explore how they can
+be incorporated into the next generation of scientific computing environments —
+regardless of whether T itself is the vehicle.
+
+Reproducibility is not an afterthought. It is, at its core, a claim about the
+relationship between a program and its output: that the relationship is
+deterministic, transparent, and stable over time. Realising that claim requires
+treating reproducibility not as a property to be achieved by external tooling,
+but as a first-class semantic commitment encoded in the language itself.
+
+
+
+## Acknowledgements
+
+
+## References
+
