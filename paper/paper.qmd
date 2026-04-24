@@ -19,17 +19,7 @@ abstract: |
   tools on top of general-purpose languages, and that a paradigm shift — in which
   environment declaration, pipeline topology, and provenance are syntactic
   primitives enforced by the language itself — is both feasible and necessary.
-format:
-  pdf:
-    documentclass: article
-    toc: false
-    number-sections: true
-    colorlinks: true
-    geometry: margin=1in
-    fontsize: 11pt
-    linestretch: 1.2
 bibliography: bibliography.bib
-csl: nature.csl
 link-citations: true
 ---
 
