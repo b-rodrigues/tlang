@@ -595,7 +595,6 @@ p3 = p |> swap(model_r, new_node)
 p4 = p |> prune()  -- remove nodes with no dependents
 ```
 
----
 
 ## 7. Evaluation Through Case Studies
 
@@ -664,7 +663,6 @@ content-addressed artifact store and the immutability guarantee: a node's output
 is uniquely determined by its inputs, so if the inputs have not changed, the
 output is served from cache.
 
----
 
 ## 8. Discussion and Open Challenges
 
@@ -748,8 +746,6 @@ invalidation model is coarse-grained — any change to a node's command
 invalidates all of its dependents, even if the change does not affect the
 output. Fine-grained dependency tracking, analogous to the approach taken by
 build systems such as Shake, would reduce unnecessary re-computation.
-
----
 
 ## 9. Conclusion and Future Directions
 
