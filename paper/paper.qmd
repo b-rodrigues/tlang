@@ -44,7 +44,7 @@ reproducibility obligations on its users.
 More generally, this failure reflects a familiar distinction in economics and
 the social sciences between rules as exhortation and rules as constraint. A
 norm stated as "best practice" remains optional unless it is supported by
-institutions, defaults, and incentive structures that shape behaviour in
+institutions, defaults, and incentive structures that shape behavior in
 practice. Institutional economists have long emphasized that formal rules and
 the surrounding constraint structure channel action by altering what is easy,
 costly, and legitimate [@North1990]. Behavioural economics makes a related
