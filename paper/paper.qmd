@@ -44,9 +44,9 @@ reproducibility obligations on its users.
 More generally, this failure reflects a familiar distinction in the social
 sciences between rules as exhortation and rules as constraint. A norm stated as
 "best practice" remains optional unless it is reliably monitored, sanctioned,
-or internalised by its users. By contrast, norms embedded in institutions,
+or internalized by its users. By contrast, norms embedded in institutions,
 defaults, and technical architectures shape the action space itself: they make
-some behaviours easier, cheaper, and more visible than others
+some behaviors easier, cheaper, and more visible than others
 [@Ostrom1990; @Ostrom2005; @Lessig2006; @Norman2013]. The relevant lesson for
 computational reproducibility is straightforward. If one cannot depend on every
 analyst to remember, document, and voluntarily apply every reproducibility
@@ -65,13 +65,13 @@ reproducible analysis becomes the path of least resistance, not an additional
 burden.
 
 In this sense, the argument of the paper is a language-design analogue of the
-"code is law" thesis: architecture often regulates behaviour more effectively
+"code is law" thesis: architecture often regulates behavior more effectively
 than recommendation because it determines what actions are possible in the first
 place [@Lessig2006]. A speed bump enforces slower driving more reliably than a
 sign asking drivers to be careful; similarly, a language that rejects hidden
 state, undeclared dependencies, and mutable execution contexts enforces
 reproducible practice more reliably than a style guide that merely advises
-against them. The aim is not to moralise about better habits, but to design a
+against them. The aim is not to moralize about better habits, but to design a
 computational environment in which non-reproducible habits are difficult,
 unnatural, or impossible to express silently. Reproducibility then becomes a
 design choice embodied in the language, rather than an aspiration appended to
@@ -801,7 +801,7 @@ build systems such as Shake, would reduce unnecessary re-computation.
 This paper has argued that reproducibility in computational science may require a
 fundamental shift in language design — from languages that permit reproducible
 practice as an option to languages that enforce it as a default. We have
-articulated seven core principles — pure functional semantics, mandatory
+articulated seven core principles in Section 3 — pure functional semantics, mandatory
 pipeline DAGs, immutable bindings, first-class errors, explicit missing-value
 handling, declarative environment generation, and no silent magic — and argued
 that these principles are mutually consistent and can substantially reduce the
