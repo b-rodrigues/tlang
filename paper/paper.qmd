@@ -801,7 +801,7 @@ build systems such as Shake, would reduce unnecessary re-computation.
 This paper has argued that reproducibility in computational science may require a
 fundamental shift in language design — from languages that permit reproducible
 practice as an option to languages that enforce it as a default. We have
-articulated seven core principles in Section 3 — pure functional semantics, mandatory
+articulated a set of core design principles — pure functional semantics, mandatory
 pipeline DAGs, immutable bindings, first-class errors, explicit missing-value
 handling, declarative environment generation, and no silent magic — and argued
 that these principles are mutually consistent and can substantially reduce the
