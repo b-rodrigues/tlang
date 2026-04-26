@@ -41,6 +41,18 @@ solution introduces its own complexity and leaves the fundamental problem
 intact: the *language* in which the analysis is written imposes no
 reproducibility obligations on its users.
 
+More generally, this failure reflects a familiar distinction in the social
+sciences between rules as exhortation and rules as constraint. A norm stated as
+"best practice" remains optional unless it is reliably monitored, sanctioned,
+or internalised by its users. By contrast, norms embedded in institutions,
+defaults, and technical architectures shape the action space itself: they make
+some behaviours easier, cheaper, and more visible than others
+[@Ostrom1990; @Ostrom2005; @Lessig2006; @Norman2013]. The relevant lesson for
+computational reproducibility is straightforward. If one cannot depend on every
+analyst to remember, document, and voluntarily apply every reproducibility
+safeguard, then those safeguards must be translated into constraints and
+affordances built into the system.
+
 This paper argues for a different kind of solution. Rather than treating
 reproducibility as an infrastructure problem to be solved by tooling that wraps
 an existing language, we propose treating it as a *language design* problem. We
@@ -51,6 +63,19 @@ harder to execute silently. The claim is not that such a language eliminates eve
 possible source of irreproducibility, but that it shifts the default: writing a
 reproducible analysis becomes the path of least resistance, not an additional
 burden.
+
+In this sense, the argument of the paper is a language-design analogue of the
+"code is law" thesis: architecture often regulates behaviour more effectively
+than recommendation because it determines what actions are possible in the first
+place [@Lessig2006]. A speed bump enforces slower driving more reliably than a
+sign asking drivers to be careful; similarly, a language that rejects hidden
+state, undeclared dependencies, and mutable execution contexts enforces
+reproducible practice more reliably than a style guide that merely advises
+against them. The aim is not to moralise about better habits, but to design a
+computational environment in which non-reproducible habits are difficult,
+unnatural, or impossible to express silently. Reproducibility then becomes a
+design choice embodied in the language, rather than an aspiration appended to
+it from the outside.
 
 Alongside this conceptual contribution, we present a *pipeline-first* design
 principle — the requirement that every non-trivial computation be expressed as a
