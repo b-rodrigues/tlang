@@ -118,7 +118,6 @@ let register env =
                   (fun () ->
                     Builder_internal.nix_build_args := List.rev !nix_args;
                     Builder_internal.default_nix_build_verbose := !verbose;
-                    Printf.printf "Starting build for project: %s\n%!" !filename;
                     (try
                       let content =
                         let ch = open_in !filename in
@@ -138,6 +137,9 @@ let register env =
                               Pipeline_script.reload_env_for_pipeline_entry
                                 ~filename:!filename program !env_ref
                             in
+                            (* We print the build header BEFORE evaluation so it's always first *)
+                            Printf.eprintf "Starting build for project: %s\n%!" !filename;
+
                             let (v, new_env) = Eval.eval_program ~resilient:(not !failfast) program eval_env in
                             match v with
                             | VError _ -> v
@@ -145,8 +147,11 @@ let register env =
                                 env_ref :=
                                   Pipeline_script.remember_pipeline_entry_bindings
                                     ~filename:!filename program new_env;
-                                Printf.printf "Pipeline %s evaluated successfully.\n" !filename;
-                                (VNA NAGeneric))
+                                match v with
+                                | VPipeline _ -> (VNA NAGeneric)
+                                | _ ->
+                                    Printf.eprintf "Pipeline script %s evaluated successfully.\n%!" !filename;
+                                    (VNA NAGeneric))
                       with
                       | Lexer.SyntaxError msg ->
                           let pos = Lexing.lexeme_start_p lexbuf in
