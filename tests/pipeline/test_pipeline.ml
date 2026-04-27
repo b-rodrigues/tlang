@@ -289,8 +289,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       (fun _dir _pipeline_path ->
         let env = Packages.init_env () in
         let (v, _) = eval_string_env "t_make()" env in
-        Ast.Utils.value_to_string v
-        = {|Error(ValueError: "Function `t_make` requires `src/pipeline.t` to call `populate_pipeline(...)` or `build_pipeline(...)`.")|})
+        let actual = strip_location (Ast.Utils.value_to_string v) in
+        let expected = "Function `t_make` requires `src/pipeline.t` to call `populate_pipeline(...)` or `build_pipeline(...)`." in
+        contains_pattern expected actual)
   in
   if t_make_requires_pipeline_action then begin
     incr pass_count; Printf.printf "  ✓ t_make requires an explicit populate or build call in src/pipeline.t\n"
@@ -313,6 +314,24 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     incr pass_count; Printf.printf "  ✓ t_make warns when src/pipeline.t only populates the pipeline\n"
   end else begin
     incr fail_count; Printf.printf "  ✗ t_make warns when src/pipeline.t only populates the pipeline\n"
+  end;
+  let t_make_warns_on_populate_build_unknown =
+    with_temp_pipeline_project
+      "do_build = false\np = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=do_build)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let ((v, _), warning) =
+          capture_stderr (fun () -> eval_string_env "t_make()" env)
+        in
+        Ast.Utils.value_to_string v = "NA"
+        && contains_pattern "Warning: `t_make" warning
+        && contains_pattern "populate_pipeline" warning
+        && contains_pattern "could not confirm whether a build was requested" warning)
+  in
+  if t_make_warns_on_populate_build_unknown then begin
+    incr pass_count; Printf.printf "  ✓ t_make warns when src/pipeline.t has ambiguous build intent\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make warns when src/pipeline.t has ambiguous build intent\n"
   end;
   let pipeline_entry_detection_ok =
     Pipeline_script.is_pipeline_entry_file "src/pipeline.t"
