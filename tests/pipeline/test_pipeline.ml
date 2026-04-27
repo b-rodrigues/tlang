@@ -10,6 +10,37 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       true
     with Not_found -> false
   in
+  let capture_stderr f =
+    let stderr_fd = Unix.descr_of_out_channel stderr in
+    let saved_stderr = Unix.dup stderr_fd in
+    let read_fd, write_fd = Unix.pipe () in
+    Unix.dup2 write_fd stderr_fd;
+    Unix.close write_fd;
+    let restore () =
+      flush stderr;
+      Unix.dup2 saved_stderr stderr_fd;
+      Unix.close saved_stderr
+    in
+    try
+      let result = f () in
+      restore ();
+      let buffer = Buffer.create 128 in
+      let chunk = Bytes.create 256 in
+      let rec drain () =
+        match Unix.read read_fd chunk 0 (Bytes.length chunk) with
+        | 0 -> ()
+        | n ->
+            Buffer.add_subbytes buffer chunk 0 n;
+            drain ()
+      in
+      drain ();
+      Unix.close read_fd;
+      (result, Buffer.contents buffer)
+    with exn ->
+      restore ();
+      Unix.close read_fd;
+      raise exn
+  in
   let rec remove_path path =
     if Sys.file_exists path then
       if Sys.is_directory path then begin
@@ -244,6 +275,37 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "t_make rejects non-pipeline entry filenames"
     "error_code(t_make(filename=\"script.t\")) == \"ValueError\""
     "true";
+  let t_make_requires_pipeline_action =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make()" env in
+        Ast.Utils.value_to_string v
+        = {|Error(ValueError: "Function `t_make` requires `src/pipeline.t` to call `populate_pipeline(...)` or `build_pipeline(...)`.")|})
+  in
+  if t_make_requires_pipeline_action then begin
+    incr pass_count; Printf.printf "  ✓ t_make requires an explicit populate or build call in src/pipeline.t\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make requires an explicit populate or build call in src/pipeline.t\n"
+  end;
+  let t_make_warns_on_populate_without_build =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (((v, _), warning)) =
+          capture_stderr (fun () -> eval_string_env "t_make()" env)
+        in
+        Ast.Utils.value_to_string v = "NA"
+        && contains_pattern "Warning: `t_make()` found `populate_pipeline" warning
+        && contains_pattern "build=true" warning)
+  in
+  if t_make_warns_on_populate_without_build then begin
+    incr pass_count; Printf.printf "  ✓ t_make warns when src/pipeline.t only populates the pipeline\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make warns when src/pipeline.t only populates the pipeline\n"
+  end;
   let pipeline_entry_detection_ok =
     Pipeline_script.is_pipeline_entry_file "src/pipeline.t"
     && Pipeline_script.is_pipeline_entry_file "./src/pipeline.t"

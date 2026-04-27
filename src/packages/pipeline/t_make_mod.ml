@@ -34,6 +34,9 @@ let interrupt_error () =
 --# high-level build orchestrator often used from the CLI (repl) to
 --# trigger a full project build. It supports named and positional 
 --# arguments for common Nix build controls.
+--# `src/pipeline.t` must call `populate_pipeline(...)` or `build_pipeline(...)`.
+--# If it only calls `populate_pipeline(...)` without `build=true`, `t_make()`
+--# emits a warning and continues after populating the pipeline.
 --#
 --# @name t_make
 --# @param filename :: String The pipeline file path. Must be `src/pipeline.t`.
@@ -115,21 +118,29 @@ let register env =
                            ~finally:(fun () -> close_in_noerr ch)
                            (fun () -> really_input_string ch (in_channel_length ch))
                        in
-                       let lexbuf = Lexing.from_string content in
-                       (try
-                          let program = Parser.program Lexer.token lexbuf in
-                          let eval_env = Pipeline_script.reload_env_for_pipeline_entry ~filename:!filename program !env_ref in
-                          let (v, new_env) = Eval.eval_program program eval_env in
-                          match v with
-                          | VError _ -> v
-                          | _ ->
-                              env_ref := Pipeline_script.remember_pipeline_entry_bindings ~filename:!filename program new_env;
-                              Printf.printf "Pipeline %s evaluated successfully.\n" !filename;
-                              VNA NAGeneric
-                        with
-                        | Lexer.SyntaxError msg ->
-                            let pos = Lexing.lexeme_start_p lexbuf in
-                            make_located_error ~file:!filename SyntaxError ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
+                        let lexbuf = Lexing.from_string content in
+                        (try
+                           let program = Parser.program Lexer.token lexbuf in
+                           (match Pipeline_script.validate_t_make_program program with
+                            | Error msg ->
+                                Error.make_error ValueError msg
+                            | Ok warning_opt ->
+                                (match warning_opt with
+                                 | Some warning ->
+                                     Printf.eprintf "%s%!" warning
+                                 | None -> ());
+                                let eval_env = Pipeline_script.reload_env_for_pipeline_entry ~filename:!filename program !env_ref in
+                                let (v, new_env) = Eval.eval_program program eval_env in
+                                match v with
+                                | VError _ -> v
+                                | _ ->
+                                    env_ref := Pipeline_script.remember_pipeline_entry_bindings ~filename:!filename program new_env;
+                                    Printf.printf "Pipeline %s evaluated successfully.\n" !filename;
+                                    VNA NAGeneric)
+                         with
+                         | Lexer.SyntaxError msg ->
+                             let pos = Lexing.lexeme_start_p lexbuf in
+                              make_located_error ~file:!filename SyntaxError ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
                         | Parser.Error ->
                             let pos = Lexing.lexeme_start_p lexbuf in
                             make_located_error ~file:!filename SyntaxError (Printf.sprintf "Parse error in '%s'" !filename) pos

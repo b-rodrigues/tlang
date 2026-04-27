@@ -14,9 +14,150 @@ let is_internal_key name =
   Import_registry.is_internal_key name
   || name = pipeline_entry_bindings_key
 
+type t_make_pipeline_contract =
+  | MissingPipelineBuildCall
+  | PopulateWithoutBuild
+  | BuildRequested
+
 let sanitize_pipeline_entry_binding_names names =
   List.filter (fun name -> not (is_internal_key name)) names
   |> ordered_unique_strings
+
+let combine_t_make_pipeline_contract left right =
+  match left, right with
+  | BuildRequested, _
+  | _, BuildRequested -> BuildRequested
+  | PopulateWithoutBuild, _
+  | _, PopulateWithoutBuild -> PopulateWithoutBuild
+  | MissingPipelineBuildCall, MissingPipelineBuildCall -> MissingPipelineBuildCall
+
+let bool_literal = function
+  | { node = Value (VBool b); _ } -> Some b
+  | _ -> None
+
+let populate_pipeline_requests_build args =
+  let rec find_named_build = function
+    | [] -> None
+    | (Some "build", expr) :: _ -> bool_literal expr
+    | _ :: rest -> find_named_build rest
+  in
+  match find_named_build args with
+  | Some build -> build
+  | None ->
+      let positional_args =
+        List.filter_map (fun (name_opt, expr) ->
+          match name_opt with
+          | None -> Some expr
+          | Some _ -> None) args
+      in
+      match positional_args with
+      | _pipeline_arg :: build_arg :: _ ->
+          begin match bool_literal build_arg with
+          | Some build -> build
+          | None -> false
+          end
+      | _ -> false
+
+let rec expr_t_make_pipeline_contract expr =
+  match expr.node with
+  | Call { fn = { node = Var "build_pipeline"; _ }; args } ->
+      List.fold_left
+        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract arg))
+        BuildRequested
+        args
+  | Call { fn = { node = Var "populate_pipeline"; _ }; args } ->
+      let call_contract =
+        if populate_pipeline_requests_build args then BuildRequested
+        else PopulateWithoutBuild
+      in
+      List.fold_left
+        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract arg))
+        call_contract
+        args
+  | Call { fn; args } ->
+      List.fold_left
+        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract arg))
+        (expr_t_make_pipeline_contract fn)
+        args
+  | BinOp { left; right; _ }
+  | BroadcastOp { left; right; _ } ->
+      combine_t_make_pipeline_contract
+        (expr_t_make_pipeline_contract left)
+        (expr_t_make_pipeline_contract right)
+  | IfElse { cond; then_; else_ } ->
+      combine_t_make_pipeline_contract
+        (expr_t_make_pipeline_contract cond)
+        (combine_t_make_pipeline_contract
+           (expr_t_make_pipeline_contract then_)
+           (expr_t_make_pipeline_contract else_))
+  | Match { scrutinee; cases } ->
+      List.fold_left
+        (fun acc (_, body) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract body))
+        (expr_t_make_pipeline_contract scrutinee)
+        cases
+  | Lambda { body; _ } -> expr_t_make_pipeline_contract body
+  | ListLit items ->
+      List.fold_left
+        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract item))
+        MissingPipelineBuildCall
+        items
+  | DictLit pairs ->
+      List.fold_left
+        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract item))
+        MissingPipelineBuildCall
+        pairs
+  | UnOp { operand; _ }
+  | DotAccess { target = operand; _ }
+  | Unquote operand
+  | UnquoteSplice operand ->
+      expr_t_make_pipeline_contract operand
+  | PipelineDef nodes
+  | IntentDef nodes ->
+      List.fold_left
+        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract item))
+        MissingPipelineBuildCall
+        nodes
+  | ListComp { expr; clauses } ->
+      let clause_contract =
+        List.fold_left
+          (fun acc clause ->
+            let clause_expr =
+              match clause with
+              | CFor { iter; _ } -> expr_t_make_pipeline_contract iter
+              | CFilter filter_expr -> expr_t_make_pipeline_contract filter_expr
+            in
+            combine_t_make_pipeline_contract acc clause_expr)
+          MissingPipelineBuildCall
+          clauses
+      in
+      combine_t_make_pipeline_contract clause_contract (expr_t_make_pipeline_contract expr)
+  | Block stmts ->
+      List.fold_left
+        (fun acc stmt -> combine_t_make_pipeline_contract acc (stmt_t_make_pipeline_contract stmt))
+        MissingPipelineBuildCall
+        stmts
+  | Value _
+  | Var _
+  | ColumnRef _
+  | RawCode _
+  | ShellExpr _ -> MissingPipelineBuildCall
+
+and stmt_t_make_pipeline_contract stmt =
+  match stmt.node with
+  | Expression expr
+  | Assignment { expr; _ }
+  | Reassignment { expr; _ } ->
+      expr_t_make_pipeline_contract expr
+  | Import _
+  | ImportPackage _
+  | ImportFrom _
+  | ImportFileFrom _ -> MissingPipelineBuildCall
+
+let program_t_make_pipeline_contract (program : program) =
+  List.fold_left
+    (fun acc stmt -> combine_t_make_pipeline_contract acc (stmt_t_make_pipeline_contract stmt))
+    MissingPipelineBuildCall
+    program
 
 (** Extract user-authored top-level bindings from a script so pipeline entry
     reloads can clear them before reevaluation. Internal framework keys are
@@ -100,3 +241,14 @@ let validate_t_make_filename filename =
     Ok ()
   else
     Error "Function `t_make` requires the pipeline entrypoint to be `src/pipeline.t`."
+
+let validate_t_make_program (program : program) =
+  match program_t_make_pipeline_contract program with
+  | BuildRequested -> Ok None
+  | PopulateWithoutBuild ->
+      Ok
+        (Some
+           "Warning: `t_make()` found `populate_pipeline(...)` without `build=true`, so the pipeline will only be populated. Use `populate_pipeline(..., build=true)` or `build_pipeline(...)` to request a build.\n")
+  | MissingPipelineBuildCall ->
+      Error
+        "Function `t_make` requires `src/pipeline.t` to call `populate_pipeline(...)` or `build_pipeline(...)`."
