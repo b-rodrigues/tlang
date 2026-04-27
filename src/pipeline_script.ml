@@ -8,11 +8,15 @@ let ordered_unique_strings names =
   in
   go String_set.empty [] names
 
-let pipeline_entry_bindings_key = "__tlang_internal_pipeline_entry_bindings__"
+let pipeline_entry_bindings_key = "__pipeline_entry_bindings__"
 
 let is_internal_key name =
   Import_registry.is_internal_key name
   || name = pipeline_entry_bindings_key
+
+let sanitize_pipeline_entry_binding_names names =
+  List.filter (fun name -> not (is_internal_key name)) names
+  |> ordered_unique_strings
 
 (** Extract user-authored top-level bindings from a script so pipeline entry
     reloads can clear them before reevaluation. Internal framework keys are
@@ -26,7 +30,7 @@ let top_level_assigned_names (program : program) =
         Some name
     | _ -> None
   ) program
-  |> ordered_unique_strings
+  |> sanitize_pipeline_entry_binding_names
 
 let normalize_relative_path filename =
   if not (Filename.is_relative filename) then
@@ -65,14 +69,14 @@ let get_pipeline_entry_binding_names (env : environment) =
       values
       |> List.filter_map (fun (_, value) ->
         match value with
-        | VString name when not (is_internal_key name) -> Some name
+        | VString name -> Some name
         | _ -> None)
-      |> ordered_unique_strings
+      |> sanitize_pipeline_entry_binding_names
   | _ -> []
 
 let set_pipeline_entry_binding_names (env : environment) names =
   Env.add pipeline_entry_bindings_key
-    (VList (ordered_unique_strings names |> List.map (fun name -> (None, VString name))))
+    (VList (sanitize_pipeline_entry_binding_names names |> List.map (fun name -> (None, VString name))))
     env
 
 let reload_env_for_pipeline_entry ~filename (program : program) (env : environment) =
