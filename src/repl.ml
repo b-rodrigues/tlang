@@ -710,7 +710,7 @@ let () =
                  (match v with
                   | Ast.VError _ -> v
                   | _ ->
-                     env_ref := new_env;
+                     env_ref := Pipeline_script.remember_pipeline_entry_bindings ~filename program new_env;
                      Printf.printf "Ran %s successfully.\n" filename; flush stdout; Ast.(VNA NAGeneric))
                with
                | Lexer.SyntaxError msg ->

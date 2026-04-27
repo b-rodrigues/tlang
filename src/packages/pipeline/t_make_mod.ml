@@ -123,7 +123,7 @@ let register env =
                           match v with
                           | VError _ -> v
                           | _ ->
-                              env_ref := new_env;
+                              env_ref := Pipeline_script.remember_pipeline_entry_bindings ~filename:!filename program new_env;
                               Printf.printf "Pipeline %s evaluated successfully.\n" !filename;
                               VNA NAGeneric
                         with

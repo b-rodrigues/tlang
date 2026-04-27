@@ -238,6 +238,47 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "t_make rejects non-pipeline entry filenames"
     "error_code(t_make(filename=\"script.t\")) == \"ValueError\""
     "true";
+  let pipeline_entry_detection_ok =
+    Pipeline_script.is_pipeline_entry_file "src/pipeline.t"
+    && Pipeline_script.is_pipeline_entry_file "./src/pipeline.t"
+    && Pipeline_script.is_pipeline_entry_file "src/./pipeline.t"
+    && not (Pipeline_script.is_pipeline_entry_file "pipeline.t")
+    && not (Pipeline_script.is_pipeline_entry_file "src/other.t")
+    && not (Pipeline_script.is_pipeline_entry_file "other/pipeline.t")
+    && not (Pipeline_script.is_pipeline_entry_file "/tmp/project/src/pipeline.t")
+  in
+  if pipeline_entry_detection_ok then begin
+    incr pass_count; Printf.printf "  ✓ pipeline entry detection only accepts project-relative src/pipeline.t\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ pipeline entry detection only accepts project-relative src/pipeline.t\n"
+  end;
+  let t_make_relative_filename_ok =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make(filename=\"./src/pipeline.t\")" env in
+        Ast.Utils.value_to_string v = "NA")
+  in
+  if t_make_relative_filename_ok then begin
+    incr pass_count; Printf.printf "  ✓ t_make accepts normalized relative src/pipeline.t paths\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make accepts normalized relative src/pipeline.t paths\n"
+  end;
+  let t_make_absolute_filename_rejected =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir pipeline_path ->
+        let env = Packages.init_env () in
+        let command = Printf.sprintf "error_code(t_make(filename=%S)) == \"ValueError\"" pipeline_path in
+        let (v, _) = eval_string_env command env in
+        Ast.Utils.value_to_string v = "true")
+  in
+  if t_make_absolute_filename_rejected then begin
+    incr pass_count; Printf.printf "  ✓ t_make rejects absolute pipeline entry filenames\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make rejects absolute pipeline entry filenames\n"
+  end;
   let t_make_reloads_pipeline_script =
     with_temp_pipeline_project
       "helper = 1\np = pipeline {\n  a = helper\n}\npopulate_pipeline(p, build=false)\n"
@@ -245,10 +286,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
         let env = Packages.init_env () in
         let (_first, env) = eval_string_env "t_make()" env in
         let oc = open_out pipeline_path in
-        output_string oc "helper = 2\np = pipeline {\n  b = helper\n}\npopulate_pipeline(p, build=false)\n";
+        output_string oc "other = 2\np = pipeline {\n  b = other\n}\npopulate_pipeline(p, build=false)\n";
         close_out oc;
         let (second, env) = eval_string_env "t_make()" env in
-        let (helper_check, _) = eval_string_env "helper == 2 && p.b == 2" env in
+        let (helper_check, _) = eval_string_env "other == 2 && p.b == 2" env in
+        let (removed_binding_check, _) = eval_string_env "is_error(helper)" env in
         let (old_node_check, _) = eval_string_env "is_error(p.a)" env in
         let pipeline_nix = Filename.concat "_pipeline" "pipeline.nix" in
         let content =
@@ -257,13 +299,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
             ~finally:(fun () -> close_in_noerr ch)
             (fun () -> really_input_string ch (in_channel_length ch))
         in
+        let contains_pattern pattern s =
+          try
+            ignore (Str.search_forward (Str.regexp pattern) s 0);
+            true
+          with Not_found -> false
+        in
         Ast.Utils.value_to_string second = "NA"
         && Ast.Utils.value_to_string helper_check = "true"
+        && Ast.Utils.value_to_string removed_binding_check = "true"
         && Ast.Utils.value_to_string old_node_check = "true"
-        && (try
-              ignore (Str.search_forward (Str.regexp_string "b") content 0);
-              true
-            with Not_found -> false))
+        && contains_pattern "\\(^\\|\\n\\)[ \t]*b[ \t]*=" content
+        && not (contains_pattern "\\(^\\|\\n\\)[ \t]*a[ \t]*=" content))
   in
   if t_make_reloads_pipeline_script then begin
     incr pass_count; Printf.printf "  ✓ t_make reloads src/pipeline.t in the same environment\n"
