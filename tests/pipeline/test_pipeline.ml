@@ -302,7 +302,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p)\n"
       (fun _dir _pipeline_path ->
         let env = Packages.init_env () in
-        let (((v, _), warning)) =
+        let ((v, _), warning) =
           capture_stderr (fun () -> eval_string_env "t_make()" env)
         in
         Ast.Utils.value_to_string v = "NA"

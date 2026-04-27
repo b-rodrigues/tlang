@@ -17,6 +17,7 @@ let is_internal_key name =
 type t_make_pipeline_contract =
   | MissingPipelineBuildCall
   | PopulateWithoutBuild
+  | PopulateBuildUnknown
   | BuildRequested
 
 let sanitize_pipeline_entry_binding_names names =
@@ -27,6 +28,8 @@ let combine_t_make_pipeline_contract left right =
   match left, right with
   | BuildRequested, _
   | _, BuildRequested -> BuildRequested
+  | PopulateBuildUnknown, _
+  | _, PopulateBuildUnknown -> PopulateBuildUnknown
   | PopulateWithoutBuild, _
   | _, PopulateWithoutBuild -> PopulateWithoutBuild
   | MissingPipelineBuildCall, MissingPipelineBuildCall -> MissingPipelineBuildCall
@@ -35,16 +38,16 @@ let extract_bool_literal = function
   | { node = Value (VBool b); _ } -> Some b
   | _ -> None
 
-let populate_pipeline_requests_build args =
+let populate_pipeline_contract args =
   let rec find_named_build = function
     | [] -> None
     | (Some "build", expr) :: _ -> Some (extract_bool_literal expr)
     | _ :: rest -> find_named_build rest
   in
   match find_named_build args with
-  | Some (Some true) -> true
-  | Some (Some false) -> false
-  | Some None -> true
+  | Some (Some true) -> BuildRequested
+  | Some (Some false) -> PopulateWithoutBuild
+  | Some None -> PopulateBuildUnknown
   | None ->
       let positional_args =
         List.filter_map (fun (name_opt, expr) ->
@@ -55,10 +58,14 @@ let populate_pipeline_requests_build args =
       match positional_args with
       | _pipeline_arg :: build_arg :: _ ->
           begin match extract_bool_literal build_arg with
-          | Some build -> build
-          | None -> true
+          | Some true -> BuildRequested
+          | Some false -> PopulateWithoutBuild
+          | None -> PopulateBuildUnknown
           end
-      | _ -> false
+      | _ ->
+          (* `populate_pipeline` defaults `build` to false when the second
+             positional or named argument is omitted. *)
+          PopulateWithoutBuild
 
 let rec analyze_expr_for_pipeline_call expr =
   match expr.node with
@@ -68,13 +75,9 @@ let rec analyze_expr_for_pipeline_call expr =
         BuildRequested
         args
   | Call { fn = { node = Var "populate_pipeline"; _ }; args } ->
-      let call_contract =
-        if populate_pipeline_requests_build args then BuildRequested
-        else PopulateWithoutBuild
-      in
       List.fold_left
         (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call arg))
-        call_contract
+        (populate_pipeline_contract args)
         args
   | Call { fn; args } ->
       List.fold_left
@@ -247,6 +250,10 @@ let validate_t_make_filename filename =
 let validate_t_make_program (program : program) =
   match analyze_program_for_pipeline_call program with
   | BuildRequested -> Ok None
+  | PopulateBuildUnknown ->
+      Ok
+        (Some
+           "Warning: `t_make()` found `populate_pipeline(...)` with a non-literal `build` argument, so it could not confirm whether a build was requested. Use `build=true` or `build_pipeline(...)` to make the build intent explicit.\n")
   | PopulateWithoutBuild ->
       Ok
         (Some
