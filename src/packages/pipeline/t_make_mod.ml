@@ -140,18 +140,18 @@ let register env =
                             (* We print the build header BEFORE evaluation so it's always first *)
                             Printf.eprintf "Starting build for project: %s\n%!" !filename;
 
+                            let prev_warn = !Eval.show_warnings in
+                            Eval.show_warnings := false;
                             let (v, new_env) = Eval.eval_program ~resilient:(not !failfast) program eval_env in
+                            Eval.show_warnings := prev_warn;
+                            
                             match v with
                             | VError _ -> v
                             | _ ->
                                 env_ref :=
                                   Pipeline_script.remember_pipeline_entry_bindings
                                     ~filename:!filename program new_env;
-                                match v with
-                                | VPipeline _ -> (VNA NAGeneric)
-                                | _ ->
-                                    Printf.eprintf "Pipeline script %s evaluated successfully.\n%!" !filename;
-                                    (VNA NAGeneric))
+                                (VNA NAGeneric))
                       with
                       | Lexer.SyntaxError msg ->
                           let pos = Lexing.lexeme_start_p lexbuf in
