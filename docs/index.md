@@ -99,7 +99,9 @@ The `path` field is the "escape hatch"—it gives you the absolute path to the n
 
 ---
 
-## Documentation
+## Documentation: The Theoretical Foundation
+
+- [Theoretical Paper: Reproducibility-First Programming Languages](theoretical_paper.html) — the core philosophy and design principles of T.
 
 ### Getting Started
 - [Getting Started Guide](getting-started.html) — first steps with T
