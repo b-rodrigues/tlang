@@ -1373,6 +1373,53 @@ p.team_size     -- number of active engineers
 p.avg_salary    -- mean salary
 p.ranked        -- DataFrame sorted by score</code></pre>
 <hr />
+<h2 id="cross-node-artifact-retrieval">39. Cross-Node Artifact
+Retrieval</h2>
+<p>When nodes are executed within a Nix-managed sandbox (via
+<code>populate_pipeline(p, build = true)</code>), they are isolated from
+each other. However, T provides a built-in mechanism for nodes to access
+the serialized artifacts of their dependencies.</p>
+<h3 id="automatic-environment-propagation">Automatic Environment
+Propagation</h3>
+<p>For every dependency <code>dep</code> that a node has, the pipeline
+runner automatically injects an environment variable named
+<code>T_NODE_&lt;dep&gt;</code> into the sandbox. This variable contains
+the path to the Nix store directory where that dependency’s artifact is
+stored.</p>
+<h3 id="retrieval-with-node_lens">Retrieval with
+<code>node_lens</code></h3>
+<p>The canonical way to access a sibling node’s artifact is using the
+<code>node_lens</code> with the single-argument <code>get()</code>
+function. This is preferred over manual environment variable lookup
+because: 1. It is <strong>portable</strong>: T handles the path
+resolution and deserialization automatically. 2. It is
+<strong>integrated</strong>: It uses the same deserializer system as the
+rest of the pipeline.</p>
+<pre class="t"><code>p = pipeline {
+  node_a = node(command = 100, serializer = &quot;json&quot;)
+  
+  -- This node retrieves node_a&#39;s value from its Nix artifact
+  dynamic_access = node(
+    command = {
+        -- Using get(node_lens(&quot;...&quot;)) for cross-node access
+        val = get(node_lens(&quot;node_a&quot;))
+        val * 2
+    },
+    runtime = &quot;T&quot;
+  )
+}</code></pre>
+<p>When <code>dynamic_access</code> runs inside the Nix sandbox: 1. T
+sees the <code>node_lens("node_a")</code> and looks for the
+<code>T_NODE_node_a</code> environment variable. 2. It locates the
+<code>artifact</code> file within that path. 3. It detects the artifact
+class (e.g., <code>Int</code> from JSON) and deserializes it back into a
+T value.</p>
+<p>This pattern is essential for <strong>polyglot pipelines</strong>
+where data is passed between T, R, and Python nodes through files, and
+for <strong>dynamic access</strong> nodes where the target of a
+retrieval is determined at runtime (e.g.,
+<code>target = "A"; get(node_lens(target))</code>).</p>
+<hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipelines, learn how to manage reproducible
 projects and develop T packages:</p>

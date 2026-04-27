@@ -61,8 +61,10 @@ and unparse_expr expr =
         |> String.concat ", "
       in
       Printf.sprintf "%s(%s)" fn_s args_s
-  | Lambda { params; body; _ } ->
-      Printf.sprintf "\\(%s) %s" (String.concat ", " params) (unparse_expr body)
+  | Lambda { params; autoquote_params; body; _ } ->
+      Printf.sprintf "\\(%s) %s"
+        (String.concat ", " (Ast.Utils.display_params params autoquote_params))
+        (unparse_expr body)
   | IfElse { cond; then_; else_ } ->
       Printf.sprintf "if (%s) %s else %s" (unparse_expr cond) (unparse_expr then_) (unparse_expr else_)
   | Match { scrutinee; cases } ->

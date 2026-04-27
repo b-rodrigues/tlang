@@ -89,6 +89,20 @@ x = 100
 eval(q)          -- evaluates in captured env (x = 5) → 6
 ```
 
+### Dynamic Lookup: `get(name)`
+
+The `get()` function provides a way to retrieve a variable's value dynamically by its name (as a String or Symbol). This matches R's `get()` semantics and is useful when you have a variable name stored in a string.
+
+```t
+salary = [1000, 2000, 3000]
+var_name = "salary"
+
+get(var_name)       -- retrieves [1000, 2000, 3000]
+get(sym(var_name))  -- also works with Symbols
+```
+
+Important: `get()` resolves names in the **calling environment**, not in a data-masking context. To retrieve a column dynamically inside a data verb, use quasiquotation with `!!sym(col)`.
+
 ## Quasiquotation
 
 Quasiquotation allows you to "fill in the blanks" in a captured expression.
@@ -148,6 +162,18 @@ print(e)
 
 If `!!name` does not evaluate to a `String` or `Symbol`, a `TypeError` is raised.
 
+### `sym(string_or_symbol)`
+
+When you have a column or argument name in a string variable, use `sym()` to turn it into a runtime `Symbol` that can be injected with `!!`.
+
+```t
+col_name = "mpg"
+expr(select(df, !!sym(col_name)))
+-- Output: expr(select(df, mpg))
+```
+
+This is most useful for programmatic code generation. Use `sym()` to turn a string into a label that `!!` can inject as a symbol, or that `get()` can use for variable lookup.
+
 ## Non-Standard Evaluation (NSE)
 
 For writing functions that accept unevaluated expressions from the caller — similar to `dplyr` verbs in R — T provides `enquo()` and `enquos()`.
@@ -167,6 +193,31 @@ my_select(iris, $Sepal.Length)
 ```
 
 `enquo()` accepts exactly one argument, which must be a bare symbol (the name of one of the function's parameters).
+
+### Auto-Quoted Parameters: `\(df, $col)`
+
+T now supports auto-quoting directly in lambda and `function(...)` parameter lists. Prefixing a parameter with `$` means the caller can pass a bare column name and the function receives it as a symbol-like column reference.
+
+```t
+my_mean = \(df, $col) {
+  summarize(df, result = mean(!!col))
+}
+
+df = dataframe([salary: [100, 200, 300]])
+my_mean(df, salary)
+```
+
+This removes the need for the common `enquo()` + `eval(expr(...))` wrapper when the function is simply forwarding a column-like argument into an NSE-aware data verb.
+
+Current behavior:
+
+- callers can pass a bare name like `salary`
+- callers can still pass `$salary`
+- string and symbol values are also accepted
+- the captured parameter evaluates to a `Symbol` in ordinary code
+- `!!col` inside NSE-aware verbs expands back to a column reference so `summarize(result = mean(!!col))` works as expected
+
+Use `enquo()` when you need to preserve the caller's full expression rather than just a column-style name.
 
 ### `enquos(...)`
 
@@ -221,6 +272,8 @@ e = expr((add, 1, 2))
 | `quo(x)` | Capture `x` as a Quosure (expression + lexical environment). |
 | `quos(...)` | Capture multiple expressions as a List of Quosures. |
 | `eval(e)` | Evaluate Expression `e` in the current env, or Quosure `e` in its captured env. |
+| `get(name)` | Dynamically retrieve a variable's value by String or Symbol name. |
+| `sym(s)` | Convert a String `s` into a Symbol at runtime. |
 | `!!x` | Evaluate `x` and inject into `expr()`/`quo()`; strips env from quosures. |
 | `!!!x` | Evaluate `x` and splice elements into `expr()`/`quo()`. |
 | `!!name := value` | Use a dynamic String/Symbol as an argument name inside `expr()`/`quo()`. |
@@ -255,5 +308,5 @@ df |> mutate(new = $score * 2)
 ## Best Practices
 
 1.  **Use `quo` by default**: When in doubt, use `quo` instead of `expr`. It ensures the code "remembers" its environment, preventing `NameError` when evaluated in different contexts.
-2.  **Quotation in Functions**: Always use `enquo` to capture arguments intended for data verbs. This allows callers to pass unquoted column names or complex expressions naturally.
+2.  **Quotation in Functions**: Use `$param` for the common "accept a column name" case. Use `enquo` when you need the caller's full expression, and use `sym()` when you are starting from a computed string.
 3.  **Dynamic Naming**: Use `!!name := !!value` for maximum flexibility when writing generic data processing functions.

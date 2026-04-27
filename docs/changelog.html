@@ -45,31 +45,81 @@ Metadata &amp; Plot Inspection</h3>
 metadata from visual objects in polyglot pipelines.</li>
 <li><strong>R Support</strong>: Capture titles, labels (x, y, color,
 etc.), mappings, and layers from <code>ggplot2</code> objects.</li>
-<li><strong>Python Support</strong>: Full metadata extraction for
-<code>matplotlib</code> figures and <code>plotnine</code> (ggplot-style)
-objects.</li>
+<li><strong>Python Support</strong>: Full metadata extraction and
+inspection support for <code>matplotlib</code> figures,
+<code>plotnine</code> (ggplot-style), <code>seaborn</code> grids,
+<code>plotly</code> figures, and <code>altair</code> charts.</li>
+</ul></li>
+<li><strong>Enhanced <code>show_plot()</code> Builtin</strong>:
+<ul>
+<li>Introduced <code>show_plot()</code> to render and open pipeline plot
+artifacts locally.</li>
+<li>Supports automatic rendering of R (<code>ggplot2</code>) and Python
+(Matplotlib, Seaborn, Plotly, Altair, Plotnine) plots within the Nix
+sandbox.</li>
+<li>Implemented headless rendering for interactive libraries: Plotly
+(via <code>kaleido</code>) and Altair (via
+<code>vl-convert</code>).</li>
+<li><strong>Dependency Automation</strong>: <code>tlang</code> now
+automatically suggests or injects <code>cloudpickle</code> when plotting
+libraries are detected in Python nodes to ensure reliable serialization
+of complex objects containing lambdas.</li>
 </ul></li>
 <li><strong>Transparent <code>read_node()</code> for Plots</strong>:
 <ul>
 <li><code>read_node()</code> now recognizes nodes of class
-<code>ggplot</code>, <code>matplotlib</code>, or
-<code>plotnine</code>.</li>
+<code>ggplot</code>, <code>matplotlib</code>, <code>plotnine</code>,
+<code>seaborn</code>, <code>plotly</code>, or <code>altair</code>.</li>
 <li>Instead of returning an opaque binary artifact, it returns a
 structured JSON-backed dictionary of the plot’s metadata, enabling
 programmatic verification of visualizations in T scripts.</li>
 </ul></li>
 </ul>
-<h3 id="core-evaluator-emitter-refinements">Core Evaluator &amp; Emitter
-Refinements</h3>
+<h3 id="serializable-lens-architecture">Serializable Lens
+Architecture</h3>
 <ul>
+<li><strong>Refactored Lens Implementation</strong>:
+<ul>
+<li>Replaced functional closure-based lenses with a structured
+<code>VLens</code> sum type.</li>
+<li><strong>Nix-Isolated Persistence</strong>: Lenses can now be
+serialized to disk and passed between separate Nix-build pipeline nodes
+without losing their state or functionality.</li>
+<li><strong>Unified <code>get()</code> Integration</strong>: The
+<code>get()</code> builtin now natively supports <code>VLens</code> for
+data focus, providing a single, consistent interface for variable
+lookup, indexing, and lens-based retrieval.</li>
+</ul></li>
+</ul>
+<h3 id="core-evaluator-emitter-documentation-refinements">Core
+Evaluator, Emitter &amp; Documentation Refinements</h3>
+<ul>
+<li><strong>Improved Docstring Coverage</strong>: Added full T-style
+documentation (descriptions, parameters, examples) for
+<code>get()</code>, <code>sym()</code>, and related primitives.</li>
+<li><strong>Integrated Documentation Tooling</strong>: Verified
+<code>t_doc("parse")</code> and <code>t_doc("generate")</code> workflows
+for extracting and publishing reference pages for new core
+functions.</li>
 <li><strong>Improved Pretty Printing</strong>: Updated the core pretty
 printer to handle complex nested dictionaries and diagnostics summaries
 more gracefully.</li>
 <li><strong>Nix Emitter Stability</strong>: Significant updates to
 <code>nix_emit_node.ml</code> to support the new visualization injection
 logic and improve script-based node robustness.</li>
-<li><strong>Test Infrastructure</strong>: Added golden tests and mocks
-for visual metadata scenarios.</li>
+<li><strong>Test Infrastructure</strong>: Added the
+<code>get_sym_demo_t</code> comprehensive demo project with dedicated CI
+validation and automated assertions.</li>
+</ul>
+<h3 id="bug-fixes-refinements">Bug Fixes &amp; Refinements</h3>
+<ul>
+<li><strong>Visualization Stability</strong>: Fixed a critical
+<code>Printf.sprintf</code> type error in the Python plot rendering
+logic that prevented pipeline builds for Python-based
+visualizations.</li>
+<li><strong>Improved REPL interaction</strong>: Explicitly flush
+stdout/stderr around <code>show_plot</code> calls so the rendered path
+is reported cleanly before local viewer launch.</li>
 </ul>
 <h2 id="section">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
@@ -223,7 +273,7 @@ passed.</li>
 <li>Enhanced the test runner with aggregated failure summaries.</li>
 </ul></li>
 </ul>
-<h3 id="bug-fixes-refinements">Bug Fixes &amp; Refinements</h3>
+<h3 id="bug-fixes-refinements-1">Bug Fixes &amp; Refinements</h3>
 <ul>
 <li><strong>REPL Stability</strong>: Corrected a documentation comment
 collision in <code>repl.ml</code> that was causing compilation errors

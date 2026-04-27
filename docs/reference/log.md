@@ -8,6 +8,8 @@ Calculates the natural logarithm (base e) of x.
 
 - **x** (`Number`): | Vector | NDArray The input value (must be positive).
 
+- **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
+
 
 ## Returns
 

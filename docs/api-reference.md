@@ -223,6 +223,29 @@ to_numeric(["1", "2"])   -- [1.0, 2.0]
 
 ---
 
+### `sym(value)`
+
+Convert a string name into a `Symbol` so it can be injected into quoted code with `!!`. Existing symbols pass through unchanged.
+
+**Parameters:**
+
+
+- `value` — String or Symbol
+
+**Returns:**
+
+`Symbol`
+
+**Examples:**
+```t
+sym("mpg")                           -- mpg
+expr(select(df, !!sym("mpg")))       -- expr(select(df, mpg))
+name = "result"
+expr(f(!!sym(name) := 42))           -- expr(f(result = 42))
+```
+
+---
+
 ### `length(collection)`
 
 Get the number of elements in a collection.

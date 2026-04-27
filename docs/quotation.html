@@ -145,6 +145,21 @@ x = 5
 q = quo(x + 1)   -- captures x = 5
 x = 100
 eval(q)          -- evaluates in captured env (x = 5) → 6</code></pre>
+<h3 id="dynamic-lookup-getname">Dynamic Lookup:
+<code>get(name)</code></h3>
+<p>The <code>get()</code> function provides a way to retrieve a
+variable’s value dynamically by its name (as a String or Symbol). This
+matches R’s <code>get()</code> semantics and is useful when you have a
+variable name stored in a string.</p>
+<pre class="t"><code>salary = [1000, 2000, 3000]
+var_name = &quot;salary&quot;
+
+get(var_name)       -- retrieves [1000, 2000, 3000]
+get(sym(var_name))  -- also works with Symbols</code></pre>
+<p>Important: <code>get()</code> resolves names in the <strong>calling
+environment</strong>, not in a data-masking context. To retrieve a
+column dynamically inside a data verb, use quasiquotation with
+<code>!!sym(col)</code>.</p>
 <h2 id="quasiquotation">Quasiquotation</h2>
 <p>Quasiquotation allows you to “fill in the blanks” in a captured
 expression.</p>
@@ -191,6 +206,17 @@ print(e)
 -- Output: expr(mutate(df, age = 42))</code></pre>
 <p>If <code>!!name</code> does not evaluate to a <code>String</code> or
 <code>Symbol</code>, a <code>TypeError</code> is raised.</p>
+<h3 id="symstring_or_symbol"><code>sym(string_or_symbol)</code></h3>
+<p>When you have a column or argument name in a string variable, use
+<code>sym()</code> to turn it into a runtime <code>Symbol</code> that
+can be injected with <code>!!</code>.</p>
+<pre class="t"><code>col_name = &quot;mpg&quot;
+expr(select(df, !!sym(col_name)))
+-- Output: expr(select(df, mpg))</code></pre>
+<p>This is most useful for programmatic code generation. Use
+<code>sym()</code> to turn a string into a label that <code>!!</code>
+can inject as a symbol, or that <code>get()</code> can use for variable
+lookup.</p>
 <h2 id="non-standard-evaluation-nse">Non-Standard Evaluation (NSE)</h2>
 <p>For writing functions that accept unevaluated expressions from the
 caller — similar to <code>dplyr</code> verbs in R — T provides
@@ -209,6 +235,34 @@ my_select(iris, $Sepal.Length)
 -- Equivalent to: iris |&gt; select($Sepal.Length)</code></pre>
 <p><code>enquo()</code> accepts exactly one argument, which must be a
 bare symbol (the name of one of the function’s parameters).</p>
+<h3 id="auto-quoted-parameters-df-col">Auto-Quoted Parameters:
+<code>\(df, $col)</code></h3>
+<p>T now supports auto-quoting directly in lambda and
+<code>function(...)</code> parameter lists. Prefixing a parameter with
+<code>$</code> means the caller can pass a bare column name and the
+function receives it as a symbol-like column reference.</p>
+<pre class="t"><code>my_mean = \(df, $col) {
+  summarize(df, result = mean(!!col))
+}
+
+df = dataframe([salary: [100, 200, 300]])
+my_mean(df, salary)</code></pre>
+<p>This removes the need for the common <code>enquo()</code> +
+<code>eval(expr(...))</code> wrapper when the function is simply
+forwarding a column-like argument into an NSE-aware data verb.</p>
+<p>Current behavior:</p>
+<ul>
+<li>callers can pass a bare name like <code>salary</code></li>
+<li>callers can still pass <code>$salary</code></li>
+<li>string and symbol values are also accepted</li>
+<li>the captured parameter evaluates to a <code>Symbol</code> in
+ordinary code</li>
+<li><code>!!col</code> inside NSE-aware verbs expands back to a column
+reference so <code>summarize(result = mean(!!col))</code> works as
+expected</li>
+</ul>
+<p>Use <code>enquo()</code> when you need to preserve the caller’s full
+expression rather than just a column-style name.</p>
 <h3 id="enquos..."><code>enquos(...)</code></h3>
 <p><code>enquos()</code> is the variadic counterpart to
 <code>enquo()</code>. It captures all expressions passed through the
@@ -282,6 +336,16 @@ Quosures.</td>
 current env, or Quosure <code>e</code> in its captured env.</td>
 </tr>
 <tr>
+<td style="text-align: left;"><code>get(name)</code></td>
+<td style="text-align: left;">Dynamically retrieve a variable’s value by
+String or Symbol name.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>sym(s)</code></td>
+<td style="text-align: left;">Convert a String <code>s</code> into a
+Symbol at runtime.</td>
+</tr>
+<tr>
 <td style="text-align: left;"><code>!!x</code></td>
 <td style="text-align: left;">Evaluate <code>x</code> and inject into
 <code>expr()</code>/<code>quo()</code>; strips env from quosures.</td>
@@ -345,10 +409,10 @@ df |&gt; mutate(new = $score * 2)</code></pre>
 <code>quo</code> instead of <code>expr</code>. It ensures the code
 “remembers” its environment, preventing <code>NameError</code> when
 evaluated in different contexts.</li>
-<li><strong>Quotation in Functions</strong>: Always use
-<code>enquo</code> to capture arguments intended for data verbs. This
-allows callers to pass unquoted column names or complex expressions
-naturally.</li>
+<li><strong>Quotation in Functions</strong>: Use <code>$param</code> for
+the common “accept a column name” case. Use <code>enquo</code> when you
+need the caller’s full expression, and use <code>sym()</code> when you
+are starting from a computed string.</li>
 <li><strong>Dynamic Naming</strong>: Use <code>!!name := !!value</code>
 for maximum flexibility when writing generic data processing
 functions.</li>

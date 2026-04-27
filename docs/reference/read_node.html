@@ -35,21 +35,28 @@
 <div class="container">
 <h1 id="read_node">read_node</h1>
 <p>Read Pipeline Node Artifact</p>
-<p>Reads a node artifact from the latest (or specified) build log in
-<code>_pipeline/</code>. Use <code>which_log</code> to read from a
-specific historical build (“time travel”).</p>
+<p>For in-memory Pipelines, returns a node record with the node value
+and structured diagnostics. For built pipelines, reads the artifact from
+the latest (or specified) build log in <code>_pipeline/</code>. Use
+<code>which_log</code> to read from a specific historical build (“time
+travel”).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>name</strong> (<code>String</code>): The node
-name.</p></li>
+<li><p><strong>node</strong> (<code>Pipeline</code>): | String |
+ComputedNode Pass a Pipeline for in-memory node diagnostics, or a
+String/ComputedNode to load a built artifact.</p></li>
+<li><p><strong>name</strong> (<code>String</code>): (Optional) The node
+name to read when <code>node</code> is a Pipeline.</p></li>
 <li><p><strong>which_log</strong> (<code>String</code>): (Optional) A
 regex pattern to match a specific build log filename.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The deserialized value.</p>
+<p>A Dict with value+diagnostics for in-memory pipelines, or the
+deserialized artifact for built nodes.</p>
 <h2 id="see-also">See Also</h2>
 <p><a href="inspect_pipeline.html">inspect_pipeline</a>, <a
-href="build_pipeline.html">build_pipeline</a></p>
+href="build_pipeline.html">build_pipeline</a>, <a
+href="read_pipeline.html">read_pipeline</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

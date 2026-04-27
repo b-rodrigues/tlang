@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pow</title>
+  <title>T Function Reference - show_plot</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,26 +33,22 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pow">pow</h1>
-<p>Power function</p>
-<p>Calculates base raised to the power of exponent.</p>
+<h1 id="show_plot">show_plot</h1>
+<p>Render a plot node and open it locally</p>
+<p>Builds or reuses an R/Python plot artifact, renders it into
+<code>_pipeline/</code>, and opens the rendered image with the command
+configured in <code>tproject.toml</code> under
+<code>[visualization-tool]</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>base</strong> (<code>Number</code>): | Vector | NDArray
-The base.</p></li>
-<li><p><strong>exponent</strong> (<code>Number</code>): The
-exponent.</p></li>
-<li><p><strong>na_ignore</strong> (<code>Bool</code>): Whether to
-preserve NA values in inputs. Default is false.</p></li>
+<li><strong>plot</strong> (<code>Any</code>): A pipeline node, built
+node, or <code>read_node()</code> result for a plot-producing node.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<div class="line-block">Vector | NDArray The result of base ^
-exponent.</div>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>pow(2, 3)
--- Returns = 8.0</code></pre>
+<p>The local rendered image path.</p>
 <h2 id="see-also">See Also</h2>
-<p><a href="exp.html">exp</a>, <a href="sqrt.html">sqrt</a></p>
+<p><a href="build_pipeline.html">build_pipeline</a>, <a
+href="read_node.html">read_node</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -285,6 +285,18 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       invalid_arg "value_to_yojson: VFactor/VSerializer is not supported for JSON serialization"
   | VUnquote _ | VUnquoteSplice _ | VDynamicArg _ | VQuo _ | VEnv _ ->
       invalid_arg "value_to_yojson: metaprogramming intermediate values are not serializable"
+  | VLens l ->
+      let rec lens_to_yojson = function
+        | Ast.ColLens s -> `Assoc [("type", `String "ColLens"); ("name", `String s)]
+        | Ast.IdxLens i -> `Assoc [("type", `String "IdxLens"); ("index", `Int i)]
+        | Ast.RowLens i -> `Assoc [("type", `String "RowLens"); ("index", `Int i)]
+        | Ast.NodeLens n -> `Assoc [("type", `String "NodeLens"); ("name", `String n)]
+        | Ast.NodeMetaLens (n, f) -> `Assoc [("type", `String "NodeMetaLens"); ("name", `String n); ("field", `String f)]
+        | Ast.EnvVarLens (n, v) -> `Assoc [("type", `String "EnvVarLens"); ("node", `String n); ("var", `String v)]
+        | Ast.CompositeLens (l1, l2) -> `Assoc [("type", `String "CompositeLens"); ("left", lens_to_yojson l1); ("right", lens_to_yojson l2)]
+        | Ast.FilterLens p -> `Assoc [("type", `String "FilterLens"); ("predicate", value_to_yojson p)]
+      in
+      `Assoc [("class", `String "VLens"); ("data", lens_to_yojson l)]
   | VNodeResult { v; _ } -> value_to_yojson v
 
 let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
@@ -295,7 +307,88 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `String s -> VString s
   | `Null -> (VNA NAGeneric)
   | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
-  | `Assoc a -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)
+  | `Assoc a ->
+      (match List.assoc_opt "class" a with
+       | Some (`String "VLens") ->
+            (match List.assoc_opt "data" a with
+              | Some (`Assoc d) ->
+                  let rec yojson_to_lens = function
+                    | `Assoc items ->
+                        let required_field lens_kind field =
+                          match List.assoc_opt field items with
+                          | Some value -> Ok value
+                          | None ->
+                              Error
+                                (Printf.sprintf
+                                   "yojson_to_lens: %s is missing required field `%s`"
+                                   lens_kind field)
+                        in
+                        let required_string lens_kind field =
+                          match required_field lens_kind field with
+                          | Ok (`String s) -> Ok s
+                          | Ok value ->
+                              Error
+                                (Printf.sprintf
+                                   "yojson_to_lens: %s field `%s` must be a String, got %s"
+                                   lens_kind field (Yojson.Safe.to_string value))
+                          | Error _ as err -> err
+                        in
+                        let required_int lens_kind field =
+                          match required_field lens_kind field with
+                          | Ok (`Int i) -> Ok i
+                          | Ok value ->
+                              Error
+                                (Printf.sprintf
+                                   "yojson_to_lens: %s field `%s` must be an Int, got %s"
+                                   lens_kind field (Yojson.Safe.to_string value))
+                          | Error _ as err -> err
+                        in
+                        (match List.assoc_opt "type" items with
+                         | Some (`String "ColLens") ->
+                             Result.map (fun name -> Ast.ColLens name) (required_string "ColLens" "name")
+                         | Some (`String "IdxLens") ->
+                             Result.map (fun index -> Ast.IdxLens index) (required_int "IdxLens" "index")
+                         | Some (`String "RowLens") ->
+                             Result.map (fun index -> Ast.RowLens index) (required_int "RowLens" "index")
+                         | Some (`String "NodeLens") ->
+                             Result.map (fun name -> Ast.NodeLens name) (required_string "NodeLens" "name")
+                         | Some (`String "NodeMetaLens") ->
+                             (match required_string "NodeMetaLens" "name", required_string "NodeMetaLens" "field" with
+                              | Ok node, Ok field -> Ok (Ast.NodeMetaLens (node, field))
+                              | Error msg, _ | _, Error msg -> Error msg)
+                         | Some (`String "EnvVarLens") ->
+                             (match required_string "EnvVarLens" "node", required_string "EnvVarLens" "var" with
+                              | Ok node, Ok var -> Ok (Ast.EnvVarLens (node, var))
+                              | Error msg, _ | _, Error msg -> Error msg)
+                         | Some (`String "CompositeLens") ->
+                             (match required_field "CompositeLens" "left", required_field "CompositeLens" "right" with
+                              | Ok left, Ok right ->
+                                  (match yojson_to_lens left, yojson_to_lens right with
+                                   | Ok left_lens, Ok right_lens ->
+                                       Ok (Ast.CompositeLens (left_lens, right_lens))
+                                   | Error msg, _ | _, Error msg -> Error msg)
+                              | Error msg, _ | _, Error msg -> Error msg)
+                         | Some (`String "FilterLens") ->
+                             (match required_field "FilterLens" "predicate" with
+                              | Ok predicate -> Ok (Ast.FilterLens (yojson_to_value predicate))
+                              | Error msg -> Error msg)
+                         | Some (`String lens_kind) ->
+                             Error (Printf.sprintf "yojson_to_lens: unsupported lens type `%s`" lens_kind)
+                         | Some value ->
+                             Error
+                               (Printf.sprintf
+                                  "yojson_to_lens: field `type` must be a String, got %s"
+                                  (Yojson.Safe.to_string value))
+                         | None -> Error "yojson_to_lens: missing required field `type`")
+                    | other ->
+                        Error
+                          ("yojson_to_lens: expected lens object, got " ^ Yojson.Safe.to_string other)
+                  in
+                  (match yojson_to_lens (`Assoc d) with
+                   | Ok lens -> VLens lens
+                   | Error msg -> Error.value_error msg)
+             | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
+        | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
   | _ ->
       invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 
@@ -422,7 +515,9 @@ let deserialize_from_file path =
              if cls = "VError" then
                read_verror_json path
              else
-               Error (Printf.sprintf "Unknown artifact class `%s`" cls))
+               (* Fallback: try reading as JSON if the class is one of the basic T types
+                  or just try read_json as a general fallback for text-based artifacts. *)
+               read_json path)
           else
             (close_in ic; Error original_err)
       | Ok () ->

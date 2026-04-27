@@ -101,11 +101,15 @@
 <h1 id="plotting-and-visual-inspection">Plotting and Visual
 Inspection</h1>
 <p>T is primarily an orchestration engine and does not currently provide
-its own native low-level plotting library, and very likely never will.
-Instead, T leverages the powerful visualization ecosystems of
-<strong>R</strong> (<code>ggplot2</code>) and <strong>Python</strong>
-(<code>matplotlib</code>, <code>plotnine</code>) through its polyglot
-pipeline architecture.</p>
+its own native low-level plotting library. Instead, T’s
+<code>show_plot()</code> function supports a wide range of visualization
+libraries across R and Python:</p>
+<ul>
+<li><strong>R</strong>: <code>ggplot2</code></li>
+<li><strong>Python</strong>: <code>matplotlib</code>,
+<code>seaborn</code>, <code>plotly</code>, <code>altair</code>,
+<code>plotnine</code></li>
+</ul>
 <p>One of T’s unique features is <strong>Automated Visual Metadata
 Capture</strong>. When you generate a plot in an R or Python node, T
 “sees” the plot object and automatically extracts its structural
@@ -117,29 +121,27 @@ Pipelines</h2>
 foreign-language node.</p>
 <h3 id="example-ggplot2-in-r">Example: ggplot2 in R</h3>
 <pre class="t"><code>p = pipeline {
-    data = read_csv(&quot;data.csv&quot;)
-
     p_ggplot = rn(
         command = &lt;{
             library(ggplot2)
-            ggplot(data, aes(x = wt, y = mpg)) +
+            ggplot(mtcars, aes(x = wt, y = mpg)) +
                 geom_point() +
                 labs(title = &quot;Fuel Economy&quot;)
-        }&gt;,
-        deserializer = ^csv
+        }&gt;
     )
 }</code></pre>
 <h3 id="example-matplotlib-in-python">Example: matplotlib in Python</h3>
-<pre class="t"><code>    p_matplotlib = pyn(
+<pre class="t"><code>    p = pipeline {
+      p_matplotlib = pyn(
         command = &lt;{
             import matplotlib.pyplot as plt
             fig, ax = plt.subplots()
-            ax.scatter(data[&#39;wt&#39;], data[&#39;mpg&#39;])
+            ax.scatter([2.6, 3.2, 3.4], [21.0, 19.2, 18.1])
             ax.set_title(&quot;Fuel Economy&quot;)
             fig
-        }&gt;,
-        deserializer = ^csv
-    )</code></pre>
+        }&gt;
+      )
+    }</code></pre>
 <p>In both cases, T recognizes that the node result is a
 visualization.</p>
 <hr />
@@ -153,8 +155,9 @@ contents.</p>
 <p>T automatically extracts: - <strong>Title</strong>: The main title of
 the plot. - <strong>Backend</strong>: The runtime used to produce the
 plot (<code>"R"</code> or <code>"Python"</code>). -
-<strong>Class</strong>: The plot type (<code>"ggplot"</code>,
-<code>"matplotlib"</code>, or <code>"plotnine"</code>). -
+<strong>Class</strong>: The plot library or object type (e.g.,
+<code>"ggplot"</code>, <code>"matplotlib"</code>,
+<code>"seaborn"</code>, <code>"plotly"</code>, <code>"altair"</code>). -
 <strong>Labels</strong>: Axis labels and legends. -
 <strong>Layers</strong>: The types of geometries present (e.g., “point”,
 “line”). - <strong>Mappings</strong>: In <code>ggplot2</code>, the
@@ -181,6 +184,23 @@ artifact.</p>
 visualizations—for example, a test script could assert that a generated
 plot has the correct title and includes a regression line layer.</p>
 <hr />
+<h2 id="repl-display">REPL Display</h2>
+<p>Plot metadata is pretty-printed in the REPL instead of dumping raw
+runtime-specific structures.</p>
+<p>For example, a <code>ggplot</code> node read through
+<code>read_node()</code> displays as a structured object with fields
+such as:</p>
+<ul>
+<li><code>class</code></li>
+<li><code>backend</code></li>
+<li><code>title</code></li>
+<li><code>mapping</code></li>
+<li><code>labels</code></li>
+<li><code>layers</code></li>
+</ul>
+<p>This makes plotting nodes inspectable even when the underlying
+artifact is binary (<code>.rds</code> or Python pickle).</p>
+<hr />
 <h2 id="plotting-in-literate-programming">Plotting in Literate
 Programming</h2>
 <p>When using <a href="literate-programming-quarto.html">Quarto</a> with
@@ -190,41 +210,162 @@ behaves depending on the language of the code chunk.</p>
 <p>Within a <code>{t}</code> code block, <code>read_node()</code>
 follows the same behavior as the REPL: it returns the <strong>JSON
 metadata dictionary</strong>.</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="in">```{t}</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="in">#| echo: false</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="in">g = read_node(&quot;p_ggplot&quot;)</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="in">print(g.title)</span></span></code></pre></div>
-<pre><code>*Output: &quot;Fuel Economy&quot;*
-
-This is useful for including summary information about your visualizations directly in the text of your report.
-
-### In R and Python Chunks
-To actually **render** the plot in your report, you must use an `{r}` or `{python}` chunk. However, in these environments, `read_node()` is a preprocessor token that T replaces with the **absolute path string** to the artifact in the Nix store. 
-
-Because `read_node()` returns a path, you must manually load the artifact using the specialized reader for that language.
-
-#### Example: Rendering a ggplot2 node in R
-```markdown
-```{r}
+<pre class="markdown"><code>```{t}
 #| echo: false
-# read_node(&quot;p_ggplot&quot;) becomes &#39;/nix/store/.../artifact&#39;
+g = read_node(&quot;p_ggplot&quot;)
+print(g.title)
+```</code></pre>
+<p><em>Output: &quot;Fuel Economy&quot;</em></p>
+<p>This is useful for including summary information about your
+visualizations directly in the text of your report.</p>
+<h3 id="in-r-and-python-chunks">In R and Python Chunks</h3>
+<p>To actually <strong>render</strong> the plot in your report, you must
+use an <code>{r}</code> or <code>{python}</code> chunk. However, in
+these environments, <code>read_node()</code> is a preprocessor token
+that T replaces with the <strong>absolute path string</strong> to the
+artifact in the Nix store.</p>
+<p>Because <code>read_node()</code> returns a path, you must manually
+load the artifact using the specialized reader for that language.</p>
+<h4 id="example-rendering-a-ggplot2-node-in-r">Example: Rendering a ggplot2 node in R</h4>
+<pre class="markdown"><code>```{r}
+#| echo: false
+# read_node(&quot;p_ggplot&quot;) becomes '/nix/store/.../artifact'
 p &lt;- readRDS(read_node(&quot;p_ggplot&quot;))
-p</code></pre>
-<pre><code>
-#### Example: Rendering a matplotlib node in Python
-```markdown
-```{python}
+p
+```</code></pre>
+<h4 id="example-rendering-a-matplotlib-node-in-python">Example: Rendering a matplotlib node in Python</h4>
+<pre class="markdown"><code>```{python}
 #| echo: false
-import pickle
-# read_node(&quot;p_matplotlib&quot;) becomes &#39;/nix/store/.../artifact&#39;
+try:
+    import cloudpickle as pickle
+except ImportError:
+    import pickle
+# read_node(&quot;p_matplotlib&quot;) becomes '/nix/store/.../artifact'
 with open(read_node(&quot;p_matplotlib&quot;), &quot;rb&quot;) as f:
     fig = pickle.load(f)
-fig</code></pre>
-<p>```</p>
+fig
+```</code></pre>
 <p>This dual behavior ensures that you can use T for programmatic
 inspection and R/Python for high-fidelity visual rendering, all while
 maintaining strict Nix-based reproducibility.</p>
+<hr />
+<h2 id="opening-plots-with-show_plot">Opening Plots with <code>show_plot()</code></h2>
+<p><code>show_plot()</code> renders a plotting artifact in a fresh Nix
+sandbox, writes the rendered image to <code>_pipeline/</code>, and then
+opens the image locally.</p>
+<p>It accepts:</p>
+<ul>
+<li>an unbuilt <code>rn()</code> / <code>pyn()</code> node</li>
+<li>a built <code>ComputedNode</code></li>
+<li>a <code>read_node()</code> result that still points back to a built
+plot node</li>
+</ul>
+<p>The rendered output is currently written as a PNG file under
+<code>_pipeline/</code>.</p>
+<p>Add an opener in <code>tproject.toml</code> if you want to override
+the default viewer:</p>
+<pre class="toml"><code>[visualization-tool]
+command = &quot;xdg-open&quot;</code></pre>
+<p>The value must be a single executable name or an absolute path to an
+executable. When no custom tool is configured, T falls back to:</p>
+<ol type="1">
+<li><code>open</code> on systems where it is available</li>
+<li><code>xdg-open</code> otherwise</li>
+</ol>
+<pre class="t"><code>p = rn(command = &lt;{
+  library(ggplot2)
+  ggplot(mtcars, aes(wt, mpg)) + geom_point()
+}&gt;)
+
+show_plot(p)</code></pre>
+<p><code>show_plot(p)</code> returns the local path of the rendered PNG
+after launching the viewer.</p>
+<h3 id="runtime-requirements">Runtime Requirements</h3>
+<p><code>show_plot()</code> renders the plot by reloading the stored
+artifact inside a Nix sandbox:</p>
+<ul>
+<li><strong>R / ggplot2</strong> nodes require <code>ggplot2</code> to
+be present in <code>[r-dependencies].packages</code>.</li>
+<li><strong>Python / matplotlib</strong> nodes require
+<code>matplotlib</code> and <code>cloudpickle</code> in
+<code>[py-dependencies].packages</code>.</li>
+<li><strong>Python / seaborn</strong> nodes require
+<code>seaborn</code>, <code>matplotlib</code>, and
+<code>cloudpickle</code> in
+<code>[py-dependencies].packages</code>.</li>
+<li><strong>Python / Plotly</strong> requires <code>plotly</code>,
+<code>kaleido</code> (for static image export), and
+<code>cloudpickle</code> in
+<code>[py-dependencies].packages</code>.</li>
+<li><strong>Python / Altair</strong> requires <code>altair</code>,
+<code>vl-convert-python</code> (preferred), and <code>cloudpickle</code>
+in <code>[py-dependencies].packages</code>.</li>
+<li><strong>Python / Plotnine</strong> requires <code>plotnine</code>,
+<code>pandas</code>, and <code>cloudpickle</code> in
+<code>[py-dependencies].packages</code>.</li>
+</ul>
+<h3 id="automated-dependency-detection">Automated Dependency
+Detection</h3>
+<p>When you use these libraries in a <code>pyn()</code> node, T’s static
+analyzer will automatically detect the imports and prompt you to add the
+required rendering dependencies to your <code>tproject.toml</code> if
+they are missing.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Detected Import</th>
+<th style="text-align: left;">Automatically Suggested Packages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>import matplotlib</code></td>
+<td style="text-align: left;"><code>matplotlib</code>,
+<code>cloudpickle</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>import seaborn</code></td>
+<td style="text-align: left;"><code>seaborn</code>,
+<code>matplotlib</code>, <code>cloudpickle</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>import plotnine</code></td>
+<td style="text-align: left;"><code>plotnine</code>,
+<code>pandas</code>, <code>cloudpickle</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>import plotly</code></td>
+<td style="text-align: left;"><code>plotly</code>, <code>kaleido</code>,
+<code>cloudpickle</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>import altair</code></td>
+<td style="text-align: left;"><code>altair</code>,
+<code>vl-convert-python</code>, <code>cloudpickle</code></td>
+</tr>
+</tbody>
+</table>
+<p>Example project configuration:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[r-dependencies]</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;ggplot2&quot;</span><span class="op">]</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">[py-dependencies]</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;python314&quot;</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;matplotlib&quot;</span><span class="op">,</span> <span class="st">&quot;plotnine&quot;</span><span class="op">,</span> <span class="st">&quot;seaborn&quot;</span><span class="op">,</span> <span class="st">&quot;plotly&quot;</span><span class="op">,</span> <span class="st">&quot;kaleido&quot;</span><span class="op">]</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="kw">[visualization-tool]</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="dt">command</span> <span class="op">=</span> <span class="st">&quot;xdg-open&quot;</span></span></code></pre></div>
+<h3 id="files-written-to-_pipeline">Files Written to
+<code>_pipeline/</code></h3>
+<p>When you call <code>show_plot()</code>, T creates local helper files
+in <code>_pipeline/</code>, including:</p>
+<ul>
+<li>a temporary Nix expression used for rendering</li>
+<li>the rendered PNG image that is opened locally</li>
+</ul>
+<p>This keeps the visualization workflow aligned with T’s existing
+pipeline artifact conventions.</p>
 <p>See the <a href="demos.html">T Pipeline Demos</a> for real-world
 examples of pipelines generating interactive and static reports.</p>
 </div>

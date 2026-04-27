@@ -20,6 +20,12 @@ let is_na_value = function VNA _ -> true | _ -> false
 
 (** Type Errors *)
 
+let shell_error ?location msg =
+  make_error ?location ShellError msg
+
+let missing_artifact_error ?location msg =
+  make_error ?location MissingArtifactError msg
+
 let type_error ?location msg =
   make_error ?location TypeError msg
 

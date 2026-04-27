@@ -24,13 +24,14 @@ let register env =
     (make_builtin ~name:"args" 1 (fun args _env ->
       match args with
       | [VLambda l] ->
+          let display_names = Utils.display_params l.params l.autoquote_params in
           let pairs = List.map2 (fun name typ_opt ->
             let typ_str = match typ_opt with
               | Some t -> Utils.typ_to_string t
               | None -> "Any"
             in
             (name, VString typ_str)
-          ) l.params l.param_types in
+          ) display_names l.param_types in
           VDict pairs
       | [VBuiltin b] ->
           (match b.b_name with

@@ -201,6 +201,19 @@ add = \(a, b) a + b
 add(3, 7)  -- 10
 ```
 
+### Auto-Quotation (`$param`)
+
+T supports auto-quoting for function parameters. Prefixing a parameter with `$` indicates that the caller can pass a bare name (like a column name), which is automatically captured as a **Symbol** rather than being evaluated.
+
+```t
+my_select = \(df, $col) select(df, col)
+
+-- Caller passes bare 'salary' which is captured as a symbol
+my_select(df, salary)
+```
+
+This is particularly useful when writing wrappers around data verbs like `select` or `mutate`. See [Quotation and Metaprogramming](quotation.md) for more advanced usage involving `!!` (unquote).
+
 ### Closures
 
 Functions capture their enclosing environment:
@@ -399,15 +412,72 @@ config.host  -- "localhost"
 config.port  -- 8080
 ```
 
-### Symbols (`$`)
+---
 
-Symbols are name references that are not immediately evaluated. They are primarily used to reference DataFrame columns in verbs like `select($mpg)` or `filter($cyl > 4)`.
+## Data Access and Lenses
 
-Symbols are created by prefixing an identifier with `$`:
+T provides a unified retrieval system via the `get()` primitive and the **Lens** library. Lenses allow you to focus on specific parts of complex data structures (DataFrames, Lists, Pipelines) and perform serializable, cross-node data operations.
+
+### The Unified `get()` Built-in
+
+The `get()` function is the primary entry point for retrieving data. It supports several modes of operation:
+
+#### 1. Variable Lookup (R-style)
 ```t
-s = $my_symbol
-type(s)  -- "Symbol"
+salary = 50000
+get("salary")                -- 50000
+get(sym("salary"))           -- 50000
 ```
+
+#### 2. Collection Indexing (0-based)
+```t
+lst = [10, 20, 30]
+get(lst, 1)                  -- 20
+```
+
+#### 3. Pipeline Node Access
+```t
+p = pipeline { a = 1, b = 2 }
+get(p, "a")                  -- 1
+```
+
+#### 4. Lens Focus
+```t
+l = col_lens("mpg")
+get(mtcars, l)               -- Vector of 'mpg' column
+```
+
+### Lenses
+
+Lenses are structured, serializable "addressing" objects. Unlike standard property access (`obj.prop`), lenses can be composed and passed between pipeline nodes.
+
+#### Built-in Lenses
+
+| Creator | Target | Description |
+|---------|--------|-------------|
+| `col_lens(name)` | `DataFrame`, `Dict`, `List` | Targets a column or key by name. |
+| `idx_lens(i)` | `List`, `Vector` | Targets an element by index. |
+| `row_lens(i)` | `DataFrame` | Targets a specific row as a Dictionary. |
+| `node_lens(name)` | `Pipeline` | Targets a specific node within a pipeline. |
+| `env_var_lens(n, v)`| `Pipeline` | Targets an environment variable `v` from node `n`. |
+
+#### Composition and Transformation
+
+Lenses can be composed using `compose()` to reach deep into nested structures. To update data through a lens, use the `over()` function.
+
+```t
+-- Deep access
+data = [users: [Alice: [id: 1], Bob: [id: 2]]]
+l_deep = compose(col_lens("users"), col_lens("Alice"), col_lens("id"))
+get(data, l_deep)            -- 1
+
+-- Deep update
+data_updated = over(data, l_deep, \(x) 99)
+get(data_updated, l_deep)    -- 99
+```
+
+> [!NOTE]
+> **Serializable Pipelines**: Tlang lenses are now implemented as structured data (`VLens`), not closures. This ensures they can be saved to disk by one pipeline node and loaded by another without losing functionality.
 
 ---
 

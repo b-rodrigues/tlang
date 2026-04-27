@@ -8,7 +8,7 @@ exception Mixed_bracket_form
 exception Invalid_match_pattern of string
 
 (* Helper to build a parameter record from parsing *)
-type parsed_param = string * Ast.typ option
+type parsed_param = string * Ast.typ option * bool
 type param_info = { params: parsed_param list; has_variadic: bool; return_type: Ast.typ option }
 
 type bracket_item =
@@ -333,10 +333,12 @@ block_expr:
 lambda_expr:
   | LAMBDA g = generic_params_opt LPAREN p = params RPAREN body = expr
     {
-      let names = List.map fst p.params in
-      let param_types = List.map snd p.params in
+      let names = List.map (fun (name, _, _) -> name) p.params in
+      let param_types = List.map (fun (_, typ, _) -> typ) p.params in
+      let autoquote_params = List.map (fun (_, _, autoquote) -> autoquote) p.params in
       with_loc (Lambda {
         params = names;
+        autoquote_params;
         param_types;
         return_type = p.return_type;
         generic_params = g;
@@ -347,10 +349,12 @@ lambda_expr:
     }
   | FUNCTION g = generic_params_opt LPAREN p = params RPAREN body = expr
     {
-      let names = List.map fst p.params in
-      let param_types = List.map snd p.params in
+      let names = List.map (fun (name, _, _) -> name) p.params in
+      let param_types = List.map (fun (_, typ, _) -> typ) p.params in
+      let autoquote_params = List.map (fun (_, _, autoquote) -> autoquote) p.params in
       with_loc (Lambda {
         params = names;
+        autoquote_params;
         param_types;
         return_type = p.return_type;
         generic_params = g;
@@ -399,8 +403,10 @@ param_list:
   ;
 
 param:
-  | id = any_ident { (id, None) }
-  | id = any_ident COLON t = typ { (id, Some t) }
+  | id = any_ident { (id, None, false) }
+  | id = any_ident COLON t = typ { (id, Some t, false) }
+  | id = COLUMN_REF { (id, None, true) }
+  | id = COLUMN_REF COLON t = typ { (id, Some t, true) }
   ;
 
 if_expr:

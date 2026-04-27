@@ -12,7 +12,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|{`a`: 11, `b`: 2}|};
 
   test "col_lens get on Dict (manual call)"
-    {|d = [a: 1, b: 2]; l = col_lens("a"); l.get(d)|}
+    {|d = [a: 1, b: 2]; l = col_lens("a"); get(d, l)|}
     "1";
 
   (* 2. col_lens on DataFrame *)
@@ -44,7 +44,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "10";
 
   test "env_var_lens on Pipeline"
-    {|p = pipeline { a = node(command = <{ 1 }>, runtime = R, env_vars = [DEBUG: "false"]) }; l = env_var_lens("a", "DEBUG"); p2 = set(p, l, "true"); l.get(p2)|}
+    {|p = pipeline { a = node(command = <{ 1 }>, runtime = R, env_vars = [DEBUG: "false"]) }; l = env_var_lens("a", "DEBUG"); p2 = set(p, l, "true"); get(p2, l)|}
     {|"true"|};
 
   (* 6. Library Extensions *)
@@ -78,11 +78,32 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "Vector[10, 40, 60]";
 
   test "filter_lens predicate must return Bool"
-    {|v = [1, 2, 3]; l = filter_lens(\(x) x); l.get(v)|}
+    {|v = [1, 2, 3]; l = filter_lens(\(x) x); get(v, l)|}
     {|Error(TypeError: "filter_lens predicate must return Bool, got Int")|};
+
+  test "filter_lens preserves predicate errors"
+    {|v = [1, 2, 3]; l = filter_lens(\(x) error("ValueError", "boom")); get(v, l)|}
+    {|Error(ValueError: "boom")|};
 
   test "package_info lens functions"
     {|length(package_info("lens").functions)|}
     "12";
+
+  (* 8. Regression Tests (Avoid core get/sym overrides/missing) *)
+  test "regression: core get(string) lookup"
+    {|my_var = 100; get("my_var")|}
+    "100";
+
+  test "regression: core sym(string)"
+    {|type(sym("hello"))|}
+    {|"Symbol"|};
+
+  test "regression: get(list, index) fallback"
+    {|lst = [10, 20, 30]; get(lst, 1)|}
+    "20";
+
+  test "regression: get(pipeline, node) lookup"
+    {|p = pipeline { a = 123 }; get(p, "a")|}
+    "123";
 
   print_newline ()

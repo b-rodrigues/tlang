@@ -34,20 +34,31 @@
 </nav>
 <div class="container">
 <h1 id="get">get</h1>
-<p>Get element by index</p>
-<p>Retrieves an element from a List, Vector, or NDArray at the specified
-index (0-based).</p>
+<p>Get variable or element</p>
+<p>If called with one argument, retrieves a variable’s value from the
+environment by name (String or Symbol). Matches R’s <code>get()</code>
+semantics for variable lookup. If called with two arguments, retrieves
+an element from a List, Vector, or NDArray at the specified index
+(0-based).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>collection</strong> (<code>List</code>): | Vector |
-NDArray The collection to access.</p></li>
-<li><p><strong>index</strong> (<code>Int</code>): The index to
-retrieve.</p></li>
+<li><p><strong>x</strong> (<code>String</code>): | Symbol | List |
+Vector | NDArray The variable name or collection.</p></li>
+<li><p><strong>index</strong> (<code>Int</code>): (Optional) The index
+to retrieve if <code>x</code> is a collection.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The element at the index.</p>
+<p>The variable value or collection element.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>get([10, 20, 30], 1)
+<pre class="t"><code>salary = 50000
+get(&quot;salary&quot;)
+-- Returns = 50000
+
+col_name = &quot;salary&quot;
+get(sym(col_name))
+-- Returns = 50000
+
+get([10, 20, 30], 1)
 -- Returns = 20</code></pre>
 </div>
 <footer>

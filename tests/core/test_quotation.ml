@@ -85,6 +85,24 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "dynamic name from string variable in list"
     "col = \"x\"\nexpr([!!col := 10])"
     "expr([x: 10])";
+  test "sym converts string to symbol"
+    "sym(\"age\")"
+    "age";
+  test "sym preserves symbol input"
+    "sym($age)"
+    "$age";
+  test "sym supports string-driven quoting"
+    "col = \"age\"\nexpr(select(df, !!sym(col)))"
+    "expr(select(df, age))";
+  test "sym supports dynamic names"
+    "col = \"age\"\nexpr(f(!!sym(col) := 42))"
+    "expr(f(age = 42))";
+  test "sym rejects empty names"
+    "sym(\"   \")"
+    {|Error(ValueError: "Function `sym` expects a non-empty String or Symbol.")|};
+  test "sym rejects non-string inputs"
+    "sym(99)"
+    {|Error(TypeError: "Function `sym` expects a String or Symbol.")|};
   test "dynamic name with non-string gives type error"
     "col = 99\nexpr(f(!!col := 1))"
     {|expr(f(Error(TypeError: "!! := requires a String or Symbol as the left-hand name, got Int")))|};

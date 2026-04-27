@@ -37,6 +37,7 @@ type error_code =
   | RuntimeError
   | GenericError
   | NAPredicateError
+  | MissingArtifactError
 
 (** Structured source location *)
 type source_location = {
@@ -194,6 +195,16 @@ and serializer = {
   s_py_reader : string option;
 }
 
+and lens =
+  | ColLens of string
+  | IdxLens of int
+  | RowLens of int
+  | NodeLens of string
+  | NodeMetaLens of string * string
+  | EnvVarLens of string * string
+  | CompositeLens of lens * lens
+  | FilterLens of value
+
 (** Runtime values *)
 and value =
   (* Scalar Types *)
@@ -212,6 +223,7 @@ and value =
   | VNDArray of ndarray
   | VDataFrame of dataframe
   | VPipeline of pipeline_result
+  | VLens of lens
   (* Functional Types *)
   | VLambda of lambda
   | VBuiltin of builtin
@@ -257,6 +269,7 @@ and builtin = {
 
 and lambda = {
   params : symbol list;
+  autoquote_params : bool list;
   param_types : typ option list;
   return_type : typ option;
   generic_params : string list;
@@ -391,6 +404,16 @@ module Utils = struct
     | VNodeResult { v; _ } -> unwrap_value v
     | v -> v
 
+  let display_params params autoquote_params =
+    let rec go acc ps aqs =
+      match ps, aqs with
+      | [], _ -> List.rev acc
+      | p :: ps_rest, true :: aqs_rest -> go (("$" ^ p) :: acc) ps_rest aqs_rest
+      | p :: ps_rest, false :: aqs_rest -> go (p :: acc) ps_rest aqs_rest
+      | p :: ps_rest, [] -> go (p :: acc) ps_rest []
+    in
+    go [] params autoquote_params
+
   let rec is_truthy = function
     | VBool false | VInt 0 -> false
     | VError _ -> false
@@ -512,6 +535,7 @@ module Utils = struct
     | RuntimeError -> "RuntimeError"
     | GenericError -> "GenericError"
     | NAPredicateError -> "NAPredicateError"
+    | MissingArtifactError -> "MissingArtifactError"
 
   let error_code_of_string = function
     | "TypeError" -> TypeError
@@ -530,6 +554,7 @@ module Utils = struct
     | "RuntimeError" -> RuntimeError
     | "GenericError" -> GenericError
     | "NAPredicateError" -> NAPredicateError
+    | "MissingArtifactError" -> MissingArtifactError
     | _ -> RuntimeError
 
   let na_type_to_string = function
@@ -567,7 +592,7 @@ module Utils = struct
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
     | VList _ -> "List" | VDict _ -> "Dict"
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
-    | VPipeline _ -> "Pipeline"
+    | VPipeline _ -> "Pipeline" | VLens _ -> "Lens"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
     | VNA _ -> "NA" | VError _ -> "Error"
     | VFactor _ -> "Factor"
@@ -622,8 +647,8 @@ module Utils = struct
           | None -> unparse_expr e
         ) args in
         unparse_expr fn ^ "(" ^ String.concat ", " args_s ^ ")"
-    | Lambda { params; body; _ } ->
-        "\\(" ^ String.concat ", " params ^ ") " ^ unparse_expr body
+    | Lambda { params; autoquote_params; body; _ } ->
+        "\\(" ^ String.concat ", " (display_params params autoquote_params) ^ ") " ^ unparse_expr body
     | IfElse { cond; then_; else_ } ->
         "if (" ^ unparse_expr cond ^ ") " ^ unparse_expr then_ ^ " else " ^ unparse_expr else_
     | Match { scrutinee; cases } ->
@@ -753,9 +778,9 @@ module Utils = struct
         ) p_nodes in
         if errors = [] then base
         else base ^ "\nErrors:" ^ (String.concat "" errors)
-    | VLambda { params; variadic; _ } ->
+    | VLambda { params; autoquote_params; variadic; _ } ->
         let dots = if variadic then ", ..." else "" in
-        "\\(" ^ String.concat ", " params ^ dots ^ ") -> <function>"
+        "\\(" ^ String.concat ", " (display_params params autoquote_params) ^ dots ^ ") -> <function>"
     | VBuiltin _ -> "<builtin_function>"
     | VNA na_t ->
         let tag = na_type_to_string na_t in
@@ -787,6 +812,18 @@ module Utils = struct
         let start_s = value_to_string (VDatetime (iv.iv_start, iv.iv_tz)) in
         let end_s = value_to_string (VDatetime (iv.iv_end, iv.iv_tz)) in
         Printf.sprintf "Interval(start=%s, end=%s)" start_s end_s
+    | VLens l ->
+        let rec lens_to_string = function
+          | ColLens s -> Printf.sprintf "col_lens(\"%s\")" s
+          | IdxLens i -> Printf.sprintf "idx_lens(%d)" i
+          | RowLens i -> Printf.sprintf "row_lens(%d)" i
+          | NodeLens n -> Printf.sprintf "node_lens(\"%s\")" n
+          | NodeMetaLens (n, f) -> Printf.sprintf "node_meta_lens(\"%s\", \"%s\")" n f
+          | EnvVarLens (node, var) -> Printf.sprintf "env_var_lens(\"%s\", \"%s\")" node var
+          | CompositeLens (l1, l2) -> Printf.sprintf "compose(%s, %s)" (lens_to_string l1) (lens_to_string l2)
+          | FilterLens _ -> "filter_lens(...)"
+        in
+        lens_to_string l
     | VIntent { intent_fields } ->
         let field_to_string (k, v) = k ^ ": \"" ^ String.escaped v ^ "\"" in
         "Intent{" ^ (intent_fields |> List.map field_to_string |> String.concat ", ") ^ "}"

@@ -4,6 +4,24 @@
 
 **Status**: Beta  
 
+### Language Ergonomics & Auto-Quoting
+- **Auto-Quoted Parameters (`$param`)**: 
+    - Introduced `$param` syntax in lambda and `function()` parameter lists.
+    - Parameters prefixed with `$` automatically capture bare names (like column names) as **Symbols** rather than evaluating them.
+    - Simplified the creation of data-wrangling wrappers, removing the need for `enquo()` in simple forwarding cases.
+- **Unified `get()` and New `sym()` Builtin**:
+    - Added the `sym()` core builtin for programmatic symbol creation.
+    - Unified the `get()` dispatcher across `core` and `lens` packages, ensuring a single, stable interface for variable lookup, collection indexing, and lens-based retrieval.
+    - **Regression Safety**: Added regression tests to ensure core primitives remain stable when the `lens` package is loaded.
+
+### Pipeline Infrastructure & Lens Orchestration
+- **Resolution Stabilization**:
+    - Implemented robust lazy resolution for cross-pipeline dependencies and out-of-order pipeline nodes.
+    - Fixed a regression where pipeline nodes were returning `unbuilt` states instead of resolved values in complex dependency graphs.
+- **Improved Failure Visibility**:
+    - Introduced structured `MissingArtifactError` in the lens system to provide precise feedback on unbuilt dependencies during lazy evaluation.
+    - Clarified the error contract for `get()` when targeting plotting nodes, ensuring metadata dictionaries are returned predictably.
+
 ### First-Class Visual Metadata & Plot Inspection
 - **Automated Plot Metadata Capture**: 
     - Implemented infrastructure to automatically extract and persist metadata from visual objects in polyglot pipelines.
@@ -18,15 +36,26 @@
     - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, or `altair`.
     - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
+### Serializable Lens Architecture
+- **Refactored Lens Implementation**:
+    - Replaced functional closure-based lenses with a structured `VLens` sum type.
+    - **Nix-Isolated Persistence**: Lenses can now be serialized to disk and passed between separate Nix-build pipeline nodes without losing their state or functionality.
+    - **Unified `get()` Integration**: The `get()` builtin now natively supports `VLens` for data focus, providing a single, consistent interface for variable lookup, indexing, and lens-based retrieval.
+
+### Core Evaluator, Emitter & Documentation Refinements
+- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `sym()`, and related primitives.
+- **Integrated Documentation Tooling**: Verified `t_doc("parse")` and `t_doc("generate")` workflows for extracting and publishing reference pages for new core functions.
+- **Auto-Quoting Documentation**: Updated `docs/language_overview.md` and `docs/quotation.md` with comprehensive examples of the new `$param` auto-quoting feature.
 ### Core Evaluator & Emitter Refinements
 - **Quarto Wrapper Ergonomics**: Added `qn()` as a first-class convenience wrapper around `node()` with `runtime = Quarto`, matching the existing `rn()` and `pyn()` helpers for R and Python nodes.
 - **Improved Pretty Printing**: Updated the core pretty printer to handle complex nested dictionaries and diagnostics summaries more gracefully.
 - **Nix Emitter Stability**: Significant updates to `nix_emit_node.ml` to support the new visualization injection logic and improve script-based node robustness.
-- **Test Infrastructure**: Added golden tests and mocks for visual metadata scenarios.
+- **Test Infrastructure**: Added the `get_sym_demo_t` comprehensive demo project with dedicated CI validation and automated assertions.
 
 ### Bug Fixes & Refinements
 - **Visualization Stability**: Fixed a critical `Printf.sprintf` type error in the Python plot rendering logic that prevented pipeline builds for Python-based visualizations.
 - **Improved REPL interaction**: Explicitly flush stdout/stderr around `show_plot` calls so the rendered path is reported cleanly before local viewer launch.
+- **Helper Consistency**: Standardized lens helper names and improved internal consistency in `lens.ml`.
 
 
 ## [0.51.3] - 2026-04-12
@@ -370,3 +399,4 @@ Version history and roadmap for the T programming language.
 - Changelog (this file)
 - **Model Interchange & PMML**: Documentation for cross-language model support and broom-style outputs for imported models.
 - **Improved Data Inspection**: Enhanced `glimpse()` documentation for quick DataFrame summaries.
+

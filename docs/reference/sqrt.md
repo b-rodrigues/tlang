@@ -8,6 +8,8 @@ Calculates the square root of x.
 
 - **x** (`Number`): | Vector | NDArray The input value (must be non-negative).
 
+- **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
+
 
 ## Returns
 
