@@ -291,7 +291,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
         let (v, _) = eval_string_env "t_make()" env in
         let actual = strip_location (Ast.Utils.value_to_string v) in
         let expected = "Function `t_make` requires `src/pipeline.t` to call `populate_pipeline(...)` or `build_pipeline(...)`." in
-        contains_pattern expected actual)
+        Test_helpers.contains actual expected)
   in
   if t_make_requires_pipeline_action then begin
     incr pass_count; Printf.printf "  ✓ t_make requires an explicit populate or build call in src/pipeline.t\n"
@@ -307,8 +307,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
           capture_stderr (fun () -> eval_string_env "t_make()" env)
         in
         Ast.Utils.value_to_string v = "NA"
-        && contains_pattern "Warning: `t_make()` found `populate_pipeline" warning
-        && contains_pattern "build=true" warning)
+        && Test_helpers.contains warning "Warning: `t_make()` found `populate_pipeline"
+        && Test_helpers.contains warning "build=true")
   in
   if t_make_warns_on_populate_without_build then begin
     incr pass_count; Printf.printf "  ✓ t_make warns when src/pipeline.t only populates the pipeline\n"
@@ -324,9 +324,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
           capture_stderr (fun () -> eval_string_env "t_make()" env)
         in
         Ast.Utils.value_to_string v = "NA"
-        && contains_pattern "Warning: `t_make" warning
-        && contains_pattern "populate_pipeline" warning
-        && contains_pattern "could not confirm whether a build was requested" warning)
+        && Test_helpers.contains warning "Warning: `t_make"
+        && Test_helpers.contains warning "populate_pipeline"
+        && Test_helpers.contains warning "could not confirm whether a build was requested")
   in
   if t_make_warns_on_populate_build_unknown then begin
     incr pass_count; Printf.printf "  ✓ t_make warns when src/pipeline.t has ambiguous build intent\n"

@@ -1,3 +1,14 @@
+(** Pipeline script analysis and environment management for t_make.
+
+    This module provides:
+    - Static analysis of a pipeline entrypoint (src/pipeline.t) to determine
+      whether it calls populate_pipeline / build_pipeline and what build
+      intent the user expressed.
+    - Filename validation to enforce src/pipeline.t as the canonical
+      entrypoint.
+    - Environment reload helpers that clear stale user bindings between
+      successive t_make evaluations of the same entrypoint. *)
+
 open Ast
 
 let ordered_unique_strings names =
@@ -247,6 +258,11 @@ let validate_t_make_filename filename =
   else
     Error "Function `t_make` requires the pipeline entrypoint to be `src/pipeline.t`."
 
+(** Validate that the parsed pipeline program contains an explicit build or
+    populate call.  Returns:
+    - [Ok None]           — proceed, no diagnostic needed (build requested).
+    - [Ok (Some warning)] — proceed, but emit [warning] on stderr.
+    - [Error msg]         — abort with [msg] as a ValueError. *)
 let validate_t_make_program (program : program) =
   match analyze_program_for_pipeline_call program with
   | BuildRequested -> Ok None
