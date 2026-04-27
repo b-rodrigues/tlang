@@ -50,16 +50,6 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       remove_path dir;
       raise exn
   in
-  let contains_substring text pattern =
-    let len_t = String.length text in
-    let len_p = String.length pattern in
-    let rec go idx =
-      if idx + len_p > len_t then false
-      else if String.sub text idx len_p = pattern then true
-      else go (idx + 1)
-    in
-    if len_p = 0 then true else go 0
-  in
   Printf.printf "Phase 3 — Basic Pipeline:\n";
   test "simple pipeline"
     "pipeline {\n  x = 1\n  y = 2\n  z = x + y\n}"
@@ -259,6 +249,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
         close_out oc;
         let (second, env) = eval_string_env "t_make()" env in
         let (helper_check, _) = eval_string_env "helper == 2 && p.b == 2" env in
+        let (old_node_check, _) = eval_string_env "is_error(p.a)" env in
         let pipeline_nix = Filename.concat "_pipeline" "pipeline.nix" in
         let content =
           let ch = open_in pipeline_nix in
@@ -268,7 +259,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
         in
         Ast.Utils.value_to_string second = "NA"
         && Ast.Utils.value_to_string helper_check = "true"
-        && contains_substring content "b")
+        && Ast.Utils.value_to_string old_node_check = "true"
+        && (try
+              ignore (Str.search_forward (Str.regexp_string "b") content 0);
+              true
+            with Not_found -> false))
   in
   if t_make_reloads_pipeline_script then begin
     incr pass_count; Printf.printf "  ✓ t_make reloads src/pipeline.t in the same environment\n"

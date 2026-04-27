@@ -8,6 +8,10 @@ let ordered_unique_strings names =
   in
   go String_set.empty [] names
 
+(** Extract user-authored top-level bindings from a script so pipeline entry
+    reloads can clear them before reevaluation. Internal framework keys are
+    excluded, and names are deduplicated while preserving their first-seen
+    order to keep cleanup predictable. *)
 let top_level_assigned_names (program : program) =
   List.filter_map (fun stmt ->
     match stmt.node with
