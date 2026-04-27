@@ -138,5 +138,5 @@ let register env =
                      with
                      | Sys_error msg ->
                          Error.make_error FileError (Printf.sprintf "t_make failed: %s" msg))))
-       )})
-    env
+       })
+     env
