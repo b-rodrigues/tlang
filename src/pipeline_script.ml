@@ -31,14 +31,14 @@ let combine_t_make_pipeline_contract left right =
   | _, PopulateWithoutBuild -> PopulateWithoutBuild
   | MissingPipelineBuildCall, MissingPipelineBuildCall -> MissingPipelineBuildCall
 
-let bool_literal = function
+let extract_bool_literal = function
   | { node = Value (VBool b); _ } -> Some b
   | _ -> None
 
 let populate_pipeline_requests_build args =
   let rec find_named_build = function
     | [] -> None
-    | (Some "build", expr) :: _ -> bool_literal expr
+    | (Some "build", expr) :: _ -> extract_bool_literal expr
     | _ :: rest -> find_named_build rest
   in
   match find_named_build args with
@@ -52,17 +52,17 @@ let populate_pipeline_requests_build args =
       in
       match positional_args with
       | _pipeline_arg :: build_arg :: _ ->
-          begin match bool_literal build_arg with
+          begin match extract_bool_literal build_arg with
           | Some build -> build
           | None -> false
           end
       | _ -> false
 
-let rec expr_t_make_pipeline_contract expr =
+let rec analyze_expr_for_pipeline_call expr =
   match expr.node with
   | Call { fn = { node = Var "build_pipeline"; _ }; args } ->
       List.fold_left
-        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract arg))
+        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call arg))
         BuildRequested
         args
   | Call { fn = { node = Var "populate_pipeline"; _ }; args } ->
@@ -71,50 +71,50 @@ let rec expr_t_make_pipeline_contract expr =
         else PopulateWithoutBuild
       in
       List.fold_left
-        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract arg))
+        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call arg))
         call_contract
         args
   | Call { fn; args } ->
       List.fold_left
-        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract arg))
-        (expr_t_make_pipeline_contract fn)
+        (fun acc (_, arg) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call arg))
+        (analyze_expr_for_pipeline_call fn)
         args
   | BinOp { left; right; _ }
   | BroadcastOp { left; right; _ } ->
       combine_t_make_pipeline_contract
-        (expr_t_make_pipeline_contract left)
-        (expr_t_make_pipeline_contract right)
+        (analyze_expr_for_pipeline_call left)
+        (analyze_expr_for_pipeline_call right)
   | IfElse { cond; then_; else_ } ->
       combine_t_make_pipeline_contract
-        (expr_t_make_pipeline_contract cond)
+        (analyze_expr_for_pipeline_call cond)
         (combine_t_make_pipeline_contract
-           (expr_t_make_pipeline_contract then_)
-           (expr_t_make_pipeline_contract else_))
+           (analyze_expr_for_pipeline_call then_)
+           (analyze_expr_for_pipeline_call else_))
   | Match { scrutinee; cases } ->
       List.fold_left
-        (fun acc (_, body) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract body))
-        (expr_t_make_pipeline_contract scrutinee)
+        (fun acc (_, body) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call body))
+        (analyze_expr_for_pipeline_call scrutinee)
         cases
-  | Lambda { body; _ } -> expr_t_make_pipeline_contract body
+  | Lambda { body; _ } -> analyze_expr_for_pipeline_call body
   | ListLit items ->
       List.fold_left
-        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract item))
+        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call item))
         MissingPipelineBuildCall
         items
   | DictLit pairs ->
       List.fold_left
-        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract item))
+        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call item))
         MissingPipelineBuildCall
         pairs
   | UnOp { operand; _ }
   | DotAccess { target = operand; _ }
   | Unquote operand
   | UnquoteSplice operand ->
-      expr_t_make_pipeline_contract operand
+      analyze_expr_for_pipeline_call operand
   | PipelineDef nodes
   | IntentDef nodes ->
       List.fold_left
-        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (expr_t_make_pipeline_contract item))
+        (fun acc (_, item) -> combine_t_make_pipeline_contract acc (analyze_expr_for_pipeline_call item))
         MissingPipelineBuildCall
         nodes
   | ListComp { expr; clauses } ->
@@ -123,17 +123,17 @@ let rec expr_t_make_pipeline_contract expr =
           (fun acc clause ->
             let clause_expr =
               match clause with
-              | CFor { iter; _ } -> expr_t_make_pipeline_contract iter
-              | CFilter filter_expr -> expr_t_make_pipeline_contract filter_expr
+              | CFor { iter; _ } -> analyze_expr_for_pipeline_call iter
+              | CFilter filter_expr -> analyze_expr_for_pipeline_call filter_expr
             in
             combine_t_make_pipeline_contract acc clause_expr)
           MissingPipelineBuildCall
           clauses
       in
-      combine_t_make_pipeline_contract clause_contract (expr_t_make_pipeline_contract expr)
+      combine_t_make_pipeline_contract clause_contract (analyze_expr_for_pipeline_call expr)
   | Block stmts ->
       List.fold_left
-        (fun acc stmt -> combine_t_make_pipeline_contract acc (stmt_t_make_pipeline_contract stmt))
+        (fun acc stmt -> combine_t_make_pipeline_contract acc (analyze_stmt_for_pipeline_call stmt))
         MissingPipelineBuildCall
         stmts
   | Value _
@@ -142,20 +142,20 @@ let rec expr_t_make_pipeline_contract expr =
   | RawCode _
   | ShellExpr _ -> MissingPipelineBuildCall
 
-and stmt_t_make_pipeline_contract stmt =
+and analyze_stmt_for_pipeline_call stmt =
   match stmt.node with
   | Expression expr
   | Assignment { expr; _ }
   | Reassignment { expr; _ } ->
-      expr_t_make_pipeline_contract expr
+      analyze_expr_for_pipeline_call expr
   | Import _
   | ImportPackage _
   | ImportFrom _
   | ImportFileFrom _ -> MissingPipelineBuildCall
 
-let program_t_make_pipeline_contract (program : program) =
+let analyze_program_for_pipeline_call (program : program) =
   List.fold_left
-    (fun acc stmt -> combine_t_make_pipeline_contract acc (stmt_t_make_pipeline_contract stmt))
+    (fun acc stmt -> combine_t_make_pipeline_contract acc (analyze_stmt_for_pipeline_call stmt))
     MissingPipelineBuildCall
     program
 
@@ -243,7 +243,7 @@ let validate_t_make_filename filename =
     Error "Function `t_make` requires the pipeline entrypoint to be `src/pipeline.t`."
 
 let validate_t_make_program (program : program) =
-  match program_t_make_pipeline_contract program with
+  match analyze_program_for_pipeline_call program with
   | BuildRequested -> Ok None
   | PopulateWithoutBuild ->
       Ok

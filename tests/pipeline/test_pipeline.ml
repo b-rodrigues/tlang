@@ -26,16 +26,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       restore ();
       let buffer = Buffer.create 128 in
       let chunk = Bytes.create 256 in
-      let rec drain () =
-        match Unix.read read_fd chunk 0 (Bytes.length chunk) with
-        | 0 -> ()
-        | n ->
-            Buffer.add_subbytes buffer chunk 0 n;
-            drain ()
-      in
-      drain ();
-      Unix.close read_fd;
-      (result, Buffer.contents buffer)
+      Fun.protect
+        ~finally:(fun () -> Unix.close read_fd)
+        (fun () ->
+          let rec drain () =
+            match Unix.read read_fd chunk 0 (Bytes.length chunk) with
+            | 0 -> ()
+            | n ->
+                Buffer.add_subbytes buffer chunk 0 n;
+                drain ()
+          in
+          drain ();
+          (result, Buffer.contents buffer))
     with exn ->
       restore ();
       Unix.close read_fd;
