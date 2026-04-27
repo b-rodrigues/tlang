@@ -141,9 +141,13 @@ let register env =
                             Printf.eprintf "Starting build for project: %s\n%!" !filename;
 
                             let prev_warn = !Eval.show_warnings in
-                            Eval.show_warnings := false;
-                            let (v, new_env) = Eval.eval_program ~resilient:(not !failfast) program eval_env in
-                            Eval.show_warnings := prev_warn;
+                            let (v, new_env) =
+                              Fun.protect
+                                ~finally:(fun () -> Eval.show_warnings := prev_warn)
+                                (fun () ->
+                                  Eval.show_warnings := false;
+                                  Eval.eval_program ~resilient:(not !failfast) program eval_env)
+                            in
                             
                             match v with
                             | VError _ -> v
