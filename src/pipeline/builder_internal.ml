@@ -210,12 +210,12 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                     if Hashtbl.find statuses name <> "Completed" && 
                        Hashtbl.find statuses name <> "SoftFailed" &&
                        Hashtbl.find statuses name <> "Errored" then (
-                      match read_file_first_line class_path with
-                      | Some "VError" -> Hashtbl.replace statuses name "SoftFailed"
-                      | _ -> Hashtbl.replace statuses name "Completed"
+                      (match read_file_first_line class_path with
+                       | Some "VError" | Some "Error" -> Hashtbl.replace statuses name "SoftFailed"
+                       | _ -> Hashtbl.replace statuses name "Completed")
                     ) else if Hashtbl.find statuses name = "Completed" then (
                       (* Refine "Completed" from Nix output if it was actually a soft-fail *)
-                      if (match read_file_first_line class_path with Some "VError" -> true | _ -> false) then
+                      if (match read_file_first_line class_path with Some "VError" | Some "Error" -> true | _ -> false) then
                          Hashtbl.replace statuses name "SoftFailed"
                     )
                   )
@@ -280,14 +280,7 @@ let build_pipeline_internal ?verbose (p : Ast.pipeline_result) =
                 (match write_file log_path log_json with
                 | Error msg -> Error ("Failed to write build log: " ^ msg)
                 | Ok () ->
-                    if soft_failed <> [] then
-                      Error
-                        (Printf.sprintf
-                           "Pipeline build captured %d node error artifact(s): %s. Inspect the latest build log in `_pipeline/` or use `read_node()` / `read_log()` for details."
-                           (List.length soft_failed)
-                           (String.concat ", " soft_failed))
-                    else
-                      Ok out_path))
+                    Ok out_path))
           | Unix.WEXITED 0 ->
              Error "nix-build succeeded but did not return an output path."
           | _ ->

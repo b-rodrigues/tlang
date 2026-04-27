@@ -56,7 +56,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   test "error in function arg"
     {|length(1 / 0)|}
-    {|Error(TypeError: "Cannot get length of Error.")|};
+    {|Error(DivisionByZero: "Division by zero.")|};
 
   (try Sys.remove csv_err with _ -> ());
   print_newline ();

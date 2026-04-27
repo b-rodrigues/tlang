@@ -313,7 +313,7 @@ min_version = "0.51.0"
           }
           populate_pipeline(p)
         |} (Packages.init_env ())) with
-        | Ast.VError { code = FileError; message; _ } ->
+        | Ast.VError { code = StructuralError; message; _ } ->
             (match Toml_parser.parse_tproject_toml
                      (let ic = open_in tproject_path in
                       Fun.protect ~finally:(fun () -> close_in_noerr ic)

@@ -308,10 +308,14 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
   | `Null -> (VNA NAGeneric)
   | `List l -> VList (List.map (fun x -> (None, yojson_to_value x)) l)
   | `Assoc a ->
-      (match List.assoc_opt "class" a with
-       | Some (`String "VLens") ->
-            (match List.assoc_opt "data" a with
-              | Some (`Assoc d) ->
+      (match List.assoc_opt "type" a with
+       | Some (`String "VError") ->
+           yojson_to_verror j
+       | _ ->
+           (match List.assoc_opt "class" a with
+            | Some (`String "VLens") ->
+                 (match List.assoc_opt "data" a with
+                   | Some (`Assoc d) ->
                   let rec yojson_to_lens = function
                     | `Assoc items ->
                         let required_field lens_kind field =
@@ -387,12 +391,12 @@ let rec yojson_to_value (j : Yojson.Safe.t) : Ast.value =
                   (match yojson_to_lens (`Assoc d) with
                    | Ok lens -> VLens lens
                    | Error msg -> Error.value_error msg)
-             | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
-        | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
+              | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a))
+         | _ -> VDict (List.map (fun (k, v) -> (k, yojson_to_value v)) a)))
   | _ ->
       invalid_arg ("yojson_to_value: unsupported Yojson constructor: " ^ Yojson.Safe.to_string j)
 
-let yojson_to_verror (j : Yojson.Safe.t) : Ast.value =
+and yojson_to_verror (j : Yojson.Safe.t) : Ast.value =
   match j with
   | `Assoc a ->
       (match List.assoc_opt "type" a with
@@ -512,7 +516,7 @@ let deserialize_from_file path =
              let ic2 = open_in class_path in
              let cls = input_line ic2 |> String.trim in
              close_in ic2;
-             if cls = "VError" then
+             if cls = "Error" || cls = "VError" then
                read_verror_json path
              else
                (* Fallback: try reading as JSON if the class is one of the basic T types

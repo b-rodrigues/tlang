@@ -41,6 +41,7 @@
     test_serializers
     test_pipeline_comments
     test_explicit_deps
+    test_structural_integrity
  )
  (libraries t_lang menhirLib otoml unix str)
 )

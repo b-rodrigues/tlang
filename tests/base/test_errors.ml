@@ -3,6 +3,7 @@ let run_tests pass_count fail_count eval_string _eval_string_env test =
   Printf.printf "Phase 1 — Structured Errors:\n";
   test "error() constructor" {|error("something went wrong")|} {|Error(GenericError: "something went wrong")|};
   test "error() with code" {|error("TypeError", "expected Int")|} {|Error(TypeError: "expected Int")|};
+  test "error() with StructuralError" {|error("StructuralError", "broken DAG")|} {|Error(StructuralError: "broken DAG")|};
   test "error_code()" "error_code(1 / 0)" {|"DivisionByZero"|};
   test "error_message()" "error_message(1 / 0)" {|"Division by zero."|};
   test "error_context() empty" "error_context(1 / 0)" "{}";

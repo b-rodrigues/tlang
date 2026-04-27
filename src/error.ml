@@ -107,3 +107,6 @@ let match_error ?location msg =
 
 let runtime_error ?location msg =
   make_error ?location RuntimeError msg
+
+let structural_error ?location msg =
+  make_error ?location StructuralError msg

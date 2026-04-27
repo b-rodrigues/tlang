@@ -63,13 +63,9 @@ let register env =
          | Error e, _ -> e
          | _, Error e -> e
          | Ok build, Ok verbose ->
-             let has_errors = List.exists (fun (_, v) -> is_error_value v) p.p_nodes in
-             if has_errors then
-               Error.value_error ("Cannot populate pipeline with errors: " ^ (Utils.value_to_string (VPipeline p)))
-             else
                match Builder.populate_pipeline ~build ?verbose p with
                | Ok out -> VString out
-               | Error msg -> Error.make_error FileError msg)
+               | Error msg -> Error.make_error StructuralError msg)
       | _ ->
           Error.type_error "Function `populate_pipeline` expects a Pipeline."
   in

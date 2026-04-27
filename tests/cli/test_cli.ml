@@ -64,19 +64,19 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
      | Error msg -> contains msg "Unexpected argument: extra"
      | Ok _ -> false);
   test_message "validate_cli_flags rejects --unsafe outside run"
-    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ["t"; "test"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ["t"; "test"] with
      | Error msg -> contains msg "--unsafe"
      | Ok _ -> false);
   test_message "validate_cli_flags rejects --unsafe with run --expr"
-    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ["t"; "run"; "--expr"; "1+1"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ["t"; "run"; "--expr"; "1+1"] with
      | Error msg -> contains msg "run --expr"
      | Ok _ -> false);
   test_message "validate_cli_flags rejects --mode with test"
-    (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ["t"; "test"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ~failfast_flag:false ["t"; "test"] with
      | Error msg -> contains msg "--mode"
      | Ok _ -> false);
   test_message "validate_cli_flags allows --mode with repl"
-    (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ["t"; "repl"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ~failfast_flag:false ["t"; "repl"] with
      | Ok () -> true
      | Error _ -> false);
   test_message "init flag parsing rejects unexpected positional arguments"

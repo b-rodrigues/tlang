@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - get</title>
+  <title>T Function Reference - qn</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,47 +33,46 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="get">get</h1>
-<p>Unified data retrieval for names, collections, pipelines, and
-lenses</p>
-<p><code>get()</code> is a polymorphic retrieval helper:</p>
-<ul>
-<li><code>get("x")</code> / <code>get(sym("x"))</code> looks up a
-variable in the current environment</li>
-<li><code>get(collection, index)</code> indexes a <code>List</code>,
-<code>Vector</code>, or <code>NDArray</code></li>
-<li><code>get(pipeline, "node")</code> retrieves a pipeline node
-result</li>
-<li><code>get(data, lens)</code> applies a lens focus to a value</li>
-<li><code>get(node_lens("name"))</code> retrieves a sandboxed
-sibling-node artifact via <code>T_NODE_&lt;name&gt;</code></li>
-</ul>
+<h1 id="qn">qn</h1>
+<p>Configure a Quarto Pipeline Node</p>
+<p>A convenience wrapper around <code>node()</code> with
+<code>runtime = "Quarto"</code>. Used directly within a
+<code>pipeline { ... }</code> block to render Quarto documents.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>target</strong>
-(<code>String | Symbol | List | Vector | NDArray | Pipeline | Lens</code>):
-The value or name to retrieve from.</p></li>
-<li><p><strong>selector</strong>
-(<code>Int | String | Symbol | Lens</code>, optional): The index, node
-name, or lens to apply when a second argument is provided.</p></li>
+<li><p><strong>script</strong> (<code>String</code>): (Optional) Path to
+an external <code>.qmd</code> file to render. Mutually exclusive with
+<code>command</code>.</p></li>
+<li><p><strong>serializer</strong> (<code>String | Function</code>):
+(Optional) Custom serializer strategy. Built-in values include
+“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
+unquoted function name. Custom functions can also be used. Default =
+“default”.</p></li>
+<li><p><strong>deserializer</strong> (<code>String | Function</code>):
+(Optional) Custom deserializer strategy. Built-in values include
+“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
+unquoted function name. Custom functions can also be used. Default =
+“default”.</p></li>
+<li><p><strong>env_vars</strong> (<code>Dict</code>): (Optional)
+Environment variables to pass into the sandbox.</p></li>
+<li><p><strong>args</strong> (<code>Dict</code>): (Optional)
+Runtime/tool arguments. Use this to pass Quarto CLI arguments such as
+<code>subcommand</code>, <code>path</code>, <code>to</code>, and
+additional options. <code>output_dir</code> is reserved and managed
+automatically so the rendered result is stored as the node
+artifact.</p></li>
+<li><p><strong>functions</strong> (<code>String | List[String]</code>):
+(Optional) Files to source before execution.</p></li>
+<li><p><strong>include</strong> (<code>String | List[String]</code>):
+(Optional) Additional files for the sandbox.</p></li>
+<li><p><strong>noop</strong> (<code>Bool</code>): (Optional) Whether to
+skip execution and generate a stub. Default = false.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The looked-up value, selected element, node result, or lens
-focus.</p>
-<h2 id="examples">Examples</h2>
-<pre class="t"><code>salary = 50000
-get(&quot;salary&quot;)                  -- 50000
-get(sym(&quot;salary&quot;))             -- 50000
-
-get([10, 20, 30], 1)           -- 20
-
-p = pipeline { a = 1 }
-get(p, &quot;a&quot;)                    -- 1
-
-l = col_lens(&quot;mpg&quot;)
-get(mtcars, l)                 -- focused column
-
-get(node_lens(&quot;model&quot;))        -- sandbox artifact lookup</code></pre>
+<p>The evaluated return value of the command.</p>
+<h2 id="see-also">See Also</h2>
+<p><a href="node.html">node</a>, <a href="rn.html">rn</a>, <a
+href="pyn.html">pyn</a>, <a href="shn.html">shn</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

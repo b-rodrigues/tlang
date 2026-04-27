@@ -43,7 +43,9 @@ let
   # Note: toString is required to convert the path to a string
   # that builtins.getFlake accepts.
   flake  = builtins.getFlake (toString %s/.);
-  pkgs   = flake.inputs.nixpkgs.legacyPackages.${system};
+  pkgs   = if (builtins.hasAttr "legacyPackages" flake && builtins.hasAttr system flake.legacyPackages.${system}) 
+           then flake.legacyPackages.${system} 
+           else flake.inputs.nixpkgs.legacyPackages.${system};
   tBin   = let
              base = (flake.inputs.t-lang or flake).packages.${system}.default;
            in if builtins.pathExists %s/dune-project then

@@ -325,11 +325,39 @@ p1.c == p2.c  -- true
 
 ---
 
-## 12. Error Handling
+## 12. Error Handling & Resilience
+
+### Errors are Values
+
+In T, errors are **first-class values**. By default, evaluation is **resilient**: if a node fails, it produces an `Error` value instead of crashing the pipeline. This allows other independent nodes to continue building, giving you a full picture of which parts of your DAG are healthy.
+
+```t
+p = pipeline {
+  a = 1 / 0      -- Produces an Error(DivisionByZero)
+  b = 1 + 1      -- Still succeeds! (2)
+  c = a + 1      -- Fails because 'a' is an error (Error)
+}
+```
+
+When you print or build this pipeline, T provides a summary of which nodes succeeded and which failed.
+
+### The `--failfast` Flag
+
+If you prefer the usual, common behaviour where evaluation stops immediately at the first error, you can use the `--failfast` flag:
+
+```bash
+$ t run --failfast src/pipeline.t
+```
+
+In your T scripts, you can also opt-in to this behavior via `t_make()`:
+
+```t
+t_make(failfast = true)
+```
 
 ### Cycle Detection
 
-T detects circular dependencies and reports them:
+T detects circular dependencies and reports them at construction time, before any nodes are executed:
 
 ```t
 pipeline {
@@ -337,18 +365,6 @@ pipeline {
   b = a
 }
 -- Error(ValueError: "Pipeline has a dependency cycle involving node 'a'")
-```
-
-### Error Propagation
-
-If a node fails, the error is captured and reported:
-
-```t
-pipeline {
-  a = 1 / 0
-  b = a + 1
-}
--- Error(ValueError: "Pipeline node 'a' failed: ...")
 ```
 
 ### Missing Nodes
@@ -461,17 +477,19 @@ T enforces a clear separation between interactive and non-interactive execution:
 
 ### Non-interactive (`t run`)
 
-Scripts executed with `t run` **must** call `populate_pipeline()` (or `build_pipeline()`). This ensures that non-interactive execution always produces reproducible Nix artifacts.
+Scripts executed with `t run` **must** call `populate_pipeline()` (or `build_pipeline()`). This ensures that non-interactive execution always produces reproducible Nix artifacts. By default, `t run` operates in **resilient mode**, continuing past errors to provide a full diagnostic summary. Use `--failfast` to change this.
 
 ```bash
-# ✅ This works — script defines and populates a pipeline
+# ✅ This works — resilient by default
 $ t run my_pipeline.t
+
+# 🛑 This fails immediately on the first error
+$ t run --failfast my_pipeline.t
 
 # ❌ This is rejected — script doesn't call populate_pipeline()
 $ t run my_script.t
 # Error: non-interactive execution requires a pipeline.
-# Scripts run with `t run` must call `populate_pipeline(p, build=true)` or `build_pipeline()`.
-# Use the REPL for interactive exploration, or pass --unsafe to override.
+# Use --unsafe to override.
 ```
 
 A valid pipeline script looks like:

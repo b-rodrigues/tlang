@@ -12,7 +12,7 @@ open Ast
 --# @seealso pipeline_nodes
 --# @export
 *)
-let register ~rerun_pipeline env =
+let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
   Env.add "pipeline_run"
     (make_builtin ~name:"pipeline_run" 1 (fun args env ->
       match args with

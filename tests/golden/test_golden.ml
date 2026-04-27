@@ -92,12 +92,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (* Golden test: Cycle detection *)
   test "golden: cycle detection"
     "pipeline {\n  a = b\n  b = a\n}"
-    {|Error(ValueError: "Pipeline has a dependency cycle involving node `a`.")|};
+    {|Error(StructuralError: "Pipeline has a dependency cycle involving node `a`.")|};
 
   (* Golden test: Node failure *)
   test "golden: node failure propagation"
     "pipeline {\n  a = 1 / 0\n  b = a + 1\n}"
-    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Pipeline node `a` failed: Division by zero.\n  - `b` failed: Pipeline node `b` failed: Upstream error: Pipeline node `a` failed: Division by zero.";
+    "Pipeline(2 nodes: [a, b])\nErrors:\n  - `a` failed: Pipeline node `a` failed: Division by zero.\n  - `b` failed: Pipeline node `b` failed: Pipeline node `a` failed: Division by zero.";
 
   (* Golden test: Missing node access *)
   test "golden: missing node error"
@@ -639,9 +639,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
     (* Test: JPMML Bridge Prediction (triggered by predict builtin through authority pivot) *)
     (try
-      let (v, _) = eval_string_env "preds = predict(df, model); length(preds)" env_pmml in
+      let (v, _) = eval_string_env "preds = predict(df, model); nrow(preds)" env_pmml in
       if Ast.Utils.value_to_string v = "150" then begin
-        incr pass_count; Printf.printf "  ✓ golden jpmml: bridge prediction successful (150 rows via JPMML)\n"
+        incr pass_count; Printf.printf "  ✓ golden jpmml: bridge prediction successful (150 rows verified via nrow)\n"
       end else begin
         incr fail_count; Printf.printf "  ✗ golden jpmml: bridge prediction failed (got %s)\n" (Ast.Utils.value_to_string v)
       end

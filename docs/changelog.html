@@ -36,6 +36,87 @@
 <h1 id="changelog">Changelog</h1>
 <h2 id="xx-upcoming">[0.51.4] - 2026-04-xx (upcoming)</h2>
 <p><strong>Status</strong>: Beta</p>
+<h3 id="language-ergonomics-auto-quoting">Language Ergonomics &amp;
+Auto-Quoting</h3>
+<ul>
+<li><strong>Auto-Quoted Parameters (<code>$param</code>)</strong>:
+<ul>
+<li>Introduced <code>$param</code> syntax in lambda and
+<code>function()</code> parameter lists.</li>
+<li>Parameters prefixed with <code>$</code> automatically capture bare
+names (like column names) as <strong>Symbols</strong> rather than
+evaluating them.</li>
+<li>Simplified the creation of data-wrangling wrappers, removing the
+need for <code>enquo()</code> in simple forwarding cases.</li>
+</ul></li>
+<li><strong>Unified <code>get()</code> and New <code>sym()</code>
+Builtin</strong>:
+<ul>
+<li>Added the <code>sym()</code> core builtin for programmatic symbol
+creation.</li>
+<li>Unified the <code>get()</code> dispatcher across <code>core</code>
+and <code>lens</code> packages, ensuring a single, stable interface for
+variable lookup, collection indexing, and lens-based retrieval.</li>
+<li><strong>Regression Safety</strong>: Added regression tests to ensure
+core primitives remain stable when the <code>lens</code> package is
+loaded.</li>
+</ul></li>
+</ul>
+<h3 id="structural-integrity-terminal-error-handling">Structural
+Integrity &amp; Terminal Error Handling</h3>
+<ul>
+<li><strong>Introduced <code>StructuralError</code> Category</strong>:
+<ul>
+<li>Added <code>StructuralError</code> as a new terminal diagnostic code
+for fundamental pipeline orchestration failures.</li>
+<li><strong>DAG Validation</strong>: Dependency cycles, self-referential
+nodes, and missing sibling node references are now classified as
+<code>StructuralError</code>.</li>
+<li><strong>Orchestration Failure</strong>: Materialization errors in
+<code>populate_pipeline</code> (e.g., missing dependencies in
+<code>tproject.toml</code>, missing Nix build tools, or stalled artifact
+directories) now emit <code>StructuralError</code>.</li>
+</ul></li>
+<li><strong>Terminal Evaluation Policy</strong>:
+<ul>
+<li>The core evaluator now treats <code>StructuralError</code> as a
+<strong>terminal event</strong> that bypasses “Resilient-by-Default”
+(<code>resilient=true</code>) settings.</li>
+<li>This ensures that fundamental infrastructure or topology breaks stop
+script execution immediately, preventing confusing downstream “cascading
+gibberish” errors while maintaining resilience for standard
+data-computation errors (like <code>1 / 0</code>).</li>
+</ul></li>
+<li><strong>Environment-Aware Failures</strong>:
+<ul>
+<li>Pipeline dependency checks now respect the
+<code>TLANG_AUTO_ADD_PIPELINE_DEPS</code> environment variable.</li>
+<li>If auto-injection is disabled or impossible (non-interactive
+sessions), the system raises a fatal <code>StructuralError</code>
+instead of implicitly continuing into a broken Nix state.</li>
+</ul></li>
+</ul>
+<h3 id="pipeline-infrastructure-lens-orchestration">Pipeline
+Infrastructure &amp; Lens Orchestration</h3>
+<ul>
+<li><strong>Resolution Stabilization</strong>:
+<ul>
+<li>Implemented robust lazy resolution for cross-pipeline dependencies
+and out-of-order pipeline nodes.</li>
+<li>Fixed a regression where pipeline nodes were returning
+<code>unbuilt</code> states instead of resolved values in complex
+dependency graphs.</li>
+</ul></li>
+<li><strong>Improved Failure Visibility</strong>:
+<ul>
+<li>Introduced structured <code>MissingArtifactError</code> in the lens
+system to provide precise feedback on unbuilt dependencies during lazy
+evaluation.</li>
+<li>Clarified the error contract for <code>get()</code> when targeting
+plotting nodes, ensuring metadata dictionaries are returned
+predictably.</li>
+</ul></li>
+</ul>
 <h3 id="first-class-visual-metadata-plot-inspection">First-Class Visual
 Metadata &amp; Plot Inspection</h3>
 <ul>
@@ -101,6 +182,15 @@ documentation (descriptions, parameters, examples) for
 <code>t_doc("parse")</code> and <code>t_doc("generate")</code> workflows
 for extracting and publishing reference pages for new core
 functions.</li>
+<li><strong>Auto-Quoting Documentation</strong>: Updated
+<code>docs/language_overview.md</code> and
+<code>docs/quotation.md</code> with comprehensive examples of the new
+<code>$param</code> auto-quoting feature. ### Core Evaluator &amp;
+Emitter Refinements</li>
+<li><strong>Quarto Wrapper Ergonomics</strong>: Added <code>qn()</code>
+as a first-class convenience wrapper around <code>node()</code> with
+<code>runtime = Quarto</code>, matching the existing <code>rn()</code>
+and <code>pyn()</code> helpers for R and Python nodes.</li>
 <li><strong>Improved Pretty Printing</strong>: Updated the core pretty
 printer to handle complex nested dictionaries and diagnostics summaries
 more gracefully.</li>
@@ -120,6 +210,28 @@ visualizations.</li>
 <li><strong>Improved REPL interaction</strong>: Explicitly flush
 stdout/stderr around <code>show_plot</code> calls so the rendered path
 is reported cleanly before local viewer launch.</li>
+<li><strong>Helper Consistency</strong>: Standardized lens helper names
+and improved internal consistency in <code>lens.ml</code>.</li>
+</ul>
+<h3 id="resilient-by-default-evaluation">Resilient-by-Default
+Evaluation</h3>
+<ul>
+<li><strong>Global Resilience</strong>: Evaluation now defaults to
+resilient mode (<code>resilient=true</code>). This ensures that scripts
+and pipelines continue execution upon encountering <code>VError</code>
+values, aligning with the “Errors are Values” philosophy.</li>
+<li><strong><code>--failfast</code> Flag</strong>: Replaced the
+<code>--resilient</code> CLI flag with <code>--failfast</code>. Users
+can now explicitly opt-in to the usual, common behaviour of
+short-circuiting upon the first error.</li>
+<li><strong><code>t_make()</code> &amp; <code>t_run()</code>
+Integration</strong>: Added <code>failfast</code> parameter to the main
+pipeline orchestrator and script runner for granular control.</li>
+<li><strong>Improved Serialization Restoration</strong>: Fixed a
+critical bug where <code>VError</code> values were deserialized as
+Dictionaries. The system now correctly restores the native
+<code>Error</code> type across node boundaries, even when using modern
+JSON interchange.</li>
 </ul>
 <h2 id="section">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
@@ -724,3 +836,4 @@ models.</li>
 </script>
 </body>
 </html>
+

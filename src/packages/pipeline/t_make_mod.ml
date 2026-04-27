@@ -43,6 +43,7 @@ let interrupt_error () =
 --# @param max_jobs :: Int The maximum number of jobs for Nix to run in parallel.
 --# @param max_cores :: Int The maximum number of cores per job for Nix to use.
 --# @param verbose :: Int The Nix build verbosity level. `0` is quiet; values > 0 enable internal node failure logs.
+--# @param failfast :: Bool Whether to stop immediately on evaluation errors (defaults to false).
 --# @return :: Null
 --# @family pipeline
 --# @export
@@ -54,6 +55,7 @@ let register env =
         let filename = ref "src/pipeline.t" in
         let nix_args = ref [] in
         let verbose = ref !Builder_internal.default_nix_build_verbose in
+        let failfast = ref false in
         let arg_error_opt = ref None in
         
         let named_only, positional_only =
@@ -78,6 +80,10 @@ let register env =
               arg_error_opt := Some (ValueError, "t_make: 'verbose' must be a non-negative Int")
           | (Some "verbose", _) ->
               arg_error_opt := Some (TypeError, "t_make: 'verbose' must be an Int")
+          | (Some "failfast", VBool b) ->
+              failfast := b
+          | (Some "failfast", _) ->
+              arg_error_opt := Some (TypeError, "t_make: 'failfast' must be a Bool")
           | (Some k, _) ->
               arg_error_opt := Some (TypeError, Printf.sprintf "t_make: unknown argument '%s'" k)
           | _ -> ()
@@ -90,6 +96,7 @@ let register env =
            | 2, VInt i -> nix_args := (string_of_int i) :: "--cores" :: !nix_args
            | 3, VInt i when i >= 0 -> verbose := i
            | 3, VInt _ -> arg_error_opt := Some (ValueError, "t_make: 'verbose' must be a non-negative Int")
+           | 4, VBool b -> failfast := b
            | n, _ -> arg_error_opt := Some (TypeError, Printf.sprintf "t_make: unexpected argument at position %d" n));
           idx + 1
         ) 0 positional_only in
@@ -111,7 +118,7 @@ let register env =
                   (fun () ->
                     Builder_internal.nix_build_args := List.rev !nix_args;
                     Builder_internal.default_nix_build_verbose := !verbose;
-                    try
+                    (try
                       let content =
                         let ch = open_in !filename in
                         Fun.protect
@@ -130,29 +137,36 @@ let register env =
                               Pipeline_script.reload_env_for_pipeline_entry
                                 ~filename:!filename program !env_ref
                             in
-                            let (v, new_env) = Eval.eval_program program eval_env in
+                            (* We print the build header BEFORE evaluation so it's always first *)
+                            Printf.eprintf "Starting build for project: %s\n%!" !filename;
+
+                            let prev_warn = !Eval.show_warnings in
+                            let (v, new_env) =
+                              Fun.protect
+                                ~finally:(fun () -> Eval.show_warnings := prev_warn)
+                                (fun () ->
+                                  Eval.show_warnings := false;
+                                  Eval.eval_program ~resilient:(not !failfast) program eval_env)
+                            in
+                            
                             match v with
                             | VError _ -> v
                             | _ ->
                                 env_ref :=
                                   Pipeline_script.remember_pipeline_entry_bindings
                                     ~filename:!filename program new_env;
-                                Printf.printf "Pipeline %s evaluated successfully.\n" !filename;
-                                VNA NAGeneric)
+                                (VNA NAGeneric))
                       with
                       | Lexer.SyntaxError msg ->
                           let pos = Lexing.lexeme_start_p lexbuf in
-                          make_located_error ~file:!filename SyntaxError
-                            ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
+                          make_located_error ~file:!filename SyntaxError ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
                       | Parser.Error ->
                           let pos = Lexing.lexeme_start_p lexbuf in
-                          make_located_error ~file:!filename SyntaxError
-                            (Printf.sprintf "Parse error in '%s'" !filename) pos
+                          make_located_error ~file:!filename SyntaxError (Printf.sprintf "Parse error in '%s'" !filename) pos
                       | Sys.Break ->
                           interrupt_error ())
                     with
                     | Sys_error msg ->
-                        Error.make_error FileError
-                          (Printf.sprintf "t_make failed: %s" msg))))
-      })
+                        Error.make_error FileError (Printf.sprintf "t_make failed: %s" msg))))
+      )})
     env

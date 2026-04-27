@@ -11,6 +11,7 @@ type mode_parse = {
   args : string list;
   mode : Typecheck.mode;
   mode_flag : bool;
+  failfast : bool;
 }
 
 let validate_path ~kind path =
@@ -35,12 +36,13 @@ let validate_path ~kind path =
   | Sys_error msg -> Error msg
 
 let parse_mode_args (args : string list) : (mode_parse, string) result =
-  let rec extract acc mode seen = function
+  let rec extract acc mode seen failfast = function
     | [] ->
         Ok {
           args = List.rev acc;
           mode;
           mode_flag = seen;
+          failfast;
         }
     | "--mode" :: [] ->
         Error "Missing value for --mode. Use --mode repl|strict"
@@ -49,14 +51,15 @@ let parse_mode_args (args : string list) : (mode_parse, string) result =
           Error "Duplicate --mode flag. Use --mode repl|strict only once."
         else
           (match Typecheck.mode_of_string m with
-           | Some mode' -> extract acc mode' true rest
+           | Some mode' -> extract acc mode' true failfast rest
            | None ->
                Error (Printf.sprintf "Invalid mode '%s'. Use --mode repl|strict" m))
-    | x :: xs -> extract (x :: acc) mode seen xs
+    | "--failfast" :: rest -> extract acc mode seen true rest
+    | x :: xs -> extract (x :: acc) mode seen failfast xs
   in
-  extract [] Typecheck.Repl false args
+  extract [] Typecheck.Repl false false args
 
-let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, string) result =
+let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string list) : (unit, string) result =
   let commands = ["run"; "repl"; "test"; "explain"; "init"; "doc"; "doctor"; "docs"; "update"; "publish"; "--help"; "-h"; "--version"; "-v"] in
   let command =
     match args with
@@ -92,6 +95,8 @@ let validate_cli_flags ~mode_flag ~unsafe_flag (args : string list) : (unit, str
     Error "--unsafe cannot be used with `t run --expr`."
   else if mode_flag && (not mode_allowed) then
     Error "--mode only applies to repl/run/explain."
+  else if failfast_flag && (not mode_allowed) then
+    Error "--failfast only applies to repl/run/explain."
   else
     Ok ()
 

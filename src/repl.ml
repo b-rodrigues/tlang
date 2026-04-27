@@ -42,7 +42,7 @@ let interrupt_error () =
     na_count = 0;
   }
 
-let parse_and_eval ?filename mode env input =
+let parse_and_eval ?filename ?(failfast=false) mode env input =
   let lexbuf = Lexing.from_string input in
   (match filename with
    | Some file -> lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = file }
@@ -50,9 +50,8 @@ let parse_and_eval ?filename mode env input =
   try
     let program = Parser.program Lexer.token lexbuf in
     match Typecheck.validate_program ~mode program with
-    | Error err ->
-        (Ast.VError err, env)
-    | Ok () -> Eval.eval_program program env
+    | Error err -> (Ast.VError err, env)
+    | Ok () -> Eval.eval_program ~resilient:(not failfast) program env
   with
   | Lexer.SyntaxError msg ->
       let pos = Lexing.lexeme_start_p lexbuf in
@@ -63,12 +62,12 @@ let parse_and_eval ?filename mode env input =
   | Sys.Break ->
       (interrupt_error (), env)
 
-let run_file mode filename env =
+let run_file ?failfast mode filename env =
   try
     let ch = open_in filename in
     let content = really_input_string ch (in_channel_length ch) in
     close_in ch;
-    parse_and_eval ~filename mode env content
+    parse_and_eval ~filename ?failfast mode env content
   with
   | Sys_error msg ->
       (Ast.VError {
@@ -212,7 +211,7 @@ let handle_magic line env mode base_keys =
   | "time" :: expr_parts ->
       let expr_str = String.concat " " expr_parts in
       let start_time = Unix.gettimeofday () in
-      let (result, new_env) = parse_and_eval mode env expr_str in
+      let (result, new_env) = parse_and_eval ?failfast:None mode env expr_str in
       let end_time = Unix.gettimeofday () in
       repl_display_value result;
       Printf.printf "%sExecution time: %.4f seconds%s\n" color_gray (end_time -. start_time) color_reset;
@@ -264,6 +263,7 @@ let print_help () =
   Printf.printf "  run <file.t>      Execute a T source file\n";
   Printf.printf "  run --expr <expr> Execute a T expression directly\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
+  Printf.printf "  --failfast        Stop execution on first error\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
   Printf.printf "  init --package <n>  Create a new T package\n";
   Printf.printf "  init --project <n>  Create a new T project\n";
@@ -289,8 +289,7 @@ let ensure_file_path filename =
   match Cli_args.validate_path ~kind:Cli_args.File filename with
   | Ok () -> ()
   | Error msg -> exit_with_error msg
-
-let cmd_run ?(unsafe=false) mode filename env =
+let cmd_run ?(unsafe=false) ?failfast mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
   if not unsafe then begin
@@ -309,16 +308,16 @@ let cmd_run ?(unsafe=false) mode filename env =
       with _ -> ())
     with _ -> ()
   end;
-  let (result, _env) = run_file mode filename env in
+  let (result, _env) = run_file ?failfast mode filename env in
   match result with
   | Ast.VError _ ->
       Printf.eprintf "%s\n" (Ast.Utils.value_to_string result); exit 1
   | Ast.(VNA NAGeneric) -> ()
   | v -> print_endline (Ast.Utils.value_to_string v)
 
-let cmd_run_expr mode expr env =
+let cmd_run_expr ?failfast mode expr env =
   Packages.ensure_docs_loaded ();
-  let (result, _) = parse_and_eval mode env expr in
+  let (result, _) = parse_and_eval ?failfast mode env expr in
   match result with
   | Ast.VError _ ->
       Printf.eprintf "%s\n" (Ast.Utils.value_to_string result); exit 1
@@ -353,15 +352,15 @@ let cmd_init_project args =
       | Ok () -> Printf.printf "Project initialized successfully.\n"
       | Error msg -> Printf.eprintf "Error: %s\n" msg; exit 1
 
-let cmd_explain mode rest env =
+let cmd_explain ?failfast mode rest env =
   Packages.ensure_docs_loaded ();
   let expr_str = String.concat " " (List.filter (fun s -> s <> "--json") rest) in
   if expr_str = "" then (Printf.eprintf "Usage: t explain <expr>\n"; exit 1)
   else begin
-    let (result, env') = parse_and_eval mode env expr_str in
+    let (result, env') = parse_and_eval ?failfast mode env expr_str in
     let explain_expr = "explain(__explain_target__)" in
     let env'' = Ast.Env.add "__explain_target__" result env' in
-    let (explain_result, _) = parse_and_eval mode env'' explain_expr in
+    let (explain_result, _) = parse_and_eval ?failfast mode env'' explain_expr in
     print_endline (Ast.Utils.value_to_string explain_result)
   end
 
@@ -473,7 +472,7 @@ let get_nix_version () =
     | _ -> None
   with _ -> None
 
-let cmd_repl mode env =
+let cmd_repl ?failfast mode env =
   Packages.ensure_docs_loaded ();
   
   (* Track base environment keys to filter %objects *)
@@ -532,7 +531,7 @@ let cmd_repl mode env =
     end
   in
 
-  let rec repl env show_prompt =
+  let rec repl ?failfast env show_prompt =
     let prompt = if show_prompt then "T> " else "" in
     try
       match read_input prompt with
@@ -648,18 +647,18 @@ let cmd_repl mode env =
               ignore (LNoise.history_add full_input);
               ignore (LNoise.history_save ~filename:history_file)
             );
-            let (result, new_env) = parse_and_eval mode env full_input in
+            let (result, new_env) = parse_and_eval ?failfast mode env full_input in
             Symbol_table.populate_from_env scope new_env;
             repl_display_value result;
-            repl new_env true
+            repl ?failfast new_env true
             end
           end
     with
     | Sys.Break ->
         print_endline "Interrupted.";
-        repl env true
+        repl ?failfast env true
   in
-  repl env true
+  repl ?failfast env true
 
 (* --- Entry Point --- *)
 
@@ -672,8 +671,10 @@ let () =
     | Error msg -> Printf.eprintf "%s\n" msg; exit 1
   in
   let unsafe = List.mem "--unsafe" raw_args in
+  let failfast = mode_parse.failfast in
   let args = if unsafe then List.filter (fun s -> s <> "--unsafe") mode_parse.args else mode_parse.args in
-  (match Cli_args.validate_cli_flags ~mode_flag:mode_parse.mode_flag ~unsafe_flag:unsafe args with
+  let args = if failfast then List.filter (fun s -> s <> "--failfast") args else args in
+  (match Cli_args.validate_cli_flags ~mode_flag:mode_parse.mode_flag ~unsafe_flag:unsafe ~failfast_flag:failfast args with
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
   let env = Packages.init_env () in
@@ -687,6 +688,7 @@ let () =
 --#
 --# @name t_run
 --# @param filename :: String The path to the T file to execute.
+--# @param failfast :: Bool Whether to fail on error (defaults to false).
 --# @return :: Null
 --# @example
 --#   t_run("src/my_script.t")
@@ -696,8 +698,17 @@ let () =
   let env = Ast.Env.add "t_run"
     (Ast.VBuiltin { b_name = Some "t_run"; b_arity = 1; b_variadic = false;
       b_func = (fun named_args env_ref ->
-        match List.map snd named_args with
-        | [Ast.VString filename] ->
+        let f_filename = ref None in
+        let f_failfast = ref false in
+        List.iter (fun (k, v) ->
+          match k, v with
+          | Some "filename", Ast.VString s -> f_filename := Some s
+          | None, Ast.VString s -> f_filename := Some s
+          | Some "failfast", Ast.VBool b -> f_failfast := b
+          | _ -> ()
+        ) named_args;
+        match !f_filename with
+        | Some filename ->
             (try
               let ch = open_in filename in
               let content = really_input_string ch (in_channel_length ch) in
@@ -706,7 +717,7 @@ let () =
                 (try
                  let program = Parser.program Lexer.token lexbuf in
                  let eval_env = Pipeline_script.reload_env_for_pipeline_entry ~filename program !env_ref in
-                 let (v, new_env) = Eval.eval_program program eval_env in
+                 let (v, new_env) = Eval.eval_program ~resilient:(not !f_failfast) program eval_env in
                  (match v with
                   | Ast.VError _ -> v
                   | _ ->
@@ -847,19 +858,19 @@ let () =
       exit 1
   | _ :: "run" :: "--expr" :: expr :: [] ->
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
-      cmd_run_expr script_mode expr env
+      cmd_run_expr ~failfast script_mode expr env
   | _ :: "run" :: "--expr" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run --expr <expr>`.\n";
       exit 1
   | _ :: "run" :: filename :: [] ->
       (* Default to Strict mode for scripts, but allow --mode to override *)
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
-      cmd_run ~unsafe script_mode filename env
+      cmd_run ~unsafe ~failfast script_mode filename env
   | _ :: "run" :: _ ->
       Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
       exit 1
-  | _ :: "repl" :: _ -> cmd_repl mode_parse.mode env
-  | _ :: "explain" :: rest -> cmd_explain mode_parse.mode rest env
+  | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
+  | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
   | _ :: "init" :: "--project" :: rest -> cmd_init_project rest
   | _ :: "test" :: rest -> cmd_test rest
@@ -878,9 +889,9 @@ let () =
   | _ :: "--version" :: _ | _ :: "-v" :: _ -> print_version ()
   | [_] ->
       (* No arguments: start the REPL (default behavior) *)
-      cmd_repl mode_parse.mode env
+      cmd_repl ~failfast mode_parse.mode env
   | _ :: unknown :: _ ->
       Printf.eprintf "Unknown command: %s\n" unknown;
       Printf.eprintf "Run 't --help' for usage information.\n";
       exit 1
-  | [] -> cmd_repl mode_parse.mode env
+  | [] -> cmd_repl ~failfast mode_parse.mode env

@@ -14,6 +14,18 @@
     - Unified the `get()` dispatcher across `core` and `lens` packages, ensuring a single, stable interface for variable lookup, collection indexing, and lens-based retrieval.
     - **Regression Safety**: Added regression tests to ensure core primitives remain stable when the `lens` package is loaded.
 
+### Structural Integrity & Terminal Error Handling
+- **Introduced `StructuralError` Category**:
+    - Added `StructuralError` as a new terminal diagnostic code for fundamental pipeline orchestration failures.
+    - **DAG Validation**: Dependency cycles, self-referential nodes, and missing sibling node references are now classified as `StructuralError`.
+    - **Orchestration Failure**: Materialization errors in `populate_pipeline` (e.g., missing dependencies in `tproject.toml`, missing Nix build tools, or stalled artifact directories) now emit `StructuralError`.
+- **Terminal Evaluation Policy**:
+    - The core evaluator now treats `StructuralError` as a **terminal event** that bypasses "Resilient-by-Default" (`resilient=true`) settings.
+    - This ensures that fundamental infrastructure or topology breaks stop script execution immediately, preventing confusing downstream "cascading gibberish" errors while maintaining resilience for standard data-computation errors (like `1 / 0`).
+- **Environment-Aware Failures**:
+    - Pipeline dependency checks now respect the `TLANG_AUTO_ADD_PIPELINE_DEPS` environment variable.
+    - If auto-injection is disabled or impossible (non-interactive sessions), the system raises a fatal `StructuralError` instead of implicitly continuing into a broken Nix state.
+
 ### Pipeline Infrastructure & Lens Orchestration
 - **Resolution Stabilization**:
     - Implemented robust lazy resolution for cross-pipeline dependencies and out-of-order pipeline nodes.
@@ -57,6 +69,12 @@
 - **Improved REPL interaction**: Explicitly flush stdout/stderr around `show_plot` calls so the rendered path is reported cleanly before local viewer launch.
 - **Helper Consistency**: Standardized lens helper names and improved internal consistency in `lens.ml`.
 
+
+### Resilient-by-Default Evaluation
+- **Global Resilience**: Evaluation now defaults to resilient mode (`resilient=true`). This ensures that scripts and pipelines continue execution upon encountering `VError` values, aligning with the "Errors are Values" philosophy.
+- **`--failfast` Flag**: Replaced the `--resilient` CLI flag with `--failfast`. Users can now explicitly opt-in to the usual, common behaviour of short-circuiting upon the first error.
+- **`t_make()` & `t_run()` Integration**: Added `failfast` parameter to the main pipeline orchestrator and script runner for granular control.
+- **Improved Serialization Restoration**: Fixed a critical bug where `VError` values were deserialized as Dictionaries. The system now correctly restores the native `Error` type across node boundaries, even when using modern JSON interchange.
 
 ## [0.51.3] - 2026-04-12
 

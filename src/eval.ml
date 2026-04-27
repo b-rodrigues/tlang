@@ -212,12 +212,22 @@ let build_node_diagnostics node_name node_deps own_warnings diagnostics_so_far v
              List.map (inherit_warning dep_name) diagnostics.Ast.nd_warnings
          | None -> [])
   in
+  let upstream_errors =
+    node_deps
+    |> List.filter (fun dep_name ->
+         match List.assoc_opt dep_name diagnostics_so_far with
+         | Some diagnostics -> diagnostics.Ast.nd_error <> None
+         | None -> false)
+  in
   let suppressed = !current_node_suppression_requested in
   current_node_suppression_requested := false;
+  let is_error = match value with VError _ -> true | _ -> false in
   {
     Ast.nd_warnings = dedupe_warnings (own_warnings @ upstream_warnings);
     nd_error = node_error_of_value node_name value;
     nd_warnings_suppressed = suppressed;
+    nd_recovered = (upstream_errors <> [] && not is_error);
+    nd_upstream_errors = upstream_errors;
   }
 
 (** Print a compact stderr summary of warning and error diagnostics for a
@@ -235,11 +245,17 @@ let print_pipeline_diagnostics_summary node_diagnostics =
          | Some error -> Some (name, error)
          | None -> None)
   in
-  if !show_warnings && (warning_nodes <> [] || error_nodes <> []) then begin
+  let recovered_nodes =
+    node_diagnostics
+    |> List.filter (fun (_, diagnostics) -> diagnostics.Ast.nd_recovered)
+  in
+  if !show_warnings && (warning_nodes <> [] || error_nodes <> [] || recovered_nodes <> []) then begin
+    flush stdout;
     Printf.eprintf
-      "Pipeline summary: %d node(s) with warnings, %d error(s)\n%!"
+      "Pipeline summary: %d node(s) with warnings, %d error(s), %d recovered\n%!"
       (List.length warning_nodes)
-      (List.length error_nodes);
+      (List.length error_nodes)
+      (List.length recovered_nodes);
     List.iter (fun (name, diagnostics) ->
       let own_warnings =
         diagnostics.Ast.nd_warnings
@@ -262,9 +278,14 @@ let print_pipeline_diagnostics_summary node_diagnostics =
             (List.length own_warnings)
             na_total
     ) warning_nodes;
-    List.iter (fun (name, error) ->
-      Printf.eprintf "  ✖  %s — %s\n%!" name error.Ast.ne_message
-    ) error_nodes
+    List.iter (fun (name, diagnostics) ->
+      match diagnostics.Ast.nd_error with
+      | Some error -> Printf.eprintf "  ✖  %s — %s\n%!" name error.Ast.ne_message
+      | None -> ()
+    ) node_diagnostics;
+    List.iter (fun (name, _) ->
+      Printf.eprintf "  ❍  %s — Recovered from upstream failure.\n%!" name
+    ) recovered_nodes
   end
 
 (** Check if an expression uses NSE (contains $field references) *)
@@ -1314,7 +1335,7 @@ and topo_sort (nodes : (string * 'a) list) (deps : (string * string list) list) 
   | Ok () -> Ok (List.rev !order)
 
 (** Evaluate a pipeline definition *)
-and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
+and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : value =
   let default_un expr = {
     un_command = expr;
     un_script = None;
@@ -1393,13 +1414,13 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
         (match un.un_dependencies with
          | Some explicit ->
              if List.mem name explicit then
-               Error (Error.value_error (Printf.sprintf
+               Error (Error.structural_error (Printf.sprintf
                  "Self-referential node: `%s` lists itself in `deps`." name))
              else
                (* Validate that all explicit deps are known sibling nodes in this pipeline *)
                let unknown = List.filter (fun d -> not (List.mem d node_names)) explicit in
                if unknown <> [] then
-                 Error (Error.value_error (Printf.sprintf
+                 Error (Error.structural_error (Printf.sprintf
                    "Node `%s`: explicit `deps` contains unknown node(s): %s. All dependencies must be nodes declared in the same pipeline."
                    name (String.concat ", " (List.map (fun d -> "`" ^ d ^ "`") unknown))))
                else
@@ -1409,7 +1430,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
              let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
              let has_self_ref = List.exists (fun v -> v = name) fv in
              if has_self_ref && not is_raw then
-               Error (Error.value_error (Printf.sprintf
+               Error (Error.structural_error (Printf.sprintf
                  "Self-referential node detected in command for node: `%s`." name))
              else
                let node_deps = List.filter (fun v ->
@@ -1473,13 +1494,13 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
   ) desugared_nodes in
 
   if validation_errors <> [] then
-    Error.make_error TypeError (List.hd validation_errors)
+    Error.make_error StructuralError (List.hd validation_errors)
   else
 
   (* Topological sort *)
   match topo_sort desugared_nodes deps with
   | Error cycle_node ->
-    Error.value_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
+    Error.structural_error (Printf.sprintf "Pipeline has a dependency cycle involving node `%s`." cycle_node)
   | Ok exec_order ->
     let node_map = desugared_nodes in
     let eval_or_defer name un current_env_ref =
@@ -1574,25 +1595,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
           un_env_vars = []; un_args = []; un_shell = None; un_shell_args = [];
           un_functions = []; un_includes = []; un_noop = false; un_dependencies = None } in
       let node_deps = match List.assoc_opt name deps with Some d -> d | None -> [] in
-      let upstream_err_opt = List.find_opt (fun d ->
-         match Env.find_opt d !current_env_ref with
-         | Some (VError _) -> true
-         | _ -> false) node_deps in
-      let (v, own_warnings) =
-        match upstream_err_opt with
-        | Some failed_dep ->
-            (match Env.find_opt failed_dep !current_env_ref with
-             | Some (VError err) ->
-                 let msg = if String.starts_with ~prefix:"Upstream error: " err.message then
-                     err.message
-                 else
-                     "Upstream error: " ^ err.message
-                 in
-                 (Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg }, [])
-              | _ -> capture_node_warnings (fun () -> eval_or_defer name un current_env_ref))
-        | None ->
-            capture_node_warnings (fun () -> eval_or_defer name un current_env_ref)
-      in
+      let (v, own_warnings) = capture_node_warnings (fun () -> eval_or_defer name un current_env_ref) in
       let node_diagnostics =
         build_node_diagnostics name node_deps own_warnings diagnostics v
       in
@@ -1602,7 +1605,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
 
     let p_nodes = List.rev results in
     let p_node_diagnostics = List.rev diagnostics in
-    print_pipeline_diagnostics_summary p_node_diagnostics;
+    if verbose then print_pipeline_diagnostics_summary p_node_diagnostics;
     VPipeline {
       p_nodes;
       p_exprs = List.map (fun (name, un) -> (name, un.un_command)) desugared_nodes;
@@ -1624,7 +1627,7 @@ and eval_pipeline env_ref (nodes : (string * Ast.expr) list) : value =
     }
 
 (** Re-run a pipeline *)
-and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value =
+and rerun_pipeline ?(strict=false) ?(verbose=true) env_ref (prev : Ast.pipeline_result) : value =
   let node_names = List.map fst prev.p_exprs in
   let desugared_nodes = List.map (fun (name, expr) ->
     (name, {
@@ -1739,25 +1742,7 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
         old_val <> prev_val
       ) external_deps in
       if deps_changed || external_changed then begin
-        let upstream_err_opt = List.find_opt (fun d ->
-           match Env.find_opt d !current_env_ref with
-           | Some (VError _) -> true
-           | _ -> false) node_deps in
-        let (v, own_warnings) = match upstream_err_opt with
-          | Some failed_dep ->
-              (match Env.find_opt failed_dep !current_env_ref with
-               | Some (VError err) ->
-                   let msg = if String.starts_with ~prefix:"Upstream error: " err.message then
-                       err.message
-                   else
-                       "Upstream error: " ^ err.message
-                   in
-                   let runtime = match List.assoc_opt "runtime" err.context with Some (VString r) -> Some r | _ -> None in
-                   (Ast.VError { err with message = pipeline_error_message ~node_name:name ~detail:msg;
-                                         context = (match runtime with Some r -> if List.mem_assoc "runtime" err.context then err.context else ("runtime", VString r) :: err.context | None -> err.context) }, [])
-                | _ -> capture_node_warnings (fun () -> rerun_eval_or_defer name un current_env_ref))
-          | None -> capture_node_warnings (fun () -> rerun_eval_or_defer name un current_env_ref)
-        in
+        let (v, own_warnings) = capture_node_warnings (fun () -> rerun_eval_or_defer name un current_env_ref) in
         let node_diagnostics =
           build_node_diagnostics name node_deps own_warnings diagnostics v
         in
@@ -1778,7 +1763,7 @@ and rerun_pipeline ?(strict=false) env_ref (prev : Ast.pipeline_result) : value 
       end
     ) ([], [], ref !env_ref, []) exec_order in
     let p_node_diagnostics = List.rev diagnostics in
-    print_pipeline_diagnostics_summary p_node_diagnostics;
+    if verbose then print_pipeline_diagnostics_summary p_node_diagnostics;
     VPipeline { prev with p_nodes = List.rev results; p_node_diagnostics }
 
 (** Evaluate a splice operand (!!!) and expand its elements as named pairs.
@@ -2828,14 +2813,14 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
   in
   (attach_stmt_location stmt v, env')
 
-and eval_program (program : program) (env : environment) : value * environment =
+and eval_program ?(resilient=true) (program : program) (env : environment) : value * environment =
   let rec go env = function
     | [] -> ((VNA NAGeneric), env)
     | [stmt] -> eval_statement env stmt
     | stmt :: rest ->
         let (v, new_env) = eval_statement env stmt in
         (match v with
-         | VError _ -> (v, new_env)
+         | VError err when not resilient || err.code = StructuralError -> (v, new_env)
          | _ -> go new_env rest)
   in
   go env program

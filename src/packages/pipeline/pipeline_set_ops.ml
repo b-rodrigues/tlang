@@ -126,7 +126,7 @@ let patch p1 p2 =
 --# @family pipeline
 --# @export
 *)
-let register ~rerun_pipeline env =
+let register ~(rerun_pipeline : ?strict:bool -> ?verbose:bool -> value Env.t -> pipeline_result -> value) env =
   let env = Env.add "union" (make_builtin ~name:"union" 2 (fun args env ->
     match args with
     | [VPipeline p1; VPipeline p2] -> 

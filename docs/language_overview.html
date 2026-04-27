@@ -297,6 +297,19 @@ square = function(x) x * x</code></pre>
 <h3 id="multi-argument-functions">Multi-Argument Functions</h3>
 <pre class="t"><code>add = \(a, b) a + b
 add(3, 7)  -- 10</code></pre>
+<h3 id="auto-quotation-param">Auto-Quotation (<code>$param</code>)</h3>
+<p>T supports auto-quoting for function parameters. Prefixing a
+parameter with <code>$</code> indicates that the caller can pass a bare
+name (like a column name), which is automatically captured as a
+<strong>Symbol</strong> rather than being evaluated.</p>
+<pre class="t"><code>my_select = \(df, $col) select(df, col)
+
+-- Caller passes bare &#39;salary&#39; which is captured as a symbol
+my_select(df, salary)</code></pre>
+<p>This is particularly useful when writing wrappers around data verbs
+like <code>select</code> or <code>mutate</code>. See <a
+href="quotation.html">Quotation and Metaprogramming</a> for more advanced
+usage involving <code>!!</code> (unquote).</p>
 <h3 id="closures">Closures</h3>
 <p>Functions capture their enclosing environment:</p>
 <pre class="t"><code>make_adder = \(n) \(x) x + n
@@ -492,7 +505,8 @@ config.port  -- 8080</code></pre>
 primitive and the <strong>Lens</strong> library. Lenses allow you to
 focus on specific parts of complex data structures (DataFrames, Lists,
 Pipelines) and perform serializable, cross-node data operations.</p>
-<h3 id="the-unified-get-built-in">The Unified <code>get()</code> Built-in</h3>
+<h3 id="the-unified-get-built-in">The Unified <code>get()</code>
+Built-in</h3>
 <p>The <code>get()</code> function is the primary entry point for
 retrieving data. It supports several modes of operation:</p>
 <h4 id="variable-lookup-r-style">1. Variable Lookup (R-style)</h4>
