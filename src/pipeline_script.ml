@@ -38,11 +38,13 @@ let extract_bool_literal = function
 let populate_pipeline_requests_build args =
   let rec find_named_build = function
     | [] -> None
-    | (Some "build", expr) :: _ -> extract_bool_literal expr
+    | (Some "build", expr) :: _ -> Some (extract_bool_literal expr)
     | _ :: rest -> find_named_build rest
   in
   match find_named_build args with
-  | Some build -> build
+  | Some (Some true) -> true
+  | Some (Some false) -> false
+  | Some None -> true
   | None ->
       let positional_args =
         List.filter_map (fun (name_opt, expr) ->
@@ -54,7 +56,7 @@ let populate_pipeline_requests_build args =
       | _pipeline_arg :: build_arg :: _ ->
           begin match extract_bool_literal build_arg with
           | Some build -> build
-          | None -> false
+          | None -> true
           end
       | _ -> false
 

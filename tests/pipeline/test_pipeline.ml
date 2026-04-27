@@ -14,34 +14,40 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     let stderr_fd = Unix.descr_of_out_channel stderr in
     let saved_stderr = Unix.dup stderr_fd in
     let read_fd, write_fd = Unix.pipe () in
-    Unix.dup2 write_fd stderr_fd;
-    Unix.close write_fd;
-    let restore () =
-      flush stderr;
-      Unix.dup2 saved_stderr stderr_fd;
-      Unix.close saved_stderr
+    let restored = ref false in
+    let close_noerr fd =
+      try Unix.close fd with
+      | Unix.Unix_error _ -> ()
     in
-    try
-      let result = f () in
-      restore ();
-      let buffer = Buffer.create 128 in
-      let chunk = Bytes.create 256 in
-      Fun.protect
-        ~finally:(fun () -> Unix.close read_fd)
-        (fun () ->
-          let rec drain () =
-            match Unix.read read_fd chunk 0 (Bytes.length chunk) with
-            | 0 -> ()
-            | n ->
-                Buffer.add_subbytes buffer chunk 0 n;
-                drain ()
-          in
-          drain ();
-          (result, Buffer.contents buffer))
-    with exn ->
-      restore ();
-      Unix.close read_fd;
-      raise exn
+    let restore () =
+      if not !restored then begin
+        restored := true;
+        flush stderr;
+        Unix.dup2 saved_stderr stderr_fd;
+        close_noerr saved_stderr
+      end
+    in
+    Fun.protect
+      ~finally:(fun () ->
+        restore ();
+        close_noerr read_fd;
+        close_noerr write_fd)
+      (fun () ->
+        Unix.dup2 write_fd stderr_fd;
+        close_noerr write_fd;
+        let result = f () in
+        restore ();
+        let buffer = Buffer.create 128 in
+        let chunk = Bytes.create 256 in
+        let rec drain () =
+          match Unix.read read_fd chunk 0 (Bytes.length chunk) with
+          | 0 -> ()
+          | n ->
+              Buffer.add_subbytes buffer chunk 0 n;
+              drain ()
+        in
+        drain ();
+        (result, Buffer.contents buffer))
   in
   let rec remove_path path =
     if Sys.file_exists path then
