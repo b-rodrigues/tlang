@@ -4,6 +4,62 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
     Str.global_replace re "" s
   in
+  let rec remove_path path =
+    if Sys.file_exists path then
+      if Sys.is_directory path then begin
+        Sys.readdir path
+        |> Array.iter (fun name -> remove_path (Filename.concat path name));
+        Unix.rmdir path
+      end else
+        Sys.remove path
+  in
+  let with_temp_pipeline_project script f =
+    let rec make_temp_dir attempts =
+      if attempts <= 0 then
+        failwith "failed to create temporary pipeline test directory"
+      else
+        let candidate =
+          Filename.concat
+            (Filename.get_temp_dir_name ())
+            (Printf.sprintf "tlang-pipeline-%d-%06d" (Unix.getpid ()) (Random.int 1_000_000))
+        in
+        try
+          Unix.mkdir candidate 0o755;
+          candidate
+        with Unix.Unix_error (Unix.EEXIST, _, _) ->
+          make_temp_dir (attempts - 1)
+    in
+    let dir = make_temp_dir 8 in
+    let src_dir = Filename.concat dir "src" in
+    let pipeline_path = Filename.concat src_dir "pipeline.t" in
+    let old_cwd = Sys.getcwd () in
+    Unix.mkdir src_dir 0o755;
+    let ch = open_out (Filename.concat dir "dune-project") in
+    close_out ch;
+    let oc = open_out pipeline_path in
+    output_string oc script;
+    close_out oc;
+    try
+      Sys.chdir dir;
+      let result = f dir pipeline_path in
+      Sys.chdir old_cwd;
+      remove_path dir;
+      result
+    with exn ->
+      Sys.chdir old_cwd;
+      remove_path dir;
+      raise exn
+  in
+  let contains_substring text pattern =
+    let len_t = String.length text in
+    let len_p = String.length pattern in
+    let rec go idx =
+      if idx + len_p > len_t then false
+      else if String.sub text idx len_p = pattern then true
+      else go (idx + 1)
+    in
+    if len_p = 0 then true else go 0
+  in
   Printf.printf "Phase 3 — Basic Pipeline:\n";
   test "simple pipeline"
     "pipeline {\n  x = 1\n  y = 2\n  z = x + y\n}"
@@ -141,10 +197,6 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   end else begin
     incr fail_count; Printf.printf "  ✗ nix verbosity args are derived correctly\n"
   end;
-  let t_make_pipeline_path = Filename.temp_file "tlang_t_make_verbose_" ".t" in
-  let oc_t_make = open_out t_make_pipeline_path in
-  output_string oc_t_make "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n";
-  close_out oc_t_make;
   (* Clean up any stale logs from previous runs to avoid picking up mock logs *)
   let _ = try
     if Sys.file_exists "_pipeline" then
@@ -174,16 +226,55 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "populate_pipeline rejects negative verbose"
     "p = pipeline {\n  a = 1\n}\nerror_code(populate_pipeline(p, build=false, verbose=-1)) == \"ValueError\""
     "true";
-  test "t_make accepts verbose option"
-    (Printf.sprintf "is_na(t_make(filename=\"%s\", verbose=2))" t_make_pipeline_path)
-    "true";
+  let t_make_verbose_ok =
+    with_temp_pipeline_project
+      "p = pipeline {\n  a = 1\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir _pipeline_path ->
+        let env = Packages.init_env () in
+        let (v, _) = eval_string_env "t_make(verbose=2)" env in
+        Ast.Utils.value_to_string v = "NA")
+  in
+  if t_make_verbose_ok then begin
+    incr pass_count; Printf.printf "  ✓ t_make accepts verbose option\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make accepts verbose option\n"
+  end;
   test "t_make rejects non-int verbose"
-    (Printf.sprintf "error_code(t_make(filename=\"%s\", verbose=\"loud\")) == \"TypeError\"" t_make_pipeline_path)
+    "error_code(t_make(verbose=\"loud\")) == \"TypeError\""
     "true";
   test "t_make rejects negative verbose"
-    (Printf.sprintf "error_code(t_make(filename=\"%s\", verbose=-1)) == \"ValueError\"" t_make_pipeline_path)
+    "error_code(t_make(verbose=-1)) == \"ValueError\""
     "true";
-  let _ = try Sys.remove t_make_pipeline_path with _ -> () in
+  test "t_make rejects non-pipeline entry filenames"
+    "error_code(t_make(filename=\"script.t\")) == \"ValueError\""
+    "true";
+  let t_make_reloads_pipeline_script =
+    with_temp_pipeline_project
+      "helper = 1\np = pipeline {\n  a = helper\n}\npopulate_pipeline(p, build=false)\n"
+      (fun _dir pipeline_path ->
+        let env = Packages.init_env () in
+        let (_first, env) = eval_string_env "t_make()" env in
+        let oc = open_out pipeline_path in
+        output_string oc "helper = 2\np = pipeline {\n  b = helper\n}\npopulate_pipeline(p, build=false)\n";
+        close_out oc;
+        let (second, env) = eval_string_env "t_make()" env in
+        let (helper_check, _) = eval_string_env "helper == 2 && p.b == 2" env in
+        let pipeline_nix = Filename.concat "_pipeline" "pipeline.nix" in
+        let content =
+          let ch = open_in pipeline_nix in
+          Fun.protect
+            ~finally:(fun () -> close_in_noerr ch)
+            (fun () -> really_input_string ch (in_channel_length ch))
+        in
+        Ast.Utils.value_to_string second = "NA"
+        && Ast.Utils.value_to_string helper_check = "true"
+        && contains_substring content "b")
+  in
+  if t_make_reloads_pipeline_script then begin
+    incr pass_count; Printf.printf "  ✓ t_make reloads src/pipeline.t in the same environment\n"
+  end else begin
+    incr fail_count; Printf.printf "  ✗ t_make reloads src/pipeline.t in the same environment\n"
+  end;
   print_newline ();
 
   Printf.printf "Serialization Builtins:\n";

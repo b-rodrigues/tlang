@@ -703,12 +703,13 @@ let () =
               let content = really_input_string ch (in_channel_length ch) in
               close_in ch;
               let lexbuf = Lexing.from_string content in
-               (try
-                let program = Parser.program Lexer.token lexbuf in
-                let (v, new_env) = Eval.eval_program program !env_ref in
-                (match v with
-                 | Ast.VError _ -> v
-                 | _ -> 
+                (try
+                 let program = Parser.program Lexer.token lexbuf in
+                 let eval_env = Pipeline_script.reload_env_for_pipeline_entry ~filename program !env_ref in
+                 let (v, new_env) = Eval.eval_program program eval_env in
+                 (match v with
+                  | Ast.VError _ -> v
+                  | _ ->
                      env_ref := new_env;
                      Printf.printf "Ran %s successfully.\n" filename; flush stdout; Ast.(VNA NAGeneric))
                with
@@ -730,11 +731,10 @@ let () =
 (*
 --# Build Pipeline Internally
 --#
---# Builds a pipeline, defaulting to `src/pipeline.t`. This command can also
---# be used with positional or named arguments for other build nodes.
+--# Builds the `src/pipeline.t` pipeline entrypoint.
 --#
 --# @name t_make
---# @param filename :: String (Optional) The pipeline build script path.
+--# @param filename :: String (Optional) The pipeline build script path. Must be `src/pipeline.t`.
 --# @family repl
 --# @export
 *)
