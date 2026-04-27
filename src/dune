@@ -44,7 +44,7 @@
    ; core language
        ast lexer parser eval typecheck error serialization serialization_registry pmml_utils semantic_type symbol_table completion analyzer stats import_registry value_hash cli_args
     ; pipeline compiler
-    nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter
+    nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter pipeline_script
     builder_utils pipeline_dependency_requirements builder_write_dag builder_nix_store builder_logs builder_internal builder_populate builder_inspect builder_read_node builder_copy builder
     ; packages/core
     t_print t_type args head tail is_error t_seq t_map sum pretty_print show_plot packages t_get help t_boolean t_write_text converters file_ops path_ops

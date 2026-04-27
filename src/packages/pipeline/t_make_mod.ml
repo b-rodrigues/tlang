@@ -34,9 +34,12 @@ let interrupt_error () =
 --# high-level build orchestrator often used from the CLI (repl) to
 --# trigger a full project build. It supports named and positional 
 --# arguments for common Nix build controls.
+--# `src/pipeline.t` must call `populate_pipeline(...)` or `build_pipeline(...)`.
+--# If it only calls `populate_pipeline(...)` without `build=true`, `t_make()`
+--# emits a warning and continues after populating the pipeline.
 --#
 --# @name t_make
---# @param filename :: String The path to the pipeline file (defaults to "src/pipeline.t").
+--# @param filename :: String The pipeline file path. Must be `src/pipeline.t`.
 --# @param max_jobs :: Int The maximum number of jobs for Nix to run in parallel.
 --# @param max_cores :: Int The maximum number of cores per job for Nix to use.
 --# @param verbose :: Int The Nix build verbosity level. `0` is quiet; values > 0 enable internal node failure logs.
@@ -95,43 +98,61 @@ let register env =
         | Some (code, msg) ->
             Error.make_error code msg
         | None ->
-            let prev_nix_build_args = !Builder_internal.nix_build_args in
-            let prev_nix_build_verbose = !Builder_internal.default_nix_build_verbose in
-            Fun.protect
-              ~finally:(fun () ->
-                Builder_internal.nix_build_args := prev_nix_build_args;
-                Builder_internal.default_nix_build_verbose := prev_nix_build_verbose)
-              (fun () ->
-                Builder_internal.nix_build_args := List.rev !nix_args;
-                Builder_internal.default_nix_build_verbose := !verbose;
-                (try
-                  let content =
-                    let ch = open_in !filename in
-                    Fun.protect
-                      ~finally:(fun () -> close_in_noerr ch)
-                      (fun () -> really_input_string ch (in_channel_length ch))
-                  in
-                  let lexbuf = Lexing.from_string content in
-                  (try
-                    let program = Parser.program Lexer.token lexbuf in
-                    let (v, new_env) = Eval.eval_program program !env_ref in
-                    match v with
-                    | VError _ -> v
-                    | _ ->
-                        env_ref := new_env;
-                        Printf.printf "Pipeline %s evaluated successfully.\n" !filename;
-                        (VNA NAGeneric)
-                  with
-                  | Lexer.SyntaxError msg ->
-                      let pos = Lexing.lexeme_start_p lexbuf in
-                      make_located_error ~file:!filename SyntaxError ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
-                  | Parser.Error ->
-                      let pos = Lexing.lexeme_start_p lexbuf in
-                      make_located_error ~file:!filename SyntaxError (Printf.sprintf "Parse error in '%s'" !filename) pos
-                  | Sys.Break ->
-                      interrupt_error ())
-                with
-                | Sys_error msg ->
-                    Error.make_error FileError (Printf.sprintf "t_make failed: %s" msg)))
-      )})
+            (match Pipeline_script.validate_t_make_filename !filename with
+            | Error msg ->
+                Error.make_error ValueError msg
+            | Ok () ->
+                let prev_nix_build_args = !Builder_internal.nix_build_args in
+                let prev_nix_build_verbose = !Builder_internal.default_nix_build_verbose in
+                Fun.protect
+                  ~finally:(fun () ->
+                    Builder_internal.nix_build_args := prev_nix_build_args;
+                    Builder_internal.default_nix_build_verbose := prev_nix_build_verbose)
+                  (fun () ->
+                    Builder_internal.nix_build_args := List.rev !nix_args;
+                    Builder_internal.default_nix_build_verbose := !verbose;
+                    try
+                      let content =
+                        let ch = open_in !filename in
+                        Fun.protect
+                          ~finally:(fun () -> close_in_noerr ch)
+                          (fun () -> really_input_string ch (in_channel_length ch))
+                      in
+                      let lexbuf = Lexing.from_string content in
+                      (try
+                        let program = Parser.program Lexer.token lexbuf in
+                        (match Pipeline_script.validate_t_make_program program with
+                        | Error msg ->
+                            Error.make_error ValueError msg
+                        | Ok warning_opt ->
+                            Option.iter (Printf.eprintf "%s%!") warning_opt;
+                            let eval_env =
+                              Pipeline_script.reload_env_for_pipeline_entry
+                                ~filename:!filename program !env_ref
+                            in
+                            let (v, new_env) = Eval.eval_program program eval_env in
+                            match v with
+                            | VError _ -> v
+                            | _ ->
+                                env_ref :=
+                                  Pipeline_script.remember_pipeline_entry_bindings
+                                    ~filename:!filename program new_env;
+                                Printf.printf "Pipeline %s evaluated successfully.\n" !filename;
+                                VNA NAGeneric)
+                      with
+                      | Lexer.SyntaxError msg ->
+                          let pos = Lexing.lexeme_start_p lexbuf in
+                          make_located_error ~file:!filename SyntaxError
+                            ("Syntax error in '" ^ !filename ^ "': " ^ msg) pos
+                      | Parser.Error ->
+                          let pos = Lexing.lexeme_start_p lexbuf in
+                          make_located_error ~file:!filename SyntaxError
+                            (Printf.sprintf "Parse error in '%s'" !filename) pos
+                      | Sys.Break ->
+                          interrupt_error ())
+                    with
+                    | Sys_error msg ->
+                        Error.make_error FileError
+                          (Printf.sprintf "t_make failed: %s" msg))))
+      })
     env
