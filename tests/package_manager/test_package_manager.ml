@@ -313,9 +313,9 @@ min_version = "0.51.0"
           }
           populate_pipeline(p)
         |} (Packages.init_env ())) with
-        | Ast.VError { code = StructuralError; message; _ } ->
-            (match Toml_parser.parse_tproject_toml
-                     (let ic = open_in tproject_path in
+         | Ast.VError { code = StructuralError; message; _ } ->
+             (match Toml_parser.parse_tproject_toml
+                      (let ic = open_in tproject_path in
                       Fun.protect ~finally:(fun () -> close_in_noerr ic)
                         (fun () -> really_input_string ic (in_channel_length ic))) with
              | Ok cfg ->
@@ -327,9 +327,32 @@ min_version = "0.51.0"
                  && contains "Updated "
                  && contains "leave the current shell"
                  && contains "t update"
-                 && contains "nix develop"
-             | Error _ -> false)
+                  && contains "nix develop"
+              | Error _ -> false)
+         | _ -> false));
+
+  test_pm "interactive pipeline dependency prompt reads from tty" (fun () ->
+    let tty_path = Filename.temp_file "tlang-prompt-answer" ".txt" in
+    Fun.protect
+      ~finally:(fun () ->
+        if Sys.file_exists tty_path then Sys.remove tty_path)
+      (fun () ->
+        let oc = open_out tty_path in
+        output_string oc "y\n";
+        close_out oc;
+        match
+          Pipeline_dependency_requirements.read_prompt_answer
+            ~tty_path
+            ~isatty:(fun () -> true)
+            ()
+        with
+        | Some "y" -> true
         | _ -> false));
+
+  test_pm "interactive pipeline dependency prompt accepts yes variants" (fun () ->
+    Pipeline_dependency_requirements.answer_is_yes " y "
+    && Pipeline_dependency_requirements.answer_is_yes "YES"
+    && not (Pipeline_dependency_requirements.answer_is_yes "n"));
 
   test_pm "apply missing Quarto dependencies updates explicit sections" (fun () ->
     let env = Packages.init_env () in

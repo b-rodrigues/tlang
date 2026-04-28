@@ -305,6 +305,24 @@ let format_analysis analysis =
 let is_interactive () =
   try Unix.isatty Unix.stdin && Unix.isatty Unix.stdout with _ -> false
 
+let read_line_from_channel ch =
+  try Some (input_line ch) with End_of_file -> None
+
+let read_prompt_answer ?(tty_path="/dev/tty") ?(isatty=is_interactive) () =
+  if isatty () then
+    try
+      let ch = open_in tty_path in
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> read_line_from_channel ch)
+    with Sys_error _ -> read_line_from_channel stdin
+  else
+    read_line_from_channel stdin
+
+let answer_is_yes answer =
+  let normalized = String.lowercase_ascii (String.trim answer) in
+  normalized = "y" || normalized = "yes"
+
 let read_file path =
   try
     let ch = open_in path in
@@ -328,14 +346,11 @@ let write_file path content =
 let prompt_to_update ~tproject_path analysis =
   Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
     (format_analysis analysis) tproject_path;
-  let answer =
-    try read_line () with
-    | End_of_file ->
+  match read_prompt_answer () with
+  | Some answer -> answer_is_yes answer
+  | None ->
         Printf.printf "\nNo input received; leaving `tproject.toml` unchanged.\n%!";
-        ""
-  in
-  let answer = String.lowercase_ascii (String.trim answer) in
-  answer = "y" || answer = "yes"
+        false
 
 let env_flag name =
   match Sys.getenv_opt name with
