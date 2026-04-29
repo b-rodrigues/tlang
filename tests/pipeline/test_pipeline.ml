@@ -568,7 +568,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     {|"RuntimeError"|};
   test "read_node error exposes error_message field"
     "read_node(\"error_node\", which_log=\"ocaml_mock\").error_message"
-    {|\"Error in wrong(mtcars): could not find function \\\"wrong\\\"\\n\"|};
+    {|"Error in wrong(mtcars): could not find function \"wrong\"\n"|};
   test "read_node error exposes context fields"
     "read_node(\"error_node\", which_log=\"ocaml_mock\").node_status"
     {|"errored"|};
