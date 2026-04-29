@@ -2448,13 +2448,13 @@ and eval_call env_ref fn_val raw_args =
                                            args = [n_arg; (v_name, make_row_lambda desugared)] }))
           else
             (name, expr)
-       | ListLit items when List.for_all (fun (_, e) -> match e.node with ColumnRef _ -> true | _ -> false) items ->
-           (name, expr) (* list of bare $cols → keep as-is *)
-       | _ when current_builtin_name = Some "filter_nodes"
-                && expr_uses_named_scope_fields ["name"; "value"; "diagnostics"] expr ->
-           let desugared = desugar_named_scope_expr ~root:"node" ~fields:["name"; "value"; "diagnostics"] expr in
-           (name, make_node_lambda desugared)
-       | _ when uses_nse expr ->
+      | ListLit items when List.for_all (fun (_, e) -> match e.node with ColumnRef _ -> true | _ -> false) items ->
+          (name, expr) (* list of bare $cols → keep as-is *)
+      | _ when current_builtin_name = Some "filter_nodes"
+               && expr_uses_named_scope_fields ["name"; "value"; "diagnostics"] expr ->
+          let desugared = desugar_named_scope_expr ~root:"node" ~fields:["name"; "value"; "diagnostics"] expr in
+          (name, make_node_lambda desugared)
+      | _ when uses_nse expr ->
            (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
               Call expressions. A positional Call like select_node(p, $name, $runtime) passed
               as an argument to colnames/nrow must be evaluated directly: its own eval_call
