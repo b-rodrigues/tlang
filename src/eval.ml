@@ -104,7 +104,7 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
   in
   match expr.node with
   | Var name when List.mem name fields -> wrap_field name
-  | Var _ -> expr
+  | Var _ -> expr (* Non-scoped variable — preserve unchanged *)
   | BinOp { op; left; right } ->
       Ast.mk_expr ?loc
         (BinOp {
@@ -195,7 +195,9 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
       expr
 
 (** Field names exposed on read-pipeline node records and available for
-    concise NSE predicate auto-wrapping in [which_nodes]. *)
+    concise NSE predicate auto-wrapping in [which_nodes]. Keep this list in
+    sync with the stable public [node_record] shape in
+    [src/packages/pipeline/filter_nodes.ml]. *)
 let node_record_scope_fields = ["name"; "value"; "diagnostics"]
 
 (** Global flag to control warning output (e.g., for tests) *)
