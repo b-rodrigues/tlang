@@ -616,6 +616,37 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
           {|`examples`: [1, 2, 3]}}|};
         ]
       in
+      let explain_pipeline_error_dir =
+        ensure_subdir temp_root_dir "tlang-explain-pipeline-error"
+      in
+      let explain_pipeline_error_path =
+        Filename.concat explain_pipeline_error_dir "artifact"
+      in
+      (match Serialization.write_json explain_pipeline_error_path
+         (Ast.VError {
+           code = Ast.RuntimeError;
+           message = "mocked pipeline build failure";
+           context = [];
+           location = None;
+           na_count = 0;
+         }) with
+       | Ok () -> ()
+       | Error msg ->
+           failwith
+             ("Test fixture setup failed: could not write explain pipeline error artifact to "
+              ^ explain_pipeline_error_path ^ ": " ^ msg));
+      let explain_pipeline_log = Printf.sprintf {|{
+    "timestamp": "20240101-999999",
+    "hash": "explain-pipeline",
+    "out_path": "/tmp",
+    "nodes": [
+      { "node": "good", "path": "/tmp/good", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+      { "node": "bad", "path": "%s", "runtime": "R", "serializer": "json", "class": "VError", "dependencies": [], "success": "false" }
+    ]
+  }|} explain_pipeline_error_path in
+      let oc_explain_pipeline = open_out "_pipeline/build_log_zz_explain_pipeline.json" in
+      output_string oc_explain_pipeline explain_pipeline_log;
+      close_out oc_explain_pipeline;
 
       test "read_node propagates R runtime on error"
         "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).contents.runtime"
@@ -655,6 +686,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       test "plot fallback fixture does not create a viz sidecar"
         (Printf.sprintf {|file_exists("%s")|} plot_json_viz)
         "false";
+      test "explain(pipeline) prefers latest build diagnostics when node names match"
+        {|p_logged = pipeline {
+  good = 1
+  bad = node(command = <{ 1 }>, runtime = R)
+}; explain(p_logged).diagnostics.summary|}
+        "\"0 node(s) with warnings, 0 suppressed, 1 error(s), 0 recovered\"";
+      test "read_node(pipeline, name) prefers latest build diagnostics when node names match"
+        {|p_logged = pipeline {
+  good = 1
+  bad = node(command = <{ 1 }>, runtime = R)
+}; read_node(p_logged, "bad").error.kind|}
+        "\"RuntimeError\"";
 
       test "read_node rejects older serialized node versions"
         "read_node(\"legacy_node\", which_log=\"legacy_version\")"

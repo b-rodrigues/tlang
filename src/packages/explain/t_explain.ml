@@ -165,7 +165,10 @@ let register env =
              ("na_stats", na_stats);
              ("example_rows", example_rows);
            ] @ grouped_info)
-    | VPipeline { p_nodes; p_deps; p_node_diagnostics; _ } ->
+    | VPipeline ({ p_nodes; p_deps; _ } as pipeline) ->
+        let p_node_diagnostics =
+          Builder.merge_pipeline_node_diagnostics_with_latest_log pipeline
+        in
         let nodes_info = VList (List.map (fun (name, v) ->
           let deps = match List.assoc_opt name p_deps with
             | Some d -> VList (List.map (fun s -> (None, VString s)) d)
