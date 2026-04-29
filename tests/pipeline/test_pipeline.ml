@@ -609,12 +609,18 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       in
 
       test "read_node propagates R runtime on error"
-        "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).runtime"
+        "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).contents.runtime"
         "\"R\"";
 
       test "read_node propagates Python runtime on error"
-        "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).runtime"
+        "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).contents.runtime"
         "\"Python\"";
+      test "explain(read_node(...)) wraps node metadata separately"
+        "explain(read_node(\"compatible_node\", which_log=\"legacy_version\"))"
+        {|{`kind`: "node", `node_name`: "compatible_node", `diagnostics`: {`warnings`: [], `error`: NA, `warnings_suppressed`: false, `recovered`: false, `upstream_errors`: []}, `contents`: {`kind`: "value", `type`: "List", `length`: 3, `na_count`: 0, `examples`: [1, 2, 3]}}|};
+      test "explain(read_node(...)) nests explained error contents"
+        "explain(read_node(\"error_node\", which_log=\"ocaml_mock\")).contents.error_code"
+        {|"RuntimeError"|};
       test "read_node (mocked) reads compatible artifact"
         "read_node(\"compatible_node\", which_log=\"legacy_version\") .== [1, 2, 3]"
         "[true, true, true]";

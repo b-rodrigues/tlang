@@ -4,6 +4,10 @@ Explain Value
 
 Returns a dictionary describing the structure and content of a value.
 
+When the input is a pipeline node result (for example from `read_node(...)`),
+the returned dictionary separates node/container metadata from the explained
+payload via a `contents` field.
+
 ## Parameters
 
 - **x** (`Any`): The value to explain.
@@ -18,9 +22,10 @@ A structured description of the value.
 ```t
 explain(mtcars)
 explain(1)
+node_info = explain(read_node("model"))
+node_info.contents
 ```
 
 ## See Also
 
 [str](str.html), [type](type.html)
-

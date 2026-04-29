@@ -7,6 +7,8 @@ let dataframe_hint =
 --# Explain Value
 --#
 --# Returns a dictionary describing the structure and content of a value.
+--# Node results from `read_node(...)` are wrapped with node metadata and
+--# expose the explained payload under `contents`.
 --#
 --# @name explain
 --# @param x :: Any The value to explain.
@@ -22,13 +24,40 @@ let register env =
   let rec do_explain v =
     match v with
     | VNodeResult nr ->
-        let inner = do_explain nr.v in
-        (match inner with
-         | VDict fields ->
-             let diagnostics = ("diagnostics", Ast.Utils.node_diagnostics_to_value nr.diagnostics) in
-             let node_name = ("node_name", VString nr.node_name) in
-             VDict (node_name :: diagnostics :: fields)
-         | _ -> inner)
+        let contents = do_explain nr.v in
+        let diagnostics = ("diagnostics", Ast.Utils.node_diagnostics_to_value nr.diagnostics) in
+        let node_name = ("node_name", VString nr.node_name) in
+        let display_keys =
+          ("_display_keys",
+           VList [
+             (None, VString "kind");
+             (None, VString "node_name");
+             (None, VString "diagnostics");
+             (None, VString "contents");
+           ])
+        in
+        let passthrough_fields =
+          match contents with
+          | VDict fields ->
+              List.filter
+                (fun (k, _) ->
+                  k <> "kind"
+                  && k <> "node_name"
+                  && k <> "diagnostics"
+                  && k <> "contents"
+                  && k <> "_display_keys")
+                fields
+          | _ -> []
+        in
+        VDict
+          ([
+             ("kind", VString "node");
+             node_name;
+             diagnostics;
+             ("contents", contents);
+             display_keys;
+           ]
+           @ passthrough_fields)
     | VInt _ | VFloat _ | VBool _ | VString _ ->
         VDict [
           ("kind", VString "value");

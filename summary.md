@@ -354,6 +354,7 @@ Important LLM rule: when the goal is reproducible execution, prefer generating o
 Purpose: value introspection and intent-block inspection.
 
 - Introspection: `explain(x)`, `explain_json(x)`
+- Node introspection: `explain(read_node(...))` separates node metadata (`node_name`, `diagnostics`) from explained payload via `contents`
 - Intent helpers: `intent_fields(intent)`, `intent_get(intent, field)`
 
 ### `strcraft`
@@ -429,4 +430,3 @@ This command automatically:
 2.  Retrieves today's date for the `rstats-on-nix` nixpkgs fork.
 3.  Updates `tproject.toml` with the new values.
 4.  Regenerates `flake.nix` and runs `nix flake update`.
-
