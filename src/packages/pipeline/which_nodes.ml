@@ -11,14 +11,6 @@ let node_record name value diagnostics =
     ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
   ]
 
-let get_node_record p name value =
-  let diagnostics =
-    match List.assoc_opt name p.p_node_diagnostics with
-    | Some diagnostics -> diagnostics
-    | None -> Ast.Utils.empty_node_diagnostics
-  in
-  node_record name value diagnostics
-
 let make_predicate_arg node = [(None, Ast.mk_expr (Value node))]
 
 let eval_node_predicate ~fn_name ~eval_call env predicate node =
@@ -58,16 +50,30 @@ let eval_node_predicate ~fn_name ~eval_call env predicate node =
 let which_nodes_impl ~fn_name ~eval_call args env =
   match args with
   | [VPipeline p; predicate] ->
+      let merged_nodes =
+        Builder.merge_pipeline_nodes_with_latest_log p
+      in
+      let merged_diagnostics =
+        Builder.merge_pipeline_node_diagnostics_with_latest_log p
+      in
+      let get_node_record name value =
+        let diagnostics =
+          match List.assoc_opt name merged_diagnostics with
+          | Some diagnostics -> diagnostics
+          | None -> Ast.Utils.empty_node_diagnostics
+        in
+        node_record name value diagnostics
+      in
       let rec aux acc = function
         | [] -> VList (List.rev acc)
         | (name, value) :: rest ->
-            let node = get_node_record p name value in
+            let node = get_node_record name value in
             (match eval_node_predicate ~fn_name ~eval_call env predicate node with
              | Ok true -> aux ((None, node) :: acc) rest
              | Ok false -> aux acc rest
              | Error e -> e)
       in
-      aux [] p.p_nodes
+      aux [] merged_nodes
   | [_; _] -> Error.type_error (Printf.sprintf "Function `%s` expects a Pipeline as first argument." fn_name)
   | _ -> Error.arity_error_named fn_name 2 (List.length args)
 

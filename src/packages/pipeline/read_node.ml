@@ -74,15 +74,18 @@ let register env =
     in
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VPipeline p ->
+        let pipeline_nodes =
+          Builder.merge_pipeline_nodes_with_latest_log p
+        in
         let pipeline_diagnostics =
           Builder.merge_pipeline_node_diagnostics_with_latest_log p
         in
         (match extract_arg "name" 2 (VNA NAGeneric) named_args with
          | VString name ->
-              (match List.assoc_opt name p.p_nodes with
-               | Some value ->
-                   let diagnostics =
-                     match List.assoc_opt name pipeline_diagnostics with
+               (match List.assoc_opt name pipeline_nodes with
+                | Some value ->
+                    let diagnostics =
+                      match List.assoc_opt name pipeline_diagnostics with
                      | Some diagnostics -> diagnostics
                      | None -> Ast.Utils.empty_node_diagnostics
                    in
@@ -159,6 +162,9 @@ let register env =
   let read_pipeline_fn named_args _env =
     match extract_arg "p" 1 (VNA NAGeneric) named_args with
     | VPipeline p ->
+        let pipeline_nodes =
+          Builder.merge_pipeline_nodes_with_latest_log p
+        in
         let pipeline_diagnostics =
           Builder.merge_pipeline_node_diagnostics_with_latest_log p
         in
@@ -170,12 +176,12 @@ let register env =
                   | Some diagnostics -> diagnostics
                   | None -> Ast.Utils.empty_node_diagnostics
                 in
-               (None, VDict [
-                 ("name", VString name);
-                 ("value", value);
-                 ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
-               ]))
-              p.p_nodes)
+                (None, VDict [
+                  ("name", VString name);
+                  ("value", value);
+                  ("diagnostics", Ast.Utils.node_diagnostics_to_value diagnostics);
+                ]))
+              pipeline_nodes)
         in
         VDict [
           ("nodes", nodes);

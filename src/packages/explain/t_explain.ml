@@ -165,7 +165,10 @@ let register env =
              ("na_stats", na_stats);
              ("example_rows", example_rows);
            ] @ grouped_info)
-    | VPipeline ({ p_nodes; p_deps; _ } as pipeline) ->
+    | VPipeline ({ p_deps; _ } as pipeline) ->
+        let p_nodes =
+          Builder.merge_pipeline_nodes_with_latest_log pipeline
+        in
         let p_node_diagnostics =
           Builder.merge_pipeline_node_diagnostics_with_latest_log pipeline
         in
