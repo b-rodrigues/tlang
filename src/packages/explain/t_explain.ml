@@ -23,7 +23,7 @@ let dataframe_hint =
 let register env =
   (* Fields that belong to the outer node wrapper and should therefore be
      excluded from passthrough when copying non-conflicting payload fields. *)
-  let node_passthrough_exclusions =
+  let passthrough_exclusions =
     ["kind"; "node_name"; "diagnostics"; "contents"; "_display_keys"]
   in
   let make_display_keys keys =
@@ -48,7 +48,7 @@ let register env =
           | VDict fields ->
               List.filter
                 (fun (k, _) ->
-                  not (List.mem k node_passthrough_exclusions))
+                  not (List.mem k passthrough_exclusions))
                 fields
           | _ -> []
         in
