@@ -361,7 +361,7 @@ let cmd_explain ?failfast mode rest env =
     let explain_expr = "explain(__explain_target__)" in
     let env'' = Ast.Env.add "__explain_target__" result env' in
     let (explain_result, _) = parse_and_eval ?failfast mode env'' explain_expr in
-    print_endline (Ast.Utils.value_to_string explain_result)
+    print_string (Pretty_print.pretty_print_value explain_result)
   end
 
 let cmd_test args =

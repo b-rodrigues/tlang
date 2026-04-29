@@ -2306,7 +2306,7 @@ Introspection and LLM tooling.
 
 ### `explain(value)`
 
-Get detailed explanation of a value. For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation.
+Get detailed explanation of a value. For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `ncol`, and a `hint`. Detailed fields (`schema`, `na_stats`, `example_rows`) are accessible via dot notation. For pipeline node results returned by `read_node(...)`, `explain()` now returns a top-level node wrapper with `kind`, `node_name`, `diagnostics`, and `contents`. The `contents` field is the explained payload stored in the node. In the REPL and CLI `t explain ...`, explain output is shown with a tree-style formatter for readability, but the runtime value remains a normal `Dict`.
 
 **Parameters:**
 
@@ -2329,6 +2329,11 @@ explain(df)
 explain(df).schema        -- list of column name/type pairs
 explain(df).na_stats      -- NA count per column
 explain(df).example_rows  -- first 5 rows as list of dicts
+
+node_info = explain(read_node("model"))
+node_info.node_name       -- node/container metadata
+node_info.diagnostics     -- node diagnostics
+node_info.contents        -- explained node payload
 ```
 
 ---

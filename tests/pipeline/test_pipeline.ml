@@ -607,14 +607,32 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
           {|Error(FileError: "Failed to read node `legacy_node` from `test_legacy_node.tobj`: Serialized value format version `0.4.0` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer.")|}
           Serialization.serialized_value_format_version
       in
+      let explained_compatible_node =
+        String.concat "" [
+          {|{`kind`: "node", `node_name`: "compatible_node", `diagnostics`: |};
+          {|{`warnings`: [], `error`: NA, `warnings_suppressed`: false, |};
+          {|`recovered`: false, `upstream_errors`: []}, `contents`: |};
+          {|{`kind`: "value", `type`: "List", `length`: 3, `na_count`: 0, |};
+          {|`examples`: [1, 2, 3]}}|};
+        ]
+      in
 
       test "read_node propagates R runtime on error"
-        "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).runtime"
+        "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).contents.runtime"
         "\"R\"";
 
       test "read_node propagates Python runtime on error"
-        "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).runtime"
+        "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).contents.runtime"
         "\"Python\"";
+      test "explain(read_node(...)) wraps node metadata separately"
+        "explain(read_node(\"compatible_node\", which_log=\"legacy_version\"))"
+        explained_compatible_node;
+      test "explain(read_node(...)) nests explained error contents"
+        "explain(read_node(\"error_node\", which_log=\"ocaml_mock\")).contents.error_code"
+        {|"RuntimeError"|};
+      test "explain(read_node(...)) exposes node display key order"
+        "explain(read_node(\"compatible_node\", which_log=\"legacy_version\"))._display_keys .== [\"kind\", \"node_name\", \"diagnostics\", \"contents\"]"
+        "[true, true, true, true]";
       test "read_node (mocked) reads compatible artifact"
         "read_node(\"compatible_node\", which_log=\"legacy_version\") .== [1, 2, 3]"
         "[true, true, true]";
