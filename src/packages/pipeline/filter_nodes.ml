@@ -120,7 +120,7 @@ let errored_nodes_impl ~eval_call args env =
     }
   in
   match args with
-  | [pipeline] -> which_nodes_impl ~fn_name:"which_nodes" ~eval_call [pipeline; predicate] env
+  | [pipeline] -> which_nodes_impl ~fn_name:"errored_nodes" ~eval_call [pipeline; predicate] env
   | _ -> Error.arity_error_named "errored_nodes" 1 (List.length args)
 
 let register ~eval_call env =
