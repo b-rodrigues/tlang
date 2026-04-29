@@ -2,6 +2,53 @@
 
 This directory contains syntax highlighting and language support for the T programming language in various editors.
 
+## Tree-sitter
+
+The repository now ships a shared tree-sitter grammar in `tree-sitter-t/`.
+It is intended for tree-sitter based editor integrations such as Neovim,
+Emacs 29+, Helix, Zed, and Vim setups that use a tree-sitter plugin layer.
+Only the source grammar and query files are committed; generated parser outputs
+are intentionally left for local generation to keep the repository diff small
+and reviewable.
+
+### Included files
+
+- `tree-sitter-t/grammar.js` — source grammar
+- `tree-sitter-t/tree-sitter.json` — tree-sitter language metadata
+- `tree-sitter-t/queries/highlights.scm` — shared highlight queries
+- `tree-sitter-t/queries/injections.scm` — shell/R/Python block injections
+- `tree-sitter-t/queries/locals.scm` — local-scope queries
+- `tree-sitter-t/test/corpus/` — grammar tests
+
+### Installing the tree-sitter CLI
+
+Use either a one-off `npx` invocation:
+
+```bash
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+npx tree-sitter-cli generate
+```
+
+Or install the CLI globally:
+
+```bash
+npm install --global tree-sitter-cli
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+tree-sitter generate
+```
+
+### Generating the local parser files
+
+```bash
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+npx tree-sitter-cli generate
+npx tree-sitter-cli test
+```
+
+This creates `src/parser.c`, `src/grammar.json`, `src/node-types.json`, and
+`src/tree_sitter/` locally. Those generated files are ignored by Git and do not
+need to be committed.
+
 ## Vim
 
 1. Copy `vim/ftdetect/t.vim` to `~/.vim/ftdetect/t.vim`.
@@ -117,6 +164,30 @@ end
 lspconfig.tlang.setup{}
 ```
 
+#### Neovim tree-sitter
+For tree-sitter based highlighting, point Neovim at the source grammar:
+```lua
+local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
+
+parser_config.t = {
+  install_info = {
+    url = "/absolute/path/to/tlang/editors/tree-sitter-t",
+    files = { "src/parser.c" },
+    generate_requires_npm = true,
+    requires_generate_from_grammar = true,
+  },
+  filetype = "t",
+}
+
+vim.treesitter.language.register("t", "t")
+```
+
+Then install it with `:TSInstallFromGrammar t`.
+Replace `/absolute/path/to/tlang` with your local clone path.
+If you prefer, you can first run `npx tree-sitter-cli generate` in your local
+`/absolute/path/to/tlang/editors/tree-sitter-t` checkout and then install as
+usual.
+
 #### Vim (`coc.nvim`)
 Add this to your `:CocConfig`:
 ```json
@@ -141,3 +212,25 @@ Add the following to your `init.el`:
 ;; Automatically start eglot when opening a .t file
 (add-hook 't-mode-hook 'eglot-ensure)
 ```
+
+### 🧩 Emacs tree-sitter (`treesit`)
+Emacs 29+ can build the bundled grammar directly from source:
+```elisp
+(add-to-list 'treesit-language-source-alist
+             '(t "/absolute/path/to/tlang/editors/tree-sitter-t"))
+
+(unless (treesit-language-available-p 't)
+  (treesit-install-language-grammar 't))
+```
+Replace `/absolute/path/to/tlang` with your local clone path.
+Make sure the `tree-sitter` CLI is installed locally first.
+
+You can then use the parser from a custom `t-ts-mode`, Combobulate-style
+navigation packages, or any package that consumes installed tree-sitter
+grammars.
+
+### 🧩 Other tree-sitter editors
+
+- **Helix**: point `language-configuration.json` / `languages.toml` at `editors/tree-sitter-t`
+- **Zed**: use the bundled grammar as a local tree-sitter language source
+- **Vim** with tree-sitter plugins: reuse the same parser and query files from `tree-sitter-t/`

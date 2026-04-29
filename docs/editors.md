@@ -17,6 +17,33 @@ The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix 
 
 ## Editor Configuration
 
+### Shared tree-sitter grammar
+
+T now ships a reusable tree-sitter grammar in `editors/tree-sitter-t`.
+Only the source grammar, queries, metadata, and grammar tests are committed.
+Generated parser sources are expected to be created locally when needed.
+
+Install prerequisites and generate locally with:
+
+```bash
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+npx tree-sitter-cli generate
+npx tree-sitter-cli test
+```
+
+If you prefer a global install instead of `npx`:
+
+```bash
+npm install --global tree-sitter-cli
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+tree-sitter generate
+tree-sitter test
+```
+
+This creates `src/parser.c`, `src/grammar.json`, `src/node-types.json`, and
+`src/tree_sitter/` locally. Those files are ignored by Git and should not be
+committed.
+
 ### VS Code / Positron
 
 You can install the T language extension in two ways:
@@ -97,6 +124,29 @@ end
 lspconfig.tlang.setup{}
 ```
 
+#### Tree-sitter highlighting in Neovim
+
+```lua
+local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
+
+parser_config.t = {
+  install_info = {
+    url = "/absolute/path/to/tlang/editors/tree-sitter-t",
+    files = { "src/parser.c" },
+    generate_requires_npm = true,
+    requires_generate_from_grammar = true,
+  },
+  filetype = "t",
+}
+
+vim.treesitter.language.register("t", "t")
+```
+
+Then install it with `:TSInstallFromGrammar t`.
+Replace `/absolute/path/to/tlang` with your local clone path.
+If you already ran `npx tree-sitter-cli generate` locally, Neovim can reuse the
+generated `src/parser.c`.
+
 ---
 
 ### Emacs
@@ -119,6 +169,22 @@ Add the following to your `init.el`:
 (add-hook 't-mode-hook 'eglot-ensure)
 ```
 
+#### 3. Tree-sitter parser (Emacs 29+)
+
+```elisp
+(add-to-list 'treesit-language-source-alist
+             '(t "/absolute/path/to/tlang/editors/tree-sitter-t"))
+
+(unless (treesit-language-available-p 't)
+  (treesit-install-language-grammar 't))
+```
+Replace `/absolute/path/to/tlang` with your local clone path.
+Make sure the `tree-sitter` CLI is installed before running
+`treesit-install-language-grammar`.
+
+This makes the T parser available to `treesit`-aware packages and any custom
+`t-ts-mode` built on top of the bundled grammar.
+
 ---
 
 ### Quarto
@@ -138,6 +204,21 @@ filters:
   - tlang
 ---
 ```
+
+---
+
+### Other tree-sitter editors
+
+The same parser package can also be reused by editors that consume local
+tree-sitter grammars, including:
+
+- **Helix**
+- **Zed**
+- **Lapce**
+- **Vim** setups that add tree-sitter through plugins
+
+Point those editors at `editors/tree-sitter-t` and reuse the bundled query
+files from `queries/`.
 
 ---
 

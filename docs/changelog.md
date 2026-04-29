@@ -58,6 +58,14 @@
 - **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `sym()`, and related primitives.
 - **Integrated Documentation Tooling**: Verified `t_doc("parse")` and `t_doc("generate")` workflows for extracting and publishing reference pages for new core functions.
 - **Auto-Quoting Documentation**: Updated `docs/language_overview.md` and `docs/quotation.md` with comprehensive examples of the new `$param` auto-quoting feature.
+
+### Editor Support & Tree-sitter
+- **Official Tree-sitter Grammar**:
+    - Introduced a formal Tree-sitter grammar for T in `editors/tree-sitter-t`.
+    - Supports robust syntax highlighting, local scope resolution, and language injections.
+    - **Polyglot Injections**: Automatically injects R, Python, and Bash syntax highlighting into `<{ }>` blocks when used inside `rn()`, `pyn()`, or `shn()` calls (supporting both named and positional arguments).
+    - **Expanded Highlighting**: Highlighting coverage expanded to include ~140+ standard library functions across all core packages.
+    - **Editor Integration**: Added documentation and configuration examples for Neovim, Emacs 29+, VS Code, and other Tree-sitter compatible editors.
 ### Core Evaluator & Emitter Refinements
 - **Quarto Wrapper Ergonomics**: Added `qn()` as a first-class convenience wrapper around `node()` with `runtime = Quarto`, matching the existing `rn()` and `pyn()` helpers for R and Python nodes.
 - **Improved Pretty Printing**: Updated the core pretty printer to handle complex nested dictionaries and diagnostics summaries more gracefully.
