@@ -156,7 +156,7 @@ let visible_pairs_from_dict pairs =
   | None -> non_metadata_pairs
   | Some keys -> List.filter (fun (k, _) -> List.mem k keys) non_metadata_pairs
 
-let rec list_items_are_simple items =
+let list_items_are_simple items =
   List.length items <= 5
   && List.for_all (fun (_, v) ->
        match v with
@@ -164,6 +164,8 @@ let rec list_items_are_simple items =
        | _ -> true
      ) items
 
+(* Mutual recursion: entries recurse into children, and child rendering feeds
+   back into entry rendering for each sibling in tree order. *)
 let rec render_tree_entry prefix is_last (label, value) =
   let branch = if is_last then "└── " else "├── " in
   let child_prefix = prefix ^ if is_last then "    " else "│   " in

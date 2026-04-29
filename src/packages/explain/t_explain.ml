@@ -21,8 +21,8 @@ let dataframe_hint =
 --# @export
 *)
 let register env =
-  (* Reserved wrapper fields that belong to the node/container itself rather
-     than the explained payload nested under `contents`. *)
+  (* Fields that belong to the outer node wrapper and should therefore be
+     excluded from passthrough when copying non-conflicting payload fields. *)
   let node_passthrough_exclusions =
     ["kind"; "node_name"; "diagnostics"; "contents"; "_display_keys"]
   in
