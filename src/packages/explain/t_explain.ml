@@ -21,6 +21,9 @@ let dataframe_hint =
 --# @export
 *)
 let register env =
+  let node_passthrough_exclusions =
+    ["kind"; "node_name"; "diagnostics"; "contents"; "_display_keys"]
+  in
   let rec do_explain v =
     match v with
     | VNodeResult nr ->
@@ -41,11 +44,7 @@ let register env =
           | VDict fields ->
               List.filter
                 (fun (k, _) ->
-                  k <> "kind"
-                  && k <> "node_name"
-                  && k <> "diagnostics"
-                  && k <> "contents"
-                  && k <> "_display_keys")
+                  not (List.mem k node_passthrough_exclusions))
                 fields
           | _ -> []
         in
