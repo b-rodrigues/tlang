@@ -15,8 +15,10 @@ let get_node_record p name value =
   in
   node_record name value diagnostics
 
+let predicate_args node = [(None, Ast.mk_expr (Value node))]
+
 let eval_node_predicate ~eval_call env predicate node =
-  match eval_call env predicate [(None, Ast.mk_expr (Value node))] with
+  match eval_call env predicate (predicate_args node) with
   | VBool b -> Ok b
   | VError _ as e -> Error e
   | other ->
