@@ -556,7 +556,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
            failwith
              ("Test fixture setup failed: could not write mocked error node artifact to "
               ^ error_node_path ^ ": " ^ msg));
-      let mock_log = {|{
+      let mock_log = Printf.sprintf {|{
     "timestamp": "20240101-000000",
     "hash": "mock",
     "out_path": "/tmp",
