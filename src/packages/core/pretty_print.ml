@@ -182,7 +182,7 @@ let rec render_tree_entry prefix is_last (label, value) =
       [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
   | VList items ->
       let indexed_items =
-        List.mapi (fun index (_, item) -> (Printf.sprintf "[%d]" (index + 1), item)) items
+        List.mapi (fun index (_, item) -> (Printf.sprintf "[%d]" index, item)) items
       in
       (prefix ^ branch ^ label) :: render_tree_children child_prefix indexed_items
   | _ ->

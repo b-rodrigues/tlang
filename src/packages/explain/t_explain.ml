@@ -146,13 +146,13 @@ let register env =
           if df.group_keys = [] then []
           else [("group_keys", VList (List.map (fun k -> (None, VString k)) df.group_keys))]
         in
-        let display_keys = [
-          (None, VString "kind"); (None, VString "nrow"); (None, VString "ncol");
-          (None, VString "storage_backend"); (None, VString "native_path_active");
-          (None, VString "performance_note"); (None, VString "hint")
-        ] @ (if df.group_keys = [] then [] else [(None, VString "group_keys")]) in
+        let display_key_names = [
+          "kind"; "nrow"; "ncol";
+          "storage_backend"; "native_path_active";
+          "performance_note"; "hint"
+        ] @ (if df.group_keys = [] then [] else ["group_keys"]) in
         make_explain_dict
-          ~display_keys:(List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) display_keys)
+          ~display_keys:display_key_names
           ([
              ("kind", VString "dataframe");
              ("nrow", VInt nrows);
