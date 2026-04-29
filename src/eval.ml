@@ -2135,8 +2135,8 @@ and eval_dot_access_val _env_ref target_val field =
                (Printf.sprintf "ShellResult has no field `%s`. Available fields: stdout, stderr, exit_code." field))
   | VError ({ code; message; context; location; na_count } as err) ->
       (match field with
-       | "code" | "error_code" -> VString (Utils.error_code_to_string code)
-       | "message" | "error_message" -> VString message
+       | "error_code" -> VString (Utils.error_code_to_string code)
+       | "error_message" -> VString message
        | "context" -> VDict context
        | "na_count" -> VInt na_count
        | "file" ->
