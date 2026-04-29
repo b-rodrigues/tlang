@@ -2,8 +2,8 @@ open Ast
 
 (** Construct the canonical public node-record structure exposed by
     [which_nodes] and [errored_nodes]. These fields define the stable public
-    API contract for node records, and predicate expressions plus docs rely on
-    exactly [name], [value], and [diagnostics]. *)
+    API contract for node records, and predicate expressions plus
+    documentation rely on exactly [name], [value], and [diagnostics]. *)
 let node_record name value diagnostics =
   VDict [
     ("name", VString name);

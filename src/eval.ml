@@ -104,7 +104,7 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
   in
   match expr.node with
   | Var name when List.mem name fields -> wrap_field name
-  | Var _ -> expr (* Non-scoped variable — preserve unchanged *)
+  | Var _ -> expr (* Non-scoped variable or other identifier — preserve unchanged (exhaustive fallback) *)
   | BinOp { op; left; right } ->
       Ast.mk_expr ?loc
         (BinOp {
