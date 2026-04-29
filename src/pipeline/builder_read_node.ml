@@ -226,7 +226,9 @@ let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
   let candidate_log_files =
     match which_log with
     | None ->
-        if logs = [] then None else Some logs
+        (match logs with
+         | [] -> None
+         | _ -> Some logs)
     | Some pattern ->
         (try
            let re = Str.regexp pattern in
