@@ -487,22 +487,34 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "\"T\"";
 
   (try Unix.mkdir "_pipeline" 0o755 with _ -> ());
-  let ensure_temp_dir name =
-    let dir = Filename.concat (Filename.get_temp_dir_name ()) name in
-    (try Unix.mkdir dir 0o755 with
-     | Unix.Unix_error (Unix.EEXIST, _, _) -> ()
-     | Unix.Unix_error (err, _, _) ->
-         failwith
-           ("Test fixture setup failed: could not create temp directory "
-            ^ dir ^ ": " ^ Unix.error_message err));
-    dir
+  let make_temp_dir prefix =
+    let path = Filename.temp_file prefix "" in
+    Sys.remove path;
+    Unix.mkdir path 0o755;
+    path
   in
-  let error_node_dir = ensure_temp_dir "tlang-error-node" in
-  let plot_json_dir = ensure_temp_dir "tlang-plot-fallback" in
+  let ensure_subdir parent name =
+    let dir = Filename.concat parent name in
+    if Sys.file_exists dir then
+      if Sys.is_directory dir then
+        dir
+      else
+        failwith
+          ("Test fixture setup failed: expected directory but found non-directory path at "
+           ^ dir)
+    else (
+      try Unix.mkdir dir 0o755 with
+      | Unix.Unix_error (err, _, _) ->
+          failwith
+            ("Test fixture setup failed: could not create temp directory "
+             ^ dir ^ ": " ^ Unix.error_message err);
+      dir)
+  in
+  let temp_root_dir = make_temp_dir "tlang-pipeline-" in
+  let error_node_dir = ensure_subdir temp_root_dir "tlang-error-node" in
+  let plot_json_dir = ensure_subdir temp_root_dir "tlang-plot-fallback" in
   Fun.protect
-    ~finally:(fun () ->
-      remove_path error_node_dir;
-      remove_path plot_json_dir)
+    ~finally:(fun () -> remove_path temp_root_dir)
     (fun () ->
       let mocked_error_message =
         "Error in wrong(mtcars): could not find function \"wrong\"\n"
@@ -544,15 +556,20 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       let plot_json_path = Filename.concat plot_json_dir "artifact" in
       let plot_json_viz = Filename.concat plot_json_dir "viz" in
       (try Sys.remove plot_json_viz with Sys_error _ -> ());
-      ignore (Serialization.write_json plot_json_path
-        (Ast.VDict [
-          ("class", Ast.VString "matplotlib");
-          ("backend", Ast.VString "Python");
-          ("title", Ast.VString "Fallback plot");
-          ("mapping", Ast.VDict []);
-          ("labels", Ast.VDict [("x", Ast.VString "x"); ("y", Ast.VString "y")]);
-          ("layers", Ast.VList [(None, Ast.VString "Line2D")]);
-        ]));
+      (match Serialization.write_json plot_json_path
+         (Ast.VDict [
+           ("class", Ast.VString "matplotlib");
+           ("backend", Ast.VString "Python");
+           ("title", Ast.VString "Fallback plot");
+           ("mapping", Ast.VDict []);
+           ("labels", Ast.VDict [("x", Ast.VString "x"); ("y", Ast.VString "y")]);
+           ("layers", Ast.VList [(None, Ast.VString "Line2D")]);
+         ]) with
+       | Ok () -> ()
+       | Error msg ->
+           failwith
+             ("Test fixture setup failed: could not write plot metadata artifact to "
+              ^ plot_json_path ^ ": " ^ msg));
       let legacy_log = Printf.sprintf {|{
     "timestamp": "20240101-000001",
     "hash": "legacy",
