@@ -1,5 +1,7 @@
 open Ast
 
+(** Construct a read-pipeline node record with the public fields exposed by
+    [which_nodes] and [errored_nodes]: [name], [value], and [diagnostics]. *)
 let node_record name value diagnostics =
   VDict [
     ("name", VString name);

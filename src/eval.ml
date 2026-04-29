@@ -186,6 +186,8 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
   | Lambda _ | Value _ | RawCode _ | ShellExpr _ | ColumnRef _ | PipelineDef _ | IntentDef _ | ListComp _ ->
       expr
 
+(** Field names exposed on read-pipeline node records and available for
+    concise NSE predicate auto-wrapping in [which_nodes]. *)
 let node_record_scope_fields = ["name"; "value"; "diagnostics"]
 
 (** Global flag to control warning output (e.g., for tests) *)
