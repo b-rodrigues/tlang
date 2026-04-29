@@ -344,7 +344,9 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
 - Node constructors: `node(command = ..., script = na(), runtime = T, serializer = default, deserializer = default, args = [:], functions = [], include = [], noop = false)`, `rn(...)`, `pyn(...)`, `shn(command = ..., script = na(), serializer = text, deserializer = default, args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false)`
 - Execution and artifacts: `populate_pipeline(p, build = false)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_pipeline(p)`, `read_node(name, which_log = na())`, `pipeline_copy(...)`, `inspect_pipeline(p)`, `list_logs()`, `trace_nodes(p)`, `inspect_node(name)`, `rebuild_node(name)`, `suppress_warnings(node)`
 - Pipeline structure: `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_node(p, name)`, `pipeline_to_frame(p)`, `pipeline_edges(p)`, `pipeline_roots(p)`, `pipeline_leaves(p)`, `pipeline_depth(p)`, `pipeline_cycles(p)`, `pipeline_summary(p)`, `pipeline_validate(p)`, `pipeline_assert(p)`, `pipeline_print(p)`, `pipeline_dot(p)`
-- Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`, `mutate_node(p, ..., where = na())`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`, `arrange_node(p, field, direction = "asc")`
+- Node-level transforms: `filter_node(p, predicate)`, `which_nodes(p, predicate)`, `errored_nodes(p)`,
+  `mutate_node(p, ..., where = na())`, `rename_node(p, old_name, new_name)`, `select_node(p, ...)`,
+  `arrange_node(p, field, direction = "asc")`
 - Set and DAG operations: `union(p1, p2)`, `difference(p1, p2)`, `intersect(p1, p2)`, `patch(p1, p2)`, `swap(p, name, new_node)`, `rewire(p, name, replace = [])`, `prune(p)`, `upstream_of(p, name)`, `downstream_of(p, name)`, `subgraph(p, name)`, `chain(p1, p2)`, `parallel(p1, p2)`
 
 Important LLM rule: when the goal is reproducible execution, prefer generating or editing pipeline nodes rather than a monolithic script.
