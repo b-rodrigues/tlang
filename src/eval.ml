@@ -2395,9 +2395,9 @@ and eval_call env_ref fn_val raw_args =
     | Some flags when index < Array.length flags -> flags.(index)
     | _ -> false
   in
-  let make_row_lambda body =
+  let make_scoped_lambda param body =
     Ast.mk_expr (Lambda {
-      params = ["row"];
+      params = [param];
       autoquote_params = [false];
       param_types = [None];
       return_type = None;
@@ -2407,6 +2407,8 @@ and eval_call env_ref fn_val raw_args =
       env = None;
     })
   in
+  let make_row_lambda body = make_scoped_lambda "row" body in
+  let make_node_lambda body = make_scoped_lambda "node" body in
   (* NSE auto-transformation: if an argument is a complex expression containing
      ColumnRef nodes (not a bare ColumnRef), wrap it in a lambda \(row) <desugared>
      before evaluation. Bare ColumnRef stays as-is (evaluates to VSymbol). *)
@@ -2450,8 +2452,8 @@ and eval_call env_ref fn_val raw_args =
            (name, expr) (* list of bare $cols → keep as-is *)
        | _ when current_builtin_name = Some "filter_nodes"
                 && expr_uses_named_scope_fields ["name"; "value"; "diagnostics"] expr ->
-           let desugared = desugar_named_scope_expr ~root:"row" ~fields:["name"; "value"; "diagnostics"] expr in
-           (name, make_row_lambda desugared)
+           let desugared = desugar_named_scope_expr ~root:"node" ~fields:["name"; "value"; "diagnostics"] expr in
+           (name, make_node_lambda desugared)
        | _ when uses_nse expr ->
            (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
               Call expressions. A positional Call like select_node(p, $name, $runtime) passed
