@@ -42,20 +42,22 @@
 - **Enhanced `show_plot()` Builtin**:
     - Introduced `show_plot()` to render and open pipeline plot artifacts locally.
     - Supports automatic rendering of R (`ggplot2`) and Python (Matplotlib, Seaborn, Plotly, Altair, Plotnine) plots within the Nix sandbox.
-    - **Terminal Visualization**: Implemented ASCII/ANSI fallback rendering for `ggplot` and `plotnine` objects, enabling visualization directly in the REPL or terminal environments without a graphical display.
-    - **Headless Rendering**: Implemented headless rendering for interactive libraries: Plotly (via `kaleido`) and Altair (via `vl-convert`).
+    - Implemented headless rendering for interactive libraries: Plotly (via `kaleido`) and Altair (via `vl-convert`).
     - **Dependency Automation**: `tlang` now automatically suggests or injects `cloudpickle` when plotting libraries are detected in Python nodes to ensure reliable serialization of complex objects containing lambdas.
-
-### 0.53.0 Roadmap & Architecture
-- **Formal Roadmap Publication**: Published `spec_files/path-to-0.53.0.md`, codifying the transition to a Nix-native architectural model.
-- **Architectural Boundary**: Enforced a strict distinction between T-Lang's authoring layer (DAG construction, static analysis) and Nix's execution engine (materialization, caching, sandboxing).
-- **Static-at-Construction DAGs**: Deprecated dynamic pipeline features in favor of declarative, static-at-construction topologies that leverage Nix's native parallelism and incrementality.
+- **Transparent `read_node()` for Plots**:
+    - `read_node()` now recognizes nodes of class `ggplot`, `matplotlib`, `plotnine`, `seaborn`, `plotly`, or `altair`.
+    - Instead of returning an opaque binary artifact, it returns a structured JSON-backed dictionary of the plot's metadata, enabling programmatic verification of visualizations in T scripts.
 
 ### Serializable Lens Architecture
 - **Refactored Lens Implementation**:
     - Replaced functional closure-based lenses with a structured `VLens` sum type.
     - **Nix-Isolated Persistence**: Lenses can now be serialized to disk and passed between separate Nix-build pipeline nodes without losing their state or functionality.
     - **Unified `get()` Integration**: The `get()` builtin now natively supports `VLens` for data focus, providing a single, consistent interface for variable lookup, indexing, and lens-based retrieval.
+
+### Core Evaluator, Emitter & Documentation Refinements
+- **Improved Docstring Coverage**: Added full T-style documentation (descriptions, parameters, examples) for `get()`, `sym()`, and related primitives.
+- **Integrated Documentation Tooling**: Verified `t_doc("parse")` and `t_doc("generate")` workflows for extracting and publishing reference pages for new core functions.
+- **Auto-Quoting Documentation**: Updated `docs/language_overview.md` and `docs/quotation.md` with comprehensive examples of the new `$param` auto-quoting feature.
 
 ### Editor Support & Tree-sitter
 - **Official Tree-sitter Grammar**:
@@ -64,7 +66,6 @@
     - **Polyglot Injections**: Automatically injects R, Python, and Bash syntax highlighting into `<{ }>` blocks when used inside `rn()`, `pyn()`, or `shn()` calls (supporting both named and positional arguments).
     - **Expanded Highlighting**: Highlighting coverage expanded to include ~140+ standard library functions across all core packages.
     - **Editor Integration**: Added documentation and configuration examples for Neovim, Emacs 29+, VS Code, and other Tree-sitter compatible editors.
-
 ### Core Evaluator & Emitter Refinements
 - **Quarto Wrapper Ergonomics**: Added `qn()` as a first-class convenience wrapper around `node()` with `runtime = Quarto`, matching the existing `rn()` and `pyn()` helpers for R and Python nodes.
 - **Improved Pretty Printing**: Updated the core pretty printer to handle complex nested dictionaries and diagnostics summaries more gracefully.
@@ -76,7 +77,6 @@
 - **Improved REPL interaction**: Explicitly flush stdout/stderr around `show_plot` calls so the rendered path is reported cleanly before local viewer launch.
 - **Helper Consistency**: Standardized lens helper names and improved internal consistency in `lens.ml`.
 - **Pipeline Predicate Scoping**: Fixed a regression where `filter_node(is_na($diagnostics.error))` and `which_nodes(is_na($diagnostics.error))` could evaluate outside the node metadata scope and incorrectly exclude nodes without diagnostics errors.
-- **NameError Improvements**: Enhanced variable shadowing detection to provide helpful suggestions when attempting to reassign protected built-in names.
 
 
 ### Resilient-by-Default Evaluation
