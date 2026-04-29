@@ -135,6 +135,75 @@ p |> filter_node($runtime == "Python") |> pipeline_nodes|}
 
   print_newline ();
 
+  Printf.printf "Phase 2 — filter_nodes:\n";
+
+  let (v, _) = eval_string_env
+    {|p = pipeline {
+  bad = 1 / 0
+  ok = 42
+  downstream = bad + 1
+}
+filter_nodes(p, !is_na(diagnostics.error)) |> map(\(node) node.name)|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["bad", "downstream"]|} then begin
+    incr pass_count; Printf.printf "  ✓ filter_nodes auto-wraps diagnostics predicates\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ filter_nodes diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env
+    {|p = pipeline { a = 1; b = 2; c = 3 }
+pred = \(node) node.name == "b"
+filter_nodes(p, pred) |> map(\(node) node.name)|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["b"]|} then begin
+    incr pass_count; Printf.printf "  ✓ filter_nodes accepts explicit predicate functions\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ filter_nodes explicit predicate\n    Expected: [\"b\"]\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env
+    {|p = pipeline { a = 1; b = 2 }
+errored_nodes(p)|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|[]|} then begin
+    incr pass_count; Printf.printf "  ✓ errored_nodes returns an empty list when nothing failed\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ errored_nodes empty result\n    Expected: []\n    Got: %s\n" result
+  end;
+
+  let (v, _) = eval_string_env
+    {|p = pipeline {
+  bad = 1 / 0
+  ok = 42
+  downstream = bad + 1
+}
+errored_nodes(p) |> map(\(node) node.name)|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["bad", "downstream"]|} then begin
+    incr pass_count; Printf.printf "  ✓ errored_nodes returns failing node records\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ errored_nodes failing records\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
+  end;
+
+  test "filter_nodes rejects non-pipeline"
+    {|filter_nodes(42, !is_na(diagnostics.error))|}
+    {|Error(TypeError: "Function `filter_nodes` expects a Pipeline as first argument.")|};
+
+  test "errored_nodes rejects non-pipeline"
+    {|errored_nodes(42)|}
+    {|Error(TypeError: "Function `errored_nodes` expects a Pipeline.")|};
+
+  print_newline ();
+
   Printf.printf "Phase 2 — mutate_node:\n";
 
   (* mutate_node $noop = true on all nodes *)

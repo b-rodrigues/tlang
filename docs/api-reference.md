@@ -1982,6 +1982,59 @@ str_glue("Hello {name}")  -- "Hello Alice"
 
 Pipeline introspection and management.
 
+### `filter_nodes(p, predicate)`
+
+Filter the richer node records from `read_pipeline(p).nodes` without manually writing `read_pipeline`, `compose`, or an explicit lambda.
+
+This is the diagnostics-friendly companion to `filter_node`:
+
+- `filter_node` returns a new `Pipeline`
+- `filter_nodes` returns a `List` of node records
+
+Each node record exposes:
+
+- `name`
+- `value`
+- `diagnostics`
+
+**Parameters:**
+
+- `p` — The pipeline to inspect
+- `predicate` — A predicate over node records
+
+**Returns:**
+
+`List` — Matching node records
+
+**Examples:**
+
+```t
+filter_nodes(p, !is_na(diagnostics.error))
+filter_nodes(p, name == "model")
+
+has_error = \(node) !is_na(node.diagnostics.error)
+filter_nodes(p, has_error)
+```
+
+### `errored_nodes(p)`
+
+Convenience wrapper returning the subset of node records whose `diagnostics.error` is not `NA`.
+
+**Parameters:**
+
+- `p` — The pipeline to inspect
+
+**Returns:**
+
+`List` — Node records with captured errors
+
+**Examples:**
+
+```t
+errored_nodes(p)
+errored_nodes(p) |> map(\(node) node.name)
+```
+
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.

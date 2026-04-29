@@ -55,6 +55,137 @@ and desugar_nse_stmt stmt =
   | Reassignment { name; expr } -> Ast.mk_stmt ?loc (Reassignment { name; expr = desugar_nse_expr expr })
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
 
+let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
+  let uses_var name = List.mem name fields in
+  match expr.node with
+  | Var name -> uses_var name
+  | ColumnRef _ -> false
+  | BinOp { left; right; _ } | BroadcastOp { left; right; _ } ->
+      expr_uses_named_scope_fields fields left || expr_uses_named_scope_fields fields right
+  | UnOp { operand; _ } -> expr_uses_named_scope_fields fields operand
+  | Call { fn; args } ->
+      expr_uses_named_scope_fields fields fn
+      || List.exists (fun (_, arg) -> expr_uses_named_scope_fields fields arg) args
+  | IfElse { cond; then_; else_ } ->
+      expr_uses_named_scope_fields fields cond
+      || expr_uses_named_scope_fields fields then_
+      || expr_uses_named_scope_fields fields else_
+  | Match { scrutinee; cases } ->
+      expr_uses_named_scope_fields fields scrutinee
+      || List.exists (fun (_, body) -> expr_uses_named_scope_fields fields body) cases
+  | ListLit items ->
+      List.exists (fun (_, item) -> expr_uses_named_scope_fields fields item) items
+  | DictLit pairs ->
+      List.exists (fun (_, value) -> expr_uses_named_scope_fields fields value) pairs
+  | DotAccess { target; _ } -> expr_uses_named_scope_fields fields target
+  | Block stmts ->
+      List.exists (fun stmt ->
+        match stmt.node with
+        | Expression e -> expr_uses_named_scope_fields fields e
+        | Assignment { expr; _ } | Reassignment { expr; _ } ->
+            expr_uses_named_scope_fields fields expr
+        | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> false
+      ) stmts
+  | Lambda _ | Value _ | RawCode _ -> false
+  | Unquote e | UnquoteSplice e -> expr_uses_named_scope_fields fields e
+  | PipelineDef _ | IntentDef _ | ListComp _ -> false
+
+let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
+  let loc = expr.loc in
+  let wrap_field name =
+    Ast.mk_expr ?loc (DotAccess { target = Ast.mk_expr ?loc (Var root); field = name })
+  in
+  match expr.node with
+  | Var name when List.mem name fields -> wrap_field name
+  | BinOp { op; left; right } ->
+      Ast.mk_expr ?loc
+        (BinOp {
+           op;
+           left = desugar_named_scope_expr ~root ~fields left;
+           right = desugar_named_scope_expr ~root ~fields right;
+         })
+  | BroadcastOp { op; left; right } ->
+      Ast.mk_expr ?loc
+        (BroadcastOp {
+           op;
+           left = desugar_named_scope_expr ~root ~fields left;
+           right = desugar_named_scope_expr ~root ~fields right;
+         })
+  | UnOp { op; operand } ->
+      Ast.mk_expr ?loc
+        (UnOp { op; operand = desugar_named_scope_expr ~root ~fields operand })
+  | Call { fn; args } ->
+      Ast.mk_expr ?loc
+        (Call {
+           fn = desugar_named_scope_expr ~root ~fields fn;
+           args =
+             List.map
+               (fun (name, arg) -> (name, desugar_named_scope_expr ~root ~fields arg))
+               args;
+         })
+  | IfElse { cond; then_; else_ } ->
+      Ast.mk_expr ?loc
+        (IfElse {
+           cond = desugar_named_scope_expr ~root ~fields cond;
+           then_ = desugar_named_scope_expr ~root ~fields then_;
+           else_ = desugar_named_scope_expr ~root ~fields else_;
+         })
+  | Match { scrutinee; cases } ->
+      Ast.mk_expr ?loc
+        (Match {
+           scrutinee = desugar_named_scope_expr ~root ~fields scrutinee;
+           cases =
+             List.map
+               (fun (pattern, body) -> (pattern, desugar_named_scope_expr ~root ~fields body))
+               cases;
+         })
+  | ListLit items ->
+      Ast.mk_expr ?loc
+        (ListLit
+           (List.map
+              (fun (name, item) -> (name, desugar_named_scope_expr ~root ~fields item))
+              items))
+  | DictLit entries ->
+      Ast.mk_expr ?loc
+        (DictLit
+           (List.map
+              (fun (key, value) -> (key, desugar_named_scope_expr ~root ~fields value))
+              entries))
+  | DotAccess { target; field } ->
+      Ast.mk_expr ?loc
+        (DotAccess { target = desugar_named_scope_expr ~root ~fields target; field })
+  | Block stmts ->
+      Ast.mk_expr ?loc
+        (Block
+           (List.map
+              (fun stmt ->
+                let stmt_loc = stmt.loc in
+                match stmt.node with
+                | Expression e ->
+                    Ast.mk_stmt ?stmt_loc
+                      (Expression (desugar_named_scope_expr ~root ~fields e))
+                | Assignment { name; typ; expr } ->
+                    Ast.mk_stmt ?stmt_loc
+                      (Assignment {
+                         name;
+                         typ;
+                         expr = desugar_named_scope_expr ~root ~fields expr;
+                       })
+                | Reassignment { name; expr } ->
+                    Ast.mk_stmt ?stmt_loc
+                      (Reassignment {
+                         name;
+                         expr = desugar_named_scope_expr ~root ~fields expr;
+                       })
+                | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt)
+              stmts))
+  | Unquote e ->
+      Ast.mk_expr ?loc (Unquote (desugar_named_scope_expr ~root ~fields e))
+  | UnquoteSplice e ->
+      Ast.mk_expr ?loc (UnquoteSplice (desugar_named_scope_expr ~root ~fields e))
+  | Lambda _ | Value _ | RawCode _ | ColumnRef _ | PipelineDef _ | IntentDef _ | ListComp _ ->
+      expr
+
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
 
@@ -2282,13 +2413,14 @@ and eval_call env_ref fn_val raw_args =
   let uses_nse_builtin name =
     match name with
     | Some ("mutate" | "mutate_node"
-           | "summarize" | "summarize_node"
-           | "filter" | "filter_node"
-           | "select" | "select_node"
-           | "arrange" | "arrange_node"
-           | "group_by" | "group_by_node"
-           | "count" | "count_node"
-           | "rename" | "rename_node"
+            | "summarize" | "summarize_node"
+            | "filter" | "filter_node"
+            | "filter_nodes"
+            | "select" | "select_node"
+            | "arrange" | "arrange_node"
+            | "group_by" | "group_by_node"
+            | "count" | "count_node"
+            | "rename" | "rename_node"
            | "pivot_longer" | "pivot_longer_node"
            | "pivot_wider" | "pivot_wider_node"
            | "node" | "py" | "pyn" | "rn" | "qn" | "shn" | "inspect") -> true
@@ -2314,12 +2446,16 @@ and eval_call env_ref fn_val raw_args =
                                            args = [n_arg; (v_name, make_row_lambda desugared)] }))
           else
             (name, expr)
-      | ListLit items when List.for_all (fun (_, e) -> match e.node with ColumnRef _ -> true | _ -> false) items ->
-          (name, expr) (* list of bare $cols → keep as-is *)
-      | _ when uses_nse expr ->
-          (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
-             Call expressions. A positional Call like select_node(p, $name, $runtime) passed
-             as an argument to colnames/nrow must be evaluated directly: its own eval_call
+       | ListLit items when List.for_all (fun (_, e) -> match e.node with ColumnRef _ -> true | _ -> false) items ->
+           (name, expr) (* list of bare $cols → keep as-is *)
+       | _ when current_builtin_name = Some "filter_nodes"
+                && expr_uses_named_scope_fields ["name"; "value"; "diagnostics"] expr ->
+           let desugared = desugar_named_scope_expr ~root:"row" ~fields:["name"; "value"; "diagnostics"] expr in
+           (name, make_row_lambda desugared)
+       | _ when uses_nse expr ->
+           (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
+              Call expressions. A positional Call like select_node(p, $name, $runtime) passed
+              as an argument to colnames/nrow must be evaluated directly: its own eval_call
              will handle the inner ColumnRef args as VSymbol values. Named Call expressions
              (e.g. mutate($count = nrow($dept))) still need lambda wrapping to maintain
              proper NSE row context in mutate/summarize. *)

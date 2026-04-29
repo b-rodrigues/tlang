@@ -306,6 +306,7 @@ pipeline_to_frame(p) |> filter(\(row) row.depth <= 1 and row.noop == false)
 Errors are **not** part of the metadata dictionary exposed by `filter_lens` on a raw `Pipeline`. Diagnostics live in `read_pipeline(p)`, so filter those records instead:
 
 ```t
+-- Lowest-level lens form
 pipe_info = read_pipeline(p)
 
 errored_nodes_l = compose(
@@ -320,6 +321,13 @@ healthy_nodes_l = compose(
 
 get(pipe_info, errored_nodes_l)
 get(pipe_info, healthy_nodes_l)
+```
+
+If you only want the filtered node records and do not need to compose a larger lens pipeline, prefer the higher-level wrapper:
+
+```t
+filter_nodes(p, !is_na(diagnostics.error))
+errored_nodes(p)
 ```
 
 For a quick summary, `read_pipeline(p).diagnostics.error_nodes` gives you just the names of nodes that errored.
