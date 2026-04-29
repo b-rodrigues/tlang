@@ -487,27 +487,37 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "\"T\"";
 
   (try Unix.mkdir "_pipeline" 0o755 with _ -> ());
-  let error_node_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-error-node" in
-  if not (Sys.file_exists error_node_dir) then Unix.mkdir error_node_dir 0o755;
-  let error_node_path = Filename.concat error_node_dir "artifact" in
-  (* Test fixture setup should fail fast if the mocked error artifact cannot be written. *)
-  (match Serialization.write_json error_node_path
-     (Ast.VError {
-       code = Ast.RuntimeError;
-       message = "Error in wrong(mtcars): could not find function \"wrong\"\n";
-       context = [
-         ("runtime_traceback", Ast.VString "Error in wrong(mtcars): could not find function \"wrong\"\n");
-         ("node_status", Ast.VString "errored");
-       ];
-       location = Some { Ast.file = None; line = 0; column = 0 };
-       na_count = 0;
-     }) with
-   | Ok () -> ()
-   | Error msg ->
-       failwith
-         ("Test fixture setup failed: could not write mocked error node artifact to "
-          ^ error_node_path ^ ": " ^ msg));
-  let mock_log = {|{
+  let ensure_temp_dir name =
+    let dir = Filename.concat (Filename.get_temp_dir_name ()) name in
+    if not (Sys.file_exists dir) then Unix.mkdir dir 0o755;
+    dir
+  in
+  let error_node_dir = ensure_temp_dir "tlang-error-node" in
+  let plot_json_dir = ensure_temp_dir "tlang-plot-fallback" in
+  Fun.protect
+    ~finally:(fun () ->
+      remove_path error_node_dir;
+      remove_path plot_json_dir)
+    (fun () ->
+      let error_node_path = Filename.concat error_node_dir "artifact" in
+      (* Test fixture setup should fail fast if the mocked error artifact cannot be written. *)
+      (match Serialization.write_json error_node_path
+         (Ast.VError {
+           code = Ast.RuntimeError;
+           message = "Error in wrong(mtcars): could not find function \"wrong\"\n";
+           context = [
+             ("runtime_traceback", Ast.VString "Error in wrong(mtcars): could not find function \"wrong\"\n");
+             ("node_status", Ast.VString "errored");
+           ];
+           location = Some { Ast.file = None; line = 0; column = 0 };
+           na_count = 0;
+         }) with
+       | Ok () -> ()
+       | Error msg ->
+           failwith
+             ("Test fixture setup failed: could not write mocked error node artifact to "
+              ^ error_node_path ^ ": " ^ msg));
+      let mock_log = {|{
     "timestamp": "20240101-000000",
     "hash": "mock",
     "out_path": "/tmp",
@@ -517,27 +527,25 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       { "node": "py_fail", "path": "/nonexistent", "runtime": "Python", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
     ]
   }|} error_node_path in
-  let oc_mock = open_out "_pipeline/build_log_ocaml_mock.json" in
-  output_string oc_mock mock_log;
-  close_out oc_mock;
+      let oc_mock = open_out "_pipeline/build_log_ocaml_mock.json" in
+      output_string oc_mock mock_log;
+      close_out oc_mock;
 
-  let legacy_node_path = "test_legacy_node.tobj" in
-  write_marshaled_value_legacy legacy_node_path "0.4.0" (Ast.VInt 7);
-  let plot_json_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-plot-fallback" in
-  (try Unix.mkdir plot_json_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
-  let plot_json_path = Filename.concat plot_json_dir "artifact" in
-  let plot_json_viz = Filename.concat plot_json_dir "viz" in
-  (try Sys.remove plot_json_viz with Sys_error _ -> ());
-  ignore (Serialization.write_json plot_json_path
-    (Ast.VDict [
-      ("class", Ast.VString "matplotlib");
-      ("backend", Ast.VString "Python");
-      ("title", Ast.VString "Fallback plot");
-      ("mapping", Ast.VDict []);
-      ("labels", Ast.VDict [("x", Ast.VString "x"); ("y", Ast.VString "y")]);
-      ("layers", Ast.VList [(None, Ast.VString "Line2D")]);
-    ]));
-  let legacy_log = Printf.sprintf {|{
+      let legacy_node_path = "test_legacy_node.tobj" in
+      write_marshaled_value_legacy legacy_node_path "0.4.0" (Ast.VInt 7);
+      let plot_json_path = Filename.concat plot_json_dir "artifact" in
+      let plot_json_viz = Filename.concat plot_json_dir "viz" in
+      (try Sys.remove plot_json_viz with Sys_error _ -> ());
+      ignore (Serialization.write_json plot_json_path
+        (Ast.VDict [
+          ("class", Ast.VString "matplotlib");
+          ("backend", Ast.VString "Python");
+          ("title", Ast.VString "Fallback plot");
+          ("mapping", Ast.VDict []);
+          ("labels", Ast.VDict [("x", Ast.VString "x"); ("y", Ast.VString "y")]);
+          ("layers", Ast.VList [(None, Ast.VString "Line2D")]);
+        ]));
+      let legacy_log = Printf.sprintf {|{
     "timestamp": "20240101-000001",
     "hash": "legacy",
     "out_path": "/tmp",
@@ -547,50 +555,48 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       { "node": "plot_json_node", "path": "%s", "runtime": "Python", "serializer": "json", "class": "matplotlib", "dependencies": [], "success": "true" }
     ]
   }|} legacy_node_path plot_json_path in
-  let oc_legacy_log = open_out "_pipeline/build_log_legacy_version.json" in
-  output_string oc_legacy_log legacy_log;
-  close_out oc_legacy_log;
-  let legacy_node_error =
-    Printf.sprintf
-      {|Error(FileError: "Failed to read node `legacy_node` from `test_legacy_node.tobj`: Serialized value format version `0.4.0` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer.")|}
-      Serialization.serialized_value_format_version
-  in
+      let oc_legacy_log = open_out "_pipeline/build_log_legacy_version.json" in
+      output_string oc_legacy_log legacy_log;
+      close_out oc_legacy_log;
+      let legacy_node_error =
+        Printf.sprintf
+          {|Error(FileError: "Failed to read node `legacy_node` from `test_legacy_node.tobj`: Serialized value format version `0.4.0` is not compatible with `%s`. Rebuild or re-serialize this artifact with the current serializer.")|}
+          Serialization.serialized_value_format_version
+      in
 
-  test "read_node propagates R runtime on error"
-    "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).runtime"
-    "\"R\"";
+      test "read_node propagates R runtime on error"
+        "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).runtime"
+        "\"R\"";
 
-  test "read_node propagates Python runtime on error"
-    "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).runtime"
-    "\"Python\"";
-  test "read_node (mocked) reads compatible artifact"
-    "read_node(\"compatible_node\", which_log=\"legacy_version\") .== [1, 2, 3]"
-    "[true, true, true]";
-  test "read_node missing key (mocked)"
-    "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
-    "true";
-  test "read_node error exposes error_code field"
-    "read_node(\"error_node\", which_log=\"ocaml_mock\").error_code"
-    {|"RuntimeError"|};
-  test "read_node error exposes error_message field"
-    "read_node(\"error_node\", which_log=\"ocaml_mock\").error_message"
-    {|"Error in wrong(mtcars): could not find function \"wrong\"\n"|};
-  test "read_node error exposes context dict"
-    "read_node(\"error_node\", which_log=\"ocaml_mock\").context.node_status"
-    {|"errored"|};
+      test "read_node propagates Python runtime on error"
+        "explain(read_node(\"py_fail\", which_log=\"ocaml_mock\")).runtime"
+        "\"Python\"";
+      test "read_node (mocked) reads compatible artifact"
+        "read_node(\"compatible_node\", which_log=\"legacy_version\") .== [1, 2, 3]"
+        "[true, true, true]";
+      test "read_node missing key (mocked)"
+        "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
+        "true";
+      test "read_node error exposes error_code field"
+        "read_node(\"error_node\", which_log=\"ocaml_mock\").error_code"
+        {|"RuntimeError"|};
+      test "read_node error exposes error_message field"
+        "read_node(\"error_node\", which_log=\"ocaml_mock\").error_message"
+        {|"Error in wrong(mtcars): could not find function \"wrong\"\n"|};
+      test "read_node error exposes context dict"
+        "read_node(\"error_node\", which_log=\"ocaml_mock\").context.node_status"
+        {|"errored"|};
 
-  test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
-    "read_node(\"plot_json_node\", which_log=\"legacy_version\").title"
-    {|"Fallback plot"|};
-  test "plot fallback fixture does not create a viz sidecar"
-    (Printf.sprintf {|file_exists("%s")|} plot_json_viz)
-    "false";
+      test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
+        "read_node(\"plot_json_node\", which_log=\"legacy_version\").title"
+        {|"Fallback plot"|};
+      test "plot fallback fixture does not create a viz sidecar"
+        (Printf.sprintf {|file_exists("%s")|} plot_json_viz)
+        "false";
 
-  test "read_node rejects older serialized node versions"
-    "read_node(\"legacy_node\", which_log=\"legacy_version\")"
-    legacy_node_error;
-  remove_path error_node_dir;
-  remove_path plot_json_dir;
+      test "read_node rejects older serialized node versions"
+        "read_node(\"legacy_node\", which_log=\"legacy_version\")"
+        legacy_node_error);
 
   print_newline ();
 
