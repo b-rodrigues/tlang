@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.51.3
+> **Version**: 0.51.4
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 

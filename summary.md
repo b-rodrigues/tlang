@@ -11,6 +11,7 @@ This file is an **LLM-oriented operating manual** for the repository. It is inte
   - Contributors develop T itself with `nix develop` and then `dune build` / `dune runtest`.
   - T projects and packages are Nix flakes; `flake.nix` and `flake.lock` pin exact environments.
   - Nix is also the build automation and sandboxing layer for pipelines, cross-language nodes, and Quarto rendering.
+  - **Roadmap 0.53.0**: The language is currently transitioning to a **Nix-native architecture** (codified in `spec_files/path-to-0.53.0.md`) where the T evaluator serves primarily as a DAG builder that delegates all materialization, caching, and execution to Nix.
 - **Pipelines are mandatory for reproducible, non-interactive work.** The normal shape of a serious T program is `pipeline { ... }`, not an ad hoc imperative script.
 - **Polyglot execution is first-class.** T can orchestrate native T nodes, R nodes, Python nodes, shell/Bash nodes, and Quarto report nodes.
 - **Errors are values, not exceptions.** `|>` short-circuits on `Error`; `?|>` forwards errors so recovery code can inspect them.
