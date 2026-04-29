@@ -68,7 +68,7 @@
 - **Visualization Stability**: Fixed a critical `Printf.sprintf` type error in the Python plot rendering logic that prevented pipeline builds for Python-based visualizations.
 - **Improved REPL interaction**: Explicitly flush stdout/stderr around `show_plot` calls so the rendered path is reported cleanly before local viewer launch.
 - **Helper Consistency**: Standardized lens helper names and improved internal consistency in `lens.ml`.
-- **Pipeline Predicate Scoping**: Fixed a regression where `filter_node(is_na($diagnostics.error))` could evaluate outside the node metadata scope and incorrectly drop nodes without diagnostics errors.
+- **Pipeline Predicate Scoping**: Fixed a regression where `filter_node(is_na($diagnostics.error))` and `which_nodes(is_na($diagnostics.error))` could evaluate outside the node metadata scope and incorrectly exclude nodes without diagnostics errors.
 
 
 ### Resilient-by-Default Evaluation
