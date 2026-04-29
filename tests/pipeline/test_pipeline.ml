@@ -499,14 +499,17 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       remove_path error_node_dir;
       remove_path plot_json_dir)
     (fun () ->
+      let mocked_error_message =
+        "Error in wrong(mtcars): could not find function \"wrong\"\n"
+      in
       let error_node_path = Filename.concat error_node_dir "artifact" in
       (* Test fixture setup should fail fast if the mocked error artifact cannot be written. *)
       (match Serialization.write_json error_node_path
          (Ast.VError {
            code = Ast.RuntimeError;
-           message = "Error in wrong(mtcars): could not find function \"wrong\"\n";
+           message = mocked_error_message;
            context = [
-             ("runtime_traceback", Ast.VString "Error in wrong(mtcars): could not find function \"wrong\"\n");
+             ("runtime_traceback", Ast.VString mocked_error_message);
              ("node_status", Ast.VString "errored");
            ];
            location = Some { Ast.file = None; line = 0; column = 0 };
@@ -522,7 +525,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "hash": "mock",
     "out_path": "/tmp",
     "nodes": [
-      { "node": "error_node", "path": "%s", "runtime": "R", "serializer": "json", "class": "VError", "dependencies": [], "success": "true" },
+      { "node": "error_node", "path": "%s", "runtime": "R", "serializer": "json", "class": "VError", "dependencies": [], "success": "false" },
       { "node": "r_fail", "path": "/nonexistent", "runtime": "R", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
       { "node": "py_fail", "path": "/nonexistent", "runtime": "Python", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
     ]
@@ -582,7 +585,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
         {|"RuntimeError"|};
       test "read_node error exposes error_message field"
         "read_node(\"error_node\", which_log=\"ocaml_mock\").error_message"
-        {|"Error in wrong(mtcars): could not find function \"wrong\"\n"|};
+        (Ast.Utils.value_to_string (Ast.VString mocked_error_message));
       test "read_node error exposes context dict"
         "read_node(\"error_node\", which_log=\"ocaml_mock\").context.node_status"
         {|"errored"|};
