@@ -488,19 +488,21 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
 
   (try Unix.mkdir "_pipeline" 0o755 with _ -> ());
   let error_node_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-error-node" in
-  (try Unix.mkdir error_node_dir 0o755 with _ -> ());
+  if not (Sys.file_exists error_node_dir) then Unix.mkdir error_node_dir 0o755;
   let error_node_path = Filename.concat error_node_dir "artifact" in
-  ignore (Serialization.write_json error_node_path
-    (Ast.VError {
-      code = Ast.RuntimeError;
-      message = "Error in wrong(mtcars): could not find function \"wrong\"\n";
-      context = [
-        ("runtime_traceback", Ast.VString "Error in wrong(mtcars): could not find function \"wrong\"\n");
-        ("node_status", Ast.VString "errored");
-      ];
-      location = Some { Ast.file = None; line = 0; column = 0 };
-      na_count = 0;
-    }));
+  (match Serialization.write_json error_node_path
+     (Ast.VError {
+       code = Ast.RuntimeError;
+       message = "Error in wrong(mtcars): could not find function \"wrong\"\n";
+       context = [
+         ("runtime_traceback", Ast.VString "Error in wrong(mtcars): could not find function \"wrong\"\n");
+         ("node_status", Ast.VString "errored");
+       ];
+       location = Some { Ast.file = None; line = 0; column = 0 };
+       na_count = 0;
+     }) with
+   | Ok () -> ()
+   | Error msg -> failwith ("Failed to write mocked error node artifact: " ^ msg));
   let mock_log = {|{
     "timestamp": "20240101-000000",
     "hash": "mock",
@@ -569,8 +571,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "read_node error exposes error_message field"
     "read_node(\"error_node\", which_log=\"ocaml_mock\").error_message"
     {|"Error in wrong(mtcars): could not find function \"wrong\"\n"|};
-  test "read_node error exposes context fields"
-    "read_node(\"error_node\", which_log=\"ocaml_mock\").node_status"
+  test "read_node error exposes context dict"
+    "read_node(\"error_node\", which_log=\"ocaml_mock\").context.node_status"
     {|"errored"|};
 
   test "read_node falls back to artifact deserializer when plot viz sidecar is absent"

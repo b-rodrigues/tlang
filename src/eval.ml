@@ -2151,10 +2151,7 @@ and eval_dot_access_val _env_ref target_val field =
            (match location with
             | Some { column; _ } -> VInt column
             | None -> VNA NAGeneric)
-       | _ ->
-           (match List.assoc_opt field context with
-            | Some v -> v
-            | None -> VError err))
+       | _ -> VError err)
   | VNA _ -> Error.type_error "Cannot access field on NA."
   | other -> Error.type_error (Printf.sprintf "Cannot access field `%s` on %s." field (Utils.type_name other))
 
