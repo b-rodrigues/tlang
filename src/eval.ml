@@ -2134,6 +2134,9 @@ and eval_dot_access_val _env_ref target_val field =
       | _ -> Error.make_error Ast.KeyError
                (Printf.sprintf "ShellResult has no field `%s`. Available fields: stdout, stderr, exit_code." field))
   | VError ({ code; message; context; location; na_count } as err) ->
+      (* Structured field access for Error values mirrors explain(error):
+         error_code, error_message, context, na_count, and optional
+         location-derived file/line/column fields (NA when unavailable). *)
       (match field with
        | "error_code" -> VString (Utils.error_code_to_string code)
        | "error_message" -> VString message
