@@ -2468,19 +2468,21 @@ and eval_call env_ref fn_val raw_args =
                && expr_uses_named_scope_fields node_record_scope_fields expr ->
           let desugared = desugar_named_scope_expr ~root:"node" ~fields:node_record_scope_fields expr in
           (name, make_node_lambda desugared)
-      | _ when uses_nse expr ->
-           (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
-              Call expressions. A positional Call like select_node(p, $name, $runtime) passed
-              as an argument to colnames/nrow must be evaluated directly: its own eval_call
-             will handle the inner ColumnRef args as VSymbol values. Named Call expressions
-             (e.g. mutate($count = nrow($dept))) still need lambda wrapping to maintain
-             proper NSE row context in mutate/summarize. *)
-          (match name, expr.node with
-           | None, Call _ -> (name, expr)
-           | None, BinOp { op = (Pipe | MaybePipe); _ } -> (name, expr)
-            | _ ->
-               let desugared = desugar_nse_expr expr in
-               (name, make_row_lambda desugared))
+       | _ when uses_nse expr ->
+           (* Complex expression with NSE → wrap in a scoped lambda.
+              The only positional Call expressions that stay raw are selector helpers
+              passed to select/select_node, where the call itself interprets the NSE
+              arguments. Predicate/row expressions such as filter_node(is_na($x))
+              must be wrapped so they evaluate against the current row/node scope. *)
+           (match name, expr.node with
+            | None, Call _
+              when current_builtin_name = Some "select"
+                || current_builtin_name = Some "select_node" ->
+                (name, expr)
+            | None, BinOp { op = (Pipe | MaybePipe); _ } -> (name, expr)
+             | _ ->
+                let desugared = desugar_nse_expr expr in
+                (name, make_row_lambda desugared))
       | _ -> (name, expr)
     ) args
   in
