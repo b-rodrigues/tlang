@@ -490,7 +490,11 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let ensure_temp_dir name =
     let dir = Filename.concat (Filename.get_temp_dir_name ()) name in
     (try Unix.mkdir dir 0o755 with
-     | Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+     | Unix.Unix_error (Unix.EEXIST, _, _) -> ()
+     | Unix.Unix_error (err, _, _) ->
+         failwith
+           ("Test fixture setup failed: could not create temp directory "
+            ^ dir ^ ": " ^ Unix.error_message err));
     dir
   in
   let error_node_dir = ensure_temp_dir "tlang-error-node" in
