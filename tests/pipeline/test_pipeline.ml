@@ -502,7 +502,10 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
        na_count = 0;
      }) with
    | Ok () -> ()
-   | Error msg -> failwith ("Failed to write mocked error node artifact: " ^ msg));
+   | Error msg ->
+       failwith
+         ("Failed to write mocked error node artifact to "
+          ^ error_node_path ^ ": " ^ msg));
   let mock_log = {|{
     "timestamp": "20240101-000000",
     "hash": "mock",
