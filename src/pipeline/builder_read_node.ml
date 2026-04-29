@@ -84,12 +84,7 @@ let logged_node_diagnostics ?value name cn =
   }
 
 let wrap_with_diagnostics name cn v =
-  VNodeResult { v; node_name = name; diagnostics = {
-    (logged_node_diagnostics ~value:v name cn) with
-    nd_warnings_suppressed = false;
-    nd_recovered = false;
-    nd_upstream_errors = [];
-  } }
+  VNodeResult { v; node_name = name; diagnostics = logged_node_diagnostics ~value:v name cn }
 
 (* Add node_name to the error context unless it is already present. *)
 let add_node_name_context name context =
@@ -259,10 +254,10 @@ let read_node ?which_log name =
                wrap_with_diagnostics name cn v)
 
 let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline_result) =
-  let node_names = List.map fst p.p_nodes in
+  let pipeline_node_names = List.map fst p.p_nodes in
   let runtimes = p.p_runtimes in
   let same_nodes entries =
-    let expected = List.sort String.compare node_names in
+    let expected = List.sort String.compare pipeline_node_names in
     let actual = entries |> List.map fst |> List.sort String.compare in
     expected = actual
     && List.for_all (fun (name, cn) ->
@@ -319,7 +314,7 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
                  (name, merge_diagnostics base overlay)
              | None ->
                  (name, base))
-             node_names
+             pipeline_node_names
        | _ ->
            p.p_node_diagnostics)
   | _ ->
