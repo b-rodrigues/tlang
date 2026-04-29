@@ -487,11 +487,29 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "\"T\"";
 
   (try Unix.mkdir "_pipeline" 0o755 with _ -> ());
-  let make_temp_dir prefix =
-    let path = Filename.temp_file prefix "" in
-    Sys.remove path;
-    Unix.mkdir path 0o755;
-    path
+  let max_temp_dir_attempts = 8 in
+  (* A small retry budget is enough here because collisions on the temp path are
+     already rare and each retry gets a fresh timestamped candidate. *)
+  let rec make_temp_dir prefix attempts =
+    if attempts <= 0 then
+      failwith
+        ("failed to create temporary pipeline fixture directory after "
+         ^ string_of_int max_temp_dir_attempts ^ " attempts with prefix \""
+         ^ prefix ^ "\"")
+    else
+      let path =
+        Filename.concat
+          (Filename.get_temp_dir_name ())
+          (Printf.sprintf "%s%d-%Ld"
+             prefix
+             (Unix.getpid ())
+             (Int64.of_float (Unix.gettimeofday () *. 1_000_000.)))
+      in
+      try
+        Unix.mkdir path 0o700;
+        path
+      with Unix.Unix_error (Unix.EEXIST, _, _) ->
+        make_temp_dir prefix (attempts - 1)
   in
   let ensure_subdir parent name =
     let dir = Filename.concat parent name in
@@ -502,15 +520,16 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
         failwith
           ("Test fixture setup failed: expected directory but found non-directory path at "
            ^ dir)
-    else (
-      try Unix.mkdir dir 0o755 with
-      | Unix.Unix_error (err, _, _) ->
-          failwith
-            ("Test fixture setup failed: could not create temp directory "
-             ^ dir ^ ": " ^ Unix.error_message err);
-      dir)
+    else
+      try
+        Unix.mkdir dir 0o700;
+        dir
+      with Unix.Unix_error (err, _, _) ->
+        failwith
+          ("Test fixture setup failed: could not create temp directory "
+           ^ dir ^ ": " ^ Unix.error_message err)
   in
-  let temp_root_dir = make_temp_dir "tlang-pipeline-" in
+  let temp_root_dir = make_temp_dir "tlang-pipeline-" max_temp_dir_attempts in
   let error_node_dir = ensure_subdir temp_root_dir "tlang-error-node" in
   let plot_json_dir = ensure_subdir temp_root_dir "tlang-plot-fallback" in
   Fun.protect
