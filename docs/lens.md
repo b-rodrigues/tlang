@@ -217,7 +217,53 @@ world2 = world |> over(swiss_l, \(p) p .+ 0.5)
 
 ---
 
-## Part III: Advanced Patterns
+## Part III: Data Science Patterns
+
+### 6. Navigating Nested Model Results
+As a data scientist, you often deal with nested lists from model summaries or API responses. While `colcraft` handles flat DataFrames, Lenses are the tool for everything else.
+
+Consider a nested result from a cross-validation run:
+```t
+cv_results = [
+  fold1: [metrics: [rmse: 0.1, mae: 0.05], status: "ok"],
+  fold2: [metrics: [rmse: 0.12, mae: 0.06], status: "ok"],
+  fold3: [metrics: [rmse: NA, mae: NA], status: "failed"]
+]
+```
+
+**Task: Extract all RMSE values for successful folds.**
+```t
+-- Combine filtering and pathing
+rmse_path = compose(
+  filter_lens(\(f) f.status == "ok"),
+  col_lens("metrics"),
+  col_lens("rmse")
+)
+
+successful_rmses = get(cv_results, rmse_path)
+-- [0.1, 0.12]
+```
+
+### 7. Mass-Updating Configuration Dicts
+Lenses allow you to surgically update hyperparameters nested deep within a configuration structure without rebuilding the entire Dict.
+
+```t
+config = [
+  model: [
+    params: [learning_rate: 0.01, layers: [64, 32]],
+    type: "mlp"
+  ],
+  data: [path: "data.csv"]
+]
+
+-- Update learning rate deep in the config
+lr_l = compose(col_lens("model"), col_lens("params"), col_lens("learning_rate"))
+new_config = config |> set(lr_l, 0.005)
+```
+
+---
+
+## Part IV: Advanced Patterns
 
 ### 6. Orchestration: Dynamic Pipeline Queries
 

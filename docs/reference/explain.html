@@ -37,6 +37,13 @@
 <p>Explain Value</p>
 <p>Returns a dictionary describing the structure and content of a
 value.</p>
+<p>When the input is a pipeline node result (for example from
+<code>read_node(...)</code>), the returned dictionary separates
+node/container metadata from the explained payload via a
+<code>contents</code> field.</p>
+<p>In the REPL and in <code>t explain ...</code>, this dictionary is
+rendered with a tree-style CLI view for readability. Programmatically,
+it is still an ordinary <code>Dict</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>x</strong> (<code>Any</code>): The value to explain.</li>
@@ -45,7 +52,9 @@ value.</p>
 <p>A structured description of the value.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>explain(mtcars)
-explain(1)</code></pre>
+explain(1)
+node_info = explain(read_node(&quot;model&quot;))
+node_info.contents</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="str.html">str</a>, <a href="type.html">type</a></p>
 </div>

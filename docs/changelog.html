@@ -34,7 +34,7 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="xx-upcoming">[0.51.4] - 2026-04-xx (upcoming)</h2>
+<h2 id="section">[0.51.4] - 2026-04-29</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="language-ergonomics-auto-quoting">Language Ergonomics &amp;
 Auto-Quoting</h3>
@@ -185,8 +185,30 @@ functions.</li>
 <li><strong>Auto-Quoting Documentation</strong>: Updated
 <code>docs/language_overview.md</code> and
 <code>docs/quotation.md</code> with comprehensive examples of the new
-<code>$param</code> auto-quoting feature. ### Core Evaluator &amp;
-Emitter Refinements</li>
+<code>$param</code> auto-quoting feature.</li>
+</ul>
+<h3 id="editor-support-tree-sitter">Editor Support &amp;
+Tree-sitter</h3>
+<ul>
+<li><strong>Official Tree-sitter Grammar</strong>:
+<ul>
+<li>Introduced a formal Tree-sitter grammar for T in
+<code>editors/tree-sitter-t</code>.</li>
+<li>Supports robust syntax highlighting, local scope resolution, and
+language injections.</li>
+<li><strong>Polyglot Injections</strong>: Automatically injects R,
+Python, and Bash syntax highlighting into <code>&lt;{ }&gt;</code>
+blocks when used inside <code>rn()</code>, <code>pyn()</code>, or
+<code>shn()</code> calls (supporting both named and positional
+arguments).</li>
+<li><strong>Expanded Highlighting</strong>: Highlighting coverage
+expanded to include ~140+ standard library functions across all core
+packages.</li>
+<li><strong>Editor Integration</strong>: Added documentation and
+configuration examples for Neovim, Emacs 29+, VS Code, and other
+Tree-sitter compatible editors. ### Core Evaluator &amp; Emitter
+Refinements</li>
+</ul></li>
 <li><strong>Quarto Wrapper Ergonomics</strong>: Added <code>qn()</code>
 as a first-class convenience wrapper around <code>node()</code> with
 <code>runtime = Quarto</code>, matching the existing <code>rn()</code>
@@ -212,6 +234,11 @@ stdout/stderr around <code>show_plot</code> calls so the rendered path
 is reported cleanly before local viewer launch.</li>
 <li><strong>Helper Consistency</strong>: Standardized lens helper names
 and improved internal consistency in <code>lens.ml</code>.</li>
+<li><strong>Pipeline Predicate Scoping</strong>: Fixed a regression
+where <code>filter_node(is_na($diagnostics.error))</code> and
+<code>which_nodes(is_na($diagnostics.error))</code> could evaluate
+outside the node metadata scope and incorrectly exclude nodes without
+diagnostics errors.</li>
 </ul>
 <h3 id="resilient-by-default-evaluation">Resilient-by-Default
 Evaluation</h3>
@@ -233,7 +260,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-1">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -529,7 +556,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-1">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-2">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>
@@ -836,4 +863,3 @@ models.</li>
 </script>
 </body>
 </html>
-

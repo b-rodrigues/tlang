@@ -799,6 +799,61 @@ p |> rename_node("a", "b")
 
 Returns a new pipeline with nodes sorted by a metadata field. This affects only display/serialization order — the DAG determines execution order.
 
+---
+
+## 23. Pipeline Manipulation for Data Scientists
+
+Beyond basic execution, T allows you to treat a Pipeline as a queryable and mutable data structure. This is powerful for meta-programming, automated reporting, and "surgical" updates to large analysis graphs.
+
+### Finding Errored Nodes Programmatically
+In a production setting, you may want to extract the errors from a failed pipeline run to log them or send an alert.
+
+```t
+p = build_pipeline(p)
+
+-- Get detailed records for all failed nodes
+failed_records = errored_nodes(p)
+
+-- Extract just the names and error messages
+errors = map(failed_records, \(n) [name: n.name, msg: n.diagnostics.error])
+```
+
+### Filtering Subgraphs
+If you have a massive pipeline but only want to visualize or re-run a specific subset (e.g., all Python nodes), use `filter_node()`:
+
+```t
+-- Create a subgraph of only Python-based computations
+py_pipeline = p |> filter_node($runtime == "Python")
+
+-- Create a subgraph of 'shallow' nodes (roots and their immediate children)
+shallow_p = p |> filter_node($depth <= 1)
+```
+
+### Surgical Reconfiguration
+Lenses allow you to modify a pipeline specification without using the `pipeline { ... }` block again. This is useful for "what-if" analysis or dynamic configuration.
+
+```t
+-- 1. Identify a node to skip
+noop_l = node_meta_lens("heavy_computation", "noop")
+
+-- 2. Toggle the noop flag surgically
+p_fast = p |> set(noop_l, true)
+
+-- 3. Swap a runtime for testing
+p_test = p |> set(node_meta_lens("model_train", "runtime"), "R")
+```
+
+### Inspecting Node Results with Lenses
+If you have a `VPipeline` object (from `read_pipeline()`), you can use lenses to safely extract values from specific nodes.
+
+```t
+p_info = read_pipeline(p)
+
+-- Focus on the 'summary' node's value
+summary_l = node_lens("summary")
+summary_df = get(p_info, summary_l)
+```
+
 ```t
 p = pipeline { z = 1; a = 2; m = 3 }
 

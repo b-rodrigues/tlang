@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.51.4] - 2026-04-xx (upcoming)
+## [0.51.4] - 2026-04-29
 
 **Status**: Beta  
 
