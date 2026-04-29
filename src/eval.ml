@@ -2133,7 +2133,28 @@ and eval_dot_access_val _env_ref target_val field =
       | "exit_code" -> VInt sr.sr_exit_code
       | _ -> Error.make_error Ast.KeyError
                (Printf.sprintf "ShellResult has no field `%s`. Available fields: stdout, stderr, exit_code." field))
-  | VError _ as e -> e
+  | VError ({ code; message; context; location; na_count } as err) ->
+      (match field with
+       | "code" | "error_code" -> VString (Utils.error_code_to_string code)
+       | "message" | "error_message" -> VString message
+       | "context" -> VDict context
+       | "na_count" -> VInt na_count
+       | "file" ->
+           (match location with
+            | Some { file = Some file; _ } -> VString file
+            | _ -> VNA NAGeneric)
+       | "line" ->
+           (match location with
+            | Some { line; _ } -> VInt line
+            | None -> VNA NAGeneric)
+       | "column" ->
+           (match location with
+            | Some { column; _ } -> VInt column
+            | None -> VNA NAGeneric)
+       | _ ->
+           (match List.assoc_opt field context with
+            | Some v -> v
+            | None -> VError err))
   | VNA _ -> Error.type_error "Cannot access field on NA."
   | other -> Error.type_error (Printf.sprintf "Cannot access field `%s` on %s." field (Utils.type_name other))
 

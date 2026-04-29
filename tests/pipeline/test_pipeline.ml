@@ -487,15 +487,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
     "\"T\"";
 
   (try Unix.mkdir "_pipeline" 0o755 with _ -> ());
+  let error_node_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-error-node" in
+  (try Unix.mkdir error_node_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let error_node_path = Filename.concat error_node_dir "artifact" in
+  ignore (Serialization.write_json error_node_path
+    (Ast.VError {
+      code = Ast.RuntimeError;
+      message = "Error in wrong(mtcars): could not find function \"wrong\"\n";
+      context = [
+        ("runtime_traceback", Ast.VString "Error in wrong(mtcars): could not find function \"wrong\"\n");
+        ("node_status", Ast.VString "errored");
+      ];
+      location = Some { Ast.file = None; line = 0; column = 0 };
+      na_count = 0;
+    }));
   let mock_log = {|{
     "timestamp": "20240101-000000",
     "hash": "mock",
     "out_path": "/tmp",
     "nodes": [
+      { "node": "error_node", "path": "%s", "runtime": "R", "serializer": "json", "class": "VError", "dependencies": [], "success": "true" },
       { "node": "r_fail", "path": "/nonexistent", "runtime": "R", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
       { "node": "py_fail", "path": "/nonexistent", "runtime": "Python", "serializer": "default", "class": "V", "dependencies": [], "success": "true" }
     ]
-  }|} in
+  }|} error_node_path in
   let oc_mock = open_out "_pipeline/build_log_ocaml_mock.json" in
   output_string oc_mock mock_log;
   close_out oc_mock;
@@ -548,6 +563,15 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "read_node missing key (mocked)"
     "error_code(read_node(\"missing\", which_log=\"ocaml_mock\")) == \"KeyError\""
     "true";
+  test "read_node error exposes error_code field"
+    "read_node(\"error_node\", which_log=\"ocaml_mock\").error_code"
+    {|"RuntimeError"|};
+  test "read_node error exposes error_message field"
+    "read_node(\"error_node\", which_log=\"ocaml_mock\").error_message"
+    {|\"Error in wrong(mtcars): could not find function \\\"wrong\\\"\\n\"|};
+  test "read_node error exposes context fields"
+    "read_node(\"error_node\", which_log=\"ocaml_mock\").node_status"
+    {|"errored"|};
 
   test "read_node falls back to artifact deserializer when plot viz sidecar is absent"
     "read_node(\"plot_json_node\", which_log=\"legacy_version\").title"
