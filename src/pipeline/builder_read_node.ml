@@ -223,13 +223,13 @@ let pipeline_matches_logged_entries (p : Ast.pipeline_result) entries =
 
 let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
   let logs = candidate_logs ?which_log () in
-  let log_file_result =
+  let candidate_log_files =
     match which_log with
-    | None -> Ok (match logs with [] -> None | log :: _ -> Some log)
+    | None -> Some logs
     | Some pattern ->
         (try
-           Ok
-             (List.find_opt
+           Some
+             (List.filter
                 (fun log ->
                   try
                     let _ = Str.search_forward (Str.regexp pattern) log 0 in
@@ -237,14 +237,17 @@ let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
                   with Not_found -> false)
                 logs)
          with Failure _ ->
-           Ok None)
+           None)
   in
-  match log_file_result with
-  | Ok (Some log_file) ->
-      (match read_log (Filename.concat pipeline_dir log_file) with
-       | Ok entries when pipeline_matches_logged_entries p entries -> Some entries
-       | _ -> None)
-  | _ -> None
+  match candidate_log_files with
+  | Some log_files ->
+      List.find_map
+        (fun log_file ->
+          match read_log (Filename.concat pipeline_dir log_file) with
+          | Ok entries when pipeline_matches_logged_entries p entries -> Some entries
+          | _ -> None)
+        log_files
+  | None -> None
 
 let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
   let should_overlay_value = function
