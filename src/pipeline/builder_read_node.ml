@@ -34,18 +34,58 @@ let parse_node_warnings path =
     | _ -> []
   else []
 
-let wrap_with_diagnostics name cn v =
+let is_error_class = function
+  | "VError" | "Error" -> true
+  | _ -> false
+
+let generic_logged_node_error name cn =
+  {
+    ne_kind = cn.cn_class;
+    ne_fn = "unknown";
+    ne_message = Printf.sprintf "Node `%s` failed during pipeline build." name;
+    ne_na_count = 0;
+  }
+
+let node_error_of_logged_value name cn value =
+  if is_error_class cn.cn_class then
+    match value with
+    | VError e ->
+        Some {
+          ne_kind = Utils.error_code_to_string e.code;
+          ne_fn = "unknown";
+          ne_message = e.message;
+          ne_na_count = e.na_count;
+        }
+    | _ -> Some (generic_logged_node_error name cn)
+  else
+    None
+
+let logged_node_diagnostics ?value name cn =
   let node_dir = Filename.dirname cn.cn_path in
   let warnings_path = Filename.concat node_dir "warnings" in
   let warnings = parse_node_warnings warnings_path in
-  let error = if cn.cn_class = "VError" then (
-    match v with
-    | VError e -> Some { ne_kind = Utils.error_code_to_string e.code; ne_fn = "unknown"; ne_message = e.message; ne_na_count = e.na_count }
-    | _ -> None
-  ) else None in
-  VNodeResult { v; node_name = name; diagnostics = {
+  let error =
+    match value with
+    | Some value -> node_error_of_logged_value name cn value
+    | None ->
+        if is_error_class cn.cn_class then
+          match Serialization.read_verror_json cn.cn_path with
+          | Ok value -> node_error_of_logged_value name cn value
+          | Error _ -> Some (generic_logged_node_error name cn)
+        else
+          None
+  in
+  {
     nd_warnings = warnings;
     nd_error = error;
+    nd_warnings_suppressed = false;
+    nd_recovered = false;
+    nd_upstream_errors = [];
+  }
+
+let wrap_with_diagnostics name cn v =
+  VNodeResult { v; node_name = name; diagnostics = {
+    (logged_node_diagnostics ~value:v name cn) with
     nd_warnings_suppressed = false;
     nd_recovered = false;
     nd_upstream_errors = [];
@@ -118,7 +158,7 @@ let read_logged_node_value name cn =
    Nix sandbox: recover structured VError artifacts when possible and otherwise
    fall back to the computed node handle. *)
 let read_env_node_value name cn =
-  if cn.cn_class = "VError" then
+  if is_error_class cn.cn_class then
     match Serialization.read_verror_json cn.cn_path with
     | Ok (VError e) -> VError { e with context = add_node_name_context name e.context }
     | Ok v -> v
@@ -199,10 +239,10 @@ let read_node ?which_log name =
           | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in build log `%s`." name f)
           | Some cn ->
               let v =
-                if cn.Ast.cn_class = "VError" then
-                  (match Serialization.read_verror_json cn.Ast.cn_path with
-                   | Ok (VError e) ->
-                        VError { e with context = add_node_name_context name e.context }
+                if is_error_class cn.Ast.cn_class then
+                   (match Serialization.read_verror_json cn.Ast.cn_path with
+                    | Ok (VError e) ->
+                         VError { e with context = add_node_name_context name e.context }
                     | Ok v -> v
                     | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Error node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
                 else if is_visual_metadata_class cn.cn_class then
@@ -215,5 +255,72 @@ let read_node ?which_log name =
                     read_logged_node_value name cn
                 else
                   read_logged_node_value name cn
-              in
-              wrap_with_diagnostics name cn v)
+               in
+               wrap_with_diagnostics name cn v)
+
+let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline_result) =
+  let node_names = List.map fst p.p_nodes in
+  let runtimes = p.p_runtimes in
+  let same_nodes entries =
+    let expected = List.sort String.compare node_names in
+    let actual = entries |> List.map fst |> List.sort String.compare in
+    expected = actual
+    && List.for_all (fun (name, cn) ->
+         match List.assoc_opt name runtimes with
+         | Some runtime -> runtime = cn.cn_runtime
+         | None -> true)
+         entries
+  in
+  let merge_diagnostics base overlay =
+    {
+      nd_warnings =
+        if base.nd_warnings <> [] then base.nd_warnings else overlay.nd_warnings;
+      nd_error =
+        (match base.nd_error with
+         | Some _ -> base.nd_error
+         | None -> overlay.nd_error);
+      nd_warnings_suppressed = base.nd_warnings_suppressed;
+      nd_recovered = base.nd_recovered;
+      nd_upstream_errors = base.nd_upstream_errors;
+    }
+  in
+  let logs =
+    match which_log with
+    | Some _ -> get_all_logs ()
+    | None -> get_logs ()
+  in
+  let log_file_result =
+    match which_log with
+    | None -> Ok (match logs with [] -> None | log :: _ -> Some log)
+    | Some pattern ->
+        (try
+           Ok (List.find_opt (fun log ->
+             try
+               let _ = Str.search_forward (Str.regexp pattern) log 0 in
+               true
+             with Not_found -> false
+           ) logs)
+         with Failure _ ->
+           Ok None)
+  in
+  match log_file_result with
+  | Ok (Some log_file) ->
+      (match read_log (Filename.concat pipeline_dir log_file) with
+       | Ok entries when same_nodes entries ->
+           List.map (fun name ->
+             let base =
+               match List.assoc_opt name p.p_node_diagnostics with
+               | Some diagnostics -> diagnostics
+               | None -> Ast.Utils.empty_node_diagnostics
+             in
+             match List.assoc_opt name entries with
+             | Some cn ->
+                 let overlay = logged_node_diagnostics name cn in
+                 (name, merge_diagnostics base overlay)
+             | None ->
+                 (name, base))
+             node_names
+       | _ ->
+           p.p_node_diagnostics)
+  | _ ->
+      p.p_node_diagnostics

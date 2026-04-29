@@ -74,15 +74,18 @@ let register env =
     in
     match extract_arg "node" 1 ((VNA NAGeneric)) named_args with
     | VPipeline p ->
+        let pipeline_diagnostics =
+          Builder.merge_pipeline_node_diagnostics_with_latest_log p
+        in
         (match extract_arg "name" 2 (VNA NAGeneric) named_args with
          | VString name ->
-             (match List.assoc_opt name p.p_nodes with
-              | Some value ->
-                  let diagnostics =
-                    match List.assoc_opt name p.p_node_diagnostics with
-                    | Some diagnostics -> diagnostics
-                    | None -> Ast.Utils.empty_node_diagnostics
-                  in
+              (match List.assoc_opt name p.p_nodes with
+               | Some value ->
+                   let diagnostics =
+                     match List.assoc_opt name pipeline_diagnostics with
+                     | Some diagnostics -> diagnostics
+                     | None -> Ast.Utils.empty_node_diagnostics
+                   in
                   let warnings =
                     VList
                       (List.map
@@ -156,14 +159,17 @@ let register env =
   let read_pipeline_fn named_args _env =
     match extract_arg "p" 1 (VNA NAGeneric) named_args with
     | VPipeline p ->
+        let pipeline_diagnostics =
+          Builder.merge_pipeline_node_diagnostics_with_latest_log p
+        in
         let nodes =
           VList
             (List.map (fun (name, value) ->
-               let diagnostics =
-                 match List.assoc_opt name p.p_node_diagnostics with
-                 | Some diagnostics -> diagnostics
-                 | None -> Ast.Utils.empty_node_diagnostics
-               in
+                let diagnostics =
+                  match List.assoc_opt name pipeline_diagnostics with
+                  | Some diagnostics -> diagnostics
+                  | None -> Ast.Utils.empty_node_diagnostics
+                in
                (None, VDict [
                  ("name", VString name);
                  ("value", value);
@@ -173,7 +179,7 @@ let register env =
         in
         VDict [
           ("nodes", nodes);
-          ("diagnostics", Ast.Utils.pipeline_diagnostics_to_value p.p_node_diagnostics);
+          ("diagnostics", Ast.Utils.pipeline_diagnostics_to_value pipeline_diagnostics);
         ]
     | _ -> Error.type_error "read_pipeline: expected a Pipeline."
   in
