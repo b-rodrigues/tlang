@@ -294,7 +294,47 @@ swiss_l = compose(
 
 world2 = world |&gt; over(swiss_l, \(p) p .+ 0.5)</code></pre>
 <hr />
-<h2 id="part-iii-advanced-patterns">Part III: Advanced Patterns</h2>
+<h2 id="part-iii-data-science-patterns">Part III: Data Science
+Patterns</h2>
+<h3 id="navigating-nested-model-results">6. Navigating Nested Model
+Results</h3>
+<p>As a data scientist, you often deal with nested lists from model
+summaries or API responses. While <code>colcraft</code> handles flat
+DataFrames, Lenses are the tool for everything else.</p>
+<p>Consider a nested result from a cross-validation run:</p>
+<pre class="t"><code>cv_results = [
+  fold1: [metrics: [rmse: 0.1, mae: 0.05], status: &quot;ok&quot;],
+  fold2: [metrics: [rmse: 0.12, mae: 0.06], status: &quot;ok&quot;],
+  fold3: [metrics: [rmse: NA, mae: NA], status: &quot;failed&quot;]
+]</code></pre>
+<p><strong>Task: Extract all RMSE values for successful
+folds.</strong></p>
+<pre class="t"><code>-- Combine filtering and pathing
+rmse_path = compose(
+  filter_lens(\(f) f.status == &quot;ok&quot;),
+  col_lens(&quot;metrics&quot;),
+  col_lens(&quot;rmse&quot;)
+)
+
+successful_rmses = get(cv_results, rmse_path)
+-- [0.1, 0.12]</code></pre>
+<h3 id="mass-updating-configuration-dicts">7. Mass-Updating
+Configuration Dicts</h3>
+<p>Lenses allow you to surgically update hyperparameters nested deep
+within a configuration structure without rebuilding the entire Dict.</p>
+<pre class="t"><code>config = [
+  model: [
+    params: [learning_rate: 0.01, layers: [64, 32]],
+    type: &quot;mlp&quot;
+  ],
+  data: [path: &quot;data.csv&quot;]
+]
+
+-- Update learning rate deep in the config
+lr_l = compose(col_lens(&quot;model&quot;), col_lens(&quot;params&quot;), col_lens(&quot;learning_rate&quot;))
+new_config = config |&gt; set(lr_l, 0.005)</code></pre>
+<hr />
+<h2 id="part-iv-advanced-patterns">Part IV: Advanced Patterns</h2>
 <h3 id="orchestration-dynamic-pipeline-queries">6. Orchestration:
 Dynamic Pipeline Queries</h3>
 <p>Because lenses are first-class values, you can build them dynamically
@@ -306,17 +346,22 @@ to query or modify pipelines based on configuration data.</p>
 
 -- Choose which model to query at runtime
 best_model_name = &quot;model_py&quot;
-model_value = get(p, node_lens(best_model_name))
-
-### 7. Core Orchestration: `node_meta_lens`
-
-While `node_lens` focuses on a node&#39;s *result*, `node_meta_lens` focuses on its *inner configuration*. This is essential for dynamic orchestration: toggling `noop` status, swapping runtimes, or updating (de)serializers before a build.
-
-- **`node_meta_lens(node_name, field)`**: Targets the configuration of a node.
-- **Fields**: `&quot;runtime&quot;`, `&quot;noop&quot;`, `&quot;serializer&quot;`, `&quot;deserializer&quot;`.
-
-```t
-p = pipeline {
+model_value = get(p, node_lens(best_model_name))</code></pre>
+<h3 id="core-orchestration-node_meta_lens">7. Core Orchestration:
+<code>node_meta_lens</code></h3>
+<p>While <code>node_lens</code> focuses on a node’s <em>result</em>,
+<code>node_meta_lens</code> focuses on its <em>inner configuration</em>.
+This is essential for dynamic orchestration: toggling <code>noop</code>
+status, swapping runtimes, or updating (de)serializers before a
+build.</p>
+<ul>
+<li><strong><code>node_meta_lens(node_name, field)</code></strong>:
+Targets the configuration of a node.</li>
+<li><strong>Fields</strong>: <code>"runtime"</code>,
+<code>"noop"</code>, <code>"serializer"</code>,
+<code>"deserializer"</code>.</li>
+</ul>
+<pre class="t"><code>p = pipeline {
     data_gen = node(command = &lt;{ [1, 2, 3, 4] }&gt;)
     model_r  = node(data_gen, command = &lt;{ train(data_gen) }&gt;, runtime = R)
 }
@@ -327,33 +372,91 @@ p_noop = p |&gt; set(noop_l, true)
 
 -- Re-orchestration: Swap a node&#39;s runtime to Python
 p_py = p |&gt; set(node_meta_lens(&quot;model_r&quot;, &quot;runtime&quot;), &quot;Python&quot;)</code></pre>
-<h3 id="pipeline-traversals-filter_lens-on-vpipeline">8. Pipeline
-Traversals: <code>filter_lens</code> on VPipeline</h3>
-<p>You can now use <code>filter_lens</code> on a
-<strong>Pipeline</strong> object to query or modify sets of nodes. The
-predicate receives a <code>Dict</code> of node metadata (including
-<code>$name</code>, <code>$runtime</code>, <code>$noop</code>,
-<code>$depth</code>, etc.).</p>
-<pre class="t"><code>-- Identify all nodes currently marked as noop
-noop_nodes_l = filter_lens(\(meta) meta.noop == true)
-noop_node_list = get(p, noop_nodes_l)
-
--- Re-run all R nodes locally by swapping runtime to T
+<h3 id="pipeline-traversals-querying-node-metadata">8. Pipeline
+Traversals: Querying Node Metadata</h3>
+<p><code>filter_lens</code> also works on a <strong>Pipeline</strong>.
+In that case the predicate does <strong>not</strong> receive the node
+value directly; it receives a metadata <code>Dict</code> built from the
+pipeline definition.</p>
+<p>The fields currently exposed are:</p>
+<ul>
+<li><code>name</code></li>
+<li><code>runtime</code></li>
+<li><code>serializer</code></li>
+<li><code>deserializer</code></li>
+<li><code>noop</code></li>
+<li><code>deps</code></li>
+<li><code>depth</code></li>
+<li><code>command_type</code></li>
+</ul>
+<p><code>get(p, filter_lens(...))</code> returns the <strong>matched
+node values</strong>. The predicate only uses metadata to decide which
+nodes to keep.</p>
+<pre class="t"><code>-- All R nodes
 r_nodes_l = filter_lens(\(meta) meta.runtime == &quot;R&quot;)
-p_local = p |&gt; over(r_nodes_l, \(n) n |&gt; set(node_meta_lens(n.name, &quot;runtime&quot;), &quot;T&quot;))</code></pre>
-<pre><code>
-### 7. Serialization &amp; Multi-Node Safety
+get(p, r_nodes_l)
 
-T lenses are fully serializable. This means you can define a complex `FilterLens` in one pipeline node, pass it as a parameter to another node (even one running in a different runtime like R or Python), and it will maintain its structure.
+-- Nodes that will actually run
+active_nodes_l = filter_lens(\(meta) meta.noop == false)
+get(p, active_nodes_l)
 
-```t
--- Node A: Define a &quot;quality control&quot; lens
+-- Root nodes only
+root_nodes_l = filter_lens(\(meta) meta.depth == 0)
+get(p, root_nodes_l)
+
+-- Nodes using a specific serializer
+pmml_nodes_l = filter_lens(\(meta) meta.serializer == &quot;pmml&quot;)
+get(p, pmml_nodes_l)
+
+-- Script-backed nodes only
+script_nodes_l = filter_lens(\(meta) meta.command_type == &quot;script&quot;)
+get(p, script_nodes_l)</code></pre>
+<p>If you want to inspect the metadata rows themselves rather than the
+node values, use the same predicate against
+<code>pipeline_to_frame(p)</code>:</p>
+<pre class="t"><code>pipeline_to_frame(p) |&gt; filter(\(row) row.runtime == &quot;R&quot;)
+pipeline_to_frame(p) |&gt; filter(\(row) row.depth &lt;= 1 and row.noop == false)</code></pre>
+<h4 id="querying-diagnostics-and-errored-nodes">Querying diagnostics and
+errored nodes</h4>
+<p>Errors are <strong>not</strong> part of the metadata dictionary
+exposed by <code>filter_lens</code> on a raw <code>Pipeline</code>.
+Diagnostics live in <code>read_pipeline(p)</code>, so filter those
+records instead:</p>
+<pre class="t"><code>-- Lowest-level lens form
+pipe_info = read_pipeline(p)
+
+errored_nodes_l = compose(
+  col_lens(&quot;nodes&quot;),
+  filter_lens(\(node) !is_na(node.diagnostics.error))
+)
+
+healthy_nodes_l = compose(
+  col_lens(&quot;nodes&quot;),
+  filter_lens(\(node) is_na(node.diagnostics.error))
+)
+
+get(pipe_info, errored_nodes_l)
+get(pipe_info, healthy_nodes_l)</code></pre>
+<p>If you only want the filtered node records and do not need to compose
+a larger lens pipeline, prefer the higher-level wrapper:</p>
+<pre class="t"><code>which_nodes(p, !is_na(diagnostics.error))
+errored_nodes(p)</code></pre>
+<p>For a quick summary,
+<code>read_pipeline(p).diagnostics.error_nodes</code> gives you just the
+names of nodes that errored.</p>
+<h3 id="serialization-multi-node-safety">9. Serialization &amp;
+Multi-Node Safety</h3>
+<p>T lenses are fully serializable. This means you can define a complex
+<code>FilterLens</code> in one pipeline node, pass it as a parameter to
+another node (even one running in a different runtime like R or Python),
+and it will maintain its structure.</p>
+<pre class="t"><code>-- Node A: Define a &quot;quality control&quot; lens
 qc_lens = filter_lens(\(r) r.std_err &gt; 0.05)
 
 -- Node B: Receives qc_lens as an argument and applies it to its local data
 flagged_data = data |&gt; over(qc_lens, \(v) v + &quot; [NEEDS REVIEW]&quot;)</code></pre>
 <hr />
-<h3 id="api-quick-reference">8. API Quick Reference</h3>
+<h3 id="api-quick-reference">10. API Quick Reference</h3>
 <table>
 <colgroup>
 <col style="width: 33%" />
