@@ -156,7 +156,7 @@ let visible_pairs_from_dict pairs =
   | None -> non_metadata_pairs
   | Some keys -> List.filter (fun (k, _) -> List.mem k keys) non_metadata_pairs
 
-let rec list_is_simple items =
+let rec list_items_are_simple items =
   List.length items <= 5
   && List.for_all (fun (_, v) ->
        match v with
@@ -164,34 +164,35 @@ let rec list_is_simple items =
        | _ -> true
      ) items
 
-let rec render_tree_children prefix entries =
+let rec render_tree_entry prefix is_last (label, value) =
+  let branch = if is_last then "└── " else "├── " in
+  let child_prefix = prefix ^ if is_last then "    " else "│   " in
+  match value with
+  | VDict pairs ->
+      let visible_pairs = visible_pairs_from_dict pairs in
+      if visible_pairs = [] then
+        [prefix ^ branch ^ label ^ ": {}"]
+      else
+        (prefix ^ branch ^ label) :: render_tree_children child_prefix visible_pairs
+  | VList items when items = [] ->
+      [prefix ^ branch ^ label ^ ": []"]
+  | VList items when list_items_are_simple items ->
+      [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
+  | VList items ->
+      let indexed_items =
+        List.mapi (fun index (_, item) -> (Printf.sprintf "[%d]" (index + 1), item)) items
+      in
+      (prefix ^ branch ^ label) :: render_tree_children child_prefix indexed_items
+  | _ ->
+      [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
+
+and render_tree_children prefix entries =
   let rec aux acc = function
     | [] -> acc
     | [entry] -> acc @ render_tree_entry prefix true entry
     | entry :: rest ->
         let acc = acc @ render_tree_entry prefix false entry in
         aux acc rest
-  and render_tree_entry prefix is_last (label, value) =
-    let branch = if is_last then "└── " else "├── " in
-    let child_prefix = prefix ^ if is_last then "    " else "│   " in
-    match value with
-    | VDict pairs ->
-        let visible_pairs = visible_pairs_from_dict pairs in
-        if visible_pairs = [] then
-          [prefix ^ branch ^ label ^ ": {}"]
-        else
-          (prefix ^ branch ^ label) :: render_tree_children child_prefix visible_pairs
-    | VList items when items = [] ->
-        [prefix ^ branch ^ label ^ ": []"]
-    | VList items when list_is_simple items ->
-        [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
-    | VList items ->
-        let indexed_items =
-          List.mapi (fun index (_, item) -> (Printf.sprintf "[%d]" (index + 1), item)) items
-        in
-        (prefix ^ branch ^ label) :: render_tree_children child_prefix indexed_items
-    | _ ->
-        [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
   in
   aux [] entries
 
@@ -228,7 +229,7 @@ let rec pretty_format ?(max_depth=5) ?(indent="") v =
       let lines = List.map (fun (_, v) ->
          pretty_format ~max_depth:(max_depth - 1) ~indent:next_indent v
       ) items in
-       if list_is_simple items then Utils.value_to_string v
+       if list_items_are_simple items then Utils.value_to_string v
         else "[\n" ^ indent ^ "  " ^ String.concat (",\n" ^ indent ^ "  ") lines ^ "\n" ^ indent ^ "]"
     | other -> Utils.value_to_string other
 

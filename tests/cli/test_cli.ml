@@ -278,7 +278,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
         ]);
       ])
   in
-  test_message "pretty_print explain dicts as a tree"
+  test_message "pretty_print explain Dicts as a tree"
     (contains explain_tree_pretty "node\n" &&
      contains explain_tree_pretty "├── node_name: \"r_node\"" &&
      contains explain_tree_pretty "├── diagnostics" &&
