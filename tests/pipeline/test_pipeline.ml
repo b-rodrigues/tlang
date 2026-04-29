@@ -505,7 +505,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
    | Ok () -> ()
    | Error msg ->
        failwith
-         ("Failed to write mocked error node artifact to "
+         ("Test fixture setup failed: could not write mocked error node artifact to "
           ^ error_node_path ^ ": " ^ msg));
   let mock_log = {|{
     "timestamp": "20240101-000000",
@@ -589,6 +589,8 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   test "read_node rejects older serialized node versions"
     "read_node(\"legacy_node\", which_log=\"legacy_version\")"
     legacy_node_error;
+  remove_path error_node_dir;
+  remove_path plot_json_dir;
 
   print_newline ();
 
