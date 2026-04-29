@@ -256,15 +256,16 @@ let read_node ?which_log name =
 let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline_result) =
   let pipeline_node_names = List.map fst p.p_nodes in
   let runtimes = p.p_runtimes in
+  let runtime_matches_logged_entry (name, cn) =
+    match List.assoc_opt name runtimes with
+    | Some runtime -> runtime = cn.cn_runtime
+    | None -> true
+  in
   let same_nodes entries =
     let expected = List.sort String.compare pipeline_node_names in
     let actual = entries |> List.map fst |> List.sort String.compare in
     expected = actual
-    && List.for_all (fun (name, cn) ->
-         match List.assoc_opt name runtimes with
-         | Some runtime -> runtime = cn.cn_runtime
-         | None -> true)
-         entries
+    && List.for_all runtime_matches_logged_entry entries
   in
   let merge_diagnostics base overlay =
     {
