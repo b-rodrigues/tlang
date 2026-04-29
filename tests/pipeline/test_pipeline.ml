@@ -490,6 +490,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   let error_node_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-error-node" in
   if not (Sys.file_exists error_node_dir) then Unix.mkdir error_node_dir 0o755;
   let error_node_path = Filename.concat error_node_dir "artifact" in
+  (* Test fixture setup should fail fast if the mocked error artifact cannot be written. *)
   (match Serialization.write_json error_node_path
      (Ast.VError {
        code = Ast.RuntimeError;
