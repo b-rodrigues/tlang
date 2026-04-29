@@ -197,7 +197,7 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
 (** Field names exposed on read-pipeline node records and available for
     concise NSE predicate auto-wrapping in [which_nodes]. Keep this list in
     sync with the stable public [node_record] shape in
-    [src/packages/pipeline/filter_nodes.ml]. *)
+    [src/packages/pipeline/which_nodes.ml]. *)
 let node_record_scope_fields = ["name"; "value"; "diagnostics"]
 
 (** Global flag to control warning output (e.g., for tests) *)
