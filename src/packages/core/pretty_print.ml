@@ -148,17 +148,73 @@ let display_keys_from_pairs pairs =
     | _ -> acc
   ) None pairs
 
+let visible_pairs_from_dict pairs =
+  let non_metadata_pairs =
+    List.filter (fun (k, _) -> k <> "_display_keys") pairs
+  in
+  match display_keys_from_pairs pairs with
+  | None -> non_metadata_pairs
+  | Some keys -> List.filter (fun (k, _) -> List.mem k keys) non_metadata_pairs
+
+let rec list_is_simple items =
+  List.length items <= 5
+  && List.for_all (fun (_, v) ->
+       match v with
+       | VDict _ | VList _ | VVector _ | VDataFrame _ | VPipeline _ -> false
+       | _ -> true
+     ) items
+
+let rec render_tree_children prefix entries =
+  let rec aux acc = function
+    | [] -> acc
+    | [entry] -> acc @ render_tree_entry prefix true entry
+    | entry :: rest ->
+        let acc = acc @ render_tree_entry prefix false entry in
+        aux acc rest
+  and render_tree_entry prefix is_last (label, value) =
+    let branch = if is_last then "└── " else "├── " in
+    let child_prefix = prefix ^ if is_last then "    " else "│   " in
+    match value with
+    | VDict pairs ->
+        let visible_pairs = visible_pairs_from_dict pairs in
+        if visible_pairs = [] then
+          [prefix ^ branch ^ label ^ ": {}"]
+        else
+          (prefix ^ branch ^ label) :: render_tree_children child_prefix visible_pairs
+    | VList items when items = [] ->
+        [prefix ^ branch ^ label ^ ": []"]
+    | VList items when list_is_simple items ->
+        [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
+    | VList items ->
+        let indexed_items =
+          List.mapi (fun index (_, item) -> (Printf.sprintf "[%d]" (index + 1), item)) items
+        in
+        (prefix ^ branch ^ label) :: render_tree_children child_prefix indexed_items
+    | _ ->
+        [prefix ^ branch ^ label ^ ": " ^ Utils.value_to_string value]
+  in
+  aux [] entries
+
+let pretty_print_tree pairs =
+  let visible_pairs = visible_pairs_from_dict pairs in
+  let title, children =
+    match List.assoc_opt "kind" visible_pairs with
+    | Some (VString s) ->
+        let child_pairs = List.filter (fun (k, _) -> k <> "kind") visible_pairs in
+        (s, child_pairs)
+    | _ -> ("dict", visible_pairs)
+  in
+  match children with
+  | [] -> title
+  | _ -> String.concat "\n" (title :: render_tree_children "" children)
+
 (** Internal helper for recursive pretty formatting with indentation *)
 let rec pretty_format ?(max_depth=5) ?(indent="") v =
   match v with
   | VDict pairs ->
       if max_depth <= 0 then Utils.value_to_string v
       else if pairs = [] then "{}" else
-      let display_keys = display_keys_from_pairs pairs in
-      let visible_pairs = match display_keys with
-        | None -> pairs
-        | Some keys -> List.filter (fun (k, _) -> List.mem k keys) pairs
-      in
+      let visible_pairs = visible_pairs_from_dict pairs in
       if visible_pairs = [] then "{}" else
       let next_indent = indent ^ "  " in
       let lines = List.map (fun (k, v) ->
@@ -172,12 +228,9 @@ let rec pretty_format ?(max_depth=5) ?(indent="") v =
       let lines = List.map (fun (_, v) ->
          pretty_format ~max_depth:(max_depth - 1) ~indent:next_indent v
       ) items in
-      let all_simple = List.length items <= 5 && List.for_all (fun (_, v) ->
-        match v with VDict _ | VList _ | VVector _ | VDataFrame _ | VPipeline _ -> false | _ -> true
-       ) items in
-       if all_simple then Utils.value_to_string v
-       else "[\n" ^ indent ^ "  " ^ String.concat (",\n" ^ indent ^ "  ") lines ^ "\n" ^ indent ^ "]"
-   | other -> Utils.value_to_string other
+       if list_is_simple items then Utils.value_to_string v
+        else "[\n" ^ indent ^ "  " ^ String.concat (",\n" ^ indent ^ "  ") lines ^ "\n" ^ indent ^ "]"
+    | other -> Utils.value_to_string other
 
 and pretty_print_visual_metadata pairs =
   let visible_pairs =
@@ -229,6 +282,10 @@ let pretty_print_value v =
         List.mem_assoc "class" pairs
         && is_visual_metadata_class (List.assoc "class" pairs)
       in
+      let is_explain_tree =
+        List.mem_assoc "kind" pairs
+        && Option.is_some (display_keys_from_pairs pairs)
+      in
       let has_kind = List.mem_assoc "kind" pairs in
       let is_large = List.length pairs > 5 in
       let has_nested = List.exists (fun (_, v) -> match v with VDict _ | VList _ | VVector _ -> true | _ -> false) pairs in
@@ -236,6 +293,8 @@ let pretty_print_value v =
         pretty_print_summary pairs
       else if is_visual_metadata then
         pretty_print_visual_metadata pairs
+      else if is_explain_tree then
+        pretty_print_tree pairs ^ "\n"
       else if has_kind || is_large || has_nested then
         pretty_format v ^ "\n"
       else

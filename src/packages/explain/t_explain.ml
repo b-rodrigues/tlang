@@ -26,21 +26,23 @@ let register env =
   let node_passthrough_exclusions =
     ["kind"; "node_name"; "diagnostics"; "contents"; "_display_keys"]
   in
+  let make_display_keys keys =
+    VList (List.map (fun key -> (None, VString key)) keys)
+  in
+  let make_explain_dict ?display_keys fields =
+    let keys =
+      match display_keys with
+      | Some keys -> keys
+      | None -> List.map fst fields
+    in
+    VDict (fields @ [("_display_keys", make_display_keys keys)])
+  in
   let rec do_explain v =
     match v with
     | VNodeResult nr ->
         let contents = do_explain nr.v in
         let diagnostics = ("diagnostics", Ast.Utils.node_diagnostics_to_value nr.diagnostics) in
         let node_name = ("node_name", VString nr.node_name) in
-        let display_keys =
-          ("_display_keys",
-           VList [
-             (None, VString "kind");
-             (None, VString "node_name");
-             (None, VString "diagnostics");
-             (None, VString "contents");
-           ])
-        in
         let passthrough_fields =
           match contents with
           | VDict fields ->
@@ -50,23 +52,23 @@ let register env =
                 fields
           | _ -> []
         in
-        VDict
+        make_explain_dict
+          ~display_keys:["kind"; "node_name"; "diagnostics"; "contents"]
           ([
              ("kind", VString "node");
              node_name;
              diagnostics;
              ("contents", contents);
-             display_keys;
            ]
            @ passthrough_fields)
     | VInt _ | VFloat _ | VBool _ | VString _ ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "value");
           ("type", VString (Utils.type_name v));
           ("value", v);
         ]
     | VNA na_t ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "value");
           ("type", VString "NA");
           ("na_type", VString (Utils.na_type_to_string na_t));
@@ -87,7 +89,7 @@ let register env =
         let type_str = String.concat ", " (List.sort String.compare types) in
         let example_n = min 5 len in
         let examples = VList (List.init example_n (fun i -> (None, arr.(i)))) in
-        VDict [
+        make_explain_dict [
           ("kind", VString "value");
           ("type", VString "Vector");
           ("length", VInt len);
@@ -102,7 +104,7 @@ let register env =
         ) 0 items in
         let example_n = min 5 len in
         let examples = VList (List.filteri (fun i _ -> i < example_n) items) in
-        VDict [
+        make_explain_dict [
           ("kind", VString "value");
           ("type", VString "List");
           ("length", VInt len);
@@ -149,19 +151,20 @@ let register env =
           (None, VString "storage_backend"); (None, VString "native_path_active");
           (None, VString "performance_note"); (None, VString "hint")
         ] @ (if df.group_keys = [] then [] else [(None, VString "group_keys")]) in
-        VDict ([
-          ("kind", VString "dataframe");
-          ("nrow", VInt nrows);
-          ("ncol", VInt (Arrow_table.num_columns df.arrow_table));
-          ("storage_backend", VString storage_backend);
-          ("native_path_active", VBool native_path_active);
-          ("performance_note", VString performance_note);
-          ("hint", VString dataframe_hint);
-          ("schema", schema);
-          ("na_stats", na_stats);
-          ("example_rows", example_rows);
-          ("_display_keys", VList display_keys);
-        ] @ grouped_info)
+        make_explain_dict
+          ~display_keys:(List.filter_map (fun (_, v) -> match v with VString s -> Some s | _ -> None) display_keys)
+          ([
+             ("kind", VString "dataframe");
+             ("nrow", VInt nrows);
+             ("ncol", VInt (Arrow_table.num_columns df.arrow_table));
+             ("storage_backend", VString storage_backend);
+             ("native_path_active", VBool native_path_active);
+             ("performance_note", VString performance_note);
+             ("hint", VString dataframe_hint);
+             ("schema", schema);
+             ("na_stats", na_stats);
+             ("example_rows", example_rows);
+           ] @ grouped_info)
     | VPipeline { p_nodes; p_deps; p_node_diagnostics; _ } ->
         let nodes_info = VList (List.map (fun (name, v) ->
           let deps = match List.assoc_opt name p_deps with
@@ -180,19 +183,19 @@ let register env =
             ("diagnostics", diagnostics);
           ])
         ) p_nodes) in
-        VDict [
+        make_explain_dict [
           ("kind", VString "pipeline");
           ("node_count", VInt (List.length p_nodes));
           ("nodes", nodes_info);
           ("diagnostics", Ast.Utils.pipeline_diagnostics_to_value p_node_diagnostics);
         ]
     | VIntent { intent_fields } ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "intent");
           ("fields", VDict (List.map (fun (k, v) -> (k, VString v)) intent_fields));
         ]
     | VDict pairs ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "value");
           ("type", VString "Dict");
           ("length", VInt (List.length pairs));
@@ -214,26 +217,26 @@ let register env =
                ("column", VInt column)]
           | None -> []
         in
-        VDict (base @ loc_fields @ context)
+        make_explain_dict (base @ loc_fields @ context)
     | VSymbol s ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "symbol");
           ("name", VString s);
           ("hint", VString "This is a bare symbol/name. It might be an undefined variable or a column reference.");
         ]
     | VFormula { response; predictors; _ } ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "formula");
           ("response", VList (List.map (fun s -> (None, VString s)) response));
           ("predictors", VList (List.map (fun s -> (None, VString s)) predictors));
         ]
     | VBuiltin _ | VLambda _ ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "value");
           ("type", VString "Function");
         ]
     | VComputedNode cn ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "computed_node");
           ("name", VString cn.cn_name);
           ("runtime", VString cn.cn_runtime);
@@ -243,14 +246,14 @@ let register env =
           ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies));
         ]
     | VNode un ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "node");
           ("runtime", VString un.un_runtime);
           ("command", VString (Nix_unparse.unparse_expr un.un_command));
           ("noop", VBool un.un_noop);
         ]
     | v ->
-        VDict [
+        make_explain_dict [
           ("kind", VString "value");
           ("type", VString (Utils.type_name v));
           ("hint", VString "Internal structure not exposed for this type.");

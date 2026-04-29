@@ -253,6 +253,37 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   in
   test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
     (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
+  let explain_tree_pretty =
+    Pretty_print.pretty_print_value
+      (Ast.VDict [
+        ("kind", Ast.VString "node");
+        ("node_name", Ast.VString "r_node");
+        ("diagnostics", Ast.VDict [
+          ("warnings", Ast.VList []);
+          ("error", Ast.VDict [
+            ("kind", Ast.VString "RuntimeError");
+            ("message", Ast.VString "boom");
+          ]);
+        ]);
+        ("contents", Ast.VDict [
+          ("kind", Ast.VString "value");
+          ("type", Ast.VString "Error");
+          ("error_code", Ast.VString "RuntimeError");
+        ]);
+        ("_display_keys", Ast.VList [
+          (None, Ast.VString "kind");
+          (None, Ast.VString "node_name");
+          (None, Ast.VString "diagnostics");
+          (None, Ast.VString "contents");
+        ]);
+      ])
+  in
+  test_message "pretty_print explain dicts as a tree"
+    (contains explain_tree_pretty "node\n" &&
+     contains explain_tree_pretty "├── node_name: \"r_node\"" &&
+     contains explain_tree_pretty "├── diagnostics" &&
+     contains explain_tree_pretty "│   └── error" &&
+     contains explain_tree_pretty "└── contents");
   let ggplot_render =
     Show_plot.render_script_for_class "ggplot" "/tmp/plot.rds"
   in
