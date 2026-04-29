@@ -68,6 +68,7 @@
 - **Visualization Stability**: Fixed a critical `Printf.sprintf` type error in the Python plot rendering logic that prevented pipeline builds for Python-based visualizations.
 - **Improved REPL interaction**: Explicitly flush stdout/stderr around `show_plot` calls so the rendered path is reported cleanly before local viewer launch.
 - **Helper Consistency**: Standardized lens helper names and improved internal consistency in `lens.ml`.
+- **Pipeline Predicate Scoping**: Fixed a regression where `filter_node(is_na($diagnostics.error))` could evaluate outside the node metadata scope and incorrectly drop nodes without diagnostics errors.
 
 
 ### Resilient-by-Default Evaluation
@@ -417,4 +418,3 @@ Version history and roadmap for the T programming language.
 - Changelog (this file)
 - **Model Interchange & PMML**: Documentation for cross-language model support and broom-style outputs for imported models.
 - **Improved Data Inspection**: Enhanced `glimpse()` documentation for quick DataFrame summaries.
-
