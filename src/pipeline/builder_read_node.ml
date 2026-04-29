@@ -169,6 +169,11 @@ let read_env_node_value name cn =
   else
     read_standard_node_value cn
 
+let candidate_logs ?which_log () =
+  match which_log with
+  | Some _ -> get_all_logs ()
+  | None -> get_logs ()
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
@@ -200,10 +205,7 @@ let read_node ?which_log name =
       else
         Error.make_error FileError (Printf.sprintf "read_node: node `%s` found in environment as %s, but artifact is missing." name path)
   | _ ->
-      let logs = match which_log with
-        | Some _ -> get_all_logs ()
-        | None -> get_logs ()
-      in
+      let logs = candidate_logs ?which_log () in
   let log_file_result =
     match which_log with
     | None -> Ok (match logs with [] -> None | l :: _ -> Some l)
@@ -280,11 +282,7 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
       nd_upstream_errors = base.nd_upstream_errors;
     }
   in
-  let logs =
-    match which_log with
-    | Some _ -> get_all_logs ()
-    | None -> get_logs ()
-  in
+  let logs = candidate_logs ?which_log () in
   let log_file_result =
     match which_log with
     | None -> Ok (match logs with [] -> None | log :: _ -> Some log)
