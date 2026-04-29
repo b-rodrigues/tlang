@@ -1,0 +1,23 @@
+{
+  "name": "tree-sitter-t",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the T programming language",
+  "license": "EUPL-1.2",
+  "keywords": [
+    "parser",
+    "tree-sitter",
+    "tlang",
+    "vim",
+    "emacs",
+    "neovim"
+  ],
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "files": [
+    "grammar.js",
+    "queries",
+    "src"
+  ]
+}

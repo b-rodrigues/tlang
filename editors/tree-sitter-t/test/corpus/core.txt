@@ -1,0 +1,72 @@
+==================
+core syntax
+==================
+
+import stats[mean, sd]
+value = [1, 2, 3] |> summarize(mean($value, na_rm = true))
+recover = error("boom") ?|> \(x) if (is_error(x)) 0 else x
+model = rn(command = <{
+  lm(y ~ x, data = df)
+}>)
+script = ?<{
+  echo hello
+}>
+
+---
+
+(source_file
+  (import_statement
+    (identifier)
+    (import_list
+      (import_binding
+        (identifier))
+      (import_binding
+        (identifier))))
+  (assignment
+    (identifier)
+    (binary_expression
+      (list_literal
+        (number)
+        (number)
+        (number))
+      (call_expression
+        (identifier)
+        (argument_list
+          (call_expression
+            (identifier)
+            (argument_list
+              (column_ref)
+              (named_argument
+                (identifier)
+                (boolean))))))))
+  (assignment
+    (identifier)
+    (binary_expression
+      (call_expression
+        (identifier)
+        (argument_list
+          (string)))
+      (lambda_expression
+        (parameter_list
+          (parameter
+            (identifier)))
+        (if_expression
+          (call_expression
+            (identifier)
+            (argument_list
+              (identifier)))
+          (number)
+          (identifier)))))
+  (assignment
+    (identifier)
+    (call_expression
+      (identifier)
+      (argument_list
+        (named_argument
+          (identifier)
+          (raw_code_block
+            (raw_code_content))))))
+  (assignment
+    (identifier)
+    (shell_command_block
+      (shell_content))))

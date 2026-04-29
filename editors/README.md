@@ -2,6 +2,28 @@
 
 This directory contains syntax highlighting and language support for the T programming language in various editors.
 
+## Tree-sitter
+
+The repository now ships a shared tree-sitter grammar in `tree-sitter-t/`.
+It is intended for tree-sitter based editor integrations such as Neovim,
+Emacs 29+, Helix, Zed, and Vim setups that use a tree-sitter plugin layer.
+
+### Included files
+
+- `tree-sitter-t/grammar.js` — source grammar
+- `tree-sitter-t/src/` — generated parser sources
+- `tree-sitter-t/queries/highlights.scm` — shared highlight queries
+- `tree-sitter-t/queries/injections.scm` — shell/R/Python block injections
+- `tree-sitter-t/queries/locals.scm` — local-scope queries
+
+### Rebuilding the parser
+
+```bash
+cd editors/tree-sitter-t
+npx tree-sitter-cli generate
+npx tree-sitter-cli test
+```
+
 ## Vim
 
 1. Copy `vim/ftdetect/t.vim` to `~/.vim/ftdetect/t.vim`.
@@ -117,6 +139,24 @@ end
 lspconfig.tlang.setup{}
 ```
 
+#### Neovim tree-sitter
+For tree-sitter based highlighting, point Neovim at the bundled parser:
+```lua
+local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
+
+parser_config.t = {
+  install_info = {
+    url = "/path/to/tlang/editors/tree-sitter-t",
+    files = { "src/parser.c" },
+  },
+  filetype = "t",
+}
+
+vim.treesitter.language.register("t", "t")
+```
+
+Then install it with `:TSInstall t` or `:TSInstallFromGrammar t`.
+
 #### Vim (`coc.nvim`)
 Add this to your `:CocConfig`:
 ```json
@@ -141,3 +181,23 @@ Add the following to your `init.el`:
 ;; Automatically start eglot when opening a .t file
 (add-hook 't-mode-hook 'eglot-ensure)
 ```
+
+### 🧩 Emacs tree-sitter (`treesit`)
+Emacs 29+ can use the bundled grammar directly:
+```elisp
+(add-to-list 'treesit-language-source-alist
+             '(t "/path/to/tlang/editors/tree-sitter-t"))
+
+(unless (treesit-language-available-p 't)
+  (treesit-install-language-grammar 't))
+```
+
+You can then use the parser from a custom `t-ts-mode`, Combobulate-style
+navigation packages, or any package that consumes installed tree-sitter
+grammars.
+
+### 🧩 Other tree-sitter editors
+
+- **Helix**: point `language-configuration.json` / `languages.toml` at `editors/tree-sitter-t`
+- **Zed**: use the bundled grammar as a local tree-sitter language source
+- **Vim** with tree-sitter plugins: reuse the same parser and query files from `tree-sitter-t/`

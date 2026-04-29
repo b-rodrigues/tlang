@@ -17,6 +17,20 @@ The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix 
 
 ## Editor Configuration
 
+### Shared tree-sitter grammar
+
+T now ships a reusable tree-sitter grammar in `editors/tree-sitter-t`.
+It includes generated parser sources plus shared highlight, injection, and
+locals queries for tree-sitter aware editors.
+
+To rebuild it from source:
+
+```bash
+cd editors/tree-sitter-t
+npx tree-sitter-cli generate
+npx tree-sitter-cli test
+```
+
 ### VS Code / Positron
 
 You can install the T language extension in two ways:
@@ -97,6 +111,24 @@ end
 lspconfig.tlang.setup{}
 ```
 
+#### Tree-sitter highlighting in Neovim
+
+```lua
+local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
+
+parser_config.t = {
+  install_info = {
+    url = "/path/to/tlang/editors/tree-sitter-t",
+    files = { "src/parser.c" },
+  },
+  filetype = "t",
+}
+
+vim.treesitter.language.register("t", "t")
+```
+
+Then install it with `:TSInstall t` or `:TSInstallFromGrammar t`.
+
 ---
 
 ### Emacs
@@ -119,6 +151,19 @@ Add the following to your `init.el`:
 (add-hook 't-mode-hook 'eglot-ensure)
 ```
 
+#### 3. Tree-sitter parser (Emacs 29+)
+
+```elisp
+(add-to-list 'treesit-language-source-alist
+             '(t "/path/to/tlang/editors/tree-sitter-t"))
+
+(unless (treesit-language-available-p 't)
+  (treesit-install-language-grammar 't))
+```
+
+This makes the T parser available to `treesit`-aware packages and any custom
+`t-ts-mode` built on top of the bundled grammar.
+
 ---
 
 ### Quarto
@@ -138,6 +183,21 @@ filters:
   - tlang
 ---
 ```
+
+---
+
+### Other tree-sitter editors
+
+The same parser package can also be reused by editors that consume local
+tree-sitter grammars, including:
+
+- **Helix**
+- **Zed**
+- **Lapce**
+- **Vim** setups that add tree-sitter through plugins
+
+Point those editors at `editors/tree-sitter-t` and reuse the bundled query
+files from `queries/`.
 
 ---
 

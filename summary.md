@@ -254,6 +254,7 @@ Source-level documentation uses `--#` comments. The generated reference lives in
 - The language server is `t-lsp`.
 - It is expected to be launched from inside `nix develop` (or via `direnv use flake`).
 - Supported editor integrations are documented for VS Code/Positron, Vim/Neovim, Emacs, and Quarto workflows.
+- A shared tree-sitter grammar now lives in `editors/tree-sitter-t` for Neovim, Emacs 29+, and other tree-sitter-based editors.
 
 ## Standard Packages and Signature Index
 
@@ -429,4 +430,3 @@ This command automatically:
 2.  Retrieves today's date for the `rstats-on-nix` nixpkgs fork.
 3.  Updates `tproject.toml` with the new values.
 4.  Regenerates `flake.nix` and runs `nix flake update`.
-
