@@ -11,7 +11,7 @@ open Ast
 --# `pipeline_run`.
 --#
 --# Supported metadata fields: `$name`, `$runtime`, `$serializer`,
---# `$deserializer`, `$noop`, `$depth`, `$command_type`.
+--# `$deserializer`, `$noop`, `$depth`, `$command_type`, `$diagnostics`.
 --#
 --# @name filter_node
 --# @param p :: Pipeline The pipeline to filter.
@@ -21,6 +21,7 @@ open Ast
 --#   p |> filter_node($runtime == "python")
 --#   p |> filter_node($noop == false)
 --#   p |> filter_node($depth <= 2)
+--#   p |> filter_node(!is_na($diagnostics.error))
 --# @family pipeline
 --# @seealso mutate_node, select_node, rename_node
 --# @export

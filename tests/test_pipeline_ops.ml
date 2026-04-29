@@ -133,9 +133,21 @@ p |> filter_node($runtime == "Python") |> pipeline_nodes|}
     {|filter_node(42, $runtime == "T")|}
     {|Error(TypeError: "Function `filter_node` expects a Pipeline as first argument.")|};
 
-  print_newline ();
-
-  Printf.printf "Phase 2 — filter_nodes:\n";
+  let (v, _) = eval_string_env
+    {|p = pipeline {
+  bad = 1 / 0
+  ok = 42
+  downstream = bad + 1
+}
+p |> filter_node(!is_na($diagnostics.error)) |> pipeline_nodes|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["bad", "downstream"]|} then begin
+    incr pass_count; Printf.printf "  ✓ filter_node can filter on diagnostics errors\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ filter_node diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
+  end;
 
   let (v, _) = eval_string_env
     {|p = pipeline {
@@ -143,27 +155,47 @@ p |> filter_node($runtime == "Python") |> pipeline_nodes|}
   ok = 42
   downstream = bad + 1
 }
-filter_nodes(p, !is_na(diagnostics.error)) |> map(\(node) node.name)|}
+p |> filter_node(is_na($diagnostics.error)) |> pipeline_nodes|}
+    (Packages.init_env ()) in
+  let result = Ast.Utils.value_to_string v in
+  if result = {|["ok"]|} then begin
+    incr pass_count; Printf.printf "  ✓ filter_node can keep nodes without diagnostics errors\n"
+  end else begin
+    incr fail_count;
+    Printf.printf "  ✗ filter_node no-error diagnostics predicate\n    Expected: [\"ok\"]\n    Got: %s\n" result
+  end;
+
+  print_newline ();
+
+  Printf.printf "Phase 2 — which_nodes:\n";
+
+  let (v, _) = eval_string_env
+    {|p = pipeline {
+  bad = 1 / 0
+  ok = 42
+  downstream = bad + 1
+}
+which_nodes(p, !is_na(diagnostics.error)) |> map(\(node) node.name)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = {|["bad", "downstream"]|} then begin
-    incr pass_count; Printf.printf "  ✓ filter_nodes auto-wraps diagnostics predicates\n"
+    incr pass_count; Printf.printf "  ✓ which_nodes auto-wraps diagnostics predicates\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ filter_nodes diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
+    Printf.printf "  ✗ which_nodes diagnostics predicate\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env
     {|p = pipeline { a = 1; b = 2; c = 3 }
 pred = \(node) node.name == "b"
-filter_nodes(p, pred) |> map(\(node) node.name)|}
+which_nodes(p, pred) |> map(\(node) node.name)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = {|["b"]|} then begin
-    incr pass_count; Printf.printf "  ✓ filter_nodes accepts explicit predicate functions\n"
+    incr pass_count; Printf.printf "  ✓ which_nodes accepts explicit predicate functions\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ filter_nodes explicit predicate\n    Expected: [\"b\"]\n    Got: %s\n" result
+    Printf.printf "  ✗ which_nodes explicit predicate\n    Expected: [\"b\"]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env
@@ -194,13 +226,13 @@ errored_nodes(p) |> map(\(node) node.name)|}
     Printf.printf "  ✗ errored_nodes failing records\n    Expected: [\"bad\", \"downstream\"]\n    Got: %s\n" result
   end;
 
-  test "filter_nodes rejects non-pipeline"
-    {|filter_nodes(42, !is_na(diagnostics.error))|}
-    {|Error(TypeError: "Function `filter_nodes` expects a Pipeline as first argument.")|};
+  test "which_nodes rejects non-pipeline"
+    {|which_nodes(42, !is_na(diagnostics.error))|}
+    {|Error(TypeError: "Function `which_nodes` expects a Pipeline as first argument.")|};
 
-  test "filter_nodes errors when predicate does not return Bool"
-    {|p = pipeline { a = 1 }; filter_nodes(p, name)|}
-    {|Error(TypeError: "Function `filter_nodes` predicate must return Bool, got String.")|};
+  test "which_nodes errors when predicate does not return Bool"
+    {|p = pipeline { a = 1 }; which_nodes(p, name)|}
+    {|Error(TypeError: "Function `which_nodes` predicate must return Bool, got String.")|};
 
   test "errored_nodes rejects non-pipeline"
     {|errored_nodes(42)|}

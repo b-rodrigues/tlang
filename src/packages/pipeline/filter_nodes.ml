@@ -17,7 +17,7 @@ let get_node_record p name value =
 
 let make_predicate_arg node = [(None, Ast.mk_expr (Value node))]
 
-let eval_node_predicate ~eval_call env predicate node =
+let eval_node_predicate ~fn_name ~eval_call env predicate node =
   match eval_call env predicate (make_predicate_arg node) with
   | VBool b -> Ok b
   | VError _ as e -> Error e
@@ -25,7 +25,8 @@ let eval_node_predicate ~eval_call env predicate node =
       Error
         (Error.type_error
            (Printf.sprintf
-              "Function `filter_nodes` predicate must return Bool, got %s."
+              "Function `%s` predicate must return Bool, got %s."
+              fn_name
               (Utils.type_name other)))
 
 (*
@@ -38,39 +39,39 @@ let eval_node_predicate ~eval_call env predicate node =
 --# concise expressions that refer directly to node-record fields such as
 --# `name`, `value`, and `diagnostics`.
 --#
---# @name filter_nodes
+--# @name which_nodes
 --# @param p :: Pipeline The pipeline to inspect.
 --# @param predicate :: Function A predicate over read-pipeline node records.
 --# @return :: List A list of node records from `read_pipeline(p).nodes`.
 --# @example
---#   filter_nodes(p, !is_na(diagnostics.error))
---#   filter_nodes(p, name == "model")
---#   filter_nodes(p, \(node) node.name == "model")
+--#   which_nodes(p, !is_na(diagnostics.error))
+--#   which_nodes(p, name == "model")
+--#   which_nodes(p, \(node) node.name == "model")
 --# @family pipeline
 --# @seealso read_pipeline, filter_node, select_node
 --# @export
 *)
-let filter_nodes_impl ~eval_call args env =
+let which_nodes_impl ~fn_name ~eval_call args env =
   match args with
   | [VPipeline p; predicate] ->
       let rec aux acc = function
         | [] -> VList (List.rev acc)
         | (name, value) :: rest ->
             let node = get_node_record p name value in
-            (match eval_node_predicate ~eval_call env predicate node with
+            (match eval_node_predicate ~fn_name ~eval_call env predicate node with
              | Ok true -> aux ((None, node) :: acc) rest
              | Ok false -> aux acc rest
              | Error e -> e)
       in
       aux [] p.p_nodes
-  | [_; _] -> Error.type_error "Function `filter_nodes` expects a Pipeline as first argument."
-  | _ -> Error.arity_error_named "filter_nodes" 2 (List.length args)
+  | [_; _] -> Error.type_error (Printf.sprintf "Function `%s` expects a Pipeline as first argument." fn_name)
+  | _ -> Error.arity_error_named fn_name 2 (List.length args)
 
 (*
 --# Get Errored Pipeline Nodes
 --#
 --# Returns the read-pipeline node records whose `diagnostics.error` field is
---# not `NA`. This is a convenience wrapper around `filter_nodes`.
+--# not `NA`. This is a convenience wrapper around `which_nodes`.
 --#
 --# @name errored_nodes
 --# @param p :: Pipeline The pipeline to inspect.
@@ -78,7 +79,7 @@ let filter_nodes_impl ~eval_call args env =
 --# @example
 --#   errored_nodes(p)
 --# @family pipeline
---# @seealso filter_nodes, read_pipeline
+--# @seealso which_nodes, read_pipeline
 --# @export
 *)
 let errored_nodes_impl ~eval_call args env =
@@ -117,17 +118,17 @@ let errored_nodes_impl ~eval_call args env =
     }
   in
   match args with
-  | [pipeline] -> filter_nodes_impl ~eval_call [pipeline; predicate] env
+  | [pipeline] -> which_nodes_impl ~fn_name:"which_nodes" ~eval_call [pipeline; predicate] env
   | _ -> Error.arity_error_named "errored_nodes" 1 (List.length args)
 
 let register ~eval_call env =
   env
-  |> Env.add "filter_nodes"
-       (make_builtin ~name:"filter_nodes" 2 (fun args env ->
-          filter_nodes_impl ~eval_call args env))
+  |> Env.add "which_nodes"
+       (make_builtin ~name:"which_nodes" 2 (fun args env ->
+          which_nodes_impl ~fn_name:"which_nodes" ~eval_call args env))
   |> Env.add "errored_nodes"
        (make_builtin ~name:"errored_nodes" 1 (fun args env ->
-          match args with
+           match args with
           | [VPipeline _] -> errored_nodes_impl ~eval_call args env
           | [_] -> Error.type_error "Function `errored_nodes` expects a Pipeline."
           | _ -> Error.arity_error_named "errored_nodes" 1 (List.length args)))

@@ -326,7 +326,7 @@ get(pipe_info, healthy_nodes_l)
 If you only want the filtered node records and do not need to compose a larger lens pipeline, prefer the higher-level wrapper:
 
 ```t
-filter_nodes(p, !is_na(diagnostics.error))
+which_nodes(p, !is_na(diagnostics.error))
 errored_nodes(p)
 ```
 

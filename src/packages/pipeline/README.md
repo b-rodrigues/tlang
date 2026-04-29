@@ -14,7 +14,7 @@ Pipeline definition and introspection.
 | `read_node(p, name)` | Read a node value plus diagnostics from an in-memory pipeline |
 | `read_node(name)` | Read a node artifact from the pipeline registry |
 | `read_pipeline(p)` | Read aggregated diagnostics and node metadata from a pipeline |
-| `filter_nodes(p, predicate)` | Filter `read_pipeline(p).nodes` records with concise predicates |
+| `which_nodes(p, predicate)` | Filter `read_pipeline(p).nodes` records with concise predicates |
 | `errored_nodes(p)` | Return only node records with captured errors |
 
 ## Examples

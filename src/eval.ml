@@ -186,7 +186,7 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
   | Lambda _ | Value _ | RawCode _ | ShellExpr _ | ColumnRef _ | PipelineDef _ | IntentDef _ | ListComp _ ->
       expr
 
-let filter_nodes_scope_fields = ["name"; "value"; "diagnostics"]
+let node_record_scope_fields = ["name"; "value"; "diagnostics"]
 
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true
@@ -2419,7 +2419,7 @@ and eval_call env_ref fn_val raw_args =
     | Some ("mutate" | "mutate_node"
             | "summarize" | "summarize_node"
             | "filter" | "filter_node"
-            | "filter_nodes"
+            | "which_nodes"
             | "select" | "select_node"
             | "arrange" | "arrange_node"
             | "group_by" | "group_by_node"
@@ -2452,9 +2452,9 @@ and eval_call env_ref fn_val raw_args =
             (name, expr)
       | ListLit items when List.for_all (fun (_, e) -> match e.node with ColumnRef _ -> true | _ -> false) items ->
           (name, expr) (* list of bare $cols → keep as-is *)
-      | _ when current_builtin_name = Some "filter_nodes"
-               && expr_uses_named_scope_fields filter_nodes_scope_fields expr ->
-          let desugared = desugar_named_scope_expr ~root:"node" ~fields:filter_nodes_scope_fields expr in
+      | _ when current_builtin_name = Some "which_nodes"
+               && expr_uses_named_scope_fields node_record_scope_fields expr ->
+          let desugared = desugar_named_scope_expr ~root:"node" ~fields:node_record_scope_fields expr in
           (name, make_node_lambda desugared)
       | _ when uses_nse expr ->
            (* Complex expression with NSE → wrap in lambda, EXCEPT for positional (unnamed)
