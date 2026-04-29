@@ -2,7 +2,8 @@ open Ast
 
 (** Construct the canonical public node-record structure exposed by
     [which_nodes] and [errored_nodes]. These fields are part of the user-facing
-    API and should remain stable: [name], [value], and [diagnostics]. *)
+    API and should remain stable for backward compatibility, since predicate
+    expressions and docs rely on exactly [name], [value], and [diagnostics]. *)
 let node_record name value diagnostics =
   VDict [
     ("name", VString name);

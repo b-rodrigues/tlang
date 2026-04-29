@@ -91,7 +91,12 @@ let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
   | PipelineDef _ | IntentDef _ | ListComp _ -> false
 
 (** Rewrite bare field names from a scoped predicate to [root.field], while
-    leaving all other variables unchanged. *)
+    leaving all other variables unchanged.
+
+    [root] is the record variable to target (for example ["node"]) and
+    [fields] lists the bare names that should be rewritten. For example,
+    with [root = "node"] and [fields = ["name"; "diagnostics"]],
+    [name == "x"] becomes [node.name == "x"]. *)
 let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
   let loc = expr.loc in
   let wrap_field name =
