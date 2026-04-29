@@ -19,6 +19,7 @@ Package-oriented guide to T's standard library.
 - [Colcraft Package](#colcraft-package) — Data manipulation verbs and window functions
 - [Chrono Package](#chrono-package) — High-performance date and time manipulation
 - [Strcraft Package](#strcraft-package) — Modern string manipulation
+- [Lens Package](#lens-package) — Composable access and update lenses
 - [Pipeline Package](#pipeline-package) — Pipeline introspection
 - [Explain Package](#explain-package) — Introspection and debugging tools
 
@@ -1978,9 +1979,98 @@ str_glue("Hello {name}")  -- "Hello Alice"
 
 ---
 
+## Lens Package
+
+Composable access and update lenses for dictionaries, lists, data frames, and pipeline inspection.
+
+For the full walkthrough and worked examples, see the [Lens guide](lens.md). For the generated per-function entries, see the [Function Reference](reference/index.md).
+
+Common lens entry points include:
+
+- `col_lens(name)` — focus a dictionary key or data-frame column
+- `idx_lens(i)` — focus a list/vector position
+- `compose(l1, l2, ...)` — build larger traversals from smaller ones
+- `get(data, lens)` — read through a lens
+- `set(data, lens, value)` / `over(data, lens, fn)` — update through a lens
+- `filter_lens(predicate)` — keep only matching elements inside a focused collection
+
+---
+
 ## Pipeline Package
 
 Pipeline introspection and management.
+
+### `which_nodes(p, predicate)`
+
+Filter the richer node records from `read_pipeline(p).nodes` without manually writing `read_pipeline`, `compose`, or an explicit lambda.
+
+Instead of writing:
+
+```t
+pipe_info = read_pipeline(p)
+
+errored_nodes_l = compose(
+  col_lens("nodes"),
+  filter_lens(\(node) !is_na(node.diagnostics.error))
+)
+
+get(pipe_info, errored_nodes_l)
+```
+
+you can simply do this:
+
+```t
+which_nodes(p, !is_na(diagnostics.error))
+```
+
+This is the diagnostics-friendly companion to `filter_node`:
+
+- `filter_node` returns a new `Pipeline`
+- `which_nodes` returns a `List` of node records
+
+Each node record exposes:
+
+- `name`
+- `value`
+- `diagnostics`
+
+**Parameters:**
+
+- `p` — The pipeline to inspect
+- `predicate` — A predicate over node records
+
+**Returns:**
+
+`List` — Matching node records
+
+**Examples:**
+
+```t
+which_nodes(p, !is_na(diagnostics.error))
+which_nodes(p, name == "model")
+
+has_error = \(node) !is_na(node.diagnostics.error)
+which_nodes(p, has_error)
+```
+
+### `errored_nodes(p)`
+
+Convenience wrapper returning the subset of node records whose `diagnostics.error` is not `NA`.
+
+**Parameters:**
+
+- `p` — The pipeline to inspect
+
+**Returns:**
+
+`List` — Node records with captured errors
+
+**Examples:**
+
+```t
+errored_nodes(p)
+errored_nodes(p) |> map(\(node) node.name)
+```
 
 ### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)`
 

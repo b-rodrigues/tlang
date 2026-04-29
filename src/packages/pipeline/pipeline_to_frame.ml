@@ -51,9 +51,9 @@ let compute_depths (p_deps : (string * string list) list) : (string * int) list 
   List.map (fun (name, _) -> (name, depth_of name)) p_deps
 
 (** Build a metadata dict for a single node, suitable for NSE predicate
-    evaluation.  The dict keys mirror the column names returned by
-    [pipeline_to_frame] so that the same predicate expressions work in
-    both [filter_node] and [select_node]. *)
+    evaluation. The dict keys mirror the column names returned by
+    [pipeline_to_frame], and additionally expose [diagnostics] for
+    node-level filtering helpers such as [filter_node]. *)
 let node_metadata_dict
       (name : string)
       (p : pipeline_result)
@@ -66,6 +66,11 @@ let node_metadata_dict
   let noop         = match List.assoc_opt name p.p_noops with Some b -> b | None -> false in
   let deps         = match List.assoc_opt name p.p_deps with Some d -> d | None -> [] in
   let depth        = match List.assoc_opt name depths with Some d -> d | None -> 0 in
+  let diagnostics  =
+    match List.assoc_opt name p.p_node_diagnostics with
+    | Some diagnostics -> Ast.Utils.node_diagnostics_to_value diagnostics
+    | None -> Ast.Utils.node_diagnostics_to_value Ast.Utils.empty_node_diagnostics
+  in
   let cmd_type     = match List.assoc_opt name p.p_scripts with
     | Some (Some _) -> "script"
     | _ -> "command"
@@ -79,6 +84,7 @@ let node_metadata_dict
     ("deps",         VList (List.map (fun d -> (None, VString d)) deps));
     ("depth",        VInt depth);
     ("command_type", VString cmd_type);
+    ("diagnostics",  diagnostics);
   ]
 
 let register env =

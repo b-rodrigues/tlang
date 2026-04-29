@@ -647,6 +647,33 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       let oc_explain_pipeline = open_out "_pipeline/build_log_zz_explain_pipeline.json" in
       output_string oc_explain_pipeline explain_pipeline_log;
       close_out oc_explain_pipeline;
+      let recovered_match_dir =
+        ensure_subdir temp_root_dir "tlang-recovered-with-match"
+      in
+      let recovered_match_path =
+        Filename.concat recovered_match_dir "artifact"
+      in
+      (match Serialization.write_json recovered_match_path
+         (Ast.VDict [("status", Ast.VString "ok")]) with
+       | Ok () -> ()
+       | Error msg ->
+           failwith
+             ("Test fixture setup failed: could not write recovered-match artifact to "
+              ^ recovered_match_path ^ ": " ^ msg));
+      let recovered_match_log = Printf.sprintf {|{
+    "timestamp": "20240101-999998",
+    "hash": "recovered-match",
+    "out_path": "/tmp",
+    "nodes": [
+      { "node": "good_val", "path": "/tmp/good-val", "runtime": "T", "serializer": "default", "class": "V", "dependencies": [], "success": "true" },
+      { "node": "recovered_with_match", "path": "%s", "runtime": "R", "serializer": "json", "class": "VDict", "dependencies": [], "success": "true" }
+    ]
+  }|} recovered_match_path in
+      let oc_recovered_match =
+        open_out "_pipeline/build_log_zz_recovered_with_match.json"
+      in
+      output_string oc_recovered_match recovered_match_log;
+      close_out oc_recovered_match;
 
       test "read_node propagates R runtime on error"
         "explain(read_node(\"r_fail\", which_log=\"ocaml_mock\")).contents.runtime"
@@ -698,6 +725,30 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   bad = node(command = <{ 1 }>, runtime = R)
 }; read_node(p_logged, "bad").error.kind|}
         "\"RuntimeError\"";
+      test "filter_node uses merged build-log diagnostics in predicates"
+        {|p_logged = pipeline {
+  good = 1
+  bad = node(command = <{ 1 }>, runtime = R)
+}; filter_node(p_logged, !is_na($diagnostics.error)) |> pipeline_nodes|}
+        {|["bad"]|};
+      test "read_node(pipeline, name) prefers matching build-log values for unresolved nodes"
+        {|p_match = pipeline {
+  good_val = 20
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+}; read_node(p_match, "recovered_with_match").value.status|}
+        {|"ok"|};
+      test "read_pipeline prefers matching build-log values for unresolved nodes"
+        {|p_match = pipeline {
+  good_val = 20
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+}; read_pipeline(p_match).nodes |> filter(\(node) node.name == "recovered_with_match") |> map(\(node) node.value.status)|}
+        {|["ok"]|};
+      test "filter_node returns merged build-log values for kept unresolved nodes"
+        {|p_match = pipeline {
+  good_val = 20
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+}; read_pipeline(filter_node(p_match, is_na($diagnostics.error))).nodes |> filter(\(node) node.name == "recovered_with_match") |> map(\(node) node.value.status)|}
+        {|["ok"]|};
 
       test "read_node rejects older serialized node versions"
         "read_node(\"legacy_node\", which_log=\"legacy_version\")"

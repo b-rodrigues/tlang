@@ -174,6 +174,107 @@ let candidate_logs ?which_log () =
   | Some _ -> get_all_logs ()
   | None -> get_logs ()
 
+let logged_node_value name cn =
+  if is_error_class cn.Ast.cn_class then
+    (match Serialization.read_verror_json cn.Ast.cn_path with
+     | Ok (VError e) ->
+          VError { e with context = add_node_name_context name e.context }
+     | Ok v -> v
+     | Error msg ->
+         Error.make_error
+           ~context:[("runtime", VString cn.Ast.cn_runtime)]
+           FileError
+           (Printf.sprintf
+              "Failed to read Error node `%s` from `%s`: %s"
+              name
+              cn.Ast.cn_path
+              msg))
+  else if is_visual_metadata_class cn.cn_class then
+    let viz_path = Filename.concat (Filename.dirname cn.cn_path) "viz" in
+    if Sys.file_exists viz_path then
+      (match Serialization.read_json viz_path with
+       | Ok v -> v
+       | Error msg ->
+           Error.make_error
+             ~context:[("runtime", VString cn.cn_runtime)]
+             FileError
+             (Printf.sprintf
+                "Failed to read plot metadata node `%s` from `%s`: %s"
+                name
+                viz_path
+                msg))
+    else
+      read_logged_node_value name cn
+  else
+    read_logged_node_value name cn
+
+let pipeline_matches_logged_entries (p : Ast.pipeline_result) entries =
+  let pipeline_node_names = List.map fst p.p_nodes in
+  let runtimes = p.p_runtimes in
+  let runtime_matches_logged_entry (name, cn) =
+    match List.assoc_opt name runtimes with
+    | Some runtime -> runtime = cn.cn_runtime
+    | None -> true
+  in
+  let expected = List.sort String.compare pipeline_node_names in
+  let actual = entries |> List.map fst |> List.sort String.compare in
+  expected = actual
+  && List.for_all runtime_matches_logged_entry entries
+
+let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
+  let logs = candidate_logs ?which_log () in
+  let try_log log_file =
+    match read_log (Filename.concat pipeline_dir log_file) with
+    | Ok entries when pipeline_matches_logged_entries p entries -> Some entries
+    | _ -> None
+  in
+  match which_log with
+  | None ->
+      (* Fast path: in the common case the most recent log is the correct
+         match. Try it first to avoid parsing every log in the directory. *)
+      (match logs with
+       | [] -> None
+       | newest :: rest ->
+           (match try_log newest with
+            | Some _ as hit -> hit
+            | None -> List.find_map try_log rest))
+  | Some pattern ->
+      let candidate_log_files =
+        try
+          let re = Str.regexp pattern in
+          Some
+            (List.filter
+               (fun log ->
+                 try
+                   let _ = Str.search_forward re log 0 in
+                   true
+                 with Not_found -> false)
+               logs)
+        with Failure _ ->
+          None
+      in
+      (match candidate_log_files with
+       | Some log_files -> List.find_map try_log log_files
+       | None -> None)
+
+let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
+  let should_overlay_value = function
+    | VComputedNode cn -> cn.cn_path = "<unbuilt>" || cn.cn_path = ""
+    | _ -> false
+  in
+  match matching_pipeline_log_entries ?which_log p with
+  | Some entries ->
+      List.map
+        (fun (name, value) ->
+          match value, List.assoc_opt name entries with
+          | _, None -> (name, value)
+          | value, Some cn when should_overlay_value value ->
+              (name, logged_node_value name cn)
+          | _ -> (name, value))
+        p.p_nodes
+  | None ->
+      p.p_nodes
+
 let read_node ?which_log name =
   let env_name = "T_NODE_" ^ name in
   match Sys.getenv_opt env_name with
@@ -230,45 +331,15 @@ let read_node ?which_log name =
         (Printf.sprintf "No build logs found in `_pipeline/`%s. Run `populate_pipeline(p, build=true)` first." suffix)
   | Ok (Some f) ->
       match read_log (Filename.concat pipeline_dir f) with
-      | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read log `%s`: %s" f msg)
-      | Ok entries ->
-          (match List.assoc_opt name entries with
-          | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in build log `%s`." name f)
-          | Some cn ->
-              let v =
-                if is_error_class cn.Ast.cn_class then
-                   (match Serialization.read_verror_json cn.Ast.cn_path with
-                    | Ok (VError e) ->
-                         VError { e with context = add_node_name_context name e.context }
-                    | Ok v -> v
-                    | Error msg -> Error.make_error ~context:[("runtime", VString cn.Ast.cn_runtime)] FileError (Printf.sprintf "Failed to read Error node `%s` from `%s`: %s" name cn.Ast.cn_path msg))
-                else if is_visual_metadata_class cn.cn_class then
-                  let viz_path = Filename.concat (Filename.dirname cn.cn_path) "viz" in
-                  if Sys.file_exists viz_path then
-                    (match Serialization.read_json viz_path with
-                     | Ok v -> v
-                      | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read plot metadata node `%s` from `%s`: %s" name viz_path msg))
-                  else
-                    read_logged_node_value name cn
-                else
-                  read_logged_node_value name cn
-               in
+       | Error msg -> Error.make_error FileError (Printf.sprintf "Failed to read log `%s`: %s" f msg)
+       | Ok entries ->
+           (match List.assoc_opt name entries with
+           | None -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in build log `%s`." name f)
+           | Some cn ->
+               let v = logged_node_value name cn in
                wrap_with_diagnostics name cn v)
 
 let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline_result) =
-  let pipeline_node_names = List.map fst p.p_nodes in
-  let runtimes = p.p_runtimes in
-  let runtime_matches_logged_entry (name, cn) =
-    match List.assoc_opt name runtimes with
-    | Some runtime -> runtime = cn.cn_runtime
-    | None -> true
-  in
-  let same_nodes entries =
-    let expected = List.sort String.compare pipeline_node_names in
-    let actual = entries |> List.map fst |> List.sort String.compare in
-    expected = actual
-    && List.for_all runtime_matches_logged_entry entries
-  in
   let merge_diagnostics base overlay =
     {
       nd_warnings =
@@ -282,39 +353,21 @@ let merge_pipeline_node_diagnostics_with_latest_log ?which_log (p : Ast.pipeline
       nd_upstream_errors = base.nd_upstream_errors;
     }
   in
-  let logs = candidate_logs ?which_log () in
-  let log_file_result =
-    match which_log with
-    | None -> Ok (match logs with [] -> None | log :: _ -> Some log)
-    | Some pattern ->
-        (try
-           Ok (List.find_opt (fun log ->
-             try
-               let _ = Str.search_forward (Str.regexp pattern) log 0 in
-               true
-             with Not_found -> false
-           ) logs)
-         with Failure _ ->
-           Ok None)
-  in
-  match log_file_result with
-  | Ok (Some log_file) ->
-      (match read_log (Filename.concat pipeline_dir log_file) with
-       | Ok entries when same_nodes entries ->
-           List.map (fun name ->
-             let base =
-               match List.assoc_opt name p.p_node_diagnostics with
-               | Some diagnostics -> diagnostics
-               | None -> Ast.Utils.empty_node_diagnostics
-             in
-             match List.assoc_opt name entries with
-             | Some cn ->
-                 let overlay = logged_node_diagnostics name cn in
-                 (name, merge_diagnostics base overlay)
-             | None ->
-                 (name, base))
-             pipeline_node_names
-       | _ ->
-           p.p_node_diagnostics)
-  | _ ->
+  match matching_pipeline_log_entries ?which_log p with
+  | Some entries ->
+      List.map
+        (fun name ->
+          let base =
+            match List.assoc_opt name p.p_node_diagnostics with
+            | Some diagnostics -> diagnostics
+            | None -> Ast.Utils.empty_node_diagnostics
+          in
+          match List.assoc_opt name entries with
+          | Some cn ->
+              let overlay = logged_node_diagnostics name cn in
+              (name, merge_diagnostics base overlay)
+          | None ->
+              (name, base))
+        (List.map fst p.p_nodes)
+  | None ->
       p.p_node_diagnostics

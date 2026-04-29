@@ -232,6 +232,7 @@ p = pipeline {
 -- Choose which model to query at runtime
 best_model_name = "model_py"
 model_value = get(p, node_lens(best_model_name))
+```
 
 ### 7. Core Orchestration: `node_meta_lens`
 
@@ -254,22 +255,84 @@ p_noop = p |> set(noop_l, true)
 p_py = p |> set(node_meta_lens("model_r", "runtime"), "Python")
 ```
 
-### 8. Pipeline Traversals: `filter_lens` on VPipeline
+### 8. Pipeline Traversals: Querying Node Metadata
 
-You can now use `filter_lens` on a **Pipeline** object to query or modify sets of nodes. The predicate receives a `Dict` of node metadata (including `$name`, `$runtime`, `$noop`, `$depth`, etc.).
+`filter_lens` also works on a **Pipeline**. In that case the predicate does **not** receive the node value directly; it receives a metadata `Dict` built from the pipeline definition.
+
+The fields currently exposed are:
+
+- `name`
+- `runtime`
+- `serializer`
+- `deserializer`
+- `noop`
+- `deps`
+- `depth`
+- `command_type`
+
+`get(p, filter_lens(...))` returns the **matched node values**. The predicate only uses metadata to decide which nodes to keep.
 
 ```t
--- Identify all nodes currently marked as noop
-noop_nodes_l = filter_lens(\(meta) meta.noop == true)
-noop_node_list = get(p, noop_nodes_l)
-
--- Re-run all R nodes locally by swapping runtime to T
+-- All R nodes
 r_nodes_l = filter_lens(\(meta) meta.runtime == "R")
-p_local = p |> over(r_nodes_l, \(n) n |> set(node_meta_lens(n.name, "runtime"), "T"))
-```
+get(p, r_nodes_l)
+
+-- Nodes that will actually run
+active_nodes_l = filter_lens(\(meta) meta.noop == false)
+get(p, active_nodes_l)
+
+-- Root nodes only
+root_nodes_l = filter_lens(\(meta) meta.depth == 0)
+get(p, root_nodes_l)
+
+-- Nodes using a specific serializer
+pmml_nodes_l = filter_lens(\(meta) meta.serializer == "pmml")
+get(p, pmml_nodes_l)
+
+-- Script-backed nodes only
+script_nodes_l = filter_lens(\(meta) meta.command_type == "script")
+get(p, script_nodes_l)
 ```
 
-### 7. Serialization & Multi-Node Safety
+If you want to inspect the metadata rows themselves rather than the node values, use the same predicate against `pipeline_to_frame(p)`:
+
+```t
+pipeline_to_frame(p) |> filter(\(row) row.runtime == "R")
+pipeline_to_frame(p) |> filter(\(row) row.depth <= 1 and row.noop == false)
+```
+
+#### Querying diagnostics and errored nodes
+
+Errors are **not** part of the metadata dictionary exposed by `filter_lens` on a raw `Pipeline`. Diagnostics live in `read_pipeline(p)`, so filter those records instead:
+
+```t
+-- Lowest-level lens form
+pipe_info = read_pipeline(p)
+
+errored_nodes_l = compose(
+  col_lens("nodes"),
+  filter_lens(\(node) !is_na(node.diagnostics.error))
+)
+
+healthy_nodes_l = compose(
+  col_lens("nodes"),
+  filter_lens(\(node) is_na(node.diagnostics.error))
+)
+
+get(pipe_info, errored_nodes_l)
+get(pipe_info, healthy_nodes_l)
+```
+
+If you only want the filtered node records and do not need to compose a larger lens pipeline, prefer the higher-level wrapper:
+
+```t
+which_nodes(p, !is_na(diagnostics.error))
+errored_nodes(p)
+```
+
+For a quick summary, `read_pipeline(p).diagnostics.error_nodes` gives you just the names of nodes that errored.
+
+### 9. Serialization & Multi-Node Safety
 
 T lenses are fully serializable. This means you can define a complex `FilterLens` in one pipeline node, pass it as a parameter to another node (even one running in a different runtime like R or Python), and it will maintain its structure.
 
@@ -283,7 +346,7 @@ flagged_data = data |> over(qc_lens, \(v) v + " [NEEDS REVIEW]")
 
 ---
 
-### 8. API Quick Reference
+### 10. API Quick Reference
 
 | Function | Signature | Use Case |
 | :--- | :--- | :--- |

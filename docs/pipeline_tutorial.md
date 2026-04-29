@@ -729,6 +729,36 @@ p |> filter_node($noop == false) |> pipeline_nodes
 p |> filter_node($depth <= 1) |> pipeline_nodes
 ```
 
+### `which_nodes`
+
+`filter_node` rewrites the pipeline itself. `which_nodes` is the read-only counterpart: it filters the richer node records you would otherwise have to access manually through `read_pipeline(p).nodes`.
+
+This is especially useful for diagnostics queries because each record includes `name`, `value`, and `diagnostics`.
+
+```t
+p = pipeline {
+  bad = 1 / 0
+  ok = 42
+  downstream = bad + 1
+}
+
+-- Keep only nodes with captured errors
+which_nodes(p, !is_na(diagnostics.error))
+
+-- Same idea, but return only the node names
+which_nodes(p, !is_na(diagnostics.error))
+  |> map(\(node) node.name)
+-- ["bad", "downstream"]
+
+-- Explicit predicate functions still work too
+has_error = \(node) !is_na(node.diagnostics.error)
+which_nodes(p, has_error)
+
+-- Convenience shortcut for the most common case
+errored_nodes(p) |> map(\(node) node.name)
+```
+
+
 ### `mutate_node`
 
 Modifies metadata fields on all nodes, or scoped to a subset using the `where` argument:

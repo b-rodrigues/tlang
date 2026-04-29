@@ -11,7 +11,7 @@ open Ast
 --# `pipeline_run`.
 --#
 --# Supported metadata fields: `$name`, `$runtime`, `$serializer`,
---# `$deserializer`, `$noop`, `$depth`, `$command_type`.
+--# `$deserializer`, `$noop`, `$depth`, `$command_type`, `$diagnostics`.
 --#
 --# @name filter_node
 --# @param p :: Pipeline The pipeline to filter.
@@ -21,6 +21,7 @@ open Ast
 --#   p |> filter_node($runtime == "python")
 --#   p |> filter_node($noop == false)
 --#   p |> filter_node($depth <= 2)
+--#   p |> filter_node(!is_na($diagnostics.error))
 --# @family pipeline
 --# @seealso mutate_node, select_node, rename_node
 --# @export
@@ -30,6 +31,15 @@ let register ~eval_call env =
     (make_builtin ~name:"filter_node" 2 (fun args env ->
       match args with
       | [VPipeline p; predicate] ->
+          let p =
+            {
+              p with
+              p_nodes =
+                Builder.merge_pipeline_nodes_with_latest_log p;
+              p_node_diagnostics =
+                Builder.merge_pipeline_node_diagnostics_with_latest_log p;
+            }
+          in
           let depths = Pipeline_to_frame.compute_depths p.p_deps in
           let keep = List.filter (fun (name, _) ->
             let row_dict = VDict (Pipeline_to_frame.node_metadata_dict name p depths) in
