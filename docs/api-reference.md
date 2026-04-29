@@ -1986,6 +1986,25 @@ Pipeline introspection and management.
 
 Filter the richer node records from `read_pipeline(p).nodes` without manually writing `read_pipeline`, `compose`, or an explicit lambda.
 
+Instead of writing:
+
+```t
+pipe_info = read_pipeline(p)
+
+errored_nodes_l = compose(
+  col_lens("nodes"),
+  filter_lens(\(node) !is_na(node.diagnostics.error))
+)
+
+get(pipe_info, errored_nodes_l)
+```
+
+you can simply do this:
+
+```t
+filter_nodes(p, !is_na(diagnostics.error))
+```
+
 This is the diagnostics-friendly companion to `filter_node`:
 
 - `filter_node` returns a new `Pipeline`
