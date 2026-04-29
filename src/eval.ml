@@ -2136,7 +2136,9 @@ and eval_dot_access_val _env_ref target_val field =
   | VError ({ code; message; context; location; na_count } as err) ->
       (* Structured field access for Error values mirrors explain(error):
          error_code, error_message, context, na_count, and optional
-         location-derived file/line/column fields (NA when unavailable). *)
+         location-derived file/line/column fields (NA when unavailable).
+         Unknown fields preserve prior behavior by returning the original
+         error unchanged. *)
       (match field with
        | "error_code" -> VString (Utils.error_code_to_string code)
        | "error_message" -> VString message
