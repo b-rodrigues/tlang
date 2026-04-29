@@ -489,7 +489,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   (try Unix.mkdir "_pipeline" 0o755 with _ -> ());
   let ensure_temp_dir name =
     let dir = Filename.concat (Filename.get_temp_dir_name ()) name in
-    if not (Sys.file_exists dir) then Unix.mkdir dir 0o755;
+    if not (Sys.file_exists dir) then
+      try Unix.mkdir dir 0o755 with
+      | Unix.Unix_error (Unix.EEXIST, _, _) -> ();
     dir
   in
   let error_node_dir = ensure_temp_dir "tlang-error-node" in
