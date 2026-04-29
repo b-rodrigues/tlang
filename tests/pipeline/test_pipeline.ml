@@ -725,6 +725,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   bad = node(command = <{ 1 }>, runtime = R)
 }; read_node(p_logged, "bad").error.kind|}
         "\"RuntimeError\"";
+      test "filter_node uses merged build-log diagnostics in predicates"
+        {|p_logged = pipeline {
+  good = 1
+  bad = node(command = <{ 1 }>, runtime = R)
+}; filter_node(p_logged, !is_na($diagnostics.error)) |> pipeline_nodes|}
+        {|["bad"]|};
       test "read_node(pipeline, name) prefers matching build-log values for unresolved nodes"
         {|p_match = pipeline {
   good_val = 20
@@ -736,6 +742,12 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   good_val = 20
   recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
 }; read_pipeline(p_match).nodes |> filter(\(node) node.name == "recovered_with_match") |> map(\(node) node.value.status)|}
+        {|["ok"]|};
+      test "filter_node returns merged build-log values for kept unresolved nodes"
+        {|p_match = pipeline {
+  good_val = 20
+  recovered_with_match = node(command = <{ 1 }>, runtime = R, serializer = "json", deserializer = "json")
+}; read_pipeline(filter_node(p_match, is_na($diagnostics.error))).nodes |> filter(\(node) node.name == "recovered_with_match") |> map(\(node) node.value.status)|}
         {|["ok"]|};
 
       test "read_node rejects older serialized node versions"
