@@ -608,7 +608,13 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
           Serialization.serialized_value_format_version
       in
       let explained_compatible_node =
-        {|{`kind`: "node", `node_name`: "compatible_node", `diagnostics`: {`warnings`: [], `error`: NA, `warnings_suppressed`: false, `recovered`: false, `upstream_errors`: []}, `contents`: {`kind`: "value", `type`: "List", `length`: 3, `na_count`: 0, `examples`: [1, 2, 3]}}|}
+        String.concat "" [
+          {|{`kind`: "node", `node_name`: "compatible_node", `diagnostics`: |};
+          {|{`warnings`: [], `error`: NA, `warnings_suppressed`: false, |};
+          {|`recovered`: false, `upstream_errors`: []}, `contents`: |};
+          {|{`kind`: "value", `type`: "List", `length`: 3, `na_count`: 0, |};
+          {|`examples`: [1, 2, 3]}}|};
+        ]
       in
 
       test "read_node propagates R runtime on error"
