@@ -90,6 +90,8 @@ let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
   | Unquote e | UnquoteSplice e -> expr_uses_named_scope_fields fields e
   | PipelineDef _ | IntentDef _ | ListComp _ -> false
 
+(** Rewrite bare field names from a scoped predicate to [root.field], while
+    leaving all other variables unchanged. *)
 let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
   let loc = expr.loc in
   let wrap_field name =

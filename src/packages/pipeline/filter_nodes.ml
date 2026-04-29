@@ -1,7 +1,8 @@
 open Ast
 
-(** Construct a read-pipeline node record with the public fields exposed by
-    [which_nodes] and [errored_nodes]: [name], [value], and [diagnostics]. *)
+(** Construct the canonical public node-record structure exposed by
+    [which_nodes] and [errored_nodes]. These fields are part of the user-facing
+    API and should remain stable: [name], [value], and [diagnostics]. *)
 let node_record name value diagnostics =
   VDict [
     ("name", VString name);
