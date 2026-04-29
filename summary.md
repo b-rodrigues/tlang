@@ -254,7 +254,7 @@ Source-level documentation uses `--#` comments. The generated reference lives in
 - The language server is `t-lsp`.
 - It is expected to be launched from inside `nix develop` (or via `direnv use flake`).
 - Supported editor integrations are documented for VS Code/Positron, Vim/Neovim, Emacs, and Quarto workflows.
-- A shared tree-sitter grammar now lives in `editors/tree-sitter-t` for Neovim, Emacs 29+, and other tree-sitter-based editors.
+- A shared tree-sitter grammar now lives in `editors/tree-sitter-t` for Neovim, Emacs 29+, and other tree-sitter-based editors; only source files are committed and generated parser artifacts are built locally.
 
 ## Standard Packages and Signature Index
 

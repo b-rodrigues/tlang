@@ -18,6 +18,6 @@
   "files": [
     "grammar.js",
     "queries",
-    "src"
+    "tree-sitter.json"
   ]
 }

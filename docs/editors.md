@@ -20,16 +20,29 @@ The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix 
 ### Shared tree-sitter grammar
 
 T now ships a reusable tree-sitter grammar in `editors/tree-sitter-t`.
-It includes generated parser sources plus shared highlight, injection, and
-locals queries for tree-sitter aware editors.
+Only the source grammar, queries, metadata, and grammar tests are committed.
+Generated parser sources are expected to be created locally when needed.
 
-To rebuild it from source:
+Install prerequisites and generate locally with:
 
 ```bash
-cd editors/tree-sitter-t
+cd /absolute/path/to/tlang/editors/tree-sitter-t
 npx tree-sitter-cli generate
 npx tree-sitter-cli test
 ```
+
+If you prefer a global install instead of `npx`:
+
+```bash
+npm install --global tree-sitter-cli
+cd /absolute/path/to/tlang/editors/tree-sitter-t
+tree-sitter generate
+tree-sitter test
+```
+
+This creates `src/parser.c`, `src/grammar.json`, `src/node-types.json`, and
+`src/tree_sitter/` locally. Those files are ignored by Git and should not be
+committed.
 
 ### VS Code / Positron
 
@@ -120,6 +133,8 @@ parser_config.t = {
   install_info = {
     url = "/absolute/path/to/tlang/editors/tree-sitter-t",
     files = { "src/parser.c" },
+    generate_requires_npm = true,
+    requires_generate_from_grammar = true,
   },
   filetype = "t",
 }
@@ -127,8 +142,10 @@ parser_config.t = {
 vim.treesitter.language.register("t", "t")
 ```
 
-Then install it with `:TSInstall t` or `:TSInstallFromGrammar t`.
+Then install it with `:TSInstallFromGrammar t`.
 Replace `/absolute/path/to/tlang` with your local clone path.
+If you already ran `npx tree-sitter-cli generate` locally, Neovim can reuse the
+generated `src/parser.c`.
 
 ---
 
@@ -162,6 +179,8 @@ Add the following to your `init.el`:
   (treesit-install-language-grammar 't))
 ```
 Replace `/absolute/path/to/tlang` with your local clone path.
+Make sure the `tree-sitter` CLI is installed before running
+`treesit-install-language-grammar`.
 
 This makes the T parser available to `treesit`-aware packages and any custom
 `t-ts-mode` built on top of the bundled grammar.
