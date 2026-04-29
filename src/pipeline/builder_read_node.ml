@@ -225,14 +225,16 @@ let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
   let logs = candidate_logs ?which_log () in
   let candidate_log_files =
     match which_log with
-    | None -> Some logs
+    | None ->
+        if logs = [] then None else Some logs
     | Some pattern ->
         (try
+           let re = Str.regexp pattern in
            Some
              (List.filter
                 (fun log ->
                   try
-                    let _ = Str.search_forward (Str.regexp pattern) log 0 in
+                    let _ = Str.search_forward re log 0 in
                     true
                   with Not_found -> false)
                 logs)
