@@ -146,7 +146,7 @@ local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
 
 parser_config.t = {
   install_info = {
-    url = "/path/to/tlang/editors/tree-sitter-t",
+    url = "/absolute/path/to/tlang/editors/tree-sitter-t",
     files = { "src/parser.c" },
   },
   filetype = "t",
@@ -156,6 +156,7 @@ vim.treesitter.language.register("t", "t")
 ```
 
 Then install it with `:TSInstall t` or `:TSInstallFromGrammar t`.
+Replace `/absolute/path/to/tlang` with your local clone path.
 
 #### Vim (`coc.nvim`)
 Add this to your `:CocConfig`:
@@ -186,11 +187,12 @@ Add the following to your `init.el`:
 Emacs 29+ can use the bundled grammar directly:
 ```elisp
 (add-to-list 'treesit-language-source-alist
-             '(t "/path/to/tlang/editors/tree-sitter-t"))
+             '(t "/absolute/path/to/tlang/editors/tree-sitter-t"))
 
 (unless (treesit-language-available-p 't)
   (treesit-install-language-grammar 't))
 ```
+Replace `/absolute/path/to/tlang` with your local clone path.
 
 You can then use the parser from a custom `t-ts-mode`, Combobulate-style
 navigation packages, or any package that consumes installed tree-sitter

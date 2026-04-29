@@ -118,7 +118,7 @@ local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
 
 parser_config.t = {
   install_info = {
-    url = "/path/to/tlang/editors/tree-sitter-t",
+    url = "/absolute/path/to/tlang/editors/tree-sitter-t",
     files = { "src/parser.c" },
   },
   filetype = "t",
@@ -128,6 +128,7 @@ vim.treesitter.language.register("t", "t")
 ```
 
 Then install it with `:TSInstall t` or `:TSInstallFromGrammar t`.
+Replace `/absolute/path/to/tlang` with your local clone path.
 
 ---
 
@@ -155,11 +156,12 @@ Add the following to your `init.el`:
 
 ```elisp
 (add-to-list 'treesit-language-source-alist
-             '(t "/path/to/tlang/editors/tree-sitter-t"))
+             '(t "/absolute/path/to/tlang/editors/tree-sitter-t"))
 
 (unless (treesit-language-available-p 't)
   (treesit-install-language-grammar 't))
 ```
+Replace `/absolute/path/to/tlang` with your local clone path.
 
 This makes the T parser available to `treesit`-aware packages and any custom
 `t-ts-mode` built on top of the bundled grammar.

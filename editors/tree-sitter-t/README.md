@@ -26,4 +26,4 @@ npx tree-sitter-cli test
 ## Editor integrations
 
 This package is intended for tree-sitter based editors such as Neovim, Emacs 29+, Helix, and Zed.
-See `/home/runner/work/tlang/tlang/editors/README.md` and `/home/runner/work/tlang/tlang/docs/editors.md` for setup notes.
+See `../README.md` and `../../docs/editors.md` for setup notes.
