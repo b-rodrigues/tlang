@@ -198,6 +198,10 @@ errored_nodes(p) |> map(\(node) node.name)|}
     {|filter_nodes(42, !is_na(diagnostics.error))|}
     {|Error(TypeError: "Function `filter_nodes` expects a Pipeline as first argument.")|};
 
+  test "filter_nodes errors when predicate does not return Bool"
+    {|p = pipeline { a = 1 }; filter_nodes(p, name)|}
+    {|Error(TypeError: "Function `filter_nodes` predicate must return Bool, got String.")|};
+
   test "errored_nodes rejects non-pipeline"
     {|errored_nodes(42)|}
     {|Error(TypeError: "Function `errored_nodes` expects a Pipeline.")|};
