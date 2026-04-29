@@ -195,10 +195,11 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
       expr
 
 (** Field names exposed on read-pipeline node records and available for
-    concise NSE predicate auto-wrapping in [which_nodes]. Keep this list in
-    sync with the stable public [node_record] shape in
-    [src/packages/pipeline/which_nodes.ml]. *)
-let node_record_scope_fields = ["name"; "value"; "diagnostics"]
+    concise NSE predicate auto-wrapping in [which_nodes].
+
+    This is an alias to the canonical definition in {!Ast.Utils} to avoid
+    drift between the evaluator and the pipeline package. *)
+let node_record_scope_fields = Ast.Utils.node_record_scope_fields
 
 (** Global flag to control warning output (e.g., for tests) *)
 let show_warnings = ref true

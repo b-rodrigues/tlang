@@ -3,7 +3,10 @@ open Ast
 (** Construct the canonical public node-record structure exposed by
     [which_nodes] and [errored_nodes]. These fields define the stable public
     API contract for node records, and predicate expressions plus
-    documentation rely on exactly [name], [value], and [diagnostics]. *)
+    documentation rely on exactly [name], [value], and [diagnostics].
+
+    The field names must match {!Ast.Utils.node_record_scope_fields} so the
+    evaluator's scoped-NSE desugaring rewrites bare names correctly. *)
 let node_record name value diagnostics =
   VDict [
     ("name", VString name);

@@ -223,35 +223,39 @@ let pipeline_matches_logged_entries (p : Ast.pipeline_result) entries =
 
 let matching_pipeline_log_entries ?which_log (p : Ast.pipeline_result) =
   let logs = candidate_logs ?which_log () in
-  let candidate_log_files =
-    match which_log with
-    | None ->
-        (match logs with
-         | [] -> None
-         | _ -> Some logs)
-    | Some pattern ->
-        (try
-           let re = Str.regexp pattern in
-           Some
-             (List.filter
-                (fun log ->
-                  try
-                    let _ = Str.search_forward re log 0 in
-                    true
-                  with Not_found -> false)
-                logs)
-         with Failure _ ->
-           None)
+  let try_log log_file =
+    match read_log (Filename.concat pipeline_dir log_file) with
+    | Ok entries when pipeline_matches_logged_entries p entries -> Some entries
+    | _ -> None
   in
-  match candidate_log_files with
-  | Some log_files ->
-      List.find_map
-        (fun log_file ->
-          match read_log (Filename.concat pipeline_dir log_file) with
-          | Ok entries when pipeline_matches_logged_entries p entries -> Some entries
-          | _ -> None)
-        log_files
-  | None -> None
+  match which_log with
+  | None ->
+      (* Fast path: in the common case the most recent log is the correct
+         match. Try it first to avoid parsing every log in the directory. *)
+      (match logs with
+       | [] -> None
+       | newest :: rest ->
+           (match try_log newest with
+            | Some _ as hit -> hit
+            | None -> List.find_map try_log rest))
+  | Some pattern ->
+      let candidate_log_files =
+        try
+          let re = Str.regexp pattern in
+          Some
+            (List.filter
+               (fun log ->
+                 try
+                   let _ = Str.search_forward re log 0 in
+                   true
+                 with Not_found -> false)
+               logs)
+        with Failure _ ->
+          None
+      in
+      (match candidate_log_files with
+       | Some log_files -> List.find_map try_log log_files
+       | None -> None)
 
 let merge_pipeline_nodes_with_latest_log ?which_log (p : Ast.pipeline_result) =
   let should_overlay_value = function

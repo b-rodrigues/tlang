@@ -405,6 +405,15 @@ module Utils = struct
     nd_upstream_errors = [];
   }
 
+  (** Canonical list of field names exposed on read-pipeline node records
+      (as constructed by [which_nodes] and [errored_nodes]). The evaluator
+      uses this list to decide when a bare-word expression should be
+      auto-wrapped into a scoped lambda ([\\(node) node.<field> ...]).
+
+      Keep this in sync with the [node_record] constructor in
+      [src/packages/pipeline/which_nodes.ml]. *)
+  let node_record_scope_fields = ["name"; "value"; "diagnostics"]
+
   let rec unwrap_value = function
     | VNodeResult { v; _ } -> unwrap_value v
     | v -> v
