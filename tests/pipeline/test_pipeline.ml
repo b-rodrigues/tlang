@@ -630,6 +630,9 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
       test "explain(read_node(...)) nests explained error contents"
         "explain(read_node(\"error_node\", which_log=\"ocaml_mock\")).contents.error_code"
         {|"RuntimeError"|};
+      test "explain(read_node(...)) exposes node display key order"
+        "explain(read_node(\"compatible_node\", which_log=\"legacy_version\"))._display_keys .== [\"kind\", \"node_name\", \"diagnostics\", \"contents\"]"
+        "[true, true, true, true]";
       test "read_node (mocked) reads compatible artifact"
         "read_node(\"compatible_node\", which_log=\"legacy_version\") .== [1, 2, 3]"
         "[true, true, true]";
