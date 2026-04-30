@@ -1,8 +1,19 @@
 # Changelog
 
-## [0.51.4] - 2026-04-29
+## [0.51.4] - 2026-04-30
 
 **Status**: Beta  
+
+### AI Agent Onboarding & Context Tiering
+- **Tiered Language Reference**:
+    - Introduced a tiered system for language reference files (`small`, `medium`, `full`, `huge`).
+    - **`huge` reference generation**: Implemented a recursive build process in `docs/build.sh` that concatenates the entire documentation ecosystem into a single, comprehensive reference for high-context agents.
+- **Interactive Scaffolding**:
+    - Updated `t init` to be fully interactive. The CLI now prompts for the **AI Agent Context Level** during project or package initialization.
+    - **`AGENTS.md`**: Automatically generates project-specific onboarding guides for LLMs based on the workspace type.
+    - **Automated Deployment**: The chosen reference level is deployed as `T-LANGUAGE-REFERENCE.md` in the project root and automatically added to `.gitignore`.
+- **LLM-First Documentation**:
+    - Updated the `README`, `Getting Started`, and `LLM Collaboration` guides to emphasize T's unique support for agentic development.
 
 ### Language Ergonomics & Auto-Quoting
 - **Auto-Quoted Parameters (`$param`)**: 
