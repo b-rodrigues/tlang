@@ -41,12 +41,29 @@ my_analysis/
 ├── tproject.toml       # Project configuration and dependencies
 ├── flake.nix           # Reproducible environment definition
 ├── README.md           # Project overview
+├── AGENTS.md           # Onboarding guide for AI Agents
+├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
 ├── src/
 │   └── pipeline.t      # Your main analysis script
 ├── data/               # Place your raw data files here
 ├── outputs/            # Output directory for results
 └── tests/              # Unit tests for your analysis
 ```
+
+### AI Agent Onboarding
+
+T is designed to be highly compatible with AI-assisted development. When you run `t init`, the tool will prompt you for an **Agent Context Level**:
+
+- **small**: Core syntax and top 20 functions.
+- **medium**: (Default) Exhaustive standard library index.
+- **full**: Full language manual and detailed examples.
+- **huge**: Concatenated documentation of the entire T ecosystem.
+
+This selection generates two files in your project root:
+1. **`AGENTS.md`**: A project-specific guide that tells LLMs how to work within your project's architecture.
+2. **`T-LANGUAGE-REFERENCE.md`**: A technical reference file for the AI to read.
+
+By providing these files, you ensure that any AI agent you use has immediate access to the exact technical context it needs.
 
 ### Creating a Package
 
@@ -63,6 +80,8 @@ my_package/
 ├── DESCRIPTION.toml    # Package metadata (name, version, exports)
 ├── flake.nix           # Reproducible environment definition
 ├── README.md           # Package overview
+├── AGENTS.md           # Onboarding guide for AI Agents
+├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
 ├── src/
 │   └── main.t          # Package source code
 ├── tests/

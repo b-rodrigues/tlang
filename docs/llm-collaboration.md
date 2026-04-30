@@ -16,6 +16,27 @@ Current LLM-assisted coding suffers from:
 
 ---
 
+## Tiered AI Onboarding
+
+T provides a structured way to onboard LLMs to new projects via the `t init` command. When a project is initialized, T generates two essential files that should be provided to the AI agent at the start of any conversation:
+
+### 1. Project-Specific Guide (`AGENTS.md`)
+This file tells the LLM exactly how the current project is structured and what the coding conventions are (e.g., "Nix is mandatory", "Use Arrow for data transfer"). It serves as the project's "rules of engagement" for AI assistants.
+
+### 2. Tiered Language Reference (`T-LANGUAGE-REFERENCE.md`)
+To handle different LLM context windows and project needs, T allows you to select a "Context Level" during initialization:
+
+| Level | Description | Use Case |
+| :--- | :--- | :--- |
+| **small** | Core syntax and top 20 functions | Simple scripts, low-context models |
+| **medium** | Exhaustive standard library index (Default) | General analysis and pipeline development |
+| **full** | Comprehensive manual with detailed examples | Complex logic and package development |
+| **huge** | Concatenated documentation of the entire ecosystem | Deep debugging and system-level tasks |
+
+By providing these files, you ensure the LLM has the exact technical context needed to generate valid, idiomatic T code without trial-and-error.
+
+---
+
 ## T's LLM-Native Design
 
 T treats LLMs as **first-class collaborators** with structured boundaries:

@@ -18,6 +18,15 @@ Nixpkgs date [2026-02-19]: 2026-02-19
 ✓ Project 'housing-analysis' created successfully!
 ```
 
+### 1.1 AI Agent Onboarding (Optional)
+
+When running `t init`, you will be prompted to select an **AI Agent Context Level**. This generates two essential files in your project root:
+
+- **AGENTS.md**: A project-specific guide for AI assistants (and human collaborators).
+- **T-LANGUAGE-REFERENCE.md**: A technical reference of the T language tailored to the requested depth (small, medium, full, or huge).
+
+These files are designed to be read by LLMs (like Antigravity, Claude, or ChatGPT) at the start of a session to give them immediate, high-fidelity context about your project and the specific version of T you are using.
+
 This creates the following structure:
 
 - **tproject.toml**: Project metadata and dependencies.
@@ -28,6 +37,8 @@ This creates the following structure:
 - **data/**: Data files.
 - **outputs/**: Output directory for results.
 - **tests/**: Project-specific tests.
+- **AGENTS.md**: Onboarding guide for AI Agents.
+- **T-LANGUAGE-REFERENCE.md**: Tiered language reference for LLMs.
 
 ## 2. Entering the Development Environment
 

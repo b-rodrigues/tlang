@@ -99,6 +99,16 @@ intent {
 }
 ```
 
+## AI-First Development
+
+T is designed to treat AI agents as first-class collaborators. Its strictly functional, immutable syntax and explicit error handling significantly reduce the "hallucination surface" for LLMs.
+
+When you initialize a new T project, the CLI prompts you to select an **AI Agent Onboarding Level** (Small, Medium, Full, or Huge). T then automatically generates:
+- **`AGENTS.md`**: A project-specific onboarding guide for LLMs.
+- **`T-LANGUAGE-REFERENCE.md`**: A tiered language reference tailored to the project's complexity and the agent's context window.
+
+This ensures that any AI assistant you pair-program with has the exact technical context required to be productive immediately.
+
 ## Key Features
 
 ### Functional Safety & Errors
@@ -133,7 +143,7 @@ You can now bootstrap a new project:
 t init --project my_t_project
 ```
 
-You will be prompted to enter basic project information. When finished, leave the temporary shell:
+You will be prompted to enter basic project information, including the **AI Agent Context Level** (Small, Medium, Full, or Huge) which generates tailored reference documentation for LLMs. When finished, leave the temporary shell:
 
 ```bash
 exit
