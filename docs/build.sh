@@ -56,4 +56,28 @@ if [ -d "reference" ]; then
   done
 fi
 
+echo "Generating huge reference for AI agents..."
+HUGE_REF="../agents/t-reference-huge.md"
+echo "# T Language Reference (Huge - Full Documentation)" > "$HUGE_REF"
+echo -e "\nThis file is a concatenation of the entire T documentation for LLM context.\n" >> "$HUGE_REF"
+
+# Core foundational files first
+FOUNDATIONAL="index.md getting-started.md language_overview.md api-reference.md"
+for f in $FOUNDATIONAL; do
+  if [ -f "$f" ]; then
+    echo -e "\n\n# FILE: docs/$f\n" >> "$HUGE_REF"
+    cat "$f" >> "$HUGE_REF"
+  fi
+done
+
+# All other files recursively (excluding foundational and README)
+find . -name "*.md" | sort | while read -r f; do
+  rel_path=${f#./}
+  if [[ "$FOUNDATIONAL" == *"$rel_path"* ]] || [ "$rel_path" == "README.md" ]; then
+    continue
+  fi
+  echo -e "\n\n# FILE: docs/$rel_path\n" >> "$HUGE_REF"
+  cat "$f" >> "$HUGE_REF"
+done
+
 echo "Done!"
