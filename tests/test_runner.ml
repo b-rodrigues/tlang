@@ -145,6 +145,7 @@ let () =
   
   (* Structural Integrity & Error category tests *)
   Test_structural_integrity.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_agent_scaffold.run_tests pass_count fail_count eval_string eval_string_env test;
 
   (* Summary *)
   let total = !pass_count + !fail_count in
