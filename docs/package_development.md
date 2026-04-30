@@ -15,6 +15,15 @@ License [EUPL-1.2]: EUPL-1.2
 ✓ Package 'advanced-stats' created successfully!
 ```
 
+### 1.1 AI Agent Onboarding (Optional)
+
+When running `t init`, you will be prompted to select an **AI Agent Context Level**. This generates two essential files in your package root:
+
+- **AGENTS.md**: A package-specific guide for AI assistants (and human collaborators).
+- **T-LANGUAGE-REFERENCE.md**: A technical reference of the T language tailored to the requested depth (small, medium, full, or huge).
+
+These files are designed to be read by LLMs (like Antigravity, Claude, or ChatGPT) at the start of a session to give them immediate, high-fidelity context about your package and the specific version of T you are using.
+
 This creates a standard directory structure:
 
 - **DESCRIPTION.toml**: Package metadata and dependencies.
@@ -26,6 +35,8 @@ This creates a standard directory structure:
 - **tests/**: Test files (e.g., `test-advanced-stats.t`).
 - **examples/**: Usage examples.
 - **docs/**: Documentation (e.g., `index.md`).
+- **AGENTS.md**: Onboarding guide for AI Agents.
+- **T-LANGUAGE-REFERENCE.md**: Tiered language reference for LLMs.
 
 ## 2. Managing Dependencies
 

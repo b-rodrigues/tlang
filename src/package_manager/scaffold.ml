@@ -27,6 +27,55 @@ let git_init dir =
   if code <> 0 then
     Printf.eprintf "Warning: git init failed (exit code %d)\n" code
 
+let copy_agent_files dir is_package context =
+  (* Locate agents directory.
+     In a development environment, it's in the repo root.
+     In a Nix installation, it might be in a share directory. *)
+  let agents_dir =
+    match Sys.getenv_opt "TLANG_AGENTS_DIR" with
+    | Some d -> d
+    | None ->
+        let exe_dir = Filename.dirname Sys.executable_name in
+        let share_dir = Filename.concat (Filename.dirname exe_dir) "share/tlang/agents" in
+        if Sys.file_exists "agents" && Sys.is_directory "agents" then "agents"
+        else if Sys.file_exists share_dir && Sys.is_directory share_dir then share_dir
+        else "agents" (* Fallback to local *)
+  in
+  let agents_template = if is_package then "agents-package.md" else "agents-project.md" in
+  let ref_template =
+    match String.lowercase_ascii context with
+    | "small" -> "t-reference-small.md"
+    | "full" -> "t-reference-full.md"
+    | "huge" -> "t-reference-huge.md"
+    | _ -> "t-reference-medium.md"
+  in
+  let cp src dest =
+    let src_path = Filename.concat agents_dir src in
+    if Sys.file_exists src_path then begin
+      let ic = open_in src_path in
+      let content = really_input_string ic (in_channel_length ic) in
+      close_in ic;
+      let oc = open_out (Filename.concat dir dest) in
+      output_string oc content;
+      close_out oc;
+      true
+    end else false
+  in
+  let agents_ok = cp agents_template "AGENTS.md" in
+  let ref_ok = cp ref_template "T-LANGUAGE-REFERENCE.md" in
+  if agents_ok && ref_ok then begin
+    (* Add reference to .gitignore *)
+    let gitignore_path = Filename.concat dir ".gitignore" in
+    let out = open_out_gen [Open_append; Open_creat] 0o644 gitignore_path in
+    output_string out "\n# AI Agent Context Reference\nT-LANGUAGE-REFERENCE.md\n";
+    close_out out;
+    true
+  end else begin
+    if not (Sys.file_exists agents_dir) then
+      Printf.eprintf "Warning: agents directory not found at '%s'. Skipping AGENTS.md creation.\n" agents_dir;
+    false
+  end
+
 let default_tlang_tag = "v" ^ Version.version
 
 (* Strip the "v" prefix from a tag to get a plain version number. *)
@@ -568,6 +617,8 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
       write_file (Filename.concat dir "src/main.t") (sub package_src_example);
       write_file (Filename.concat dir (Printf.sprintf "tests/test-%s.t" opts.target_name)) (sub package_test_example);
       write_file (Filename.concat dir "docs/index.md") (Printf.sprintf "# %s\n\nPackage documentation.\n" opts.target_name);
+      (* Agent files *)
+      let _ = copy_agent_files dir true opts.agent_context in
       (* Git init *)
       if not opts.no_git then git_init dir;
       (* Success message *)
@@ -613,6 +664,7 @@ let interactive_init ?(placeholder="my_package") default_name =
   let author = prompt_string "Author" (try Sys.getenv "USER" with Not_found -> "Anonymous") in
   let license = prompt_string "License [EUPL-1.2, GPL-3.0-or-later, MIT] (visit https://spdx.org/licenses/ for all licenses)" "EUPL-1.2" in
   let nixpkgs_date = prompt_string "Nixpkgs date (rstats-on-nix branch)" Version.nixpkgs_date in
+  let agent_context = prompt_string "Agent Context Level [small, medium, full, huge]" "medium" in
   Printf.printf "\n";
   {
     target_name = name;
@@ -621,7 +673,8 @@ let interactive_init ?(placeholder="my_package") default_name =
     nixpkgs_date = nixpkgs_date;
     no_git = false;
     force = false;
-    interactive = false; (* Already interactive *)
+    interactive = true;
+    agent_context = agent_context;
   }
 
 (*
@@ -669,6 +722,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
       write_file (Filename.concat dir "README.md") (sub project_readme);
       write_file (Filename.concat dir ".gitignore") project_gitignore;
       write_file (Filename.concat dir "src/pipeline.t") (sub project_pipeline_example);
+      (* Agent files *)
+      let _ = copy_agent_files dir false opts.agent_context in
       (* Git init *)
       if not opts.no_git then git_init dir;
       (* Success message *)
@@ -702,6 +757,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
   let nixpkgs_date = ref Version.nixpkgs_date in
   let no_git = ref false in
   let force = ref false in
+  let agent_context = ref "medium" in
   let show_help = ref false in
   let error = ref None in
   let rec parse = function
@@ -711,6 +767,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
     | "--nixpkgs-date" :: v :: rest -> nixpkgs_date := v; parse rest
     | "--no-git" :: rest -> no_git := true; parse rest
     | "--force" :: rest -> force := true; parse rest
+    | "--context" :: v :: rest -> agent_context := v; parse rest
     | "--interactive" :: rest -> parse rest (* Handled in repl.ml mainly, but we can flag it *)
     | "--help" :: _ -> show_help := true
     | arg :: rest ->
@@ -732,6 +789,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
            \  --nixpkgs-date <YYYY-MM-DD>  Nixpkgs branch date (default: " ^ Version.nixpkgs_date ^ ")\n\
            \  --no-git           Skip git init\n\
            \  --force            Overwrite existing directory\n\
+           \  --context <level>  Agent context level (small, medium, full, huge; default: medium)\n\
            \  --help             Show this help\n\
            \  --interactive      Prompt for options")
   else match !error with
@@ -747,6 +805,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
         no_git = !no_git;
         force = !force;
         interactive = List.mem "--interactive" args;
+        agent_context = !agent_context;
       }
     | None ->
         if List.mem "--interactive" args then
@@ -758,6 +817,7 @@ let parse_init_flags (args : string list) : (scaffold_options, string) result =
             no_git = !no_git;
             force = !force;
             interactive = true;
+            agent_context = !agent_context;
           }
         else
           Error "Missing name. Usage: t init --package|--project <name>"

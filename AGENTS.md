@@ -16,6 +16,7 @@ This file provides instructions for AI agents (and human contributors) working o
 - [Documentation Requirements](#documentation-requirements)
 - [Syntax and Behaviour Changes](#syntax-and-behaviour-changes)
 - [Commit and PR Workflow](#commit-and-pr-workflow)
+- [Maintenance and Release](#maintenance-and-release)
 
 ---
 
@@ -111,6 +112,10 @@ These rules are **mandatory** and apply to every line of OCaml code added or mod
 6. **Strict Variable Lookup & Known Symbols.** Unbound variables evaluate strictly to a `NameError`. They do not silently fall back to symbols. However, to support convenient "bare word" syntax in pipeline configurations, certain names (like `R`, `Python`, `T`, `write_rds`, `default`) are explicitly pre-registered as `VSymbol` in `src/packages/core/packages.ml` via the `known_symbols` list. **If you introduce a new runtime or a new standard serializer, you MUST add its name to `known_symbols`** so users can write `runtime = Julia` instead of `runtime = "Julia"`.
 
 7. **No Silent Magic.** Never implement "placeholders" that appear to work by secretly substituting requested behavior with a fallback (e.g., never silently use JSON if ONNX serialization is requested but unsupported). If an operation cannot be performed natively and correctly as requested, always return an explicit `VError` with a helpful message. Transparency and developer predictability are prioritized over "magical" implicit success.
+
+8. **Death to Null.** Under no circumstances should `null` be implemented or used. Missingness is handled via `NA` and optionality via `Error` or explicit missing values.
+
+9. **Absolute Explicitness.** No implicit behavior: all configuration, pipeline dependencies, and environment assumptions must be declared explicitly so that the codebase serves as its own complete documentation.
 
 **Pattern to follow** (from `src/packages/stats/mean.ml`):
 ```ocaml
@@ -226,6 +231,10 @@ Follow this checklist whenever you add a new function or language feature:
 ### 4. Update `summary.md`
 
 Always update `summary.md` in the repository root to reflect new functionality. Follow the existing format (feature name, brief description, status).
+
+### 5. Update Tree-sitter Highlights
+
+When adding new builtins to the standard library, you **must** update the `#match?` regex in `editors/tree-sitter-t/queries/highlights.scm` to ensure the new functions are correctly highlighted in supported editors.
 
 ---
 
@@ -374,3 +383,25 @@ Safe changes (no approval needed):
    - What was added or changed.
    - Which tests cover the change.
    - Whether any syntax or existing behaviour was affected (and if so, whether it was approved).
+
+---
+
+## Maintenance and Release
+
+### Releasing a new version of T
+
+T uses a single source of truth for its version. To release a new version:
+
+1.  **Bump the Version**: Update the version string in the root [VERSION](file:///home/brodrigues/Documents/repos/tlang/VERSION) file (e.g., `0.51.1`).
+2.  **Sync Documentation**: Run the synchronization script to propagate the version to READMEs and documentation:
+    ```bash
+    ./scripts/sync_version.sh
+    ```
+3.  **Update Changelog**: Add the release notes and date to [docs/changelog.md](file:///home/brodrigues/Documents/repos/tlang/docs/changelog.md).
+4.  **Commit and Push**:
+    ```bash
+    git add .
+    git commit -m "chore: release 0.5x.x"
+    git push origin main
+    ```
+    *The GitHub Action in `.github/workflows/release.yaml` will automatically create the Git tag and GitHub Release.*

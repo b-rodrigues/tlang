@@ -46,7 +46,7 @@ infrastructure.</p>
 unique architecture ensures that humans and LLMs can collaborate on
 defining high-level intent while T handles the low-level orchestration
 and environmental consistency.</p>
-<p><strong>Status:</strong> Version 0.51.3 “Sangoku”, latest
+<p><strong>Status:</strong> Version 0.51.4 “Sangoku”, latest
 stabilization release.</p>
 <hr />
 <h2 id="the-polyglot-pipeline">The Polyglot Pipeline</h2>
@@ -183,7 +183,13 @@ absolute path to the node’s output in the Nix store. You can use this to
 start an external interpreter and inspect the file directly, or pass it
 to a custom loader like <code>read_parquet(model_node.path)</code>.</p>
 <hr />
-<h2 id="documentation">Documentation</h2>
+<h2 id="documentation-the-theoretical-foundation">Documentation: The
+Theoretical Foundation</h2>
+<ul>
+<li><a href="theoretical_paper.html">Theoretical Paper:
+Reproducibility-First Programming Languages</a> — the core philosophy
+and design principles of T.</li>
+</ul>
 <h3 id="getting-started">Getting Started</h3>
 <ul>
 <li><a href="getting-started.html">Getting Started Guide</a> — first
@@ -203,8 +209,6 @@ Emacs, and VS Code</li>
 <ul>
 <li><a href="api-reference.html">API Reference</a> — complete function
 reference by package</li>
-<li><a href="pipes.html">Pipe Operator</a> — monadic short-circuiting
-and philosophy</li>
 <li><a href="data_manipulation_examples.html">Data Manipulation
 Examples</a> — practical examples with core data verbs</li>
 <li><a href="factors.html">Factors &amp; Categorical Data</a> — factor

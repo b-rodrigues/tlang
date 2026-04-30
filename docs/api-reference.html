@@ -64,6 +64,8 @@ verbs and window functions</li>
 and time manipulation</li>
 <li><a href="#strcraft-package">Strcraft Package</a> — Modern string
 manipulation</li>
+<li><a href="#lens-package">Lens Package</a> — Composable access and
+update lenses</li>
 <li><a href="#pipeline-package">Pipeline Package</a> — Pipeline
 introspection</li>
 <li><a href="#explain-package">Explain Package</a> — Introspection and
@@ -1366,8 +1368,83 @@ placeholders</li>
 <pre class="t"><code>name = &quot;Alice&quot;
 str_glue(&quot;Hello {name}&quot;)  -- &quot;Hello Alice&quot;</code></pre>
 <hr />
+<h2 id="lens-package">Lens Package</h2>
+<p>Composable access and update lenses for dictionaries, lists, data
+frames, and pipeline inspection.</p>
+<p>For the full walkthrough and worked examples, see the <a
+href="lens.html">Lens guide</a>. For the generated per-function entries,
+see the <a href="reference/index.html">Function Reference</a>.</p>
+<p>Common lens entry points include:</p>
+<ul>
+<li><code>col_lens(name)</code> — focus a dictionary key or data-frame
+column</li>
+<li><code>idx_lens(i)</code> — focus a list/vector position</li>
+<li><code>compose(l1, l2, ...)</code> — build larger traversals from
+smaller ones</li>
+<li><code>get(data, lens)</code> — read through a lens</li>
+<li><code>set(data, lens, value)</code> /
+<code>over(data, lens, fn)</code> — update through a lens</li>
+<li><code>filter_lens(predicate)</code> — keep only matching elements
+inside a focused collection</li>
+</ul>
+<hr />
 <h2 id="pipeline-package">Pipeline Package</h2>
 <p>Pipeline introspection and management.</p>
+<h3
+id="which_nodesp-predicate"><code>which_nodes(p, predicate)</code></h3>
+<p>Filter the richer node records from
+<code>read_pipeline(p).nodes</code> without manually writing
+<code>read_pipeline</code>, <code>compose</code>, or an explicit
+lambda.</p>
+<p>Instead of writing:</p>
+<pre class="t"><code>pipe_info = read_pipeline(p)
+
+errored_nodes_l = compose(
+  col_lens(&quot;nodes&quot;),
+  filter_lens(\(node) !is_na(node.diagnostics.error))
+)
+
+get(pipe_info, errored_nodes_l)</code></pre>
+<p>you can simply do this:</p>
+<pre class="t"><code>which_nodes(p, !is_na(diagnostics.error))</code></pre>
+<p>This is the diagnostics-friendly companion to
+<code>filter_node</code>:</p>
+<ul>
+<li><code>filter_node</code> returns a new <code>Pipeline</code></li>
+<li><code>which_nodes</code> returns a <code>List</code> of node
+records</li>
+</ul>
+<p>Each node record exposes:</p>
+<ul>
+<li><code>name</code></li>
+<li><code>value</code></li>
+<li><code>diagnostics</code></li>
+</ul>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The pipeline to inspect</li>
+<li><code>predicate</code> — A predicate over node records</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>List</code> — Matching node records</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>which_nodes(p, !is_na(diagnostics.error))
+which_nodes(p, name == &quot;model&quot;)
+
+has_error = \(node) !is_na(node.diagnostics.error)
+which_nodes(p, has_error)</code></pre>
+<h3 id="errored_nodesp"><code>errored_nodes(p)</code></h3>
+<p>Convenience wrapper returning the subset of node records whose
+<code>diagnostics.error</code> is not <code>NA</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The pipeline to inspect</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>List</code> — Node records with captured errors</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>errored_nodes(p)
+errored_nodes(p) |&gt; map(\(node) node.name)</code></pre>
 <h3
 id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false"><code>node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false)</code></h3>
 <p>Configure execution settings such as the runtime and custom
@@ -1667,7 +1744,14 @@ inspect.</li>
 compact summary by default showing <code>kind</code>, <code>nrow</code>,
 <code>ncol</code>, and a <code>hint</code>. Detailed fields
 (<code>schema</code>, <code>na_stats</code>, <code>example_rows</code>)
-are accessible via dot notation.</p>
+are accessible via dot notation. For pipeline node results returned by
+<code>read_node(...)</code>, <code>explain()</code> now returns a
+top-level node wrapper with <code>kind</code>, <code>node_name</code>,
+<code>diagnostics</code>, and <code>contents</code>. The
+<code>contents</code> field is the explained payload stored in the node.
+In the REPL and CLI <code>t explain ...</code>, explain output is shown
+with a tree-style formatter for readability, but the runtime value
+remains a normal <code>Dict</code>.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>value</code> — Any value</li>
@@ -1684,7 +1768,12 @@ explain(df)
 -- Access detailed fields:
 explain(df).schema        -- list of column name/type pairs
 explain(df).na_stats      -- NA count per column
-explain(df).example_rows  -- first 5 rows as list of dicts</code></pre>
+explain(df).example_rows  -- first 5 rows as list of dicts
+
+node_info = explain(read_node(&quot;model&quot;))
+node_info.node_name       -- node/container metadata
+node_info.diagnostics     -- node diagnostics
+node_info.contents        -- explained node payload</code></pre>
 <hr />
 <h3 id="explain_jsonvalue"><code>explain_json(value)</code></h3>
 <p>Export value metadata as JSON (for LLM consumption).</p>

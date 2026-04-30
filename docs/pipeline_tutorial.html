@@ -855,6 +855,34 @@ p |&gt; filter_node($noop == false) |&gt; pipeline_nodes
 
 -- Keep only shallow nodes (root and depth-1 nodes)
 p |&gt; filter_node($depth &lt;= 1) |&gt; pipeline_nodes</code></pre>
+<h3 id="which_nodes"><code>which_nodes</code></h3>
+<p><code>filter_node</code> rewrites the pipeline itself.
+<code>which_nodes</code> is the read-only counterpart: it filters the
+richer node records you would otherwise have to access manually through
+<code>read_pipeline(p).nodes</code>.</p>
+<p>This is especially useful for diagnostics queries because each record
+includes <code>name</code>, <code>value</code>, and
+<code>diagnostics</code>.</p>
+<pre class="t"><code>p = pipeline {
+  bad = 1 / 0
+  ok = 42
+  downstream = bad + 1
+}
+
+-- Keep only nodes with captured errors
+which_nodes(p, !is_na(diagnostics.error))
+
+-- Same idea, but return only the node names
+which_nodes(p, !is_na(diagnostics.error))
+  |&gt; map(\(node) node.name)
+-- [&quot;bad&quot;, &quot;downstream&quot;]
+
+-- Explicit predicate functions still work too
+has_error = \(node) !is_na(node.diagnostics.error)
+which_nodes(p, has_error)
+
+-- Convenience shortcut for the most common case
+errored_nodes(p) |&gt; map(\(node) node.name)</code></pre>
 <h3 id="mutate_node"><code>mutate_node</code></h3>
 <p>Modifies metadata fields on all nodes, or scoped to a subset using
 the <code>where</code> argument:</p>
@@ -885,6 +913,55 @@ pipeline_deps(p2)    -- {`alpha`: [], `b`: [&quot;alpha&quot;]}</code></pre>
 <p>Returns a new pipeline with nodes sorted by a metadata field. This
 affects only display/serialization order — the DAG determines execution
 order.</p>
+<hr />
+<h2 id="pipeline-manipulation-for-data-scientists">23. Pipeline
+Manipulation for Data Scientists</h2>
+<p>Beyond basic execution, T allows you to treat a Pipeline as a
+queryable and mutable data structure. This is powerful for
+meta-programming, automated reporting, and “surgical” updates to large
+analysis graphs.</p>
+<h3 id="finding-errored-nodes-programmatically">Finding Errored Nodes
+Programmatically</h3>
+<p>In a production setting, you may want to extract the errors from a
+failed pipeline run to log them or send an alert.</p>
+<pre class="t"><code>p = build_pipeline(p)
+
+-- Get detailed records for all failed nodes
+failed_records = errored_nodes(p)
+
+-- Extract just the names and error messages
+errors = map(failed_records, \(n) [name: n.name, msg: n.diagnostics.error])</code></pre>
+<h3 id="filtering-subgraphs">Filtering Subgraphs</h3>
+<p>If you have a massive pipeline but only want to visualize or re-run a
+specific subset (e.g., all Python nodes), use
+<code>filter_node()</code>:</p>
+<pre class="t"><code>-- Create a subgraph of only Python-based computations
+py_pipeline = p |&gt; filter_node($runtime == &quot;Python&quot;)
+
+-- Create a subgraph of &#39;shallow&#39; nodes (roots and their immediate children)
+shallow_p = p |&gt; filter_node($depth &lt;= 1)</code></pre>
+<h3 id="surgical-reconfiguration">Surgical Reconfiguration</h3>
+<p>Lenses allow you to modify a pipeline specification without using the
+<code>pipeline { ... }</code> block again. This is useful for “what-if”
+analysis or dynamic configuration.</p>
+<pre class="t"><code>-- 1. Identify a node to skip
+noop_l = node_meta_lens(&quot;heavy_computation&quot;, &quot;noop&quot;)
+
+-- 2. Toggle the noop flag surgically
+p_fast = p |&gt; set(noop_l, true)
+
+-- 3. Swap a runtime for testing
+p_test = p |&gt; set(node_meta_lens(&quot;model_train&quot;, &quot;runtime&quot;), &quot;R&quot;)</code></pre>
+<h3 id="inspecting-node-results-with-lenses">Inspecting Node Results
+with Lenses</h3>
+<p>If you have a <code>VPipeline</code> object (from
+<code>read_pipeline()</code>), you can use lenses to safely extract
+values from specific nodes.</p>
+<pre class="t"><code>p_info = read_pipeline(p)
+
+-- Focus on the &#39;summary&#39; node&#39;s value
+summary_l = node_lens(&quot;summary&quot;)
+summary_df = get(p_info, summary_l)</code></pre>
 <pre class="t"><code>p = pipeline { z = 1; a = 2; m = 3 }
 
 p |&gt; arrange_node($name) |&gt; pipeline_nodes       -- [&quot;a&quot;, &quot;m&quot;, &quot;z&quot;]

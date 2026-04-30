@@ -47,6 +47,7 @@ type scaffold_options = {
   no_git : bool;
   force : bool;
   interactive : bool;
+  agent_context : string;
 }
 
 (** Default scaffold options *)
@@ -61,6 +62,7 @@ let default_options name =
     no_git = false;
     force = false;
     interactive = false;
+    agent_context = "medium";
   }
 
 (** Default package config *)
