@@ -2630,10 +2630,12 @@ and eval_call env_ref fn_val raw_args =
   in
 
   match fn_val with
-  | VBuiltin { b_arity; b_variadic; b_func; _ } ->
+  | VBuiltin { b_name; b_arity; b_variadic; b_func } ->
       let arg_count = List.length named_args in
       if not b_variadic && arg_count <> b_arity then
-        Error.arity_error b_arity arg_count
+        match b_name with
+        | Some name -> Error.arity_error_named name b_arity arg_count
+        | None -> Error.arity_error b_arity arg_count
       else
         b_func named_args env_ref
 

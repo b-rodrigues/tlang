@@ -116,5 +116,5 @@ Use '.+' for element-wise (broadcast) operations.")|};
   Printf.printf "Phase 4 — Error Message Quality (Arity Signatures):\n";
   test "lambda arity error shows params" "f = \\(a, b) a + b; f(1)" {|Error(ArityError: "Function expects 2 arguments but received 1.")|};
   test "lambda arity error shows single param" "f = \\(x) x; f(1, 2)" {|Error(ArityError: "Function expects 1 arguments but received 2.")|};
-  test "builtin arity error shows count" "length(1, 2)" {|Error(ArityError: "Function expects 1 arguments but received 2.")|};
+  test "builtin arity error shows count" "length(1, 2)" {|Error(ArityError: "Function `length` expects 1 arguments but received 2.")|};
   print_newline ()
