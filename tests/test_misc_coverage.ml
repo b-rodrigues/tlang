@@ -182,18 +182,14 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
         10
     in
     let parse_block_ok =
+      let param_names = List.map (fun (p : Tdoc_types.param_doc) -> p.name) block.params in
       block.description_brief = "Brief line"
       && block.description_full = "More details"
       && block.is_export = false
       && block.family = Some "graphics"
-      &&
-      match block.params with
-      | p1 :: p2 :: [] ->
-          p1.Tdoc_types.name = "data"
-          && p2.Tdoc_types.name = "keep"
-          && block.examples = [ "plot(chart: data, keep: true)" ]
-          && block.see_also = [ "alpha"; "beta" ]
-      | _ -> false
+      && param_names = [ "data"; "keep" ]
+      && block.examples = [ "plot(chart: data, keep: true)" ]
+      && block.see_also = [ "alpha"; "beta" ]
     in
     let parse_file_ok =
       with_temp_dir "tdoc" (fun dir ->
