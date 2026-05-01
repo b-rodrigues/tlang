@@ -55,10 +55,13 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
     close_out oc
   in
   let read_text path =
-    let ic = open_in path in
-    Fun.protect
-      ~finally:(fun () -> close_in ic)
-      (fun () -> really_input_string ic (in_channel_length ic))
+    try
+      let ic = open_in path in
+      Fun.protect
+        ~finally:(fun () -> close_in ic)
+        (fun () -> really_input_string ic (in_channel_length ic))
+    with exn ->
+      failwith (Printf.sprintf "failed to read %s: %s" path (Printexc.to_string exn))
   in
   let locless node = { node; loc = None } in
   let mk_scope () = Symbol_table.create_scope () in
@@ -226,6 +229,7 @@ export let helper = 1
     in
     Semantic_type.from_string "numeric" = Semantic_type.TFloat
     && Semantic_type.from_string "vector[int]" = Semantic_type.TAny
+    && Semantic_type.from_string "list[string]" = Semantic_type.TAny
     && Semantic_type.from_string "mystery" = Semantic_type.TUnknown
     && Semantic_type.to_string grouped = "grouped_dataframe[value | groups: group]"
     && String.starts_with ~prefix:"Function(" (Semantic_type.to_string fn_ty)
@@ -312,6 +316,7 @@ export let helper = 1
       let csv_ty = Analyzer.infer_type scope csv_expr in
       Sys.remove csv_path;
       let cached_ty = Analyzer.infer_type scope csv_expr in
+      (* Intentional: infer_type records observed columns as a side effect. *)
       ignore (Analyzer.infer_type scope (locless (ColumnRef "mpg")));
       let df_expr =
         locless (Call {
