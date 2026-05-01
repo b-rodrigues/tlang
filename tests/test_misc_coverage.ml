@@ -1,5 +1,9 @@
 open Ast
 
+(* Keep the random suffix large enough to avoid temp-dir collisions across
+   concurrent test processes. *)
+let max_temp_suffix = 1_000_000
+
 let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let record name ok =
     if ok then begin
@@ -16,7 +20,6 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
       incr fail_count;
       Printf.printf "  ✗ %s\n    %s\n" name (Printexc.to_string exn)
   in
-  let max_temp_suffix = 1_000_000 in
   let rec remove_path path =
     if Sys.file_exists path then
       if Sys.is_directory path then begin
