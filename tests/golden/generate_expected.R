@@ -479,3 +479,70 @@ r2pmml(rf_reg_model, file.path(data_dir, "mtcars_random_forest.pmml"))
 rf_reg_preds <- predict(rf_reg_model, mtcars_rf)
 rf_reg_out <- data.frame(pred = as.numeric(rf_reg_preds))
 save_output(rf_reg_out, "mtcars_random_forest_predictions", "randomForest PMML regression predictions")
+
+# ============================================================================
+# Test Suite 25: Model Comparisons and Fit Stats
+# ============================================================================
+message("\n=== Test Suite 25: Model Comparisons and Fit Stats ===")
+
+# Test 25.1: fit_stats for lm
+m1 <- lm(mpg ~ wt, data = mtcars)
+m2 <- lm(mpg ~ wt + hp, data = mtcars)
+
+# T's fit_stats returns a specific set of columns
+fit_stats_lm <- function(m) {
+  s <- summary(m)
+  data.frame(
+    r_squared = s$r.squared,
+    adj_r_squared = s$adj.r.squared,
+    sigma = s$sigma,
+    statistic = s$fstatistic[1],
+    p_value = pf(s$fstatistic[1], s$fstatistic[2], s$fstatistic[3], lower.tail = FALSE),
+    df = s$fstatistic[2],
+    logLik = as.numeric(logLik(m)),
+    AIC = AIC(m),
+    BIC = BIC(m),
+    deviance = deviance(m),
+    df_residual = df.residual(m),
+    nobs = length(resid(m)),
+    n_trees = NA,
+    n_features = NA,
+    model_type = "lm",
+    mining_function = "regression"
+  )
+}
+
+fit_stats_lm(m1) %>%
+  save_output("mtcars_fit_stats_m1", "fit_stats(m1)")
+
+# Test 25.2: fit_stats for list of models
+fs1 <- fit_stats_lm(m1) %>% mutate(model = "M1")
+fs2 <- fit_stats_lm(m2) %>% mutate(model = "M2")
+bind_rows(fs1, fs2) %>%
+  save_output("mtcars_fit_stats_multi", "fit_stats([M1, M2])")
+
+# Test 25.3: anova
+anova_res <- anova(m1, m2)
+anova_df <- data.frame(
+  model = c("m1", "m2"),
+  df_residual = anova_res$Res.Df,
+  deviance = anova_res$RSS,
+  delta_df = c(NA, -diff(anova_res$Res.Df)),
+  delta_deviance = c(NA, -diff(anova_res$RSS)),
+  statistic = c(NA, anova_res$F[2]),
+  p_value = c(NA, anova_res$`Pr(>F)`[2])
+)
+save_output(anova_df, "mtcars_anova_m1_m2", "anova(m1, m2)")
+
+# Test 25.4: wald_test
+# Joint test for wt and hp in m2
+library(car)
+wt_res <- linearHypothesis(m2, c("wt=0", "hp=0"))
+wald_df <- data.frame(
+  terms = "wt, hp",
+  statistic = wt_res$F[2],
+  df = wt_res$Df[2],
+  p_value = wt_res$`Pr(>F)`[2],
+  test_type = "F"
+)
+save_output(wald_df, "mtcars_wald_wt_hp", "wald_test(m2, terms=['wt', 'hp'])")

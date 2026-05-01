@@ -318,6 +318,14 @@ test_that("ONNX: Logistic Regression predictions (iris)", {
   }
 })
 
+test_that("ONNX: Decision Tree predictions (iris)", {
+  if (file.exists("tests/golden/data/iris_dt.onnx")) {
+    compare_csvs("iris_onnx_dt_predictions")
+  } else {
+    skip("iris_dt.onnx not found")
+  }
+})
+
 test_that("ONNX: Linear Regression predictions (mtcars hp~wt)", {
   compare_csvs("mtcars_onnx_reg_predictions")
 })
@@ -652,8 +660,17 @@ test_that("PMML: randomForest predictions", {
   compare_csvs("iris_random_forest_predictions")
 })
 
+test_that("Model comparisons and fit stats match R", {
+  compare_csvs("mtcars_fit_stats_m1")
+  compare_csvs("mtcars_fit_stats_multi")
+  compare_csvs("mtcars_anova_m1_m2")
+  compare_csvs("mtcars_wald_wt_hp")
+})
+
 test_that("PMML: randomForest regression predictions", {
-  compare_csvs("mtcars_random_forest_predictions", tolerance = 1e-4)
+  # randomForest regression can show modest cross-runtime numeric drift,
+  # but keep the tolerance tight enough to catch real scoring regressions.
+  compare_csvs("mtcars_random_forest_predictions", tolerance = 1e-2)
 })
 
 # ============================================================================

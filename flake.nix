@@ -61,6 +61,7 @@
             faraway
             MASS
             forcats
+            car
           ];
         };
 

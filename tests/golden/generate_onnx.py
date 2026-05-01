@@ -17,9 +17,11 @@ def main():
     iris_path = os.path.join(data_dir, "iris.csv")
     iris = pd.read_csv(iris_path)
     X = iris.drop(columns=["Species"]).values.astype(np.float32)
-    y = iris["Species"].values
+    from sklearn.preprocessing import LabelEncoder
+    le = LabelEncoder()
+    y = le.fit_transform(iris["Species"].values)
     
-    clf = LogisticRegression(max_iter=1000, random_state=123, solver='lbfgs', multi_class='multinomial')
+    clf = LogisticRegression(max_iter=1000, random_state=123, solver='lbfgs')
     clf.fit(X, y)
     
     # Export to ONNX
@@ -32,12 +34,28 @@ def main():
     
     # Generate expected predictions
     preds = clf.predict(X)
-    pd.DataFrame({"pred": preds}).to_csv(
+    pd.DataFrame({"pred": preds.astype(float)}).to_csv(
         os.path.join(expected_dir, "iris_onnx_logreg_predictions.csv"),
         index=False
     )
-    
     print(f"Generated {onnx_path}")
+
+    # 2. Decision Tree Classifier on Iris
+    from sklearn.tree import DecisionTreeClassifier
+    dt_clf = DecisionTreeClassifier(random_state=123)
+    dt_clf.fit(X, y)
+    
+    dt_onx = convert_sklearn(dt_clf, initial_types=initial_type)
+    dt_onnx_path = os.path.join(data_dir, "iris_dt.onnx")
+    with open(dt_onnx_path, "wb") as f:
+        f.write(dt_onx.SerializeToString())
+        
+    dt_preds = dt_clf.predict(X)
+    pd.DataFrame({"pred": dt_preds.astype(float)}).to_csv(
+        os.path.join(expected_dir, "iris_onnx_dt_predictions.csv"),
+        index=False
+    )
+    print(f"Generated {dt_onnx_path}")
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,7 @@
 <PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
 	<Header>
 		<Application name="R2PMML package" version="0.31.0"/>
-		<Timestamp>2026-05-01T14:42:39Z</Timestamp>
+		<Timestamp>2026-05-01T17:59:38Z</Timestamp>
 	</Header>
 	<DataDictionary>
 		<DataField name="mpg" optype="continuous" dataType="double"/>

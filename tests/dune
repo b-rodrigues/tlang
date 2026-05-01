@@ -11,6 +11,7 @@
    test_na test_na_edge_cases test_errors test_converters
    test_dataframe test_pipeline test_colcraft test_colcraft_coverage test_window
    test_math test_stats test_broom_golden test_explain_tests
+   test_stats_coverage
    test_helpers
    test_pmml_random_forest
    test_pmml_io
@@ -70,4 +71,3 @@
  (deps docs.json)
  (action (run ./test_runner.exe))
 )
-

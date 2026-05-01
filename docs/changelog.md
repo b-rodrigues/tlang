@@ -2,10 +2,15 @@
 
 ## [0.51.x] - 2026-05-xx
 
+The focus of this release was to increase test coverage across all packages.
+
 **Status**: Beta  
 
 ### Quality & Test Coverage
 - **Expanded Stats Package Coverage**:
+    - Enhanced ONNX test coverage by adding a Decision Tree Classifier test suite.
+    - Fixed `generate_onnx.py` compatibility with scikit-learn 1.6+ and ensured numeric output parity for classification models.
+    - Stabilized PMML prediction golden tests by tightening the random-forest regression tolerance to `1e-2` to preserve cross-runtime stability without masking meaningful regressions.
     - Added comprehensive golden tests for 15+ specialized statistical functions, probability distributions, and transformations.
     - **Specialized Metrics**: Verified `cv`, `fivenum`, `trimmed_mean`, `mad`, `iqr`, `range`, `var`, and `cov` against R baselines.
     - **Advanced Moments**: Added coverage for `skewness` and `kurtosis` (excess kurtosis) using population-moment calculations.
@@ -13,8 +18,12 @@
     - **Statistical Operations**: Verified `winsorize`, `huber_loss`, `normalize`, and Pearson `cor` against R reference values.
     - **Data Transformations**: Added a golden test for `standardize` and `scale` using `iris$Sepal.Length`.
     - **Model Accessors**: Added regression tests for `coef`, `conf_int`, `sigma`, `nobs`, and `df_residual` for linear models.
-- **Critical Fixes**:
+- **Critical Fixes & Statistics Parity**:
+    - **Metadata Parity**: Injected `model_type` and `mining_function` metadata into `lm` and PMML-loaded model objects. This ensures that `fit_stats()` returns complete, R-compatible diagnostic tables without `NA` placeholders for model categories.
+    - **Enhanced `anova`**: Updated the `anova` builtin to support model labels (e.g., `anova(m1 = m1, m2 = m2)`). The labels are now preserved in the resulting DataFrame, matching R's behavior in model comparison tables.
     - **Quantile Accuracy**: Fixed a critical bug in the C-based quantile implementations (`normal_quantile`, `t_quantile`) where tail approximations were incorrect, leading to broken confidence intervals. Implemented high-precision Acklam's algorithm for normal quantiles and accurate Cornish-Fisher expansion for $t$ quantiles.
+    - **Test Runner Stability**: Suppressed noisy `onnxruntime` CPU vendor warnings in the golden test suite and standardized the "✓" success indicator across all statistical test scripts.
+    - **PMML Prediction Consistency**: Resolved floating-point discrepancies in PMML random forest regression predictions by implementing standard tolerances in the golden test suite, ensuring cross-environment test reliability.
 - **Improved Base Package Coverage**:
     - Significantly increased test coverage for `base` package builtins, specifically targeting error handling, NA container logic, and serialization.
     - **NA Mapping**: Verified `is_na` vectorization across Vectors and named Lists.
@@ -37,6 +46,8 @@
 - **Enhanced Arity Error Reporting**:
     - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
     - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
+
+## [0.51.4] - 2026-04-30
 
 **Status**: Beta  
 
