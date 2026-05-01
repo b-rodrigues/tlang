@@ -198,7 +198,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
     "NA";
   test_message "pretty_print NA renders as empty output"
     (Pretty_print.pretty_print_value (Ast.VNA Ast.NAGeneric) = "");
-  let compact_dict_pretty =
+  let compact_dict_output =
     Pretty_print.pretty_print_value
       (Ast.VDict [
         ("alpha", Ast.VInt 1);
@@ -206,8 +206,8 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print small dict keeps compact formatting"
-    (contains compact_dict_pretty "{`alpha`: 1, `beta`: \"two\"}\n");
-  let nested_dict_pretty =
+    (contains compact_dict_output "{`alpha`: 1, `beta`: \"two\"}\n");
+  let nested_dict_output =
     Pretty_print.pretty_print_value
       (Ast.VDict [
         ("details", Ast.VDict [("depth", Ast.VInt 2)]);
@@ -215,8 +215,8 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
       ])
   in
   test_message "pretty_print nested dict expands multi-line formatting"
-    (contains nested_dict_pretty "\n  `details`: {\n" &&
-     contains nested_dict_pretty "`items`: [1, 2]");
+    (contains nested_dict_output "\n  `details`: {\n" &&
+     contains nested_dict_output "`items`: [1, 2]");
   let ggplot_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -274,14 +274,14 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   in
   test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
     (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
-  let altair_empty_pretty =
+  let altair_empty_output =
     Pretty_print.pretty_print_value
       (Ast.VDict [
         ("class", Ast.VString "altair");
       ])
   in
   test_message "pretty_print empty visual metadata renders empty object"
-    (altair_empty_pretty = "altair {}\n");
+    (altair_empty_output = "altair {}\n");
   let explain_tree_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
