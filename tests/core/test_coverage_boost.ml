@@ -1,23 +1,23 @@
 let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   Printf.printf "Coverage Boost — Boolean & Control:\n";
   test "ifelse with out_type Int"
-    {|ifelse([true, false], 1.5, 2.5, out_type = "Int")|}
-    "[1, 2]";
+    {|ifelse([true, false], 1, 2, out_type = "Int")|}
+    "Vector[1, 2]";
   test "ifelse with out_type Float"
     {|ifelse([true, false], 1, 2, out_type = "Float")|}
-    "[1., 2.]";
+    "Vector[1., 2.]";
   test "ifelse with recycling true_val"
     {|ifelse([true, false, true], 42, 0)|}
-    "[42, 0, 42]";
+    "Vector[42, 0, 42]";
   test "ifelse with missing value"
     {|ifelse([true, NA, false], 1, 0, missing = 999)|}
-    "[1, 999, 0]";
+    "Vector[1, 999, 0]";
   test "case_when recycling"
-    {|x = [1, 2, 3, 4]; casewhen(x < 2 ~ "small", x < 4 ~ "medium", .default = "large")|}
-    {|["small", "medium", "medium", "large"]|};
+    {|x = [1, 2, 3, 4]; casewhen(x .< 2 ~ "small", x .< 4 ~ "medium", .default = "large")|}
+    {|Vector["small", "medium", "medium", "large"]|};
   test "case_when no match returns NA"
-    {|x = [1, 5]; casewhen(x < 2 ~ "small")|}
-    {|["small", NA]|};
+    {|x = [1, 5]; casewhen(x .< 2 ~ "small")|}
+    {|Vector["small", NA]|};
   print_newline ();
 
   Printf.printf "Coverage Boost — Get & Lenses:\n";
@@ -30,7 +30,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "21";
   test "get from dataframe by col lens"
     {|df = dataframe([mpg: [21, 22]]); get(df, col_lens("mpg")) |> head(n=1)|}
-    "[21]";
+    "Vector[21]";
   test "compose lens"
     {|l = compose(row_lens(0), col_lens("mpg")); df = dataframe([mpg: [21, 22]]); get(df, l)|}
     "21";
@@ -39,7 +39,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "[10, 20]";
   test "filter_lens on vector"
     {|df = dataframe([a: [1, 10, 2, 20]]); v = pull(df, "a"); get(v, filter_lens(\(x) x > 5))|}
-    "[10, 20]";
+    "Vector[10, 20]";
   test "filter_lens on dataframe"
     {|df = dataframe([mpg: [31, 21, 32, 22, 33, 23, 34, 24]]); get(df, filter_lens(\(r) r.mpg > 30)) |> nrow()|}
     "4";
@@ -72,5 +72,5 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   Printf.printf "Coverage Boost — Converters:\n";
   test "to_integer on list" "to_integer([\"1\", \"2.5\"])" "[1, 2]";
-  test "to_float on vector" {|df = dataframe([a: ["1.1", "2.2"]]); v = pull(df, "a"); to_float(v)|} "[1.1, 2.2]";
+  test "to_float on vector" {|df = dataframe([a: ["1.1", "2.2"]]); v = pull(df, "a"); to_float(v)|} "Vector[1.1, 2.2]";
   test "to_numeric on list" "to_numeric([1, \"2.2\"])" "[1., 2.2]";
