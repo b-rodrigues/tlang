@@ -1,1 +1,0 @@
-{"class":"ggplot","backend":"R","title":"Fuel economy","mapping":{"x":"wt","y":"mpg"},"labels":{"x":"Weight","y":"Miles per gallon"},"layers":["Point"],"_display_keys":["class","backend","title","mapping","labels","layers"]}

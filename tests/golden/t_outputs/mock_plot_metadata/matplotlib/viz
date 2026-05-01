@@ -1,1 +1,0 @@
-{"class":"plotnine","backend":"Python","title":"Scatter plot","mapping":{"x":"wt","y":"mpg"},"labels":{"x":"wt","y":"mpg"},"layers":["point"],"_display_keys":["class","backend","title","mapping","labels","layers"]}
