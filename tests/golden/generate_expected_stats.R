@@ -320,4 +320,79 @@ specialized_stats <- tibble(
 write_csv(specialized_stats, file.path(output_dir, "stats_specialized_baselines.csv"))
 message("✓ specialized stats (cv, fivenum, trimmed_mean, mad, iqr, range, var, cov)")
 
+# Advanced measures (skewness, kurtosis, winsorize, huber_loss, normalize, sd, quantile)
+skewness_pop <- function(x) {
+  n <- length(x)
+  m <- mean(x)
+  m2 <- sum((x - m)^2) / n
+  m3 <- sum((x - m)^3) / n
+  if (m2 == 0) return(0)
+  m3 / (m2^1.5)
+}
+
+kurtosis_pop <- function(x) {
+  n <- length(x)
+  m <- mean(x)
+  m2 <- sum((x - m)^2) / n
+  m4 <- sum((x - m)^4) / n
+  if (m2 == 0) return(-3)
+  (m4 / (m2^2)) - 3
+}
+
+winsorize_r <- function(x, limits) {
+  if (length(limits) == 1) limits <- c(limits, limits)
+  lo <- limits[1]
+  hi <- limits[2]
+  qs <- quantile(x, probs = c(lo, 1 - hi), type = 7, names = FALSE)
+  x[x < qs[1]] <- qs[1]
+  x[x > qs[2]] <- qs[2]
+  x
+}
+
+huber_loss_r <- function(x, delta) {
+  ax <- abs(x)
+  ifelse(ax <= delta, 0.5 * x^2, delta * (ax - 0.5 * delta))
+}
+
+normalize_r <- function(x) {
+  mn <- min(x)
+  mx <- max(x)
+  (x - mn) / (mx - mn)
+}
+
+advanced_stats <- tibble(
+  skew_mpg = skewness_pop(mtcars$mpg),
+  kurt_mpg = kurtosis_pop(mtcars$mpg),
+  sd_mpg = sd(mtcars$mpg),
+  quantile_mpg_25 = quantile(mtcars$mpg, 0.25, type = 7, names = FALSE),
+  quantile_mpg_75 = quantile(mtcars$mpg, 0.75, type = 7, names = FALSE)
+)
+
+write_csv(advanced_stats, file.path(output_dir, "stats_advanced_measures.csv"))
+message("✓ advanced measures (skewness, kurtosis, sd, quantile)")
+
+# Vectorized advanced measures
+vector_advanced <- tibble(
+  winsor_mpg_05 = winsorize_r(mtcars$mpg, 0.05),
+  huber_mpg_2 = huber_loss_r(mtcars$mpg, 2),
+  norm_mpg = normalize_r(mtcars$mpg)
+)
+
+write_csv(vector_advanced, file.path(output_dir, "stats_advanced_vectorized.csv"))
+message("✓ vectorized advanced measures (winsorize, huber_loss, normalize)")
+
+# Distributions and Correlation
+dist_stats <- tibble(
+  pnorm_0 = pnorm(0.0),
+  pnorm_1 = pnorm(1.0),
+  pnorm_neg1 = pnorm(-1.0),
+  pt_2_10 = pt(2.0, 10),
+  pf_3_5_20 = pf(3.0, 5, 20),
+  pchisq_4_2 = pchisq(4.0, 2),
+  cor_mpg_hp = cor(mtcars$mpg, mtcars$hp)
+)
+
+write_csv(dist_stats, file.path(output_dir, "stats_distributions_baselines.csv"))
+message("✓ distributions and correlation (pnorm, pt, pf, pchisq, cor)")
+
 message("\n✅ All statistical outputs generated!")
