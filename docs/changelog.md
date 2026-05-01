@@ -28,6 +28,12 @@
     - **Colcraft Coverage**: Expanded testing for `fill`, `replace_na`, `complete`, `relocate`, `count`, `slice`, `unnest`, `separate`, and `uncount`. Verified `downup` direction logic and regex error handling.
     - **Pretty Printing**: Verified nested collection and visual metadata (Altair) rendering in `pretty_print`.
     - **Help System**: Added regression coverage for invalid input types and missing-documentation cases in `help()` and `apropos()`.
+- **Improved Lens Package Coverage**:
+    - Significantly increased test coverage for the `lens` package, focusing on custom lenses, pipeline orchestration, and recursive mapping.
+    - **Custom Lenses**: Added coverage for Dictionary-based lenses with user-defined `get` and `set` functions.
+    - **Pipeline Orchestration**: Verified `node_meta_lens` for `serializer` and `deserializer` fields, and `filter_lens` for batch updates to pipeline node values.
+    - **Recursive Mapping**: Added tests for `col_lens` and `idx_lens` across nested Lists of Vectors and DataFrames.
+    - **Resilience**: Verified error propagation and halt-on-failure behavior in the variadic `modify()` builtin.
 - **Enhanced Arity Error Reporting**:
     - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
     - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
