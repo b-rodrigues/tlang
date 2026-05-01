@@ -5,6 +5,13 @@
 **Status**: Beta  
 
 ### Quality & Test Coverage
+- **Improved Stats Package Coverage**:
+    - Added comprehensive golden tests for advanced statistical functions, transformations, and model accessors.
+    - **Advanced Stats**: Verified `skewness`, `kurtosis`, and `mode` against R baselines.
+    - **Data Transformations**: Added a golden test for `standardize` and `scale` using `iris$Sepal.Length`.
+    - **Model Accessors**: Added regression tests for `coef`, `conf_int`, `sigma`, `nobs`, and `df_residual` for linear models.
+- **Critical Fixes**:
+    - **Quantile Accuracy**: Fixed a critical bug in the C-based quantile implementations (`normal_quantile`, `t_quantile`) where tail approximations were incorrect, leading to broken confidence intervals. Implemented high-precision Acklam's algorithm for normal quantiles and accurate Cornish-Fisher expansion for $t$ quantiles.
 - **Improved Base Package Coverage**:
     - Significantly increased test coverage for `base` package builtins, specifically targeting error handling, NA container logic, and serialization.
     - **NA Mapping**: Verified `is_na` vectorization across Vectors and named Lists.

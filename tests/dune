@@ -70,3 +70,4 @@
  (deps docs.json)
  (action (run ./test_runner.exe))
 )
+
