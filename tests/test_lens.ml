@@ -33,7 +33,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "Vector[10, 20]";
 
   test "col_lens set adds and recycles DataFrame column"
-    {|df = dataframe([[x: 1], [x: 2], [x: 3]]); seed_values = select(dataframe([[seed: 10], [seed: 20]]), $seed); l = col_lens("y"); df2 = set(df, l, seed_values); df2.y|}
+    {|df = dataframe([[x: 1], [x: 2], [x: 3]]); seed_values = pull(dataframe([[seed: 10], [seed: 20]]), $seed); l = col_lens("y"); df2 = set(df, l, seed_values); df2.y|}
     "Vector[10, 20, 10]";
 
   test "col_lens set applies element-wise over lists"
@@ -151,7 +151,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   test "filter_lens preserves predicate errors"
     {|v = [1, 2, 3]; l = filter_lens(\(x) error("ValueError", "boom")); get(v, l)|}
-    {|Error(ValueError: "boom")|};
+    {|Error(ValueError: "[L1:C22] boom")|};
 
   test "filter_lens list replacement length mismatch"
     {|v = [1, 2, 3, 4]; l = filter_lens(\(x) x > 2); set(v, l, [10])|}
@@ -205,5 +205,50 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "regression: get(pipeline, node) lookup"
     {|p = pipeline { a = 123 }; get(p, "a")|}
     "123";
+
+  (* 9. Custom Lenses (Dict with get/set) *)
+  test "custom Dict lens get"
+    {|my_lens = [get: \(d) d.a + d.b]; d = [a: 1, b: 2]; get(d, my_lens)|}
+    "3";
+
+  test "custom Dict lens set"
+    {|my_lens = [set: \(d, v) [a: v / 2, b: v / 2]]; d = [a: 1, b: 2]; set(d, my_lens, 10)|}
+    {|{`a`: 5., `b`: 5.}|};
+
+  test "custom Dict lens over"
+    {|my_lens = [get: \(d) d.x, set: \(d, v) [x: v]]; d = [x: 10]; over(d, my_lens, \(v) v * 2)|}
+    {|{`x`: 20}|};
+
+  test "custom Dict lens missing get/set"
+    {|d = [a: 1]; my_lens = [foo: 1]; get(d, my_lens)|}
+    {|Error(TypeError: "[L1:C33] Function `get`: Data and Dict provided, but Dict is not a valid lens.")|};
+
+  (* 10. Node Metadata: Serializers *)
+  test "node_meta_lens get/set serializer"
+    {|p = pipeline { a = 1 }; p2 = set(p, node_meta_lens("a", "serializer"), ^json); type(get(p2, node_meta_lens("a", "serializer")))|}
+    {|"Expression"|};
+
+  test "node_meta_lens get/set deserializer"
+    {|p = pipeline { a = 1 }; p2 = set(p, node_meta_lens("a", "deserializer"), ^arrow); type(get(p2, node_meta_lens("a", "deserializer")))|}
+    {|"Expression"|};
+
+  (* 11. filter_lens on Pipeline with over *)
+  test "filter_lens over on Pipeline"
+    {|p = pipeline { a = 1; b = 2; c = 3 }; l = filter_lens(\(meta) meta.name == "b"); p2 = over(p, l, \(v) v .+ 10); p2.b|}
+    "[12]";
+
+  (* 12. modify with errors *)
+  test "modify stops at first error"
+    {|d = [a: 1, b: 2]; l1 = col_lens("a"); l2 = col_lens("b"); modify(d, l1, \(x) error("StopError", "halt"), l2, \(x) 999)|}
+    {|Error(GenericError: "[L1:C78] halt")|};
+
+  (* 13. Deeply nested col_lens recursive mapping *)
+  test "col_lens recursive mapping on nested list of vectors"
+    {|df = dataframe([x: [1, 2], y: [10, 20]]); df_list = [df, df]; l = compose(idx_lens(1), col_lens("x")); get(df_list, l)|}
+    "Vector[1, 2]";
+
+  test "col_lens over recursive mapping on list of dicts"
+    {|data = [[v: 1], [v: 2]]; l = col_lens("v"); over(data, l, \(x) x + 10)|}
+    {|[{`v`: 11}, {`v`: 12}]|};
 
   print_newline ()
