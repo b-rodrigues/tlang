@@ -18,6 +18,7 @@
     - **Enhanced `anova`**: Updated the `anova` builtin to support model labels (e.g., `anova(m1 = m1, m2 = m2)`). The labels are now preserved in the resulting DataFrame, matching R's behavior in model comparison tables.
     - **Quantile Accuracy**: Fixed a critical bug in the C-based quantile implementations (`normal_quantile`, `t_quantile`) where tail approximations were incorrect, leading to broken confidence intervals. Implemented high-precision Acklam's algorithm for normal quantiles and accurate Cornish-Fisher expansion for $t$ quantiles.
     - **Test Runner Stability**: Suppressed noisy `onnxruntime` CPU vendor warnings in the golden test suite and standardized the "✓" success indicator across all statistical test scripts.
+    - **PMML Prediction Consistency**: Resolved floating-point discrepancies in PMML random forest regression predictions by implementing standard tolerances in the golden test suite, ensuring cross-environment test reliability.
 - **Improved Base Package Coverage**:
     - Significantly increased test coverage for `base` package builtins, specifically targeting error handling, NA container logic, and serialization.
     - **NA Mapping**: Verified `is_na` vectorization across Vectors and named Lists.
