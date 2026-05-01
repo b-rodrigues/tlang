@@ -1,5 +1,6 @@
 let run_tests _pass_count _fail_count _eval_string eval_string_env test =
   let temp_dir = Filename.get_temp_dir_name () in
+  (* Keep this directory absent so these paths reliably exercise FileError branches. *)
   let nonexistent_dir =
     Filename.concat temp_dir
       (Printf.sprintf "tlang-base-missing-%d" (Unix.getpid ()))
@@ -85,6 +86,7 @@ let run_tests _pass_count _fail_count _eval_string eval_string_env test =
   test "t_read_json missing file surfaces FileError"
     (Printf.sprintf {|t_read_json("%s")|} missing_json_path)
     {|Error(FileError: "t_read_json failed:|};
+  (try Sys.remove json_path with _ -> ());
 
   print_newline ();
 

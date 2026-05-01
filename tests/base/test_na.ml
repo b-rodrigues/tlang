@@ -34,13 +34,13 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   print_newline ();
 
   Printf.printf "Phase 1 — is_na container handling:\n";
-  let env = Packages.init_env () in
-  (match Env.find_opt "is_na" env with
+  let test_env = Packages.init_env () in
+  (match Env.find_opt "is_na" test_env with
    | Some (VBuiltin builtin) ->
        let vector_result =
          builtin.b_func
-           [ (None, VVector [| VNA NAGeneric; VInt 1 |]) ]
-           (ref env)
+            [ (None, VVector [| VNA NAGeneric; VInt 1 |]) ]
+            (ref test_env)
        in
        let vector_ok =
          match vector_result with
@@ -50,8 +50,8 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
        check "is_na maps over vectors" vector_ok (Utils.value_to_string vector_result);
        let list_result =
          builtin.b_func
-           [ (None, VList [ (Some "missing", VNA NAString); (None, VInt 1) ]) ]
-           (ref env)
+            [ (None, VList [ (Some "missing", VNA NAString); (None, VInt 1) ]) ]
+            (ref test_env)
        in
        let list_ok =
          match list_result with
