@@ -9,7 +9,7 @@
    test_arithmetic test_comparisons test_logical test_variables
    test_functions test_strings test_pipe test_ifelse test_match test_lists test_dicts test_builtins test_chrono
    test_na test_na_edge_cases test_errors test_converters
-   test_dataframe test_pipeline test_colcraft test_window
+   test_dataframe test_pipeline test_colcraft test_colcraft_coverage test_window
    test_math test_stats test_broom_golden test_explain_tests
    test_helpers
    test_pmml_random_forest
