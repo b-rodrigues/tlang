@@ -511,6 +511,10 @@ test_that("ADVANCED STATS: standardize and scale parity", {
   compare_csvs("stats_standardize_scale_iris", tolerance = 1e-6)
 })
 
+test_that("ADVANCED STATS: specialized stats (cv, fivenum, trimmed_mean, mad, iqr, range, var, cov)", {
+  compare_csvs("stats_specialized_baselines", tolerance = 1e-6)
+})
+
 test_that("ADVANCED STATS: coef extraction", {
   compare_csvs("lm_coef_mpg_hp_wt", tolerance = 1e-5)
 })

@@ -279,4 +279,45 @@ dist_tests <- tibble(
 write_csv(dist_tests, file.path(output_dir, "dist_baselines.csv"))
 message("✓ Distribution functions")
 
+# Test Suite 13: SPECIALIZED STATS
+message("\n=== SPECIALIZED STATS Tests ===")
+
+cv_manual <- function(x) {
+  sd(x) / mean(x)
+}
+
+# T's trimmed_mean floor(trim * n)
+t_trimmed_mean <- function(x, trim) {
+  x <- sort(x)
+  n <- length(x)
+  k <- floor(trim * n)
+  if (k > 0) {
+    x <- x[(k+1):(n-k)]
+  }
+  mean(x)
+}
+
+# T's fivenum uses type 7 quantiles
+t_fivenum <- function(x) {
+  c(min(x), quantile(x, 0.25, type = 7), median(x), quantile(x, 0.75, type = 7), max(x))
+}
+
+specialized_stats <- tibble(
+  cv_mpg = cv_manual(mtcars$mpg),
+  fivenum_min = t_fivenum(mtcars$mpg)[1],
+  fivenum_q1 = t_fivenum(mtcars$mpg)[2],
+  fivenum_med = t_fivenum(mtcars$mpg)[3],
+  fivenum_q3 = t_fivenum(mtcars$mpg)[4],
+  fivenum_max = t_fivenum(mtcars$mpg)[5],
+  trimmed_mean_mpg_10 = t_trimmed_mean(mtcars$mpg, 0.1),
+  mad_mpg = mad(mtcars$mpg), 
+  iqr_mpg = quantile(mtcars$mpg, 0.75, type = 7) - quantile(mtcars$mpg, 0.25, type = 7),
+  range_min = min(mtcars$mpg),
+  range_max = max(mtcars$mpg),
+  var_mpg = var(mtcars$mpg),
+  cov_mpg_hp = cov(mtcars$mpg, mtcars$hp)
+)
+write_csv(specialized_stats, file.path(output_dir, "stats_specialized_baselines.csv"))
+message("✓ specialized stats (cv, fivenum, trimmed_mean, mad, iqr, range, var, cov)")
+
 message("\n✅ All statistical outputs generated!")
