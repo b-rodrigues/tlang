@@ -43,6 +43,7 @@
     test_explicit_deps
     test_structural_integrity
     test_agent_scaffold
+    test_coverage_boost
  )
  (libraries t_lang menhirLib otoml unix str)
 )

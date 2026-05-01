@@ -13,6 +13,7 @@
     - Expanded test coverage for `core` package builtins, including `args`, `help`, `apropos`, and `write_text`.
     - **Introspection**: Added tests for the `args()` builtin on both builtins and lambdas, ensuring correct parameter name and type extraction.
     - **Core Unit Tests**: Expanded coverage for `identical` (deep equality), `sum` (edge cases), `seq` (auto-descending ranges), and `head`/`tail` (slicing boundaries).
+    - **Coverage Boost**: Significantly increased coverage for `ifelse`, `casewhen`, and `identical` (t_boolean.ml), `get` with all lens types (t_get.ml), and all specialized rendering paths in `pretty_print.ml`.
     - **Pretty Printing**: Verified nested collection and visual metadata (Altair) rendering in `pretty_print`.
     - **Help System**: Added regression coverage for invalid input types and missing-documentation cases in `help()` and `apropos()`.
 - **Enhanced Arity Error Reporting**:
