@@ -274,14 +274,14 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   in
   test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
     (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
-  let altair_empty_output =
+  let altair_class_only_output =
     Pretty_print.pretty_print_value
       (Ast.VDict [
         ("class", Ast.VString "altair");
       ])
   in
   test_message "pretty_print empty visual metadata renders empty object"
-    (altair_empty_output = "altair {}\n");
+    (altair_class_only_output = "altair {}\n");
   let explain_tree_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -392,11 +392,11 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "explain: explain available" "type(explain)" {|"BuiltinFunction"|};
   test "packages: packages available" "type(packages)" {|"BuiltinFunction"|};
   test "packages: package_info available" "type(package_info)" {|"BuiltinFunction"|};
-  test "help: help with string returns NA" "help('mean')" "NA";
-  test "help: help with builtin value returns NA" "help(mean)" "NA";
-  test "help: help with symbol returns NA" {|help(sym("mean"))|} "NA";
+  test "help: string argument returns NA" "help('mean')" "NA";
+  test "help: builtin value returns NA" "help(mean)" "NA";
+  test "help: symbol returns NA" {|help(sym("mean"))|} "NA";
   test "help: anonymous lambda returns NA" "help(\\(x) x)" "NA";
-  test "help: help with invalid type returns error"
+  test "help: invalid type returns error"
     "help(42)"
     {|Error(TypeError: "help expects a function name or value, got Int")|};
   test "help: apropos returns NA" "apropos('mean')" "NA";
