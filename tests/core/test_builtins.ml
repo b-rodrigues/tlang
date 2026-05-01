@@ -14,7 +14,36 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "seq negative by" "seq(5, 1, -2)" "[5, 3, 1]";
   test "seq end optional if by is provided" "seq(start = 3, by = 2)" "[3]";
   test "sum" "sum([1, 2, 3, 4, 5])" "15";
+  test "sum empty list" "sum([])" "0";
+  test "sum with NA (na_rm=false)" "sum([1, NA, 3])" {|Error(AggregationError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+  test "sum with NA (na_rm=true)" "sum([1, NA, 3], na_rm=true)" "4";
   test "map" "map([1, 2, 3], \\(x) x * x)" "[1, 4, 9]";
+  print_newline ();
+
+  Printf.printf "Sequence Edge Cases:\n";
+  test "seq auto-descending range" "seq(5, 1)" "[5, 4, 3, 2, 1]";
+  test "seq same start/end" "seq(5, 5)" "[5]";
+  test "seq fractional by" "seq(1, 2, by=0.5)" "[1., 1.5, 2.]";
+  test "seq invalid by=0" "seq(1, 5, by=0)" {|Error(ValueError: "Function `seq` cannot have `by` = 0.")|};
+  print_newline ();
+
+  Printf.printf "Introspection Builtins:\n";
+  test "args builtin returns dict" "type(args(sum))" {|"Dict"|};
+  test "args builtin falls back to generic names before docs load"
+    "type(args(sum).arg1)"
+    {|"String"|};
+  test "args builtin exposes positional parameter after docs load"
+    {|help("sum"); type(args(sum).x)|}
+    {|"String"|};
+  test "args builtin exposes named parameter after docs load"
+    {|help("sum"); type(args(sum).na_rm)|}
+    {|"String"|};
+  test "args lambda defaults untyped params to Any"
+    "f = \\(x, y) x + y; args(f).x"
+    {|"Any"|};
+  test "args wrong type"
+    "args(42)"
+    {|Error(TypeError: "args() expects a Function, got Int")|};
   print_newline ();
 
   Printf.printf "Metaprogramming Builtins:\n";
@@ -42,6 +71,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     (Printf.sprintf {|file_exists("%s")|} tmp_file) "true";
   test "read_file reads empty file"
     (Printf.sprintf {|read_file("%s")|} tmp_file) {|""|};
+  test "write_text writes file content"
+    (Printf.sprintf {|write_text("%s", "hello world"); read_file("%s")|} tmp_file tmp_file)
+    {|"hello world"|};
   test "list_files pattern exact match"
     (Printf.sprintf {|length(list_files("%s", pattern = "^%s$"))|} tmp_dir tmp_base)
     "1";
@@ -54,6 +86,15 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "dir_exists wrong type" {|dir_exists(42)|} {|Error(TypeError: "Function `dir_exists` expects a String, got Int.")|};
   test "read_file nonexistent returns error" {|is_error(read_file("/nonexistent_abc_xyz_123"))|} "true";
   test "read_file wrong type" {|read_file(42)|} {|Error(TypeError: "Function `read_file` expects a String, got Int.")|};
+  test "write_text missing parent returns file error"
+    {|write_text("/nonexistent_abc_xyz_123/file.txt", "abc")|}
+    {|Error(FileError: "Failed to write to file `/nonexistent_abc_xyz_123/file.txt`: .*No such file or directory.*")|};
+  test "write_text wrong first type"
+    {|write_text(42, "abc")|}
+    {|Error(TypeError: "Function `write_text` expects a string as first argument.")|};
+  test "write_text wrong second type"
+    {|write_text("/tmp/tlang_write_text_type_error.txt", 42)|}
+    {|Error(TypeError: "Function `write_text` expects a string as second argument.")|};
   test "list_files default returns list" "type(list_files())" {|"List"|};
   test "list_files /tmp returns list" {|type(list_files("/tmp"))|} {|"List"|};
   test "list_files nonexistent returns error" {|is_error(list_files("/nonexistent_abc_xyz_123"))|} "true";

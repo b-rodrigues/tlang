@@ -25,6 +25,15 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   (* NA does not propagate implicitly, so 1 .+ NA results in Error *)
   test "vec .+ NA" "[1, 2] .+ NA" "[Error(NAPredicateError: \"Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.\"), Error(NAPredicateError: \"Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.\")]";
 
+  Printf.printf "Deep Equality:\n";
+  test "identical ints" "identical(1, 1)" "true";
+  test "identical string/int" "identical(1, \"1\")" "false";
+  test "identical nested lists" "identical([1, [2, 3]], [1, [2, 3]])" "true";
+  test "identical lists different order" "identical([1, 2], [2, 1])" "false";
+  test "identical dicts different order" "identical([a: 1, b: 2], [b: 2, a: 1])" "true";
+  test "identical NAs" "identical(NA, NA)" "true";
+  test "identical vectors" "identical([1, 2], [1, 2])" "true";
+  test "identical mixed collections" "identical([1, [a: 2]], [1, [a: 2]])" "true";
 
   print_newline ()
 

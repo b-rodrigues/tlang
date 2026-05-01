@@ -16,4 +16,14 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "tail wrong type mentions vector support"
     {|tail("abc")|}
     {|Error(TypeError: "Function `tail` expects a DataFrame, List, or Vector.")|};
+  
+  Printf.printf "List Slicing Edge Cases:\n";
+  test "head n=0" "head([1, 2, 3], n=0)" "[]";
+  test "head n=1" "head([1, 2, 3], n=1)" "[1]";
+  test "head n=10" "head([1, 2, 3], n=10)" "[1, 2, 3]";
+  test "tail n=0" "tail([1, 2, 3], n=0)" "[]";
+  test "tail n=1" "tail([1, 2, 3], n=1)" "[3]";
+  test "tail n=10" "tail([1, 2, 3], n=10)" "[1, 2, 3]";
+  test "head empty list" "head([], n=5)" "[]";
+  test "tail empty list" "tail([], n=5)" "[]";
   print_newline ()
