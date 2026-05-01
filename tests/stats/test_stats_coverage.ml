@@ -189,7 +189,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|Error(TypeError: "t_read_pmml expects a single String argument.")|};
   test "t_read_pmml surfaces file errors"
     {|t_read_pmml("/definitely/not/a/real/model.pmml")|}
-    "PMML Parse Error";
+    {|Error(FileError: "PMML Parse Error:|};
   test "t_score_pmml requires a source-backed PMML model"
     {|df = dataframe([x: [1]]);
       t_score_pmml(df, [model_type: "random_forest"])|}
