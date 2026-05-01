@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
 	<Header>
-		<Application name="SkLearn2PMML package" version="0.128.0"/>
-		<Timestamp>2026-04-01T19:46:59Z</Timestamp>
+		<Application name="SkLearn2PMML package" version="0.129.2"/>
+		<Timestamp>2026-05-01T17:59:42Z</Timestamp>
 	</Header>
 	<MiningBuildTask>
 		<Extension name="repr">PMMLPipeline(steps=[('classifier', XGBClassifier(base_score=None, booster=None, callbacks=None,

@@ -20,9 +20,9 @@ open Ast
 let register env =
   Env.add "anova"
     (make_builtin_named ~name:"anova" ~variadic:true 0 (fun args _env ->
-      let models = List.filter_map (fun (_, v) ->
+      let models = List.filter_map (fun (lbl, v) ->
         match v with
-        | VDict d -> Some d
+        | VDict d -> Some (lbl, d)
         | _ -> None
       ) args in
       
@@ -30,7 +30,7 @@ let register env =
         Error.value_error "Function `anova` requires at least two models to compare."
       else begin
         (* 1. Extract stats for all models *)
-        let get_stats m =
+        let get_stats lbl m =
           match List.assoc_opt "_model_data" m with
           | Some (VDict d) ->
               let get_f k = match List.assoc_opt k d with Some (VFloat f) -> f | _ -> 0.0 in
@@ -38,12 +38,15 @@ let register env =
               let deviance = get_f "deviance" in
               let df_resid = get_i "df_residual" in
               let family = match List.assoc_opt "family" d with Some (VString s) -> s | _ -> "gaussian" in
-              let name = match List.assoc_opt "name" m with Some (VString s) -> s | _ -> "(model)" in
+              let name = match lbl with
+                | Some s -> s
+                | None -> (match List.assoc_opt "name" m with Some (VString s) -> s | _ -> "(model)")
+              in
               (name, deviance, df_resid, family)
           | _ -> ("", 0.0, 0, "gaussian")
         in
         
-        let stats = List.map get_stats models in
+        let stats = List.map (fun (lbl, m) -> get_stats lbl m) models in
         
         (* 2. Sort by df_residual descending (smaller model first) *)
         let sorted_stats = List.sort (fun (_, _, df1, _) (_, _, df2, _) -> compare df2 df1) stats in

@@ -97,6 +97,8 @@ let build_model_value (result : Arrow_owl_bridge.lm_result)
     ("adj_r_squared", VFloat result.adj_r_squared);
     ("sigma", VFloat result.sigma);
     ("nobs", VInt result.nobs);
+    ("model_type", VString "lm");
+    ("mining_function", VString "regression");
     ("_display_keys", VList [
       (None, VString "formula");
       (None, VString "coefficients");

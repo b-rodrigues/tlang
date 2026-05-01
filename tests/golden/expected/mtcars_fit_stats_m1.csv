@@ -1,0 +1,2 @@
+r_squared,adj_r_squared,sigma,statistic,p_value,df,logLik,AIC,BIC,deviance,df_residual,nobs,n_trees,n_features,model_type,mining_function
+0.7528327936582644,0.7445938867802064,3.0458821247893773,91.37532500376176,1.2939587013505163e-10,1,-80.01471449593811,166.02942899187622,170.4266367002754,278.3219375433435,30,32,NA,NA,lm,regression

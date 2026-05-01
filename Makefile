@@ -42,7 +42,7 @@ golden-expected:
 # Fail on error
 golden-run:
 	@echo "=== Running T test scripts ==="
-	@./tests/golden/run_all_t_tests.sh
+	@ORT_LOGGING_LEVEL=3 ./tests/golden/run_all_t_tests.sh
 
 # Compare T outputs vs R expected (testthat)
 # Fail on error

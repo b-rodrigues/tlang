@@ -652,6 +652,13 @@ test_that("PMML: randomForest predictions", {
   compare_csvs("iris_random_forest_predictions")
 })
 
+test_that("Model comparisons and fit stats match R", {
+  compare_csvs("mtcars_fit_stats_m1")
+  compare_csvs("mtcars_fit_stats_multi")
+  compare_csvs("mtcars_anova_m1_m2")
+  compare_csvs("mtcars_wald_wt_hp")
+})
+
 test_that("PMML: randomForest regression predictions", {
   compare_csvs("mtcars_random_forest_predictions", tolerance = 1e-4)
 })

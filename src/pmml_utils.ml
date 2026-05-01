@@ -883,7 +883,8 @@ let read_pmml path =
           ("coefficients", coefficients_dict);
           ("std_errors", std_errors_dict);
           ("class", VString model_class);
-          ("model_type", VString "regression");
+          ("model_type", VString model_class);
+          ("mining_function", VString "regression");
           ("r_squared", (match !r2 with Some v -> VFloat v | None -> (VNA NAGeneric)));
           ("adj_r_squared", (match !adj_r2 with Some v -> VFloat v | None -> (VNA NAGeneric)));
           ("sigma", (match !sigma with Some v -> VFloat v | None -> (VNA NAGeneric)));
