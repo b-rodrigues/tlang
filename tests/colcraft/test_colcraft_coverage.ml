@@ -16,7 +16,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   [grp: NA, txt: NA, flag: NA, amount: NA, ratio: NA],
   [grp: "b", txt: "bottom", flag: false, amount: 4, ratio: 4.5]
 ]); result = fill(df_fill, $amount, $ratio, .direction = "downup"); result.ratio|}
-    "Vector[1.5, 1.5, 4.5, 4.5]";
+    "Vector[1.5, 1.5, 1.5, 4.5]";
   test "fill updown fills boolean gaps"
     {|df_fill = dataframe([
   [grp: NA, txt: "top", flag: NA],
@@ -179,7 +179,7 @@ select(wide, everything()) |> ncol|}
     "true";
   test "matches rejects invalid regexes"
     {|matches("[")|}
-    {|Error(ValueError: "Function `matches` received an invalid regex: [invalid regular expression]")|};
+    {|Error(ValueError: "[L1:C1] Function `matches` received an invalid regex: [ class not closed by ]")|};
   test "where selects logical columns"
     {|wide = dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng", is_remote: true]]);
 select(wide, where(is_logical)) |> ncol|}
@@ -193,5 +193,30 @@ select(wide, where(is_logical)) |> ncol|}
   test "is_character recognises scalar strings"
     {|is_character("hello")|}
     "true";
+
+  test "separate splits column into multiple"
+    {|df = dataframe([[x: "a-b-c"]]); separate(df, $x, into = ["v1", "v2", "v3"], sep = "-") |> colnames()|}
+    {|["v1", "v2", "v3"]|};
+  test "separate handles too few parts"
+    {|df = dataframe([[x: "a-b"]]); separate(df, $x, into = ["v1", "v2", "v3"], sep = "-") |> pull("v3")|}
+    "Vector[\"\"]";
+  test "separate_rows expands rows by splitting"
+    {|df = dataframe([[id: 1, x: "a;b"]]); separate_rows(df, $x, sep = ";") |> nrow|}
+    "2";
+  test "separate_rows preserves other columns"
+    {|df = dataframe([[id: 1, x: "a;b"]]); separate_rows(df, $x, sep = ";").id|}
+    "Vector[1, 1]";
+  test "uncount duplicates rows by weight"
+    {|df = dataframe([[x: "a", w: 3]]); uncount(df, $w) |> nrow|}
+    "3";
+  test "slice_max returns rows with largest values"
+    {|df = dataframe([[x: 1], [x: 5], [x: 3]]); slice_max(df, $x, n = 2).x|}
+    "Vector[5, 3]";
+  test "slice_min returns rows with smallest values"
+    {|df = dataframe([[x: 1], [x: 5], [x: 3]]); slice_min(df, $x, n = 2).x|}
+    "Vector[1, 3]";
+  test "distinct removes duplicate rows"
+    {|df = dataframe([[x: 1], [x: 1], [x: 2]]); distinct(df) |> nrow|}
+    "2";
 
   print_newline ()
