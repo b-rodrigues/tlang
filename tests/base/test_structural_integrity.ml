@@ -1,6 +1,8 @@
 let run_tests _pass_count _fail_count _eval_string eval_string_env test =
   let temp_dir = Filename.get_temp_dir_name () in
-  (* Keep this directory absent so these paths reliably exercise FileError branches. *)
+  (* Use an existing directory as a write target so file creation reliably fails. *)
+  let invalid_write_path = temp_dir in
+  (* Keep this directory absent so these reads reliably exercise missing-file branches. *)
   let nonexistent_dir =
     Filename.concat temp_dir
       (Printf.sprintf "tlang-base-missing-%d" (Unix.getpid ()))
@@ -59,8 +61,8 @@ let run_tests _pass_count _fail_count _eval_string eval_string_env test =
   test "deserialize type mismatch"
     {|deserialize(1)|}
     {|Error(TypeError: "Function `deserialize` expects a String path.")|};
-  test "serialize missing directory surfaces FileError"
-    (Printf.sprintf {|serialize(1, "%s")|} missing_tobj_path)
+  test "serialize directory write surfaces FileError"
+    (Printf.sprintf {|serialize(1, "%s")|} invalid_write_path)
     {|Error(FileError: "serialize failed:|};
   test "deserialize missing file surfaces FileError"
     (Printf.sprintf {|deserialize("%s")|} missing_tobj_path)
@@ -80,8 +82,8 @@ let run_tests _pass_count _fail_count _eval_string eval_string_env test =
   test "t_read_json type mismatch"
     {|t_read_json(1)|}
     {|Error(TypeError: "Function `t_read_json` expects a String path.")|};
-  test "t_write_json missing directory surfaces FileError"
-    (Printf.sprintf {|t_write_json(1, "%s")|} missing_json_path)
+  test "t_write_json directory write surfaces FileError"
+    (Printf.sprintf {|t_write_json(1, "%s")|} invalid_write_path)
     {|Error(FileError: "t_write_json failed:|};
   test "t_read_json missing file surfaces FileError"
     (Printf.sprintf {|t_read_json("%s")|} missing_json_path)
