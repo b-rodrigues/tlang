@@ -51,6 +51,7 @@
             broom
             jsonlite
             arrow
+            lubridate
             onnx
             r2pmml
             (lightgbm.overrideAttrs (old: {
