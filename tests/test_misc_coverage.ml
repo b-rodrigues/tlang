@@ -25,14 +25,32 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
       end else
         Sys.remove path
   in
-  let with_temp_dir prefix f =
-    let unique_suffix = Int64.to_string (Int64.of_float (Unix.gettimeofday () *. 1_000_000.0)) in
-    let base_dir =
-      Filename.concat
-        (Filename.get_temp_dir_name ())
-        (Printf.sprintf "tlang-%s-%d-%s" prefix (Unix.getpid ()) unique_suffix)
+  let create_temp_dir prefix =
+    let base = Filename.get_temp_dir_name () in
+    let rec loop attempt =
+      if attempt >= 16 then
+        failwith (Printf.sprintf "failed to create temporary directory for %s" prefix)
+      else
+        let suffix =
+          Int64.to_string
+            (Int64.add
+               (Int64.of_float (Unix.gettimeofday () *. 1_000_000.0))
+               (Int64.of_int attempt))
+        in
+        let path =
+          Filename.concat base
+            (Printf.sprintf "tlang-%s-%d-%s" prefix (Unix.getpid ()) suffix)
+        in
+        try
+          Unix.mkdir path 0o755;
+          path
+        with
+        | Unix.Unix_error (Unix.EEXIST, _, _) -> loop (attempt + 1)
     in
-    Unix.mkdir base_dir 0o755;
+    loop 0
+  in
+  let with_temp_dir prefix f =
+    let base_dir = create_temp_dir prefix in
     Fun.protect
       ~finally:(fun () -> remove_path base_dir)
       (fun () -> f base_dir)
@@ -185,7 +203,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
       && block.family = Some "graphics"
       && param_names = [ "data"; "keep" ]
       && block.examples = [ "plot(chart: data, keep: true)" ]
-      && block.see_also = [ "alpha"; "beta" ]
+      && block.see_also = [ "beta"; "alpha" ]
     in
     let parse_file_ok =
       with_temp_dir "tdoc" (fun dir ->
