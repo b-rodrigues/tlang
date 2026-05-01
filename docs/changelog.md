@@ -13,7 +13,7 @@
     - Expanded test coverage for `core` package builtins, including `args`, `help`, `apropos`, and `write_text`.
     - **Introspection**: Added tests for the `args()` builtin on both builtins and lambdas, ensuring correct parameter name and type extraction.
     - **Pretty Printing**: Verified nested collection and visual metadata (Altair) rendering in `pretty_print`.
-    - **Help System**: Hardened `help()` and `apropos()` against invalid input types and missing documentation.
+    - **Help System**: Added regression coverage for invalid input types and missing-documentation cases in `help()` and `apropos()`.
 - **Enhanced Arity Error Reporting**:
     - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
     - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
