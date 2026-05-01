@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.51.5] - 2026-05-01
+## [0.51.4] - 2026-05-01
 
 **Status**: Beta  
 
@@ -12,8 +12,6 @@
 - **Enhanced Arity Error Reporting**:
     - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
     - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
-
-## [0.51.4] - 2026-04-30
 
 **Status**: Beta  
 
