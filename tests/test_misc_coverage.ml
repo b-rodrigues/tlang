@@ -16,6 +16,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
       incr fail_count;
       Printf.printf "  ✗ %s\n    %s\n" name (Printexc.to_string exn)
   in
+  let max_temp_suffix = 1_000_000 in
   let rec remove_path path =
     if Sys.file_exists path then
       if Sys.is_directory path then begin
@@ -30,7 +31,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
     let base_dir =
       Filename.concat
         (Filename.get_temp_dir_name ())
-        (Printf.sprintf "tlang-%s-%d-%06d" prefix (Unix.getpid ()) (Random.int 1_000_000))
+        (Printf.sprintf "tlang-%s-%d-%06d" prefix (Unix.getpid ()) (Random.int max_temp_suffix))
     in
     Unix.mkdir base_dir 0o755;
     Fun.protect
@@ -71,9 +72,9 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   in
   let sample_df_type =
     Semantic_type.TDataFrame [
-      { Semantic_type.name = "mpg"; col_typ = Semantic_type.TUnknown };
-      { Semantic_type.name = "mass"; col_typ = Semantic_type.TUnknown };
-      { Semantic_type.name = "cyl"; col_typ = Semantic_type.TUnknown };
+      { Semantic_type.name = "value"; col_typ = Semantic_type.TUnknown };
+      { Semantic_type.name = "measure"; col_typ = Semantic_type.TUnknown };
+      { Semantic_type.name = "group"; col_typ = Semantic_type.TUnknown };
     ]
   in
   let sample_entry =
@@ -215,7 +216,7 @@ export let helper = 1
   test_case "semantic_type conversions render expected strings" (fun () ->
     let grouped =
       Semantic_type.TGroupedDataFrame
-        ([ { Semantic_type.name = "mpg"; col_typ = Semantic_type.TFloat } ], [ "cyl" ])
+        ([ { Semantic_type.name = "value"; col_typ = Semantic_type.TFloat } ], [ "group" ])
     in
     let fn_ty =
       Semantic_type.TFunction ([ ("data", Semantic_type.TDataFrame []) ], Semantic_type.TBool)
@@ -223,7 +224,7 @@ export let helper = 1
     Semantic_type.from_string "numeric" = Semantic_type.TFloat
     && Semantic_type.from_string "vector[int]" = Semantic_type.TAny
     && Semantic_type.from_string "mystery" = Semantic_type.TUnknown
-    && Semantic_type.to_string grouped = "grouped_dataframe[mpg | groups: cyl]"
+    && Semantic_type.to_string grouped = "grouped_dataframe[value | groups: group]"
     && String.starts_with ~prefix:"Function(" (Semantic_type.to_string fn_ty)
   );
   test_case "symbol_table tracks dataframes, keywords, copies and env values" (fun () ->
@@ -281,7 +282,7 @@ export let helper = 1
     let string_ok = Completion.is_inside_comment_or_string "\"abc\"" 4 in
     let member_ok =
       let start, matches = Completion.complete scope ~buffer:"df.m" ~cursor:4 in
-      start = 3 && matches = [ "mass"; "model"; "mpg" ]
+      start = 3 && matches = [ "measure"; "model" ]
     in
     let arg_ok =
       let start, matches = Completion.complete scope ~buffer:"summarise(na" ~cursor:12 in
@@ -289,7 +290,7 @@ export let helper = 1
     in
     let column_ok =
       let start, matches = Completion.complete scope ~buffer:"$m" ~cursor:2 in
-      start = 1 && matches = [ "mass"; "model"; "mpg" ]
+      start = 1 && matches = [ "measure"; "model" ]
     in
     let fn_ok = Completion.find_surrounding_function "sum(x" 5 = Some ("sum", 3) in
     prefix_ok && comment_ok && string_ok && member_ok && arg_ok && column_ok && fn_ok
