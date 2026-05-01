@@ -78,7 +78,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "read_file wrong type" {|read_file(42)|} {|Error(TypeError: "Function `read_file` expects a String, got Int.")|};
   test "write_text missing parent returns file error"
     {|write_text("/nonexistent_abc_xyz_123/file.txt", "abc")|}
-    {|Error\(FileError: "Failed to write to file `/nonexistent_abc_xyz_123/file.txt`:|};
+    {|Error\(FileError: "Failed to write to file `/nonexistent_abc_xyz_123/file.txt`: .*No such file or directory.*"\)|};
   test "write_text wrong first type"
     {|write_text(42, "abc")|}
     {|Error(TypeError: "Function `write_text` expects a string as first argument.")|};
