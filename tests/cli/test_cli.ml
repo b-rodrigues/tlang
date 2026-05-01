@@ -196,6 +196,27 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "pretty_print error"
     "pretty_print(1 / 0)"
     "NA";
+  test_message "pretty_print NA renders as empty output"
+    (Pretty_print.pretty_print_value (Ast.VNA Ast.NAGeneric) = "");
+  let compact_dict_pretty =
+    Pretty_print.pretty_print_value
+      (Ast.VDict [
+        ("alpha", Ast.VInt 1);
+        ("beta", Ast.VString "two");
+      ])
+  in
+  test_message "pretty_print small dict keeps compact formatting"
+    (contains compact_dict_pretty "{`alpha`: 1, `beta`: \"two\"}\n");
+  let nested_dict_pretty =
+    Pretty_print.pretty_print_value
+      (Ast.VDict [
+        ("details", Ast.VDict [("depth", Ast.VInt 2)]);
+        ("items", Ast.VList [(None, Ast.VInt 1); (None, Ast.VInt 2)]);
+      ])
+  in
+  test_message "pretty_print nested dict expands multi-line formatting"
+    (contains nested_dict_pretty "\n  `details`: {\n" &&
+     contains nested_dict_pretty "`items`: [1, 2]");
   let ggplot_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -253,6 +274,14 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   in
   test_message "pretty_print plotnine metadata keeps plot class and runtime backend"
     (contains plotnine_pretty "plotnine {" && contains plotnine_pretty "\"Python\"");
+  let altair_empty_pretty =
+    Pretty_print.pretty_print_value
+      (Ast.VDict [
+        ("class", Ast.VString "altair");
+      ])
+  in
+  test_message "pretty_print empty visual metadata renders empty object"
+    (altair_empty_pretty = "altair {}\n");
   let explain_tree_pretty =
     Pretty_print.pretty_print_value
       (Ast.VDict [
@@ -363,6 +392,18 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "explain: explain available" "type(explain)" {|"BuiltinFunction"|};
   test "packages: packages available" "type(packages)" {|"BuiltinFunction"|};
   test "packages: package_info available" "type(package_info)" {|"BuiltinFunction"|};
-  test "help: help returns NA (proving it ran successfully)" "help('mean')" "NA";
+  test "help: help with string returns NA" "help('mean')" "NA";
+  test "help: help with builtin value returns NA" "help(mean)" "NA";
+  test "help: help with symbol returns NA" {|help(sym("mean"))|} "NA";
+  test "help: anonymous lambda returns NA" "help(\\(x) x)" "NA";
+  test "help: wrong type returns error"
+    "help(42)"
+    {|Error(TypeError: "help expects a function name or value, got Int")|};
   test "help: apropos returns NA" "apropos('mean')" "NA";
+  test "help: apropos with no matches still returns NA"
+    {|apropos("definitely_unmatched_help_query_123")|}
+    "NA";
+  test "help: apropos wrong type returns error"
+    "apropos(42)"
+    {|Error(TypeError: "apropos expects a query string.")|};
   print_newline ()

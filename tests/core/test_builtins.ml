@@ -17,6 +17,22 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "map" "map([1, 2, 3], \\(x) x * x)" "[1, 4, 9]";
   print_newline ();
 
+  Printf.printf "Introspection Builtins:\n";
+  test "args builtin returns dict" "type(args(sum))" {|"Dict"|};
+  test "args builtin exposes positional parameter after docs load"
+    {|help("sum"); type(args(sum).x)|}
+    {|"String"|};
+  test "args builtin exposes named parameter after docs load"
+    {|help("sum"); type(args(sum).na_rm)|}
+    {|"String"|};
+  test "args lambda defaults untyped params to Any"
+    "f = \\(x, y) x + y; args(f).x"
+    {|"Any"|};
+  test "args wrong type"
+    "args(42)"
+    {|Error(TypeError: "args() expects a Function, got Int")|};
+  print_newline ();
+
   Printf.printf "Metaprogramming Builtins:\n";
   test "sym from string" {|type(sym("mpg"))|} {|"Symbol"|};
   test "get variable by name" "x = 42; get(\"x\")" "42";
@@ -42,6 +58,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     (Printf.sprintf {|file_exists("%s")|} tmp_file) "true";
   test "read_file reads empty file"
     (Printf.sprintf {|read_file("%s")|} tmp_file) {|""|};
+  test "write_text writes file content"
+    (Printf.sprintf {|write_text("%s", "hello world"); read_file("%s")|} tmp_file tmp_file)
+    {|"hello world"|};
   test "list_files pattern exact match"
     (Printf.sprintf {|length(list_files("%s", pattern = "^%s$"))|} tmp_dir tmp_base)
     "1";
@@ -54,6 +73,15 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "dir_exists wrong type" {|dir_exists(42)|} {|Error(TypeError: "Function `dir_exists` expects a String, got Int.")|};
   test "read_file nonexistent returns error" {|is_error(read_file("/nonexistent_abc_xyz_123"))|} "true";
   test "read_file wrong type" {|read_file(42)|} {|Error(TypeError: "Function `read_file` expects a String, got Int.")|};
+  test "write_text missing parent returns error"
+    {|is_error(write_text("/nonexistent_abc_xyz_123/file.txt", "abc"))|}
+    "true";
+  test "write_text wrong first type"
+    {|write_text(42, "abc")|}
+    {|Error(TypeError: "Function `write_text` expects a string as first argument.")|};
+  test "write_text wrong second type"
+    {|write_text("/tmp/tlang_write_text_type_error.txt", 42)|}
+    {|Error(TypeError: "Function `write_text` expects a string as second argument.")|};
   test "list_files default returns list" "type(list_files())" {|"List"|};
   test "list_files /tmp returns list" {|type(list_files("/tmp"))|} {|"List"|};
   test "list_files nonexistent returns error" {|is_error(list_files("/nonexistent_abc_xyz_123"))|} "true";
