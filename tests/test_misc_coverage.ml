@@ -1,9 +1,5 @@
 open Ast
 
-(* Keep the random suffix large enough to avoid temp-dir collisions across
-   concurrent test processes. *)
-let max_temp_suffix = 1_000_000
-
 let run_tests pass_count fail_count _eval_string _eval_string_env _test =
   let record name ok =
     if ok then begin
@@ -30,11 +26,11 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
         Sys.remove path
   in
   let with_temp_dir prefix f =
-    Random.self_init ();
+    let unique_suffix = Int64.to_string (Int64.of_float (Unix.gettimeofday () *. 1_000_000.0)) in
     let base_dir =
       Filename.concat
         (Filename.get_temp_dir_name ())
-        (Printf.sprintf "tlang-%s-%d-%06d" prefix (Unix.getpid ()) (Random.int max_temp_suffix))
+        (Printf.sprintf "tlang-%s-%d-%s" prefix (Unix.getpid ()) unique_suffix)
     in
     Unix.mkdir base_dir 0o755;
     Fun.protect
