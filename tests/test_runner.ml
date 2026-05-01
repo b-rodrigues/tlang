@@ -149,6 +149,7 @@ let () =
   Test_structural_integrity.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_agent_scaffold.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_coverage_boost.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_misc_coverage.run_tests pass_count fail_count eval_string eval_string_env test;
 
   (* Summary *)
   let total = !pass_count + !fail_count in
