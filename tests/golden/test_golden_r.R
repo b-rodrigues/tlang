@@ -503,6 +503,30 @@ test_that("ADVANCED STATS: wald_test joint hypothesis", {
   compare_csvs("lm_wald_hp_qsec", tolerance = 1e-4)
 })
 
+test_that("ADVANCED STATS: skewness, kurtosis, and mode baselines", {
+  compare_csvs("stats_shape_mode_baselines", tolerance = 1e-6)
+})
+
+test_that("ADVANCED STATS: standardize and scale parity", {
+  compare_csvs("stats_standardize_scale_iris", tolerance = 1e-6)
+})
+
+test_that("ADVANCED STATS: coef extraction", {
+  compare_csvs("lm_coef_mpg_hp_wt", tolerance = 1e-5)
+})
+
+test_that("ADVANCED STATS: conf_int default level", {
+  compare_csvs("lm_conf_int_mpg_hp_wt", tolerance = 1e-5)
+})
+
+test_that("ADVANCED STATS: conf_int 99 percent level", {
+  compare_csvs("lm_conf_int99_mpg_hp_wt", tolerance = 1e-5)
+})
+
+test_that("ADVANCED STATS: model accessors", {
+  compare_csvs("lm_model_accessors_mpg_hp_wt", tolerance = 1e-6)
+})
+
 # ============================================================================
 # Test Suite 21: DISTRIBUTIONS
 # ============================================================================

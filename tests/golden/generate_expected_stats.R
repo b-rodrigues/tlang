@@ -133,6 +133,51 @@ extended_stats <- tibble(
 write_csv(extended_stats, file.path(output_dir, "extended_stats_basics.csv"))
 message("✓ Extended stats baseline set")
 
+skewness_manual <- function(x) {
+  n <- length(x)
+  m <- mean(x)
+  m2 <- mean((x - m)^2)
+  if (m2 == 0) {
+    return(0)
+  }
+  m3 <- mean((x - m)^3)
+  m3 / (m2^(1.5))
+}
+
+kurtosis_manual <- function(x) {
+  n <- length(x)
+  m <- mean(x)
+  m2 <- mean((x - m)^2)
+  if (m2 == 0) {
+    return(-3)
+  }
+  m4 <- mean((x - m)^4)
+  (m4 / (m2^2)) - 3
+}
+
+mode_manual <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+shape_mode_stats <- tibble(
+  sepal_length_skewness = skewness_manual(iris$Sepal.Length),
+  petal_length_kurtosis = kurtosis_manual(iris$Petal.Length),
+  skewness_na_rm = skewness_manual(c(1, 2, 3, 4)),
+  kurtosis_na_rm = kurtosis_manual(c(1, 2, 3, 4, 5)),
+  mode_numeric = mode_manual(c(1, 2, 2, 3, 3, 3, 4))
+)
+write_csv(shape_mode_stats, file.path(output_dir, "stats_shape_mode_baselines.csv"))
+message("✓ skewness(), kurtosis(), and mode() baselines")
+
+standardize_scale_iris <- tibble(
+  Sepal.Length = iris$Sepal.Length,
+  standardized = as.numeric(scale(iris$Sepal.Length)),
+  scaled = as.numeric(scale(iris$Sepal.Length))
+)
+write_csv(standardize_scale_iris, file.path(output_dir, "stats_standardize_scale_iris.csv"))
+message("✓ standardize() and scale() parity")
+
 # ============================================================================
 # Test Suite 12: ADVANCED STATS (vcov, residuals, augment, anova)
 # ============================================================================
@@ -194,6 +239,32 @@ wh_tidy = tibble(
 )
 write_csv(wh_tidy, file.path(output_dir, "lm_wald_hp_qsec.csv"))
 message("✓ wald_test parity")
+
+# 12.6: coef, conf_int, and model accessors
+m3 = lm(mpg ~ hp + wt, data = mtcars)
+coef_m3 = tidy(m3) %>%
+  select(term, estimate)
+write_csv(coef_m3, file.path(output_dir, "lm_coef_mpg_hp_wt.csv"))
+
+conf_int_m3 = confint(m3) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("term") %>%
+  rename(lower = `2.5 %`, upper = `97.5 %`)
+write_csv(conf_int_m3, file.path(output_dir, "lm_conf_int_mpg_hp_wt.csv"))
+
+conf_int99_m3 = confint(m3, level = 0.99) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("term") %>%
+  rename(lower = `0.5 %`, upper = `99.5 %`)
+write_csv(conf_int99_m3, file.path(output_dir, "lm_conf_int99_mpg_hp_wt.csv"))
+
+model_accessors_m3 = tibble(
+  sigma = sigma(m3),
+  nobs = nobs(m3),
+  df_residual = df.residual(m3)
+)
+write_csv(model_accessors_m3, file.path(output_dir, "lm_model_accessors_mpg_hp_wt.csv"))
+message("✓ coef(), conf_int(), sigma(), nobs(), and df_residual()")
 
 # ============================================================================
 # Test Suite 13: DISTRIBUTIONS
