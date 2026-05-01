@@ -6,6 +6,9 @@
 
 ### Quality & Test Coverage
 - **Expanded Stats Package Coverage**:
+    - Enhanced ONNX test coverage by adding a Decision Tree Classifier test suite.
+    - Fixed `generate_onnx.py` compatibility with scikit-learn 1.6+ and ensured numeric output parity for classification models.
+    - Stabilized PMML prediction golden tests by adding numerical tolerance (0.5) for stochastic models.
     - Added comprehensive golden tests for 15+ specialized statistical functions, probability distributions, and transformations.
     - **Specialized Metrics**: Verified `cv`, `fivenum`, `trimmed_mean`, `mad`, `iqr`, `range`, `var`, and `cov` against R baselines.
     - **Advanced Moments**: Added coverage for `skewness` and `kurtosis` (excess kurtosis) using population-moment calculations.

@@ -318,6 +318,14 @@ test_that("ONNX: Logistic Regression predictions (iris)", {
   }
 })
 
+test_that("ONNX: Decision Tree predictions (iris)", {
+  if (file.exists("tests/golden/data/iris_dt.onnx")) {
+    compare_csvs("iris_onnx_dt_predictions")
+  } else {
+    skip("iris_dt.onnx not found")
+  }
+})
+
 test_that("ONNX: Linear Regression predictions (mtcars hp~wt)", {
   compare_csvs("mtcars_onnx_reg_predictions")
 })
