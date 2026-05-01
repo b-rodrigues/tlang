@@ -1,11 +1,11 @@
 let run_tests _pass_count _fail_count _eval_string eval_string_env test =
   let temp_dir = Filename.get_temp_dir_name () in
-  let missing_dir =
+  let nonexistent_dir =
     Filename.concat temp_dir
       (Printf.sprintf "tlang-base-missing-%d" (Unix.getpid ()))
   in
-  let missing_tobj_path = Filename.concat missing_dir "missing.tobj" in
-  let missing_json_path = Filename.concat missing_dir "missing.json" in
+  let missing_tobj_path = Filename.concat nonexistent_dir "missing.tobj" in
+  let missing_json_path = Filename.concat nonexistent_dir "missing.json" in
   Printf.printf "Structural Integrity — Terminal Evaluation Bypass:\n";
 
   (* StructuralError should bypass resilient evaluation *)
