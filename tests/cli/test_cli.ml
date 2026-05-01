@@ -396,14 +396,14 @@ let run_tests pass_count fail_count _eval_string _eval_string_env test =
   test "help: help with builtin value returns NA" "help(mean)" "NA";
   test "help: help with symbol returns NA" {|help(sym("mean"))|} "NA";
   test "help: anonymous lambda returns NA" "help(\\(x) x)" "NA";
-  test "help: wrong type returns error"
+  test "help: help with invalid type returns error"
     "help(42)"
     {|Error(TypeError: "help expects a function name or value, got Int")|};
   test "help: apropos returns NA" "apropos('mean')" "NA";
   test "help: apropos with no matches still returns NA"
     {|apropos("definitely_unmatched_help_query_123")|}
     "NA";
-  test "help: apropos wrong type returns error"
+  test "help: apropos with invalid type returns error"
     "apropos(42)"
     {|Error(TypeError: "apropos expects a query string.")|};
   print_newline ()

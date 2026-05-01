@@ -19,6 +19,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
 
   Printf.printf "Introspection Builtins:\n";
   test "args builtin returns dict" "type(args(sum))" {|"Dict"|};
+  test "args builtin falls back to generic names before docs load"
+    "type(args(sum).arg1)"
+    {|"String"|};
   test "args builtin exposes positional parameter after docs load"
     {|help("sum"); type(args(sum).x)|}
     {|"String"|};
@@ -73,9 +76,9 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "dir_exists wrong type" {|dir_exists(42)|} {|Error(TypeError: "Function `dir_exists` expects a String, got Int.")|};
   test "read_file nonexistent returns error" {|is_error(read_file("/nonexistent_abc_xyz_123"))|} "true";
   test "read_file wrong type" {|read_file(42)|} {|Error(TypeError: "Function `read_file` expects a String, got Int.")|};
-  test "write_text missing parent returns error"
-    {|is_error(write_text("/nonexistent_abc_xyz_123/file.txt", "abc"))|}
-    "true";
+  test "write_text missing parent returns file error"
+    {|write_text("/nonexistent_abc_xyz_123/file.txt", "abc")|}
+    {|Error\(FileError: "Failed to write to file `/nonexistent_abc_xyz_123/file.txt`:|};
   test "write_text wrong first type"
     {|write_text(42, "abc")|}
     {|Error(TypeError: "Function `write_text` expects a string as first argument.")|};
