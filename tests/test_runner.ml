@@ -93,6 +93,7 @@ let () =
   Test_window.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_math.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_stats.run_tests pass_count fail_count eval_string eval_string_env test;
+  Test_stats_coverage.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_pmml_random_forest.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_pmml_io.run_tests pass_count fail_count eval_string eval_string_env test;
   Test_pmml_xgboost.run_tests pass_count fail_count eval_string eval_string_env test;
