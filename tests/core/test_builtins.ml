@@ -14,7 +14,17 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
   test "seq negative by" "seq(5, 1, -2)" "[5, 3, 1]";
   test "seq end optional if by is provided" "seq(start = 3, by = 2)" "[3]";
   test "sum" "sum([1, 2, 3, 4, 5])" "15";
+  test "sum empty list" "sum([])" "0";
+  test "sum with NA (na_rm=false)" "sum([1, NA, 3])" {|Error(AggregationError: "Function `sum` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
+  test "sum with NA (na_rm=true)" "sum([1, NA, 3], na_rm=true)" "4";
   test "map" "map([1, 2, 3], \\(x) x * x)" "[1, 4, 9]";
+  print_newline ();
+
+  Printf.printf "Sequence Edge Cases:\n";
+  test "seq auto-descending range" "seq(5, 1)" "[5, 4, 3, 2, 1]";
+  test "seq same start/end" "seq(5, 5)" "[5]";
+  test "seq fractional by" "seq(1, 2, by=0.5)" "[1., 1.5, 2.]";
+  test "seq invalid by=0" "seq(1, 5, by=0)" {|Error(ValueError: "Function `seq` cannot have `by` = 0.")|};
   print_newline ();
 
   Printf.printf "Introspection Builtins:\n";
