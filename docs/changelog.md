@@ -1,6 +1,17 @@
 # Changelog
 
-## [0.51.4] - 2026-04-30
+## [0.51.x] - 2026-05-xx
+
+**Status**: Beta  
+
+### Quality & Test Coverage
+- **Improved Base Package Coverage**:
+    - Significantly increased test coverage for `base` package builtins, specifically targeting error handling, NA container logic, and serialization.
+    - **NA Mapping**: Verified `is_na` vectorization across Vectors and named Lists.
+    - **Serialization Robustness**: Added comprehensive error-path testing for `serialize`, `deserialize`, `t_write_json`, and `t_read_json`, including type-mismatch and file-system failure scenarios.
+- **Enhanced Arity Error Reporting**:
+    - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
+    - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
 
 **Status**: Beta  
 

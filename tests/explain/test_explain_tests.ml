@@ -264,7 +264,7 @@ let run_tests pass_count fail_count _eval_string eval_string_env test =
   Printf.printf "Phase 6 — Explain: Arity:\n";
   test "explain no args"
     "explain()"
-    {|Error(ArityError: "Function expects 1 arguments but received 0.")|};
+    {|Error(ArityError: "Function `explain` expects 1 arguments but received 0.")|};
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: Pipeline Integration:\n";

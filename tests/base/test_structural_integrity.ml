@@ -1,4 +1,14 @@
 let run_tests _pass_count _fail_count _eval_string eval_string_env test =
+  let temp_dir = Filename.get_temp_dir_name () in
+  (* Use an existing directory as a write target so file creation reliably fails. *)
+  let invalid_write_path = temp_dir in
+  (* Keep this directory absent so these reads reliably exercise missing-file branches. *)
+  let nonexistent_dir =
+    Filename.concat temp_dir
+      (Printf.sprintf "tlang-base-missing-%d" (Unix.getpid ()))
+  in
+  let missing_tobj_path = Filename.concat nonexistent_dir "missing.tobj" in
+  let missing_json_path = Filename.concat nonexistent_dir "missing.json" in
   Printf.printf "Structural Integrity — Terminal Evaluation Bypass:\n";
 
   (* StructuralError should bypass resilient evaluation *)
@@ -45,6 +55,40 @@ let run_tests _pass_count _fail_count _eval_string eval_string_env test =
   test "StructuralError survived serialization"
     {|p = "test_ser.tobj"; serialize(error("StructuralError", "topology break"), p); v = deserialize(p); v|}
     {|Error(StructuralError: "topology break")|};
+  test "serialize type mismatch"
+    {|serialize(1, 2)|}
+    {|Error(TypeError: "Function `serialize` expects (Any, String).")|};
+  test "deserialize type mismatch"
+    {|deserialize(1)|}
+    {|Error(TypeError: "Function `deserialize` expects a String path.")|};
+  test "serialize directory write surfaces FileError"
+    (Printf.sprintf {|serialize(1, "%s")|} invalid_write_path)
+    {|Error(FileError: "serialize failed:|};
+  test "deserialize missing file surfaces FileError"
+    (Printf.sprintf {|deserialize("%s")|} missing_tobj_path)
+    {|Error(FileError: "deserialize failed:|};
+
+  print_newline ();
+
+  Printf.printf "Structural Integrity — JSON roundtrip and errors:\n";
+
+  let json_path = Filename.concat temp_dir (Printf.sprintf "tlang-base-%d.json" (Unix.getpid ())) in
+  test "JSON scalar roundtrip"
+    (Printf.sprintf {|p = "%s"; t_write_json(42, p); t_read_json(p)|} json_path)
+    "42";
+  test "t_write_json type mismatch"
+    {|t_write_json(1, 2)|}
+    {|Error(TypeError: "Function `t_write_json` expects (Any, String).")|};
+  test "t_read_json type mismatch"
+    {|t_read_json(1)|}
+    {|Error(TypeError: "Function `t_read_json` expects a String path.")|};
+  test "t_write_json directory write surfaces FileError"
+    (Printf.sprintf {|t_write_json(1, "%s")|} invalid_write_path)
+    {|Error(FileError: "t_write_json failed:|};
+  test "t_read_json missing file surfaces FileError"
+    (Printf.sprintf {|t_read_json("%s")|} missing_json_path)
+    {|Error(FileError: "t_read_json failed:|};
+  (try Sys.remove json_path with _ -> ());
 
   print_newline ();
 
