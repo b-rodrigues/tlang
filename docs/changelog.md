@@ -9,6 +9,11 @@
     - Significantly increased test coverage for `base` package builtins, specifically targeting error handling, NA container logic, and serialization.
     - **NA Mapping**: Verified `is_na` vectorization across Vectors and named Lists.
     - **Serialization Robustness**: Added comprehensive error-path testing for `serialize`, `deserialize`, `t_write_json`, and `t_read_json`, including type-mismatch and file-system failure scenarios.
+- **Improved Core Package Coverage**:
+    - Expanded test coverage for `core` package builtins, including `args`, `help`, `apropos`, and `write_text`.
+    - **Introspection**: Added tests for the `args()` builtin on both builtins and lambdas, ensuring correct parameter name and type extraction.
+    - **Pretty Printing**: Verified nested collection and visual metadata (Altair) rendering in `pretty_print`.
+    - **Help System**: Hardened `help()` and `apropos()` against invalid input types and missing documentation.
 - **Enhanced Arity Error Reporting**:
     - Updated the core evaluator to include function names in arity error messages for all builtins (e.g., `Function `length` expects...`).
     - Standardized arity error expectations across the entire test suite (1944/1944 tests passing).
