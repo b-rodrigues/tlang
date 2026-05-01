@@ -279,7 +279,7 @@ dist_tests <- tibble(
 write_csv(dist_tests, file.path(output_dir, "dist_baselines.csv"))
 message("✓ Distribution functions")
 
-# Test Suite 13: SPECIALIZED STATS
+# Test Suite 14: SPECIALIZED STATS
 message("\n=== SPECIALIZED STATS Tests ===")
 
 cv_manual <- function(x) {

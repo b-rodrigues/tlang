@@ -511,21 +511,21 @@ test_that("ADVANCED STATS: standardize and scale parity", {
   compare_csvs("stats_standardize_scale_iris", tolerance = 1e-6)
 })
 
-test_that("specialized stats (cv, fivenum, trimmed_mean, mad, iqr, range, var, cov) produce correct output", {
+test_that("ADVANCED STATS: specialized stats (cv, fivenum, trimmed_mean, mad, iqr, range, var, cov) produce correct output", {
   compare_csvs("stats_specialized_baselines", tolerance = 1e-6)
 })
 
-test_that("advanced stats (skewness, kurtosis, sd, quantile) produce correct output", {
+test_that("ADVANCED STATS: advanced stats (skewness, kurtosis, sd, quantile) produce correct output", {
   compare_csvs("stats_advanced_measures", tolerance = 1e-6)
 })
 
-test_that("vectorized advanced stats (winsorize, huber_loss, normalize) produce correct output", {
+test_that("ADVANCED STATS: vectorized advanced stats (winsorize, huber_loss, normalize) produce correct output", {
   compare_csvs("stats_advanced_vectorized")
 })
 
-test_that("distributions and correlation (pnorm, pt, pf, pchisq, cor) produce correct output", {
+test_that("DISTRIBUTIONS: distributions and correlation (pnorm, pt, pf, pchisq, cor) produce correct output", {
   # Use slightly higher tolerance for pnorm approximation
-  compare_csvs("stats_distributions_baselines", tolerance = 1e-6)
+  compare_csvs("stats_distributions_baselines", tolerance = 1e-5)
 })
 
 test_that("ADVANCED STATS: coef extraction", {
