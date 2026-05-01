@@ -1,0 +1,2 @@
+cv_mpg,fivenum_min,fivenum_q1,fivenum_med,fivenum_q3,fivenum_max,trimmed_mean_mpg_10,mad_mpg,iqr_mpg,range_min,range_max,var_mpg,cov_mpg_hp
+0.2999880816096614,10.4,15.425,19.2,22.8,33.9,19.696153846153845,5.411490000000001,7.375,10.4,33.9,36.32410282258064,-320.7320564516129
