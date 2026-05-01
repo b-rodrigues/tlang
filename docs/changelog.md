@@ -5,9 +5,12 @@
 **Status**: Beta  
 
 ### Quality & Test Coverage
-- **Improved Stats Package Coverage**:
-    - Added comprehensive golden tests for advanced statistical functions, transformations, and model accessors.
-    - **Advanced Stats**: Verified `skewness`, `kurtosis`, and `mode` against R baselines.
+- **Expanded Stats Package Coverage**:
+    - Added comprehensive golden tests for 15+ specialized statistical functions, probability distributions, and transformations.
+    - **Specialized Metrics**: Verified `cv`, `fivenum`, `trimmed_mean`, `mad`, `iqr`, `range`, `var`, and `cov` against R baselines.
+    - **Advanced Moments**: Added coverage for `skewness` and `kurtosis` (excess kurtosis) using population-moment calculations.
+    - **Probabilistic Distributions**: Added golden tests for `pnorm` (standard normal approximation), `pt`, `pf`, and `pchisq` CDFs.
+    - **Statistical Operations**: Verified `winsorize`, `huber_loss`, `normalize`, and Pearson `cor` against R reference values.
     - **Data Transformations**: Added a golden test for `standardize` and `scale` using `iris$Sepal.Length`.
     - **Model Accessors**: Added regression tests for `coef`, `conf_int`, `sigma`, `nobs`, and `df_residual` for linear models.
 - **Critical Fixes**:
