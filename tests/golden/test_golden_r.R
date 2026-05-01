@@ -668,7 +668,9 @@ test_that("Model comparisons and fit stats match R", {
 })
 
 test_that("PMML: randomForest regression predictions", {
-  compare_csvs("mtcars_random_forest_predictions", tolerance = 0.5)
+  # randomForest regression can show modest cross-runtime numeric drift,
+  # but keep the tolerance tight enough to catch real scoring regressions.
+  compare_csvs("mtcars_random_forest_predictions", tolerance = 1e-2)
 })
 
 # ============================================================================

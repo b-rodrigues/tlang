@@ -474,7 +474,7 @@ mtcars_rf <- read_csv(file.path(data_dir, "mtcars.csv"), show_col_types = FALSE)
 set.seed(123)
 rf_reg_model <- randomForest(mpg ~ ., data = mtcars_rf, ntree = 100)
 
-r2pmml(rf_reg_model, file.path(data_dir, "iris_random_forest_reg.pmml"))
+r2pmml(rf_reg_model, file.path(data_dir, "mtcars_random_forest.pmml"))
 
 rf_reg_preds <- predict(rf_reg_model, mtcars_rf)
 rf_reg_out <- data.frame(pred = as.numeric(rf_reg_preds))
