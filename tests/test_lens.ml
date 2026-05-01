@@ -33,7 +33,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "Vector[10, 20]";
 
   test "col_lens set adds and recycles DataFrame column"
-    {|df = dataframe([[x: 1], [x: 2], [x: 3]]); vals = select(dataframe([[seed: 10], [seed: 20]]), $seed); l = col_lens("y"); df2 = set(df, l, vals); df2.y|}
+    {|df = dataframe([[x: 1], [x: 2], [x: 3]]); seed_values = select(dataframe([[seed: 10], [seed: 20]]), $seed); l = col_lens("y"); df2 = set(df, l, seed_values); df2.y|}
     "Vector[10, 20, 10]";
 
   test "col_lens set applies element-wise over lists"
@@ -109,7 +109,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "Vector[10, 2]";
 
   test "row_lens set adds missing columns and fills unspecified values with NA"
-    {|df = dataframe([[x: 1, y: 3], [x: 2, y: 4]]); df2 = set(df, row_lens(0), [x: 10, z: 99]); row = get(df2, row_lens(0)); [row.x, row.y, row.z]|}
+    {|df = dataframe([[x: 1, y: 3], [x: 2, y: 4]]); df2 = set(df, row_lens(0), [x: 10, z: 99]); updated_row = get(df2, row_lens(0)); [updated_row.x, updated_row.y, updated_row.z]|}
     "[10, NA, 99]";
 
   test "filter_lens on List"
@@ -125,11 +125,11 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     "1";
 
   test "filter_lens set with Vector replacement"
-    {|df = dataframe([a: [1, 2, 3, 4]]); v = pull(df, "a"); repl = pull(dataframe([a: [20, 30]]), "a"); set(v, filter_lens(\(x) x > 2), repl)|}
+    {|df = dataframe([a: [1, 2, 3, 4]]); v = pull(df, "a"); replacement_values = pull(dataframe([a: [20, 30]]), "a"); set(v, filter_lens(\(x) x > 2), replacement_values)|}
     "Vector[1, 2, 20, 30]";
 
   test "filter_lens set with DataFrame replacement"
-    {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); repl = dataframe([[x: 20, y: 200], [x: 30, y: 300]]); df2 = set(df, filter_lens(\(r) r.x > 1), repl); df2.y|}
+    {|df = dataframe([[x: 1, y: 10], [x: 2, y: 20], [x: 3, y: 30]]); replacement_rows = dataframe([[x: 20, y: 200], [x: 30, y: 300]]); df2 = set(df, filter_lens(\(r) r.x > 1), replacement_rows); df2.y|}
     "Vector[10, 200, 300]";
 
   test "filter_lens set on Pipeline"
