@@ -1,7 +1,6 @@
 /* src/ffi/stats_stubs.c */
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
-#include <caml/memory.h>
 #include <math.h>
 
 /* Acklam's algorithm for the inverse normal CDF.

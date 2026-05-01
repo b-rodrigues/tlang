@@ -134,7 +134,6 @@ write_csv(extended_stats, file.path(output_dir, "extended_stats_basics.csv"))
 message("✓ Extended stats baseline set")
 
 skewness_manual <- function(x) {
-  n <- length(x)
   m <- mean(x)
   m2 <- mean((x - m)^2)
   if (m2 == 0) {
@@ -145,7 +144,6 @@ skewness_manual <- function(x) {
 }
 
 kurtosis_manual <- function(x) {
-  n <- length(x)
   m <- mean(x)
   m2 <- mean((x - m)^2)
   if (m2 == 0) {
