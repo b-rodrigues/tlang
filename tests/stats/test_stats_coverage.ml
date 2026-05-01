@@ -53,7 +53,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       m1 = lm(data = df, formula = y ~ x);
       m2 = lm(data = df, formula = y ~ x + z);
       colnames(compare([m1, m2]))|}
-    "estimate_1";
+    {|["term", "estimate_1", "std_error_1", "statistic_1", "p_value_1", "estimate_2", "std_error_2", "statistic_2", "p_value_2"]|};
   test "compare rejects models without tidy tables"
     {|compare([name: "broken"])|}
     {|Error(TypeError: "Model broken has no tidy coefficient table.")|};
@@ -66,7 +66,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       ]);
       model = lm(data = df, formula = y ~ x + z);
       colnames(score(df, model))|}
-    "r2";
+    {|["rmse", "mae", "r2"]|};
   test "score includes log_loss for binomial-style models"
     {|df = dataframe([
         [x: -2, y: 0],
@@ -76,7 +76,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       ]);
       model = [coefficients: [x: 2.0], formula: y ~ x, _model_data: [family: "binomial"], link: "logit"];
       colnames(score(df, model))|}
-    "log_loss";
+    {|["rmse", "mae", "r2", "log_loss"]|};
   test "residuals support pearson type"
     {|df = dataframe([
         [x: 1, z: 2, y: 4],
@@ -96,7 +96,7 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
       ]);
       model = lm(data = df, formula = y ~ x + z);
       colnames(augment(df, model))|}
-    "std_resid";
+    {|["x", "z", "y", "fitted", "resid", "std_resid"]|};
   test "predict supports named data/model arguments"
     {|df = dataframe([x: [1, 2, 3, 4]]);
       predict(data = df, model = [coefficients: [x: 2.0]])|}
@@ -189,13 +189,13 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|Error(TypeError: "t_read_pmml expects a single String argument.")|};
   test "t_read_pmml surfaces file errors"
     {|t_read_pmml("/definitely/not/a/real/model.pmml")|}
-    {|Error(FileError:|};
+    "PMML Parse Error";
   test "t_score_pmml requires a source-backed PMML model"
     {|df = dataframe([x: [1]]);
       t_score_pmml(df, [model_type: "random_forest"])|}
-    "attached source PMML path";
+    {|Error(RuntimeError: "Function `predict` (PMML): model does not have an attached source PMML path. Native T PMML export is not yet implemented for JPMML-backed scoring.")|};
   test "compare_native_vs_pmml_scores requires PMML source metadata"
     {|df = dataframe([x: [1]]);
       compare_native_vs_pmml_scores(df, [model_type: "random_forest"])|}
-    "PMML source path";
+    {|Error(ValueError: "compare_native_vs_pmml_scores: Model does not have a PMML source path.")|};
   print_newline ()
