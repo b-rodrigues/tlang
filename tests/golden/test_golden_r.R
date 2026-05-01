@@ -675,6 +675,14 @@ test_that("CHRONO: filter and arrange on parsed dates", {
   compare_csvs("chrono_filter_arrange")
 })
 
+test_that("CHRONO: parsing, conversion, and extraction coverage", {
+  compare_csvs("chrono_conversions")
+})
+
+test_that("CHRONO: rounding and interval coverage", {
+  compare_csvs("chrono_rounding_intervals")
+})
+
 # ============================================================================
 # Test Suite 25: METAPROGRAMMING
 # ============================================================================
