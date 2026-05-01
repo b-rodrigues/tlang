@@ -29,7 +29,7 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
     let base = Filename.get_temp_dir_name () in
     let rec loop attempt =
       if attempt >= 16 then
-        failwith (Printf.sprintf "failed to create temporary directory for %s" prefix)
+        failwith (Printf.sprintf "Failed to create temporary directory for %s" prefix)
       else
         let suffix =
           Int64.to_string
@@ -203,6 +203,8 @@ let run_tests pass_count fail_count _eval_string _eval_string_env _test =
       && block.family = Some "graphics"
       && param_names = [ "data"; "keep" ]
       && block.examples = [ "plot(chart: data, keep: true)" ]
+      (* parse_block prepends then reverses per-tag entries, so @seealso items
+         currently come back in reverse textual order. *)
       && block.see_also = [ "beta"; "alpha" ]
     in
     let parse_file_ok =
