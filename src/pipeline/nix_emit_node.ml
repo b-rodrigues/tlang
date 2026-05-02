@@ -1849,7 +1849,7 @@ EOF
              @ dep_env @ node_env)
         in
         Printf.sprintf "%s %s > $out/artifact\n      echo ShellOutput > $out/class" hermetic_env launcher
-    | _ -> "t run --unsafe --mode repl node_script.t"
+    | _ -> "t run --unsafe --failfast node_script.t"
   in
 
   Printf.sprintf {|
