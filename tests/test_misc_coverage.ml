@@ -459,7 +459,6 @@ export let helper = 1
     && Nix_unparse.unparse_import_stmt import_stmt
        = "import stats[avg=mean, sd]"
   );
-  print_newline ();
 
   Printf.printf "Coverage — Serialization helpers:\n";
   test_case "serialization helpers roundtrip registries headers and lenses" (fun () ->
@@ -616,7 +615,7 @@ export let helper = 1
       let restore_path () =
         match old_path with
         | Some path -> Unix.putenv "PATH" path
-        | None -> Unix.putenv "PATH" blocked_path
+        | None -> Unix.putenv "PATH" ""
       in
       Fun.protect
         ~finally:restore_path
