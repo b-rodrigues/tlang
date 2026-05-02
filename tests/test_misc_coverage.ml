@@ -375,9 +375,224 @@ export let helper = 1
         match ty with
         | Semantic_type.TDataFrame cols -> List.map (fun c -> c.Semantic_type.name) cols = [ "a"; "b" ]
         | _ -> false
+       in
+       csv_ok csv_ty && csv_ok cached_ty && defs_ok && sym_ok
+       && Symbol_table.get_observed_columns scope = [ "mpg" ])
+  );
+  test_case "analyzer registers imported package functions and aliases" (fun () ->
+    let scope = mk_scope () in
+    let program =
+      [
+        { node = ImportPackage "math"; loc = None };
+        {
+          node =
+            ImportFrom {
+              package = "stats";
+              names = [ { import_name = "mean"; import_alias = Some "avg" } ];
+            };
+          loc = None;
+        };
+        {
+          node =
+            ImportFrom {
+              package = "missing_pkg";
+              names = [ { import_name = "noop"; import_alias = None } ];
+            };
+          loc = None;
+        };
+      ]
+    in
+    ignore (Analyzer.analyze program scope);
+    Symbol_table.lookup scope "sqrt" <> None
+    && Symbol_table.lookup scope "avg" <> None
+    && Symbol_table.lookup scope "noop" = None
+  );
+  test_case "nix_unparse renders raw code serializers matches and imports" (fun () ->
+    let serializer =
+      {
+        s_format = "arrow";
+        s_writer = VNA NAGeneric;
+        s_reader = VNA NAGeneric;
+        s_r_writer = None;
+        s_r_reader = None;
+        s_py_writer = None;
+        s_py_reader = None;
+      }
+    in
+    let raw_expr =
+      locless
+        (RawCode
+           { raw_text = "\n    alpha\n      beta\n"; raw_identifiers = [] })
+    in
+    let match_expr =
+      locless
+        (Match
+           {
+             scrutinee = locless (Var "x");
+             cases =
+               [
+                 (PList ([ PVar "head" ], Some "rest"), locless (Value (VInt 1)));
+                 (PError (Some "message"), locless (Value (VInt 2)));
+               ];
+           })
+    in
+    let import_stmt =
+      {
+        node =
+          ImportFrom {
+            package = "stats";
+            names =
+              [
+                { import_name = "mean"; import_alias = Some "avg" };
+                { import_name = "sd"; import_alias = None };
+              ];
+          };
+        loc = None;
+      }
+    in
+    Nix_unparse.dedent "\n    alpha\n      beta\n" = "alpha\n  beta"
+    && Nix_unparse.expr_to_string (locless (Value (VSerializer serializer)))
+       = "arrow"
+    && Nix_unparse.unparse_expr raw_expr = "alpha\n  beta"
+    && Nix_unparse.unparse_expr match_expr
+       = "match(x) { [head, ..rest] => 1, Error { message } => 2 }"
+    && Nix_unparse.unparse_import_stmt import_stmt
+       = "import stats[avg=mean, sd]"
+  );
+  print_newline ();
+
+  Printf.printf "Coverage — Serialization helpers:\n";
+  test_case "serialization helpers roundtrip registries headers and lenses" (fun () ->
+    with_temp_dir "serialization" (fun dir ->
+      let registry_path = Filename.concat dir "registry.json" in
+      let bad_header_path = Filename.concat dir "bad-header.tobj" in
+      let mismatch_path = Filename.concat dir "mismatch.tobj" in
+      let truncated_path = Filename.concat dir "truncated.tobj" in
+      let lens_path = Filename.concat dir "lens.json" in
+      let read_header path =
+        let ic = open_in_bin path in
+        Fun.protect
+          ~finally:(fun () -> close_in_noerr ic)
+          (fun () -> Serialization.read_serialized_value_header ic)
       in
-      csv_ok csv_ty && csv_ok cached_ty && defs_ok && sym_ok
-      && Symbol_table.get_observed_columns scope = [ "mpg" ])
+      let registry_entries =
+        [ ("a\"b", "path/one"); ("slash\\name", "path/two") ]
+      in
+      let registry_ok =
+        Serialization.write_registry registry_path registry_entries = Ok ()
+        &&
+        match Serialization.read_registry registry_path with
+        | Ok entries -> entries = registry_entries
+        | Error _ -> false
+      in
+      let missing_registry_ok =
+        match Serialization.read_registry (Filename.concat dir "missing.json") with
+        | Error _ -> true
+        | Ok _ -> false
+      in
+      let quote_ok =
+        Serialization.json_escape "a\"\n\t\\" = "a\\\"\\n\\t\\\\"
+        && Serialization.json_unescape "a\\\"\\n\\t\\\\" = "a\"\n\t\\"
+        && Serialization.json_list [ "a"; "b" ] = "[\"a\", \"b\"]"
+        && contains (Serialization.json_dict [ ("a", "1") ]) "\"a\": 1"
+      in
+      let chrono_ok =
+        let micros = Chrono.datetime_of_components 2024 1 15 8 9 10 11 in
+        Serialization.json_date_string (Chrono.days_from_civil 2024 1 15)
+        = "2024-01-15"
+        && Serialization.json_datetime_string micros (Some "UTC")
+           = "2024-01-15T08:09:10.000011Z[UTC]"
+      in
+      write_text bad_header_path "not-a-header";
+      let oc = open_out_bin mismatch_path in
+      output_string oc (Serialization.serialized_value_magic ^ "9.9.9\n");
+      close_out oc;
+      let oc = open_out_bin truncated_path in
+      output_string oc Serialization.serialized_value_magic;
+      close_out oc;
+      let header_ok =
+        (match read_header bad_header_path with
+         | Error msg -> contains msg "missing the"
+         | Ok () -> false)
+        &&
+        (match read_header mismatch_path with
+         | Error msg -> contains msg "not compatible"
+         | Ok () -> false)
+        &&
+        (match read_header truncated_path with
+         | Error msg -> contains msg "truncated"
+         | Ok () -> false)
+      in
+      let lens_ok =
+        let lens_value = VLens (CompositeLens (ColLens "mpg", RowLens 0)) in
+        Serialization.write_json lens_path lens_value = Ok ()
+        &&
+        match Serialization.read_json lens_path with
+        | Ok (VLens (CompositeLens (ColLens "mpg", RowLens 0))) -> true
+        | _ -> false
+      in
+      let lens_error_ok =
+        (match
+           Serialization.yojson_to_value
+             (`Assoc
+               [
+                 ("class", `String "VLens");
+                 ( "data",
+                   `Assoc
+                     [
+                       ("type", `String "IdxLens");
+                       ("index", `String "oops");
+                     ] );
+               ])
+         with
+         | VError { code = ValueError; message; _ } ->
+             contains message "IdxLens field `index` must be an Int"
+         | _ -> false)
+        &&
+        (match
+           Serialization.yojson_to_value
+             (`Assoc
+               [
+                 ("class", `String "VLens");
+                 ("data", `Assoc [ ("type", `String "MysteryLens") ]);
+               ])
+         with
+         | VError { code = ValueError; message; _ } ->
+             contains message "unsupported lens type"
+         | _ -> false)
+      in
+      registry_ok && missing_registry_ok && quote_ok && chrono_ok && header_ok
+      && lens_ok && lens_error_ok)
+  );
+  test_case "serialization error json roundtrips and missing files fail" (fun () ->
+    with_temp_dir "serialization-error" (fun dir ->
+      let error_path = Filename.concat dir "error.json" in
+      let error_value =
+        VError
+          {
+            code = RuntimeError;
+            message = "boom";
+            context = [ ("details", VString "trace") ];
+            location = Some { file = Some "test.t"; line = 3; column = 7 };
+            na_count = 2;
+          }
+      in
+      Serialization.write_json error_path error_value = Ok ()
+      &&
+      match Serialization.read_json error_path with
+      | Ok
+          (VError
+            {
+              code = RuntimeError;
+              message = "boom";
+              context = [ ("details", VString "trace") ];
+              location = Some { file = Some "test.t"; line = 3; column = 7 };
+              na_count = 2;
+            }) ->
+          (match Serialization.read_json (Filename.concat dir "missing.json") with
+           | Error "File not found" -> true
+           | _ -> false)
+      | _ -> false)
   );
   print_newline ();
 
@@ -389,10 +604,27 @@ export let helper = 1
         | Error _ -> true
         | Ok () -> false
       in
-      let docs_dir = Filename.concat dir "docs" in
-      Unix.mkdir docs_dir 0o755;
-      write_text (Filename.concat docs_dir "index.md") "# Docs\n";
-      missing_ok && Documentation_manager.validate_docs dir = Ok ())
+       let docs_dir = Filename.concat dir "docs" in
+       Unix.mkdir docs_dir 0o755;
+       write_text (Filename.concat docs_dir "index.md") "# Docs\n";
+       missing_ok && Documentation_manager.validate_docs dir = Ok ())
+  );
+  test_case "documentation_manager open_docs tolerates missing and fallback docs" (fun () ->
+    with_temp_dir "open-docs" (fun dir ->
+      let old_path = Sys.getenv_opt "PATH" in
+      let restore_path () =
+        match old_path with
+        | Some path -> Unix.putenv "PATH" path
+        | None -> Unix.putenv "PATH" ""
+      in
+      Fun.protect
+        ~finally:restore_path
+        (fun () ->
+          Unix.putenv "PATH" "";
+          Documentation_manager.open_docs dir;
+          write_text (Filename.concat dir "README.md") "# Readme\n";
+          Documentation_manager.open_docs dir;
+          true))
   );
   test_case "release_manager validates versions and project files" (fun () ->
     with_temp_dir "release" (fun dir ->
@@ -456,12 +688,94 @@ min_version = "0.51.0"
       let empty_suite =
         with_temp_dir "empty-suite" (fun empty_dir -> Test_discovery.run_suite empty_dir)
       in
-      file_ok
-      && single_ok
-      && empty_suite.total = 0
-      && Test_discovery.format_duration 0.0001 = "<1ms"
-      && Test_discovery.format_duration 0.5 = "500ms"
-      && Test_discovery.format_duration 1.25 = "1.25s")
+       file_ok
+       && single_ok
+       && empty_suite.total = 0
+       && Test_discovery.format_duration 0.0001 = "<1ms"
+       && Test_discovery.format_duration 0.5 = "500ms"
+       && Test_discovery.format_duration 1.25 = "1.25s")
+  );
+  test_case "test_discovery preloads src files and reports failures" (fun () ->
+    with_temp_dir "discovery-preload" (fun dir ->
+      let src_dir = Filename.concat dir "src" in
+      let tests_dir = Filename.concat dir "tests" in
+      Unix.mkdir src_dir 0o755;
+      Unix.mkdir tests_dir 0o755;
+      write_text (Filename.concat src_dir "helpers.t") "helper_value = 41\n";
+      write_text
+        (Filename.concat tests_dir "test-pass.t")
+        "assert(helper_value == 41)\n";
+      write_text
+        (Filename.concat tests_dir "test-fail.t")
+        "assert(helper_value == 0)\n";
+      write_text
+        (Filename.concat tests_dir "test-syntax.t")
+        "let =\n";
+      let pass_ok =
+        match Test_discovery.run_test_file (Filename.concat tests_dir "test-pass.t") with
+        | { Test_discovery.success = true; error_msg = None; _ } -> true
+        | _ -> false
+      in
+      let fail_ok =
+        match Test_discovery.run_test_file (Filename.concat tests_dir "test-fail.t") with
+        | { Test_discovery.success = false; error_msg = Some _; _ } ->
+            true
+        | _ -> false
+      in
+      let syntax_ok =
+        match Test_discovery.run_test_file (Filename.concat tests_dir "test-syntax.t") with
+        | { Test_discovery.success = false; error_msg = Some msg; _ } ->
+            contains msg "Parse Error" || contains msg "Syntax Error"
+        | _ -> false
+      in
+      let missing_ok =
+        match Test_discovery.run_test_file (Filename.concat tests_dir "missing.t") with
+        | { Test_discovery.success = false; error_msg = Some msg; _ } ->
+            contains msg "File Error"
+        | _ -> false
+      in
+      let suite = Test_discovery.run_suite dir in
+      pass_ok && fail_ok && syntax_ok && missing_ok
+      && suite.total = 3 && suite.passed = 1 && suite.failed = 2)
+  );
+  test_case "package_doctor project helpers report file and directory issues" (fun () ->
+    with_temp_dir "doctor" (fun dir ->
+      let src_path = Filename.concat dir "src" in
+      let data_dir = Filename.concat dir "data" in
+      let outputs_path = Filename.concat dir "outputs" in
+      write_text src_path "not a directory";
+      Unix.mkdir data_dir 0o755;
+      write_text outputs_path "not a directory";
+      let missing_file_ok =
+        match Package_doctor.check_file_exists (Filename.concat dir "tproject.toml") "project configuration" with
+        | Some { Package_doctor.level = Package_doctor.Error; _ } -> true
+        | _ -> false
+      in
+      let wrong_dir_ok =
+        match Package_doctor.check_directory_exists outputs_path "outputs" with
+        | Some { Package_doctor.level = Package_doctor.Error; _ } -> true
+        | _ -> false
+      in
+      let empty_dir_ok =
+        match Package_doctor.check_files_in_dir data_dir ".t" "test files" with
+        | Some { Package_doctor.level = Package_doctor.Warning; _ } -> true
+        | _ -> false
+      in
+      let project_issues = Package_doctor.validate_project_structure dir in
+      let project_ok =
+        List.exists (fun issue -> contains issue.Package_doctor.message "tproject.toml")
+          project_issues
+        && List.exists (fun issue -> contains issue.Package_doctor.message "source")
+             project_issues
+        && List.exists (fun issue -> contains issue.Package_doctor.message "outputs")
+             project_issues
+      in
+      let nix_ok =
+        match Package_doctor.check_nix_installation () with
+        | Some { Package_doctor.message; _ } -> contains message "Nix"
+        | None -> true
+      in
+      missing_file_ok && wrong_dir_ok && empty_dir_ok && project_ok && nix_ok)
   );
   print_newline ();
 
@@ -514,6 +828,24 @@ min_version = "0.51.0"
         Builder_nix_store.write_env_nix ();
         let content = read_text Builder_utils.env_nix_path in
         String.contains content '[' && String.contains content ']'))
+   );
+  test_case "builder_nix_store path probe and builder_utils argv errors are stable" (fun () ->
+    let nix_store_ok =
+      match Builder_nix_store.nix_store_path_of_executable () with
+      | Some path -> String.starts_with ~prefix:"/nix/store/" path
+      | None -> true
+    in
+    let argv_error_ok =
+      match Builder_utils.run_command_stream_argv [||] (fun _ -> ()) with
+      | Error msg -> contains msg "empty argument vector"
+      | Ok _ -> false
+    in
+    let exit_error_ok =
+      match Builder_utils.run_command_argv_exit [||] with
+      | Error msg -> contains msg "empty argument vector"
+      | Ok _ -> false
+    in
+    nix_store_ok && argv_error_ok && exit_error_ok
   );
   test_case "builder_inspect and builder_copy handle logs and artifacts" (fun () ->
     with_temp_dir "pipeline" (fun dir ->
