@@ -375,9 +375,9 @@ export let helper = 1
         match ty with
         | Semantic_type.TDataFrame cols -> List.map (fun c -> c.Semantic_type.name) cols = [ "a"; "b" ]
         | _ -> false
-       in
-       csv_ok csv_ty && csv_ok cached_ty && defs_ok && sym_ok
-       && Symbol_table.get_observed_columns scope = [ "mpg" ])
+      in
+      csv_ok csv_ty && csv_ok cached_ty && defs_ok && sym_ok
+      && Symbol_table.get_observed_columns scope = [ "mpg" ])
   );
   test_case "analyzer registers imported package functions and aliases" (fun () ->
     let scope = mk_scope () in
@@ -604,10 +604,10 @@ export let helper = 1
         | Error _ -> true
         | Ok () -> false
       in
-       let docs_dir = Filename.concat dir "docs" in
-       Unix.mkdir docs_dir 0o755;
-       write_text (Filename.concat docs_dir "index.md") "# Docs\n";
-       missing_ok && Documentation_manager.validate_docs dir = Ok ())
+      let docs_dir = Filename.concat dir "docs" in
+      Unix.mkdir docs_dir 0o755;
+      write_text (Filename.concat docs_dir "index.md") "# Docs\n";
+      missing_ok && Documentation_manager.validate_docs dir = Ok ())
   );
   test_case "documentation_manager open_docs tolerates missing and fallback docs" (fun () ->
     with_temp_dir "open-docs" (fun dir ->
@@ -689,12 +689,12 @@ min_version = "0.51.0"
       let empty_suite =
         with_temp_dir "empty-suite" (fun empty_dir -> Test_discovery.run_suite empty_dir)
       in
-       file_ok
-       && single_ok
-       && empty_suite.total = 0
-       && Test_discovery.format_duration 0.0001 = "<1ms"
-       && Test_discovery.format_duration 0.5 = "500ms"
-       && Test_discovery.format_duration 1.25 = "1.25s")
+      file_ok
+      && single_ok
+      && empty_suite.total = 0
+      && Test_discovery.format_duration 0.0001 = "<1ms"
+      && Test_discovery.format_duration 0.5 = "500ms"
+      && Test_discovery.format_duration 1.25 = "1.25s")
   );
   test_case "test_discovery preloads src files and reports failures" (fun () ->
     with_temp_dir "discovery-preload" (fun dir ->
