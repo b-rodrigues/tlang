@@ -367,7 +367,8 @@ Safe changes (no approval needed):
 
 ## Commit and PR Workflow
 
-1. Make changes in a focused branch.
+1. **Branch Management**: NEVER push straight to `main` unless explicitly told otherwise. Always push to a new branch or the currently checked-out branch if it is different from `main`. In case of doubt, ALWAYS ask before pushing!
+2. Make changes in a focused branch.
 2. Run `dune build` and `dune runtest` — all tests must pass.
 3. Run `make golden-quick` if your change touches any statistical or data-manipulation function.
 4. Ensure `docs/api-reference.md`, `README.md`, and `summary.md` are updated.
