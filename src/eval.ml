@@ -1365,11 +1365,9 @@ and eval_block env_ref stmts =
         env_ref := new_env;
         v
     | stmt :: rest ->
-        let (v, new_env) = eval_statement !env_ref stmt in
+        let (_, new_env) = eval_statement !env_ref stmt in
         env_ref := new_env;
-        (match v with
-         | VError _ -> v
-         | _ -> loop () rest)
+        loop () rest
   in
   loop () stmts
 
