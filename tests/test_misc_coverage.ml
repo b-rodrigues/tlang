@@ -612,15 +612,16 @@ export let helper = 1
   test_case "documentation_manager open_docs tolerates missing and fallback docs" (fun () ->
     with_temp_dir "open-docs" (fun dir ->
       let old_path = Sys.getenv_opt "PATH" in
+      let blocked_path = Filename.concat dir "missing-bin" in
       let restore_path () =
         match old_path with
         | Some path -> Unix.putenv "PATH" path
-        | None -> Unix.putenv "PATH" ""
+        | None -> Unix.putenv "PATH" blocked_path
       in
       Fun.protect
         ~finally:restore_path
         (fun () ->
-          Unix.putenv "PATH" "";
+          Unix.putenv "PATH" blocked_path;
           Documentation_manager.open_docs dir;
           write_text (Filename.concat dir "README.md") "# Readme\n";
           Documentation_manager.open_docs dir;
