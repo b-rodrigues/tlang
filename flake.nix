@@ -133,6 +133,9 @@
             pkgs.jpmml-evaluator
             pkgs.jre
             pkgs.onnxruntime
+            pkgs.bash
+            pkgs.coreutils
+            pkgs.findutils
           ];
 
           buildPhase = ''
@@ -151,6 +154,7 @@
             mkdir -p $out/share/tlang/quarto
             cp -r editors/quarto/tlang/_extensions/tlang $out/share/tlang/quarto/
             makeWrapper $out/bin/.t-unwrapped $out/bin/t \
+              --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.bash pkgs.coreutils pkgs.findutils ]}" \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
@@ -158,10 +162,12 @@
               --set T_JPMML_EVALUATOR_JAR "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
 
             makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
+              --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.bash pkgs.coreutils pkgs.findutils ]}" \
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
               --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json"
 
+            export PATH="${pkgs.lib.makeBinPath [ pkgs.bash pkgs.coreutils pkgs.findutils ]}:$PATH"
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}:$LD_LIBRARY_PATH"
             export DYLD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}:$DYLD_LIBRARY_PATH"
             export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
@@ -303,6 +309,9 @@
             pkgs.boost
             pkgs.cmake
             pkgs.onnxruntime
+            pkgs.bash
+            pkgs.coreutils
+            pkgs.findutils
 
             # 6. Local Project Binaries (Wrappers for development)
             (pkgs.writeShellScriptBin "t" ''
