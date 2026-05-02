@@ -313,7 +313,8 @@ let get_project_root () =
 
 let get_relative_path_to_root () =
   let cwd = try Unix.realpath (Sys.getcwd ()) with _ -> Sys.getcwd () in
-  let root = try Unix.realpath (find_project_root cwd) with _ -> find_project_root cwd in
+  let project_root = find_project_root cwd in
+  let root = try Unix.realpath project_root with _ -> project_root in
   let rec count_levels dir root acc =
     if dir = root then acc
     else 
