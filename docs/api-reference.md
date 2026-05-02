@@ -1186,7 +1186,7 @@ Perform vectorized prediction on a new DataFrame. Supports linear models as well
 
 
 - `data` — DataFrame containing predictor columns
-- `model` — Linear model object
+- `model` — Model object
 
 **Returns:**
 
@@ -1196,6 +1196,123 @@ Vector of predicted values.
 ```t
 preds = predict(new_df, model)
 ```
+
+---
+
+### `anova(model1, model2, ...)`
+
+Perform analysis of variance (ANOVA) to compare multiple nested models.
+
+**Parameters:**
+
+- `model1, model2, ...` — Two or more nested model objects
+
+**Returns:**
+
+DataFrame with ANOVA table results (Df, RSS, AIC, BIC, F-statistic, p-value).
+
+**Examples:**
+```t
+anova(m1, m2)
+```
+
+---
+
+### `coef(model)` / `coefficients(model)`
+
+Extract model coefficients.
+
+**Parameters:**
+
+- `model` — Model object
+
+**Returns:**
+
+Dict of coefficient names and values.
+
+---
+
+### `residuals(model)`
+
+Extract model residuals.
+
+**Parameters:**
+
+- `model` — Model object
+
+**Returns:**
+
+Vector of residuals.
+
+---
+
+### `augment(model, data)`
+
+Alias for `add_diagnostics`. Augments a DataFrame with model diagnostics.
+
+---
+
+### `vcov(model)`
+
+Extract variance-covariance matrix of the main parameters of a fitted model object.
+
+**Returns:**
+
+Dict (Matrix representation)
+
+---
+
+### `wald_test(model, terms)`
+
+Perform a Wald test for a joint hypothesis.
+
+**Parameters:**
+
+- `model` — Model object
+- `terms` — List of coefficient names to test
+
+**Returns:**
+
+DataFrame with test statistics.
+
+---
+
+### `median(x, na_rm = false)` / `var(x, na_rm = false)` / `cov(x, y, na_rm = false)`
+
+Additional descriptive statistics.
+
+---
+
+### `normalize(x)` / `standardize(x)` / `scale(x)`
+
+Data normalization and scaling utilities.
+
+---
+
+### `trimmed_mean(x, trim = 0.1, na_rm = false)`
+
+Compute the trimmed mean of a collection.
+
+---
+
+### `winsorize(x, probs = [0.05, 0.95])`
+
+Replace extreme values with quantiles.
+
+---
+
+### `huber_loss(actual, predicted, delta = 1.0)`
+
+Compute the Huber loss between two vectors.
+
+---
+
+### `cut(x, breaks, ...)` / `poly(x, degree, ...)`
+
+Basis functions for modeling.
+
+---
+
 
 ---
 
