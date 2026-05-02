@@ -699,15 +699,15 @@ min_version = "0.51.0"
     with_temp_dir "discovery-preload" (fun dir ->
       let src_dir = Filename.concat dir "src" in
       let tests_dir = Filename.concat dir "tests" in
-      let helper_value = 41 in
+      let expected_value = 41 in
       Unix.mkdir src_dir 0o755;
       Unix.mkdir tests_dir 0o755;
       write_text
         (Filename.concat src_dir "helpers.t")
-        (Printf.sprintf "helper_value = %d\n" helper_value);
+        (Printf.sprintf "helper_value = %d\n" expected_value);
       write_text
         (Filename.concat tests_dir "test-pass.t")
-        (Printf.sprintf "assert(helper_value == %d)\n" helper_value);
+        (Printf.sprintf "assert(helper_value == %d)\n" expected_value);
       write_text
         (Filename.concat tests_dir "test-fail.t")
         "assert(helper_value == 0)\n";
