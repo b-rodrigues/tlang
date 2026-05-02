@@ -18,7 +18,10 @@ The focus of this release was to increase test coverage across all packages.
     - **Statistical Operations**: Verified `winsorize`, `huber_loss`, `normalize`, and Pearson `cor` against R reference values.
     - **Data Transformations**: Added a golden test for `standardize` and `scale` using `iris$Sepal.Length`.
     - **Model Accessors**: Added regression tests for `coef`, `conf_int`, `sigma`, `nobs`, and `df_residual` for linear models.
+- **Cross-Platform Stability**:
+    - **Darwin Portability**: Fixed non-portable shell behavior and path symlink inconsistencies in `builder_utils.ml` and `test_misc_coverage.ml`. Switched to `Unix.realpath` for canonical path resolution on macOS (handling `/var` vs `/private/var`) and ensured GNU utilities are explicitly used via Nix environment wrappers.
 - **Critical Fixes & Statistics Parity**:
+    - **ONNX Input Alignment**: Synchronized the native ONNX evaluator with regenerated model fixtures, updating expected input metadata from `X` to `float_input` to match `scikit-learn` 1.6+ exports.
     - **Metadata Parity**: Injected `model_type` and `mining_function` metadata into `lm` and PMML-loaded model objects. This ensures that `fit_stats()` returns complete, R-compatible diagnostic tables without `NA` placeholders for model categories.
     - **Enhanced `anova`**: Updated the `anova` builtin to support model labels (e.g., `anova(m1 = m1, m2 = m2)`). The labels are now preserved in the resulting DataFrame, matching R's behavior in model comparison tables.
     - **Quantile Accuracy**: Fixed a critical bug in the C-based quantile implementations (`normal_quantile`, `t_quantile`) where tail approximations were incorrect, leading to broken confidence intervals. Implemented high-precision Acklam's algorithm for normal quantiles and accurate Cornish-Fisher expansion for $t$ quantiles.
