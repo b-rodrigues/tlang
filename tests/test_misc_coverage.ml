@@ -483,7 +483,10 @@ min_version = "0.51.0"
         Builder_utils.ensure_pipeline_dir ();
         ignore (Builder_utils.write_file "sample.txt" "hello\nworld\n");
         let first_line_ok = Builder_utils.read_file_first_line "sample.txt" = Some "hello" in
-        let root_ok = Builder_utils.find_project_root (Sys.getcwd ()) = root in
+        let root_ok =
+          (try Unix.realpath (Builder_utils.find_project_root (Sys.getcwd ())) with _ -> Builder_utils.find_project_root (Sys.getcwd ())) =
+          (try Unix.realpath root with _ -> root)
+        in
         let rel_ok = Builder_utils.get_relative_path_to_root () = "../.." in
         let cmd_ok =
           match Builder_utils.run_command_capture "printf 'alpha\\n'" with
