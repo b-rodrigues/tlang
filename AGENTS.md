@@ -393,7 +393,7 @@ Safe changes (no approval needed):
 
 - **Never upgrade the version string** in the `VERSION` file or `docs/changelog.md` without an explicit request from the user. 
 - Agents should only perform release workflows (like running `sync_version.sh` for a version bump) if specifically instructed to do so.
-- When in doubt, stay on the currently checked-out version (e.g., `0.51.4`).
+- When in doubt, stop and ask.
 
 ### Releasing a new version of T
 
