@@ -511,10 +511,6 @@ seq(5, 1, -1)   -- [5, 4, 3, 2, 1]
 
 ---
 
-### `is_error(value)`
-
-Check if a value is an error.
-
 **Parameters:**
 
 
@@ -776,12 +772,6 @@ error("ValueError", "Invalid input")
 e = error("custom error")
 error_message(e)  -- "custom error"
 ```
-
----
-
-### `is_error(value)`
-
-Check if a value is an error (see Core package).
 
 ---
 
@@ -1179,49 +1169,6 @@ pow(2, -1)   -- 0.5
 
 ---
 
-### `min(x, y)` / `min(collection)`
-
-Minimum value.
-
-**Parameters:**
-
-
-- `x, y` — Two numbers, OR
-- `collection` — List or Vector
-
-**Returns:**
-
-Minimum value
-
-**Examples:**
-```t
-min(3, 7)           -- 3
-min([5, 2, 9, 1])   -- 1
-min([])             -- Error
-```
-
----
-
-### `max(x, y)` / `max(collection)`
-
-Maximum value.
-
-**Parameters:**
-
-
-- `collection` — List or Vector
-
-**Returns:**
-
-Maximum value
-
-**Examples:**
-```t
-max(3, 7)           -- 7
-max([5, 2, 9, 1])   -- 9
-max([])             -- Error
-```
-
 ---
 
 ## Stats Package
@@ -1311,13 +1258,13 @@ Cumulative Distribution Functions for Normal, Student-t, F, and Chi-squared dist
 
 #### `lm(data, formula)`
 
-Fit a linear regression model (OLS). The formula is a string like `"mpg ~ wt + hp"`.
+Fit a linear regression model (OLS). The formula is a `Formula` value such as `mpg ~ wt + hp`.
 
 ---
 
 #### `summary(model)` / `fit_stats(model)`
 
-Extract tidy coefficients (DataFrame) or model-level metrics (Dict).
+`summary(model)` returns a `Dict` containing a `_tidy_df` DataFrame plus metadata; `fit_stats(model)` returns a `DataFrame` of model-level metrics.
 
 ---
 

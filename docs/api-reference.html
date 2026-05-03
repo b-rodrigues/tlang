@@ -425,8 +425,6 @@ sum([])                 -- 0</code></pre>
 seq(0, 10, 2)   -- [0, 2, 4, 6, 8, 10]
 seq(5, 1, -1)   -- [5, 4, 3, 2, 1]</code></pre>
 <hr />
-<h3 id="is_errorvalue-1"><code>is_error(value)</code></h3>
-<p>Check if a value is an error.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>value</code> — Any value</li>
@@ -598,9 +596,6 @@ error(&quot;ValueError&quot;, &quot;Invalid input&quot;)
 
 e = error(&quot;custom error&quot;)
 error_message(e)  -- &quot;custom error&quot;</code></pre>
-<hr />
-<h3 id="is_errorvalue-2"><code>is_error(value)</code></h3>
-<p>Check if a value is an error (see Core package).</p>
 <hr />
 <h3 id="error_codeerr"><code>error_code(err)</code></h3>
 <p>Get the error code from an Error value.</p>
@@ -864,34 +859,6 @@ pow(10, 2)   -- 100.0
 pow(4, 0.5)  -- 2.0 (square root)
 pow(2, -1)   -- 0.5</code></pre>
 <hr />
-<h3 id="minx-y-mincollection"><code>min(x, y)</code> /
-<code>min(collection)</code></h3>
-<p>Minimum value.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>x, y</code> — Two numbers, OR</li>
-<li><code>collection</code> — List or Vector</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p>Minimum value</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>min(3, 7)           -- 3
-min([5, 2, 9, 1])   -- 1
-min([])             -- Error</code></pre>
-<hr />
-<h3 id="maxx-y-maxcollection"><code>max(x, y)</code> /
-<code>max(collection)</code></h3>
-<p>Maximum value.</p>
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>collection</code> — List or Vector</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p>Maximum value</p>
-<p><strong>Examples:</strong></p>
-<pre class="t"><code>max(3, 7)           -- 7
-max([5, 2, 9, 1])   -- 9
-max([])             -- Error</code></pre>
 <hr />
 <h2 id="stats-package">Stats Package</h2>
 <p>Statistical functions for data analysis. Most functions handle
@@ -967,13 +934,15 @@ Chi-squared distributions.</p>
 <hr />
 <h3 id="modeling">Modeling</h3>
 <h4 id="lmdata-formula"><code>lm(data, formula)</code></h4>
-<p>Fit a linear regression model (OLS). The formula is a string like
-<code>"mpg ~ wt + hp"</code>.</p>
+<p>Fit a linear regression model (OLS). The formula is a
+<code>Formula</code> value such as <code>mpg ~ wt + hp</code>.</p>
 <hr />
 <h4 id="summarymodel-fit_statsmodel"><code>summary(model)</code> /
 <code>fit_stats(model)</code></h4>
-<p>Extract tidy coefficients (DataFrame) or model-level metrics
-(Dict).</p>
+<p><code>summary(model)</code> returns a <code>Dict</code> containing a
+<code>_tidy_df</code> DataFrame plus metadata;
+<code>fit_stats(model)</code> returns a <code>DataFrame</code> of
+model-level metrics.</p>
 <hr />
 <h4
 id="predictdata-model-scoredata-model"><code>predict(data, model)</code>

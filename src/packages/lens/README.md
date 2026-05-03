@@ -26,7 +26,7 @@ df = dataframe([a: [1, 2], b: [3, 4]])
 get(df, col_lens("a"))       -- [1, 2]
 
 -- Update row
-new_df = over(df, row_lens(0), \(r) r |> set("a", 10))
+new_df = over(df, row_lens(0), \(r) set(r, col_lens("a"), 10))
 ```
 
 ## Status
