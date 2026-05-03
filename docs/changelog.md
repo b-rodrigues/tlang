@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.51.5] - 2026-05-03
+## [0.51.x] - 2026-05-xx
 
 The focus of this release was to improve language ergonomics for data guardrails and increase test coverage across all packages.
 
