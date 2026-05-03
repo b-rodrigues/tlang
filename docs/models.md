@@ -168,9 +168,9 @@ preds = predict(new_data, model)
 
 $T$ supports various link functions for GLMs (imported via PMML), including **Logit**, **Probit**, **Log**, **Inverse**, and **Cloglog**.
 
-> **PMML Trees & Boosting**: $T$ can now evaluate PMML-imported **Decision Trees**, **Random Forests**, and **XGBoost (GBTree)** models natively (no external runtime). This includes PMML exports from **scikit-learn** via `sklearn2pmml`. Use `read_pmml()` to load the model and `predict(df, model)` to score new data.
+> **PMML Trees & Boosting**: $T$ can now evaluate PMML-imported **Decision Trees**, **Random Forests**, and **XGBoost (GBTree)** models natively (no external runtime). This includes PMML exports from **scikit-learn** via `sklearn2pmml`. Use `t_read_pmml()` to load the model and `predict(df, model)` to score new data.
 
-> **ONNX Native Inference**: $T$ can run ONNX models natively through ONNX Runtime using `read_onnx()` plus `predict(df, model)`. The current implementation supports single-input/single-output models and expects the selected numeric feature columns to match the model input width.
+> **ONNX Native Inference**: $T$ can run ONNX models natively through ONNX Runtime using `t_read_onnx()` plus `predict(df, model)`. The current implementation supports single-input/single-output models and expects the selected numeric feature columns to match the model input width.
 
 ---
 
@@ -185,7 +185,7 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 ### Why ONNX?
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
-2. **Native T Loading**: Reading models with `read_onnx(path)` and scoring them with `predict(data, model)`.
+2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
 3. **R/Python Runtime Loading**: Reading models via the `onnx` R package or Python `onnxruntime`.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 

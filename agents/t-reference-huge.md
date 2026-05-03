@@ -2720,7 +2720,7 @@ Perform a Wald test for a joint hypothesis on coefficients.
 
 ---
 
-#### `read_onnx(path)` / `read_pmml(path)`
+#### `t_read_onnx(path)` / `t_read_pmml(path)`
 
 Import pre-trained models from ONNX or PMML formats for native scoring.
 
@@ -12320,9 +12320,9 @@ preds = predict(new_data, model)
 
 $T$ supports various link functions for GLMs (imported via PMML), including **Logit**, **Probit**, **Log**, **Inverse**, and **Cloglog**.
 
-> **PMML Trees & Boosting**: $T$ can now evaluate PMML-imported **Decision Trees**, **Random Forests**, and **XGBoost (GBTree)** models natively (no external runtime). This includes PMML exports from **scikit-learn** via `sklearn2pmml`. Use `read_pmml()` to load the model and `predict(df, model)` to score new data.
+> **PMML Trees & Boosting**: $T$ can now evaluate PMML-imported **Decision Trees**, **Random Forests**, and **XGBoost (GBTree)** models natively (no external runtime). This includes PMML exports from **scikit-learn** via `sklearn2pmml`. Use `t_read_pmml()` to load the model and `predict(df, model)` to score new data.
 
-> **ONNX Native Inference**: $T$ can run ONNX models natively through ONNX Runtime using `read_onnx()` plus `predict(df, model)`. The current implementation supports single-input/single-output models and expects the selected numeric feature columns to match the model input width.
+> **ONNX Native Inference**: $T$ can run ONNX models natively through ONNX Runtime using `t_read_onnx()` plus `predict(df, model)`. The current implementation supports single-input/single-output models and expects the selected numeric feature columns to match the model input width.
 
 ---
 
@@ -12337,7 +12337,7 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 ### Why ONNX?
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
-2. **Native T Loading**: Reading models with `read_onnx(path)` and scoring them with `predict(data, model)`.
+2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
 3. **R/Python Runtime Loading**: Reading models via the `onnx` R package or Python `onnxruntime`.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
@@ -14850,7 +14850,7 @@ It is useful when you want to:
 - score it natively with `predict(data, model)`
 
 This tutorial focuses on the workflows that T supports today, including the initial
-T-native `write_pmml()` pass-through path for PMML artifacts that were already loaded
+T-native `t_write_pmml()` pass-through path for PMML artifacts that were already loaded
 from disk or a pipeline node.
 
 ---
@@ -14882,7 +14882,7 @@ or consumed.
 | R writes PMML | `r2pmml`, `XML`, `jsonlite`, `jre` |
 | Python writes PMML | `sklearn2pmml` or `jpmml-statsmodels`, plus `jre` |
 | Python reads PMML | JPMML evaluator via wrapper |
-| T reads and scores PMML | built-in `read_pmml()` + native evaluator |
+| T reads and scores PMML | built-in `t_read_pmml()` + native evaluator |
 
 When PMML is used inside pipelines, these dependencies should be declared explicitly in
 your project configuration so T can build the correct runtime environment.
@@ -14942,7 +14942,7 @@ For PMML-imported tree models, random forests, and supported boosted ensembles, 
 already a strong workflow:
 
 ```t
-forest = read_pmml("tests/golden/data/iris_random_forest.pmml")
+forest = t_read_pmml("tests/golden/data/iris_random_forest.pmml")
 iris = read_csv("tests/golden/data/iris.csv")
 predict(iris, forest)
 ```
@@ -15024,7 +15024,7 @@ rather than silently switching to a different interchange story.
 You can also bypass pipelines and load an existing PMML file manually:
 
 ```t
-model = read_pmml("model.pmml")
+model = t_read_pmml("model.pmml")
 summary(model)
 ```
 
@@ -15036,21 +15036,21 @@ This is useful when:
 
 ---
 
-## 8. Writing PMML from T with `write_pmml()`
+## 8. Writing PMML from T with `t_write_pmml()`
 
-T now provides an initial native `write_pmml()` path, but it is intentionally narrow.
+T now provides an initial native `t_write_pmml()` path, but it is intentionally narrow.
 
-Today, `write_pmml()` supports **pass-through copying** of PMML artifacts that were
+Today, `t_write_pmml()` supports **pass-through copying** of PMML artifacts that were
 already loaded into T from:
 
-- `read_pmml("path.pmml")`
+- `t_read_pmml("path.pmml")`
 - `read_node("node_name")` for PMML pipeline outputs
 
 Example:
 
 ```t
-model = read_pmml("model.pmml")
-write_pmml(model, "model-copy.pmml")
+model = t_read_pmml("model.pmml")
+t_write_pmml(model, "model-copy.pmml")
 ```
 
 This is useful when you want to:
@@ -15061,8 +15061,8 @@ This is useful when you want to:
 
 ### Current Limitation
 
-`write_pmml()` does **not** yet export arbitrary native T model objects to fresh PMML
-XML. If you construct or fit a model natively in T and then call `write_pmml()`, T
+`t_write_pmml()` does **not** yet export arbitrary native T model objects to fresh PMML
+XML. If you construct or fit a model natively in T and then call `t_write_pmml()`, T
 should fail explicitly unless the value still carries an original PMML source artifact.
 
 That is deliberate: T currently exposes a safe pass-through path, not a pretend PMML
@@ -15077,13 +15077,13 @@ For now, the safest PMML workflow is:
 1. train in R or Python
 2. export with `^pmml`
 3. read and score in T
-4. use `write_pmml()` only to preserve or copy existing PMML artifacts
+4. use `t_write_pmml()` only to preserve or copy existing PMML artifacts
 
 In other words:
 
 - use foreign runtimes as the **PMML producers**
 - use T as the **PMML consumer and scorer**
-- use `write_pmml()` as an **artifact-preservation tool**, not as a general exporter
+- use `t_write_pmml()` as an **artifact-preservation tool**, not as a general exporter
 
 ---
 
@@ -15098,10 +15098,10 @@ packages in project configuration. PMML support is not implicit magic.
 
 Check that `jpmml-evaluator` is available in `[additional-tools]` and that `pyarrow` is available in `[py-dependencies]`. Also ensure the JVM-backed PMML toolchain is correctly provisioned.
 
-### `write_pmml()` rejects a model
+### `t_write_pmml()` rejects a model
 
 That usually means the value does not carry a source PMML artifact path. Reload it with
-`read_pmml()` or obtain it from `read_node()` before calling `write_pmml()`.
+`t_read_pmml()` or obtain it from `read_node()` before calling `t_write_pmml()`.
 
 ### Predictions differ from the source runtime
 

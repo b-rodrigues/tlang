@@ -1298,7 +1298,7 @@ Perform a Wald test for a joint hypothesis on coefficients.
 
 ---
 
-#### `read_onnx(path)` / `read_pmml(path)`
+#### `t_read_onnx(path)` / `t_read_pmml(path)`
 
 Import pre-trained models from ONNX or PMML formats for native scoring.
 

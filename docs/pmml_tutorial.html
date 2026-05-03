@@ -47,7 +47,7 @@ tree-based models. It is useful when you want to:</p>
 <li>score it natively with <code>predict(data, model)</code></li>
 </ul>
 <p>This tutorial focuses on the workflows that T supports today,
-including the initial T-native <code>write_pmml()</code> pass-through
+including the initial T-native <code>t_write_pmml()</code> pass-through
 path for PMML artifacts that were already loaded from disk or a pipeline
 node.</p>
 <hr />
@@ -98,7 +98,7 @@ the model is produced or consumed.</p>
 </tr>
 <tr>
 <td>T reads and scores PMML</td>
-<td>built-in <code>read_pmml()</code> + native evaluator</td>
+<td>built-in <code>t_read_pmml()</code> + native evaluator</td>
 </tr>
 </tbody>
 </table>
@@ -144,7 +144,7 @@ Python, but downstream prediction, summary, and fit-stat extraction can
 stay inside the T runtime.</p>
 <p>For PMML-imported tree models, random forests, and supported boosted
 ensembles, this is already a strong workflow:</p>
-<pre class="t"><code>forest = read_pmml(&quot;tests/golden/data/iris_random_forest.pmml&quot;)
+<pre class="t"><code>forest = t_read_pmml(&quot;tests/golden/data/iris_random_forest.pmml&quot;)
 iris = read_csv(&quot;tests/golden/data/iris.csv&quot;)
 predict(iris, forest)</code></pre>
 <hr />
@@ -214,7 +214,7 @@ interchange story.</p>
 Disk</h2>
 <p>You can also bypass pipelines and load an existing PMML file
 manually:</p>
-<pre class="t"><code>model = read_pmml(&quot;model.pmml&quot;)
+<pre class="t"><code>model = t_read_pmml(&quot;model.pmml&quot;)
 summary(model)</code></pre>
 <p>This is useful when:</p>
 <ul>
@@ -223,20 +223,20 @@ summary(model)</code></pre>
 <li>you want to compare several artifacts in the REPL</li>
 </ul>
 <hr />
-<h2 id="writing-pmml-from-t-with-write_pmml">8. Writing PMML from T with
-<code>write_pmml()</code></h2>
-<p>T now provides an initial native <code>write_pmml()</code> path, but
-it is intentionally narrow.</p>
-<p>Today, <code>write_pmml()</code> supports <strong>pass-through
+<h2 id="writing-pmml-from-t-with-t_write_pmml">8. Writing PMML from T
+with <code>t_write_pmml()</code></h2>
+<p>T now provides an initial native <code>t_write_pmml()</code> path,
+but it is intentionally narrow.</p>
+<p>Today, <code>t_write_pmml()</code> supports <strong>pass-through
 copying</strong> of PMML artifacts that were already loaded into T
 from:</p>
 <ul>
-<li><code>read_pmml("path.pmml")</code></li>
+<li><code>t_read_pmml("path.pmml")</code></li>
 <li><code>read_node("node_name")</code> for PMML pipeline outputs</li>
 </ul>
 <p>Example:</p>
-<pre class="t"><code>model = read_pmml(&quot;model.pmml&quot;)
-write_pmml(model, &quot;model-copy.pmml&quot;)</code></pre>
+<pre class="t"><code>model = t_read_pmml(&quot;model.pmml&quot;)
+t_write_pmml(model, &quot;model-copy.pmml&quot;)</code></pre>
 <p>This is useful when you want to:</p>
 <ul>
 <li>copy a PMML artifact to a deterministic location</li>
@@ -244,9 +244,9 @@ write_pmml(model, &quot;model-copy.pmml&quot;)</code></pre>
 <li>re-materialize a model you inspected in the REPL</li>
 </ul>
 <h3 id="current-limitation">Current Limitation</h3>
-<p><code>write_pmml()</code> does <strong>not</strong> yet export
+<p><code>t_write_pmml()</code> does <strong>not</strong> yet export
 arbitrary native T model objects to fresh PMML XML. If you construct or
-fit a model natively in T and then call <code>write_pmml()</code>, T
+fit a model natively in T and then call <code>t_write_pmml()</code>, T
 should fail explicitly unless the value still carries an original PMML
 source artifact.</p>
 <p>That is deliberate: T currently exposes a safe pass-through path, not
@@ -259,14 +259,14 @@ Pattern</h2>
 <li>train in R or Python</li>
 <li>export with <code>^pmml</code></li>
 <li>read and score in T</li>
-<li>use <code>write_pmml()</code> only to preserve or copy existing PMML
-artifacts</li>
+<li>use <code>t_write_pmml()</code> only to preserve or copy existing
+PMML artifacts</li>
 </ol>
 <p>In other words:</p>
 <ul>
 <li>use foreign runtimes as the <strong>PMML producers</strong></li>
 <li>use T as the <strong>PMML consumer and scorer</strong></li>
-<li>use <code>write_pmml()</code> as an <strong>artifact-preservation
+<li>use <code>t_write_pmml()</code> as an <strong>artifact-preservation
 tool</strong>, not as a general exporter</li>
 </ul>
 <hr />
@@ -282,11 +282,11 @@ not implicit magic.</p>
 <code>[additional-tools]</code> and that <code>pyarrow</code> is
 available in <code>[py-dependencies]</code>. Also ensure the JVM-backed
 PMML toolchain is correctly provisioned.</p>
-<h3 id="write_pmml-rejects-a-model"><code>write_pmml()</code> rejects a
-model</h3>
+<h3 id="t_write_pmml-rejects-a-model"><code>t_write_pmml()</code>
+rejects a model</h3>
 <p>That usually means the value does not carry a source PMML artifact
-path. Reload it with <code>read_pmml()</code> or obtain it from
-<code>read_node()</code> before calling <code>write_pmml()</code>.</p>
+path. Reload it with <code>t_read_pmml()</code> or obtain it from
+<code>read_node()</code> before calling <code>t_write_pmml()</code>.</p>
 <h3 id="predictions-differ-from-the-source-runtime">Predictions differ
 from the source runtime</h3>
 <p>Verify that the model family and preprocessing steps are truly

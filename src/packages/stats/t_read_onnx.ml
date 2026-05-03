@@ -49,15 +49,10 @@ let t_read_onnx_builtin =
 
 let register env =
   let env = Env.add "t_read_onnx" t_read_onnx_builtin env in
-  let env = Env.add "read_onnx" t_read_onnx_builtin env in
   let env = Env.add "t_write_onnx"
     (make_builtin ~name:"t_write_onnx" 2 (fun _args _env ->
       Error.make_error RuntimeError "Serializer ^onnx does not have a T-native writer implementation yet. Use ^onnx within R or Python nodes to export models."
     ))
     env
   in
-  Env.add "write_onnx"
-    (make_builtin ~name:"write_onnx" 2 (fun _args _env ->
-      Error.make_error RuntimeError "Serializer ^onnx does not have a T-native writer implementation yet. Use ^onnx within R or Python nodes to export models."
-    ))
-    env
+  env
