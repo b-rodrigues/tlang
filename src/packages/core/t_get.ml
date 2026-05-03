@@ -12,8 +12,8 @@ open Ast
 --# 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based).
 --# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result.
 --# 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data.
---# 5. **Default Value (Fallback)**: `get(value, default)` returns the value if it's not an error/NA, otherwise returns the default.
---# 6. **Safe Retrieval**: `get(target, selector, default)` performs the retrieval and returns the default if the result is an error/NA.
+--# 5. **Default Value (Fallback)**: `get(value, default)` returns `value` unchanged when it is not NA/Error; returns `default` when `value` is NA or an Error.
+--# 6. **Safe Retrieval**: `get(target, selector, default)` performs the retrieval and returns `default` only when the result is NA (missing key/node or out-of-bounds index). Type errors in unsupported target/selector combinations propagate as errors.
 --# 7. **Cross-Node Access (Sandbox)**: `get(node_lens("name"))` retrieves a sibling node's artifact.
 --#
 --# @name get
@@ -31,9 +31,10 @@ open Ast
 --#   -- Safe indexing with default:
 --#   get(lst, 5, 0)               -- 0 (Index out of bounds fallback)
 --#
---#   -- Guardrail pattern:
+--#   -- Guardrail pattern (any non-NA/Error value is returned as-is):
 --#   s = [min_age: NA]
 --#   get(s.min_age, 0) >= 0       -- true (NA falls back to 0)
+--#   get(42, 0)                   -- 42 (non-NA/Error value returned unchanged)
 --#
 --#   p = pipeline { a = 1 }
 --#   get(p, "a")                  -- 1 (Pipeline Access)
@@ -273,14 +274,26 @@ let register ~eval_call env =
                 let len = Array.length arr in
                 if i < 0 || i >= len then (VNA NAGeneric)
                 else arr.(i)
-            | _ -> (VNA NAGeneric)
+            | [VNDArray arr; VInt i] ->
+                let len = Array.length arr.data in
+                if i < 0 || i >= len then (VNA NAGeneric)
+                else VFloat arr.data.(i)
+            | _ ->
+                Error.type_error
+                  (Printf.sprintf
+                     "Function `get` (3 args) expects (Pipeline, String, Default), (Collection, Int, Default), or (Data, Lens, Default), got (%s, %s, _)."
+                     (Utils.type_name target) (Utils.type_name selector))
           in
           (match res with
-           | VNA _ | VError _ -> default
+           | VNA _ -> default
            | _ -> res)
 
        | [v] -> Error.type_error (Printf.sprintf "Function `get` (1 arg) expects a String or Symbol, got %s." (Utils.type_name v))
-       | [_ ; _] -> Error.type_error "Function `get` (2 args) expects (Pipeline, String), (Collection, Int), (Data, Lens), or (NA/Error, Default)."
+       (* Catch-all 2-arg case: return first arg unchanged.
+          NA and Error 2-arg cases are handled by earlier match arms above,
+          so this arm is only reached for non-NA/non-Error first arguments
+          that did not match any specific retrieval pattern. *)
+       | [v; _] -> v
        | _ -> Error.arity_error_named "get" 1 (List.length args)
      ))
      env

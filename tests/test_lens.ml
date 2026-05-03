@@ -251,4 +251,57 @@ let run_tests _pass_count _fail_count _eval_string _eval_string_env test =
     {|data = [[v: 1], [v: 2]]; l = col_lens("v"); over(data, l, \(x) x + 10)|}
     {|[{`v`: 11}, {`v`: 12}]|};
 
+  (* 14. get() Default Fallback Tests *)
+  test "get(na(), default) returns default"
+    {|get(na(), 0)|}
+    "0";
+
+  test "get(error, default) returns default"
+    {|get(error("ValueError", "oops"), 0)|}
+    "0";
+
+  test "get(non-NA/Error value, default) returns the value unchanged"
+    {|get(42, 0)|}
+    "42";
+
+  test "get(list, oob_index, default) returns default"
+    {|get([10, 20, 30], 99, -1)|}
+    "-1";
+
+  test "get(list, valid_index, default) returns the element"
+    {|get([10, 20, 30], 1, -1)|}
+    "20";
+
+  test "get(vector, oob_index, default) returns default"
+    {|v = pull(dataframe([x: [1, 2, 3]]), "x"); get(v, 99, -1)|}
+    "-1";
+
+  test "get(ndarray, valid_index, default) returns the element"
+    {|get(ndarray([10, 20, 30]), 0, 0)|}
+    "10.";
+
+  test "get(ndarray, oob_index, default) returns default"
+    {|get(ndarray([10, 20, 30]), 99, 0)|}
+    "0";
+
+  test "get(pipeline, missing_node, default) returns default"
+    {|p = pipeline { a = 1 }; get(p, "missing", "N/A")|}
+    {|"N/A"|};
+
+  test "get(pipeline, existing_node, default) returns the node value"
+    {|p = pipeline { a = 1 }; get(p, "a", "N/A")|}
+    "1";
+
+  test "get(unsupported_types, selector, default) returns type error — Int/Int"
+    {|get(1, 2, 3)|}
+    {|Error(TypeError: "Function `get` (3 args) expects (Pipeline, String, Default), (Collection, Int, Default), or (Data, Lens, Default), got (Int, Int, _).")|};
+
+  test "get(unsupported_types, selector, default) returns type error — String/Int"
+    {|get("hello", 2, 3)|}
+    {|Error(TypeError: "Function `get` (3 args) expects (Pipeline, String, Default), (Collection, Int, Default), or (Data, Lens, Default), got (String, Int, _).")|};
+
+  test "get(unsupported_types, selector, default) returns type error — Bool/Bool"
+    {|get(true, false, 3)|}
+    {|Error(TypeError: "Function `get` (3 args) expects (Pipeline, String, Default), (Collection, Int, Default), or (Data, Lens, Default), got (Bool, Bool, _).")|};
+
   print_newline ()
