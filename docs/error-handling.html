@@ -142,10 +142,10 @@ actual argument count - Suggests correct usage</p>
 <h3 id="na-errors">6. NA Errors</h3>
 <p>Occur when NA values are encountered without explicit handling:</p>
 <pre class="t"><code>mean([1, NA, 3])
--- Error(NAError: NA value encountered. Use na_rm = true to skip NA values)
+-- Error(AggregationError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")
 
 1 + NA
--- Error(TypeError: Operation on NA value)</code></pre>
+-- Error(NAPredicateError: Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.)</code></pre>
 <h3 id="assertion-errors">7. Assertion Errors</h3>
 <p>Occur when assertions fail:</p>
 <pre class="t"><code>assert(2 + 2 == 5)
@@ -532,10 +532,9 @@ success and various error states.</p>
 <p><strong>Problem</strong>: Mixing incompatible types</p>
 <pre class="t"><code>&quot;Age: &quot; + 25
 -- Error(TypeError: Cannot add String and Int)</code></pre>
-<p><strong>Solution</strong>: Use separate print statements (alpha does
-not have string conversion yet)</p>
-<pre class="t"><code>-- Workaround for output:
-print(&quot;Age: &quot;)
+<p><strong>Solution</strong>: Use separate print statements or
+<code>str_string()</code> for manual conversion.</p>
+<pre class="t"><code>print(&quot;Age: &quot;)
 print(25)
 
 -- Or use R/Python for formatting if needed</code></pre>

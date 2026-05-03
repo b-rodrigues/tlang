@@ -97,7 +97,7 @@ Timezones in T are currently handled as labels.
 ## Example Workflow
 
 ```t
-df = read_csv("sales.t") |>
+df = read_csv("sales.csv") |>
   mutate(
     date = ymd($order_date),
     month = month($date, label = true),

@@ -129,10 +129,10 @@ Occur when NA values are encountered without explicit handling:
 
 ```t
 mean([1, NA, 3])
--- Error(NAError: NA value encountered. Use na_rm = true to skip NA values)
+-- Error(AggregationError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")
 
 1 + NA
--- Error(TypeError: Operation on NA value)
+-- Error(NAPredicateError: Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.)
 ```
 
 ### 7. Assertion Errors
@@ -581,10 +581,9 @@ mean([1, 2, NA, 4], na_rm = true)  -- 2.33...
 -- Error(TypeError: Cannot add String and Int)
 ```
 
-**Solution**: Use separate print statements (alpha does not have string conversion yet)
+**Solution**: Use separate print statements or `str_string()` for manual conversion.
 
 ```t
--- Workaround for output:
 print("Age: ")
 print(25)
 

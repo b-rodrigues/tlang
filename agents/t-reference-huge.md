@@ -2720,7 +2720,7 @@ Perform a Wald test for a joint hypothesis on coefficients.
 
 ---
 
-#### `read_onnx(path)` / `read_pmml(path)`
+#### `t_read_onnx(path)` / `t_read_pmml(path)`
 
 Import pre-trained models from ONNX or PMML formats for native scoring.
 
@@ -7398,10 +7398,9 @@ cor(df.x, df.y, na_rm = true)        -- correlation with pairwise deletion
 
 ```t
 model = lm(data = df, formula = salary ~ age)
-model.slope       -- coefficient
-model.intercept   -- intercept
-model.r_squared   -- R² goodness of fit
-model.n           -- number of observations
+model.coefficients.age    -- coefficient for age
+model.r_squared           -- R² goodness of fit
+model.nobs                -- number of observations
 ```
 
 ---
@@ -8725,10 +8724,10 @@ Occur when NA values are encountered without explicit handling:
 
 ```t
 mean([1, NA, 3])
--- Error(NAError: NA value encountered. Use na_rm = true to skip NA values)
+-- Error(AggregationError: "Function `mean` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")
 
 1 + NA
--- Error(TypeError: Operation on NA value)
+-- Error(NAPredicateError: Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.)
 ```
 
 ### 7. Assertion Errors
@@ -9177,10 +9176,9 @@ mean([1, 2, NA, 4], na_rm = true)  -- 2.33...
 -- Error(TypeError: Cannot add String and Int)
 ```
 
-**Solution**: Use separate print statements (alpha does not have string conversion yet)
+**Solution**: Use separate print statements or `str_string()` for manual conversion.
 
 ```t
--- Workaround for output:
 print("Age: ")
 print(25)
 
@@ -10586,13 +10584,13 @@ lm(data: DataFrame, formula: Formula, ...) -> Dict
 
 Dictionary containing:
 - `formula`: The model formula
-- `intercept`: Estimated intercept
-- `slope`: Estimated slope (coefficient)
+- `coefficients`: Dictionary of term estimates
+- `std_errors`: Dictionary of standard errors
 - `r_squared`: R² statistic
-- `residuals`: Vector of residuals
-- `n`: Number of observations
-- `response`: Name of response variable
-- `predictor`: Name of predictor variable
+- `adj_r_squared`: Adjusted R² statistic
+- `sigma`: Residual standard error
+- `nobs`: Number of observations
+- `_tidy_df`: Tidy DataFrame of results
 
 ### Examples
 
@@ -10719,7 +10717,7 @@ Timezones in T are currently handled as labels.
 ## Example Workflow
 
 ```t
-df = read_csv("sales.t") |>
+df = read_csv("sales.csv") |>
   mutate(
     date = ymd($order_date),
     month = month($date, label = true),
@@ -12216,9 +12214,7 @@ model = read_node("model_node")
 $T$ adopts the `broom` philosophy: model outputs should be DataFrames or Tidy Dictionaries.
 
 ### `summary(model)`
-Returns a tidy representation of coefficients. 
-* For native `lm`, it returns a DataFrame. 
-* For some imported models, it returns a Dict where the tidy DataFrame is in `_tidy_df`.
+Returns a tidy representation of coefficients. It returns a `Dict` where the tidy `DataFrame` is in `_tidy_df`.
 
 ```t
 s = summary(model)
@@ -15239,7 +15235,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.51.1 and nixpkgs date 2026-03-21 (today's UTC date)...
+Upgrading project to T 0.51.4 and nixpkgs date 2026-03-21 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```

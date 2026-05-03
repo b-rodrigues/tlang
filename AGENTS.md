@@ -161,6 +161,10 @@ This applies equally to:
 - Optional arguments (e.g., `na_rm`, `clean_colnames`, `direction`) come last as named arguments.
 - Default values must be explicit and consistent with R's tidyverse conventions where applicable.
 
+### No Aliases
+
+**Never create aliases** for existing functions (e.g., do not add `read_pmml` if `t_read_pmml` already exists). Aliases are confusing and serve no purpose. Always use the canonical name.
+
 ### Error Handling
 
 Use the structured helpers from `src/error.ml`:

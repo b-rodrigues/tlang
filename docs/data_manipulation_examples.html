@@ -430,10 +430,9 @@ quantile(df.age, 0.5, na_rm = true)  -- median of non-NA ages
 cor(df.x, df.y, na_rm = true)        -- correlation with pairwise deletion</code></pre>
 <h3 id="linear-regression">Linear Regression</h3>
 <pre class="t"><code>model = lm(data = df, formula = salary ~ age)
-model.slope       -- coefficient
-model.intercept   -- intercept
-model.r_squared   -- R² goodness of fit
-model.n           -- number of observations</code></pre>
+model.coefficients.age    -- coefficient for age
+model.r_squared           -- R² goodness of fit
+model.nobs                -- number of observations</code></pre>
 <hr />
 <h2 id="using-pipelines-for-analysis">Using Pipelines for Analysis</h2>
 <p>For complex analyses, wrap your workflow in a pipeline for structure

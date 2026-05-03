@@ -580,10 +580,9 @@ cor(df.x, df.y, na_rm = true)        -- correlation with pairwise deletion
 
 ```t
 model = lm(data = df, formula = salary ~ age)
-model.slope       -- coefficient
-model.intercept   -- intercept
-model.r_squared   -- R² goodness of fit
-model.n           -- number of observations
+model.coefficients.age    -- coefficient for age
+model.r_squared           -- R² goodness of fit
+model.nobs                -- number of observations
 ```
 
 ---
