@@ -48,6 +48,7 @@ let t_read_onnx_builtin =
     | _ -> Error.type_error "t_read_onnx expects a single String argument (file path).")
 
 let register env =
+  Serialization_registry.update_native "onnx" ~reader:t_read_onnx_builtin ();
   let env = Env.add "t_read_onnx" t_read_onnx_builtin env in
   let env = Env.add "t_write_onnx"
     (make_builtin ~name:"t_write_onnx" 2 (fun _args _env ->
