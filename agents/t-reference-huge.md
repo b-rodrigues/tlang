@@ -2415,7 +2415,7 @@ Deserializes a T value from a JSON file. Automatically handles type conversion f
 
 ## Math Package
 
-Mathematical functions operating on scalars and vectors.
+Mathematical functions operating on scalars and vectors. Most functions are vectorized over Collections.
 
 ### `sqrt(x)`
 
@@ -2462,62 +2462,13 @@ abs(0)       -- 0
 
 ---
 
-### `log(x)` / `exp(x)` / `pow(x, y)`
+### `log(x)` / `log10(x)` / `log2(x)`
 
-Natural logarithm, exponential, and power functions.
+Logarithm functions. `log` is natural logarithm (base e).
 
----
+**Parameters:**
 
-### `sin(x)` / `cos(x)` / `tan(x)`
-### `asin(x)` / `acos(x)` / `atan(x)` / `atan2(y, x)`
-
-Trigonometric and inverse trigonometric functions (radians).
-
----
-
-### `sinh(x)` / `cosh(x)` / `tanh(x)`
-### `asinh(x)` / `acosh(x)` / `atanh(x)`
-
-Hyperbolic functions.
-
----
-
-### `floor(x)` / `ceiling(x)` / `round(x, digits = 0)`
-### `trunc(x)` / `signif(x, digits = 6)`
-
-Rounding and truncation.
-
----
-
-### `ndarray(data, shape = NA)` / `reshape(array, shape)`
-
-Create or reshape N-dimensional arrays.
-
----
-
-### `shape(array)` / `ndarray_data(array)`
-
-Get NDArray dimensions or flat data.
-
----
-
-### `matmul(a, b)` / `inv(matrix)` / `transpose(matrix)`
-
-Linear algebra operations on NDArrays.
-
----
-
-### `diag(x)` / `kron(a, b)` / `cbind(a, b)`
-
-Matrix creation and manipulation.
-
----
-
-### `iota(n)`
-
-Returns a 1D NDArray of integers from 0 to n-1.
-
----
+- `x` — Number (must be positive)
 
 **Returns:**
 
@@ -2526,10 +2477,8 @@ Returns a 1D NDArray of integers from 0 to n-1.
 **Examples:**
 ```t
 log(10)      -- 2.30258509299
-log(1)       -- 0.0
-log(2.71828) -- 1.0 (approximately)
-log(0)       -- Error (log of zero)
-log(-1)      -- Error (log of negative)
+log10(100)   -- 2.0
+log2(1024)   -- 10.0
 ```
 
 ---
@@ -2551,7 +2500,6 @@ Exponential function (e^x).
 ```t
 exp(0)       -- 1.0
 exp(1)       -- 2.71828182846
-exp(2)       -- 7.38905609893
 ```
 
 ---
@@ -2569,6 +2517,79 @@ Power function (base^exponent).
 **Returns:**
 
 `Float`
+
+**Examples:**
+```t
+pow(2, 10)   -- 1024.0
+pow(9, 0.5)  -- 3.0
+```
+
+---
+
+### `sin(x)` / `cos(x)` / `tan(x)`
+
+Standard trigonometric functions (input in radians).
+
+---
+
+### `asin(x)` / `acos(x)` / `atan(x)` / `atan2(y, x)`
+
+Inverse trigonometric functions. `atan2` returns the angle whose tangent is y/x.
+
+---
+
+### `sinh(x)` / `cosh(x)` / `tanh(x)`
+### `asinh(x)` / `acosh(x)` / `atanh(x)`
+
+Hyperbolic and inverse hyperbolic functions.
+
+---
+
+### `floor(x)` / `ceiling(x)` / `ceil(x)`
+
+Rounding to integers. `ceiling` and `ceil` are aliases.
+
+---
+
+### `round(x, digits = 0)` / `signif(x, digits = 6)`
+
+Rounding to decimal places or significant figures.
+
+---
+
+### `trunc(x)` / `sign(x)`
+
+Truncate fractional part or get the sign (-1, 0, 1) of a value.
+
+---
+
+### `ndarray(data, shape = NA)` / `reshape(array, shape)`
+
+Create or reshape N-dimensional arrays. `ndarray` can infer shape from nested lists.
+
+---
+
+### `shape(array)` / `ndarray_data(array)`
+
+Get NDArray dimensions (as a List) or flat data (as a List of Floats).
+
+---
+
+### `matmul(a, b)` / `inv(matrix)` / `transpose(matrix)`
+
+Linear algebra operations on 2D NDArrays.
+
+---
+
+### `diag(x)` / `kron(a, b)` / `cbind(a, b)`
+
+Matrix creation and manipulation. `diag` extracts the diagonal from a 2D array or creates a diagonal matrix from a 1D array.
+
+---
+
+### `iota(n)`
+
+Returns a Vector of length `n` filled with `1.0` (a ones vector). Useful for initializing weights or masks.
 
 **Examples:**
 ```t
@@ -2610,7 +2631,6 @@ Maximum value.
 **Parameters:**
 
 
-- `x, y` — Two numbers, OR
 - `collection` — List or Vector
 
 **Returns:**
@@ -2628,160 +2648,134 @@ max([])             -- Error
 
 ## Stats Package
 
-Statistical functions for data analysis.
+Statistical functions for data analysis. Most functions handle missingness via an `na_rm` parameter.
 
-### `median(x, na_rm = false)` / `min(x)` / `max(x)` / `range(x)`
+### Descriptive Statistics
 
-Basic descriptive statistics.
+#### `median(x, na_rm = false)` / `mean(x, na_rm = false)`
+#### `min(x, na_rm = false)` / `max(x, na_rm = false)` / `range(x, na_rm = false)`
 
----
-
-### `var(x, na_rm = false)` / `sd(x, na_rm = false)`
-
-Variance and standard deviation.
+Basic descriptive statistics. `range` returns a List of [min, max].
 
 ---
 
-### `iqr(x)` / `mad(x)`
+#### `var(x, na_rm = false)` / `sd(x, na_rm = false)` / `cv(x, na_rm = false)`
 
-Interquartile range and Median Absolute Deviation.
+Variance, standard deviation, and coefficient of variation (sd/mean).
 
 ---
 
-### `fivenum(x)`
+#### `iqr(x, na_rm = false)` / `mad(x, na_rm = false)`
+
+Interquartile range and Median Absolute Deviation (scaled by 1.4826).
+
+---
+
+#### `fivenum(x, na_rm = false)`
 
 Tukey's five-number summary (min, lower-hinge, median, upper-hinge, max).
 
 ---
 
-### `skewness(x)` / `kurtosis(x)`
+#### `skewness(x, na_rm = false)` / `kurtosis(x, na_rm = false)`
 
-Higher-order moments.
+Skewness and excess kurtosis.
 
 ---
 
-### `trimmed_mean(x, trim = 0.1, na_rm = false)`
+#### `trimmed_mean(x, trim = 0.1, na_rm = false)`
 
 Mean calculated after trimming a fraction of observations from each end.
 
 ---
 
-### `quantile(collection, p, na_rm = false)`
+#### `quantile(x, p, na_rm = false)`
 
 Compute quantile/percentile (p between 0 and 1).
 
 ---
 
-### `normalize(x)` / `standardize(x)` / `scale(x)`
+#### `mode(x)`
+
+Return the most frequent value. Does not currently support `na_rm`.
+
+---
+
+### Data Transformation
+
+#### `normalize(x)` / `standardize(x)` / `scale(x)`
 
 Rescale or center numeric data. `scale` and `standardize` compute z-scores. `normalize` scales to [0, 1].
 
 ---
 
-### `cor(x, y, na_rm = false)` / `cov(x, y)`
-
-Pearson correlation and covariance.
-
----
-
-### `pnorm(x)` / `pt(x, df)` / `pf(q, df1, df2)` / `pchisq(q, df)`
-
-Cumulative Distribution Functions (CDFs) for Normal, T, F, and Chi-squared distributions.
-
----
-
-### `poly(x, degree, raw = true)` / `cut(x, breaks)`
-
-Basis expansion and discretization. `poly` returns a List of terms suitable for use with the `!!!` splat operator in `mutate`.
-
----
-
-### `lm(data, formula)`
-
-Fit a linear regression model (ordinary least squares). Use `summary()` and `fit_stats()` to inspect.
-
----
-
-### `summary(model)` / `fit_stats(model)`
-
-Extract tidy coefficients or model-level metrics.
-
----
-
-### `predict(data, model)` / `score(data, model)`
-
-Perform vectorized prediction. `score` is a generic alias.
-
----
-
-### `add_diagnostics(model, data)` / `augment(model, data)`
-
-Augment data with per-observation diagnostics (.fitted, .resid, etc.).
-
----
-
-### `anova(model1, model2, ...)`
-
-Compare multiple nested models.
-
----
-
-### `coef(model)` / `residuals(model)` / `vcov(model)`
-
-Extract coefficients, residuals, or variance-covariance matrix.
-
----
-
-### `wald_test(model, terms)`
-
-Perform a Wald test for a joint hypothesis.
-
----
-
-### `read_onnx(path)` / `read_pmml(path)`
-
-Import pre-trained models from ONNX or PMML formats.
-
----
-
-**Parameters:**
-
-- `model` — Model object
-- `terms` — List of coefficient names to test
-
-**Returns:**
-
-DataFrame with test statistics.
-
----
-
-### `median(x, na_rm = false)` / `var(x, na_rm = false)` / `cov(x, y, na_rm = false)`
-
-Additional descriptive statistics.
-
----
-
-### `normalize(x)` / `standardize(x)` / `scale(x)`
-
-Data normalization and scaling utilities.
-
----
-
-### `trimmed_mean(x, trim = 0.1, na_rm = false)`
-
-Compute the trimmed mean of a collection.
-
----
-
-### `winsorize(x, probs = [0.05, 0.95])`
+#### `winsorize(x, probs = [0.05, 0.95], na_rm = false)`
 
 Replace extreme values with quantiles.
 
 ---
 
-### `huber_loss(actual, predicted, delta = 1.0)`
+#### `huber_loss(actual, predicted, delta = 1.0)`
 
 Compute the Huber loss between two vectors.
+
+---
+
+### Distributions (CDFs)
+
+#### `pnorm(x)` / `pt(x, df)` / `pf(q, df1, df2)` / `pchisq(q, df)`
+
+Cumulative Distribution Functions for Normal, Student-t, F, and Chi-squared distributions.
+
+---
+
+### Modeling
+
+#### `lm(data, formula)`
+
+Fit a linear regression model (OLS). The formula is a string like `"mpg ~ wt + hp"`.
+
+---
+
+#### `summary(model)` / `fit_stats(model)`
+
+Extract tidy coefficients (DataFrame) or model-level metrics (Dict).
+
+---
+
+#### `predict(data, model)` / `score(data, model)`
+
+Perform vectorized prediction on new data. `score` is an alias.
+
+---
+
+#### `add_diagnostics(model, data)` / `augment(model, data)`
+
+Augment data with per-observation diagnostics: `.fitted`, `.resid`, `.hat`, `.sigma`, `.cooksd`, and `.std.resid`.
+
+---
+
+#### `anova(model1, model2, ...)`
+
+Compare multiple nested models using an ANOVA table.
+
+---
+
+#### `coef(model)` / `residuals(model)` / `vcov(model)` / `df_residual(model)`
+
+Extract model components.
+
+---
+
+#### `wald_test(model, terms)`
+
+Perform a Wald test for a joint hypothesis on coefficients.
+
+---
+
+#### `read_onnx(path)` / `read_pmml(path)`
+
+Import pre-trained models from ONNX or PMML formats for native scoring.
 
 ---
 
@@ -2894,8 +2888,6 @@ Extracts a single column as a Vector.
 ### `to_array(dataframe, columns = NA)`
 
 Converts numeric columns of a DataFrame to a matrix (NDArray).
-nrow(df)  -- 100
-```
 
 ---
 
@@ -3735,9 +3727,9 @@ Update the timezone label of a Datetime value.
 
 Modern string manipulation utilities, inspired by R's `stringr`.
 
-### `str_replace(string, pattern, replacement)` / `str_replace_all(...)`
+### `str_replace(string, pattern, replacement)` / `replace_first(string, pattern, replacement)`
 
-Replace occurrences of a pattern.
+Replace occurrences of a pattern. `str_replace` replaces **all** occurrences (global replace); `replace_first` replaces only the first occurrence.
 
 ---
 
@@ -3807,9 +3799,9 @@ Repeat a string `n` times.
 
 ---
 
-### `str_glue(...)` / `str_format(fmt, values)` / `str_sprintf(fmt, ...)`
+### `str_format(fmt, values)` / `str_sprintf(fmt, ...)`
 
-String interpolation and formatting. `str_glue` uses `{expr}` syntax; `str_format` uses `{name}` with a Dictionary; `str_sprintf` uses C-style `%` specifiers.
+String interpolation and formatting. `str_format` uses `{name}` placeholders with a Dictionary or named List; `str_sprintf` uses C-style `%` specifiers.
 
 ---
 
@@ -5759,7 +5751,7 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## [0.51.x] - 2026-05-xx
+## [Unreleased]
 
 The focus of this release was to improve language ergonomics for data guardrails and increase test coverage across all packages.
 

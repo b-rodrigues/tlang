@@ -149,6 +149,8 @@ let pchisq q df =
 --# Returns cumulative probabilities from the standard normal distribution.
 --#
 --# @name pnorm
+--# @param x :: Float The value at which to evaluate the CDF.
+--# @return :: Float The cumulative probability.
 --# @family stats
 --# @export
 *)
@@ -158,6 +160,9 @@ let pchisq q df =
 --# Returns cumulative probabilities from the Student t distribution.
 --#
 --# @name pt
+--# @param x :: Float The value at which to evaluate the CDF.
+--# @param df :: Int Degrees of freedom.
+--# @return :: Float The cumulative probability.
 --# @family stats
 --# @export
 *)
@@ -167,6 +172,10 @@ let pchisq q df =
 --# Returns cumulative probabilities from the F distribution.
 --#
 --# @name pf
+--# @param q :: Float The value at which to evaluate the CDF.
+--# @param df1 :: Int Degrees of freedom 1.
+--# @param df2 :: Int Degrees of freedom 2.
+--# @return :: Float The cumulative probability.
 --# @family stats
 --# @export
 *)
@@ -176,6 +185,9 @@ let pchisq q df =
 --# Returns cumulative probabilities from the chi-squared distribution.
 --#
 --# @name pchisq
+--# @param q :: Float The value at which to evaluate the CDF.
+--# @param df :: Int Degrees of freedom.
+--# @return :: Float The cumulative probability.
 --# @family stats
 --# @export
 *)

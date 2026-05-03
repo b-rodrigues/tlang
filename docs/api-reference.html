@@ -735,7 +735,8 @@ conversion for scalars, lists, and dictionaries.</p>
 <p><code>Any</code> — The deserialized value</p>
 <hr />
 <h2 id="math-package">Math Package</h2>
-<p>Mathematical functions operating on scalars and vectors.</p>
+<p>Mathematical functions operating on scalars and vectors. Most
+functions are vectorized over Collections.</p>
 <h3 id="sqrtx"><code>sqrt(x)</code></h3>
 <p>Square root.</p>
 <p><strong>Parameters:</strong></p>
@@ -763,57 +764,20 @@ sqrt(-1)     -- Error (negative input)</code></pre>
 abs(3.14)    -- 3.14
 abs(0)       -- 0</code></pre>
 <hr />
-<h3 id="logx-expx-powx-y"><code>log(x)</code> / <code>exp(x)</code> /
-<code>pow(x, y)</code></h3>
-<p>Natural logarithm, exponential, and power functions.</p>
-<hr />
-<h3 id="sinx-cosx-tanx"><code>sin(x)</code> / <code>cos(x)</code> /
-<code>tan(x)</code></h3>
-<h3 id="asinx-acosx-atanx-atan2y-x"><code>asin(x)</code> /
-<code>acos(x)</code> / <code>atan(x)</code> /
-<code>atan2(y, x)</code></h3>
-<p>Trigonometric and inverse trigonometric functions (radians).</p>
-<hr />
-<h3 id="sinhx-coshx-tanhx"><code>sinh(x)</code> / <code>cosh(x)</code> /
-<code>tanh(x)</code></h3>
-<h3 id="asinhx-acoshx-atanhx"><code>asinh(x)</code> /
-<code>acosh(x)</code> / <code>atanh(x)</code></h3>
-<p>Hyperbolic functions.</p>
-<hr />
-<h3 id="floorx-ceilingx-roundx-digits-0"><code>floor(x)</code> /
-<code>ceiling(x)</code> / <code>round(x, digits = 0)</code></h3>
-<h3 id="truncx-signifx-digits-6"><code>trunc(x)</code> /
-<code>signif(x, digits = 6)</code></h3>
-<p>Rounding and truncation.</p>
-<hr />
-<h3
-id="ndarraydata-shape-na-reshapearray-shape"><code>ndarray(data, shape = NA)</code>
-/ <code>reshape(array, shape)</code></h3>
-<p>Create or reshape N-dimensional arrays.</p>
-<hr />
-<h3 id="shapearray-ndarray_dataarray"><code>shape(array)</code> /
-<code>ndarray_data(array)</code></h3>
-<p>Get NDArray dimensions or flat data.</p>
-<hr />
-<h3 id="matmula-b-invmatrix-transposematrix"><code>matmul(a, b)</code> /
-<code>inv(matrix)</code> / <code>transpose(matrix)</code></h3>
-<p>Linear algebra operations on NDArrays.</p>
-<hr />
-<h3 id="diagx-krona-b-cbinda-b"><code>diag(x)</code> /
-<code>kron(a, b)</code> / <code>cbind(a, b)</code></h3>
-<p>Matrix creation and manipulation.</p>
-<hr />
-<h3 id="iotan"><code>iota(n)</code></h3>
-<p>Returns a Vector of length <code>n</code> filled with <code>1.0</code> (a ones vector).</p>
-<hr />
+<h3 id="logx-log10x-log2x"><code>log(x)</code> / <code>log10(x)</code> /
+<code>log2(x)</code></h3>
+<p>Logarithm functions. <code>log</code> is natural logarithm (base
+e).</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>x</code> — Number (must be positive)</li>
+</ul>
 <p><strong>Returns:</strong></p>
 <p><code>Float</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>log(10)      -- 2.30258509299
-log(1)       -- 0.0
-log(2.71828) -- 1.0 (approximately)
-log(0)       -- Error (log of zero)
-log(-1)      -- Error (log of negative)</code></pre>
+log10(100)   -- 2.0
+log2(1024)   -- 10.0</code></pre>
 <hr />
 <h3 id="expx"><code>exp(x)</code></h3>
 <p>Exponential function (e^x).</p>
@@ -825,8 +789,7 @@ log(-1)      -- Error (log of negative)</code></pre>
 <p><code>Float</code></p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>exp(0)       -- 1.0
-exp(1)       -- 2.71828182846
-exp(2)       -- 7.38905609893</code></pre>
+exp(1)       -- 2.71828182846</code></pre>
 <hr />
 <h3 id="powbase-exponent"><code>pow(base, exponent)</code></h3>
 <p>Power function (base^exponent).</p>
@@ -837,6 +800,64 @@ exp(2)       -- 7.38905609893</code></pre>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>Float</code></p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>pow(2, 10)   -- 1024.0
+pow(9, 0.5)  -- 3.0</code></pre>
+<hr />
+<h3 id="sinx-cosx-tanx"><code>sin(x)</code> / <code>cos(x)</code> /
+<code>tan(x)</code></h3>
+<p>Standard trigonometric functions (input in radians).</p>
+<hr />
+<h3 id="asinx-acosx-atanx-atan2y-x"><code>asin(x)</code> /
+<code>acos(x)</code> / <code>atan(x)</code> /
+<code>atan2(y, x)</code></h3>
+<p>Inverse trigonometric functions. <code>atan2</code> returns the angle
+whose tangent is y/x.</p>
+<hr />
+<h3 id="sinhx-coshx-tanhx"><code>sinh(x)</code> / <code>cosh(x)</code> /
+<code>tanh(x)</code></h3>
+<h3 id="asinhx-acoshx-atanhx"><code>asinh(x)</code> /
+<code>acosh(x)</code> / <code>atanh(x)</code></h3>
+<p>Hyperbolic and inverse hyperbolic functions.</p>
+<hr />
+<h3 id="floorx-ceilingx-ceilx"><code>floor(x)</code> /
+<code>ceiling(x)</code> / <code>ceil(x)</code></h3>
+<p>Rounding to integers. <code>ceiling</code> and <code>ceil</code> are
+aliases.</p>
+<hr />
+<h3
+id="roundx-digits-0-signifx-digits-6"><code>round(x, digits = 0)</code>
+/ <code>signif(x, digits = 6)</code></h3>
+<p>Rounding to decimal places or significant figures.</p>
+<hr />
+<h3 id="truncx-signx"><code>trunc(x)</code> / <code>sign(x)</code></h3>
+<p>Truncate fractional part or get the sign (-1, 0, 1) of a value.</p>
+<hr />
+<h3
+id="ndarraydata-shape-na-reshapearray-shape"><code>ndarray(data, shape = NA)</code>
+/ <code>reshape(array, shape)</code></h3>
+<p>Create or reshape N-dimensional arrays. <code>ndarray</code> can
+infer shape from nested lists.</p>
+<hr />
+<h3 id="shapearray-ndarray_dataarray"><code>shape(array)</code> /
+<code>ndarray_data(array)</code></h3>
+<p>Get NDArray dimensions (as a List) or flat data (as a List of
+Floats).</p>
+<hr />
+<h3 id="matmula-b-invmatrix-transposematrix"><code>matmul(a, b)</code> /
+<code>inv(matrix)</code> / <code>transpose(matrix)</code></h3>
+<p>Linear algebra operations on 2D NDArrays.</p>
+<hr />
+<h3 id="diagx-krona-b-cbinda-b"><code>diag(x)</code> /
+<code>kron(a, b)</code> / <code>cbind(a, b)</code></h3>
+<p>Matrix creation and manipulation. <code>diag</code> extracts the
+diagonal from a 2D array or creates a diagonal matrix from a 1D
+array.</p>
+<hr />
+<h3 id="iotan"><code>iota(n)</code></h3>
+<p>Returns a Vector of length <code>n</code> filled with
+<code>1.0</code> (a ones vector). Useful for initializing weights or
+masks.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>pow(2, 3)    -- 8.0
 pow(10, 2)   -- 100.0
@@ -863,7 +884,6 @@ min([])             -- Error</code></pre>
 <p>Maximum value.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
-<li><code>x, y</code> — Two numbers, OR</li>
 <li><code>collection</code> — List or Vector</li>
 </ul>
 <p><strong>Returns:</strong></p>
@@ -874,124 +894,117 @@ max([5, 2, 9, 1])   -- 9
 max([])             -- Error</code></pre>
 <hr />
 <h2 id="stats-package">Stats Package</h2>
-<p>Statistical functions for data analysis.</p>
-<h3
-id="medianx-na_rm-false-minx-maxx-rangex"><code>median(x, na_rm = false)</code>
-/ <code>min(x)</code> / <code>max(x)</code> / <code>range(x)</code></h3>
-<p>Basic descriptive statistics.</p>
+<p>Statistical functions for data analysis. Most functions handle
+missingness via an <code>na_rm</code> parameter.</p>
+<h3 id="descriptive-statistics">Descriptive Statistics</h3>
+<h4
+id="medianx-na_rm-false-meanx-na_rm-false"><code>median(x, na_rm = false)</code>
+/ <code>mean(x, na_rm = false)</code></h4>
+<h4
+id="minx-na_rm-false-maxx-na_rm-false-rangex-na_rm-false"><code>min(x, na_rm = false)</code>
+/ <code>max(x, na_rm = false)</code> /
+<code>range(x, na_rm = false)</code></h4>
+<p>Basic descriptive statistics. <code>range</code> returns a List of
+[min, max].</p>
 <hr />
-<h3
-id="varx-na_rm-false-sdx-na_rm-false"><code>var(x, na_rm = false)</code>
-/ <code>sd(x, na_rm = false)</code></h3>
-<p>Variance and standard deviation.</p>
+<h4
+id="varx-na_rm-false-sdx-na_rm-false-cvx-na_rm-false"><code>var(x, na_rm = false)</code>
+/ <code>sd(x, na_rm = false)</code> /
+<code>cv(x, na_rm = false)</code></h4>
+<p>Variance, standard deviation, and coefficient of variation
+(sd/mean).</p>
 <hr />
-<h3 id="iqrx-madx"><code>iqr(x)</code> / <code>mad(x)</code></h3>
-<p>Interquartile range and Median Absolute Deviation.</p>
+<h4
+id="iqrx-na_rm-false-madx-na_rm-false"><code>iqr(x, na_rm = false)</code>
+/ <code>mad(x, na_rm = false)</code></h4>
+<p>Interquartile range and Median Absolute Deviation (scaled by
+1.4826).</p>
 <hr />
-<h3 id="fivenumx"><code>fivenum(x)</code></h3>
+<h4
+id="fivenumx-na_rm-false"><code>fivenum(x, na_rm = false)</code></h4>
 <p>Tukey’s five-number summary (min, lower-hinge, median, upper-hinge,
 max).</p>
 <hr />
-<h3 id="skewnessx-kurtosisx"><code>skewness(x)</code> /
-<code>kurtosis(x)</code></h3>
-<p>Higher-order moments.</p>
+<h4
+id="skewnessx-na_rm-false-kurtosisx-na_rm-false"><code>skewness(x, na_rm = false)</code>
+/ <code>kurtosis(x, na_rm = false)</code></h4>
+<p>Skewness and excess kurtosis.</p>
 <hr />
-<h3
-id="trimmed_meanx-trim-0.1-na_rm-false"><code>trimmed_mean(x, trim = 0.1, na_rm = false)</code></h3>
+<h4
+id="trimmed_meanx-trim-0.1-na_rm-false"><code>trimmed_mean(x, trim = 0.1, na_rm = false)</code></h4>
 <p>Mean calculated after trimming a fraction of observations from each
 end.</p>
 <hr />
-<h3
-id="quantilecollection-p-na_rm-false"><code>quantile(collection, p, na_rm = false)</code></h3>
+<h4
+id="quantilex-p-na_rm-false"><code>quantile(x, p, na_rm = false)</code></h4>
 <p>Compute quantile/percentile (p between 0 and 1).</p>
 <hr />
-<h3 id="normalizex-standardizex-scalex"><code>normalize(x)</code> /
-<code>standardize(x)</code> / <code>scale(x)</code></h3>
+<h4 id="modex"><code>mode(x)</code></h4>
+<p>Return the most frequent value. Does not currently support
+<code>na_rm</code>.</p>
+<hr />
+<h3 id="data-transformation">Data Transformation</h3>
+<h4 id="normalizex-standardizex-scalex"><code>normalize(x)</code> /
+<code>standardize(x)</code> / <code>scale(x)</code></h4>
 <p>Rescale or center numeric data. <code>scale</code> and
 <code>standardize</code> compute z-scores. <code>normalize</code> scales
 to [0, 1].</p>
 <hr />
-<h3 id="corx-y-na_rm-false-covx-y"><code>cor(x, y, na_rm = false)</code>
-/ <code>cov(x, y)</code></h3>
-<p>Pearson correlation and covariance.</p>
-<hr />
-<h3 id="pnormx-ptx-df-pfq-df1-df2-pchisqq-df"><code>pnorm(x)</code> /
-<code>pt(x, df)</code> / <code>pf(q, df1, df2)</code> /
-<code>pchisq(q, df)</code></h3>
-<p>Cumulative Distribution Functions (CDFs) for Normal, T, F, and
-Chi-squared distributions.</p>
-<hr />
-<h3
-id="polyx-degree-raw-true-cutx-breaks"><code>poly(x, degree, raw = true)</code>
-/ <code>cut(x, breaks)</code></h3>
-<p>Basis expansion and discretization. <code>poly</code> returns a List
-of terms suitable for use with the <code>!!!</code> splat operator in
-<code>mutate</code>.</p>
-<hr />
-<h3 id="lmdata-formula"><code>lm(data, formula)</code></h3>
-<p>Fit a linear regression model (ordinary least squares). Use
-<code>summary()</code> and <code>fit_stats()</code> to inspect.</p>
-<hr />
-<h3 id="summarymodel-fit_statsmodel"><code>summary(model)</code> /
-<code>fit_stats(model)</code></h3>
-<p>Extract tidy coefficients or model-level metrics.</p>
-<hr />
-<h3
-id="predictdata-model-scoredata-model"><code>predict(data, model)</code>
-/ <code>score(data, model)</code></h3>
-<p>Perform vectorized prediction. <code>score</code> is a generic
-alias.</p>
-<hr />
-<h3
-id="add_diagnosticsmodel-data-augmentmodel-data"><code>add_diagnostics(model, data)</code>
-/ <code>augment(model, data)</code></h3>
-<p>Augment data with per-observation diagnostics (.fitted, .resid,
-etc.).</p>
-<hr />
-<h3
-id="anovamodel1-model2-..."><code>anova(model1, model2, ...)</code></h3>
-<p>Compare multiple nested models.</p>
-<hr />
-<h3 id="coefmodel-residualsmodel-vcovmodel"><code>coef(model)</code> /
-<code>residuals(model)</code> / <code>vcov(model)</code></h3>
-<p>Extract coefficients, residuals, or variance-covariance matrix.</p>
-<hr />
-<h3 id="wald_testmodel-terms"><code>wald_test(model, terms)</code></h3>
-<p>Perform a Wald test for a joint hypothesis.</p>
-<hr />
-<h3 id="read_onnxpath-read_pmmlpath"><code>read_onnx(path)</code> /
-<code>read_pmml(path)</code></h3>
-<p>Import pre-trained models from ONNX or PMML formats.</p>
-<hr />
-<p><strong>Parameters:</strong></p>
-<ul>
-<li><code>model</code> — Model object</li>
-<li><code>terms</code> — List of coefficient names to test</li>
-</ul>
-<p><strong>Returns:</strong></p>
-<p>DataFrame with test statistics.</p>
-<hr />
-<h3
-id="medianx-na_rm-false-varx-na_rm-false-covx-y-na_rm-false"><code>median(x, na_rm = false)</code>
-/ <code>var(x, na_rm = false)</code> /
-<code>cov(x, y, na_rm = false)</code></h3>
-<p>Additional descriptive statistics.</p>
-<hr />
-<h3 id="normalizex-standardizex-scalex-1"><code>normalize(x)</code> /
-<code>standardize(x)</code> / <code>scale(x)</code></h3>
-<p>Data normalization and scaling utilities.</p>
-<hr />
-<h3
-id="trimmed_meanx-trim-0.1-na_rm-false-1"><code>trimmed_mean(x, trim = 0.1, na_rm = false)</code></h3>
-<p>Compute the trimmed mean of a collection.</p>
-<hr />
-<h3
-id="winsorizex-probs-0.05-0.95"><code>winsorize(x, probs = [0.05, 0.95])</code></h3>
+<h4
+id="winsorizex-probs-0.05-0.95-na_rm-false"><code>winsorize(x, probs = [0.05, 0.95], na_rm = false)</code></h4>
 <p>Replace extreme values with quantiles.</p>
 <hr />
-<h3
-id="huber_lossactual-predicted-delta-1.0"><code>huber_loss(actual, predicted, delta = 1.0)</code></h3>
+<h4
+id="huber_lossactual-predicted-delta-1.0"><code>huber_loss(actual, predicted, delta = 1.0)</code></h4>
 <p>Compute the Huber loss between two vectors.</p>
+<hr />
+<h3 id="distributions-cdfs">Distributions (CDFs)</h3>
+<h4 id="pnormx-ptx-df-pfq-df1-df2-pchisqq-df"><code>pnorm(x)</code> /
+<code>pt(x, df)</code> / <code>pf(q, df1, df2)</code> /
+<code>pchisq(q, df)</code></h4>
+<p>Cumulative Distribution Functions for Normal, Student-t, F, and
+Chi-squared distributions.</p>
+<hr />
+<h3 id="modeling">Modeling</h3>
+<h4 id="lmdata-formula"><code>lm(data, formula)</code></h4>
+<p>Fit a linear regression model (OLS). The formula is a string like
+<code>"mpg ~ wt + hp"</code>.</p>
+<hr />
+<h4 id="summarymodel-fit_statsmodel"><code>summary(model)</code> /
+<code>fit_stats(model)</code></h4>
+<p>Extract tidy coefficients (DataFrame) or model-level metrics
+(Dict).</p>
+<hr />
+<h4
+id="predictdata-model-scoredata-model"><code>predict(data, model)</code>
+/ <code>score(data, model)</code></h4>
+<p>Perform vectorized prediction on new data. <code>score</code> is an
+alias.</p>
+<hr />
+<h4
+id="add_diagnosticsmodel-data-augmentmodel-data"><code>add_diagnostics(model, data)</code>
+/ <code>augment(model, data)</code></h4>
+<p>Augment data with per-observation diagnostics: <code>.fitted</code>,
+<code>.resid</code>, <code>.hat</code>, <code>.sigma</code>,
+<code>.cooksd</code>, and <code>.std.resid</code>.</p>
+<hr />
+<h4
+id="anovamodel1-model2-..."><code>anova(model1, model2, ...)</code></h4>
+<p>Compare multiple nested models using an ANOVA table.</p>
+<hr />
+<h4
+id="coefmodel-residualsmodel-vcovmodel-df_residualmodel"><code>coef(model)</code>
+/ <code>residuals(model)</code> / <code>vcov(model)</code> /
+<code>df_residual(model)</code></h4>
+<p>Extract model components.</p>
+<hr />
+<h4 id="wald_testmodel-terms"><code>wald_test(model, terms)</code></h4>
+<p>Perform a Wald test for a joint hypothesis on coefficients.</p>
+<hr />
+<h4 id="read_onnxpath-read_pmmlpath"><code>read_onnx(path)</code> /
+<code>read_pmml(path)</code></h4>
+<p>Import pre-trained models from ONNX or PMML formats for native
+scoring.</p>
 <hr />
 <h3
 id="cutx-breaks-...-polyx-degree-..."><code>cut(x, breaks, ...)</code> /
@@ -1072,6 +1085,17 @@ column names, types, and first few values.</p>
 <h3
 id="to_arraydataframe-columns-na"><code>to_array(dataframe, columns = NA)</code></h3>
 <p>Converts numeric columns of a DataFrame to a matrix (NDArray).</p>
+<hr />
+<h3 id="ncoldataframe"><code>ncol(dataframe)</code></h3>
+<p>Get number of columns.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>dataframe</code> — DataFrame</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Int</code> — Column count</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>ncol(df)  -- 5</code></pre>
 <hr />
 <h3 id="colnamesdataframe-1"><code>colnames(dataframe)</code></h3>
 <p>Get column names.</p>
