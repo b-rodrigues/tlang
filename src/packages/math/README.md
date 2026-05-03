@@ -28,7 +28,7 @@ Pure numerical primitives.
 | `inv(matrix)` | Matrix inversion |
 | `transpose(matrix)` | Matrix transpose |
 | `diag(x)` | Create or extract diagonal |
-| `iota(n)` | Sequence of integers |
+| `iota(n)` | Vector of ones (length n, filled with 1.0) |
 
 ## Examples
 

@@ -1093,7 +1093,7 @@ Matrix creation and manipulation.
 
 ### `iota(n)`
 
-Returns a 1D NDArray of integers from 0 to n-1.
+Returns a Vector of length `n` filled with `1.0` (a ones vector).
 
 ---
 
@@ -1472,8 +1472,6 @@ Extracts a single column as a Vector.
 ### `to_array(dataframe, columns = NA)`
 
 Converts numeric columns of a DataFrame to a matrix (NDArray).
-nrow(df)  -- 100
-```
 
 ---
 
@@ -2313,9 +2311,9 @@ Update the timezone label of a Datetime value.
 
 Modern string manipulation utilities, inspired by R's `stringr`.
 
-### `str_replace(string, pattern, replacement)` / `str_replace_all(...)`
+### `str_replace(string, pattern, replacement)` / `replace_first(string, pattern, replacement)`
 
-Replace occurrences of a pattern.
+Replace occurrences of a pattern. `str_replace` replaces **all** occurrences (global replace); `replace_first` replaces only the first occurrence.
 
 ---
 
@@ -2385,9 +2383,9 @@ Repeat a string `n` times.
 
 ---
 
-### `str_glue(...)` / `str_format(fmt, values)` / `str_sprintf(fmt, ...)`
+### `str_format(fmt, values)` / `str_sprintf(fmt, ...)`
 
-String interpolation and formatting. `str_glue` uses `{expr}` syntax; `str_format` uses `{name}` with a Dictionary; `str_sprintf` uses C-style `%` specifiers.
+String interpolation and formatting. `str_format` uses `{name}` placeholders with a Dictionary or named List; `str_sprintf` uses C-style `%` specifiers.
 
 ---
 

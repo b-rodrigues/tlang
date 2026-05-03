@@ -6,8 +6,8 @@ Modern string manipulation utilities, inspired by R's `stringr`.
 
 | Function | Description |
 |----------|-------------|
-| `str_replace(s, p, r)` | Replace first occurrence of pattern |
-| `str_replace_all(s, p, r)` | Replace all occurrences |
+| `str_replace(s, p, r)` | Replace all occurrences of pattern (global replace) |
+| `replace_first(s, p, r)` | Replace only the first occurrence of pattern |
 | `str_detect(s, p)` | Check if pattern exists |
 | `str_extract(s, p)` | Extract first match |
 | `str_extract_all(s, p)` | Extract all matches |
@@ -19,16 +19,17 @@ Modern string manipulation utilities, inspired by R's `stringr`.
 | `str_split(s, sep)` | Split by separator |
 | `str_pad(s, w, side)` | Pad to width |
 | `str_trunc(s, w, side)` | Truncate with ellipsis |
-| `str_flatten(v, coll)` | Combine into one string |
+| `str_flatten(values, collapse = "")` | Combine into one string with optional separator |
+| `str_join(items, sep = "")` | Join items with separator |
 | `to_lower(s)` / `to_upper(s)` | Case conversion |
-| `str_glue(...)` | Interpolate expressions |
-| `str_sprintf(fmt, ...)` | C-style formatting |
+| `str_format(fmt, values)` | Template string formatting with `{name}` placeholders |
+| `str_sprintf(fmt, ...)` | C-style formatting with `%s`, `%d`, etc. |
 
 ## Examples
 
 ```t
-str_glue("Hello {name}")
-str_replace("hello", "h", "H")
+str_sprintf("Hello %s", "world")
+str_replace("hello world", "world", "T")
 str_split("a,b,c", ",")      -- ["a", "b", "c"]
 ```
 

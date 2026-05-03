@@ -32,7 +32,7 @@ Statistical summaries and models.
 | `huber_loss(x, delta)` | Robust Huber loss |
 | `scale(x)` / `standardize(x)` | z-score standardization |
 | `normalize(x)` | Min-max scaling to [0,1] |
-| `predict(model, data)` | Vectorized prediction |
+| `predict(data, model)` | Vectorized prediction |
 | `anova(m1, m2)` | Compare nested models |
 | `pnorm(x)` | Normal distribution CDF |
 | `pt(x, df)` | Student-t CDF |

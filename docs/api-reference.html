@@ -804,7 +804,7 @@ id="ndarraydata-shape-na-reshapearray-shape"><code>ndarray(data, shape = NA)</co
 <p>Matrix creation and manipulation.</p>
 <hr />
 <h3 id="iotan"><code>iota(n)</code></h3>
-<p>Returns a 1D NDArray of integers from 0 to n-1.</p>
+<p>Returns a Vector of length <code>n</code> filled with <code>1.0</code> (a ones vector).</p>
 <hr />
 <p><strong>Returns:</strong></p>
 <p><code>Float</code></p>
@@ -1071,27 +1071,7 @@ column names, types, and first few values.</p>
 <hr />
 <h3
 id="to_arraydataframe-columns-na"><code>to_array(dataframe, columns = NA)</code></h3>
-<p>Converts numeric columns of a DataFrame to a matrix (NDArray).
-nrow(df) – 100</p>
-<pre><code>
----
-
-### `ncol(dataframe)`
-
-Get number of columns.
-
-**Parameters:**
-
-
-- `dataframe` — DataFrame
-
-**Returns:**
-
-`Int` — Column count
-
-**Examples:**
-```t
-ncol(df)  -- 5</code></pre>
+<p>Converts numeric columns of a DataFrame to a matrix (NDArray).</p>
 <hr />
 <h3 id="colnamesdataframe-1"><code>colnames(dataframe)</code></h3>
 <p>Get column names.</p>
@@ -1663,9 +1643,11 @@ id="is_datex-is_datetimex-is_periodx-is_durationx-is_intervalx"><code>is_date(x)
 <p>Modern string manipulation utilities, inspired by R’s
 <code>stringr</code>.</p>
 <h3
-id="str_replacestring-pattern-replacement-str_replace_all..."><code>str_replace(string, pattern, replacement)</code>
-/ <code>str_replace_all(...)</code></h3>
-<p>Replace occurrences of a pattern.</p>
+id="str_replacestring-pattern-replacement-replace_firststring-pattern-replacement"><code>str_replace(string, pattern, replacement)</code>
+/ <code>replace_first(string, pattern, replacement)</code></h3>
+<p>Replace occurrences of a pattern. <code>str_replace</code> replaces
+<strong>all</strong> occurrences (global replace);
+<code>replace_first</code> replaces only the first occurrence.</p>
 <hr />
 <h3
 id="str_detectstring-pattern-containss-sub"><code>str_detect(string, pattern)</code>
@@ -1719,13 +1701,11 @@ id="str_flattenvalues-collapse-str_joinitems-sep"><code>str_flatten(values, coll
 <p>Repeat a string <code>n</code> times.</p>
 <hr />
 <h3
-id="str_glue...-str_formatfmt-values-str_sprintffmt-..."><code>str_glue(...)</code>
-/ <code>str_format(fmt, values)</code> /
-<code>str_sprintf(fmt, ...)</code></h3>
-<p>String interpolation and formatting. <code>str_glue</code> uses
-<code>{expr}</code> syntax; <code>str_format</code> uses
-<code>{name}</code> with a Dictionary; <code>str_sprintf</code> uses
-C-style <code>%</code> specifiers.</p>
+id="str_formatfmt-values-str_sprintffmt-..."><code>str_format(fmt, values)</code>
+/ <code>str_sprintf(fmt, ...)</code></h3>
+<p>String interpolation and formatting. <code>str_format</code> uses
+<code>{name}</code> placeholders with a Dictionary or named List;
+<code>str_sprintf</code> uses C-style <code>%</code> specifiers.</p>
 <hr />
 <hr />
 <h2 id="lens-package">Lens Package</h2>
