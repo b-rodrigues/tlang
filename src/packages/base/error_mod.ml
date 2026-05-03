@@ -6,8 +6,8 @@ open Ast
 --# Raises a runtime error with a message and optional code.
 --#
 --# @name error
---# @param message :: String The error message.
---# @param code :: String (Optional) Error code (e.g., "ValueError").
+--# @param message_or_code :: String The error message (if 1 argument) or error code (if 2 arguments).
+--# @param message :: String (Optional) The error message if a code was provided as the first argument.
 --# @return :: Error
 --# @example
 --#   error("Invalid input")

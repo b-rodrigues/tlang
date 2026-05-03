@@ -757,6 +757,9 @@ let within_impl args _env =
 --# Parses strings or string vectors into Date values using an explicit format string.
 --#
 --# @name parse_date
+--# @param x :: String | Vector[String] The string(s) to parse.
+--# @param format :: String The strptime-style format string.
+--# @return :: Date | Vector[Date] The parsed date(s).
 --# @family chrono
 --# @export
 *)
@@ -766,6 +769,10 @@ let within_impl args _env =
 --# Parses strings or string vectors into Datetime values using an explicit format string and optional timezone.
 --#
 --# @name parse_datetime
+--# @param x :: String | Vector[String] The string(s) to parse.
+--# @param format :: String The strptime-style format string.
+--# @param tz :: String (Optional) Timezone label.
+--# @return :: Datetime | Vector[Datetime] The parsed datetime(s).
 --# @family chrono
 --# @export
 *)
@@ -775,6 +782,7 @@ let within_impl args _env =
 --# Returns the current local date as a Date value.
 --#
 --# @name today
+--# @return :: Date The current date.
 --# @family chrono
 --# @export
 *)
@@ -784,6 +792,8 @@ let within_impl args _env =
 --# Returns the current datetime and accepts an optional timezone override.
 --#
 --# @name now
+--# @param tz :: String (Optional) Timezone label.
+--# @return :: Datetime The current datetime.
 --# @family chrono
 --# @export
 *)
@@ -793,6 +803,8 @@ let within_impl args _env =
 --# Returns the calendar year from Date or Datetime values.
 --#
 --# @name year
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The year(s).
 --# @family chrono
 --# @export
 *)
@@ -802,6 +814,9 @@ let within_impl args _env =
 --# Returns the month number, or month labels when requested, from Date or Datetime values.
 --#
 --# @name month
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @param label :: Bool = false If true, returns abbreviated month names.
+--# @return :: Int | String | Vector The month(s).
 --# @family chrono
 --# @export
 *)
@@ -811,6 +826,8 @@ let within_impl args _env =
 --# Returns the day-of-month component from Date or Datetime values.
 --#
 --# @name day
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The day(s).
 --# @family chrono
 --# @export
 *)
@@ -820,6 +837,8 @@ let within_impl args _env =
 --# Alias for day() that returns the day-of-month component from Date or Datetime values.
 --#
 --# @name mday
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The day(s).
 --# @family chrono
 --# @export
 *)
@@ -829,6 +848,8 @@ let within_impl args _env =
 --# Returns the day-of-year component from Date or Datetime values.
 --#
 --# @name yday
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The day(s) of the year.
 --# @family chrono
 --# @export
 *)
@@ -838,6 +859,10 @@ let within_impl args _env =
 --# Returns weekday numbers, or weekday labels when requested, from Date or Datetime values.
 --#
 --# @name wday
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @param label :: Bool = false If true, returns abbreviated weekday names.
+--# @param week_start :: Int = 7 Day the week starts on (1=Mon, 7=Sun).
+--# @return :: Int | String | Vector The weekday(s).
 --# @family chrono
 --# @export
 *)
@@ -847,6 +872,8 @@ let within_impl args _env =
 --# Returns the week number for Date or Datetime values.
 --#
 --# @name week
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The week number(s).
 --# @family chrono
 --# @export
 *)
@@ -856,6 +883,8 @@ let within_impl args _env =
 --# Returns the ISO week number for Date or Datetime values.
 --#
 --# @name isoweek
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The ISO week number(s).
 --# @family chrono
 --# @export
 *)
@@ -865,6 +894,8 @@ let within_impl args _env =
 --# Returns the ISO week-based year for Date or Datetime values.
 --#
 --# @name isoyear
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The ISO year(s).
 --# @family chrono
 --# @export
 *)
@@ -874,6 +905,8 @@ let within_impl args _env =
 --# Returns the quarter number for Date or Datetime values.
 --#
 --# @name quarter
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The quarter(s).
 --# @family chrono
 --# @export
 *)
@@ -883,6 +916,8 @@ let within_impl args _env =
 --# Returns 1 for the first half of the year and 2 for the second half.
 --#
 --# @name semester
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The semester(s).
 --# @family chrono
 --# @export
 *)
@@ -892,6 +927,8 @@ let within_impl args _env =
 --# Returns the hour component from Datetime values.
 --#
 --# @name hour
+--# @param x :: Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The hour(s).
 --# @family chrono
 --# @export
 *)
@@ -901,6 +938,8 @@ let within_impl args _env =
 --# Returns the minute component from Datetime values.
 --#
 --# @name minute
+--# @param x :: Datetime | Vector The temporal value(s).
+--# @return :: Int | Vector[Int] The minute(s).
 --# @family chrono
 --# @export
 *)
@@ -910,6 +949,8 @@ let within_impl args _env =
 --# Returns the second component from Datetime values.
 --#
 --# @name second
+--# @param x :: Datetime | Vector The temporal value(s).
+--# @return :: Float | Vector[Float] The second(s).
 --# @family chrono
 --# @export
 *)
@@ -919,6 +960,8 @@ let within_impl args _env =
 --# Returns the timezone string attached to a Datetime value.
 --#
 --# @name tz
+--# @param x :: Datetime | Vector The temporal value(s).
+--# @return :: String | Vector[String] The timezone label(s).
 --# @family chrono
 --# @export
 *)
@@ -928,6 +971,13 @@ let within_impl args _env =
 --# Builds a period from named year, month, day, hour, minute, and second components.
 --#
 --# @name make_period
+--# @param years :: Int (Optional)
+--# @param months :: Int (Optional)
+--# @param days :: Int (Optional)
+--# @param hours :: Int (Optional)
+--# @param minutes :: Int (Optional)
+--# @param seconds :: Int (Optional)
+--# @return :: Period The constructed period.
 --# @family chrono
 --# @export
 *)
@@ -937,6 +987,9 @@ let within_impl args _env =
 --# Formats Date values with a user-supplied format string.
 --#
 --# @name format_date
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @param format :: String The strftime-style format string.
+--# @return :: String | Vector[String] The formatted string(s).
 --# @family chrono
 --# @export
 *)
@@ -946,6 +999,9 @@ let within_impl args _env =
 --# Formats Datetime values with a user-supplied format string.
 --#
 --# @name format_datetime
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @param format :: String The strftime-style format string.
+--# @return :: String | Vector[String] The formatted string(s).
 --# @family chrono
 --# @export
 *)
@@ -955,6 +1011,9 @@ let within_impl args _env =
 --# Converts strings, datetimes, and related temporal values to Date values.
 --#
 --# @name as_date
+--# @param x :: Any The value to convert.
+--# @param origin :: String (Optional) Origin date for numeric conversion (default "1970-01-01").
+--# @return :: Date | Vector[Date] The converted date(s).
 --# @family chrono
 --# @export
 *)
@@ -964,6 +1023,10 @@ let within_impl args _env =
 --# Converts strings, dates, and related temporal values to Datetime values.
 --#
 --# @name as_datetime
+--# @param x :: Any The value to convert.
+--# @param origin :: String (Optional) Origin date for numeric conversion (default "1970-01-01").
+--# @param tz :: String (Optional) Timezone label.
+--# @return :: Datetime | Vector[Datetime] The converted datetime(s).
 --# @family chrono
 --# @export
 *)
@@ -973,6 +1036,9 @@ let within_impl args _env =
 --# Rounds Date or Datetime values down to the requested unit boundary.
 --#
 --# @name floor_date
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @param unit :: String The unit boundary ("second", "minute", "hour", "day", "month", "year").
+--# @return :: Date | Datetime | Vector The floored value(s).
 --# @family chrono
 --# @export
 *)
@@ -982,6 +1048,9 @@ let within_impl args _env =
 --# Rounds Date or Datetime values up to the requested unit boundary.
 --#
 --# @name ceiling_date
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @param unit :: String The unit boundary ("second", "minute", "hour", "day", "month", "year").
+--# @return :: Date | Datetime | Vector The ceiled value(s).
 --# @family chrono
 --# @export
 *)
@@ -991,6 +1060,9 @@ let within_impl args _env =
 --# Rounds Date or Datetime values to the nearest requested unit boundary.
 --#
 --# @name round_date
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @param unit :: String The unit boundary ("second", "minute", "hour", "day", "month", "year").
+--# @return :: Date | Datetime | Vector The rounded value(s).
 --# @family chrono
 --# @export
 *)
@@ -1000,6 +1072,9 @@ let within_impl args _env =
 --# Retains the instant in time while changing the displayed timezone label.
 --#
 --# @name with_tz
+--# @param x :: Datetime | Vector The temporal value(s).
+--# @param tz :: String The new timezone label.
+--# @return :: Datetime | Vector[Datetime] The relabeled datetime(s).
 --# @family chrono
 --# @export
 *)
@@ -1009,6 +1084,9 @@ let within_impl args _env =
 --# Reinterprets local clock components under a new timezone label.
 --#
 --# @name force_tz
+--# @param x :: Datetime | Vector The temporal value(s).
+--# @param tz :: String The new timezone label.
+--# @return :: Datetime | Vector[Datetime] The relabeled datetime(s).
 --# @family chrono
 --# @export
 *)
@@ -1018,6 +1096,9 @@ let within_impl args _env =
 --# Builds an interval from two Date or Datetime endpoints.
 --#
 --# @name interval
+--# @param start :: Date | Datetime The start of the interval.
+--# @param end :: Date | Datetime The end of the interval.
+--# @return :: Interval The constructed interval.
 --# @family chrono
 --# @export
 *)
@@ -1027,6 +1108,9 @@ let within_impl args _env =
 --# Returns true when a Date or Datetime value falls inside an interval.
 --#
 --# @name %within%
+--# @param x :: Date | Datetime | Vector The temporal value(s) to check.
+--# @param interval :: Interval The interval to check against.
+--# @return :: Bool | Vector[Bool] True if value is inside the interval.
 --# @family chrono
 --# @export
 *)
@@ -1036,6 +1120,8 @@ let within_impl args _env =
 --# Returns true when the supplied year or date falls in a leap year.
 --#
 --# @name is_leap_year
+--# @param x :: Int | Date | Datetime | Vector The year or temporal value(s).
+--# @return :: Bool | Vector[Bool] True if it is a leap year.
 --# @family chrono
 --# @export
 *)
@@ -1045,6 +1131,9 @@ let within_impl args _env =
 --# Returns the number of days in the month described by a date, datetime, or explicit year/month pair.
 --#
 --# @name days_in_month
+--# @param x :: Date | Datetime | Vector | Int The date or year.
+--# @param month :: Int (Optional) The month (if first arg was year).
+--# @return :: Int | Vector[Int] The number of days.
 --# @family chrono
 --# @export
 *)
@@ -1054,6 +1143,10 @@ let within_impl args _env =
 --# Builds a Date value from named year, month, and day components.
 --#
 --# @name make_date
+--# @param year :: Int = 1970
+--# @param month :: Int = 1
+--# @param day :: Int = 1
+--# @return :: Date The constructed date.
 --# @family chrono
 --# @export
 *)
@@ -1063,6 +1156,14 @@ let within_impl args _env =
 --# Builds a Datetime value from named date, time, and timezone components.
 --#
 --# @name make_datetime
+--# @param year :: Int = 1970
+--# @param month :: Int = 1
+--# @param day :: Int = 1
+--# @param hour :: Int = 0
+--# @param min :: Int = 0
+--# @param sec :: Int = 0
+--# @param tz :: String = "UTC"
+--# @return :: Datetime The constructed datetime.
 --# @family chrono
 --# @export
 *)
@@ -1072,6 +1173,8 @@ let within_impl args _env =
 --# Returns true for Date values and for Datetime values whose hour is earlier than 12.
 --#
 --# @name am
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Bool | Vector[Bool] True if before noon.
 --# @family chrono
 --# @export
 *)
@@ -1081,6 +1184,8 @@ let within_impl args _env =
 --# Returns true for Datetime values whose hour is 12 or later.
 --#
 --# @name pm
+--# @param x :: Date | Datetime | Vector The temporal value(s).
+--# @return :: Bool | Vector[Bool] True if after noon.
 --# @family chrono
 --# @export
 *)

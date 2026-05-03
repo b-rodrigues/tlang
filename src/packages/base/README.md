@@ -17,6 +17,10 @@ Assertions, NA handling, and error utilities.
 | `error_code(err)` | Extract the error code from an error |
 | `error_message(err)` | Extract the message from an error |
 | `error_context(err)` | Extract the context from an error |
+| `serialize(val, path)` | Serialize a value to a `.tobj` file |
+| `deserialize(path)` | Deserialize a value from a `.tobj` file |
+| `t_write_json(val, path)` | Write a value to a JSON file |
+| `t_read_json(path)` | Read a value from a JSON file |
 
 ## Examples
 

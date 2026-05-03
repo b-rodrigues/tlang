@@ -138,11 +138,33 @@ following layout:</p>
 ├── tproject.toml       # Project configuration and dependencies
 ├── flake.nix           # Reproducible environment definition
 ├── README.md           # Project overview
+├── AGENTS.md           # Onboarding guide for AI Agents
+├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
 ├── src/
 │   └── pipeline.t      # Your main analysis script
 ├── data/               # Place your raw data files here
 ├── outputs/            # Output directory for results
 └── tests/              # Unit tests for your analysis</code></pre>
+<h3 id="ai-agent-onboarding">AI Agent Onboarding</h3>
+<p>T is designed to be highly compatible with AI-assisted development.
+When you run <code>t init</code>, the tool will prompt you for an
+<strong>Agent Context Level</strong>:</p>
+<ul>
+<li><strong>small</strong>: Core syntax and top 20 functions.</li>
+<li><strong>medium</strong>: (Default) Exhaustive standard library
+index.</li>
+<li><strong>full</strong>: Full language manual and detailed
+examples.</li>
+<li><strong>huge</strong>: Concatenated documentation of the entire T
+ecosystem.</li>
+</ul>
+<p>This selection generates two files in your project root: 1.
+<strong><code>AGENTS.md</code></strong>: A project-specific guide that
+tells LLMs how to work within your project’s architecture. 2.
+<strong><code>T-LANGUAGE-REFERENCE.md</code></strong>: A technical
+reference file for the AI to read.</p>
+<p>By providing these files, you ensure that any AI agent you use has
+immediate access to the exact technical context it needs.</p>
 <h3 id="creating-a-package">Creating a Package</h3>
 <p>If you want to create a reusable library of T functions, initialize a
 package instead:</p>
@@ -154,6 +176,8 @@ testing:</p>
 ├── DESCRIPTION.toml    # Package metadata (name, version, exports)
 ├── flake.nix           # Reproducible environment definition
 ├── README.md           # Package overview
+├── AGENTS.md           # Onboarding guide for AI Agents
+├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
 ├── src/
 │   └── main.t          # Package source code
 ├── tests/

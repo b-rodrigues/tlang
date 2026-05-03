@@ -22,6 +22,13 @@ Pure numerical primitives.
 | `atan2(y, x)` | Two-argument arctangent |
 | `sinh(x)`, `cosh(x)`, `tanh(x)` | Hyperbolic trig |
 | `asinh(x)`, `acosh(x)`, `atanh(x)` | Inverse hyperbolic trig |
+| `ndarray(data, shape)` | Create an N-dimensional array |
+| `reshape(arr, shape)` | Reshape an NDArray |
+| `matmul(a, b)` | Matrix multiplication |
+| `inv(matrix)` | Matrix inversion |
+| `transpose(matrix)` | Matrix transpose |
+| `diag(x)` | Create or extract diagonal |
+| `iota(n)` | Vector of ones (length n, filled with 1.0) |
 
 ## Examples
 

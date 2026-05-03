@@ -15,7 +15,12 @@ Core utilities: printing, type inspection, data structures.
 | `seq(from, to)` | Generate an integer sequence |
 | `map(list, fn)` | Apply a function to each element |
 | `sum(list)` | Sum numeric elements |
+| `ifelse(cond, t, f)` | Vectorized conditional |
+| `casewhen(...)` | Sequential multi-condition selection |
+| `get(obj, key)` | Unified data retrieval |
+| `run(cmd)` | Execute shell command |
 | `pretty_print(x)` | Pretty-print a value with formatting |
+| `path_join(...)` | Join file paths |
 
 ## Examples
 

@@ -34,8 +34,206 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.51.4] - 2026-04-29</h2>
+<h2 id="unreleased">[Unreleased]</h2>
+<p>The focus of this release was to improve language ergonomics for data
+guardrails and increase test coverage across all packages.</p>
 <p><strong>Status</strong>: Beta</p>
+<h3 id="language-ergonomics">Language Ergonomics</h3>
+<ul>
+<li><strong>Default Value Support in <code>get()</code></strong>:
+Enhanced the <code>get()</code> primitive to support default value
+fallbacks. It now handles:
+<ul>
+<li><code>get(potential_error_or_na, default)</code>: Returns the
+default if the first argument is an error or NA.</li>
+<li><code>get(target, selector, default)</code>: Returns the default if
+the retrieval from the target fails.</li>
+<li>This enables concise and safe data guardrails, such as
+<code>get(s.min_age, 0) &gt;= 0</code>, which gracefully handles missing
+columns or empty summaries.</li>
+</ul></li>
+</ul>
+<h3 id="quality-test-coverage">Quality &amp; Test Coverage</h3>
+<ul>
+<li><strong>Expanded Stats Package Coverage</strong>:
+<ul>
+<li>Enhanced ONNX test coverage by adding a Decision Tree Classifier
+test suite.</li>
+<li>Fixed <code>generate_onnx.py</code> compatibility with scikit-learn
+1.6+ and ensured numeric output parity for classification models.</li>
+<li>Stabilized PMML prediction golden tests by tightening the
+random-forest regression tolerance to <code>1e-2</code> to preserve
+cross-runtime stability without masking meaningful regressions.</li>
+<li>Added comprehensive golden tests for 15+ specialized statistical
+functions, probability distributions, and transformations.</li>
+<li><strong>Specialized Metrics</strong>: Verified <code>cv</code>,
+<code>fivenum</code>, <code>trimmed_mean</code>, <code>mad</code>,
+<code>iqr</code>, <code>range</code>, <code>var</code>, and
+<code>cov</code> against R baselines.</li>
+<li><strong>Advanced Moments</strong>: Added coverage for
+<code>skewness</code> and <code>kurtosis</code> (excess kurtosis) using
+population-moment calculations.</li>
+<li><strong>Probabilistic Distributions</strong>: Added golden tests for
+<code>pnorm</code> (standard normal approximation), <code>pt</code>,
+<code>pf</code>, and <code>pchisq</code> CDFs.</li>
+<li><strong>Statistical Operations</strong>: Verified
+<code>winsorize</code>, <code>huber_loss</code>, <code>normalize</code>,
+and Pearson <code>cor</code> against R reference values.</li>
+<li><strong>Data Transformations</strong>: Added a golden test for
+<code>standardize</code> and <code>scale</code> using
+<code>iris$Sepal.Length</code>.</li>
+<li><strong>Model Accessors</strong>: Added regression tests for
+<code>coef</code>, <code>conf_int</code>, <code>sigma</code>,
+<code>nobs</code>, and <code>df_residual</code> for linear models.</li>
+</ul></li>
+<li><strong>Cross-Platform Stability</strong>:
+<ul>
+<li><strong>Darwin Portability</strong>: Fixed non-portable shell
+behavior and path symlink inconsistencies in
+<code>builder_utils.ml</code> and <code>test_misc_coverage.ml</code>.
+Switched to <code>Unix.realpath</code> for canonical path resolution on
+macOS (handling <code>/var</code> vs <code>/private/var</code>) and
+ensured GNU utilities are explicitly used via Nix environment
+wrappers.</li>
+</ul></li>
+<li><strong>Critical Fixes &amp; Statistics Parity</strong>:
+<ul>
+<li><strong>ONNX Input Alignment</strong>: Synchronized the native ONNX
+evaluator with regenerated model fixtures, updating expected input
+metadata from <code>X</code> to <code>float_input</code> to match
+<code>scikit-learn</code> 1.6+ exports.</li>
+<li><strong>Metadata Parity</strong>: Injected <code>model_type</code>
+and <code>mining_function</code> metadata into <code>lm</code> and
+PMML-loaded model objects. This ensures that <code>fit_stats()</code>
+returns complete, R-compatible diagnostic tables without <code>NA</code>
+placeholders for model categories.</li>
+<li><strong>Enhanced <code>anova</code></strong>: Updated the
+<code>anova</code> builtin to support model labels (e.g.,
+<code>anova(m1 = m1, m2 = m2)</code>). The labels are now preserved in
+the resulting DataFrame, matching R’s behavior in model comparison
+tables.</li>
+<li><strong>Quantile Accuracy</strong>: Fixed a critical bug in the
+C-based quantile implementations (<code>normal_quantile</code>,
+<code>t_quantile</code>) where tail approximations were incorrect,
+leading to broken confidence intervals. Implemented high-precision
+Acklam’s algorithm for normal quantiles and accurate Cornish-Fisher
+expansion for <span class="math inline"><em>t</em></span>
+quantiles.</li>
+<li><strong>Test Runner Stability</strong>: Suppressed noisy
+<code>onnxruntime</code> CPU vendor warnings in the golden test suite
+and standardized the “✓” success indicator across all statistical test
+scripts.</li>
+<li><strong>PMML Prediction Consistency</strong>: Resolved
+floating-point discrepancies in PMML random forest regression
+predictions by implementing standard tolerances in the golden test
+suite, ensuring cross-environment test reliability.</li>
+</ul></li>
+<li><strong>Improved Base Package Coverage</strong>:
+<ul>
+<li>Significantly increased test coverage for <code>base</code> package
+builtins, specifically targeting error handling, NA container logic, and
+serialization.</li>
+<li><strong>NA Mapping</strong>: Verified <code>is_na</code>
+vectorization across Vectors and named Lists.</li>
+<li><strong>Serialization Robustness</strong>: Added comprehensive
+error-path testing for <code>serialize</code>, <code>deserialize</code>,
+<code>t_write_json</code>, and <code>t_read_json</code>, including
+type-mismatch and file-system failure scenarios.</li>
+</ul></li>
+<li><strong>Improved Core Package Coverage</strong>:
+<ul>
+<li>Expanded test coverage for <code>core</code> package builtins,
+including <code>args</code>, <code>help</code>, <code>apropos</code>,
+and <code>write_text</code>.</li>
+<li><strong>Introspection</strong>: Added tests for the
+<code>args()</code> builtin on both builtins and lambdas, ensuring
+correct parameter name and type extraction.</li>
+<li><strong>Core Unit Tests</strong>: Expanded coverage for
+<code>identical</code> (deep equality), <code>sum</code> (edge cases),
+<code>seq</code> (auto-descending ranges), and
+<code>head</code>/<code>tail</code> (slicing boundaries).</li>
+<li><strong>Coverage Boost</strong>: Significantly increased coverage
+for <code>ifelse</code>, <code>casewhen</code>, and
+<code>identical</code> (t_boolean.ml), <code>get</code> with all lens
+types (t_get.ml), and all specialized rendering paths in
+<code>pretty_print.ml</code>.</li>
+<li><strong>Coverage Integration</strong>: Added the new colcraft
+coverage tests to the test runner so these scenarios are exercised in
+regular test execution.</li>
+<li><strong>Colcraft Coverage</strong>: Expanded testing for
+<code>fill</code>, <code>replace_na</code>, <code>complete</code>,
+<code>relocate</code>, <code>count</code>, <code>slice</code>,
+<code>unnest</code>, <code>separate</code>, and <code>uncount</code>.
+Verified <code>downup</code> direction logic and regex error
+handling.</li>
+<li><strong>Pretty Printing</strong>: Verified nested collection and
+visual metadata (Altair) rendering in <code>pretty_print</code>.</li>
+<li><strong>Help System</strong>: Added regression coverage for invalid
+input types and missing-documentation cases in <code>help()</code> and
+<code>apropos()</code>.</li>
+</ul></li>
+<li><strong>Improved Lens Package Coverage</strong>:
+<ul>
+<li>Significantly increased test coverage for the <code>lens</code>
+package, focusing on custom lenses, pipeline orchestration, and
+recursive mapping.</li>
+<li><strong>Custom Lenses</strong>: Added coverage for Dictionary-based
+lenses with user-defined <code>get</code> and <code>set</code>
+functions.</li>
+<li><strong>Pipeline Orchestration</strong>: Verified
+<code>node_meta_lens</code> for <code>serializer</code> and
+<code>deserializer</code> fields, and <code>filter_lens</code> for batch
+updates to pipeline node values.</li>
+<li><strong>Recursive Mapping</strong>: Added tests for
+<code>col_lens</code> and <code>idx_lens</code> across nested Lists of
+Vectors and DataFrames.</li>
+<li><strong>Resilience</strong>: Verified error propagation and
+halt-on-failure behavior in the variadic <code>modify()</code>
+builtin.</li>
+</ul></li>
+<li><strong>Enhanced Arity Error Reporting</strong>:
+<ul>
+<li>Updated the core evaluator to include function names in arity error
+messages for all builtins (e.g.,
+<code>Function</code>length<code>expects...</code>).</li>
+<li>Standardized arity error expectations across the entire test suite
+(1944/1944 tests passing).</li>
+</ul></li>
+</ul>
+<h2 id="section">[0.51.4] - 2026-04-30</h2>
+<p><strong>Status</strong>: Beta</p>
+<h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
+Context Tiering</h3>
+<ul>
+<li><strong>Tiered Language Reference</strong>:
+<ul>
+<li>Introduced a tiered system for language reference files
+(<code>small</code>, <code>medium</code>, <code>full</code>,
+<code>huge</code>).</li>
+<li><strong><code>huge</code> reference generation</strong>: Implemented
+a recursive build process in <code>docs/build.sh</code> that
+concatenates the entire documentation ecosystem into a single,
+comprehensive reference for high-context agents.</li>
+</ul></li>
+<li><strong>Interactive Scaffolding</strong>:
+<ul>
+<li>Updated <code>t init</code> to be fully interactive. The CLI now
+prompts for the <strong>AI Agent Context Level</strong> during project
+or package initialization.</li>
+<li><strong><code>AGENTS.md</code></strong>: Automatically generates
+project-specific onboarding guides for LLMs based on the workspace
+type.</li>
+<li><strong>Automated Deployment</strong>: The chosen reference level is
+deployed as <code>T-LANGUAGE-REFERENCE.md</code> in the project root and
+automatically added to <code>.gitignore</code>.</li>
+</ul></li>
+<li><strong>LLM-First Documentation</strong>:
+<ul>
+<li>Updated the <code>README</code>, <code>Getting Started</code>, and
+<code>LLM Collaboration</code> guides to emphasize T’s unique support
+for agentic development.</li>
+</ul></li>
+</ul>
 <h3 id="language-ergonomics-auto-quoting">Language Ergonomics &amp;
 Auto-Quoting</h3>
 <ul>
