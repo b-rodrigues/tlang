@@ -46,13 +46,13 @@ lm(data: DataFrame, formula: Formula, ...) -> Dict
 
 Dictionary containing:
 - `formula`: The model formula
-- `intercept`: Estimated intercept
-- `slope`: Estimated slope (coefficient)
+- `coefficients`: Dictionary of term estimates
+- `std_errors`: Dictionary of standard errors
 - `r_squared`: R² statistic
-- `residuals`: Vector of residuals
-- `n`: Number of observations
-- `response`: Name of response variable
-- `predictor`: Name of predictor variable
+- `adj_r_squared`: Adjusted R² statistic
+- `sigma`: Residual standard error
+- `nobs`: Number of observations
+- `_tidy_df`: Tidy DataFrame of results
 
 ### Examples
 

@@ -62,9 +62,7 @@ model = read_node("model_node")
 $T$ adopts the `broom` philosophy: model outputs should be DataFrames or Tidy Dictionaries.
 
 ### `summary(model)`
-Returns a tidy representation of coefficients. 
-* For native `lm`, it returns a DataFrame. 
-* For some imported models, it returns a Dict where the tidy DataFrame is in `_tidy_df`.
+Returns a tidy representation of coefficients. It returns a `Dict` where the tidy `DataFrame` is in `_tidy_df`.
 
 ```t
 s = summary(model)

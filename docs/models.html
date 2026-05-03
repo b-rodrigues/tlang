@@ -109,9 +109,9 @@ high-performance pipelines.</p>
 <code>broom</code> philosophy: model outputs should be DataFrames or
 Tidy Dictionaries.</p>
 <h3 id="summarymodel"><code>summary(model)</code></h3>
-<p>Returns a tidy representation of coefficients. * For native
-<code>lm</code>, it returns a DataFrame. * For some imported models, it
-returns a Dict where the tidy DataFrame is in <code>_tidy_df</code>.</p>
+<p>Returns a tidy representation of coefficients. It returns a
+<code>Dict</code> where the tidy <code>DataFrame</code> is in
+<code>_tidy_df</code>.</p>
 <pre class="t"><code>s = summary(model)
 s._tidy_df
 -- # A DataFrame: 3 × 5

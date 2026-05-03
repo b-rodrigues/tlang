@@ -66,11 +66,12 @@ Regression</h2>
 </ul>
 <h3 id="returns">Returns</h3>
 <p>Dictionary containing: - <code>formula</code>: The model formula -
-<code>intercept</code>: Estimated intercept - <code>slope</code>:
-Estimated slope (coefficient) - <code>r_squared</code>: R² statistic -
-<code>residuals</code>: Vector of residuals - <code>n</code>: Number of
-observations - <code>response</code>: Name of response variable -
-<code>predictor</code>: Name of predictor variable</p>
+<code>coefficients</code>: Dictionary of term estimates -
+<code>std_errors</code>: Dictionary of standard errors -
+<code>r_squared</code>: R² statistic - <code>adj_r_squared</code>:
+Adjusted R² statistic - <code>sigma</code>: Residual standard error -
+<code>nobs</code>: Number of observations - <code>_tidy_df</code>: Tidy
+DataFrame of results</p>
 <h3 id="examples-1">Examples</h3>
 <pre class="t"><code>data = read_csv(&quot;mtcars.csv&quot;)
 model = lm(data = data, formula = mpg ~ hp)
