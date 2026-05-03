@@ -12,12 +12,15 @@ open Ast
 --# 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based).
 --# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result.
 --# 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data.
---# 5. **Cross-Node Access (Sandbox)**: `get(node_lens("name"))` retrieves a sibling node's artifact from the sandbox environment.
+--# 5. **Default Value (Fallback)**: `get(value, default)` returns the value if it's not an error/NA, otherwise returns the default.
+--# 6. **Safe Retrieval**: `get(target, selector, default)` performs the retrieval and returns the default if the result is an error/NA.
+--# 7. **Cross-Node Access (Sandbox)**: `get(node_lens("name"))` retrieves a sibling node's artifact.
 --#
 --# @name get
---# @param target :: Any The environment name (String/Symbol), Collection, Pipeline, Data, or NodeLens.
---# @param selector :: Any (Optional) The index (Int), Node name (String/Symbol), or Lens.
---# @return :: Any The retrieved value or focused data subset.
+--# @param target :: Any The environment name, Collection, Pipeline, Data, or Value to check.
+--# @param selector :: Any (Optional) The index, Node name, Lens, or Default value.
+--# @param default :: Any (Optional) The default value if the retrieval fails.
+--# @return :: Any The retrieved value or the default fallback.
 --# @example
 --#   salary = 50000
 --#   get("salary")                -- 50000 (Lookup)
@@ -25,8 +28,16 @@ open Ast
 --#   lst = [10, 20, 30]
 --#   get(lst, 1)                  -- 20 (Indexing)
 --#
+--#   -- Safe indexing with default:
+--#   get(lst, 5, 0)               -- 0 (Index out of bounds fallback)
+--#
+--#   -- Guardrail pattern:
+--#   s = [min_age: NA]
+--#   get(s.min_age, 0) >= 0       -- true (NA falls back to 0)
+--#
 --#   p = pipeline { a = 1 }
 --#   get(p, "a")                  -- 1 (Pipeline Access)
+--#   get(p, "missing", "N/A")     -- "N/A" (Safe Pipeline Access)
 --#
 --#   l = col_lens("mpg")
 --#   get(mtcars, l)               -- Vector of 'mpg' column (Lens)
@@ -237,14 +248,39 @@ let register ~eval_call env =
           if i < 0 || i >= len then Error.index_error i len
           else VFloat arr.data.(i)
 
+      (* Fallback with Default (2 args: NA/Error, Default) *)
+      | [VNA _; default] | [VError _; default] ->
+          default
+
       (* Fallback: legacy VDict lens support? *)
       | [data; VDict items] ->
           (match List.assoc_opt "get" items with
            | Some get_fn -> eval_call env get_fn [(None, mk_expr (Value data))]
            | None -> Error.type_error "Function `get`: Data and Dict provided, but Dict is not a valid lens.")
 
+      (* 3-argument case: get(target, selector, default) *)
+      | [target; selector; default] ->
+          let res = 
+            match [target; selector] with
+            | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
+                (match List.assoc_opt node_name p.p_nodes with Some v -> v | None -> (VNA NAGeneric))
+            | [data; VLens l] -> apply_lens l data (ref env)
+            | [VList items; VInt i] ->
+                let len = List.length items in
+                if i < 0 || i >= len then (VNA NAGeneric)
+                else let (_, v) = List.nth items i in v
+            | [VVector arr; VInt i] ->
+                let len = Array.length arr in
+                if i < 0 || i >= len then (VNA NAGeneric)
+                else arr.(i)
+            | _ -> (VNA NAGeneric)
+          in
+          (match res with
+           | VNA _ | VError _ -> default
+           | _ -> res)
+
        | [v] -> Error.type_error (Printf.sprintf "Function `get` (1 arg) expects a String or Symbol, got %s." (Utils.type_name v))
-       | [_ ; other] -> Error.type_error (Printf.sprintf "Function `get` (2 args) expects (Pipeline, String), (Collection, Int), or (Data, Lens). Got %s as second argument." (Utils.type_name other))
+       | [_ ; _] -> Error.type_error "Function `get` (2 args) expects (Pipeline, String), (Collection, Int), (Data, Lens), or (NA/Error, Default)."
        | _ -> Error.arity_error_named "get" 1 (List.length args)
      ))
      env
