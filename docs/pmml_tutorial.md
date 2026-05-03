@@ -11,7 +11,7 @@ It is useful when you want to:
 - score it natively with `predict(data, model)`
 
 This tutorial focuses on the workflows that T supports today, including the initial
-T-native `t_write_pmml()` pass-through path for PMML artifacts that were already loaded
+T-native `write_pmml()` pass-through path for PMML artifacts that were already loaded
 from disk or a pipeline node.
 
 ---
@@ -43,7 +43,7 @@ or consumed.
 | R writes PMML | `r2pmml`, `XML`, `jsonlite`, `jre` |
 | Python writes PMML | `sklearn2pmml` or `jpmml-statsmodels`, plus `jre` |
 | Python reads PMML | JPMML evaluator via wrapper |
-| T reads and scores PMML | built-in `t_read_pmml()` + native evaluator |
+| T reads and scores PMML | built-in `read_pmml()` + native evaluator |
 
 When PMML is used inside pipelines, these dependencies should be declared explicitly in
 your project configuration so T can build the correct runtime environment.
@@ -103,7 +103,7 @@ For PMML-imported tree models, random forests, and supported boosted ensembles, 
 already a strong workflow:
 
 ```t
-forest = t_read_pmml("tests/golden/data/iris_random_forest.pmml")
+forest = read_pmml("tests/golden/data/iris_random_forest.pmml")
 iris = read_csv("tests/golden/data/iris.csv")
 predict(iris, forest)
 ```
@@ -185,7 +185,7 @@ rather than silently switching to a different interchange story.
 You can also bypass pipelines and load an existing PMML file manually:
 
 ```t
-model = t_read_pmml("model.pmml")
+model = read_pmml("model.pmml")
 summary(model)
 ```
 
@@ -197,21 +197,21 @@ This is useful when:
 
 ---
 
-## 8. Writing PMML from T with `t_write_pmml()`
+## 8. Writing PMML from T with `write_pmml()`
 
-T now provides an initial native `t_write_pmml()` path, but it is intentionally narrow.
+T now provides an initial native `write_pmml()` path, but it is intentionally narrow.
 
-Today, `t_write_pmml()` supports **pass-through copying** of PMML artifacts that were
+Today, `write_pmml()` supports **pass-through copying** of PMML artifacts that were
 already loaded into T from:
 
-- `t_read_pmml("path.pmml")`
+- `read_pmml("path.pmml")`
 - `read_node("node_name")` for PMML pipeline outputs
 
 Example:
 
 ```t
-model = t_read_pmml("model.pmml")
-t_write_pmml(model, "model-copy.pmml")
+model = read_pmml("model.pmml")
+write_pmml(model, "model-copy.pmml")
 ```
 
 This is useful when you want to:
@@ -222,8 +222,8 @@ This is useful when you want to:
 
 ### Current Limitation
 
-`t_write_pmml()` does **not** yet export arbitrary native T model objects to fresh PMML
-XML. If you construct or fit a model natively in T and then call `t_write_pmml()`, T
+`write_pmml()` does **not** yet export arbitrary native T model objects to fresh PMML
+XML. If you construct or fit a model natively in T and then call `write_pmml()`, T
 should fail explicitly unless the value still carries an original PMML source artifact.
 
 That is deliberate: T currently exposes a safe pass-through path, not a pretend PMML
@@ -238,13 +238,13 @@ For now, the safest PMML workflow is:
 1. train in R or Python
 2. export with `^pmml`
 3. read and score in T
-4. use `t_write_pmml()` only to preserve or copy existing PMML artifacts
+4. use `write_pmml()` only to preserve or copy existing PMML artifacts
 
 In other words:
 
 - use foreign runtimes as the **PMML producers**
 - use T as the **PMML consumer and scorer**
-- use `t_write_pmml()` as an **artifact-preservation tool**, not as a general exporter
+- use `write_pmml()` as an **artifact-preservation tool**, not as a general exporter
 
 ---
 
@@ -259,10 +259,10 @@ packages in project configuration. PMML support is not implicit magic.
 
 Check that `jpmml-evaluator` is available in `[additional-tools]` and that `pyarrow` is available in `[py-dependencies]`. Also ensure the JVM-backed PMML toolchain is correctly provisioned.
 
-### `t_write_pmml()` rejects a model
+### `write_pmml()` rejects a model
 
 That usually means the value does not carry a source PMML artifact path. Reload it with
-`t_read_pmml()` or obtain it from `read_node()` before calling `t_write_pmml()`.
+`read_pmml()` or obtain it from `read_node()` before calling `write_pmml()`.
 
 ### Predictions differ from the source runtime
 

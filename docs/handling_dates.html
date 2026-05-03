@@ -101,7 +101,7 @@ altering the underlying time.</li>
 to clarify or correct a timezone label.</li>
 </ul>
 <h2 id="example-workflow">Example Workflow</h2>
-<pre class="t"><code>df = read_csv(&quot;sales.t&quot;) |&gt;
+<pre class="t"><code>df = read_csv(&quot;sales.csv&quot;) |&gt;
   mutate(
     date = ymd($order_date),
     month = month($date, label = true),

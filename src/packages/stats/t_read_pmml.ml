@@ -88,5 +88,7 @@ let t_write_pmml_builtin =
 let register env =
   Serialization_registry.update_native "pmml" ~writer:t_write_pmml_builtin ~reader:t_read_pmml_builtin ();
   let env = Env.add "t_read_pmml" t_read_pmml_builtin env in
+  let env = Env.add "read_pmml" t_read_pmml_builtin env in
   let env = Env.add "t_write_pmml" t_write_pmml_builtin env in
+  let env = Env.add "write_pmml" t_write_pmml_builtin env in
   env

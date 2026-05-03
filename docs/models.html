@@ -196,13 +196,13 @@ class="math inline"><em>T</em></span> can now evaluate PMML-imported
 <strong>Decision Trees</strong>, <strong>Random Forests</strong>, and
 <strong>XGBoost (GBTree)</strong> models natively (no external runtime).
 This includes PMML exports from <strong>scikit-learn</strong> via
-<code>sklearn2pmml</code>. Use <code>t_read_pmml()</code> to load the
+<code>sklearn2pmml</code>. Use <code>read_pmml()</code> to load the
 model and <code>predict(df, model)</code> to score new data.</p>
 </blockquote>
 <blockquote>
 <p><strong>ONNX Native Inference</strong>: <span
 class="math inline"><em>T</em></span> can run ONNX models natively
-through ONNX Runtime using <code>t_read_onnx()</code> plus
+through ONNX Runtime using <code>read_onnx()</code> plus
 <code>predict(df, model)</code>. The current implementation supports
 single-input/single-output models and expects the selected numeric
 feature columns to match the model input width.</p>
@@ -225,7 +225,7 @@ want broad ML model coverage or faster native inference through ONNX
 Runtime. It allows: 1. <strong>Python ML Export</strong>:
 <code>scikit-learn</code> models via <code>skl2onnx</code>. 2.
 <strong>Native T Loading</strong>: Reading models with
-<code>t_read_onnx(path)</code> and scoring them with
+<code>read_onnx(path)</code> and scoring them with
 <code>predict(data, model)</code>. 3. <strong>R/Python Runtime
 Loading</strong>: Reading models via the <code>onnx</code> R package or
 Python <code>onnxruntime</code>. 4. <strong>Broader Coverage</strong>:

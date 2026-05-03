@@ -7398,10 +7398,9 @@ cor(df.x, df.y, na_rm = true)        -- correlation with pairwise deletion
 
 ```t
 model = lm(data = df, formula = salary ~ age)
-model.slope       -- coefficient
-model.intercept   -- intercept
-model.r_squared   -- R² goodness of fit
-model.n           -- number of observations
+model.coefficients.age    -- coefficient for age
+model.r_squared           -- R² goodness of fit
+model.nobs                -- number of observations
 ```
 
 ---
@@ -8728,7 +8727,7 @@ mean([1, NA, 3])
 -- Error(NAError: NA value encountered. Use na_rm = true to skip NA values)
 
 1 + NA
--- Error(TypeError: Operation on NA value)
+-- Error(NAPredicateError: Operation on NA: NA values do not propagate implicitly. Handle missingness explicitly.)
 ```
 
 ### 7. Assertion Errors
@@ -9177,10 +9176,9 @@ mean([1, 2, NA, 4], na_rm = true)  -- 2.33...
 -- Error(TypeError: Cannot add String and Int)
 ```
 
-**Solution**: Use separate print statements (alpha does not have string conversion yet)
+**Solution**: Use separate print statements or `str_string()` for manual conversion.
 
 ```t
--- Workaround for output:
 print("Age: ")
 print(25)
 
@@ -10586,13 +10584,13 @@ lm(data: DataFrame, formula: Formula, ...) -> Dict
 
 Dictionary containing:
 - `formula`: The model formula
-- `intercept`: Estimated intercept
-- `slope`: Estimated slope (coefficient)
+- `coefficients`: Dictionary of term estimates
+- `std_errors`: Dictionary of standard errors
 - `r_squared`: R² statistic
-- `residuals`: Vector of residuals
-- `n`: Number of observations
-- `response`: Name of response variable
-- `predictor`: Name of predictor variable
+- `adj_r_squared`: Adjusted R² statistic
+- `sigma`: Residual standard error
+- `nobs`: Number of observations
+- `_tidy_df`: Tidy DataFrame of results
 
 ### Examples
 
@@ -10719,7 +10717,7 @@ Timezones in T are currently handled as labels.
 ## Example Workflow
 
 ```t
-df = read_csv("sales.t") |>
+df = read_csv("sales.csv") |>
   mutate(
     date = ymd($order_date),
     month = month($date, label = true),
@@ -12216,9 +12214,7 @@ model = read_node("model_node")
 $T$ adopts the `broom` philosophy: model outputs should be DataFrames or Tidy Dictionaries.
 
 ### `summary(model)`
-Returns a tidy representation of coefficients. 
-* For native `lm`, it returns a DataFrame. 
-* For some imported models, it returns a Dict where the tidy DataFrame is in `_tidy_df`.
+Returns a tidy representation of coefficients. It returns a `Dict` where the tidy `DataFrame` is in `_tidy_df`.
 
 ```t
 s = summary(model)
@@ -12324,9 +12320,9 @@ preds = predict(new_data, model)
 
 $T$ supports various link functions for GLMs (imported via PMML), including **Logit**, **Probit**, **Log**, **Inverse**, and **Cloglog**.
 
-> **PMML Trees & Boosting**: $T$ can now evaluate PMML-imported **Decision Trees**, **Random Forests**, and **XGBoost (GBTree)** models natively (no external runtime). This includes PMML exports from **scikit-learn** via `sklearn2pmml`. Use `t_read_pmml()` to load the model and `predict(df, model)` to score new data.
+> **PMML Trees & Boosting**: $T$ can now evaluate PMML-imported **Decision Trees**, **Random Forests**, and **XGBoost (GBTree)** models natively (no external runtime). This includes PMML exports from **scikit-learn** via `sklearn2pmml`. Use `read_pmml()` to load the model and `predict(df, model)` to score new data.
 
-> **ONNX Native Inference**: $T$ can run ONNX models natively through ONNX Runtime using `t_read_onnx()` plus `predict(df, model)`. The current implementation supports single-input/single-output models and expects the selected numeric feature columns to match the model input width.
+> **ONNX Native Inference**: $T$ can run ONNX models natively through ONNX Runtime using `read_onnx()` plus `predict(df, model)`. The current implementation supports single-input/single-output models and expects the selected numeric feature columns to match the model input width.
 
 ---
 
@@ -12341,7 +12337,7 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 ### Why ONNX?
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
-2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
+2. **Native T Loading**: Reading models with `read_onnx(path)` and scoring them with `predict(data, model)`.
 3. **R/Python Runtime Loading**: Reading models via the `onnx` R package or Python `onnxruntime`.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
@@ -14854,7 +14850,7 @@ It is useful when you want to:
 - score it natively with `predict(data, model)`
 
 This tutorial focuses on the workflows that T supports today, including the initial
-T-native `t_write_pmml()` pass-through path for PMML artifacts that were already loaded
+T-native `write_pmml()` pass-through path for PMML artifacts that were already loaded
 from disk or a pipeline node.
 
 ---
@@ -14886,7 +14882,7 @@ or consumed.
 | R writes PMML | `r2pmml`, `XML`, `jsonlite`, `jre` |
 | Python writes PMML | `sklearn2pmml` or `jpmml-statsmodels`, plus `jre` |
 | Python reads PMML | JPMML evaluator via wrapper |
-| T reads and scores PMML | built-in `t_read_pmml()` + native evaluator |
+| T reads and scores PMML | built-in `read_pmml()` + native evaluator |
 
 When PMML is used inside pipelines, these dependencies should be declared explicitly in
 your project configuration so T can build the correct runtime environment.
@@ -14946,7 +14942,7 @@ For PMML-imported tree models, random forests, and supported boosted ensembles, 
 already a strong workflow:
 
 ```t
-forest = t_read_pmml("tests/golden/data/iris_random_forest.pmml")
+forest = read_pmml("tests/golden/data/iris_random_forest.pmml")
 iris = read_csv("tests/golden/data/iris.csv")
 predict(iris, forest)
 ```
@@ -15028,7 +15024,7 @@ rather than silently switching to a different interchange story.
 You can also bypass pipelines and load an existing PMML file manually:
 
 ```t
-model = t_read_pmml("model.pmml")
+model = read_pmml("model.pmml")
 summary(model)
 ```
 
@@ -15040,21 +15036,21 @@ This is useful when:
 
 ---
 
-## 8. Writing PMML from T with `t_write_pmml()`
+## 8. Writing PMML from T with `write_pmml()`
 
-T now provides an initial native `t_write_pmml()` path, but it is intentionally narrow.
+T now provides an initial native `write_pmml()` path, but it is intentionally narrow.
 
-Today, `t_write_pmml()` supports **pass-through copying** of PMML artifacts that were
+Today, `write_pmml()` supports **pass-through copying** of PMML artifacts that were
 already loaded into T from:
 
-- `t_read_pmml("path.pmml")`
+- `read_pmml("path.pmml")`
 - `read_node("node_name")` for PMML pipeline outputs
 
 Example:
 
 ```t
-model = t_read_pmml("model.pmml")
-t_write_pmml(model, "model-copy.pmml")
+model = read_pmml("model.pmml")
+write_pmml(model, "model-copy.pmml")
 ```
 
 This is useful when you want to:
@@ -15065,8 +15061,8 @@ This is useful when you want to:
 
 ### Current Limitation
 
-`t_write_pmml()` does **not** yet export arbitrary native T model objects to fresh PMML
-XML. If you construct or fit a model natively in T and then call `t_write_pmml()`, T
+`write_pmml()` does **not** yet export arbitrary native T model objects to fresh PMML
+XML. If you construct or fit a model natively in T and then call `write_pmml()`, T
 should fail explicitly unless the value still carries an original PMML source artifact.
 
 That is deliberate: T currently exposes a safe pass-through path, not a pretend PMML
@@ -15081,13 +15077,13 @@ For now, the safest PMML workflow is:
 1. train in R or Python
 2. export with `^pmml`
 3. read and score in T
-4. use `t_write_pmml()` only to preserve or copy existing PMML artifacts
+4. use `write_pmml()` only to preserve or copy existing PMML artifacts
 
 In other words:
 
 - use foreign runtimes as the **PMML producers**
 - use T as the **PMML consumer and scorer**
-- use `t_write_pmml()` as an **artifact-preservation tool**, not as a general exporter
+- use `write_pmml()` as an **artifact-preservation tool**, not as a general exporter
 
 ---
 
@@ -15102,10 +15098,10 @@ packages in project configuration. PMML support is not implicit magic.
 
 Check that `jpmml-evaluator` is available in `[additional-tools]` and that `pyarrow` is available in `[py-dependencies]`. Also ensure the JVM-backed PMML toolchain is correctly provisioned.
 
-### `t_write_pmml()` rejects a model
+### `write_pmml()` rejects a model
 
 That usually means the value does not carry a source PMML artifact path. Reload it with
-`t_read_pmml()` or obtain it from `read_node()` before calling `t_write_pmml()`.
+`read_pmml()` or obtain it from `read_node()` before calling `write_pmml()`.
 
 ### Predictions differ from the source runtime
 
@@ -15239,7 +15235,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.51.1 and nixpkgs date 2026-03-21 (today's UTC date)...
+Upgrading project to T 0.51.4 and nixpkgs date 2026-03-21 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
